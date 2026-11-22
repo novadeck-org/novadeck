@@ -1788,43 +1788,74 @@ only gates them (`backend/runner/src/shipping/`).
   `"permission": "allow"`, an agent's own permission and a rule of theirs change nothing: the gate
   doesn't read opencode's merged configuration, and a command no permit covers is refused in every
   setup but one. Everything else gets no opinion.
-  - **A permitted command's own confirmation, answered for the call the hook vetted.** The hook,
-    silent because a permit covers the command, notes for 30 s the call's session, its id and the raw
-    command. Where opencode's own setup asks about it (`"bash": "ask"` in the person's config),
-    `permission.asked` carries the same call id (`tool.callID`) and the raw command (`metadata.command`),
-    and the plugin reports it as a `PermissionRequest` ask. The runner answers `{"reply":"once"}` only
-    if that request is the noted call's (same session, same call id, a `bash` permission, the command
-    equal exactly to the noted one) and a permit still covers it; the plugin then replies `once`
+  - **A permitted command spends its permit in the hook.** opencode's built-in default for a shell
+    command is `"*": "allow"` (agent/agent.ts, 1.19.6), so with no `"bash": "ask"` of the person's
+    no dialog ever follows the hook, and a permit that waited for one would never be used up (a
+    force push's single-use permit would cover every later force push for ten minutes, and `gh pr
+    edit --base` would never void its PR's merge permits). So the hook itself answers as Claude
+    Code's allow does: it takes the single-use permits before the answer is printed (a second call
+    reading the same permit is refused with "the permit was just used or ended"), answers silence
+    under a lease, and what the command uses up and voids happens on the relay's acknowledgement
+    that it printed. With no acknowledgement by the hook's deadline the permits go back, as for
+    Claude Code and Codex; a lost acknowledgement past that is the same class they have (one
+    permit may then cover a second run), and the relay's own refusal where the runner gives no
+    answer (below) is what keeps an unanswered command from running at all.
+  - **A permitted command's own confirmation, answered for the call the hook vetted.** The hook
+    notes for 30 s the call's session, its id and the raw command. Where opencode's setup asks
+    about it (`"bash": "ask"` in the person's config), `permission.asked` carries the same call id
+    (`tool.callID`) and the raw command (`metadata.command`), and the plugin reports it as a
+    `PermissionRequest` ask. The runner answers `{"reply":"once"}` only if that request is the
+    noted call's (same session, same call id, a `bash` permission, the command equal exactly to the
+    noted one) and the hook's spending still stands (acknowledged, or still waited for; not given
+    back); it takes no permit of its own and answers nothing else. The plugin then replies `once`
     through opencode's API (`client.postSessionIdPermissionsPermissionId`, probed: `data: true`, the
     command ran), never `always`, which would approve its patterns for the session. This is not a
     reading of the screen, so a command of any length is answered the same, and the guarantees are by
     id rather than by comparing text: one request per call (the note is spent by its first request,
     answered or not), another session's or call's request never matches, another permission of the
-    same call (`external_directory`) is the person's. The permit is taken before the answer is
-    printed (a single-use one is gone for any other call at once) and given back only if the hook never
-    printed it in time (no acknowledgement, a timer), never a standing permit nor one a revoke ended;
-    what the command voids ends once the hook acknowledged. If the reply then fails, the plugin reports
-    the dialog once more, which nothing answers, so the person sees and answers it as ever. Each
-    answer is logged (`shipping.confirmation`). Where opencode asks nothing (its default for `bash`,
-    or a person's `allow`), no request comes and the command runs.
+    same call (`external_directory`) is the person's. Each answer is logged (`shipping.confirmation`,
+    and `shipping.spent` for the hook's own spending).
+  - **A dialog nothing answered shows its card.** The runner skips the card of a report it
+    answered, so the plugin reports a `bash` permission once more whenever its reply didn't happen
+    (the answer came after the relay's deadline, was empty, or the reply failed): the note is
+    spent by then, nothing answers the second time and the card and the bell show. It tracks
+    `permission.replied` by request id and never reports one again that was answered meanwhile
+    (by the person in the interface, within the round trip): that would be a card for a dialog that
+    is gone.
   - **Modes.** The gate is silent only for an explicit bypass: a launch with `--auto`, `--yolo` or
     `--dangerously-skip-permissions` (one flag, which makes its interface answer every permission;
-    read from the process's own arguments, as yargs reads a boolean: `--auto=false`, `--no-auto` and
-    words after `--` don't count). A mode toggled at runtime in the interface can't be seen, so a
-    launch without the flag stays gated. Where the process's arguments can't be read the gate stays on.
+    read from the process's own arguments, as yargs reads a boolean: bare, or `=true`, or a following
+    `true`. `--auto=false`, `--auto=1`, `--auto=` and `--auto=TRUE` are off in yargs-parser 22, so
+    off here, as are `--no-auto` and words after `--`). A mode toggled at runtime in the interface
+    (its command palette's "Enable/Disable auto-approve permissions") can't be seen: turning it on
+    leaves the gate on, which is safe, but a launch with `--auto` that is then turned off in the
+    interface leaves the gate silent for the whole process, the fail-open direction (Claude's mode,
+    by contrast, is read live). Where the process's arguments can't be read the gate stays on.
   - **No rule of Novadeck's.** Unlike Antigravity there is nothing to pass per launch: the answer
     to a dialog is by id, so a permitted PR with a long `--body` needs no rule, and none is
-    written (a rule would run, unasked, anything the hook said nothing of). Where the runner gives
-    no answer, the relay (`relay.json`'s `"gate": true`) refuses the same two shapes
-    (`gh pr create`, `gh pr merge`, read coarsely per segment, a cut or unreadable payload counted)
-    by printing the deny, for the person who allowed everything in their own configuration; the
-    runner does the same when its read failed or was late. The relay's cases for opencode's payload
-    (`tool_name` `bash`, `tool_input.command`) are the same `rule-cases.json`. Any other command is
-    left to opencode's own answer.
-  - Covered wherever its plugin loads (`Shipping.covers`, including Windows: the plugin's hook runs
-    through `cmd /d`, which skips an AutoRun). Where the person set `OPENCODE_PURE`, or both
-    `OPENCODE_CONFIG_CONTENT` and `OPENCODE_CONFIG`, no plugin loads and nothing is gated
-    (`hooksTrusted` says so).
+    written (a rule would run, unasked, anything the hook said nothing of).
+  - **Where the runner gives no answer, what looks like shipping is refused.** With no dialog to
+    fall back on (the default above), a hook that said nothing lets the command run. So where the
+    runner failed or was late, and in the relay (`relay.json`'s `"gate": true`, or unreadable)
+    where the runner gave none (down, no connection, a payload too big or cut), a `bash` command
+    with a segment that looks like git or gh shipping is refused by printing the deny, which the
+    plugin throws, with "the runner didn't answer, run it again". The match is coarse and per
+    segment (`shipsCoarsely`, `command_looks_shipping`): a `git` or `gh` word, then in the same
+    segment one of the verbs the reader reads (push, merge, rebase, pull, fetch, cherry-pick,
+    reset, checkout, switch, branch, update-ref, `pr`, `api`, `release`, `workflow`), so it
+    refuses more than the reader reads as shipping (`git branch`, `echo git push`), never less. A
+    false refusal here is safe. The two lists are pinned equal by the shared
+    `backend/relay/src/rule-cases.json` (its `coarse` field; `ships` stays the shim's two shapes
+    for Antigravity). Every other command is left to opencode as it was. Only a `bash` call waits
+    the relay's 4 s limit for the runner; every other tool's PreToolUse keeps the short 2 s.
+    The plugin reads the hook's answer from the last JSON line it printed, so output a shell
+    printed before it (an AutoRun on Windows) can't hide a deny.
+  - Covered where the gate is on (`Shipping.covers` doesn't look at whether the plugin loads, so
+    the approval text reaches an opencode terminal either way). The plugin's hook runs through
+    `cmd /d` on Windows, which skips an AutoRun. Where the person set `OPENCODE_PURE`, or both
+    `OPENCODE_CONFIG_CONTENT` and `OPENCODE_CONFIG`, or runs a version outside the plugin's range,
+    no plugin loads and nothing is gated (`hooksTrusted` says so): there is no Novadeck MCP
+    there either, so no `request_permit` exists and no notice can promise a permit.
 - **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
   plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
   `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept

@@ -719,13 +719,30 @@ describe("opencode's hook with the shipping gate on", () => {
     ])
   })
 
-  it("refuses the two shapes where the runner gave no answer, and nothing else", async ({
+  it("acknowledges the lease of a permitted command's silent answer once the relay printed it", async ({
     fixture,
   }) => {
-    // Unheard: the runner failed, or was too slow.
-    for (const command of ["gh pr create --title t", "cd /w && gh pr merge 5 --squash"])
+    // The permit is spent on this acknowledgement (opencode's default asks nothing).
+    fixture.answer.current = { leaseId: "lease-1", stdout: "" }
+    await expect(ran(fixture, "git push -f origin main")).resolves.toBe("")
+    expect(fixture.acks.map((ack) => ack.leaseId)).toEqual(["lease-1"])
+  })
+
+  it("refuses what looks like shipping where the runner gave no answer, and nothing else", async ({
+    fixture,
+  }) => {
+    // Unheard: the runner failed, or was too slow. opencode's default runs a command its hook
+    // says nothing of, so every shipping shape is refused, not only the shim's two.
+    for (const command of [
+      "gh pr create --title t",
+      "cd /w && gh pr merge 5 --squash",
+      "git push origin main",
+      "git push -f origin main",
+      "gh pr edit 5 --base release",
+      "gh release create v1",
+    ])
       // eslint-disable-next-line no-await-in-loop -- One hook after another.
-      expect(refusal(await ran(fixture, command))).toMatchObject({ decision: "deny" })
+      expect(refusal(await ran(fixture, command)), command).toMatchObject({ decision: "deny" })
     await expect(ran(fixture, "git status")).resolves.toBe("{}\n")
     // No runner at all, and a payload too big to send, say nothing of a shape either.
     const gone = { NOVADECK_REPORT: join(tmpdir(), "novadeck-missing.sock") }

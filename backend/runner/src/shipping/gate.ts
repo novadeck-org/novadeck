@@ -27,6 +27,12 @@ export type Decision = {
    * confirmation follows, which the runner answers for this very call (`Shipping`).
    */
   readonly permitted?: true
+  /**
+   * opencode's permitted command, as the reading that allowed it holds it: opencode's default
+   * asks nothing, so its hook has to spend the permits itself (`Shipping.spend`), not wait for a
+   * dialog that may never come.
+   */
+  readonly covered?: Covered
 }
 
 /** The harnesses the gate answers for. */
@@ -166,10 +172,43 @@ export type Covered = {
    * Takes the single-use permits now, before the command is let run, so no other answer can
    * use them too; `restore` gives them back where it wasn't (never a standing permit, nor one a
    * revoke ended meanwhile), and `voided` ends the merge permits the command voids, once it was.
+   * False, with nothing taken, where a permit no longer covers it (another call took a
+   * single-use one, or a revoke or a close ended it since it was read).
    */
-  readonly take: () => void
+  readonly take: () => boolean
   readonly restore: () => void
   readonly voided: () => void
+}
+
+/** What a reading's permits give: see `Covered`. */
+const coveredOf = (
+  held: Permits,
+  terminalId: string,
+  actions: readonly Action[],
+  permits: readonly Permit[],
+): Covered => {
+  let restores: (() => void)[] = []
+  const voided = () => {
+    for (const action of actions) for (const key of action.voids ?? []) held.revoke(key)
+  }
+  return {
+    permits,
+    actions,
+    used: () => {
+      for (const permit of permits) held.used(permit)
+      voided()
+    },
+    take: () => {
+      // Every permit must still be the live one, checked before any is taken, in one tick.
+      if (permits.some((permit) => held.covering(terminalId, permit.key) !== permit)) return false
+      restores = permits.flatMap((permit) => held.take(permit) ?? [])
+      return true
+    },
+    restore: () => {
+      for (const restore of restores) restore()
+    },
+    voided,
+  }
 }
 
 export class Gate {
@@ -223,7 +262,15 @@ export class Gate {
     if (missing.length > 0) return refuse(declare(missing))
     // Antigravity's hook has no allow: it stays silent, its own confirmation shows, and the
     // runner answers that one (`Shipping.autoAnswer`) only for this very command.
-    if (input.agent === "agy" || input.agent === "opencode") return { stdout: "", permitted: true }
+    if (input.agent === "agy") return { stdout: "", permitted: true }
+    if (input.agent === "opencode")
+      return {
+        stdout: "",
+        permitted: true,
+        ...(reading.actions.length > 0 && {
+          covered: coveredOf(this.deps.permits, input.terminalId, reading.actions, permits),
+        }),
+      }
     return this.allowed(input, permits, reading.actions, turn)
   }
 
@@ -242,26 +289,7 @@ export class Gate {
       if (!permit) return undefined
       permits.push(permit)
     }
-    let restores: (() => void)[] = []
-    const voided = () => {
-      for (const action of reading.actions)
-        for (const key of action.voids ?? []) this.deps.permits.revoke(key)
-    }
-    return {
-      permits,
-      actions: reading.actions,
-      used: () => {
-        for (const permit of permits) this.deps.permits.used(permit)
-        voided()
-      },
-      take: () => {
-        restores = permits.flatMap((permit) => this.deps.permits.take(permit) ?? [])
-      },
-      restore: () => {
-        for (const restore of restores) restore()
-      },
-      voided,
-    }
+    return coveredOf(this.deps.permits, terminalId, reading.actions, permits)
   }
 
   private allowed(

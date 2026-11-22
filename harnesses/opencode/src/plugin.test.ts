@@ -641,6 +641,72 @@ describe("the plugin with the shipping gate on", () => {
     expect(permissionReplies).toEqual([])
   })
 
+  it("reports a dialog again where no answer reached it, so its card and bell show", async () => {
+    const hooks = await start({}, true)
+    // The runner answered, but past the relay's deadline: the plugin hears nothing. Or what it
+    // hears is no reply to make.
+    let made = 0
+    for (const heard of [undefined, { reply: "always" }, { reply: "reject" }, {}]) {
+      // eslint-disable-next-line no-await-in-loop -- One at a time: each has its own answer.
+      if (heard) await answered("PermissionRequest", heard)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await emit(hooks, "permission.asked", asked)
+      made += 2
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await settled(made)
+    }
+    expect(permissionReplies).toEqual([])
+    expect(reports().filter(({ event }) => event === "PermissionRequest")).toHaveLength(8)
+  })
+
+  it("never reports again a dialog the person answered, wherever they did", async () => {
+    const hooks = await start({}, true)
+    // Answered while the plugin's own reply was on its way: its reply finds nothing to answer.
+    replyAnswer = async () => {
+      await emit(hooks, "permission.replied", {
+        sessionID: "ses_a",
+        requestID: "per_1",
+        reply: "once",
+      })
+      return { error: { name: "NotFoundError" } }
+    }
+    await answered("PermissionRequest", { reply: "once" })
+    await emit(hooks, "permission.asked", asked)
+    expect(permissionReplies).toHaveLength(1)
+    const told = await settled(3)
+    expect(told.filter(({ event }) => event === "PermissionRequest")).toHaveLength(1)
+    expect(told.filter(({ event }) => event === "PermissionReplied")).toHaveLength(1)
+    // Answered before the answer to the report came back: no reply, and no second report.
+    replyAnswer = async () => ({ data: true })
+    const slow = { ...asked, id: "per_2" }
+    const pending = emit(hooks, "permission.asked", slow)
+    await emit(hooks, "permission.replied", {
+      sessionID: "ses_a",
+      requestID: "per_2",
+      reply: "reject",
+    })
+    await pending
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(
+      reports().filter(
+        ({ event, payload }) => event === "PermissionRequest" && payload.request_id === "per_2",
+      ),
+    ).toHaveLength(1)
+  })
+
+  it("reads the answer from the last JSON line of what the hook printed", async () => {
+    const hooks = await start({}, true)
+    // A shell's AutoRun or profile printed before the relay's answer.
+    await writeFile(
+      join(dir, "answers", "PreToolUse"),
+      `C:\\Users\\x>echo hi\r\nhello {"decision":"allow"}\r\n${JSON.stringify(deny)}\r\n`,
+    )
+    await expect(before(hooks, "bash").done).rejects.toThrow("Novadeck: ask the user for a permit.")
+    await writeFile(join(dir, "answers", "PermissionRequest"), `banner\n{"reply":"once"}\n`)
+    await emit(hooks, "permission.asked", asked)
+    expect(permissionReplies).toHaveLength(1)
+  })
+
   it("replies to nothing but a shell command's permission of a named call", async () => {
     const hooks = await start({}, true)
     for (const each of [

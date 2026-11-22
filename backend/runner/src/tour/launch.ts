@@ -15,7 +15,8 @@ const cheapest: Readonly<Record<AgentName, (models: readonly Model[]) => Model |
   codex: (models) => models.find(({ id }) => id.endsWith("-luna")) ?? models.at(-1),
   agy: (models) => models.find(({ id }) => id === "gemini-3.8-flash-low"),
   // One of opencode's own free models where its list holds one (`opencode/<name>-free`), which
-  // spends nothing of the person's; else none, and opencode runs on their own default.
+  // spends nothing of the person's; else none, and `Tour.ready` refuses the tour (MODELS_UNLISTED)
+  // before anything is removed or started: the tour never runs on the person's own default model.
   opencode: (models) => models.find(({ id }) => /^opencode\/.+-free$/.test(id)),
 }
 

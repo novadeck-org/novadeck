@@ -141,9 +141,9 @@ export const relayConfig = {
  */
 export const gatedRelayConfig = {
   ...relayConfig,
-  // The shim's rules for Antigravity are in force (see `shippingRules`), and a person's own allow
-  // rules may be for opencode: the relay refuses their shapes, never asks, where the runner gives no
-  // answer.
+  // The shim's rules for Antigravity are in force (see `shippingRules`), and opencode's own default
+  // allows a shell command: the relay refuses their shapes (for opencode, anything that looks like
+  // git or gh shipping), never asks, where the runner gives no answer.
   gate: true,
   asks: {
     ...relayConfig.asks,

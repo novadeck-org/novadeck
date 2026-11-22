@@ -93,10 +93,12 @@ impl Config {
     /// `SHIPPING_RULES`, which the shim has agy allow, "ask" would run it unasked, so it prints
     /// a deny, and does the same where it can't tell what the command is.
     ///
-    /// opencode's PreToolUse (its plugin's, for a `bash` call) is read the same way: it has no
-    /// rule of Novadeck's, but a person's own `permission: "allow"` runs what its hook doesn't
-    /// refuse, so the same two shapes are refused where the runner gave no answer, and its plugin
-    /// throws the reason. Any other answer it gets is the configuration's (silence).
+    /// opencode's PreToolUse (its plugin's, for a `bash` call) is read the same way, but for what
+    /// counts: its built-in default allows a shell command (agent/agent.ts `"*": "allow"`, 1.19.6),
+    /// so a hook that said nothing runs the command with no dialog. Where the runner gave no
+    /// answer, any command that looks like git or gh shipping (`command_looks_shipping`, coarser
+    /// than the rules) is refused, and its plugin throws the reason. Any other answer it gets is
+    /// the configuration's (silence).
     fn fallback(&self, agent: &str, event: &str, payload: Option<&str>) -> String {
         if (agent == "agy" || agent == "opencode") && event == "PreToolUse" {
             let guarded =
@@ -140,20 +142,23 @@ impl Config {
             // Antigravity's PreToolUse comes before every tool, and only a shell command's is
             // asked of the runner: the others keep a report's short limit (`limit_for`).
             ("agy", "PreToolUse") => 2_000,
+            // The same for opencode's: its plugin reports every tool, and only `bash` is asked.
+            ("opencode", "PreToolUse") => 2_000,
             _ if self.asks(agent, event) => 4_000,
             _ => 2_000,
         })
     }
 
     /// How long a hook may take once its payload is read: `limit`, but for Antigravity's
-    /// PreToolUse of a `run_command` call listed in `asks`, which the runner answers (the
-    /// shipping gate) and so gets the long limit a Stop does.
+    /// PreToolUse of a `run_command` call and opencode's of a `bash` call, listed in `asks`, which
+    /// the runner answers (the shipping gate) and so get the long limit a Stop does.
     fn limit_for(&self, agent: &str, event: &str, payload: &str) -> Duration {
-        if agent == "agy"
-            && event == "PreToolUse"
-            && self.asks(agent, event)
-            && runs_command(payload)
-        {
+        let shell = match agent {
+            "agy" => runs_command(payload),
+            "opencode" => runs_bash(payload),
+            _ => false,
+        };
+        if shell && event == "PreToolUse" && self.asks(agent, event) {
             return Duration::from_millis(4_000);
         }
         self.limit(agent, event)
@@ -199,6 +204,58 @@ fn command_ships(command: &str) -> bool {
             program == Some(*head) && next.peek().is_none()
         })
     })
+}
+
+/// Whether `command` holds a segment that looks like git or gh shipping, read coarsely: split at
+/// `;`, `&`, `|` and line ends (quotes ignored), a `git` or `gh` word and after it, in the same
+/// segment, one of the verbs the runner's reader reads (`shippingVerbs` in
+/// `backend/runner/src/shipping/reader.ts`, with `fetch`). More counts than the reader reads as
+/// shipping (`git branch`, `echo git push`), never less, and `command_ships`' shapes are among it.
+/// The runner's `shipsCoarsely` reads the same; both are tested against `rule-cases.json`.
+fn command_looks_shipping(command: &str) -> bool {
+    const VERBS: [&str; 15] = [
+        "fetch",
+        "push",
+        "merge",
+        "rebase",
+        "pull",
+        "cherry-pick",
+        "reset",
+        "checkout",
+        "switch",
+        "branch",
+        "update-ref",
+        "pr",
+        "api",
+        "release",
+        "workflow",
+    ];
+    command.split([';', '&', '|', '\n', '\r']).any(|segment| {
+        // The first git or gh word: any verb after a later one comes after it too.
+        let first = ["git", "gh"]
+            .iter()
+            .filter_map(|word| find_word(segment, word, 0).map(|at| at + word.len()))
+            .min();
+        first.is_some_and(|from| {
+            VERBS
+                .iter()
+                .any(|verb| find_word(segment, verb, from).is_some())
+        })
+    })
+}
+
+/// Where `word` first stands in `text` at or after `from` as a whole word (`\b` on both sides, as
+/// a regular expression reads it: a letter, digit or `_` is part of a word).
+fn find_word(text: &str, word: &str, from: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let inside = |at: usize| {
+        bytes
+            .get(at)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+    };
+    text.match_indices(word)
+        .map(|(at, _)| at)
+        .find(|&at| at >= from && (at == 0 || !inside(at - 1)) && !inside(at + word.len()))
 }
 
 /// The string a payload names under `key` (Antigravity's `CommandLine`, opencode's `command`),
@@ -249,6 +306,13 @@ fn ships(agent: &str, payload: &str) -> bool {
     } else {
         ("run_command", "CommandLine", "CommandLine")
     };
+    // opencode's refusal is wider than the shim's rules: it has no rule, and its default runs
+    // what its hook doesn't refuse.
+    let looks: fn(&str) -> bool = if agent == "opencode" {
+        command_looks_shipping
+    } else {
+        command_ships
+    };
     match serde_json::from_str::<Value>(payload) {
         Ok(value) => {
             let (name, line) = if agent == "opencode" {
@@ -260,15 +324,14 @@ fn ships(agent: &str, payload: &str) -> bool {
                 )
             };
             match name.as_str() {
-                Some(named) if named == tool => line.as_str().is_none_or(command_ships),
+                Some(named) if named == tool => line.as_str().is_none_or(looks),
                 Some(_) => false,
                 // No tool named: not a tool call this relay can read.
                 None => true,
             }
         }
         // Cut or not JSON: the command as far as it goes, or unknown, which counts.
-        Err(_) => command_in(payload, key)
-            .is_none_or(|(command, ended)| !ended || command_ships(&command)),
+        Err(_) => command_in(payload, key).is_none_or(|(command, ended)| !ended || looks(&command)),
     }
 }
 
@@ -281,6 +344,14 @@ fn runs_command(payload: &str) -> bool {
                 .as_str()
                 .map(|name| name == "run_command")
         })
+        .unwrap_or(false)
+}
+
+/// Whether an opencode hook payload is about a `bash` call.
+fn runs_bash(payload: &str) -> bool {
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .and_then(|value| value["tool_name"].as_str().map(|name| name == "bash"))
         .unwrap_or(false)
 }
 
@@ -555,6 +626,23 @@ mod tests {
         }
     }
 
+    #[test]
+    fn reads_what_looks_like_shipping_as_the_runners_cases_do() {
+        let cases: Value = serde_json::from_str(include_str!("rule-cases.json")).unwrap();
+        for case in cases["cases"].as_array().unwrap() {
+            let command = case["command"].as_str().unwrap();
+            assert_eq!(
+                command_looks_shipping(command),
+                case["coarse"].as_bool().unwrap(),
+                "{command:?}"
+            );
+            // The shim's rules are among what it refuses.
+            if case["ships"].as_bool().unwrap() {
+                assert!(command_looks_shipping(command), "{command:?}");
+            }
+        }
+    }
+
     /// opencode's plugin's report of a `bash` call, as `tool.execute.before` makes it.
     fn opencode_report(command: &str) -> String {
         json!({
@@ -573,7 +661,7 @@ mod tests {
         let cases: Value = serde_json::from_str(include_str!("rule-cases.json")).unwrap();
         for case in cases["cases"].as_array().unwrap() {
             let command = case["command"].as_str().unwrap();
-            let ships_it = case["ships"].as_bool().unwrap();
+            let ships_it = case["coarse"].as_bool().unwrap();
             assert_eq!(
                 ships("opencode", &opencode_report(command)),
                 ships_it,
@@ -589,9 +677,9 @@ mod tests {
         }
     }
 
-    // opencode's plugin runs no rule of Novadeck's, but a person's `permission: "allow"` runs what
-    // its hook doesn't refuse: where the runner gave no answer the relay refuses the two shapes,
-    // as for Antigravity, and prints what opencode's plugin reads as a deny.
+    // opencode's own default allows a shell command, so what its hook doesn't refuse runs with no
+    // dialog: where the runner gave no answer the relay refuses what looks like shipping, read
+    // coarsely, and prints what opencode's plugin reads as a deny.
     #[test]
     fn refuses_opencodes_shipping_command_where_the_runner_gave_no_answer_while_the_gate_is_on() {
         let gated = gated();
@@ -618,9 +706,25 @@ mod tests {
             "PreToolUse",
             Some(&big[..64 * 1024])
         )));
+        // Every shape the reader reads as shipping, not only the shim's two.
+        for command in [
+            "git push origin main",
+            "git push -f origin main",
+            "gh pr edit 5 --base release",
+            "gh release create v1",
+            "gh api -X POST repos/o/r/git/refs",
+            "git reset --hard origin/main",
+        ] {
+            assert!(
+                denied(&gated.fallback("opencode", "PreToolUse", Some(&opencode_report(command)))),
+                "{command:?}"
+            );
+        }
         // Any other command, other tool and other event gets what its configuration says.
         let safe = opencode_report("ls");
         assert_eq!(gated.fallback("opencode", "PreToolUse", Some(&safe)), "");
+        let status = opencode_report("git status");
+        assert_eq!(gated.fallback("opencode", "PreToolUse", Some(&status)), "");
         let read = json!({ "tool_name": "read", "tool_input": { "command": "gh pr create" } });
         assert_eq!(
             gated.fallback("opencode", "PreToolUse", Some(&read.to_string())),
@@ -685,6 +789,30 @@ mod tests {
         );
         assert_eq!(gated.fallback("claude", "PreToolUse", Some(GUARDED)), "");
         assert_eq!(gated.fallback("agy", "Stop", Some(GUARDED)), "");
+    }
+
+    #[test]
+    fn only_opencodes_shell_commands_wait_the_long_limit_for_the_runner() {
+        let config = Config::of(&json!({
+            "asks": { "opencode": ["Stop", "PreToolUse", "PermissionRequest"] }
+        }));
+        let ms =
+            |event: &str, payload: &str| config.limit_for("opencode", event, payload).as_millis();
+        assert_eq!(ms("PreToolUse", &opencode_report("git push")), 4_000);
+        let read = json!({ "tool_name": "read", "tool_input": { "filePath": "/a" } }).to_string();
+        assert_eq!(ms("PreToolUse", &read), 2_000);
+        assert_eq!(ms("PreToolUse", "not json"), 2_000);
+        // Before its payload is read, and for its other events, as listed.
+        assert_eq!(config.limit("opencode", "PreToolUse").as_millis(), 2_000);
+        assert_eq!(ms("PermissionRequest", &read), 4_000);
+        assert_eq!(ms("Stop", &read), 4_000);
+        let unlisted = Config::of(&json!({ "asks": { "opencode": ["Stop"] } }));
+        assert_eq!(
+            unlisted
+                .limit_for("opencode", "PreToolUse", &opencode_report("git push"))
+                .as_millis(),
+            2_000
+        );
     }
 
     #[test]

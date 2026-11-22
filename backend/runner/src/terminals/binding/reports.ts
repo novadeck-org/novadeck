@@ -159,7 +159,13 @@ export class Reports {
       if (record && !record.terminal.exiting && sameToken(record.token, report.token) && shipping) {
         // Raced against the hook's own deadline: an answer that comes later is no answer.
         const given = await shipping.answer(report.terminalId, report.agent, gate, deadline)
-        if (given !== undefined) return given
+        if (given !== undefined) {
+          // opencode's plugin reports every shell call, and a permitted one is answered with a
+          // lease that spends its permit: the call is still reported, as when it had no answer.
+          if (report.agent === "opencode" && report.event === "PreToolUse" && given.leaseId)
+            this.queueReport(report)
+          return given
+        }
       }
       // An event that is only the gate's has no ask of its own: it reports as any hook does.
       if (!askOf(report.agent, report.event)) {

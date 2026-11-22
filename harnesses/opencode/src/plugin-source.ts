@@ -102,10 +102,24 @@ const hook = (event, payload) =>
     child.stdin.end(JSON.stringify({ hook_event_name: event, cwd: folder, worktree: root, ...payload }))
   })
 
+// An answer's JSON, from the last line of what the hook printed that is JSON: the relay prints
+// its answer as one line, last, and anything printed before it (a Windows shell's AutoRun, a
+// profile) is not part of it, so it can't hide a deny.
+const answerOf = (text) => {
+  const lines = String(text).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  for (const line of lines.reverse()) {
+    try {
+      const found = JSON.parse(line)
+      if (found && typeof found === "object") return found
+    } catch {}
+  }
+  return {}
+}
+
 // The delivery an answer carries, where it carries one.
 const delivery = (text) => {
   try {
-    const answer = JSON.parse(text.trim() || "{}")
+    const answer = answerOf(text)
     return typeof answer.deliver === "string" && answer.deliver !== "" ? answer.deliver : undefined
   } catch {
     return undefined
@@ -124,7 +138,7 @@ const report = (event, payload) => {
 // (Antigravity's form too), whose reason opencode gives the model as the call's result.
 const refusal = (text) => {
   try {
-    const answer = JSON.parse(text.trim() || "{}")
+    const answer = answerOf(text)
     return answer.decision === "deny" && typeof answer.reason === "string" && answer.reason !== ""
       ? answer.reason
       : undefined
@@ -136,7 +150,7 @@ const refusal = (text) => {
 // Whether an answer lets the plugin reply "once" to the permission it asked about.
 const replies = (text) => {
   try {
-    return JSON.parse(text.trim() || "{}").reply === "once"
+    return answerOf(text).reply === "once"
   } catch {
     return false
   }
@@ -199,6 +213,9 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
   const calls = new Map()
   // The tool of each question waiting, by its id, for its reply.
   const asking = new Map()
+  // The permission requests already answered, by id, as opencode's permission.replied said: a
+  // dialog that is gone is never reported again.
+  const answered = new Set()
   // Each session's latest answer's model and tokens, and each model's context window, as
   // opencode's providers list them, asked once.
   const usage = new Map()
@@ -505,22 +522,30 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             // A shell command's permission, with the shipping gate on: Novadeck says whether this
             // is the very call its hook let through under a permit, and then the reply is "once",
             // never "always" (which would approve its patterns for the session: permission/index.ts,
-            // 1.19.6). Where it says nothing, or the reply fails, the person's dialog is as it was.
+            // 1.19.6). Where it says nothing, the person's dialog is as it was.
             const answer = await report("PermissionRequest", asked)
-            if (!replies(answer)) return
+            // The person answered while it was asked: nothing is left to answer or to show.
+            if (answered.has(props.id)) return
             let replied = false
-            try {
-              const sent = await client.postSessionIdPermissionsPermissionId({
-                path: { id: props.sessionID, permissionID: props.id },
-                body: { response: "once" },
-              })
-              replied = sent?.data === true
-            } catch {}
-            // Its one answer is spent: the dialog is reported once more, which no permit answers.
-            if (!replied) report("PermissionRequest", asked)
+            if (replies(answer)) {
+              try {
+                const sent = await client.postSessionIdPermissionsPermissionId({
+                  path: { id: props.sessionID, permissionID: props.id },
+                  body: { response: "once" },
+                })
+                replied = sent?.data === true
+              } catch {}
+            }
+            // A dialog nothing answered (no answer in time, an empty one, a reply that failed) is
+            // reported once more: the runner skips the card of a report it answered, and its note
+            // is spent by the first, so it answers nothing the second time and the card and the
+            // bell show. Not for one the person answered meanwhile (its reply may have made a
+            // reply fail), whose report would be a card for a dialog that is gone.
+            if (!replied && !answered.has(props.id)) report("PermissionRequest", asked)
             return
           }
           case "permission.replied":
+            answered.add(props.requestID)
             // A rejection ends the turn with no error of its own: the Stop says so.
             if (props.reply === "reject" && props.sessionID) turnOf(props.sessionID).rejected = true
             report("PermissionReplied", { session_id: props.sessionID, request_id: props.requestID, reply: props.reply, root: await rootOf(props.sessionID) })

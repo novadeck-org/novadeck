@@ -21,6 +21,7 @@ import {
   Gate,
   opencodeBypassMode,
   printedAgy,
+  type Covered,
   type Decision,
   type Turn,
 } from "./gate.js"
@@ -28,7 +29,7 @@ import { agyPreToolUse } from "./hooks.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
 import { Permits, Quotes } from "./permits.js"
 import { agyRules, claudeRules, codexRules } from "./rules.js"
-import { shipsByRule } from "./shapes.js"
+import { shipsByRule, shipsCoarsely } from "./shapes.js"
 
 /** What the gate needs of the rest of the runner. */
 export type ShippingHost = {
@@ -101,8 +102,11 @@ const opencodeSkips: ReadonlySet<string> = new Set(["auto", "yolo", "dangerously
 
 /**
  * Whether a launch's words skip every permission, as opencode's flags read (yargs, booleans: a
- * bare flag, `=true`, a following `true`; `=false`, a following `false` or `--no-<name>` turn it
- * off; the last of each name wins, and any name on skips). Words after `--` are the prompt's.
+ * bare flag, `=true`, a following `true` turn it on; any other attached value, a following
+ * `false` or `--no-<name>` turn it off; the last of each name wins, and any name on skips). Words
+ * after `--` are the prompt's. A mode toggled in the interface later (its command palette's
+ * "auto-approve permissions") is not seen: launched with the flag and turned off there, the
+ * gate stays silent for that process.
  */
 export const opencodeSkipsPermissions = (launch: readonly string[] | undefined): boolean => {
   const words = launch ?? []
@@ -114,7 +118,9 @@ export const opencodeSkipsPermissions = (launch: readonly string[] | undefined):
     if (!found || !opencodeSkips.has(found[2]!)) continue
     const negated = found[1] !== undefined
     let value = !negated
-    if (found[3] !== undefined) value = negated ? false : found[3] !== "false"
+    // yargs-parser 22 reads a boolean's attached value as `val === "true"`: `--auto=1`, `=` and
+    // `=TRUE` are off (opencode's own parser, 1.19.6, read from its source 2026-11-22).
+    if (found[3] !== undefined) value = negated ? false : found[3] === "true"
     else if (words[at + 1] === "true" || words[at + 1] === "false") {
       value = (words[at + 1] === "true") !== negated
       at += 1
@@ -161,19 +167,25 @@ type Pending = {
 
 /**
  * A permitted command opencode's hook let through, until its `bash` permission asks about it or
- * it lapses: its session and call (which the permission's request names too), the raw command as
- * the hook saw it whole, and where it runs.
+ * it lapses: its session and call (which the permission's request names too) and the raw command
+ * as the hook saw it whole. The hook already spent its permits (`Shipping.spend`), so the
+ * permission's answer takes none: `state` says whether that spending still stands, as the
+ * hook's acknowledgement committed it, is still waited for, or lapsed (the hook never printed
+ * it in time and the permits went back).
  */
 type Vetted = {
   readonly conversation: string
   readonly call: string
   readonly command: string
-  readonly cwd: string
   readonly until: number
+  state: "waiting" | "committed" | "lapsed"
 }
 
 const failedText =
   "Novadeck: it couldn't decide this command, which ships work, in time, so it isn't allowed now. Run it again in a moment, on its own."
+
+const spentText =
+  "Novadeck: the permit that covered this command was just used or ended, so it isn't allowed now. request_permit gives a new one."
 
 /** A call as its hook named it: the conversation's step and a hash of its command. */
 const callKey = (call: GateCall): string =>
@@ -514,7 +526,7 @@ export class Shipping {
     if (agent !== "claude" && agent !== "codex" && agent !== "agy" && agent !== "opencode")
       return undefined
     if (agent === "opencode" && call.event === "PermissionRequest")
-      return await this.confirmed(terminalId, call, until)
+      return this.confirmed(terminalId, call)
     const saw = agent === "agy" ? this.sawHook(terminalId, call) : undefined
     let decision: Decision | undefined
     let failed = false
@@ -545,9 +557,15 @@ export class Shipping {
     }
     // Antigravity's rules run the commands of their shapes unasked where the hook says "ask", which
     // it does for a hook that failed or was late: those are refused, never left to a rule. opencode
-    // has no rule of Novadeck's, but a person's own `permission: "allow"` runs the same shapes
-    // unasked where its hook gave no answer: the same two are refused.
-    if ((agent === "agy" || agent === "opencode") && failed && shipsByRule(call.command)) {
+    // has no dialog to fall back on: its built-in default allows a shell command, so a hook that
+    // gave no answer lets everything run (agent/agent.ts `"*": "allow"`, 1.19.6). What looks like
+    // shipping, read coarsely, is refused there, and every other command is left as it is.
+    if (
+      failed &&
+      (agent === "opencode"
+        ? shipsCoarsely(call.command)
+        : agent === "agy" && shipsByRule(call.command))
+    ) {
       if (saw) saw.denied = true
       return { stdout: printedAgy(failedText), leaseId: null }
     }
@@ -555,7 +573,8 @@ export class Shipping {
     if (saw && decision !== undefined && decision.stdout !== "") saw.denied = true
     if (agent === "agy" && decision?.permitted)
       await this.recordPending(terminalId, call, call.instance ?? null)
-    if (agent === "opencode" && decision?.permitted) await this.vet(terminalId, call)
+    if (agent === "opencode" && decision?.covered)
+      return this.spend(terminalId, call, decision.covered, until)
     if (decision === undefined) return undefined
     const { stdout, commit } = decision
     if (commit === undefined) return stdout === "" ? undefined : { stdout, leaseId: null }
@@ -610,46 +629,87 @@ export class Shipping {
   }
 
   // The permitted commands opencode's hook let through, by terminal: each is the call whose `bash`
-  // permission will ask about exactly that command, checked as covered when the hook saw it.
+  // permission, where its setup asks one, will ask about exactly that command.
   private readonly vetted = new Map<string, Vetted[]>()
 
   /**
-   * A permitted shipping command opencode's hook let through: noted for `pendingMs` under its
-   * session and call, for its permission's answer (`confirmed`). Never an answer of the hook's own.
-   * A call the hook didn't name is not noted: its permission can't be told from another's.
+   * A permitted shipping command opencode's hook let through: its permits are spent here, whether
+   * or not a dialog follows, as Claude Code's allow spends them. opencode's own default asks
+   * nothing for a shell command (`"*": "allow"`), so a permit that waited for a dialog would never
+   * be used up, nor would what the command voids (probed 2026-11-22, 1.19.6). The single-use
+   * permits are taken now, before the answer is printed, so no other call can use them; the
+   * hook's acknowledgement commits (the merge permits the command voids end), and with no
+   * acknowledgement by the hook's deadline the permits go back. The call is noted for its `bash`
+   * permission, where opencode's setup shows one (`confirmed`), which then answers it and takes
+   * nothing more. A call the hook didn't name is not noted: its permission can't be told from
+   * another's.
    */
-  private async vet(terminalId: string, call: GateCall): Promise<void> {
-    try {
-      if (call.call === undefined || call.conversation === undefined) return
-      if (!(await this.gate.covered(terminalId, call.command, call.cwd))) return
-      const now = Date.now()
-      const live = (this.vetted.get(terminalId) ?? []).filter((each) => each.until > now)
-      live.push({
+  private spend(terminalId: string, call: GateCall, covered: Covered, until: number): GateAnswer {
+    // A permit another call used or a revoke ended since the reading: nothing covers it now.
+    if (!covered.take()) return { stdout: printedAgy(spentText), leaseId: null }
+    const now = Date.now()
+    let note: Vetted | undefined
+    if (call.call !== undefined && call.conversation !== undefined) {
+      note = {
         conversation: call.conversation,
         call: call.call,
         command: call.command,
-        cwd: call.cwd,
         until: now + pendingMs,
-      })
+        state: "waiting",
+      }
+      const live = (this.vetted.get(terminalId) ?? []).filter((each) => each.until > now)
+      live.push(note)
       this.vetted.set(terminalId, live)
-    } catch {
-      // Not noted: the person answers.
     }
+    for (const [id, lease] of this.leases) if (lease.expires <= now) this.leases.delete(id)
+    const leaseId = randomUUID()
+    const expires = until + ackSlackMs
+    const timer = setTimeout(
+      () => {
+        if (!this.leases.delete(leaseId)) return
+        covered.restore()
+        if (note) note.state = "lapsed"
+      },
+      Math.max(0, expires - now),
+    )
+    timer.unref()
+    this.leases.set(leaseId, {
+      terminalId,
+      commit: () => {
+        covered.voided()
+        if (note) note.state = "committed"
+      },
+      expires,
+      timer,
+    })
+    log.info(
+      "shipping.spent",
+      `Novadeck spends opencode's permit: ${covered.permits
+        .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
+        .join("; ")}`,
+      {
+        data: {
+          terminalId,
+          agent: "opencode",
+          call: call.call ?? null,
+          at: new Date().toISOString(),
+        },
+      },
+    )
+    // Silence is the answer opencode runs the command on; the lease is what ends the permits.
+    return { stdout: "", leaseId }
   }
 
   /**
    * What the plugin does with opencode's `bash` permission: `{"reply":"once"}` for a request that is
    * for the very call the hook vetted a moment before (the same session and call, the command in
-   * its metadata equal to the vetted raw command exactly), while a permit still covers the command,
-   * and undefined (the person answers) in any doubt. The note answers one request, whatever comes
-   * of it, and the single-use permit is taken before the answer is printed: the lease gives it back
-   * only if the hook never printed in time, and what the command voids ends once it was.
+   * its metadata equal to the vetted raw command exactly) whose permits the hook spent (`spend`),
+   * and undefined (the person answers) in any doubt, or where that spending lapsed. It takes no
+   * permit of its own and answers nothing else: the note answers one request, whatever comes of
+   * it. A permit the person revoked in the moment between the hook and this dialog does not undo
+   * what the hook already allowed, as for Claude Code's allow.
    */
-  private async confirmed(
-    terminalId: string,
-    call: GateCall,
-    until: number,
-  ): Promise<GateAnswer | undefined> {
+  private confirmed(terminalId: string, call: GateCall): GateAnswer | undefined {
     const now = Date.now()
     const live = (this.vetted.get(terminalId) ?? []).filter((each) => each.until > now)
     const note = live.find(
@@ -662,45 +722,23 @@ export class Shipping {
       terminalId,
       live.filter((each) => each !== note),
     )
-    if (!note || note.command !== call.command) return undefined
-    try {
-      const covered = await within(
-        this.gate.covered(terminalId, note.command, note.cwd),
-        until - Date.now(),
-      )
-      if (!covered) return undefined
-      covered.take()
-      const leaseId = randomUUID()
-      const timer = setTimeout(
-        () => {
-          if (this.leases.delete(leaseId)) covered.restore()
+    if (!note || note.command !== call.command || note.state === "lapsed") return undefined
+    log.info(
+      "shipping.confirmation",
+      "Novadeck answers opencode's permission for a permitted call",
+      {
+        data: {
+          terminalId,
+          agent: "opencode",
+          call: call.call ?? null,
+          at: new Date().toISOString(),
         },
-        Math.max(0, until + ackSlackMs - Date.now()),
-      )
-      timer.unref()
-      this.leases.set(leaseId, {
-        terminalId,
-        commit: covered.voided,
-        expires: until + ackSlackMs,
-        timer,
-      })
-      log.info(
-        "shipping.confirmation",
-        `Novadeck answers opencode's permission: ${covered.permits
-          .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
-          .join("; ")}`,
-        {
-          data: {
-            terminalId,
-            agent: "opencode",
-            call: call.call ?? null,
-            at: new Date().toISOString(),
-          },
-        },
-      )
-      return { stdout: `${JSON.stringify({ reply: "once" })}\n`, leaseId }
-    } catch {
-      return undefined
+      },
+    )
+    return {
+      stdout: `${JSON.stringify({ reply: "once" })}
+`,
+      leaseId: null,
     }
   }
 
@@ -710,7 +748,10 @@ export class Shipping {
     if (lease?.terminalId !== terminalId) return
     this.leases.delete(leaseId)
     clearTimeout(lease.timer)
-    if (lease.expires > Date.now()) lease.commit()
+    // A lease with a timer took its permits when it answered, and the timer is due at `expires`:
+    // an acknowledgement just past it, before the timer ran, still says the hook printed, so it
+    // commits (the permits stay taken either way, and the voided ones must end).
+    if (lease.timer !== undefined || lease.expires > Date.now()) lease.commit()
   }
 
   /** A terminal closed: its permits and quotes go. */

@@ -1,21 +1,210 @@
 {
-  "note": "Commands and whether the relay and the runner read them as a shape of the shim's shipping rules (harnesses/agy/src/shim.ts `shippingRules`). Coarse on purpose: more is read as shipping than the rules allow, never less. Both sides test against this file.",
+  "note": "Commands and whether the relay and the runner read them as a shape of the shim's shipping rules (harnesses/agy/src/shim.ts `shippingRules`: `ships`) and as something that looks like git or gh shipping, read coarsely per segment, for opencode (`coarse`; backend/runner `shipsCoarsely`, relay `command_looks_shipping`). Both are coarse on purpose: more is read as shipping than the rules allow, never less. Both sides test against this file.",
   "cases": [
-    { "command": "gh pr create --title x --body y", "ships": true },
-    { "command": "gh pr merge 5", "ships": true },
-    { "command": "cd /w && gh pr create --base main", "ships": true },
-    { "command": "gh pr create --body \"a; b\" && touch x", "ships": true },
-    { "command": "gh -R o/r pr merge 7 --squash", "ships": true },
-    { "command": "GH_REPO=o/r gh pr create", "ships": true },
-    { "command": "/usr/bin/gh pr create", "ships": true },
-    { "command": "git status\ngh pr merge 1", "ships": true },
-    { "command": "echo hi | gh pr create -F -", "ships": true },
-    { "command": "gh pr view 5", "ships": false },
-    { "command": "gh pr list", "ships": false },
-    { "command": "gh issue create", "ships": false },
-    { "command": "git push origin main", "ships": false },
-    { "command": "echo gh pr create", "ships": false },
-    { "command": "ls", "ships": false },
-    { "command": "", "ships": false }
+    {
+      "command": "gh pr create --title x --body y",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "gh pr merge 5",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "cd /w && gh pr create --base main",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "gh pr create --body \"a; b\" && touch x",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "gh -R o/r pr merge 7 --squash",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "GH_REPO=o/r gh pr create",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "/usr/bin/gh pr create",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "git status\ngh pr merge 1",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "echo hi | gh pr create -F -",
+      "ships": true,
+      "coarse": true
+    },
+    {
+      "command": "gh pr view 5",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "gh pr list",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "gh issue create",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "git push origin main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "echo gh pr create",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "ls",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "git push -f origin main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git -C /w rebase main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "sudo git merge feat/x",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git cherry-pick abc123",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git update-ref refs/heads/x abc",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git fetch origin a:main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git reset --hard origin/main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git checkout -B main origin/main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "gh release create v1",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "gh api -X POST repos/o/r/git/refs",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "gh pr edit 5 --base release",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git status; git push",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git status\ngit push",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git commit -m \"fix the push bug\"",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "bash -c 'git push origin main'",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git status",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "git diff main",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "git log --oneline",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "git commit -m wip",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "git stash",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "gh auth status",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "gh issue list",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "ls && git status | cat",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "echo push; git status",
+      "ships": false,
+      "coarse": false
+    },
+    {
+      "command": "GIT_TRACE=1 git push origin main",
+      "ships": false,
+      "coarse": true
+    }
   ]
 }
