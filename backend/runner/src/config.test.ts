@@ -29,6 +29,18 @@ describe("server configuration", () => {
     expect(config.dialogs).toBe(join(resolve("data"), "dialogs"))
   })
 
+  it("keeps the transcript key in a file beside the database unless another is named", () => {
+    const token = "configuration-tests-only-not-a-real-credential"
+    const base = { NOVADECK_TOKEN: token, NOVADECK_DATABASE: "data/workspace.sqlite" }
+    expect(readConfig(base).transcriptKeyFile).toBe(join(resolve("data"), "transcript.key"))
+    expect(
+      readConfig({ ...base, NOVADECK_TRANSCRIPT_KEY_FILE: "secrets/transcript.key" })
+        .transcriptKeyFile,
+    ).toBe(resolve("secrets/transcript.key"))
+    // Without a token there is no runner, and no key.
+    expect(readConfig({}).transcriptKeyFile).toBeUndefined()
+  })
+
   it("installs voice input beside the database, from the engine built here unless another is named", () => {
     const token = "configuration-tests-only-not-a-real-credential"
     const base = { NOVADECK_TOKEN: token, NOVADECK_DATABASE: "data/workspace.sqlite" }

@@ -89,6 +89,36 @@ an in-memory database when no path is supplied. `@novadeck/runner/http` stays fr
 of native terminal code, so the Electron main process can serve the status endpoint
 without it.
 
+### Running a standalone runner
+
+The CLI and the desktop app's runner share one lifecycle (`backend/runner/src/lifecycle.ts`);
+only where the transcript key comes from and the desktop's watch on its main process differ.
+
+- **Data folder.** Everything the runner keeps lives beside `NOVADECK_DATABASE`
+  (`~/.local/share/novadeck/` by default): `workspace.sqlite`, `shell/`, `uploads/`,
+  `dialogs/`, `voice/`, `murmur/` and `transcript.key`. Keep the folder on a volume that
+  outlives the container or host.
+- **Transcript key.** Saved transcripts are sealed with a 32-byte key kept as base64 in
+  `transcript.key` beside the database, or in the file `NOVADECK_TRANSCRIPT_KEY_FILE` names.
+  The runner makes it at 0600 where it is missing. A file that holds no key, or can't be
+  read, is never replaced: transcripts are then not kept, and the log says why. A key file
+  other users can read is still used, with a warning. The key keeps transcripts out of the
+  database file alone and away from the machine's other users. It does not protect them from
+  root, the runner's own user, or a copy of the whole folder. To keep the key encrypted at
+  rest, make one (`openssl rand -base64 32`) and point the setting at a systemd credential
+  (`LoadCredentialEncrypted=transcript.key:…` with
+  `NOVADECK_TRANSCRIPT_KEY_FILE=%d/transcript.key`) or a Docker secret
+  (`/run/secrets/transcript.key`). A lost key loses the saved transcripts, nothing else.
+  The desktop app keeps its key behind the system's keychain instead.
+- **Stopping.** SIGTERM, SIGINT and SIGHUP (on Windows Ctrl+C, Ctrl+Break and the console
+  closing; Windows has no SIGTERM, and a forced end can't be caught) save every terminal's
+  restore state at once, then end the shells and exit, as quitting the desktop app does.
+  Terminals and agents come back on the next start. Ending takes at most 8 s, inside
+  Docker's default 10 s; a second signal a second or more after the first exits at once.
+  Under systemd use `KillMode=mixed`, so only the runner hears the stop and its shells end
+  after it has saved, and keep `TimeoutStopSec` above 8 s. In Docker, run the runner as the
+  container's main process (exec form, or `--init`) so `docker stop` reaches it.
+
 For a VPS, terminate TLS at a trusted reverse proxy and forward WebSocket upgrades.
 Agents run beside the runner on the server, and their relays reach it over a private
 local socket, so a UI elsewhere needs nothing more than the WebSocket.

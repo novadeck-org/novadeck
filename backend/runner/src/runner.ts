@@ -52,7 +52,8 @@ export type RunnerOptions = {
   database?: string
   /**
    * The 32-byte key saved transcripts are encrypted with, or null where none can be kept
-   * safe, as the desktop app's main process unwraps it from the system's keychain. Without
+   * safe, as the desktop app's main process unwraps it from the system's keychain and a
+   * standalone runner reads its key file (`loadTranscriptKeyFile`). Without
    * one no transcript is saved or shown again.
    */
   transcriptKey?: Promise<Uint8Array | null>
