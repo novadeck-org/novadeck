@@ -1653,8 +1653,6 @@ export const runnerBackend = (
     ])
     clearTimeout(timer)
   }
-  // The project whose sessions this window may save, null for any (see `limitSaves`).
-  let saveScope: string | null = null
   const listedStates = listing.flatMap(({ sessions: listed }) =>
     listed.flatMap(({ session }) =>
       session.state === null
@@ -1684,11 +1682,6 @@ export const runnerBackend = (
     track,
     halted: () => halted,
     delay: saveDelay,
-    // With project windows on only the sessions of the project this window shows.
-    allowed: (sessionId) =>
-      saveScope === null ||
-      latest?.projects.find((project) => project.history.some((each) => each.id === sessionId))
-        ?.id === saveScope,
     saved: listedStates,
   })
   // What the runner held of every session as this window loaded.
@@ -1861,7 +1854,8 @@ export const runnerBackend = (
         entry.dwell = undefined
       }
     },
-    sharing: () => saveScope !== null,
+    // A shown project is told only with project windows on.
+    sharing: () => shownProject !== null,
     shown: (key) => {
       const entry = registry.get(key)?.entry
       return entry !== undefined && !entry.closed && onScreen(entry)
@@ -2142,7 +2136,6 @@ export const runnerBackend = (
     murmur: murmur.murmur,
     typeInto: screens.typeInto,
     activeTerminal: inUse.report,
-    settleSaves,
     showingProject: (projectId, others) => {
       // A project this window stops showing is let go of at once where another window may take
       // it over: its screens detach, so that window can control its terminals, rather than the
@@ -2156,11 +2149,6 @@ export const runnerBackend = (
         screens.release((key) => key.projectId === shownProject)
       shownProject = projectId
       showing.report(projectId)
-    },
-    limitSaves: (projectId) => {
-      // What this window changed in the project it showed is sent first.
-      flush()
-      saveScope = projectId
     },
     syncProject,
     start,

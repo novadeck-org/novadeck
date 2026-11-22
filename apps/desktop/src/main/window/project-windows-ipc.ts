@@ -45,8 +45,8 @@ export const registerProjectWindowsIpc = <Window>(
     /** The person turned project windows on or off. */
     readonly use: (on: boolean) => void
     readonly open: (window: Window, projectId: string) => void
-    /** Resolves how the swap went (see `ProjectWindowSwap`). */
-    readonly swap: (window: Window, projectId: string) => Promise<ProjectWindowSwap>
+    /** How the swap went (see `ProjectWindowSwap`). */
+    readonly swap: (window: Window, projectId: string) => ProjectWindowSwap
     readonly handOff: (window: Window, target: ProjectWindowTarget) => void
   },
 ): void => {
@@ -68,7 +68,6 @@ export const registerProjectWindowsIpc = <Window>(
     const id = windowIdOf(value)
     if (id !== undefined) open(target, id)
   })
-  // A swap answers once the other window has sent its edits, so the asking page may read.
   ipc.handle(projectWindowSwapChannel, async (event, value) => {
     const target = window(event)
     const id = windowIdOf(value)

@@ -1,5 +1,4 @@
 import type { ProjectWindowsState, ProjectWindowTarget } from "@novadeck/protocol/bridge"
-import { vi } from "vitest"
 
 import { describe, expect, it } from "../../test"
 import { createProjectWindows, mostWindows } from "./project-windows"
@@ -10,7 +9,6 @@ const setup = () => {
   const forwarded: string[] = []
   const navigated: { window: string; target: ProjectWindowTarget }[] = []
   const created: string[] = []
-  const flushed: string[] = []
   const voices: [string | undefined, string | undefined][] = []
   const windows = createProjectWindows<string>({
     create: (projectId) => {
@@ -20,14 +18,10 @@ const setup = () => {
     },
     forward: (window) => void forwarded.push(window),
     tell: (window, state) => void told.set(window, state),
-    flush: (window) => {
-      flushed.push(window)
-      return Promise.resolve()
-    },
     navigate: (window, target) => void navigated.push({ window, target }),
     voiceMoved: (from, to) => void voices.push([from, to]),
   })
-  return { windows, told, forwarded, navigated, created, voices, flushed }
+  return { windows, told, forwarded, navigated, created, voices }
 }
 
 describe("a project shown in other windows", () => {
@@ -157,64 +151,33 @@ describe("opening a window the app may not", () => {
 })
 
 describe("swapping two windows' projects", () => {
-  it("has the other window send its edits, then gives it this window's former project and sends it there", async () => {
-    const { windows, navigated, told, flushed } = setup()
+  // Each window's changes reach the other live through the runner: nothing is waited for.
+  it("gives the other window this window's former project and sends it there at once", () => {
+    const { windows, navigated, told } = setup()
     windows.add("a", "p1")
     windows.add("b", "p2")
-    const order: string[] = []
-    const result = windows.swap("b", "p1").then((answer) => {
-      order.push(`answered ${answer}`)
-      return answer
-    })
-    // The other window flushes before it is sent anywhere, and the answer comes after both.
-    expect(flushed).toEqual(["a"])
-    expect(navigated).toEqual([])
-    expect(await result).toBe("swapped")
+    expect(windows.swap("b", "p1")).toBe("swapped")
     expect(navigated).toEqual([{ window: "a", target: { projectId: "p2" } }])
     expect(told.get("b")?.elsewhere).toEqual(["p2"])
     expect(told.get("a")?.elsewhere).toEqual(["p1"])
-    expect(order).toEqual(["answered swapped"])
-  })
-
-  it("answers only once the other window's flush is done, however long it takes", async () => {
-    const waits: (() => void)[] = []
-    const navigated: string[] = []
-    const windows = createProjectWindows<string>({
-      create: (id) => id,
-      forward: () => {},
-      tell: () => {},
-      flush: () => new Promise<void>((resolve) => void waits.push(resolve)),
-      navigate: (window) => void navigated.push(window),
-    })
-    windows.add("a", "p1")
-    windows.add("b", "p2")
-    const answer = vi.fn<(result: string) => void>()
-    void windows.swap("b", "p1").then(answer)
-    await Promise.resolve()
-    expect(navigated).toEqual([])
-    expect(answer).not.toHaveBeenCalled()
-    waits[0]!()
-    await vi.waitFor(() => expect(answer).toHaveBeenCalledWith("swapped"))
-    expect(navigated).toEqual(["a"])
   })
 
   it("brings the other window forward, sends it nowhere and leaves this one where it is, when this one hadn't said what it showed", async () => {
     const { windows, navigated, forwarded, told } = setup()
     windows.add("a")
     windows.add("b", "p2")
-    expect(await windows.swap("a", "p2")).toBe("forwarded")
+    expect(windows.swap("a", "p2")).toBe("forwarded")
     expect(navigated).toEqual([])
     expect(forwarded).toEqual(["b"])
     expect(told.get("b")?.elsewhere).toEqual([])
   })
 
   it("only records the window's project when no other window shows it", async () => {
-    const { windows, navigated, told, flushed } = setup()
+    const { windows, navigated, told } = setup()
     windows.add("a", "p1")
     windows.add("b", "p2")
-    expect(await windows.swap("a", "p3")).toBe("alone")
+    expect(windows.swap("a", "p3")).toBe("alone")
     expect(navigated).toEqual([])
-    expect(flushed).toEqual([])
     expect(told.get("b")?.elsewhere).toEqual(["p3"])
   })
 })

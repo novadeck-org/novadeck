@@ -1635,42 +1635,6 @@ describe("project windows, as the backend serves one", () => {
     app.stop()
   })
 
-  it("saves only the project it is limited to, and everything again once it is not", async () => {
-    const app = open()
-    const shown = openProject(app)
-    const left = openProject(app)
-    const leftSession = { projectId: left.id, workspaceSessionId: left.session.id }
-    app.backend.limitSaves!(shown.id)
-    app.commit([
-      {
-        type: "view/change",
-        target: leftSession,
-        view: "canvas",
-        enabledViews: ["grid", "canvas"],
-      },
-    ])
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    const saved = async () =>
-      (await runner.client.sessions.list({ projectId: left.id })).find(
-        (each) => each.id === left.session.id,
-      )?.state
-    // What it had when the limit began is on the runner; the change since is not.
-    expect(await saved()).toContain('"view":"grid"')
-    app.backend.limitSaves!(null)
-    app.commit([
-      {
-        type: "view/change",
-        target: leftSession,
-        view: "focus",
-        enabledViews: ["focus", "grid", "canvas"],
-      },
-    ])
-    await vi.waitFor(async () => expect(await saved()).toContain('"view":"focus"'), eventually)
-    app.stop()
-    left.remove()
-    shown.remove()
-  })
-
   it("tells the runner which project it shows, and again once the link is back", async () => {
     const io: string[] = []
     const app = open(runner.listing, {}, recordingRunner(runner.client, io))

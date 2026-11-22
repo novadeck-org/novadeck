@@ -518,15 +518,10 @@ export type BackendFields = {
   // `others` says another window exists, which may take over the project this one leaves: its
   // screens are let go of at once then, else kept for when this window shows it again.
   readonly showingProject?: (projectId: string | null, others?: boolean) => void
-  // Optional. Resolves once every save of this window's changes has landed on the runner, as
-  // before another window reads the project this one showed.
-  readonly settleSaves?: () => Promise<void>
-  // Optional. Limits what this window saves to the sessions of one project (null: any), as
-  // with project windows on, where another window saves the others' and this window's copies
-  // of them may be stale. Whatever this window changed before is sent first.
-  readonly limitSaves?: (projectId: string | null) => void
   // Optional. Reads a project from the runner again: its sessions, terminals and layouts as
-  // the runner holds them now, for a window that takes the project on from another window.
+  // the runner holds them now, for a window that takes the project on from another window, or
+  // shows one it never heard of. What another window changes in a session this one holds
+  // arrives live anyway (sessions/sharing.ts in the runner adapter).
   // Undefined for a project the runner no longer has. The page puts it in place with
   // `project/sync`, which adds a project it didn't know.
   readonly syncProject?: (projectId: string) => Promise<ProjectSeed | undefined>
