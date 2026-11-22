@@ -401,6 +401,44 @@ describe("Inbox asks and updates", () => {
     messaging.close()
   })
 
+  it("refuses questions whose answers could not all reach the agent, as each answer quotes them", () => {
+    const { inbox } = setup()
+    const long = (fill: string) => ({
+      question: fill.repeat(1000),
+      options: [{ label: "A" }, { label: "B" }],
+    })
+    // Four questions of 1,000 ampersands: each is five bytes once escaped.
+    const refused = inbox.call(identity.terminalId, "ask", {
+      ...entry,
+      shape: { type: "questions", questions: Array.from({ length: 4 }, () => long("&")) },
+    })
+    expect(refused).toMatchObject({ ok: false, reason: expect.stringMatching(/too long/) })
+    expect(inbox.list()).toEqual([])
+    // Four of 900 plain characters leave room for the person's words.
+    const fits = inbox.call(identity.terminalId, "ask", {
+      ...entry,
+      shape: {
+        type: "questions",
+        questions: Array.from({ length: 4 }, () => ({ ...long("x"), question: "x".repeat(900) })),
+      },
+    })
+    expect(fits.ok).toBe(true)
+  })
+
+  it("takes the person's words to a question without the controls no delivery holds", () => {
+    const { inbox, messaging, create } = setup()
+    const id = create(questionsAsk)
+    inbox.answer(id, {
+      type: "questions",
+      answers: [
+        { options: [], text: "dark\u001b[2J fantasy\u0007" },
+        { options: [1], text: "" },
+      ],
+    })
+    expect(messaging.inboxReply(id)?.response?.answers?.[0]?.text).toBe("dark[2J fantasy")
+    messaging.close()
+  })
+
   it("refuses an answer that leaves a question unanswered or picks outside its options", () => {
     const { inbox, create, messaging } = setup()
     const id = create(questionsAsk)

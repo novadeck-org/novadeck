@@ -206,9 +206,11 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
       const title =
         shape === "options"
           ? "Asked you to choose"
-          : shape === "action"
-            ? "Asked you to run a command"
-            : "Asked you"
+          : shape === "questions"
+            ? "Asked you some questions"
+            : shape === "action"
+              ? "Asked you to run a command"
+              : "Asked you"
       return { kind: "agent", title, detail: text("subject") }
     }
     case "tell":

@@ -33,6 +33,9 @@ import {
   allowSend,
   byteLength,
   cleanInboxText,
+  cleanText,
+  maxDeliveryBytes,
+  personSender,
   rates,
   recentSends,
   retentionMs,
@@ -49,6 +52,7 @@ import {
   type LogWrite,
   type TurnContent,
 } from "./report-log.js"
+import { deliveredBytes } from "./sending.js"
 
 // The runner's own entries, which never hold the placeholders a UI reads in.
 type InboxEntry = Sent<ListedEntry>
@@ -376,7 +380,7 @@ const questionAnswers = (questions: AskQuestions, given: QuestionsAnswer): Quest
       throw new DomainError("ANSWER_FAILED", "Choose among each question's own options.")
     if (!each.multiSelect && picked.length > 1)
       throw new DomainError("ANSWER_FAILED", "Choose one option for each question that takes one.")
-    const words = text.trim()
+    const words = cleanText(text).trim()
     if (picked.length === 0 && !words)
       throw new DomainError("ANSWER_FAILED", "Answer each of this ask's questions.")
     return {
@@ -436,6 +440,43 @@ const replyOf = (
     choice: label ? { option: label } : {},
     own: text,
   }
+}
+
+/** The room an answer to several questions keeps for the person's own words, in bytes. */
+const wordsRoom = 1024
+
+/**
+ * Whether the person's answers to these questions reach the agent whatever they pick: the
+ * delivery that quotes every question with every option picked leaves `wordsRoom` for their
+ * words under a delivery's limit.
+ */
+const answersFit = (subject: string, questions: AskQuestions): boolean => {
+  const fullest: Message = {
+    id: "m-fullest",
+    projectId: "project",
+    thread: "t-fullest",
+    hop: 2,
+    from: personSender,
+    to: { terminalId: "terminal", handle: "handle", agent: "claude", sessionId: "session" },
+    text: "",
+    sentAt: 0,
+    state: "queued",
+    deliveredAt: null,
+    notified: true,
+    stopped: false,
+    fromLead: false,
+    toLead: false,
+    response: {
+      askId: randomUUID(),
+      subject,
+      answers: questions.map((each) => ({
+        question: each.question,
+        ...(each.header !== null && { header: each.header }),
+        picked: each.options.map(({ label }) => label),
+      })),
+    },
+  }
+  return deliveredBytes(fullest) + wordsRoom <= maxDeliveryBytes
 }
 
 const maxOpenAsks = 50
@@ -687,6 +728,15 @@ export class Inbox {
                   }),
                 }
               })()
+      if (
+        content.kind === "ask" &&
+        content.ask.shape.type === "questions" &&
+        !answersFit(content.ask.subject, content.ask.shape.questions)
+      )
+        throw new Error(
+          "These questions and their options are too long for the user's answers to reach you, " +
+            "as each answer quotes them. Shorten them.",
+        )
       if (byteLength(JSON.stringify(content)) > 32_768)
         throw new Error(
           "This Inbox item is over 32 KB. Shorten its details or put longer content in a file.",

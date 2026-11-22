@@ -115,6 +115,9 @@ export type DialogSlots = {
   readonly detail?: ReactNode
   // The agent's harness, by its own name (`Conversation.agent`), for what its fields refuse.
   readonly harness?: string | null | undefined
+  // The most characters a question's own words take, where the host's answer takes fewer than
+  // the agent's prompt does (an agent's ask through the Inbox).
+  readonly wordsLimit?: number | undefined
 }
 
 const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element | null =>
@@ -265,12 +268,14 @@ const QuestionRows = ({
   id,
   pick,
   shown,
+  limit,
   onPick,
   onWrite,
   onDone,
 }: {
   readonly question: ChatQuestion
   readonly id: string
+  readonly limit: number
   readonly pick: Pick | undefined
   // Whether its page is the one on screen: hidden ones keep their height, not their keys.
   readonly shown: boolean
@@ -346,6 +351,7 @@ const QuestionRows = ({
           on={menu.at === question.options.length}
           number={question.options.length + 1}
           shown={shown}
+          limit={limit}
           onWrite={onWrite}
           onDone={onDone}
         />
@@ -362,11 +368,13 @@ const OwnWords = ({
   on,
   number,
   shown,
+  limit,
   onWrite,
   onDone,
 }: {
   readonly question: ChatQuestion
   readonly id: string
+  readonly limit: number
   readonly text: string
   readonly row: ReturnType<Menu["row"]>
   readonly on: boolean
@@ -384,7 +392,7 @@ const OwnWords = ({
         {...row}
         type="text"
         tabIndex={shown ? row.tabIndex : -1}
-        maxLength={wordsMax}
+        maxLength={limit}
         className="request-field nodrag nopan"
         aria-label={`Other: ${question.question}`}
         aria-describedby={`${id}-other-hint`}
@@ -537,8 +545,10 @@ const Questions = ({
   handle,
   replying,
   onReply,
+  wordsLimit = wordsMax,
 }: Controls & {
   readonly dialog: Extract<ChatDialog, { type: "questions" }>
+  readonly wordsLimit?: number | undefined
   // The host's box answers this dialog: its words are said to the agent in place of answers.
   readonly replying: boolean
   readonly onReply: ((dialog: string | null) => void) | undefined
@@ -729,6 +739,7 @@ const Questions = ({
                   question={question}
                   id={id}
                   pick={picks[question.id]}
+                  limit={wordsLimit}
                   shown={index === page}
                   onPick={(option) => {
                     setPicks(choose(picks, question, option))
@@ -1135,6 +1146,7 @@ export const RequestDialog = ({
   detail,
   harness,
   diagnostics,
+  wordsLimit,
   ...controls
 }: Controls &
   DialogSlots & {
@@ -1148,7 +1160,13 @@ export const RequestDialog = ({
   dialog.type === "choices" ? (
     <Choices dialog={dialog} kind={kind} detail={detail} harness={harness} {...controls} />
   ) : dialog.type === "questions" ? (
-    <Questions dialog={dialog} replying={replying} onReply={onReply} {...controls} />
+    <Questions
+      dialog={dialog}
+      replying={replying}
+      onReply={onReply}
+      wordsLimit={wordsLimit}
+      {...controls}
+    />
   ) : dialog.type === "form" ? (
     <Form dialog={dialog} {...controls} />
   ) : dialog.type === "newer" ? (

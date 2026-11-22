@@ -15,7 +15,12 @@ import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { Detail } from "@novadeck/requests/Detail"
 import type { DialogDraft } from "@novadeck/requests/drafts"
 import { answerWordsLimit, Menu, type MenuHandle, type MenuItem } from "@novadeck/requests/Menu"
-import { RequestCard, RequestFrame, type RequestPlace } from "@novadeck/requests/RequestCard"
+import {
+  clickToDialog,
+  RequestCard,
+  RequestFrame,
+  type RequestPlace,
+} from "@novadeck/requests/RequestCard"
 import { RequestDialog } from "@novadeck/requests/RequestDialog"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Markdown } from "@novadeck/toolkit/Markdown"
@@ -507,7 +512,10 @@ const QuestionsAsk = ({
       send={(answer) => {
         const given = askAnswerOf(questions, answer)
         if (given)
-          submit({ kind: "ask", answer: given }, `Answers queued for @${entry.source.handle}.`)
+          submit(
+            { kind: "ask", answer: given },
+            `${questions.length === 1 ? "Answer" : "Answers"} queued for @${entry.source.handle}.`,
+          )
       }}
       edited={() => {}}
       draft={{
@@ -517,6 +525,7 @@ const QuestionsAsk = ({
       arrived={arrived}
       handle={handle}
       place={place}
+      wordsLimit={askWordsLimit}
     />
   )
 }
@@ -539,9 +548,17 @@ const OwnCard = ({
   const { now } = useInboxContext()
   const title = titleOf(entry)
   const model = menuOf(entry, now)
+  // An ask of several questions holds a request's own dialog, and takes the keyboard to it as a
+  // request's card does.
+  const questions = entry.kind === "ask" && entry.ask.shape.type === "questions" && !settled
   return (
     <RequestFrame
       kind={entry.kind}
+      {...(questions && {
+        dialog: "questions",
+        onClick: (event: React.MouseEvent<HTMLElement>) =>
+          clickToDialog(event, typeof handle === "object" && handle ? handle.current : null),
+      })}
       label={`${title}: @${entry.source.handle}`}
       title={title}
       busy={props.answering}

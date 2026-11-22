@@ -1437,6 +1437,29 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
+    it("takes no more of the person's words per question than an ask's reply does", async () => {
+      const inbox = mount([asked(several())])
+
+      expect(shownPage()?.querySelector<HTMLInputElement>("input[type=text]")?.maxLength).toBe(4096)
+      await inbox.done()
+    })
+
+    it("brings the keyboard to its page from a click on the card, as a request's card does", async () => {
+      const inbox = mount([asked(several())])
+      act(() => (document.activeElement as HTMLElement | null)?.blur())
+      act(() => {
+        document
+          .querySelector(".inbox-sheet .request-prose")!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+      })
+
+      expect(
+        document.querySelector(".inbox-sheet .request-card")?.getAttribute("data-dialog"),
+      ).toBe("questions")
+      expect(shownPage()?.contains(document.activeElement)).toBe(true)
+      await inbox.done()
+    })
+
     it("sends nothing until every question has an answer", async () => {
       const inbox = mount([asked(several())])
       inbox.key("1", inbox.listed())
