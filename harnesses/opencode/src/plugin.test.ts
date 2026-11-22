@@ -37,8 +37,15 @@ let versionOf: string
 // Each call the plugin made to opencode's interface API (`client.tui`), the one way, beside the
 // terminal itself, it could change what the person's box holds.
 let interfaceCalls: string[]
+// Each reply the plugin sent to a permission's request, and what opencode answers one with.
+let permissionReplies: { path: { id: string; permissionID: string }; body: { response: string } }[]
+let replyAnswer: () => Promise<unknown>
 
 const client = () => ({
+  postSessionIdPermissionsPermissionId: async (options: (typeof permissionReplies)[number]) => {
+    permissionReplies.push(options)
+    return await replyAnswer()
+  },
   _client: { get: async () => ({ data: { healthy: true, version: versionOf } }) },
   session: {
     // As opencode answers: the session, or no data for one it doesn't have.
@@ -69,7 +76,7 @@ const client = () => ({
 })
 
 // The plugin rendered into the test's folder with hooks that run the stand-in, loaded and started.
-const start = async (env: Record<string, string> = {}): Promise<Hooks> => {
+const start = async (env: Record<string, string> = {}, gate = false): Promise<Hooks> => {
   const script = join(dir, "launcher.cjs")
   await writeFile(script, launcher)
   const hooks = Object.fromEntries(
@@ -85,6 +92,7 @@ const start = async (env: Record<string, string> = {}): Promise<Hooks> => {
       worktrees: "/w",
       minimum,
       unknownFrom,
+      ...(gate && { gate: true }),
     }),
   )
   Object.assign(process.env, { NOVADECK_HOOK: script, ...env })
@@ -105,6 +113,8 @@ const reports = (): Report[] => {
 }
 const answer = (event: string, deliver: string) =>
   writeFile(join(dir, "answers", event), JSON.stringify({ deliver }))
+const answered = (event: string, what: unknown) =>
+  writeFile(join(dir, "answers", event), `${JSON.stringify(what)}\n`)
 const emit = (hooks: Hooks, type: string, properties: unknown) =>
   hooks.event!({ event: { type, properties } })
 // The reports made so far, once the plugin's queue of them has run.
@@ -123,6 +133,8 @@ beforeEach(async () => {
   sessions = {}
   versionOf = "1.19.6"
   interfaceCalls = []
+  permissionReplies = []
+  replyAnswer = async () => ({ data: true })
 })
 afterEach(async () => {
   process.env = { ...saved }
@@ -552,6 +564,126 @@ describe("Novadeck's opencode plugin", () => {
     )
     const told = await settled(2)
     expect(told.filter(({ payload }) => payload.session_id === "ses_gone")).toEqual([])
+  })
+})
+
+describe("the plugin with the shipping gate on", () => {
+  const deny = { decision: "deny", reason: "Novadeck: ask the user for a permit." }
+  const before = (hooks: Hooks, tool: string, command = "git push origin main") => {
+    const output = { args: { command, description: "d" } }
+    return {
+      output,
+      done: hooks["tool.execute.before"]!({ tool, sessionID: "ses_a", callID: "call_1" }, output),
+    }
+  }
+  const asked = {
+    id: "per_1",
+    sessionID: "ses_a",
+    permission: "bash",
+    patterns: ["git push *"],
+    metadata: { command: "git push origin main" },
+    always: ["git push *"],
+    tool: { messageID: "msg_1", callID: "call_1" },
+  }
+
+  it("refuses a shell command Novadeck denies, with its reason as the call's result", async () => {
+    const hooks = await start({}, true)
+    await answered("PreToolUse", deny)
+    await expect(before(hooks, "bash").done).rejects.toThrow("Novadeck: ask the user for a permit.")
+    const [report] = reports()
+    expect(report).toMatchObject({
+      event: "PreToolUse",
+      payload: {
+        tool_name: "bash",
+        call_id: "call_1",
+        session_id: "ses_a",
+        tool_input: { command: "git push origin main" },
+      },
+    })
+  })
+
+  it("lets a shell command through that Novadeck says nothing of, or that its hook failed to answer", async () => {
+    const hooks = await start({}, true)
+    await expect(before(hooks, "bash").done).resolves.toBeUndefined()
+    await answered("PreToolUse", {})
+    await expect(before(hooks, "bash").done).resolves.toBeUndefined()
+    await writeFile(join(dir, "answers", "PreToolUse"), "not json")
+    await expect(before(hooks, "bash").done).resolves.toBeUndefined()
+    // A deny with no reason says nothing the model could read.
+    await answered("PreToolUse", { decision: "deny" })
+    await expect(before(hooks, "bash").done).resolves.toBeUndefined()
+  })
+
+  it("never waits for, or refuses, any other tool, and refuses nothing while the gate is off", async () => {
+    const gated = await start({}, true)
+    await answered("PreToolUse", deny)
+    await expect(before(gated, "read").done).resolves.toBeUndefined()
+    const off = await start()
+    await expect(before(off, "bash").done).resolves.toBeUndefined()
+  })
+
+  it("replies once to a shell command's permission only where Novadeck says so, for that request", async () => {
+    const hooks = await start({}, true)
+    await answered("PermissionRequest", { reply: "once" })
+    await emit(hooks, "permission.asked", asked)
+    expect(permissionReplies).toEqual([
+      { path: { id: "ses_a", permissionID: "per_1" }, body: { response: "once" } },
+    ])
+    // The report is the one request, made once.
+    expect((await settled(1)).filter(({ event }) => event === "PermissionRequest")).toHaveLength(1)
+    // No answer, or any other, is no reply: the person's dialog stays.
+    permissionReplies.length = 0
+    await emit(hooks, "permission.asked", asked)
+    await answered("PermissionRequest", { reply: "always" })
+    await emit(hooks, "permission.asked", asked)
+    await answered("PermissionRequest", { reply: "reject" })
+    await emit(hooks, "permission.asked", asked)
+    expect(permissionReplies).toEqual([])
+  })
+
+  it("replies to nothing but a shell command's permission of a named call", async () => {
+    const hooks = await start({}, true)
+    for (const each of [
+      { ...asked, permission: "edit" },
+      { ...asked, permission: "external_directory" },
+      { ...asked, tool: undefined },
+      { ...asked, tool: {} },
+    ]) {
+      // eslint-disable-next-line no-await-in-loop -- One at a time: each has its own answer.
+      await answered("PermissionRequest", { reply: "once" })
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await emit(hooks, "permission.asked", each)
+    }
+    expect(permissionReplies).toEqual([])
+    // While the gate is off the answer says nothing to it, whatever it prints.
+    const off = await start()
+    await answered("PermissionRequest", { reply: "once" })
+    await emit(off, "permission.asked", asked)
+    expect(permissionReplies).toEqual([])
+  })
+
+  it("reports the dialog again where its reply failed, which no answer then covers", async () => {
+    const hooks = await start({}, true)
+    let made = 0
+    for (const failing of [
+      async () => ({ data: false }),
+      async () => ({ error: { name: "NotFoundError" } }),
+      async () => {
+        throw new Error("down")
+      },
+    ]) {
+      replyAnswer = failing
+      // eslint-disable-next-line no-await-in-loop -- One at a time: each has its own answer.
+      await answered("PermissionRequest", { reply: "once" })
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await emit(hooks, "permission.asked", asked)
+      // Its second report has run before the next answer is queued, as it would take it.
+      made += 2
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await settled(made)
+    }
+    expect(permissionReplies).toHaveLength(3)
+    expect(reports().filter(({ event }) => event === "PermissionRequest")).toHaveLength(6)
   })
 })
 

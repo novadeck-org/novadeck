@@ -92,14 +92,21 @@ impl Config {
     /// But where the shipping gate is on (or isn't known to be off) and the command is one of
     /// `SHIPPING_RULES`, which the shim has agy allow, "ask" would run it unasked, so it prints
     /// a deny, and does the same where it can't tell what the command is.
+    ///
+    /// opencode's PreToolUse (its plugin's, for a `bash` call) is read the same way: it has no
+    /// rule of Novadeck's, but a person's own `permission: "allow"` runs what its hook doesn't
+    /// refuse, so the same two shapes are refused where the runner gave no answer, and its plugin
+    /// throws the reason. Any other answer it gets is the configuration's (silence).
     fn fallback(&self, agent: &str, event: &str, payload: Option<&str>) -> String {
-        if agent == "agy" && event == "PreToolUse" {
-            let guarded = (self.gated || self.unreadable) && payload.is_none_or(ships);
-            return if guarded {
-                format!("{}\n", json!({ "decision": "deny", "reason": REFUSED }))
-            } else {
-                "{\"decision\":\"ask\"}\n".to_owned()
-            };
+        if (agent == "agy" || agent == "opencode") && event == "PreToolUse" {
+            let guarded =
+                (self.gated || self.unreadable) && payload.is_none_or(|text| ships(agent, text));
+            if guarded {
+                return format!("{}\n", json!({ "decision": "deny", "reason": REFUSED }));
+            }
+            if agent == "agy" {
+                return "{\"decision\":\"ask\"}\n".to_owned();
+            }
         }
         let named = self.fallbacks.get(agent);
         let text = named
@@ -194,11 +201,12 @@ fn command_ships(command: &str) -> bool {
     })
 }
 
-/// The `CommandLine` an Antigravity payload names, read leniently, where the payload was cut:
-/// the string after its key, up to its end or the cut, and whether it ended (a cut one may hide
-/// any shape).
-fn command_in(text: &str) -> Option<(String, bool)> {
-    let at = text.find("\"CommandLine\"")? + "\"CommandLine\"".len();
+/// The string a payload names under `key` (Antigravity's `CommandLine`, opencode's `command`),
+/// read leniently, where the payload was cut: the string after its key, up to its end or the
+/// cut, and whether it ended (a cut one may hide any shape).
+fn command_in(text: &str, key: &str) -> Option<(String, bool)> {
+    let key = format!("\"{key}\"");
+    let at = text.find(&key)? + key.len();
     let rest = text[at..]
         .trim_start()
         .strip_prefix(':')?
@@ -231,22 +239,36 @@ fn command_in(text: &str) -> Option<(String, bool)> {
     Some((out, ended))
 }
 
-/// Whether an Antigravity PreToolUse payload is a `run_command` of a shipping shape, or one that
-/// can't be told apart from it: a payload cut before its command, or one that names no tool.
-fn ships(payload: &str) -> bool {
+/// Whether an Antigravity or opencode PreToolUse payload is a shell command of a shipping shape,
+/// or one that can't be told apart from it: a payload cut before its command, or one that names
+/// no tool. Antigravity's is its `run_command` call's `CommandLine`; opencode's is its plugin's
+/// report of the `bash` tool: `tool_name` and `tool_input.command`.
+fn ships(agent: &str, payload: &str) -> bool {
+    let (tool, command, key) = if agent == "opencode" {
+        ("bash", "command", "command")
+    } else {
+        ("run_command", "CommandLine", "CommandLine")
+    };
     match serde_json::from_str::<Value>(payload) {
-        Ok(value) => match value["toolCall"]["name"].as_str() {
-            Some("run_command") => value["toolCall"]["args"]["CommandLine"]
-                .as_str()
-                .is_none_or(command_ships),
-            Some(_) => false,
-            // No tool named: not an Antigravity tool call this relay can read.
-            None => true,
-        },
-        // Cut or not JSON: the command as far as it goes, or unknown, which counts.
-        Err(_) => {
-            command_in(payload).is_none_or(|(command, ended)| !ended || command_ships(&command))
+        Ok(value) => {
+            let (name, line) = if agent == "opencode" {
+                (&value["tool_name"], &value["tool_input"][command])
+            } else {
+                (
+                    &value["toolCall"]["name"],
+                    &value["toolCall"]["args"][command],
+                )
+            };
+            match name.as_str() {
+                Some(named) if named == tool => line.as_str().is_none_or(command_ships),
+                Some(_) => false,
+                // No tool named: not a tool call this relay can read.
+                None => true,
+            }
         }
+        // Cut or not JSON: the command as far as it goes, or unknown, which counts.
+        Err(_) => command_in(payload, key)
+            .is_none_or(|(command, ended)| !ended || command_ships(&command)),
     }
 }
 
@@ -531,6 +553,104 @@ mod tests {
                 "{command:?}"
             );
         }
+    }
+
+    /// opencode's plugin's report of a `bash` call, as `tool.execute.before` makes it.
+    fn opencode_report(command: &str) -> String {
+        json!({
+            "hook_event_name": "PreToolUse",
+            "cwd": "/w",
+            "session_id": "ses_1",
+            "tool_name": "bash",
+            "call_id": "toolu_1",
+            "tool_input": { "command": command, "description": "d" },
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn reads_the_shapes_in_opencodes_report_as_the_runners_cases_do() {
+        let cases: Value = serde_json::from_str(include_str!("rule-cases.json")).unwrap();
+        for case in cases["cases"].as_array().unwrap() {
+            let command = case["command"].as_str().unwrap();
+            let ships_it = case["ships"].as_bool().unwrap();
+            assert_eq!(
+                ships("opencode", &opencode_report(command)),
+                ships_it,
+                "{command:?}"
+            );
+            // Cut in the middle of the command: what may hide the shape counts as shipping.
+            if ships_it {
+                let report = opencode_report(command);
+                let from = report.find("\"command\":\"").unwrap() + "\"command\":\"".len();
+                let cut: String = report.chars().take(from + 5).collect();
+                assert!(ships("opencode", &cut), "{command:?}");
+            }
+        }
+    }
+
+    // opencode's plugin runs no rule of Novadeck's, but a person's `permission: "allow"` runs what
+    // its hook doesn't refuse: where the runner gave no answer the relay refuses the two shapes,
+    // as for Antigravity, and prints what opencode's plugin reads as a deny.
+    #[test]
+    fn refuses_opencodes_shipping_command_where_the_runner_gave_no_answer_while_the_gate_is_on() {
+        let gated = gated();
+        let guarded = opencode_report("gh pr create --title t --body x");
+        assert!(denied(&gated.fallback(
+            "opencode",
+            "PreToolUse",
+            Some(&guarded)
+        )));
+        // Cut after its tool but inside its command, and cut before its command.
+        let cut = &guarded[..guarded.len() - 25];
+        assert!(denied(&gated.fallback("opencode", "PreToolUse", Some(cut))));
+        let early = &guarded[..guarded.find("tool_input").unwrap()];
+        assert!(denied(&gated.fallback(
+            "opencode",
+            "PreToolUse",
+            Some(early)
+        )));
+        assert!(denied(&gated.fallback("opencode", "PreToolUse", None)));
+        // Too big to send, kept by its start.
+        let big = format!("{{\"prompt\":\"{}\",{}", "x".repeat(70_000), &guarded[1..]);
+        assert!(denied(&gated.fallback(
+            "opencode",
+            "PreToolUse",
+            Some(&big[..64 * 1024])
+        )));
+        // Any other command, other tool and other event gets what its configuration says.
+        let safe = opencode_report("ls");
+        assert_eq!(gated.fallback("opencode", "PreToolUse", Some(&safe)), "");
+        let read = json!({ "tool_name": "read", "tool_input": { "command": "gh pr create" } });
+        assert_eq!(
+            gated.fallback("opencode", "PreToolUse", Some(&read.to_string())),
+            ""
+        );
+        assert_eq!(
+            gated.fallback("opencode", "PermissionRequest", Some(&guarded)),
+            ""
+        );
+        let silent =
+            Config::of(&json!({ "gate": true, "fallbacks": { "opencode": { "*": "{}" } } }));
+        assert_eq!(
+            silent.fallback("opencode", "PreToolUse", Some(&safe)),
+            "{}\n"
+        );
+        assert!(denied(&silent.fallback(
+            "opencode",
+            "PreToolUse",
+            Some(&guarded)
+        )));
+        // Off, or not known to be on, as before.
+        let off = Config::of(&json!({ "asks": {} }));
+        assert_eq!(off.fallback("opencode", "PreToolUse", Some(&guarded)), "");
+        let missing = Config::read(Some(Path::new("/no/such/relay.json")));
+        assert!(denied(&missing.fallback(
+            "opencode",
+            "PreToolUse",
+            Some(&guarded)
+        )));
+        assert_eq!(missing.fallback("opencode", "PreToolUse", Some(&safe)), "");
     }
 
     // The shim writes these rules while the gate is on, and agy runs what a rule covers when the

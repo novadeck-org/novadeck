@@ -674,7 +674,9 @@ export type Machine = {
   /**
    * Whether the Experimental shipping gate is on: Claude Code's per-launch settings then
    * register its PreToolUse hook for shell commands, and Codex's plugin widens its PreToolUse
-   * matcher to them. Absent when it is off, and every file is written as it always was.
+   * matcher to them, Antigravity's shim passes its rules, and opencode's plugin waits for the
+   * runner's answer to a shell command. Absent when it is off, and every file is written as it
+   * always was.
    */
   readonly shippingGate?: boolean
   /**

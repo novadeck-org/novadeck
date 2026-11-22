@@ -648,6 +648,7 @@ describe("the mode call", () => {
     expect(await answer("codex", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("claude", false)).toEqual({ ok: true, mode: "herd", gated: false })
     expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: true })
+    expect(await answer("opencode", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer(null, true)).toEqual({ ok: true, mode: "herd", gated: false })
   })
 })

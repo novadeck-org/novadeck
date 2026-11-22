@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { logs, useLogger } from "../log.js"
 import type { WorktreeRecord } from "../worktrees/records.js"
 import { setAgyPreToolUse } from "./hooks.js"
-import { launchMode, pendingMs, Shipping } from "./service.js"
+import { launchMode, opencodeSkipsPermissions, pendingMs, Shipping } from "./service.js"
 
 let dir: string
 let repo: string
@@ -43,10 +43,11 @@ const force = "git push -f origin main"
 const forceKey = "push-force:r/app:origin/main"
 
 describe("which harnesses the gate covers", () => {
-  it("covers Claude Code, Codex and Antigravity while on", () => {
+  it("covers Claude Code, Codex, Antigravity and opencode while on", () => {
     expect(service().covers("claude")).toBe(true)
     expect(service().covers("codex")).toBe(true)
     expect(service().covers("agy")).toBe(true)
+    expect(service().covers("opencode")).toBe(true)
     const off = new Shipping({
       enabled: () => false,
       owned: { ofTerminal: () => [], all: () => [] },
@@ -447,6 +448,260 @@ describe("Antigravity's answers", () => {
     } finally {
       setAgyPreToolUse(true)
     }
+  })
+})
+
+describe("opencode's answers", () => {
+  const push = "git push origin main"
+  const pushKey = "push:r/app:origin/main"
+  // Real git runs in these, and a Windows runner is slow at it.
+  const slow = 15_000
+  const hooked = (
+    shipping: Shipping,
+    command: string,
+    over: { launch?: string[]; call?: string; conversation?: string } = {},
+  ) =>
+    shipping.answer(
+      "t",
+      "opencode",
+      { ...call(command), conversation: "ses_1", call: "toolu_1", ...over },
+      Date.now() + slow,
+    )
+  // Its `bash` permission's request, as the hook reads it.
+  const asked = (
+    shipping: Shipping,
+    command: string,
+    over: { call?: string; conversation?: string; until?: number } = {},
+  ) =>
+    shipping.answer(
+      "t",
+      "opencode",
+      {
+        ...call(command, "PermissionRequest"),
+        conversation: over.conversation ?? "ses_1",
+        call: over.call ?? "toolu_1",
+      },
+      over.until ?? Date.now() + slow,
+    )
+  const permitted = (shipping: Shipping, key = pushKey, singleUse = false) =>
+    shipping.permits.give("t", key, singleUse, { type: "quote", quote: "push it" })
+  const reply = (answer: Awaited<ReturnType<typeof asked>>) => JSON.parse(answer!.stdout)
+
+  it("covers opencode while on, and answers its PreToolUse and PermissionRequest only then", () => {
+    const shipping = service()
+    expect(shipping.covers("opencode")).toBe(true)
+    expect(shipping.gating("opencode", "PreToolUse")).toBe(true)
+    expect(shipping.gating("opencode", "PermissionRequest")).toBe(true)
+    expect(shipping.gating("opencode", "Stop")).toBe(false)
+    const off = new Shipping({
+      enabled: () => false,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    expect(off.covers("opencode")).toBe(false)
+    expect(off.gating("opencode", "PreToolUse")).toBe(false)
+  })
+
+  it("denies an unpermitted shipping command with request_permit's text, whatever its permission setup", async () => {
+    // The person's own `permission: "allow"`, an agent's, and a launch with other flags change
+    // nothing: the deny comes before opencode's permission check.
+    const launches = [
+      [],
+      ["--agent", "build"],
+      ["--model", "x/y"],
+      ["--auto", "false"],
+      ["--no-auto"],
+    ]
+    const answers = await Promise.all(launches.map((launch) => hooked(service(), push, { launch })))
+    for (const answer of answers) {
+      expect(JSON.parse(answer!.stdout)).toMatchObject({ decision: "deny" })
+      expect(JSON.parse(answer!.stdout).reason).toContain("request_permit")
+      expect(answer?.leaseId).toBeNull()
+    }
+  })
+
+  it("has no opinion where its launch skips every permission", async () => {
+    const shipping = service()
+    const skipped = await Promise.all(
+      ["--auto", "--yolo", "--dangerously-skip-permissions", "--auto=true"].map((flag) =>
+        hooked(shipping, push, { launch: ["-m", "x/y", flag] }),
+      ),
+    )
+    expect(skipped).toEqual([undefined, undefined, undefined, undefined])
+    // It is the launch's own flag: words after `--` are a prompt's, and a flag turned off is off.
+    const gated = await Promise.all(
+      [["--", "--auto"], ["--auto=false"], ["--auto", "--no-auto"], ["--yolo", "false"]].map(
+        (launch) => hooked(shipping, push, { launch }),
+      ),
+    )
+    for (const answer of gated)
+      expect(JSON.parse(answer!.stdout)).toMatchObject({ decision: "deny" })
+  })
+
+  it("reads the skip flag as opencode's yargs does", () => {
+    expect(opencodeSkipsPermissions(["--auto"])).toBe(true)
+    expect(opencodeSkipsPermissions(["--yolo"])).toBe(true)
+    expect(opencodeSkipsPermissions(["--dangerously-skip-permissions"])).toBe(true)
+    expect(opencodeSkipsPermissions(["--auto", "true"])).toBe(true)
+    expect(opencodeSkipsPermissions(["--no-auto", "--yolo"])).toBe(true)
+    expect(opencodeSkipsPermissions(["--auto", "--auto=false"])).toBe(false)
+    expect(opencodeSkipsPermissions(["--auto", "false"])).toBe(false)
+    expect(opencodeSkipsPermissions(["--no-yolo"])).toBe(false)
+    expect(opencodeSkipsPermissions(["--prompt", "x", "--", "--auto"])).toBe(false)
+    expect(opencodeSkipsPermissions(["--automatic", "--autox"])).toBe(false)
+    expect(opencodeSkipsPermissions([])).toBe(false)
+    expect(opencodeSkipsPermissions(undefined)).toBe(false)
+  })
+
+  it("stays silent for a permitted command and has no opinion of any other", async () => {
+    const shipping = service()
+    permitted(shipping)
+    expect(await hooked(shipping, push)).toBeUndefined()
+    // Nothing was used up: the permit is taken when its permission is answered.
+    expect(shipping.permits.covering("t", pushKey)).toBeDefined()
+    expect(await hooked(shipping, "git status")).toBeUndefined()
+    expect(await hooked(shipping, "ls -la")).toBeUndefined()
+  })
+
+  it("answers its permission once for the call the hook vetted, while a permit covers it", async () => {
+    const shipping = service()
+    permitted(shipping)
+    // Nothing vetted yet: the person answers.
+    expect(await asked(shipping, push)).toBeUndefined()
+    await hooked(shipping, push)
+    // Another session's and another call's request are no one's of this note, which stays.
+    expect(await asked(shipping, push, { conversation: "ses_2" })).toBeUndefined()
+    expect(await asked(shipping, push, { call: "toolu_2" })).toBeUndefined()
+    // The call's own request for another command ends the note: the person answers it.
+    expect(await asked(shipping, "git push origin dev")).toBeUndefined()
+    expect(await asked(shipping, push)).toBeUndefined()
+    await hooked(shipping, push)
+    const answer = await asked(shipping, push)
+    expect(reply(answer)).toEqual({ reply: "once" })
+    expect(answer?.leaseId).toBeTypeOf("string")
+    // It answers one request: a second for the same call is the person's.
+    expect(await asked(shipping, push)).toBeUndefined()
+  })
+
+  it("answers for none where no permit covers it any longer, or its note lapsed", async () => {
+    const shipping = service()
+    permitted(shipping, forceKey, true)
+    await hooked(shipping, force)
+    shipping.permits.revoke(forceKey)
+    expect(await asked(shipping, force)).toBeUndefined()
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() })
+    try {
+      const other = service()
+      permitted(other)
+      await hooked(other, push)
+      vi.setSystemTime(Date.now() + pendingMs + 1_000)
+      expect(await asked(other, push, { until: Date.now() + slow })).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("notes nothing for a command no permit covers, a tail, a bypass, or a call it can't name", async () => {
+    const shipping = service()
+    expect(await hooked(shipping, push)).toMatchObject({ leaseId: null })
+    expect(await asked(shipping, push)).toBeUndefined()
+    permitted(shipping)
+    await hooked(shipping, `${push} && touch x`)
+    expect(await asked(shipping, `${push} && touch x`)).toBeUndefined()
+    await hooked(shipping, push, { launch: ["--auto"] })
+    expect(await asked(shipping, push)).toBeUndefined()
+    await shipping.answer("t", "opencode", { ...call(push) }, Date.now() + slow)
+    expect(
+      await shipping.answer(
+        "t",
+        "opencode",
+        { ...call(push, "PermissionRequest") },
+        Date.now() + slow,
+      ),
+    ).toBeUndefined()
+  })
+
+  it("takes a single-use permit before it answers, so two permissions never both use it", async () => {
+    const shipping = service()
+    permitted(shipping, forceKey, true)
+    await hooked(shipping, force, { call: "toolu_1" })
+    await hooked(shipping, force, { call: "toolu_2" })
+    const [first, second] = await Promise.all([
+      asked(shipping, force, { call: "toolu_1" }),
+      asked(shipping, force, { call: "toolu_2" }),
+    ])
+    expect([first, second].filter((each) => each !== undefined)).toHaveLength(1)
+    expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+  })
+
+  it("keeps a standing permit for every call it covers", async () => {
+    const shipping = service()
+    permitted(shipping)
+    await hooked(shipping, push, { call: "toolu_1" })
+    await hooked(shipping, push, { call: "toolu_2" })
+    expect(await asked(shipping, push, { call: "toolu_1" })).toBeDefined()
+    expect(await asked(shipping, push, { call: "toolu_2" })).toBeDefined()
+    expect(shipping.permits.covering("t", pushKey)).toBeDefined()
+  })
+
+  it("uses the permit up once the hook says it printed the answer, and gives it back if it never did", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      const shipping = service()
+      permitted(shipping, forceKey, true)
+      await hooked(shipping, force)
+      const answer = await asked(shipping, force, { until: Date.now() + 1_000 })
+      expect(answer?.leaseId).toBeTypeOf("string")
+      expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+      // Printed and acknowledged: it stays used, and a late timer gives nothing back.
+      shipping.acknowledged("t", answer!.leaseId!)
+      vi.advanceTimersByTime(60_000)
+      expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+      // Never printed in time: it goes back.
+      permitted(shipping, forceKey, true)
+      await hooked(shipping, force, { call: "toolu_2" })
+      const unheard = await asked(shipping, force, { call: "toolu_2", until: Date.now() + 1_000 })
+      expect(unheard?.leaseId).toBeTypeOf("string")
+      expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+      vi.advanceTimersByTime(2_000)
+      expect(shipping.permits.covering("t", forceKey)).toBeDefined()
+      // Not a permit a revoke ended meanwhile (the PR's base changed).
+      await hooked(shipping, force, { call: "toolu_3" })
+      const revoked = await asked(shipping, force, { call: "toolu_3", until: Date.now() + 1_000 })
+      expect(revoked?.leaseId).toBeTypeOf("string")
+      shipping.permits.revoke(forceKey)
+      vi.advanceTimersByTime(2_000)
+      expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("refuses the rules' two shapes the gate couldn't decide in time, and leaves others to opencode", async () => {
+    const shipping = service()
+    const slowGate = (shipping as unknown as { gate: { decide: () => Promise<unknown> } }).gate
+    slowGate.decide = () => new Promise(() => {})
+    const late = (command: string) =>
+      shipping.answer("t", "opencode", { ...call(command) }, Date.now() + 40)
+    expect(JSON.parse((await late("gh pr create --title x"))!.stdout)).toMatchObject({
+      decision: "deny",
+    })
+    expect(JSON.parse((await late("cd /w && gh pr merge 5"))!.stdout)).toMatchObject({
+      decision: "deny",
+    })
+    expect(await late("git push origin main")).toBeUndefined()
+    slowGate.decide = () => Promise.reject(new Error("git failed"))
+    expect(JSON.parse((await late("gh pr merge 5"))!.stdout)).toMatchObject({ decision: "deny" })
+    expect(await late("ls")).toBeUndefined()
+  })
+
+  it("forgets what it vetted when the terminal closes", async () => {
+    const shipping = service()
+    permitted(shipping)
+    await hooked(shipping, push)
+    shipping.closed("t")
+    permitted(shipping)
+    expect(await asked(shipping, push)).toBeUndefined()
   })
 })
 

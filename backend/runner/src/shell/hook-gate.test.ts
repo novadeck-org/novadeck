@@ -63,6 +63,64 @@ describe("a hook the shipping gate answers", () => {
     expect(stepped?.step).toBe(12)
   })
 
+  it("reads opencode's bash call and its permission's request, with the session and call that tie them", () => {
+    const read = (event: string, payload: object, ancestors?: unknown) =>
+      relayHook(
+        {
+          ...hook("opencode", event, { cwd: abs("/w"), session_id: "ses_1", ...payload }),
+          ...(ancestors !== undefined && { ancestors }),
+        },
+        undefined,
+        on,
+      )?.gate
+    const call = {
+      tool_name: "bash",
+      call_id: "toolu_1",
+      tool_input: { command: "gh pr create --body x", description: "d" },
+    }
+    expect(read("PreToolUse", call)).toEqual({
+      event: "PreToolUse",
+      command: "gh pr create --body x",
+      cwd: abs("/w"),
+      conversation: "ses_1",
+      call: "toolu_1",
+    })
+    // Its `workdir`, relative to the session's folder, is where it runs.
+    expect(
+      read("PreToolUse", { ...call, tool_input: { ...call.tool_input, workdir: "sub" } })?.cwd,
+    ).toBe(abs("/w/sub"))
+    // Any other tool is no shell command, whatever its input holds; a call with no id still has
+    // its command read (the deny doesn't need it), but names no call.
+    expect(read("PreToolUse", { ...call, tool_name: "read" })).toBeUndefined()
+    expect(read("PreToolUse", { tool_name: "bash", tool_input: {} })).toBeUndefined()
+    const unnamed = read("PreToolUse", { ...call, call_id: undefined })
+    expect(unnamed?.command).toBe("gh pr create --body x")
+    expect(unnamed?.call).toBeUndefined()
+    // The permission's request names the raw command in its metadata, and the call it is for.
+    const asked = {
+      permission: "bash",
+      patterns: ["gh pr create *"],
+      metadata: { command: "gh pr create --body x" },
+      tool: { messageID: "msg_1", callID: "toolu_1" },
+    }
+    expect(read("PermissionRequest", asked)).toEqual({
+      event: "PermissionRequest",
+      command: "gh pr create --body x",
+      cwd: abs("/w"),
+      conversation: "ses_1",
+      call: "toolu_1",
+    })
+    // Another permission (a file, a folder, an MCP tool) is no shell command.
+    expect(read("PermissionRequest", { ...asked, permission: "edit" })).toBeUndefined()
+    expect(
+      read("PermissionRequest", { ...asked, permission: "external_directory" }),
+    ).toBeUndefined()
+    // The words it was launched with are carried, which say whether it skips every permission.
+    const launched = read("PreToolUse", call, [{ pid: 9, name: "opencode", args: ["--auto"] }])
+    expect(launched?.launch).toEqual(["--auto"])
+    expect(launched?.instance).toBe("9")
+  })
+
   it("is a plain report, as it always was, while the gate is off", () => {
     const value = hook("claude", "PreToolUse", { tool_name: "Bash", tool_input: { command: "ls" } })
     expect(relayHook(value)?.gate).toBeUndefined()

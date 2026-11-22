@@ -54,7 +54,8 @@ export const connected: Harness["connected"] = (install) =>
 /**
  * The plugin's files: its module, beside it a module in a configuration folder that loads it,
  * for a person who set `OPENCODE_CONFIG_CONTENT` themselves, and its MCP server and the
- * folder of agents' worktrees, which it adds to the configuration opencode loaded. opencode
+ * folder of agents' worktrees, which it adds to the configuration opencode loaded, and, while the
+ * shipping gate is on (`machine.shippingGate`), its refusal of a shell command. opencode
  * takes no hook command, so nothing here is opencode's own configuration: the shim names the
  * plugin for one launch.
  */
@@ -69,6 +70,8 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
       worktrees: machine.worktreesRoot ?? null,
       minimum,
       unknownFrom,
+      // Only while the Experimental shipping gate is on: off, the plugin is as it always was.
+      ...(machine.shippingGate === true && { gate: true }),
     }),
   },
   // Its interface's plugin, which tells a session left for home (`/new`), and the `tui.json` that

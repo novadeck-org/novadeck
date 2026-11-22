@@ -1677,7 +1677,7 @@ doesn't make the prompt known empty.
 ### The shipping gate
 
 Behind Preferences → Experimental → "Shipping gate" (`shippingGate`, off by default), for Claude
-Code, Codex and Antigravity (see "Antigravity" below for how its gate differs).
+Code, Codex, Antigravity and opencode (see "Antigravity" and "opencode" below for how theirs differ).
 The design is `architecture/grants.md`. Agents ship with their own `git` and `gh`; Novadeck's hook
 only gates them (`backend/runner/src/shipping/`).
 
@@ -1777,6 +1777,54 @@ only gates them (`backend/runner/src/shipping/`).
     Windows' cmd prints before hooks no PreToolUse is registered, no rule is written, and the gate
     doesn't cover Antigravity there (no refusal, no `request_permit`, no approval text); the person
     gets its own dialog, as before the gate.
+- **opencode** (`harnesses/opencode/src/plugin-source.ts`, `shipping/service.ts`). It runs no hook
+  commands: Novadeck's plugin reports a `bash` call (`tool.execute.before`, reported as PreToolUse
+  with `tool_name` `bash`, `call_id` and `tool_input.command`/`workdir`) and, while the gate is on
+  (the plugin's rendered `gate`, set only then), waits for the runner's answer to it. A deny
+  (`{"decision":"deny","reason":…}`, request_permit's text) makes the plugin throw the reason, which
+  opencode gives the model as the call's result: the turn goes on (probed 2026-11-22, 1.19.6, on the
+  fake model: the tool turn read exactly the thrown message, no `tool.execute.after` came, no
+  dialog). The hook comes before opencode's permission check, so the person's own
+  `"permission": "allow"`, an agent's own permission and a rule of theirs change nothing: the gate
+  doesn't read opencode's merged configuration, and a command no permit covers is refused in every
+  setup but one. Everything else gets no opinion.
+  - **A permitted command's own confirmation, answered for the call the hook vetted.** The hook,
+    silent because a permit covers the command, notes for 30 s the call's session, its id and the raw
+    command. Where opencode's own setup asks about it (`"bash": "ask"` in the person's config),
+    `permission.asked` carries the same call id (`tool.callID`) and the raw command (`metadata.command`),
+    and the plugin reports it as a `PermissionRequest` ask. The runner answers `{"reply":"once"}` only
+    if that request is the noted call's (same session, same call id, a `bash` permission, the command
+    equal exactly to the noted one) and a permit still covers it; the plugin then replies `once`
+    through opencode's API (`client.postSessionIdPermissionsPermissionId`, probed: `data: true`, the
+    command ran), never `always`, which would approve its patterns for the session. This is not a
+    reading of the screen, so a command of any length is answered the same, and the guarantees are by
+    id rather than by comparing text: one request per call (the note is spent by its first request,
+    answered or not), another session's or call's request never matches, another permission of the
+    same call (`external_directory`) is the person's. The permit is taken before the answer is
+    printed (a single-use one is gone for any other call at once) and given back only if the hook never
+    printed it in time (no acknowledgement, a timer), never a standing permit nor one a revoke ended;
+    what the command voids ends once the hook acknowledged. If the reply then fails, the plugin reports
+    the dialog once more, which nothing answers, so the person sees and answers it as ever. Each
+    answer is logged (`shipping.confirmation`). Where opencode asks nothing (its default for `bash`,
+    or a person's `allow`), no request comes and the command runs.
+  - **Modes.** The gate is silent only for an explicit bypass: a launch with `--auto`, `--yolo` or
+    `--dangerously-skip-permissions` (one flag, which makes its interface answer every permission;
+    read from the process's own arguments, as yargs reads a boolean: `--auto=false`, `--no-auto` and
+    words after `--` don't count). A mode toggled at runtime in the interface can't be seen, so a
+    launch without the flag stays gated. Where the process's arguments can't be read the gate stays on.
+  - **No rule of Novadeck's.** Unlike Antigravity there is nothing to pass per launch: the answer
+    to a dialog is by id, so a permitted PR with a long `--body` needs no rule, and none is
+    written (a rule would run, unasked, anything the hook said nothing of). Where the runner gives
+    no answer, the relay (`relay.json`'s `"gate": true`) refuses the same two shapes
+    (`gh pr create`, `gh pr merge`, read coarsely per segment, a cut or unreadable payload counted)
+    by printing the deny, for the person who allowed everything in their own configuration; the
+    runner does the same when its read failed or was late. The relay's cases for opencode's payload
+    (`tool_name` `bash`, `tool_input.command`) are the same `rule-cases.json`. Any other command is
+    left to opencode's own answer.
+  - Covered wherever its plugin loads (`Shipping.covers`, including Windows: the plugin's hook runs
+    through `cmd /d`, which skips an AutoRun). Where the person set `OPENCODE_PURE`, or both
+    `OPENCODE_CONFIG_CONTENT` and `OPENCODE_CONFIG`, no plugin loads and nothing is gated
+    (`hooksTrusted` says so).
 - **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
   plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
   `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept

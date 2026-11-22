@@ -26,6 +26,13 @@ export type PluginConfig = {
   readonly minimum: string
   /** The first release it doesn't know (opencode 2); from it on, it does nothing at all. */
   readonly unknownFrom: string
+  /**
+   * The shipping gate (Experimental) is on: a shell command's PreToolUse waits for the runner's
+   * answer, and is refused where it says so, and the plugin answers the permission dialog of a
+   * command the runner permits, for that call alone. Absent otherwise, and the plugin is as it
+   * always was.
+   */
+  readonly gate?: boolean
 }
 
 /** The plugin's module for `config`, as opencode imports it. */
@@ -111,6 +118,28 @@ const report = (event, payload) => {
   const next = queue.then(() => hook(event, payload))
   queue = next.catch(() => "")
   return next
+}
+
+// What an answer refuses a call with, where it does: the words the relay prints for a deny
+// (Antigravity's form too), whose reason opencode gives the model as the call's result.
+const refusal = (text) => {
+  try {
+    const answer = JSON.parse(text.trim() || "{}")
+    return answer.decision === "deny" && typeof answer.reason === "string" && answer.reason !== ""
+      ? answer.reason
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// Whether an answer lets the plugin reply "once" to the permission it asked about.
+const replies = (text) => {
+  try {
+    return JSON.parse(text.trim() || "{}").reply === "once"
+  } catch {
+    return false
+  }
 }
 
 // A text cut to its first length characters, for what a payload only needs the start of.
@@ -458,8 +487,8 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             if (id && !(await parentOf(id))) await bind(id, "compact")
             return
           }
-          case "permission.asked":
-            report("PermissionRequest", {
+          case "permission.asked": {
+            const asked = {
               session_id: props.sessionID,
               request_id: props.id,
               permission: props.permission,
@@ -468,8 +497,29 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
               always: props.always,
               tool: props.tool,
               root: await rootOf(props.sessionID),
-            })
+            }
+            if (!config.gate || props.permission !== "bash" || !props.tool?.callID) {
+              report("PermissionRequest", asked)
+              return
+            }
+            // A shell command's permission, with the shipping gate on: Novadeck says whether this
+            // is the very call its hook let through under a permit, and then the reply is "once",
+            // never "always" (which would approve its patterns for the session: permission/index.ts,
+            // 1.19.6). Where it says nothing, or the reply fails, the person's dialog is as it was.
+            const answer = await report("PermissionRequest", asked)
+            if (!replies(answer)) return
+            let replied = false
+            try {
+              const sent = await client.postSessionIdPermissionsPermissionId({
+                path: { id: props.sessionID, permissionID: props.id },
+                body: { response: "once" },
+              })
+              replied = sent?.data === true
+            } catch {}
+            // Its one answer is spent: the dialog is reported once more, which no permit answers.
+            if (!replied) report("PermissionRequest", asked)
             return
+          }
           case "permission.replied":
             // A rejection ends the turn with no error of its own: the Stop says so.
             if (props.reply === "reject" && props.sessionID) turnOf(props.sessionID).rejected = true
@@ -607,17 +657,24 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
     },
 
     "tool.execute.before": async (input, output) => {
+      let refused
       try {
         if (input.tool === "task") kinds.set(input.sessionID, output.args?.subagent_type ?? null)
         if (input.callID) calls.set(input.callID, input.tool)
-        report("PreToolUse", {
+        const answer = report("PreToolUse", {
           session_id: input.sessionID,
           tool_name: input.tool,
           call_id: input.callID,
           tool_input: output.args,
           root: await rootOf(input.sessionID),
         })
+        // A shell command, with the shipping gate on: waits for Novadeck's answer, bound by its
+        // hook's own time (a hook that failed or ran past it answers nothing).
+        if (config.gate && input.tool === "bash") refused = refusal(await answer)
       } catch {}
+      // A throw is the call's result: opencode gives its message to the model as the tool's output
+      // and the turn goes on (probed 2026-11-22, 1.19.6).
+      if (refused) throw new Error(refused)
     },
 
     "tool.execute.after": async (input, output) => {

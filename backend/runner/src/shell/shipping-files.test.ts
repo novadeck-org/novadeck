@@ -50,6 +50,7 @@ describe("the shipping gate's files", () => {
       "claude/statusline.json",
       "claude/worktrees.json",
       "codex/novadeck/hooks/hooks.json",
+      "opencode/novadeck.mjs",
     ])
     const settings = JSON.parse(at(on, "statusline.json")) as {
       hooks: { PreToolUse: { matcher: string; hooks: { command: string }[] }[] }
@@ -60,6 +61,11 @@ describe("the shipping gate's files", () => {
       hooks: { PreToolUse: { matcher: string }[] }
     }
     expect(codex.hooks.PreToolUse[0]!.matcher).toContain("|Bash|")
+    // opencode's plugin waits for the runner's answer to a shell command, only while the gate is on.
+    const plugin = (all: Map<string, string>) => at(all, "opencode/novadeck.mjs")
+    expect(plugin(off)).not.toContain('"gate"')
+    expect(plugin(on)).toContain('"gate":true')
+    expect(plugin(on).replace(',"gate":true', "")).toBe(plugin(off))
     // Antigravity's shim passes the shipping rules to the relay, only while the gate is on.
     expect(at(off, "/bin/agy")).not.toContain("command(gh pr")
     const shim = at(on, "/bin/agy")
@@ -74,5 +80,9 @@ describe("the shipping gate's files", () => {
     expect(gatedRelayConfig.asks.codex).toEqual(
       expect.arrayContaining(["PreToolUse", "PermissionRequest"]),
     )
+    expect(gatedRelayConfig.asks.opencode).toEqual(
+      expect.arrayContaining(["PreToolUse", "PermissionRequest"]),
+    )
+    expect(relayConfig.asks.opencode).not.toContain("PermissionRequest")
   })
 })

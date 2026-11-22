@@ -5,6 +5,9 @@
  * left to a rule that would run them unasked. The relay holds the same list and the same coarse
  * reading for where the runner gives no answer at all (backend/relay `hook.rs`, `command_ships`);
  * both are tested against `backend/relay/src/rule-cases.json`.
+ *
+ * The same two shapes are refused for opencode where its hook has no answer: it has no rule of
+ * Novadeck's, but a person's own `permission: "allow"` runs what its hook doesn't refuse.
  */
 import { shippingRules } from "@novadeck/harness-agy/shim"
 

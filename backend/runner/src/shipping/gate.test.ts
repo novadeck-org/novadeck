@@ -71,6 +71,39 @@ describe("the shipping gate for Antigravity", () => {
   })
 })
 
+describe("the shipping gate for opencode", () => {
+  const opencode = (command: string, mode?: string) => ({
+    agent: "opencode" as const,
+    event: "PreToolUse" as const,
+    terminalId: "t",
+    command,
+    cwd: "/main",
+    ...(mode !== undefined && { mode }),
+  })
+
+  it("marks a permitted command, which its own permission then asks about, and denies an unpermitted one in request_permit's words", async () => {
+    const permitted = setup()
+    permitted.permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge it" })
+    expect(await permitted.gate.decide(opencode("gh pr merge 5"))).toEqual({
+      stdout: "",
+      permitted: true,
+    })
+    const denied = await setup().gate.decide(opencode("gh pr merge 5"))
+    expect(JSON.parse(denied!.stdout)).toMatchObject({ decision: "deny" })
+    expect(JSON.parse(denied!.stdout).reason).toContain("request_permit")
+    expect(denied?.permitted).toBeUndefined()
+  })
+
+  it("has no opinion where its launch skips every permission, and of a command that ships nothing", async () => {
+    expect(await setup().gate.decide(opencode("gh pr merge 5", "bypass"))).toBeUndefined()
+    expect(await setup().gate.decide(opencode("git status"))).toBeUndefined()
+    // A mode it doesn't know is gated.
+    expect(await setup().gate.decide(opencode("gh pr merge 5", "plan"))).toMatchObject({
+      stdout: expect.stringContaining("deny"),
+    })
+  })
+})
+
 describe("the shipping gate", () => {
   it("says nothing about commands that ship nothing", async () => {
     const { gate, input } = setup()
