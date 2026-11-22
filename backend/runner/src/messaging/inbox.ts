@@ -450,7 +450,7 @@ const wordsRoom = 1024
  * delivery that quotes every question with every option picked leaves `wordsRoom` for their
  * words under a delivery's limit.
  */
-const answersFit = (subject: string, questions: AskQuestions): boolean => {
+const answersFit = (asked: string, questions: AskQuestions): boolean => {
   const fullest: Message = {
     id: "m-fullest",
     projectId: "project",
@@ -468,7 +468,7 @@ const answersFit = (subject: string, questions: AskQuestions): boolean => {
     toLead: false,
     response: {
       askId: randomUUID(),
-      subject,
+      subject: asked,
       answers: questions.map((each) => ({
         question: each.question,
         ...(each.header !== null && { header: each.header }),
