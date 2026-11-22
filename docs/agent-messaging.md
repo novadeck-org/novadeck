@@ -1735,20 +1735,32 @@ only gates them (`backend/runner/src/shipping/`).
   and is silent for any other, so its own confirmation shows as it always did. Where a live permit
   covers the very command, Novadeck presses that confirmation's run-once option ("Yes, run
   command", never "always allow" or "Persist to settings.json") through the driver that answers a
-  request from the chat or the Inbox. It answers only for the terminal's root agent's
-  `run_command`, whose dialog was read whole and shows exactly the call the hook recorded (a cut
-  or wrapped command is left to the person), and where the reader reads the whole command as
-  shipping that permits cover, with the exactness above; a single-use permit ends when the
-  answer is typed, and each auto-answer is logged (`shipping.auto-answer`). A dialog is decided
-  once, as it first reads, so a permit given later never answers one the person was waiting on.
-  The gate stays silent in `auto`, which runs commands unasked: the mode is the status line's
-  `cycle_mode` (it follows a Shift+Tab), else the launch's `--mode`, else `auto`. With the
-  runner down the relay prints Antigravity's `ask`, so the dialog waits for the person. The
-  person's own `command(...)` allow rules (read from `~/.gemini/antigravity-cli/settings.json`,
+  request from the chat or the Inbox. It does so only for the call the hook vetted: the hook, silent
+  because a permit covers the command, notes (for 30 s) the call's step, which names the
+  confirmation's request (`confirmation:run_command:<step>`), and the raw command whole. The
+  press needs that request, an input that is the same command (one the report path pruned never
+  matches), a permit that still covers it, a dialog that shows it unwrapped or cut short with
+  the mark agy ends a long command with (`⋯ (N lines hidden)`, or `...`), the only such note
+  waiting, a dialog asked after the note, and no later call's hook asked since (a denied call
+  never reaches the report path that tells a request which call it is about, so the note's call
+  must be the latest the gate saw). That makes a long `gh pr create --body …` answerable. The
+  permit is taken before the keys are typed and given back if they fail, so two dialogs never
+  use one single-use permit. A subagent's matching command is answered under the terminal's
+  permit, as the gate allows it for Claude Code. Each auto-answer is logged
+  (`shipping.auto-answer`), and a dialog is decided once, as it first reads.
+  The gate applies in every mode (default, `auto`, `accept-edits`, `plan`): `auto` still prompts
+  before irreversible actions, as Claude Code's auto mode does. It is silent only where Antigravity
+  was told to skip every permission (its launch's `--dangerously-skip-permissions`, or a status
+  line mode of `bypass`), and a mode nobody told is gated: a deny is safe, and agy's dialog
+  decides a permitted command. The mode is the status line's `cycle_mode` (`""` is its Default
+  mode; it follows a Shift+Tab, and only the process that said it counts, so a restart in the
+  same terminal starts afresh), else the launch's `--mode`. With the runner down the relay
+  prints Antigravity's `ask` (whatever its configuration says), so the dialog waits for the person.
+  Only a `run_command` hook takes the 4 s ask limit; every other tool's keeps the 2 s of a report.
+  The person's own `command(...)` allow rules (read from `~/.gemini/antigravity-cli/settings.json`,
   never written) leave a command to them, as the others'. On Windows where cmd prints before
-  hooks no PreToolUse is registered: nothing is refused there, and no request carries the
-  recorded call, so nothing is auto-answered; the person gets Antigravity's own dialog, as
-  before the gate.
+  hooks no PreToolUse is registered: the gate doesn't cover Antigravity there (no refusal, no
+  `request_permit`, no approval text), and the person gets its own dialog, as before the gate.
 - **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
   plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
   `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept

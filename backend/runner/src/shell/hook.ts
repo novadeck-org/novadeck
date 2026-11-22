@@ -43,6 +43,10 @@ export type GateCall = {
   readonly transcript?: string
   /** The words the agent was started with, where the relay read them: Antigravity's `--mode`. */
   readonly launch?: readonly string[]
+  /** The agent process that ran the hook, as the report names it. */
+  readonly instance?: string
+  /** Antigravity's step for the call, which names the request of its confirmation. */
+  readonly step?: number
 }
 
 // The most of a command the gate takes; a longer one is refused by the reader's own limit.
@@ -407,6 +411,10 @@ export const relayHook = (
             transcript: payload.transcript_path,
           }),
           ...(launch !== undefined && { launch }),
+          ...(instance !== null && { instance }),
+          ...(agent.data === "agy" &&
+            typeof payload.stepIdx === "number" &&
+            Number.isSafeInteger(payload.stepIdx) && { step: payload.stepIdx }),
         }
   return askOf(agent.data, event) || gate
     ? {

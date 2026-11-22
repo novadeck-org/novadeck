@@ -72,15 +72,19 @@ impl Config {
     /// PreToolUse always prints "ask" (it denies a tool otherwise), even where the
     /// configuration is unreadable or lacks it.
     fn fallback(&self, agent: &str, event: &str) -> String {
+        // Antigravity's PreToolUse prints "ask" whatever the configuration says, even a
+        // non-empty answer: it denies a tool whose answer names no decision (`{}` included),
+        // and any other decision would stand in for the person's dialog, which the shipping
+        // gate leans on for every command it doesn't answer.
+        if agent == "agy" && event == "PreToolUse" {
+            return "{\"decision\":\"ask\"}\n".to_owned();
+        }
         let named = self.fallbacks.get(agent);
         let text = named
             .and_then(|each| each.get(event).or_else(|| each.get("*")))
             .and_then(Value::as_str)
             .unwrap_or("");
         if text.is_empty() {
-            if agent == "agy" && event == "PreToolUse" {
-                return "{\"decision\":\"ask\"}\n".to_owned();
-            }
             String::new()
         } else {
             format!("{text}\n")
@@ -104,10 +108,39 @@ impl Config {
     fn limit(&self, agent: &str, event: &str) -> Duration {
         Duration::from_millis(match (agent, event) {
             _ if claude_status_line(agent, event) => 5_000,
+            // Antigravity's PreToolUse comes before every tool, and only a shell command's is
+            // asked of the runner: the others keep a report's short limit (`limit_for`).
+            ("agy", "PreToolUse") => 2_000,
             _ if self.asks(agent, event) => 4_000,
             _ => 2_000,
         })
     }
+
+    /// How long a hook may take once its payload is read: `limit`, but for Antigravity's
+    /// PreToolUse of a `run_command` call listed in `asks`, which the runner answers (the
+    /// shipping gate) and so gets the long limit a Stop does.
+    fn limit_for(&self, agent: &str, event: &str, payload: &str) -> Duration {
+        if agent == "agy"
+            && event == "PreToolUse"
+            && self.asks(agent, event)
+            && runs_command(payload)
+        {
+            return Duration::from_millis(4_000);
+        }
+        self.limit(agent, event)
+    }
+}
+
+/// Whether an Antigravity hook payload is about a `run_command` call.
+fn runs_command(payload: &str) -> bool {
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .and_then(|value| {
+            value["toolCall"]["name"]
+                .as_str()
+                .map(|name| name == "run_command")
+        })
+        .unwrap_or(false)
 }
 
 /// Whether `agent`'s `event` is Claude Code's status line, which runs the person's own.
@@ -157,8 +190,8 @@ fn print(text: &str) -> bool {
 pub fn run(agent: &str, event: &str, config: &Config) {
     // When the hook started, in wall-clock milliseconds: a later hook reports a larger one.
     let started = epoch_ms().unwrap_or(0.0);
-    let limit = config.limit(agent, event);
-    let deadline = Instant::now() + limit;
+    let begun = Instant::now();
+    let deadline = begun + config.limit(agent, event);
     let fallback = || config.fallback(agent, event);
     // The agent's payload, read whole even where it goes unused, so the agent never
     // writes into a closed pipe; within the hook's limit, as an agent may leave it open.
@@ -166,6 +199,9 @@ pub fn run(agent: &str, event: &str, config: &Config) {
         return say(&fallback());
     };
     let payload = String::from_utf8_lossy(&payload).into_owned();
+    // What the payload says may lengthen the limit (see `limit_for`).
+    let limit = config.limit_for(agent, event, &payload);
+    let deadline = begun + limit;
     // Claude Code's status line shows the person's own wherever it runs: outside a terminal
     // Novadeck can reach as within one.
     let own = claude_status_line(agent, event).then(|| own_status_line(payload.clone(), deadline));
@@ -324,17 +360,44 @@ mod tests {
         assert_eq!(Config::default().fallback("codex", "PreToolUse"), "");
     }
 
+    #[test]
+    fn only_antigravitys_shell_commands_wait_the_long_limit_for_the_runner() {
+        let config = Config::of(&json!({ "asks": { "agy": ["Stop", "PreToolUse"] } }));
+        let run = r#"{"toolCall":{"name":"run_command","args":{"CommandLine":"git push"}}}"#;
+        let read = r#"{"toolCall":{"name":"read_file","args":{}}}"#;
+        let ms = |payload: &str| config.limit_for("agy", "PreToolUse", payload).as_millis();
+        assert_eq!(ms(run), 4_000);
+        assert_eq!(ms(read), 2_000);
+        assert_eq!(ms("not json"), 2_000);
+        // Before its payload is read it is the short one, and without the event in `asks` too.
+        assert_eq!(config.limit("agy", "PreToolUse").as_millis(), 2_000);
+        let unlisted = Config::of(&json!({ "asks": { "agy": ["Stop"] } }));
+        assert_eq!(
+            unlisted.limit_for("agy", "PreToolUse", run).as_millis(),
+            2_000
+        );
+        assert_eq!(config.limit_for("agy", "Stop", run).as_millis(), 4_000);
+    }
+
     // The shipping gate leans on this (architecture/grants.md): where the runner gives Antigravity
     // no answer to a PreToolUse (no terminal, a payload too big, no connection, a timeout, an
     // unheard or failed ask), it prints `ask`, so its own dialog waits for the person. Silence
     // would let a rule or its default run the command unasked, and no configuration may empty it.
     #[test]
     fn antigravitys_pre_tool_use_never_falls_back_to_silence() {
-        let emptied = Config::of(&json!({ "fallbacks": { "agy": { "PreToolUse": "", "*": "" } } }));
-        assert_eq!(
-            emptied.fallback("agy", "PreToolUse"),
-            "{\"decision\":\"ask\"}\n"
-        );
+        // Whatever the configuration says, even a non-empty answer, which Antigravity would
+        // take as no decision and deny the tool for, or as a decision of the runner's.
+        for text in ["", "{}", "{\"decision\":\"allow\"}"] {
+            let config =
+                Config::of(&json!({ "fallbacks": { "agy": { "PreToolUse": text, "*": text } } }));
+            assert_eq!(
+                config.fallback("agy", "PreToolUse"),
+                "{\"decision\":\"ask\"}\n"
+            );
+        }
+        // Its other events keep the configuration's.
+        let other = Config::of(&json!({ "fallbacks": { "agy": { "Stop": "{}" } } }));
+        assert_eq!(other.fallback("agy", "Stop"), "{}\n");
         // An unheard ask, a runner that answers no stdout, is the same fallback.
         assert_eq!(Answer::of(r#"{"leaseId":null,"stdout":null}"#).stdout, None);
     }

@@ -53,6 +53,14 @@ describe("a hook the shipping gate answers", () => {
     expect(read({ name: "run_command", args: {} })).toBeUndefined()
     const launched = read(run, [{ pid: 7, name: "agy", args: ["--mode", "plan"] }])
     expect(launched?.launch).toEqual(["--mode", "plan"])
+    expect(launched?.instance).toBe("7")
+    // Its step names the call's confirmation; the gate reads the raw command, never a pruned one.
+    const stepped = relayHook(
+      hook("agy", "PreToolUse", { toolCall: run, cwd: abs("/w"), stepIdx: 12 }),
+      undefined,
+      on,
+    )?.gate
+    expect(stepped?.step).toBe(12)
   })
 
   it("is a plain report, as it always was, while the gate is off", () => {

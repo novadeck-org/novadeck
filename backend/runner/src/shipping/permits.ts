@@ -56,6 +56,12 @@ export class Permits {
     if (permit.singleUse) this.held.delete(this.id(permit.terminalId, permit.key))
   }
 
+  /** Gives back a permit `used` took, unless a newer one replaced it or it has lapsed. */
+  restore(permit: Permit): void {
+    const id = this.id(permit.terminalId, permit.key)
+    if (permit.until > this.now() && !this.held.has(id)) this.held.set(id, permit)
+  }
+
   /** Ends every terminal's permit for `key`: the target it was given for has changed. */
   revoke(key: string): void {
     for (const [id, permit] of this.held) if (permit.key === key) this.held.delete(id)

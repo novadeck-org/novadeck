@@ -206,7 +206,7 @@ export class Reports {
         record.bound === undefined ||
         record.bound.binding.instance === report.instance)
     )
-      this.host.shipping()?.statusLine(report.terminalId, report.payload)
+      this.host.shipping()?.statusLine(report.terminalId, report.payload, report.instance)
     // The bound session's transcript, where this report names it and nothing did before.
     const named = harnesses[report.agent].transcriptOf?.(report)
     if (named && record.bound?.binding.agent === report.agent)

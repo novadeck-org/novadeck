@@ -9,6 +9,7 @@ import { theirRoots } from "@novadeck/harness-codex/roots"
 import { cmdShimName, pwshShimName, relayPath } from "@novadeck/relay"
 
 import { logs } from "../log.js"
+import { setAgyPreToolUse } from "../shipping/hooks.js"
 import { withoutInherited } from "./inherited.js"
 import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
 
@@ -120,6 +121,8 @@ export const installShellFiles = async (
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
   const prints = platform === "win32" ? await printing() : undefined
+  // Where cmd prints, Antigravity's plugin registers no PreToolUse hook, which the shipping gate needs.
+  setAgyPreToolUse(prints === undefined)
   // Where cmd prints, Antigravity's hooks run through Novadeck's own cmd.exe, which starts the
   // real one with /d for them and so skips the AutoRun: once that is installed and is the
   // shipped one, with a path to put on PATH. Without it, as before.

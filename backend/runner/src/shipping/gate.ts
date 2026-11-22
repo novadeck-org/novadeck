@@ -67,12 +67,13 @@ const bypass = (turn: Turn | undefined): boolean =>
   turn?.approval === "never" && turn.sandbox === "danger-full-access"
 
 /**
- * Whether an Antigravity mode asks about commands: `accept-edits` and `plan` do, and its default
- * `auto` runs them all unasked, so Novadeck adds no gate there (as with Claude Code's bypass).
- * A mode nobody told is read as `auto`.
+ * The mode `Shipping.agyMode` gives for Antigravity in an explicit bypass: its launch's
+ * `--dangerously-skip-permissions`, or a status line mode that means skip. Every other mode
+ * (default, `auto`, `accept-edits`, `plan`, one nobody told) is gated: `auto` still prompts before
+ * irreversible actions, as Claude Code's auto mode does, and a deny is safe where agy's own
+ * dialog decides what a permit covers.
  */
-export const agyAsks = (mode: string | undefined): boolean =>
-  mode === "accept-edits" || mode === "plan"
+export const agyBypassMode = "bypass"
 
 const restricted = (turn: Turn | undefined): boolean =>
   turn?.sandbox === "workspace-write" || turn?.sandbox === "read-only"
@@ -141,6 +142,14 @@ export type Covered = {
   readonly actions: readonly Action[]
   /** Ends what the command's run uses up: single-use permits, and the merge permits it voids. */
   readonly used: () => void
+  /**
+   * Takes the single-use permits now, before the command is let run, so no other answer can
+   * use them too; `restore` gives them back where it wasn't, and `voided` ends the merge permits
+   * the command voids, once it was.
+   */
+  readonly take: () => void
+  readonly restore: () => void
+  readonly voided: () => void
 }
 
 export class Gate {
@@ -165,8 +174,8 @@ export class Gate {
   async decide(input: GateInput): Promise<Decision | undefined> {
     // Claude Code's bypass mode, where it asks nothing: Novadeck adds no gate.
     if (input.agent === "claude" && input.mode === "bypassPermissions") return undefined
-    // Antigravity in a mode that runs every command unasked: nothing to replace.
-    if (input.agent === "agy" && !agyAsks(input.mode)) return undefined
+    // Antigravity told to skip every permission: nothing to replace.
+    if (input.agent === "agy" && input.mode === agyBypassMode) return undefined
     const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
     if (reading.kind === "none") return undefined
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
@@ -209,14 +218,24 @@ export class Gate {
       if (!permit) return undefined
       permits.push(permit)
     }
+    const voided = () => {
+      for (const action of reading.actions)
+        for (const key of action.voids ?? []) this.deps.permits.revoke(key)
+    }
     return {
       permits,
       actions: reading.actions,
       used: () => {
         for (const permit of permits) this.deps.permits.used(permit)
-        for (const action of reading.actions)
-          for (const key of action.voids ?? []) this.deps.permits.revoke(key)
+        voided()
       },
+      take: () => {
+        for (const permit of permits) this.deps.permits.used(permit)
+      },
+      restore: () => {
+        for (const permit of permits) this.deps.permits.restore(permit)
+      },
+      voided,
     }
   }
 
