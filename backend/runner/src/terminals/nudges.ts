@@ -390,9 +390,9 @@ export const inboxNotice = noticeText("Inbox", {
  * default stated plainly (a first version that said "by default" and offered the tools made
  * Claude edit in place in a plain fix, 0 of 1 against 1 of 1 for "Before you change any
  * file", so the default is said, and the person's words are the one way out); the rest is
- * facts and tools, and it prescribes nothing about the work itself. It says nothing of committing, merging or pull requests: some
- * sandboxes (Codex's workspace-write) can't commit, and what to do with the work is the
- * person's to say. It names absolute paths and `git -C` for no harness-specific reason; the
+ * facts and tools, and it prescribes nothing about the work itself. It says nothing of
+ * committing, merging or pull requests: some sandboxes (Codex's workspace-write) can't commit,
+ * and what to do with the work is the person's to say. It names absolute paths and `git -C` for no harness-specific reason; the
  * instruction files are named because none is loaded from there.
  */
 export const worktreesOnNotice = noticeText("Worktrees", {

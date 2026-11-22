@@ -3081,9 +3081,11 @@ again on each call.
   that worktrees are the default (`worktreesOnNotice`): its changes go in a worktree it opens
   with `open_worktree` or takes with `take_worktree`, one for each repository it changes, not
   in its terminal's checkout, and what the user asked decides otherwise (told to work in
-  place, or in a given folder, it does). It states facts and offers tools and orders
-  nothing: a worktree's home is the branch its work belongs on (the branch it started from,
-  or the `home` it gives), and Novadeck shows it merged once home holds its work. Its action
+  place, or in a given folder, it does). That default is said plainly, with the user's
+  words as the one way out (a first wording that only offered the tools made Claude edit in
+  place in a plain fix, 0 of 1 against 4 of 4 for the plain default); the rest is facts: a
+  worktree's home is the branch its work belongs on (the branch it started from, or the
+  `home` it gives), and Novadeck shows it merged once home holds its work. Its action
   lines are conveniences: name branches as the repository's own instructions say; use
   absolute paths into the worktree and `git -C <worktree>` for git, never `cd` and then git
   (Claude Code refuses it, and no shell's folder stays outside the one it started in); the
