@@ -540,8 +540,10 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             // reported once more: the runner skips the card of a report it answered, and its note
             // is spent by the first, so it answers nothing the second time and the card and the
             // bell show. Not for one the person answered meanwhile (its reply may have made a
-            // reply fail), whose report would be a card for a dialog that is gone.
-            if (!replied && !answered.has(props.id)) report("PermissionRequest", asked)
+            // reply fail), whose report would be a card for a dialog that is gone; nor once its turn
+            // ended (an Escape ends the ask with no permission.replied, permission/index.ts, 1.19.6).
+            if (!replied && !answered.has(props.id) && busy.has(props.sessionID))
+              report("PermissionRequest", asked)
             return
           }
           case "permission.replied":

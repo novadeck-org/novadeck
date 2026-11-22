@@ -207,7 +207,7 @@ fn command_ships(command: &str) -> bool {
 }
 
 /// Whether `command` holds a segment that looks like git or gh shipping, read coarsely: split at
-/// `;`, `&`, `|` and line ends (quotes ignored), a `git` or `gh` word and after it, in the same
+/// `;`, `&`, `|` and line ends, with quotes and backslashes taken out, a `git` or `gh` word and after it, in the same
 /// segment, one of the verbs the runner's reader reads (`shippingVerbs` in
 /// `backend/runner/src/shipping/reader.ts`, with `fetch`). More counts than the reader reads as
 /// shipping (`git branch`, `echo git push`), never less, and `command_ships`' shapes are among it.
@@ -231,6 +231,13 @@ fn command_looks_shipping(command: &str) -> bool {
         "workflow",
     ];
     command.split([';', '&', '|', '\n', '\r']).any(|segment| {
+        // The shell drops quotes and backslashes it reads (`g''it`, `pu\sh`, `"g"it`), which the
+        // runner's reader reads past too: without them, nothing it reads as shipping slips by.
+        let segment: String = segment
+            .chars()
+            .filter(|c| !matches!(c, '\'' | '"' | '\\'))
+            .collect();
+        let segment = segment.as_str();
         // The first git or gh word: any verb after a later one comes after it too.
         let first = ["git", "gh"]
             .iter()

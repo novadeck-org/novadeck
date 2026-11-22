@@ -179,6 +179,8 @@ type Vetted = {
   readonly command: string
   readonly until: number
   state: "waiting" | "committed" | "lapsed"
+  /** The lease the hook's answer holds its permits by, which the dialog's answer commits. */
+  lease?: string
 }
 
 const failedText =
@@ -579,7 +581,9 @@ export class Shipping {
     const { stdout, commit } = decision
     if (commit === undefined) return stdout === "" ? undefined : { stdout, leaseId: null }
     const now = Date.now()
-    for (const [id, lease] of this.leases) if (lease.expires <= now) this.leases.delete(id)
+    // A lease with a timer is its timer's to end: it gives back the permits it took.
+    for (const [id, lease] of this.leases)
+      if (lease.expires <= now && lease.timer === undefined) this.leases.delete(id)
     const leaseId = randomUUID()
     this.leases.set(leaseId, { terminalId, commit, expires: until + ackSlackMs })
     return { stdout, leaseId }
@@ -661,7 +665,9 @@ export class Shipping {
       live.push(note)
       this.vetted.set(terminalId, live)
     }
-    for (const [id, lease] of this.leases) if (lease.expires <= now) this.leases.delete(id)
+    // A lease with a timer is its timer's to end: it gives back the permits it took.
+    for (const [id, lease] of this.leases)
+      if (lease.expires <= now && lease.timer === undefined) this.leases.delete(id)
     const leaseId = randomUUID()
     const expires = until + ackSlackMs
     const timer = setTimeout(
@@ -673,6 +679,7 @@ export class Shipping {
       Math.max(0, expires - now),
     )
     timer.unref()
+    if (note) note.lease = leaseId
     this.leases.set(leaseId, {
       terminalId,
       commit: () => {
@@ -723,6 +730,10 @@ export class Shipping {
       live.filter((each) => each !== note),
     )
     if (!note || note.command !== call.command || note.state === "lapsed") return undefined
+    // Its dialog shows only once opencode ran the call the hook answered: the hook printed that
+    // answer, so its permits are spent whether or not its acknowledgement comes.
+    if (note.state === "waiting" && note.lease !== undefined)
+      this.acknowledged(terminalId, note.lease)
     log.info(
       "shipping.confirmation",
       "Novadeck answers opencode's permission for a permitted call",

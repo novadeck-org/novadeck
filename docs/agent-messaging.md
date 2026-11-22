@@ -1840,11 +1840,14 @@ only gates them (`backend/runner/src/shipping/`).
     where the runner gave none (down, no connection, a payload too big or cut), a `bash` command
     with a segment that looks like git or gh shipping is refused by printing the deny, which the
     plugin throws, with "the runner didn't answer, run it again". The match is coarse and per
-    segment (`shipsCoarsely`, `command_looks_shipping`): a `git` or `gh` word, then in the same
-    segment one of the verbs the reader reads (push, merge, rebase, pull, fetch, cherry-pick,
-    reset, checkout, switch, branch, update-ref, `pr`, `api`, `release`, `workflow`), so it
-    refuses more than the reader reads as shipping (`git branch`, `echo git push`), never less. A
-    false refusal here is safe. The two lists are pinned equal by the shared
+    segment (`shipsCoarsely`, `command_looks_shipping`), with the quotes and backslashes a shell
+    drops taken out first (`g''it`, `pu\sh`): a `git` or `gh` word, then in the same segment one of
+    the verbs the reader reads (push, merge, rebase, pull, fetch, cherry-pick, reset, checkout,
+    switch, branch, update-ref, `pr`, `api`, `release`, `workflow`), so it refuses more than the
+    reader reads as shipping (`git commit -m "fix push"`, `git branch`, `gh pr view`, a GET
+    `gh api`), never less, and under an `--auto` launch too, where nothing would stand behind a
+    silence. A false refusal here is safe, and it happens only while the runner doesn't answer: a
+    slow one still answers those in milliseconds. The two lists are pinned equal by the shared
     `backend/relay/src/rule-cases.json` (its `coarse` field; `ships` stays the shim's two shapes
     for Antigravity). Every other command is left to opencode as it was. Only a `bash` call waits
     the relay's 4 s limit for the runner; every other tool's PreToolUse keeps the short 2 s.

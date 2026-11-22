@@ -643,6 +643,8 @@ describe("the plugin with the shipping gate on", () => {
 
   it("reports a dialog again where no answer reached it, so its card and bell show", async () => {
     const hooks = await start({}, true)
+    // Its turn waits on the dialog.
+    await emit(hooks, "session.status", { sessionID: "ses_a", status: { type: "busy" } })
     // The runner answered, but past the relay's deadline: the plugin hears nothing. Or what it
     // hears is no reply to make.
     let made = 0
@@ -657,6 +659,16 @@ describe("the plugin with the shipping gate on", () => {
     }
     expect(permissionReplies).toEqual([])
     expect(reports().filter(({ event }) => event === "PermissionRequest")).toHaveLength(8)
+  })
+
+  it("reports nothing again for a dialog whose turn ended meanwhile, as an Escape ends it", async () => {
+    const hooks = await start({}, true)
+    // No busy turn: an Escape ended it while the first report was out, and opencode tells no
+    // reply of the dialog it took down.
+    await emit(hooks, "permission.asked", asked)
+    await settled(1)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(reports().filter(({ event }) => event === "PermissionRequest")).toHaveLength(1)
   })
 
   it("never reports again a dialog the person answered, wherever they did", async () => {
@@ -730,6 +742,7 @@ describe("the plugin with the shipping gate on", () => {
 
   it("reports the dialog again where its reply failed, which no answer then covers", async () => {
     const hooks = await start({}, true)
+    await emit(hooks, "session.status", { sessionID: "ses_a", status: { type: "busy" } })
     let made = 0
     for (const failing of [
       async () => ({ data: false }),

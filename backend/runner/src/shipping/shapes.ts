@@ -46,10 +46,14 @@ const coarse = new RegExp(
 
 /**
  * Whether `command` holds a segment that looks like git or gh shipping, read coarsely and
- * per segment (split at `;`, `&`, `|` and line ends, quotes ignored): more counts than the reader
+ * per segment (split at `;`, `&`, `|` and line ends, quotes and backslashes taken out): more counts than the reader
  * reads as shipping, never less. Where the runner can't decide an opencode command, these are
  * refused, as the relay refuses them where the runner gives no answer at all (`hook.rs`,
  * `command_looks_shipping`); both are tested against `backend/relay/src/rule-cases.json`.
  */
 export const shipsCoarsely = (command: string): boolean =>
-  command.split(/[;&|\n\r]/).some((segment) => coarse.test(segment))
+  command
+    .split(/[;&|\n\r]/)
+    // The shell drops quotes and backslashes it reads (`g''it`, `pu\sh`, `"g"it`), which the
+    // reader reads past too: without them, nothing it reads as shipping slips by.
+    .some((segment) => coarse.test(segment.replace(/['"\\]/g, "")))

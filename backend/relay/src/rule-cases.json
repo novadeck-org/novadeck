@@ -205,6 +205,26 @@
       "command": "GIT_TRACE=1 git push origin main",
       "ships": false,
       "coarse": true
+    },
+    {
+      "command": "g''it push -f origin main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git pu''sh origin main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "git p\\ush origin main",
+      "ships": false,
+      "coarse": true
+    },
+    {
+      "command": "\"g\"it push origin main",
+      "ships": false,
+      "coarse": true
     }
   ]
 }
