@@ -92,8 +92,9 @@ export const followProjects = (options: {
         },
         (error: unknown) => {
           reading.delete(project.id)
-          // Read again as the feed opens again with the link; one gone meanwhile is gone.
-          if (!hasCode(error, "DISCONNECTED", "CLOSING", "NOT_FOUND")) reportCaught(error)
+          // Read again as the feed opens again with the link; one gone meanwhile is gone, and
+          // a link closed for good reads nothing more, as the connection store already says.
+          if (!hasCode(error, "DISCONNECTED", "CLOSING", "CLOSED", "NOT_FOUND")) reportCaught(error)
         },
       )
     }
