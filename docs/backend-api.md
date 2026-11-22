@@ -1976,7 +1976,8 @@ one from an earlier runner.
   (an unlit grey skyline drawn by `src/city.js` from `config.background` and `config.accent`, which
   the lead sets to night and neon colours): Phaser runs it and three.js draws its hero from a 3D model (`model/hero.gltf`, built of four
   ready shapes in `model/shapes.bin`). Its files are the seed in `backend/runner/assets/tour/seed/`
-  (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written), and
+  (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written; a
+  `__pycache__/` folder, `*.pyc`, `.DS_Store` and `Thumbs.db` in it are skipped), and
   the two libraries are written beside them as files under `vendor/` (`phaser.min.js` with its
   license, and three's `three.module.js`, `three.core.js`, `GLTFLoader.js`,
   `BufferGeometryUtils.js`, `SkeletonUtils.js` with its license). The seed's `.gitignore` keeps
@@ -2003,7 +2004,11 @@ one from an earlier runner.
   (`tour@novadeck.invalid`, given per command: the person's git config is never touched, nor
   their signing or hooks, nor their global ignore file: the seed is added with
   `core.excludesFile` emptied, so only the seed's own `.gitignore` (which keeps `vendor/` out)
-  decides what is committed). What is committed is the project as the person keeps it:
+  decides what is committed). The seed's `.gitattributes` (`* text=auto eol=lf`) keeps a
+  worktree's files byte for byte the ones committed on Windows too, where git would otherwise
+  check text out with CRLF: the seed's dev server shows a worktree's copy of a file where it
+  differs from the folder's, so converted line endings would make every worktree's every file
+  count as changed. What is committed is the project as the person keeps it:
   `AGENTS.md` is the project's note and `CLAUDE.md` imports it. The tour's own files are laid
   over it after the commit, where git doesn't see them (`laySandbox`): the sandbox note (no role,
   no steps, since every tour agent starts in the same folder and would follow a script it loaded;

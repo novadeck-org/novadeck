@@ -73,15 +73,24 @@ export const repositoryAssets = async (): Promise<TourAssets> => ({
   three: await packageFolder("three"),
 })
 
-// Every file under `folder`, by its name with `/`, dotfiles too.
+// What a folder collects by itself and never belongs to the seed: a Python cache, a Finder's or
+// Explorer's leavings. The seed's own dotfiles (`.gitignore`) are kept.
+const stray = (name: string, directory: boolean): boolean =>
+  directory
+    ? name === "__pycache__"
+    : name === ".DS_Store" || name === "Thumbs.db" || name.endsWith(".pyc")
+
+// Every file under `folder`, by its name with `/`, dotfiles too, without the strays.
 const listing = async (folder: string, prefix = ""): Promise<string[]> => {
   const entries = await readdir(join(folder, prefix), { withFileTypes: true })
   const names = await Promise.all(
-    entries.map((entry) =>
-      entry.isDirectory()
-        ? listing(folder, `${prefix}${entry.name}/`)
-        : Promise.resolve([`${prefix}${entry.name}`]),
-    ),
+    entries
+      .filter((entry) => !stray(entry.name, entry.isDirectory()))
+      .map((entry) =>
+        entry.isDirectory()
+          ? listing(folder, `${prefix}${entry.name}/`)
+          : Promise.resolve([`${prefix}${entry.name}`]),
+      ),
   )
   return names.flat()
 }

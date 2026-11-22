@@ -174,8 +174,9 @@ describe("whether a path is the tour's", () => {
     for (const nth of [1, 2, 99]) {
       // eslint-disable-next-line no-await-in-loop -- Made one after the other.
       await resetTourFolder(tourFolder(root, nth), {})
-      expect(inTourFolder(tourFolder(root, nth), root, "linux")).toBe(true)
-      expect(inTourFolder(join(tourFolder(root, nth), "site", "x"), root, "linux")).toBe(true)
+      // By this computer's own rules for paths: another system's can't read these.
+      expect(inTourFolder(tourFolder(root, nth), root)).toBe(true)
+      expect(inTourFolder(join(tourFolder(root, nth), "site", "x"), root)).toBe(true)
     }
   })
 
@@ -209,8 +210,10 @@ describe("whether a path is the tour's", () => {
     const root = await scratch(resources)
     await resetTourFolder(tourFolder(root), {})
     const shouted = join(root, ".NOVADECK", "TOUR", "site")
-    expect(inTourFolder(shouted, root, "darwin")).toBe(true)
     expect(inTourFolder(shouted, root, "win32")).toBe(true)
+    // The other systems' rules read only their own kind of path, which Windows' aren't.
+    if (process.platform === "win32") return
+    expect(inTourFolder(shouted, root, "darwin")).toBe(true)
     expect(inTourFolder(shouted, root, "linux")).toBe(false)
   })
 

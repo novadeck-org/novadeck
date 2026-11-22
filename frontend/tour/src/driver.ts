@@ -80,6 +80,7 @@ export type TourEvent =
   | { readonly type: "brief-failed" }
   | { readonly type: "artist-opened"; readonly terminalId: string }
   | { readonly type: "artist-brief-failed" }
+  | { readonly type: "artist-brief-gave-up"; readonly now: number }
 
 // How a run ended: its story done, the person ended it, or its lead's terminal closed.
 export type TourEnd = "done" | "ended" | "gone"
@@ -267,6 +268,15 @@ export const stepRun = (
       return still({ ...run, artist: event.terminalId, artistBriefed: false })
     case "artist-brief-failed":
       return still({ ...run, artistBriefed: false })
+    // The artist's brief failed for good: no agent that can't be briefed is waited on or nudged,
+    // so it drops out of the story as one whose terminal closed does. It counts as rung, so
+    // nothing rings it again.
+    case "artist-brief-gave-up": {
+      if (run.artistDropped) return still(run)
+      const next = { ...run, artistDropped: true, artistBriefed: true }
+      const hadArtist = steps.some(({ id }) => id === "outsider")
+      return still(reshape(next, steps, hadArtist, steps[run.step]?.id, event.now).run)
+    }
     case "signals":
     case "tick": {
       const adjusted = adjust(run, steps, event.signals, event.now, patienceMs)
@@ -313,6 +323,18 @@ const adjust = (
   }
   if (next.declined === run.declined && next.artistDropped === run.artistDropped)
     return { run: next, steps }
+  return reshape(next, steps, hadArtist, here, now)
+}
+
+// A run whose story lost a part (the page, the artist), at the steps it plays now: its step kept
+// where it is still played, else moved to the first step after what dropped.
+const reshape = (
+  next: TourRun,
+  steps: readonly TourStep[],
+  hadArtist: boolean,
+  here: string | undefined,
+  now: number,
+): { readonly run: TourRun; readonly steps: readonly TourStep[] } => {
   const played = stepsFor(next, hadArtist)
   const index = played.findIndex(({ id }) => id === here)
   if (index >= 0) return { run: { ...next, step: index }, steps: played }

@@ -186,9 +186,10 @@ ${shellRule(agent)} If you were given a task, do only that task.
  */
 export const projectNote = `# Your game
 
-A small browser game, set in a neon city at night, that Novadeck's tour started: see README.md for what is where and how to
-run it. Phaser runs the game and three.js draws its hero, a 3D model (model/README.md says how
-to reshape it). Both libraries are files in vendor/, which is large: don't read it.
+A small browser game, set in a neon city at night, that Novadeck's tour started: see README.md
+for what is where and how to run it. Phaser runs the game and three.js draws its hero, a 3D
+model (model/README.md says how to reshape it). Both libraries are files in vendor/, which is
+large: don't read it.
 
 The tour's agents each worked in a git worktree of their own, on the branches ${Object.values(branches).join(", ")}:
 none of that is merged into main yet. The dev server (dev.mjs, dev.py) lays every worktree's
@@ -212,6 +213,10 @@ const noServingSteps = `
 4. Only now greet the person, in one sentence: you are their own agent, and your team is at
    work making this game theirs. Then end your turn.`
 
+// The call the lead's first turn runs to: said by name, as the tasks it quotes number their own steps.
+const firstTurnEnds = (serving: Serving | null): string =>
+  serving ? "`open_terminal`" : "the second `open_agent`"
+
 /** The lead's script for a run, with its teammates' model. */
 export const tourBrief = ({
   mate,
@@ -232,10 +237,10 @@ hero is a 3D model, for now a ball and a box. Your team makes the game the perso
   before step 1.
 - Never answer a teammate's question to the person yourself: the person chooses.
 - Never use the person's name, even if you know it: say "you".
-- Do the steps in order. Don't skip one and don't add one. Steps 1 to 4 are one turn: write
-  no sentence and don't end your turn before step 4 is done, as a teammate you opened needs
-  nothing more from you. Never poll or wait in a loop: messages arrive by themselves, and each
-  wakes you.
+- Do the steps in order. Don't skip one and don't add one. Your first turn runs from
+  \`describe\` to ${firstTurnEnds(serving)}: write no sentence and don't end your turn
+  before you have called it, as a teammate you opened needs nothing more from you. Never poll
+  or wait in a loop: messages arrive by themselves, and each wakes you.
 
 ## Steps
 
@@ -258,7 +263,7 @@ After that, whenever a message arrives, do what fits it, then end your turn:
   folder), set \`title\` (a short name for a game with that hero in a neon city at night, two
   or three words), \`hero\` (who it is), \`pickup\` (one emoji that hero would grab in that
   city), \`background\` (the night sky: one very dark colour) and \`accent\` (the city's neon:
-  one bright colour that fits the hero), both as #rrggbb. Change nothing else.
+  one bright, saturated colour that fits the hero), both as #rrggbb. Change nothing else.
 - An agent that isn't your teammate asks about the game: answer it with \`send\` to its handle:
   the game's title, who its hero is, that it is set in a neon city at night, and that its
   picture belongs in ${coverFile}. If your

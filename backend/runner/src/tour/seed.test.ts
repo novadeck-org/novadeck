@@ -11,6 +11,7 @@ describe("the seed project's files", () => {
     const files = await seedFiles()
     expect(Object.keys(files)).toEqual(
       expect.arrayContaining([
+        ".gitattributes",
         ".gitignore",
         "README.md",
         "dev.mjs",
@@ -35,6 +36,34 @@ describe("the seed project's files", () => {
     expect(files["model/shapes.bin"]!.byteLength).toBeGreaterThan(1000)
     // Not the tool that regenerates the shapes, which sits beside the seed.
     expect(files["make-shapes.mjs"]).toBeUndefined()
+  })
+
+  it("leave out what a folder collects by itself, and keep the seed's own dotfiles", async ({
+    resources,
+  }) => {
+    const root = await mkdtemp(join(tmpdir(), "novadeck-seed-"))
+    resources.defer(() => rm(root, { recursive: true, force: true }))
+    for (const name of [
+      ".gitignore",
+      "src/a.js",
+      "src/b.pyc",
+      "src/Thumbs.db",
+      ".DS_Store",
+      "src/.DS_Store",
+      "__pycache__/c.cpython-313.pyc",
+      "src/__pycache__/d.txt",
+    ]) {
+      // eslint-disable-next-line no-await-in-loop -- A few small files.
+      await mkdir(join(root, name, ".."), { recursive: true })
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await writeFile(join(root, name), name)
+    }
+    const files = await seedFiles({ ...(await repositoryAssets()), seed: root })
+    expect(
+      Object.keys(files)
+        .filter((name) => !name.startsWith("vendor/"))
+        .toSorted(),
+    ).toEqual([".gitignore", "src/a.js"])
   })
 
   it("come from the folders the desktop app names, in the layout of the packages", async ({

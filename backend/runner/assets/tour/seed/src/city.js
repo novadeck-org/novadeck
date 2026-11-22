@@ -1,5 +1,6 @@
 // The city at night, behind both scenes: three rows of buildings, lit windows (a few flicker),
-// and rain. Drawn with plain shapes, so it looks the same with or without WebGL.
+// and rain. Drawn with plain shapes, so it looks the same with or without WebGL. Whatever stands
+// still is drawn once into a picture, so a big window costs no more per frame than a small one.
 import { config } from "./config.js"
 
 // The lettering of the title and the scores.
@@ -32,35 +33,58 @@ export const drawCity = (scene) => {
       night.green + (neon.green - night.green) * amount,
       night.blue + (neon.blue - night.blue) * amount,
     )
-  // A grey accent is a city with the power out: dim windows, no glow. A neon one lights it up.
-  const power = Math.min(1, neon.s * 2)
-  const glass = scene.add.graphics()
+  // A grey accent is a city with the power out: dim windows, no glow. A neon one lights it up,
+  // and so does a pale, bright one (ice white).
+  const power = Math.min(1, Math.max(neon.s * 2, (neon.v - 0.7) * 3.3))
 
+  // First lay the buildings out, far to near, each with its windows (about a third are lit).
+  const buildings = []
   rows.forEach((row, depth) => {
     const dim = 0.5 + depth * 0.25
     for (let x = -20; x < width; ) {
       const w = between(...row.wide)
       const top = height * (row.top + random() * row.tall)
-      glass.fillStyle(mix(row.lift)).fillRect(x, top, w + 1, height - top)
-      // Windows in rows and columns; about a third are lit.
+      const building = { x, w, top, depth, lift: row.lift, windows: [], sign: false }
       for (let wy = top + 12; wy < height * 0.92; wy += 13)
         for (let wx = x + 8; wx < x + w - 8; wx += 10) {
           if (random() > 0.33) continue
           const alpha = dim * (0.15 + 0.85 * power) * between(0.5, 1)
-          if (random() < 0.1) flicker(scene, wx, wy, neon.color, alpha)
-          else lit(glass, wx, wy, neon.color, alpha, power)
+          building.windows.push({ x: wx, y: wy, alpha, flickers: random() < 0.1 })
         }
       // A neon sign now and then on the nearest row.
-      if (depth === 2 && random() < 0.35 && w > 90) {
-        glass.fillStyle(neon.color, 0.1 + 0.5 * power).fillRect(x + w - 14, top + 6, 4, 36)
-        glass.fillStyle(neon.color, 0.1 * power).fillRect(x + w - 19, top + 1, 14, 46)
-      }
+      building.sign = depth === 2 && random() < 0.35 && w > 90
+      buildings.push(building)
       x += w
     }
   })
 
-  // Rain: thin streaks in the accent colour, falling at a slant.
-  for (let i = 0; i < Math.round(width / 14); i++) {
+  // Only some windows flicker (at most 60, spread over the whole width): the rest stay lit.
+  const flickering = buildings.flatMap((building) => building.windows).filter((w) => w.flickers)
+  const every = Math.ceil(flickering.length / 60)
+  flickering.forEach((window, i) => (window.flickers = i % every === 0))
+
+  // Everything that stands still is drawn once into one picture, so a big window costs no more
+  // per frame than a small one.
+  const glass = scene.add.graphics()
+  for (const { x, w, top, depth, lift, windows, sign } of buildings) {
+    glass.fillStyle(mix(lift)).fillRect(x, top, w + 1, height - top)
+    for (const pane of windows) if (!pane.flickers) lit(glass, pane.x, pane.y, neon.color, pane.alpha, power)
+    if (sign) {
+      glass.fillStyle(neon.color, 0.1 + 0.5 * power).fillRect(x + w - 14, top + 6, 4, 36)
+      glass.fillStyle(neon.color, 0.1 * power).fillRect(x + w - 19, top + 1, 14, 46)
+    }
+  }
+  // Each scene has its own picture; a scene that starts again (the page was resized) replaces it.
+  const key = "city-" + scene.scene.key
+  if (scene.textures.exists(key)) scene.textures.remove(key)
+  glass.generateTexture(key, Math.ceil(width), Math.ceil(height))
+  glass.destroy()
+  scene.add.image(0, 0, key).setOrigin(0)
+  for (const { windows } of buildings)
+    for (const pane of windows) if (pane.flickers) flicker(scene, pane.x, pane.y, neon.color, pane.alpha)
+
+  // Rain: thin streaks in the accent colour, falling at a slant (at most 150).
+  for (let i = 0; i < Math.min(150, Math.round(width / 14)); i++) {
     const streak = scene.add.rectangle(between(0, width), -20, 1, between(10, 20), neon.color, 0.2)
     streak.setRotation(0.12)
     scene.tweens.add({

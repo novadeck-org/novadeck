@@ -852,7 +852,8 @@ App:
   Keep building only goes back to the lead in Focus, and a refused keep shows "Novadeck couldn't
   keep the project: ..." with Try again. A run whose lead's command was declined (the approval
   gone for 8 s with no terminal and no page) drops the run and page steps and ends on the model,
-  and one whose artist's terminal is closed, ended or never shows an agent within the wait drops
+  and one whose artist's terminal is closed, ended or never shows an agent within the wait, or
+  whose brief the backend refused for good (the UI's tries spent), drops
   the artist's three steps and ends on "Three agents. One game. Go play.". A backend without `Tour.artist` has no artist
   steps, and a run with `page: false` leaves out the run and page steps and ends on the model
   ("Four agents. One game. Yours."). While a startup screen holds, the coach says "It wants an

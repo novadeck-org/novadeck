@@ -113,7 +113,12 @@ describe("the tour's rules over the committed project", () => {
   // A folder as the tour readies it: the project committed, the sandbox's rules laid over it.
   const laid = async (resources: Resources) => {
     const folder = join(await scratch(resources), "tour")
-    await resetTourFolder(folder, { "AGENTS.md": "project\n", "src/main.js": "game\n" })
+    // With the seed's own .gitattributes, so a worktree's files are as committed on Windows too.
+    await resetTourFolder(folder, {
+      ".gitattributes": "* text=auto eol=lf\n",
+      "AGENTS.md": "project\n",
+      "src/main.js": "game\n",
+    })
     await commitSandbox(folder)
     await laySandbox(folder, {
       "AGENTS.md": "sandbox\n",

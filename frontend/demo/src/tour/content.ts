@@ -15,6 +15,7 @@ import type { PreviewHunk } from "@novadeck/core/works"
 // The tour repo's files, as its Files panel lists them (the runner's seed, and the libraries it
 // keeps out of git under vendor/).
 export const tourEntries: readonly string[] = [
+  ".gitattributes",
   ".gitignore",
   "AGENTS.md",
   "CLAUDE.md",

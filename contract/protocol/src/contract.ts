@@ -1018,7 +1018,8 @@ export const contract = {
     // The person keeps the project: its folder stops being the tour's (the marker goes, the
     // project's own AGENTS.md replaces the sandbox's rules, the tour's Claude Code settings
     // go), its lead is told, and the run is forgotten. A later run starts in another folder.
-    // No run is a CONFLICT.
+    // With no run in memory (the runner started since) it keeps every marked tour folder that is
+    // open as a project, and with none it does nothing.
     keep: procedure.input(z.void()).output(z.void()),
   },
 }

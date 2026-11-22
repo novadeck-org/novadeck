@@ -320,7 +320,12 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
             console.error(words, error)
             if (current.current?.terminalId !== terminalId) return
             const { tries } = retry.current[which]
-            if (tries >= briefTries) return
+            if (tries >= briefTries) {
+              // An artist that can't be briefed is dropped from the story, so no step waits on
+              // or nudges it for a brief it never got.
+              if (which === "artist") dispatch({ type: "artist-brief-gave-up", now: Date.now() })
+              return
+            }
             dispatch(failed)
             clearTimeout(retry.current[which].timer)
             retry.current[which] = { tries: tries + 1, timer: setTimeout(again, briefRetryMs) }

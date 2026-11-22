@@ -246,11 +246,19 @@ describe("readying the tour", () => {
     const { tour: first } = tourIn(home)
     await first.prepare("claude")
     let closed: () => void = () => {}
+    let begun: () => void = () => {}
+    const closing = new Promise<void>((resolve) => (begun = resolve))
     const { tour } = tourIn(home, {
       projects: [project("closing", directory)],
-      removal: () => new Promise<void>((resolve) => (closed = resolve)),
+      removal: () => {
+        begun()
+        return new Promise<void>((resolve) => (closed = resolve))
+      },
     })
     const prepared = tour.prepare("claude")
+    // Waited for, not timed: readying gets to the removal only after its git and its probes,
+    // which take a while on a slow machine.
+    await closing
     // Still closing: what the earlier run left is untouched.
     await writeFile(join(directory, "scratch.html"), "<p>made</p>")
     await new Promise((resolve) => setTimeout(resolve, 20))

@@ -579,6 +579,28 @@ describe("The tour's story", () => {
       expect(feed(refused.run!, world({ artist: quiet }), 3).artist).toBe("brief")
     })
 
+    it("drops the artist's steps once its brief failed for good, nudging nothing", () => {
+      for (const id of ["outsider", "talk", "cover"]) {
+        const run = { ...atStep(id), artist: "t4", artistBriefed: false }
+        const gaveUp = stepRun(
+          run,
+          stepsFor(run),
+          { type: "artist-brief-gave-up", now: 5 },
+          patience,
+        )
+        expect(gaveUp.run).toMatchObject({ artistDropped: true, artistBriefed: true })
+        const played = stepsOfRun(gaveUp.run!, true)
+        expect(played.map(({ id: stepId }) => stepId)).not.toContain("outsider")
+        expect(played[gaveUp.run!.step]?.id).toBe("play")
+        // Even with the artist's agent up and quiet, nothing rings or nudges it any more.
+        const after = feed(gaveUp.run!, world({ artist: quiet }), 5 + 10 * patience)
+        expect(after).toMatchObject({ artist: null, nudge: null })
+        expect(coachNow(gaveUp.run!, played, world())?.line).toBe(
+          "Three agents. One game. Go play.",
+        )
+      }
+    })
+
     it("keeps its terminal through a reload: a run restored with it opens none and rings none again", () => {
       const restored = { ...atStep("talk"), artist: "t4", artistBriefed: true }
       const outcome = feed(restored, world())
