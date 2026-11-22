@@ -2277,6 +2277,17 @@ describe("the person's prompt", () => {
     expect(messaging.personPrompt("missing")).toBeUndefined()
   })
 
+  it("is the first prompt typed into a new Codex session, which that prompt binds", () => {
+    const { messaging, ask, clock: time } = create()
+    const first = binding("codex", "s-first", "7")
+    messaging.register("C", here, "elk", null)
+    messaging.keys("C", ["content"], false)
+    messaging.keys("C", ["enter"], false)
+    time.now += 50
+    ask("C", first, "UserPromptSubmit", [said(first, "push it to main")])
+    expect(messaging.personPrompt("C")).toBe("push it to main")
+  })
+
   it("is the prompt the person queued during a doorbell's turn, not the doorbell's", () => {
     const { messaging, ask, stop, codex } = create()
     ask("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n1")])
