@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { agy } from "./index.js"
-import { allowFolder, allowNovadeck, makeCmdShim, posixShim } from "./shim.js"
+import { allowFolder, allowNovadeck, makeCmdShim, posixShim, shippingRules } from "./shim.js"
 
 const dir = "C:\\NOVADE~1\\shell\\agy-cmd"
 const shim = makeCmdShim({ cmdShimDir: dir })
@@ -70,5 +70,33 @@ describe("where Antigravity gets a shim", () => {
     expect(posix).toContain(`novadeck_root='/home/it'\\''s/.novadeck/worktrees'`)
     expect(posix).toContain('[ -d "$novadeck_root" ]')
     expect(posixShim()).toContain("novadeck_root=\n")
+  })
+})
+
+describe("the shipping gate's rules in the shims", () => {
+  it("are passed to the relay only while the gate is on, with the launch's own words after them", () => {
+    expect(posixShim()).not.toContain("command(gh pr")
+    expect(posixShim(undefined, false)).toBe(posixShim())
+    const on = posixShim(undefined, true)
+    for (const rule of shippingRules) expect(on).toContain(`'${rule}'`)
+    expect(on).toContain(`"$novadeck_settings" '${shippingRules[0]}' '${shippingRules[1]}' -- "$@"`)
+    expect(makeCmdShim({})).not.toContain("command(gh pr")
+    const windows = makeCmdShim({ gate: true })
+    for (const rule of shippingRules) expect(windows).toContain(`"${rule}"`)
+    expect(windows).toContain("-- %*")
+  })
+
+  it("are the two commands the gate's reader always reads as shipping, written exactly: a glob never matches", () => {
+    expect([...shippingRules]).toEqual(["command(gh pr create)", "command(gh pr merge)"])
+    for (const rule of shippingRules) expect(rule).not.toContain("*")
+  })
+
+  it("are written for no Windows machine where cmd prints, which registers no PreToolUse", () => {
+    const machine = { shippingGate: true }
+    const found = (extra: object) =>
+      agy.shims!("win32", { ...machine, ...extra }).find(({ path }) => path === "agy.cmd")!.content
+    expect(found({})).toContain("-- %*")
+    expect(found({ cmdPrints: true })).not.toContain("-- %*")
+    expect(agy.shims!("linux", machine)[0]!.content).toContain(`'${shippingRules[0]}'`)
   })
 })

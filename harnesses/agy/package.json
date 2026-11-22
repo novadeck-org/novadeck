@@ -33,6 +33,11 @@
       "types": "./dist/settings.d.ts",
       "default": "./dist/settings.js"
     },
+    "./shim": {
+      "development": "./src/shim.ts",
+      "types": "./dist/shim.d.ts",
+      "default": "./dist/shim.js"
+    },
     "./shapes": {
       "development": "./src/shapes.ts",
       "types": "./dist/shapes.d.ts",

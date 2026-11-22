@@ -1,7 +1,8 @@
-// A saved transcript is masked, then sealed: encrypted with a key the app keeps in the
-// system's keychain, so the database file alone, or a backup of it, shows no transcript. (The
-// rest of what it keeps, as titles, directories and commands, is not encrypted.) The key is
-// the app's to find; where it finds none, no transcript is saved.
+// A saved transcript is masked, then sealed: encrypted with a key kept apart from the
+// database (the desktop app's behind the system's keychain, a standalone runner's in a key
+// file; see ../transcript-key-file.ts), so the database file alone, or a backup of it, shows
+// no transcript. (The rest of what it keeps, as titles, directories and commands, is not
+// encrypted.) The key is the host's to find; where it finds none, no transcript is saved.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
 
 /** What every sealed transcript starts with. */

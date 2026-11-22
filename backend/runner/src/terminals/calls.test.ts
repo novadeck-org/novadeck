@@ -585,7 +585,7 @@ describe("the mode call", () => {
     const host = {
       records: () => new Map([["t1", { terminal: { exiting: false }, token, summary: { agent } }]]),
       agentMode: () => "herd",
-      shipping: () => ({ covers: (name: string) => enabled && name !== "agy" }),
+      shipping: () => ({ covers: () => enabled }),
     } as unknown as CallsHost
     return new Calls(1000, host).call({ type: "mode", terminalId: "t1", token, request: {} })
   }
@@ -594,7 +594,7 @@ describe("the mode call", () => {
     expect(await answer("claude", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("codex", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("claude", false)).toEqual({ ok: true, mode: "herd", gated: false })
-    expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: false })
+    expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer(null, true)).toEqual({ ok: true, mode: "herd", gated: false })
   })
 })

@@ -15,7 +15,13 @@ use serde_json::{Value, json};
 /// where the person's rules can't be read: the file isn't a JSON object (a byte order mark
 /// ahead of it aside), or its `permissions` isn't one, or its `allow` isn't a list, as passing
 /// any list then would replace rules the harness may still read its own way.
-pub fn merged(settings: Option<&str>, rule: &str) -> Option<Value> {
+#[cfg(test)]
+fn merged(settings: Option<&str>, rule: &str) -> Option<Value> {
+    merged_with(settings, &[rule])
+}
+
+/// `merged` with several rules after the person's own, each unless it is there already.
+pub fn merged_with(settings: Option<&str>, added: &[&str]) -> Option<Value> {
     let parsed: Value = match settings {
         Some(text) => serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?,
         None => json!({}),
@@ -30,21 +36,29 @@ pub fn merged(settings: Option<&str>, rule: &str) -> Option<Value> {
         Some(Value::Array(rules)) => rules.clone(),
         Some(_) => return None,
     };
-    if !rules.iter().any(|one| one.as_str() == Some(rule)) {
-        rules.push(Value::String(rule.to_owned()));
+    for rule in added {
+        if !rules.iter().any(|one| one.as_str() == Some(rule)) {
+            rules.push(Value::String((*rule).to_owned()));
+        }
     }
     Some(json!({ "permissions": { "allow": rules } }))
 }
 
 /// Writes the settings `merged` makes of the person's `settings` file to `file`, whole, and
 /// says whether it did; false where there is nothing to pass.
-pub fn write(settings: &Path, rule: &str, file: &Path) -> bool {
+#[cfg(test)]
+fn write(settings: &Path, rule: &str, file: &Path) -> bool {
+    write_with(settings, &[rule], file)
+}
+
+/// `write` with several rules (see `merged_with`).
+pub fn write_with(settings: &Path, rules: &[&str], file: &Path) -> bool {
     let text = match fs::read_to_string(settings) {
         Ok(text) => Some(text),
         Err(error) if error.kind() == ErrorKind::NotFound => None,
         Err(_) => return false,
     };
-    let Some(content) = merged(text.as_deref(), rule).map(|value| value.to_string()) else {
+    let Some(content) = merged_with(text.as_deref(), rules).map(|value| value.to_string()) else {
         return false;
     };
     if fs::read_to_string(file).ok().as_deref() == Some(content.as_str()) {
@@ -80,6 +94,20 @@ mod tests {
         assert_eq!(
             merged(Some(settings), RULE),
             Some(json!({ "permissions": { "allow": ["command(ls)", { "odd": 1 }, RULE] } }))
+        );
+    }
+
+    #[test]
+    fn adds_several_rules_each_once() {
+        let settings = r#"{"permissions":{"allow":["command(ls)","command(gh pr create)"]}}"#;
+        assert_eq!(
+            merged_with(
+                Some(settings),
+                &[RULE, "command(gh pr create)", "command(gh pr merge)"]
+            ),
+            Some(json!({ "permissions": { "allow": [
+                "command(ls)", "command(gh pr create)", RULE, "command(gh pr merge)"
+            ] } }))
         );
     }
 

@@ -846,8 +846,17 @@ App:
   own elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
   press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
   (where what clips it leaves room), over all it holds, and, a second after a mark shows,
-  letters one caption box beside them in space no window takes. Its thirteen steps, the lines
-  in Nyx's voice from the skits (clipped and cocky, each still saying only what the app does):
+  letters one caption box beside them in space no window takes. A step that holds once done
+  (`holdMs`: 3 s for the first, the team's and the artist's, 5 s for the page, the shape, the
+  Files panel, the model and the diff, 4 s for the cover, 6 s for the talk, 25 s for the game, 8 s
+  for the model where there is no page) holds that long from when its caption box is shown, which
+  the stage tells the driver (`onCaption`, the reducer's `caption` event), so a slow machine or a
+  long camera move never costs the line its time. A caption that hasn't shown `captionWaitMs`
+  (8 s) after the step was done on screen is given up on: the hold counts from then, and a
+  caption that shows later doesn't move it, so a step lasts at most 8 s plus its hold after it
+  was done. After a reload the hold starts again, from the caption's next showing. Its thirteen
+  steps, the lines in Nyx's voice from the skits (clipped and cocky, each still saying only what
+  the app does):
   "That's your agent. It runs this job." (the lead describes itself); "Look. It hired its own
   help." (both teammates there and named); "It wants to run the game. Fine. Say yes." (the
   approval's Run command is marked, and the step waits on the person); "The game. Live. Lights

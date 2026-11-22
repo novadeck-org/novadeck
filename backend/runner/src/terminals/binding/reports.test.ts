@@ -90,6 +90,7 @@ describe("the screen an agent says it is at before its first session", () => {
     const reports = new Reports({
       records: () => new Map([["T", record]]),
       bindings: () => ({}),
+      shipping: () => undefined,
     } as unknown as ReportsHost)
     for (const said of states) {
       const [state, seq] = typeof said === "string" ? [said, 1] : said
@@ -119,6 +120,41 @@ describe("the screen an agent says it is at before its first session", () => {
 
   it("isn't taken from any other agent, as a job its shell runs first", async () => {
     expect(await saying("agy", "claude", "authenticating")).toBeUndefined()
+  })
+})
+
+describe("Antigravity's mode, as its status line says it, for the shipping gate", () => {
+  it("is taken from the bound process's own status line, never a nested one's", async () => {
+    const statusLine = vi.fn<(terminalId: string, payload: unknown) => void>()
+    const record = {
+      token: "tok",
+      terminal: { exiting: false },
+      bound: null,
+    } as unknown as Record
+    const reports = new Reports({
+      records: () => new Map([["T", record]]),
+      bindings: () => ({}),
+      shipping: () => ({ statusLine }),
+    } as unknown as ReportsHost)
+    const say = (instance: string, cycle_mode: string) =>
+      reports.report({
+        terminalId: "T",
+        token: "tok",
+        agent: "agy",
+        event: "StatusLine",
+        seq: 1,
+        instance,
+        env: { cursor: false },
+        payload: { cycle_mode, conversation_id: "" },
+      })
+    // Nothing bound yet: the first status line says.
+    await say("9", "accept-edits")
+    expect(statusLine).toHaveBeenCalledTimes(1)
+    ;(record as { bound: unknown }).bound = { binding: { instance: "9" } }
+    await say("8", "auto").catch(() => {})
+    expect(statusLine).toHaveBeenCalledTimes(1)
+    await say("9", "plan").catch(() => {})
+    expect(statusLine).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -411,7 +447,7 @@ describe("the worktrees notice at a root turn's start", () => {
 })
 
 describe("the shipping gate's answer to a shell command", () => {
-  const hook = (event: string, agent: "claude" | "codex" = "claude", token = "tok") => ({
+  const hook = (event: string, agent: "claude" | "codex" | "agy" = "claude", token = "tok") => ({
     terminalId: "T",
     token,
     agent,
@@ -454,6 +490,15 @@ describe("the shipping gate's answer to a shell command", () => {
     expect(await reports.queueAsk(hook("PreToolUse", "codex"), 5_000, call)).toEqual({
       leaseId: null,
       stdout: "",
+    })
+    expect(queued).toHaveBeenCalledOnce()
+  })
+
+  it("leaves Antigravity to its own dialog, its ask answer, where the gate has no opinion", async () => {
+    const { reports, queued } = setup(undefined)
+    expect(await reports.queueAsk(hook("PreToolUse", "agy"), 5_000, call)).toEqual({
+      leaseId: null,
+      stdout: '{"decision":"ask"}\n',
     })
     expect(queued).toHaveBeenCalledOnce()
   })
