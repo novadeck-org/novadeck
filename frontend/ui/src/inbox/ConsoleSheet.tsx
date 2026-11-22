@@ -339,6 +339,12 @@ const Thing = ({ entry, now }: { readonly entry: OwnEntry; readonly now: number 
               copy
             />
           )}
+          {ask.shape.type === "newer" && (
+            <p className="request-note">
+              It asks in a way only a newer Novadeck can answer. Update Novadeck to answer it here;
+              it waits until then.
+            </p>
+          )}
         </>
       )
     }

@@ -271,7 +271,6 @@ describe("demo conversations", () => {
     expect(conversation.getSnapshot().requests.map((request) => request.id)).toEqual([
       "05:form",
       "05:raw",
-      "05:newer",
     ])
     // No prompt of the person's: the words are the question's answer.
     expect(said("05")).toEqual(before)
@@ -416,11 +415,7 @@ describe("demo conversations", () => {
     await answering
     const conversation = chat.conversation(key("05")).getSnapshot()
     // The others its screen shows stay.
-    expect(conversation.requests.map((request) => request.id)).toEqual([
-      "05:form",
-      "05:raw",
-      "05:newer",
-    ])
+    expect(conversation.requests.map((request) => request.id)).toEqual(["05:form", "05:raw"])
     expect(conversation.items.at(-2)?.text).toBe(
       "User answered: Unit tests, Lint, Bundle size; notes/logging.md",
     )
@@ -475,24 +470,6 @@ describe("demo conversations", () => {
     })
   })
 
-  it("shows a dialog only a newer Novadeck reads as one it can't answer here", async () => {
-    const { chat } = open()
-    const requests = chat.conversation(key("05")).getSnapshot().requests
-    expect(requests.find((request) => request.id === "05:newer")?.dialog).toEqual({ type: "newer" })
-    await expect(
-      chat.answer(key("05"), "05:newer", { type: "choice", dialog: "04:d", option: "1" }),
-    ).rejects.toThrow("Couldn't answer that here")
-  })
-
-  it("keeps a part of the record only a newer Novadeck reads, with its words", () => {
-    const { chat } = open()
-    const notes = chat
-      .conversation(key("06"))
-      .getSnapshot()
-      .items.filter((item) => item.note?.type === "newer")
-    expect(notes).toMatchObject([{ role: "note", text: expect.stringContaining("Bundle report") }])
-  })
-
   it("saves a dialog the chat can't read for debugging, writing nothing, and says where", async () => {
     const { chat } = open()
     const saved = chat.saveDialog!(key("05"), "05:raw")
@@ -518,11 +495,7 @@ describe("demo conversations", () => {
     await vi.advanceTimersByTimeAsync(answerMs + answeredMs)
     await answering
     const conversation = chat.conversation(key("05")).getSnapshot()
-    expect(conversation.requests.map((request) => request.id)).toEqual([
-      "05:question",
-      "05:raw",
-      "05:newer",
-    ])
+    expect(conversation.requests.map((request) => request.id)).toEqual(["05:question", "05:raw"])
     expect(conversation.items.at(-2)).toMatchObject({ kind: "tool-result", call: "step:9" })
     expect(conversation.items.at(-2)?.text).toContain('"replicas":3')
   })
@@ -672,7 +645,7 @@ describe("demo conversations", () => {
           .conversation(key("05"))
           .getSnapshot()
           .requests.map((request) => request.id),
-      ).toEqual(["05:question", "05:form", "05:raw", "05:newer"])
+      ).toEqual(["05:question", "05:form", "05:raw"])
     })
 
     it("is the transcript's own request when its agent comes to ask it later, once", () => {

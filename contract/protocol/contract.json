@@ -3776,9 +3776,15 @@
                           "properties": {"type":{"type":"string","const":"notice"}},
                           "required": ["type"],
                           "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {"type":{"type":"string","const":"newer"}},
+                          "required": ["type"],
+                          "additionalProperties": false
                         }
                       ],
-                      "x-open": {"since":3,"unknown":"drop"}
+                      "x-open": {"since":3,"unknown":"placeholder"}
                     },
                     "images": {
                       "minItems": 1,

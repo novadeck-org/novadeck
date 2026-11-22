@@ -4,7 +4,7 @@ import {
   agentAsk,
   askAnswer,
   hiddenIn,
-  inboxEntry,
+  inboxContent,
   inboxTextLimits,
   isAgentName,
   maxAskOptions,
@@ -429,7 +429,7 @@ export class Inbox {
         const content = clampedTurn(entry.content)
         if (!content) stale.push(entry.id)
         else this.keep({ ...entry, state: "open" as const, content })
-      } else if (inboxEntry.shape.content.safeParse(entry?.content).success) this.keep(entry)
+      } else if (inboxContent.safeParse(entry?.content).success) this.keep(entry)
       else if (entry?.id) stale.push(entry.id)
     }
     if (stale.length > 0) this.save(() => records.removeEntries(stale))

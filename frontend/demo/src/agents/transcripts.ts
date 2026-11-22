@@ -917,18 +917,6 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
           text: runCommandDialog.join("\n"),
         },
       },
-      {
-        // A dialog a newer Novadeck's runner reads that this build doesn't know.
-        id: "05:newer",
-        kind: "permission",
-        tool: "run_command",
-        subject: "pnpm lint --fix",
-        choices: [],
-        subagent: false,
-        answered: false,
-        askedAt: Date.now(),
-        dialog: { type: "newer" },
-      },
     ],
     slice: {
       reason: "dialog",
@@ -1113,13 +1101,6 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         kind: "text",
         text: '{"type":"bundle_report","files":2}',
         note: { type: "gap" },
-      },
-      // And one a newer Novadeck's runner tells of: its words, if any, under the quiet row.
-      {
-        role: "note",
-        kind: "text",
-        text: "Bundle report: 2 files, 232.5 kB in all.",
-        note: { type: "newer" },
       },
       say("Checking what went into the bundle."),
       use(

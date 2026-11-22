@@ -28,6 +28,11 @@ export const historyGroups = (history: Backend["history"]): readonly DemoActionG
                 if (key) history.setRestorable(key.terminalId, true)
               },
             },
+            {
+              label: "Closed agent of a newer Novadeck",
+              hint: 'Open History: a Gift cards row, newest, says Not connected and "Its agent needs a newer Novadeck to restore", and can\'t be restored',
+              run: () => history.addNewer(Date.now()),
+            },
           ],
         },
       ]

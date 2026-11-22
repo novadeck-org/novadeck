@@ -306,9 +306,7 @@ export const createDemoChat = (
         (request) =>
           request.kind === attention.kind &&
           !request.answered &&
-          (request.dialog?.type === "raw" ||
-            request.dialog?.type === "newer" ||
-            outcomeOf(found, made, request.id) !== undefined),
+          (request.dialog?.type === "raw" || outcomeOf(found, made, request.id) !== undefined),
       )
       .slice(0, attention.count)
     const transcript = transcriptOf(found)

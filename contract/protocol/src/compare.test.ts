@@ -367,6 +367,26 @@ describe("open schemas", () => {
     ).toEqual([])
   })
 
+  // A nullable one is wrapped in a union with null, where the mark sits inside.
+  it("let a new value pass in a nullable open enum, and a new variant in a nullable open union", () => {
+    const kinds = (...values: [string, ...string[]]) =>
+      items(openEnum(values, { since: 3, unknown: "placeholder" }).nullable())
+    expect(
+      uiFindings(kinds("image", "file"), kinds("image", "file", "hologram"), window(4, 3, 3)),
+    ).toEqual([])
+    const union = (...variants: string[]) =>
+      items(
+        openUnion(
+          "type",
+          variants.map((type) => z.strictObject({ type: z.literal(type) })) as never,
+          { since: 3, unknown: "placeholder" },
+        ).nullable(),
+      )
+    expect(
+      uiFindings(union("close", "run"), union("close", "run", "hand"), window(4, 3, 3)),
+    ).toEqual([])
+  })
+
   it("hold a released mark as it was", () => {
     const before = items(openEnum(["image"], { since: 3, unknown: "placeholder" }))
     const after = items(openEnum(["image"], { since: 2, unknown: "placeholder" }))

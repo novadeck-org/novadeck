@@ -28,7 +28,8 @@ describe("answerReaders", () => {
     expect(listed).toEqual({ items: [{ id: "i", kind: newer }], windows: [] })
   })
 
-  it("keeps a transcript item of a role it doesn't know, and drops one of a note it doesn't", () => {
+  // Never dropped, so the chat's items keep the runner's numbering.
+  it("keeps a transcript item of a role or a note it doesn't know, as a placeholder", () => {
     const item = (fields: object) => ({
       index: 0,
       role: "assistant",
@@ -46,7 +47,7 @@ describe("answerReaders", () => {
     })
     expect(change).toEqual({
       type: "items",
-      items: [item({ role: newer }), item({})],
+      items: [item({ role: newer }), item({ role: "note", note: { type: newer } }), item({})],
     })
   })
 

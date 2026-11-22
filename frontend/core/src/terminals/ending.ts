@@ -193,6 +193,8 @@ export const shellCommandLine = (terminal: TerminalMetadata): string | undefined
 // What a sleeping terminal says: its agent has a saved session and no process, and starts again
 // when someone needs it.
 export const sleepingText = "Asleep · wakes when you open it"
+// One of a harness a newer Novadeck integrates, which this one never wakes.
+export const sleepingNewerText = "Asleep · a newer Novadeck wakes it"
 export const wakingText = "Waking…"
 
 // Joins the parts of a tab's or window's description into one sentence: a part after the
@@ -399,6 +401,8 @@ export const terminalNote = (
         ? `${said} · asleep`
         : brightened
           ? "Asleep · reply unread"
-          : sleepingText
+          : terminal.agent === "newer"
+            ? sleepingNewerText
+            : sleepingText
   return { ...glance, text: text || undefined }
 }

@@ -93,7 +93,8 @@ export const toolOutcome = z.strictObject({
 // part of the conversation its decoder has never seen, the line as written its `text`, which
 // is empty where that line holds the agent's reasoning too; or a notice, one of Novadeck's own
 // that rode on a hook's output, its text the item's `text` (`@novadeck/protocol/notices` reads it).
-// A note of a type a UI doesn't know is an annotation it leaves out, with its item.
+// A note of a type a UI doesn't know is `newer`: its item stays, as a quiet row, so the
+// chat's items keep the runner's numbering.
 export const transcriptNote = openUnion(
   "type",
   [
@@ -103,7 +104,7 @@ export const transcriptNote = openUnion(
     z.strictObject({ type: z.literal("gap") }),
     z.strictObject({ type: z.literal("notice") }),
   ],
-  { since: 3, unknown: "drop" },
+  { since: 3, unknown: "placeholder" },
 )
 export type TranscriptImage = z.infer<typeof transcriptImage>
 export type TranscriptImageResult = z.infer<typeof transcriptImageResult>

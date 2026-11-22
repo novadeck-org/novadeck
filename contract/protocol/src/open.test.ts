@@ -60,6 +60,22 @@ describe("readerOf", () => {
       })
     })
 
+    it("leaves a list and its items as they are where nothing is unknown", () => {
+      const part = z.strictObject({
+        kind: openEnum(["agent", "person"], { since, unknown: "drop" }),
+      })
+      const read = readerOf(
+        z.strictObject({ parts: z.array(part), byId: z.record(z.string(), part) }),
+      )!
+      const value = {
+        parts: [{ kind: "agent" }, { kind: "person" }],
+        byId: { a: { kind: "agent" } },
+      }
+      const same = read(value) as typeof value
+      expect(same).toBe(value)
+      expect(same.parts).toBe(value.parts)
+    })
+
     it("drops a stream item that holds one, with no list to leave it out of", () => {
       const read = readerOf(z.strictObject({ kind: openEnum(["a"], { since, unknown: "drop" }) }))!
       expect(isDropped(read({ kind: "z" }))).toBe(true)

@@ -43,4 +43,22 @@ describe("the debug panel's History group", () => {
     run("Selected agent can be restored")
     expect(history.isRestorable("01")).toBe(true)
   })
+
+  it("adds a closed agent of a newer Novadeck, once, as the newest row", () => {
+    const { history } = createDemoHistory(0)
+    const [group] = historyGroups(history)
+    const add = () =>
+      void group!.actions
+        .find((action) => action.label === "Closed agent of a newer Novadeck")!
+        .run(context(() => undefined))
+    expect(history.state.getSnapshot().rows.some((row) => row.id === "closed-newer")).toBe(false)
+    add()
+    add()
+    const rows = history.state.getSnapshot().rows
+    expect(rows.filter((row) => row.id === "closed-newer")).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      id: "closed-newer",
+      availability: { state: "disconnected", agent: "newer" },
+    })
+  })
 })

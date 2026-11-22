@@ -244,7 +244,14 @@ export const TerminalTab = ({
   )
   // A window runs no program; a project window names its file's folder there instead.
   // A sleeping agent has no process; its name stands there.
-  const process = (shell?.state === "sleeping" ? shell.agent : shell?.process) ?? folder ?? ""
+  const process =
+    (shell?.state === "sleeping"
+      ? shell.agent === "newer"
+        ? "agent"
+        : shell.agent
+      : shell?.process) ??
+    folder ??
+    ""
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,

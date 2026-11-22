@@ -638,15 +638,18 @@ zod's meta and in `contract.json`. From revision `since`, UIs read a value or va
 don't know as `unknown` says, chosen by what losing it would cost:
 
 - `drop`, for what nobody waits on and nothing visible is lost: the list element or stream item
-  that holds it is left out (a transcript note, a part of a doorbell row).
+  that holds it is left out (a part of a doorbell row); never a transcript's item, whose
+  numbering the chat keeps as the runner's.
 - `{ fallback }`, the catch-all the enum already has: a state reads `unknown`, a tool run's
   kind `other`, a folder entry's kind `other`.
 - `placeholder`, for what someone waits on or sees: the value reads `newer`, or the variant
   `{ <tag>: "newer" }`, which only the reader writes. The element keeps its place and says it
   needs a newer Novadeck, and is never answered from here: an approval offers only "Not now",
   a request and an Inbox ask offer no answer, an Inbox entry of an unknown kind is never marked
-  read, a companion item keeps its tab, a transcript item stays as a quiet row with its text,
-  and an agent of a harness this build doesn't know is a plain agent that is never woken here.
+  read, a companion item keeps its tab, a transcript item of a role, kind or note it doesn't
+  know stays as a quiet row with its text, an approval put aside with "Not now" comes back at
+  the terminal that asked, and an agent of a harness this build doesn't know is a plain agent
+  that is never woken here.
 
 `newer` widens the output's TS type, so every switch over it handles it. Inputs, and whatever
 the runner parses (agents' tool arguments, its adapters' reads, its own stored entries), keep

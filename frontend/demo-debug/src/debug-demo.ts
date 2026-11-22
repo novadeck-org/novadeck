@@ -53,6 +53,7 @@ import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
 import { modelGroups } from "./models"
 import { murmurGroups } from "./murmur"
+import { newerItemGroups } from "./newer"
 import { pageGroups } from "./pages"
 import { pdfGroups } from "./pdfs"
 import { planGroups } from "./plans"
@@ -351,6 +352,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...feedbackGroups(launch, isDemoFeedback(inner.feedback) ? inner.feedback : undefined),
           ...planGroups(inner.companions),
           ...videoGroups(inner.companions),
+          ...newerItemGroups(inner.companions),
           ...pdfGroups(inner.companions),
           ...pageGroups(inner.companions),
           ...modelGroups(inner.companions),

@@ -198,6 +198,29 @@ const covers = (
   marks?: Marks,
 ): ((wide: Schema, narrow: Schema, at: string) => Problem[]) => {
   const bounds = reader === "validates"
+  // A released mark stays as it was; a new one names a revision after the release's, as the
+  // release's UIs don't read it so. Compared where both sides are the marked schema itself: an
+  // enum, or a discriminated union, never the union a nullable one is wrapped in.
+  const marksHeld = (wide: Schema, narrow: Schema, at: string): Problem[] => {
+    if (marks === undefined) return []
+    const was = markOf(wide)
+    const now = markOf(narrow)
+    if (was !== undefined && !same(was, now))
+      return [{ at, reason: "changed or lost the open mark a release had" }]
+    const since = now?.since
+    if (
+      was === undefined &&
+      now !== undefined &&
+      (typeof since !== "number" || since <= marks.released)
+    )
+      return [
+        {
+          at,
+          reason: `is marked open since ${String(since)}, which the release's UIs don't read so`,
+        },
+      ]
+    return []
+  }
   // Whether an older UI reads a value or variant of `wide` it doesn't know tolerantly.
   const opens = (wide: Schema): boolean => {
     const since = markOf(wide)?.since
@@ -275,25 +298,6 @@ const covers = (
       )
     const optional: Problem[] =
       narrow["x-optional"] === true && wide["x-optional"] !== true ? problem("may be left out") : []
-    // A released mark stays as it was; a new one names a revision after the release's, as the
-    // release's UIs don't read it so.
-    if (marks !== undefined) {
-      const was = markOf(wide)
-      const now = markOf(narrow)
-      if (was !== undefined && !same(was, now))
-        optional.push(...problem("changed or lost the open mark a release had"))
-      const since = now?.since
-      if (
-        was === undefined &&
-        now !== undefined &&
-        (typeof since !== "number" || since <= marks.released)
-      )
-        optional.push(
-          ...problem(
-            `is marked open since ${String(since)}, which the release's UIs don't read so`,
-          ),
-        )
-    }
     if (isNever(narrow)) return optional
     if (isNever(wide)) return [...optional, ...problem("takes a value where it took none")]
 
@@ -330,6 +334,7 @@ const covers = (
       const key = discriminator(options)
       const value = tag(bare, key)
       if (key !== undefined && value !== undefined) {
+        optional.push(...marksHeld(wide, bare, at))
         const match = options.find((option) => same(tag(option, key), value))
         if (match === undefined)
           return opens(wide)
@@ -366,7 +371,7 @@ const covers = (
   const plain = (wide: Schema, narrow: Schema, at: string): Problem[] => {
     // A schema with no constraints takes anything.
     if (constraints(withoutKeys(wide, ["x-optional"])).length === 0) return []
-    const problems: Problem[] = []
+    const problems: Problem[] = [...marksHeld(wide, narrow, at)]
     const say = (reason: string, where = at) => problems.push({ at: where, reason })
 
     const wideValues = valuesOf(wide)

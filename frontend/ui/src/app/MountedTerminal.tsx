@@ -40,7 +40,11 @@ const ignore = (): (() => void) => () => {}
 
 // The agent a sleeping or waking terminal resumes.
 const agentOf = (terminal: TerminalMetadata): string | undefined =>
-  terminal.state === "sleeping" ? terminal.agent : terminal.restoredProcess
+  terminal.state === "sleeping"
+    ? terminal.agent === "newer"
+      ? undefined
+      : terminal.agent
+    : terminal.restoredProcess
 
 // What stands where the agent will draw: while it sleeps a bare `z`, nothing of its last screen
 // (replaying that would write into the emulator the resuming agent draws in); while it wakes,

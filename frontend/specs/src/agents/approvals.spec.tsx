@@ -1,7 +1,7 @@
 import { page } from "vitest/browser"
 
 import { approvals } from "../support/backend"
-import { expectStaysAbsent, openWorkspace, press } from "../support/workspace"
+import { expectStaysAbsent, openWorkspace, press, terminalTab } from "../support/workspace"
 import { describe, expect, it } from "../test"
 
 // What an agent asks the person to allow, in a modal over the workspace: closing a terminal,
@@ -59,5 +59,28 @@ describe("An agent's ask for the person's approval", () => {
       { requestId: "close-1", approved: true },
       { requestId: "lead-1", approved: false },
     ])
+  })
+
+  // A newer Novadeck's agent asks for an action this build doesn't know: it can't be answered
+  // here, so nothing is; it waits on, and shows again at the terminal that asked.
+  it("puts an ask it can't answer aside unanswered, and brings it back at the asking terminal", async () => {
+    await open()
+    approvals.ask({ requestId: "newer-1", from: moth, terminalId: crow, action: { type: "newer" } })
+    const newer = asking(/^@moth asks for something this Novadeck can't show$/)
+
+    await expect.element(newer).toBeVisible()
+    await expect.element(newer.getByRole("button", { name: "Not now" })).toHaveFocus()
+    await expect
+      .element(newer.getByRole("button", { name: "Close terminal" }))
+      .not.toBeInTheDocument()
+    await newer.getByRole("button", { name: "Not now" }).click()
+
+    await expectStaysAbsent(page.getByRole("alertdialog"))
+    expect(approvals.answers()).toEqual([])
+    await terminalTab("Checkout review").click()
+    await expectStaysAbsent(page.getByRole("alertdialog"))
+    await terminalTab("Checkout implementation").click()
+    await expect.element(newer).toBeVisible()
+    expect(approvals.answers()).toEqual([])
   })
 })

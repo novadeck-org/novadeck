@@ -694,6 +694,17 @@ const envLines = [
   "VITE_PREVIEW_TOKEN=demo-only-not-a-secret",
 ]
 
+// What a newer Novadeck's runner shows that this build can't, which the debug panel shows: an
+// item of a kind it doesn't know, and a file whose content is of one.
+export const newerSamples: { readonly kind: SampleArtifact; readonly content: SampleArtifact } = {
+  kind: unavailable(
+    "dev-timeline",
+    { kind: "newer", name: "Timeline", detail: "A kind this build doesn't know" },
+    cannot("newer"),
+  ),
+  content: unavailable("dev-scene", { name: "scene.usdz" }, cannot("newer")),
+}
+
 export const devServerArtifacts: readonly SampleArtifact[] = [
   unavailable(
     "dev-plan",
@@ -715,13 +726,6 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
     cannot("too-large", 14_680_064),
   ),
   unavailable("dev-archive", { name: "studio.zip" }, cannot("binary", 2_310_144)),
-  // Of a kind a newer Novadeck's runner shows, and a file whose content is of one.
-  unavailable(
-    "dev-timeline",
-    { kind: "newer", name: "Timeline", detail: "A kind this build doesn't know" },
-    cannot("newer"),
-  ),
-  unavailable("dev-scene", { name: "scene.usdz" }, cannot("newer")),
   unavailable(
     "dev-env",
     { name: ".env.local", secret: true },

@@ -116,6 +116,19 @@ const tagsOf = (option: unknown, tag: string): readonly unknown[] => {
   return Array.isArray(values) ? values : []
 }
 
+// `list` read item by item, the same list where nothing changed, a copy without the items read
+// as dropped and with those read anew otherwise.
+const readList = (list: readonly unknown[], item: Read): readonly unknown[] => {
+  let copy: unknown[] | undefined
+  list.forEach((each, index) => {
+    const read = item(each)
+    if (read === each && copy === undefined) return
+    copy ??= list.slice(0, index)
+    if (read !== dropped) copy.push(read)
+  })
+  return copy ?? list
+}
+
 /**
  * How a UI reads a value of `schema` a runner sent: where the schema has open parts, the
  * values and variants it doesn't know become what each part says. `undefined` when it has
@@ -157,11 +170,7 @@ export const readerOf = (schema: unknown): Read | undefined => {
         return objectRead(record(def.shape) ?? {})
       case "array": {
         const item = make(def.element)
-        return (
-          item &&
-          ((value) =>
-            Array.isArray(value) ? value.map(item).filter((each) => each !== dropped) : value)
-        )
+        return item && ((value) => (Array.isArray(value) ? readList(value, item) : value))
       }
       case "record": {
         const item = make(def.valueType)
@@ -170,8 +179,15 @@ export const readerOf = (schema: unknown): Read | undefined => {
           ((value) => {
             const given = record(value)
             if (!given) return value
-            const read = Object.entries(given).map(([key, each]) => [key, item(each)] as const)
-            return Object.fromEntries(read.filter(([, each]) => each !== dropped))
+            let copy: Record<string, unknown> | undefined
+            for (const [key, each] of Object.entries(given)) {
+              const read = item(each)
+              if (read === each) continue
+              copy ??= { ...given }
+              if (read === dropped) delete copy[key]
+              else copy[key] = read
+            }
+            return copy ?? given
           })
         )
       }

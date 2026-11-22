@@ -28,7 +28,7 @@ type CloseTerminalDialogProps = {
 // What a sleeping or waking agent's terminal says: where the agent is, with its session saved.
 const restingWords = (terminal: TerminalMetadata, then: string): string | undefined =>
   terminal.state === "sleeping"
-    ? `${terminal.agent} is asleep in it, with its session saved, but ${then}`
+    ? `${terminal.agent === "newer" ? "An agent" : terminal.agent} is asleep in it, with its session saved, but ${then}`
     : terminal.state === "starting" && terminal.restoredProcess
       ? `${terminal.restoredProcess} is waking in it, with its session saved, but ${then}`
       : undefined
