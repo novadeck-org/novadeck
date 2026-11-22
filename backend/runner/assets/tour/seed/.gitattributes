@@ -1,3 +1,3 @@
-# The same line endings on every system, so a worktree's files are byte for byte the ones committed
-# (the dev server shows a worktree's copy of a file where it differs from this folder's).
+# The same line endings on every system, so a worktree's files are byte for byte the ones
+# committed, whatever git is set to do with line endings there.
 * text=auto eol=lf
