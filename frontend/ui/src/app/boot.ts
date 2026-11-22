@@ -45,14 +45,23 @@ export const autoRetryDelay = (failure: ConnectFailure, failures: number): numbe
 export const retryCountdown = (msLeft: number): string =>
   `Retrying in ${Math.max(1, Math.ceil(msLeft / 1000))} s…`
 
-// What the person can do: quit a different version or a copy a newer Novadeck outdated,
-// retry anything else.
-export const failureAction = (failure: ConnectFailure): "quit" | "retry" =>
-  failure.kind === "incompatible" || failure.kind === "outdated" ? "quit" : "retry"
+// What the person can do: reload a page older than its runner, quit a different version or
+// a copy a newer Novadeck outdated, retry anything else.
+export const failureAction = (failure: ConnectFailure): "quit" | "reload" | "retry" =>
+  failure.reload
+    ? "reload"
+    : failure.kind === "incompatible" || failure.kind === "outdated"
+      ? "quit"
+      : "retry"
 
-// The splash's heading: a copy a newer Novadeck outdated says so, as retrying won't help.
+// The splash's heading: a copy that is out of date says so, as retrying won't help, and so
+// does a runner older than the app.
 export const failureTitle = (failure: ConnectFailure): string =>
-  failure.kind === "outdated" ? "This copy of Novadeck is out of date" : "Couldn't power the deck"
+  failure.update === "runner"
+    ? "The runner is out of date"
+    : failure.kind === "outdated" || failure.update === "app"
+      ? "This copy of Novadeck is out of date"
+      : "Couldn't power the deck"
 
 // The failure a rejected connect carries, or an unknown one.
 export const failureOf = (error: unknown): ConnectFailure => {

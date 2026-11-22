@@ -2,7 +2,7 @@ import type { ThemeSource } from "@novadeck/core/port"
 import type { CanvasLayout } from "@novadeck/core/types"
 import {
   contract,
-  protocolVersion,
+  compatibility,
   type TerminalChange,
   type TerminalEvent,
   type TerminalSummary,
@@ -150,7 +150,10 @@ export const scriptedRunner = ({
   }
   const router = api.router({
     wire: {
-      handshake: api.wire.handshake.handler(() => ({ epoch: id(99), protocolVersion })),
+      handshake: api.wire.handshake.handler(() => ({
+        epoch: id(99),
+        protocolVersion: compatibility.revision,
+      })),
     },
     projects: {
       list: api.projects.list.handler(() => [

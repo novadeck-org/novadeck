@@ -3,7 +3,7 @@ import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { BackendConnection, ConnectBackend, ThemeSource } from "@novadeck/core/port"
 import { keepVariant, rememberVariant, requestedVariant } from "@novadeck/demo/variants"
 
-import { bootFailures } from "./boot-failures"
+import { bootFailures, failureKey } from "./boot-failures"
 import type { BootRehearsals } from "./boot-rehearsal"
 import { createDebugDemo, type DemoLaunch } from "./debug-demo"
 import type { DemoPortable } from "./desktop/portable"
@@ -15,7 +15,7 @@ export { debugPanelOf } from "./debug-demo"
 
 const unavailable = (code: string): Error => {
   const failure =
-    bootFailures.find((each) => each.code === code) ??
+    bootFailures.find((each) => failureKey(each) === code) ??
     bootFailures.find((each) => each.kind === "unknown")!
   return Object.assign(new Error(failure.message), { failure })
 }

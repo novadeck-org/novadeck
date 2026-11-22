@@ -34,6 +34,15 @@ release finds on their computer is theirs, so it carries forward:
 Code moving inside the repository needs no shims, but nothing on a person's computer is
 code moving inside the repository.
 
+# The Contract's Window
+
+A change to `contract/protocol` follows docs/backend-api.md ("Versions"): it raises
+`revision` in `compatibility.ts` once per release, and a change that can't be additive moves
+`oldestClient` or `oldestRunner` past the newest release's revision. Write `contract.json`
+again with `pnpm --filter @novadeck/protocol test -u`. On a conflict in it, take either side,
+write it again the same way, then run `node scripts/compatibility/main.ts`: a change merged first
+may already have raised `revision` past the release, or need yours raised once more.
+
 # Shared CI Runners
 
 macOS CI has three runners, shared by every pull request's Quality and E2E runs and the

@@ -5,6 +5,7 @@ export {
   type CompanionWatchItem,
   type ConnectOptions,
   type HistoryWatchItem,
+  type ProcedurePath,
   type Runner,
   type TerminalWatchItem,
   type WorkWatchItem,

@@ -184,7 +184,8 @@ describe("a connection's streams", () => {
     const servers: MessagePortLike[] = []
     const wire = await connect({
       contract: streaming,
-      protocolVersion: 1,
+      revision: 1,
+      oldestServer: 1,
       retryDelay: () => 0,
       transport: messagePort(() => {
         const [server, client] = memoryPorts()

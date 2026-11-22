@@ -8,7 +8,7 @@ import {
   type Runner,
   type RunnerErrorCode,
 } from "@novadeck/runner-client"
-import { WireError } from "@novadeck/wire"
+import { incompatibility, WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
@@ -62,7 +62,12 @@ const transient: readonly RunnerErrorCode[] = [
   "CLOSING",
   "RESOURCE_LIMIT",
 ]
-export const connectFailure = (error: unknown): ConnectFailure => {
+export const connectFailure = (
+  error: unknown,
+  // Whether this page is the desktop app's, which updates itself, or a browser's, which
+  // loads the runner's newer page when it reloads.
+  inApp: boolean = desktopApp() !== undefined,
+): ConnectFailure => {
   if (!(error instanceof WireError))
     return {
       kind: "unknown",
@@ -74,13 +79,34 @@ export const connectFailure = (error: unknown): ConnectFailure => {
   const detail = error.message
   if (hasCode(error, ...transient))
     return { kind: "transient", message: "The runner didn't start.", code, detail }
-  if (hasCode(error, "INCOMPATIBLE_PROTOCOL"))
-    return {
-      kind: "incompatible",
-      message: "This runner is from a different Novadeck version.",
-      code,
-      detail,
-    }
+  if (hasCode(error, "INCOMPATIBLE_PROTOCOL")) {
+    // The wire says which side is behind; a refusal it couldn't place came from a runner
+    // older than every window.
+    if (incompatibility(error)?.behind !== "client")
+      return {
+        kind: "incompatible",
+        update: "runner",
+        message: "The runner is older than this app. Update Novadeck where the runner runs.",
+        code,
+        detail,
+      }
+    return inApp
+      ? {
+          kind: "incompatible",
+          update: "app",
+          message: "This app is older than its runner. Update Novadeck to connect.",
+          code,
+          detail,
+        }
+      : {
+          kind: "incompatible",
+          update: "app",
+          reload: true,
+          message: "This page is older than its runner. Reload it to load the newer Novadeck.",
+          code,
+          detail,
+        }
+  }
   if (hasCode(error, "WORKSPACE_TOO_NEW"))
     return {
       kind: "outdated",

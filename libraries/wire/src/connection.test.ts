@@ -13,9 +13,13 @@ import { messagePort } from "./transport.js"
 const contract = {
   ...wireContract,
   echo: oc.input(type<string>()).output(type<string>()),
+  // A procedure that came in revision 4: a server at 3 doesn't have it.
+  later: oc.meta({ since: 4 }).input(type<string>()).output(type<string>()),
 }
 
-const protocolVersion = 3
+// The revision the client speaks, and the oldest server it works with.
+const revision = 3
+const oldestServer = 2
 
 type Server = {
   epoch: string
@@ -24,7 +28,7 @@ type Server = {
   // Holds every handshake back, as a server that never answers, until `answer` is called.
   silent: boolean
   answer?: () => void
-  // The protocol version it answers with.
+  // The revision it answers with.
   protocolVersion: number
   seen: { clientId?: string | undefined; token?: string | undefined; protocolVersion: number }[]
   ports: MessagePortLike[]
@@ -38,7 +42,7 @@ const serve = (): Server & { transport: ConnectOptions<typeof contract>["transpo
     epoch: "e1",
     refusals: [],
     silent: false,
-    protocolVersion,
+    protocolVersion: revision,
     seen: [],
     ports: [],
     closed: 0,
@@ -58,6 +62,7 @@ const serve = (): Server & { transport: ConnectOptions<typeof contract>["transpo
       }),
     },
     echo: api.echo.handler(({ input }) => input),
+    later: api.later.handler(({ input }) => `later ${input}`),
   })
   const transport = messagePort(() => {
     const [end, client] = memoryPorts()
@@ -79,7 +84,8 @@ const open = async (
   const wire = await connect({
     contract,
     transport: server.transport,
-    protocolVersion,
+    revision,
+    oldestServer,
     retryDelay: () => 0,
     ...options,
   })
@@ -116,7 +122,7 @@ describe("connect", () => {
     expect(server.seen[0]).toEqual({
       clientId: expect.any(String),
       token: "secret",
-      protocolVersion,
+      protocolVersion: revision,
     })
     expect(server.seen[1]).toEqual(server.seen[0])
   })
@@ -218,8 +224,11 @@ describe("connect", () => {
     const [end, client] = memoryPorts()
     const api = implement(contract)
     const router = api.router({
-      wire: { handshake: api.wire.handshake.handler(() => ({ epoch: "e1", protocolVersion })) },
+      wire: {
+        handshake: api.wire.handshake.handler(() => ({ epoch: "e1", protocolVersion: revision })),
+      },
       echo: api.echo.handler(({ input }) => input),
+      later: api.later.handler(({ input }) => input),
     })
     new RPCHandler(router).upgrade(end, { context: {} })
     const wire = await open({ ...serve(), transport: messagePort(client) })
@@ -230,14 +239,58 @@ describe("connect", () => {
 
   it("fails the first connection with the handshake's refusal", async () => {
     const server = serve()
-    server.refusals.push(refusal("INCOMPATIBLE_PROTOCOL"))
-    await expect(open(server)).rejects.toMatchObject({ code: "INCOMPATIBLE_PROTOCOL" })
+    server.refusals.push(refusal("WORKSPACE_TOO_NEW"))
+    await expect(open(server)).rejects.toMatchObject({ code: "WORKSPACE_TOO_NEW" })
   })
 
-  it("refuses a server that answers in another protocol", async () => {
+  it("says the client is behind when the server refuses it with its window", async () => {
     const server = serve()
-    server.protocolVersion = protocolVersion + 1
-    await expect(open(server)).rejects.toMatchObject({ code: "INCOMPATIBLE_PROTOCOL" })
+    server.refusals.push(() => {
+      throw new ORPCError("INCOMPATIBLE_PROTOCOL", { data: { revision: 9, oldestClient: 5 } })
+    })
+    await expect(open(server)).rejects.toMatchObject({
+      code: "INCOMPATIBLE_PROTOCOL",
+      data: { behind: "client", server: 9, client: revision },
+    })
+  })
+
+  it("says the server is behind when it refuses without a window, as one from before them", async () => {
+    const server = serve()
+    server.refusals.push(refusal("INCOMPATIBLE_PROTOCOL"))
+    await expect(open(server)).rejects.toMatchObject({
+      code: "INCOMPATIBLE_PROTOCOL",
+      data: { behind: "server", client: revision },
+    })
+  })
+
+  it("refuses a server older than it works with, saying the server is behind", async () => {
+    const server = serve()
+    server.protocolVersion = oldestServer - 1
+    await expect(open(server)).rejects.toMatchObject({
+      code: "INCOMPATIBLE_PROTOCOL",
+      data: { behind: "server", server: oldestServer - 1, client: revision },
+    })
+  })
+
+  it("works with a server inside its window, or newer, knowing its revision", async () => {
+    for (const answered of [oldestServer, revision + 2]) {
+      const server = serve()
+      server.protocolVersion = answered
+      // eslint-disable-next-line no-await-in-loop -- One server after another.
+      const wire = await open(server)
+      expect(wire.session().revision).toBe(answered)
+      // eslint-disable-next-line no-await-in-loop -- One server after another.
+      expect(await wire.session().client.echo("ping")).toBe("ping")
+    }
+  })
+
+  it("refuses at once a call the server is too old to have, without asking it", async () => {
+    const old = serve()
+    const wire = await open(old)
+    await expect(wire.session().client.later("x")).rejects.toMatchObject({ code: "UNSUPPORTED" })
+    const fresh = serve()
+    fresh.protocolVersion = 4
+    expect(await (await open(fresh)).session().client.later("x")).toBe("later x")
   })
 
   it("gives up on a handshake that never answers", async () => {

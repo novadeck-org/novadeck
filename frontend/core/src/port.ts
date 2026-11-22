@@ -750,13 +750,17 @@ export type ConnectBackend = (
 
 // Why connecting failed, sorted by what the person can do about it: a transient failure
 // retries on its own, a different version or a workspace a newer Novadeck used can only
-// quit, and the rest wait for Retry. `message` is for people; `code` and `detail` are for a
-// bug report.
+// quit, or reload a page that is older than its runner, and the rest wait for Retry.
+// `message` is for people; `code` and `detail` are for a bug report.
 export type ConnectFailure = {
   readonly kind: "transient" | "incompatible" | "outdated" | "unauthorized" | "unknown"
   readonly message: string
   readonly code: string
   readonly detail: string
+  // For an app and a runner outside each other's window: which of them to update.
+  readonly update?: "app" | "runner"
+  // Reloading the page mends it: a page older than its runner loads the newer one.
+  readonly reload?: boolean
 }
 
 // The restored session's terminals being attached: `done` once they all are, have

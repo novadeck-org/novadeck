@@ -317,6 +317,26 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.proof-macos-rows) }}
     steps: *steps
 
+  # The contract against the newest release's (scripts/compatibility, docs/backend-api.md
+  # "Versions"): a change that leaves a UI or runner of that release behind moves that side's
+  # edge of the window, so the handshake refuses that peer, or fails here. The whole history,
+  # for the release tags; the shared steps above check out two commits.
+  contract:
+    name: Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set Up
+        uses: ./.github/actions/setup
+
+      - name: Compare Contract With Newest Release
+        run: node scripts/compatibility/main.ts
+
   # The pull request's app packaged for all three systems once every check passes, unless
   # it's a draft or its change can't affect the app (Package's Scope job decides). Not
   # part of the required checks, and never on a merge group, whose pull request packaged it.
@@ -342,7 +362,7 @@ jobs:
   # fail it.
   test:
     name: Test
-    needs: [plan, quality, windows, macos]
+    needs: [plan, quality, windows, macos, contract]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -351,6 +371,7 @@ jobs:
         env:
           PLAN_RESULT: ${{ needs.plan.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
+          CONTRACT_RESULT: ${{ needs.contract.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
           # A plan that failed or left its outputs out runs both: planned unless it said not.
           WINDOWS_PLANNED: ${{ needs.plan.outputs.windows != 'false' }}
@@ -361,6 +382,7 @@ jobs:
           # Without a plan, Windows and macOS ran every test, and their results decide.
           test "$PLAN_RESULT" = success || echo "::warning title=Plan::Plan: $PLAN_RESULT, so Windows and macOS ran every test"
           test "$QUALITY_RESULT" = success || { echo "Checks and Linux tests: $QUALITY_RESULT"; exit 1; }
+          test "$CONTRACT_RESULT" = success || { echo "Contract against the newest release: $CONTRACT_RESULT"; exit 1; }
           if [ "$MACOS_HELD" = true ]; then
             echo "::error title=Draft::draft: macOS not run, mark ready to run it"
             echo "draft: macOS not run, mark ready to run it" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"

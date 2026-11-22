@@ -1,6 +1,6 @@
 import { MessageChannel } from "node:worker_threads"
 
-import { contract, protocolVersion, type TranscriptChange } from "@novadeck/protocol"
+import { compatibility, contract, type TranscriptChange } from "@novadeck/protocol"
 import { connectRunner } from "@novadeck/runner-client"
 import { messagePort } from "@novadeck/wire/client"
 import { implement, ORPCError } from "@orpc/server"
@@ -42,7 +42,7 @@ describe("a client's transcript across its runner's streams", () => {
       wire: {
         handshake: api.wire.handshake.handler(() => ({
           epoch: crypto.randomUUID(),
-          protocolVersion,
+          protocolVersion: compatibility.revision,
         })),
       },
       agents: {

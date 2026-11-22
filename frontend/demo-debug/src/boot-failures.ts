@@ -11,9 +11,25 @@ export const bootFailures: readonly ConnectFailure[] = [
   },
   {
     kind: "incompatible",
-    message: "This runner is from a different Novadeck version.",
+    update: "app",
+    reload: true,
+    message: "This page is older than its runner. Reload it to load the newer Novadeck.",
     code: "INCOMPATIBLE_PROTOCOL",
-    detail: "Runner speaks protocol 2, this app speaks protocol 1.",
+    detail: "The server serves clients from revision 5; this one is 3.",
+  },
+  {
+    kind: "incompatible",
+    update: "app",
+    message: "This app is older than its runner. Update Novadeck to connect.",
+    code: "INCOMPATIBLE_PROTOCOL",
+    detail: "The server serves clients from revision 5; this one is 3.",
+  },
+  {
+    kind: "incompatible",
+    update: "runner",
+    message: "The runner is older than this app. Update Novadeck where the runner runs.",
+    code: "INCOMPATIBLE_PROTOCOL",
+    detail: "The server is at revision 2; this client works with 4 and later.",
   },
   {
     kind: "outdated",
@@ -35,3 +51,8 @@ export const bootFailures: readonly ConnectFailure[] = [
     detail: "Internal server error",
   },
 ]
+
+// The name the debug panel rehearses a failure by: its code, with the side to update and
+// whether a reload mends it where one code reads several ways.
+export const failureKey = (failure: ConnectFailure): string =>
+  [failure.code, failure.update, failure.reload && "reload"].filter(Boolean).join("/")

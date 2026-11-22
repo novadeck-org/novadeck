@@ -1,6 +1,6 @@
 import type { ConnectFailure } from "@novadeck/core/port"
 
-import { bootFailures } from "./boot-failures"
+import { bootFailures, failureKey } from "./boot-failures"
 import type { DemoLaunch, DemoShell } from "./debug-demo"
 import { sampleFix } from "./desktop/sandbox"
 import { pageUpdateChannel } from "./desktop/updates"
@@ -13,12 +13,20 @@ const failureCopy: Record<ConnectFailure["kind"], { label: string; hint: string 
   transient: { label: "Transient", hint: "splash retries and connects" },
   unauthorized: { label: "Unauthorized", hint: "Retry connects" },
   unknown: { label: "Unknown error", hint: "Retry connects" },
-  incompatible: { label: "Incompatible runner", hint: "Quit only" },
+  incompatible: { label: "Older runner", hint: "Quit only; says to update the runner" },
   outdated: {
     label: "Newer workspace",
     hint: "Quit only; names the newer Novadeck",
   },
 }
+
+// An app older than its runner reads two ways: a page reloads, the desktop app quits.
+const copyOf = (failure: ConnectFailure): { label: string; hint: string } =>
+  failure.update !== "app"
+    ? failureCopy[failure.kind]
+    : failure.reload
+      ? { label: "Older page", hint: "Reload only; loads the runner's newer page" }
+      : { label: "Older app", hint: "Quit only; says to update this app" }
 
 // The panel's groups for the shell around the demo: how it starts, how it fails to,
 // its runner, its sandbox and the guides drawn over it.
@@ -70,12 +78,12 @@ export const shellGroups = ({
       section: "App",
       title: "Boot failures",
       actions: bootFailures.map((failure) => {
-        const { label, hint } = failureCopy[failure.kind]
+        const { label, hint } = copyOf(failure)
         return {
           label,
           hint: `${failure.code} \u00b7 ${hint}`,
           reboots: true,
-          run: () => rehearsals.rehearse({ fail: failure.code }),
+          run: () => rehearsals.rehearse({ fail: failureKey(failure) }),
         }
       }),
     },

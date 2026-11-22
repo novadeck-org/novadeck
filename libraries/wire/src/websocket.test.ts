@@ -25,6 +25,7 @@ const contract = {
   echo: oc.input(type<string>()).output(type<string>()),
 }
 
+// The revision both sides speak.
 const protocolVersion = 1
 const token = "wire-tests-only-not-a-production-credential"
 
@@ -36,7 +37,8 @@ const serve = async (
   const { wire: _, ...app } = contract
   const api = implement(app).$context<SessionContext>()
   const sessions = createSessions({
-    protocolVersion,
+    revision: protocolVersion,
+    oldestClient: protocolVersion,
     router: api.router({ echo: api.echo.handler(({ input }) => input) }),
     ...sessionOptions,
   })
@@ -81,7 +83,8 @@ describe("serveWebSocket", () => {
     const wire = await connect({
       contract,
       transport: websocket(url, { token }),
-      protocolVersion,
+      revision: protocolVersion,
+      oldestServer: protocolVersion,
       retryDelay: () => 0,
     })
     onTestFinished(() => wire.close())
@@ -129,7 +132,11 @@ describe("serveWebSocket", () => {
   })
 
   it("refuses tokens too short or too long, and a server with neither token nor verify", () => {
-    const sessions = createSessions({ protocolVersion, router: {} })
+    const sessions = createSessions({
+      revision: protocolVersion,
+      oldestClient: protocolVersion,
+      router: {},
+    })
     const base = { path: "/rpc", origins: [], maxPayloadBytes: 1, sendBudgetBytes: 1 }
     expect(() => serveWebSocket(sessions, { ...base, token: "short" })).toThrow(
       "between 32 and 512",

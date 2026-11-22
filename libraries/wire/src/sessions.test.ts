@@ -23,7 +23,9 @@ const contract = {
   idle: oc.input(type<void>()).output(eventIterator(type<number>())),
 }
 
-const protocolVersion = 7
+// The revision the server speaks, and the oldest client it serves.
+const revision = 7
+const oldestClient = 5
 
 class AppError extends Error {}
 
@@ -38,7 +40,8 @@ const serve = (options: Partial<SessionsOptions> = {}) => {
   const { wire: _, ...app } = contract
   const api = implement(app).$context<SessionContext>()
   const sessions = createSessions({
-    protocolVersion,
+    revision,
+    oldestClient,
     router: api.router({
       echo: api.echo.handler(({ input }) => input),
       held: api.held.handler(
@@ -103,6 +106,7 @@ const serve = (options: Partial<SessionsOptions> = {}) => {
           protocolVersion: number
           token?: string
           clientId?: string
+          [key: string]: unknown
         }) => Promise<{ epoch: string; protocolVersion: number }>
       }
       echo: (input: string) => Promise<string>
@@ -114,7 +118,7 @@ const serve = (options: Partial<SessionsOptions> = {}) => {
     }
     const handshake = (clientId?: string) =>
       client.wire.handshake({
-        protocolVersion,
+        protocolVersion: revision,
         token: "secret",
         ...(clientId !== undefined && { clientId }),
       })
@@ -189,31 +193,58 @@ describe("createSessions", () => {
     const { sessions, open } = serve()
     const { session, client, authenticated, handshake } = open()
     await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED", status: 401 })
-    await expect(client.wire.handshake({ protocolVersion, token: "wrong" })).rejects.toMatchObject({
+    await expect(
+      client.wire.handshake({ protocolVersion: revision, token: "wrong" }),
+    ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     })
     await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     expect(authenticated).not.toHaveBeenCalled()
-    await expect(handshake()).resolves.toEqual({ epoch: sessions.epoch, protocolVersion })
+    await expect(handshake()).resolves.toEqual({ epoch: sessions.epoch, protocolVersion: revision })
     expect(session.authenticated).toBe(true)
     expect(authenticated).toHaveBeenCalledOnce()
     await expect(client.echo("hi")).resolves.toBe("hi")
   })
 
-  it("refuses a client that speaks another protocol", async () => {
+  it("refuses a client older than it serves, telling it its window", async () => {
     const { open } = serve()
     const { client } = open()
     await expect(
-      client.wire.handshake({ protocolVersion: protocolVersion + 1, token: "secret" }),
-    ).rejects.toMatchObject({ code: "INCOMPATIBLE_PROTOCOL", status: 409 })
+      client.wire.handshake({ protocolVersion: oldestClient - 1, token: "secret" }),
+    ).rejects.toMatchObject({
+      code: "INCOMPATIBLE_PROTOCOL",
+      status: 409,
+      data: { revision, oldestClient },
+    })
     await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+  })
+
+  it("serves a client inside its window, and a newer one, which judges for itself", async () => {
+    const { open } = serve()
+    for (const protocolVersion of [oldestClient, revision, revision + 3]) {
+      const { client } = open()
+      // eslint-disable-next-line no-await-in-loop -- One client after another.
+      await expect(client.wire.handshake({ protocolVersion, token: "secret" })).resolves.toEqual(
+        expect.objectContaining({ protocolVersion: revision }),
+      )
+      // eslint-disable-next-line no-await-in-loop -- One client after another.
+      await expect(client.echo("hi")).resolves.toBe("hi")
+    }
+  })
+
+  it("drops what a newer client's handshake says that it doesn't know", async () => {
+    const { open } = serve()
+    const { client } = open()
+    await expect(
+      client.wire.handshake({ protocolVersion: revision, token: "secret", build: "9.9.9" }),
+    ).resolves.toEqual(expect.objectContaining({ protocolVersion: revision }))
   })
 
   it("tells a client with a wrong token nothing about the protocol", async () => {
     const { open } = serve()
     const { client } = open()
     await expect(
-      client.wire.handshake({ protocolVersion: protocolVersion + 1, token: "wrong" }),
+      client.wire.handshake({ protocolVersion: oldestClient - 1, token: "wrong" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" })
   })
 
@@ -226,7 +257,9 @@ describe("createSessions", () => {
       },
     })
     const { session, client, handshake } = open()
-    await expect(client.wire.handshake({ protocolVersion, token: "wrong" })).rejects.toMatchObject({
+    await expect(
+      client.wire.handshake({ protocolVersion: revision, token: "wrong" }),
+    ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     })
     expect(admitted).toEqual([])
@@ -278,7 +311,8 @@ describe("createSessions", () => {
   it("refuses a lazy router, which would hide the handshake", () => {
     expect(() =>
       createSessions({
-        protocolVersion,
+        revision,
+        oldestClient,
         // The types refuse one already; a caller that casts is refused here.
         router: lazy(async () => ({ default: {} })) as unknown as AnyRouter,
       }),
@@ -286,7 +320,7 @@ describe("createSessions", () => {
   })
 
   it("refuses an app router that serves the wire's procedures itself", () => {
-    expect(() => createSessions({ protocolVersion, router: { wire: {} } })).toThrow(
+    expect(() => createSessions({ revision, oldestClient, router: { wire: {} } })).toThrow(
       "can't serve the wire's procedures",
     )
   })
@@ -393,7 +427,7 @@ describe("createSessions", () => {
     const closed = vi.fn<(session: Session) => void>()
     const { open } = serve({ closed })
     const { session, client, terminate } = open()
-    const wrong = () => client.wire.handshake({ protocolVersion, token: "wrong" })
+    const wrong = () => client.wire.handshake({ protocolVersion: revision, token: "wrong" })
     await expect(wrong()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     await expect(wrong()).rejects.toMatchObject({ code: "UNAUTHORIZED" })

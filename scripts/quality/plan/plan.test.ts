@@ -527,6 +527,7 @@ describe("Quality's Test gate", () => {
   const passed = {
     PLAN_RESULT: "success",
     QUALITY_RESULT: "success",
+    CONTRACT_RESULT: "success",
     WINDOWS_PLANNED: "true",
     WINDOWS_RESULT: "success",
     MACOS_PLANNED: "true",
@@ -591,6 +592,7 @@ describe("Quality's Test gate", () => {
       { PLAN_RESULT: "cancelled", WINDOWS_RESULT: "cancelled", MACOS_RESULT: "cancelled" },
     ],
     ["a check or a Linux test failed", { QUALITY_RESULT: "failure" }],
+    ["the contract doesn't fit its window", { CONTRACT_RESULT: "failure" }],
     ["the Linux jobs were cancelled", { QUALITY_RESULT: "cancelled" }],
     ["Windows failed", { WINDOWS_RESULT: "failure" }],
     ["macOS was cancelled", { MACOS_RESULT: "cancelled" }],
@@ -686,6 +688,7 @@ describe("Quality's workflow", () => {
     const env = {
       PLAN_RESULT: "success",
       QUALITY_RESULT: "success",
+      CONTRACT_RESULT: "success",
       WINDOWS_PLANNED: "false",
       WINDOWS_RESULT: "skipped",
       MACOS_PLANNED: "false",
@@ -695,8 +698,14 @@ describe("Quality's workflow", () => {
     expect(runGate("quality.yml", env).passed).toBe(true)
   })
 
-  it("has the gate wait on every test job", () => {
-    expect(job("test")).toContain("needs: [plan, quality, windows, macos]")
+  it("has the gate wait on every test job, and the contract's check", () => {
+    expect(job("test")).toContain("needs: [plan, quality, windows, macos, contract]")
+  })
+
+  // The tags the check compares with are only in the whole history.
+  it("checks the contract against the newest release with the whole history", () => {
+    expect(job("contract")).toContain("fetch-depth: 0")
+    expect(job("contract")).toContain("run: node scripts/compatibility/main.ts")
   })
 
   it("takes Windows's and macOS's rows and packages from the plan", () => {

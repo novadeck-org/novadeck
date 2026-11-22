@@ -10,4 +10,5 @@ export {
   type SessionTransport,
 } from "./sessions.js"
 export { Versioned } from "./versioned.js"
+export { dropUnknownKeys, type Dropped } from "./tolerant.js"
 export { serveWebSocket, type WebSocketOptions } from "./websocket.js"

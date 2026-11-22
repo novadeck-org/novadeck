@@ -14,6 +14,7 @@ const contract = {
   echo: oc.input(type<string>()).output(type<string>()),
 }
 
+// The revision both sides speak.
 const protocolVersion = 1
 
 const serve = () => {
@@ -22,7 +23,8 @@ const serve = () => {
   const { wire: _, ...app } = contract
   const api = implement(app).$context<SessionContext>()
   const sessions = createSessions({
-    protocolVersion,
+    revision: protocolVersion,
+    oldestClient: protocolVersion,
     router: api.router({ echo: api.echo.handler(({ input }) => input) }),
     closed,
     failed,
@@ -34,21 +36,35 @@ const serve = () => {
 
 describe("servePort", () => {
   it("refuses a call limit that isn't a positive integer", () => {
-    const sessions = createSessions({ protocolVersion, router: {} })
+    const sessions = createSessions({
+      revision: protocolVersion,
+      oldestClient: protocolVersion,
+      router: {},
+    })
     const [end] = memoryPorts()
     expect(() => servePort(sessions, end as ServedPort, { maxCalls: 0 })).toThrow("maxCalls")
   })
 
   it("serves the port's holder without a token", async () => {
     const { client } = serve()
-    const wire = await connect({ contract, transport: messagePort(client), protocolVersion })
+    const wire = await connect({
+      contract,
+      transport: messagePort(client),
+      revision: protocolVersion,
+      oldestServer: protocolVersion,
+    })
     onTestFinished(() => wire.close())
     await expect(wire.session().client.echo("hi")).resolves.toBe("hi")
   })
 
   it("tells the app of a message it can't read, and answers the next call as ever", async () => {
     const { client, failed } = serve()
-    const wire = await connect({ contract, transport: messagePort(client), protocolVersion })
+    const wire = await connect({
+      contract,
+      transport: messagePort(client),
+      revision: protocolVersion,
+      oldestServer: protocolVersion,
+    })
     onTestFinished(() => wire.close())
     // Neither a request nor encoded as one: oRPC's handler rejects on it, outside any call.
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A port takes none.
@@ -61,7 +77,12 @@ describe("servePort", () => {
 
   it("ends the session when the port closes", async () => {
     const { client, closed } = serve()
-    const wire = await connect({ contract, transport: messagePort(client), protocolVersion })
+    const wire = await connect({
+      contract,
+      transport: messagePort(client),
+      revision: protocolVersion,
+      oldestServer: protocolVersion,
+    })
     onTestFinished(() => wire.close())
     wire.close()
     await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce())
@@ -69,7 +90,12 @@ describe("servePort", () => {
 
   it("closes the port and ends the session when disposed", async () => {
     const { client, closed, dispose } = serve()
-    const wire = await connect({ contract, transport: messagePort(client), protocolVersion })
+    const wire = await connect({
+      contract,
+      transport: messagePort(client),
+      revision: protocolVersion,
+      oldestServer: protocolVersion,
+    })
     onTestFinished(() => wire.close())
     dispose()
     expect(closed).toHaveBeenCalledOnce()

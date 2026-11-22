@@ -1,8 +1,9 @@
 import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 
 import type { Channel } from "./channel.js"
-import { hasCode, normalize, WireError } from "./errors.js"
+import { hasCode, normalize, serverWindow, WireError, type Incompatibility } from "./errors.js"
 import type { WireContract } from "./handshake.js"
+import { gated } from "./since.js"
 import { sleep } from "./sleep.js"
 import type { Transport } from "./transport.js"
 import { Watched, type Watching } from "./watched.js"
@@ -22,8 +23,11 @@ export type WireStatus =
  * channel is still open. Only the client speaks on the channel.
  */
 export type Session<C extends AnyContractRouter> = {
+  /** Calls the server; one it is too old to have rejects with `UNSUPPORTED` at once. */
   readonly client: ContractRouterClient<C>
   readonly epoch: string
+  /** The server's revision of the contract, as its handshake said. */
+  readonly revision: number
   readonly channel: Pick<Channel, "open" | "closed">
 }
 
@@ -34,8 +38,14 @@ export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
   /** The contract the server serves, for the client's types: the app's, with the wire's. */
   readonly contract: C
   readonly transport: Transport
-  /** The protocol the client speaks; a server that speaks another refuses it. */
-  readonly protocolVersion: number
+  /** The revision of the contract the client speaks, which it tells the server. */
+  readonly revision: number
+  /**
+   * The oldest server revision the client works with: an older server is refused as
+   * `INCOMPATIBLE_PROTOCOL`, as is a server that finds the client too old, each saying which
+   * side is behind (`incompatibility`).
+   */
+  readonly oldestServer: number
   /**
    * Codes that end the connection for good, beside the wire's own (`UNAUTHORIZED`,
    * `INCOMPATIBLE_PROTOCOL`, `CLOSED`): no reconnection would succeed.
@@ -70,6 +80,22 @@ const wireFatal = ["UNAUTHORIZED", "INCOMPATIBLE_PROTOCOL", "CLOSED"] as const
 const backoff = (attempt: number) => Math.min(250 * 2 ** attempt, 5_000)
 // How long a session must last for the next reconnection to start backing off afresh.
 const steadyMs = 10_000
+
+/**
+ * A refused handshake, saying which side is behind: a server that refuses a client as too old
+ * tells its window; one from before windows refuses every revision but its own, and says
+ * nothing, which only a server older than every window does.
+ */
+const refused = (error: WireError, client: number): WireError => {
+  const window = serverWindow.safeParse(error.data)
+  const data: Incompatibility = window.success
+    ? { behind: "client", server: window.data.revision, client }
+    : { behind: "server", client }
+  const message = window.success
+    ? `The server serves clients from revision ${window.data.oldestClient}; this one is ${client}.`
+    : `The server is from before revision ${client}, which this client speaks.`
+  return new WireError("INCOMPATIBLE_PROTOCOL", message, { cause: error, data })
+}
 
 /** A connection's failure as a wire error; anything that isn't one is a failure to connect. */
 const asWireError = (error: unknown): WireError => {
@@ -122,21 +148,37 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
     try {
       channel = await transport.connect(signal)
       const client = createWireClient<C>(channel)
-      const { protocolVersion } = this.options
+      const { contract, revision, oldestServer } = this.options
       // Every contract a connection serves has the wire's handshake.
       const wire = (client as unknown as ContractRouterClient<WireContract>).wire
-      const opened = await wire.handshake(
-        {
-          protocolVersion,
-          clientId: this.clientId,
-          ...(transport.token !== undefined && { token: transport.token }),
-        },
-        { signal },
-      )
-      if (opened.protocolVersion !== protocolVersion) {
-        throw new WireError("INCOMPATIBLE_PROTOCOL", "The server speaks another protocol.")
+      const opened = await wire
+        .handshake(
+          {
+            protocolVersion: revision,
+            clientId: this.clientId,
+            ...(transport.token !== undefined && { token: transport.token }),
+          },
+          { signal },
+        )
+        .catch((error: unknown) => {
+          const failure = asWireError(error)
+          throw hasCode(failure, "INCOMPATIBLE_PROTOCOL") ? refused(failure, revision) : failure
+        })
+      const server = opened.protocolVersion
+      if (server < oldestServer) {
+        const data: Incompatibility = { behind: "server", server, client: revision }
+        throw new WireError(
+          "INCOMPATIBLE_PROTOCOL",
+          `The server is at revision ${server}; this client works with ${oldestServer} and later.`,
+          { data },
+        )
       }
-      return { client, epoch: opened.epoch, channel }
+      return {
+        client: gated(client, contract, server),
+        epoch: opened.epoch,
+        revision: server,
+        channel,
+      }
     } catch (error) {
       channel?.close()
       throw asWireError(error)

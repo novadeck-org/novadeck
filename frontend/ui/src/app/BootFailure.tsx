@@ -34,6 +34,7 @@ export const BootFailure = ({
   retryIn,
   onRetry,
   onQuit,
+  onReload,
 }: {
   readonly failure: ConnectFailure
   // Connection attempts made so far, for the details.
@@ -42,6 +43,7 @@ export const BootFailure = ({
   readonly retryIn: number | undefined
   readonly onRetry: () => void
   readonly onQuit: () => void
+  readonly onReload: () => void
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -62,6 +64,10 @@ export const BootFailure = ({
         {action === "quit" ? (
           <button type="button" className={primary} onClick={onQuit}>
             Quit
+          </button>
+        ) : action === "reload" ? (
+          <button type="button" className={primary} onClick={onReload}>
+            Reload
           </button>
         ) : (
           <button type="button" className={primary} onClick={onRetry}>

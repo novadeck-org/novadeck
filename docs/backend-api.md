@@ -555,7 +555,8 @@ wire's own error codes (`wireErrors`) beside the runner's. Applications use
 
 Every connection starts with the wire's handshake, `wire.handshake({ protocolVersion,
 token, clientId })`, which returns the runner's `epoch` (its lifetime: terminal cursors
-are valid only within one) and the protocol version. WebSocket connections
+are valid only within one) and its own revision of the contract as `protocolVersion`
+(see [Versions](#versions)). WebSocket connections
 require the token in the handshake, never in a URL, and time out after ten seconds
 without it. MessagePort connections omit it. Each `terminals.attach` stream begins
 with an unsequenced `attached` marker confirming the granted mode, followed by
@@ -569,6 +570,70 @@ supplied. Directories must exist and be absolute. The server chooses the shell;
 clients send terminal input, not executable configuration. `write` accepts control
 characters, including Ctrl-C (`\u0003`). A successful write means accepted input,
 not command completion.
+
+### Versions
+
+A UI and a runner from different releases work together while each is inside the other's
+window, and are refused at the handshake once one isn't: never later, with a call that fails
+to decode or validate. Each build carries three numbers (`compatibility` in
+`contract/protocol/src/compatibility.ts`):
+
+- `revision`, the contract it speaks, raised once in each release whose contract changed;
+- `oldestClient`, the oldest UI a runner of this build serves;
+- `oldestRunner`, the oldest runner a UI of this build works with.
+
+The client sends its revision as the handshake's `protocolVersion`. The runner refuses a client
+below `oldestClient` with `INCOMPATIBLE_PROTOCOL`, whose data is the runner's window
+(`{ revision, oldestClient }`), and serves any newer one, which judges for itself: the client
+refuses a runner below its `oldestRunner`. A runner from before windows (revision 1) refuses
+every revision but its own, without data. So the client always knows which side is behind:
+`incompatibility(error)` from `@novadeck/wire` says `client` or `server`, and the app's boot
+screen says to update this app (or, in a browser, to reload the page, which loads the runner's
+newer one) or to update Novadeck where the runner runs. A runner replaced while connected is
+met at the next reconnection's handshake, which is fatal there.
+
+What each side tolerates:
+
+- **The runner drops input keys it doesn't know**, at the wire boundary only
+  (`dropUnknownKeys`, `@novadeck/wire/server`): it parses each input with the contract's
+  strict schema, and when the only issues are unknown keys, it removes them where zod found
+  them and parses once more. Undeclared data never reaches a handler, and every declared
+  field is checked as strictly as before. The contract's schemas stay strict, as the runner
+  also parses agents' tool arguments with them. Each dropped key is logged once per procedure
+  (`rpc.dropped`).
+- **The UI never validates what it reads**, so a newer runner's extra fields pass it by
+  unread. What can trip it is what its types say: a field gone or now optional, another type,
+  or a value of an enum or a union's variant it doesn't know.
+- **Strict stays** for the runner's own outputs (checked against the contract, so
+  `contract.json` is what it sends), every declared field's values, unions told apart only by
+  their keys, and agents' tool arguments.
+
+How each kind of change ships:
+
+| Change                                                    | Older UI, newer runner | Newer UI, older runner | Ship it as                                                                                                                                                                 |
+| --------------------------------------------------------- | ---------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New optional input field                                  | fine                   | the runner drops it    | add it; it must be harmless to ignore, or it's a new procedure                                                                                                             |
+| New output field                                          | ignored                | missing                | `.optional()`, or raise `oldestRunner`                                                                                                                                     |
+| New procedure                                             | never called           | missing                | `.meta({ since: <revision> })`, and the UI asks `runner.supports(path)` first (a call to it rejects with `UNSUPPORTED` without asking the runner); or raise `oldestRunner` |
+| New value or variant in an output                         | unknown to it          | fine                   | raise `oldestClient`                                                                                                                                                       |
+| New value, or a looser bound, in an input                 | fine                   | refused                | gate it on the runner's revision with a new procedure, or raise `oldestRunner`                                                                                             |
+| Removed or renamed procedure or field, new required input | broken                 | —                      | raise `oldestClient`; better, stage it: add the new one, move the UI to it, and remove the old one once the window has passed it                                           |
+
+Raising an edge past the newest release's revision is how a change that can't be additive
+is declared: the handshake then refuses that release's peers, with the message above.
+
+`contract/protocol/contract.json` holds the contract as this build has it: the window, and
+each procedure's input and output (or stream items) as JSON Schema, with each error's data. The
+protocol's `snapshot.test.ts` keeps it current (`pnpm --filter @novadeck/protocol test -u`
+writes it again), and a pull request shows a contract change as a change to it.
+`node scripts/compatibility/main.ts` compares it with the newest release's (Quality's Contract job,
+and the release workflow before it publishes): it fails when the contract changed and
+`revision` didn't rise past the release's, when a change leaves that release's UIs or runners
+behind and that side's edge didn't move past its revision, or when an edge falls back. It
+compares as each side reads: an input as the runner validates it, with its bounds; an answer
+as the UI reads it, by its fields, types and values only. It knows the keywords zod writes and
+reports anything else as a break; refinements (`.refine`) are beyond JSON Schema, so it can't
+see them change.
 
 ## Stream and lifetime rules
 

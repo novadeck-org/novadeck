@@ -10,7 +10,7 @@ import {
   type ItemContent,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
-import type { SessionContext } from "@novadeck/wire/server"
+import { dropUnknownKeys, type SessionContext } from "@novadeck/wire/server"
 import { implement, ORPCError } from "@orpc/server"
 
 import { savePlan } from "./companions/content.js"
@@ -38,8 +38,23 @@ import type { MainCheckouts } from "./worktrees/main-checkout.js"
 
 const log = logs.for("router")
 
-// The wire serves its own handshake; the runner serves the rest of the contract.
-const { wire: _, ...served } = contract
+// Each unknown key told of once per procedure: a newer client sends it on every call.
+const told = new Set<string>()
+
+// The wire serves its own handshake; the runner serves the rest of the contract. A newer UI
+// may send a field this runner doesn't know: it is dropped before the handler runs, so the
+// field must be one an older runner may ignore (docs/backend-api.md, "Versions"). The
+// contract's own schemas, which the runner also parses agents' tool arguments with, stay strict.
+const { wire: _, ...contracted } = contract
+const served = dropUnknownKeys(contracted, (procedure, keys) => {
+  const path = procedure.join(".")
+  const fresh = keys.filter((key) => !told.has(`${path}:${key}`))
+  if (fresh.length === 0) return
+  for (const key of fresh) told.add(`${path}:${key}`)
+  log.info("rpc.dropped", "A client sent fields this runner doesn't know; they were dropped.", {
+    data: { path, keys: fresh.join(",") },
+  })
+})
 
 /** The runner's failures as the contract's errors, which its clients see. */
 export const apiError = (error: unknown): unknown => {

@@ -50,6 +50,7 @@ const connection = () => {
       current = {
         client: {} as Client,
         epoch,
+        revision: 1,
         channel,
         drop() {
           channel.open = false

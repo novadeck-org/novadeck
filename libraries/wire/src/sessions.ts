@@ -47,8 +47,13 @@ class SessionRecord implements Session {
 }
 
 export type SessionsOptions = {
-  /** The protocol the server speaks; a client that speaks another is refused. */
-  readonly protocolVersion: number
+  /** The revision of the app's contract the server speaks, which it tells each client. */
+  readonly revision: number
+  /**
+   * The oldest client revision it serves: an older client is refused with its window, so the
+   * client can say it's the one to update. A newer one is served, and judges for itself.
+   */
+  readonly oldestClient: number
   /** Names this server's lifetime; a fresh id by default. */
   readonly epoch?: string
   /**
@@ -112,7 +117,7 @@ const leave = (items: AsyncIterator<unknown>): void => {
 export const createSessions = (
   options: SessionsOptions & { readonly router: AnyRouter },
 ): Sessions => {
-  const { protocolVersion, admit, error: mapError = (error) => error } = options
+  const { revision, oldestClient, admit, error: mapError = (error) => error } = options
   const failed = (path: readonly string[], error: unknown): void => {
     try {
       options.failed?.(path, error)
@@ -253,12 +258,13 @@ export const createSessions = (
           if (!session.authenticated) unproven(session)
           throw errors.UNAUTHORIZED()
         }
-        if (input.protocolVersion !== protocolVersion) throw errors.INCOMPATIBLE_PROTOCOL()
+        if (input.protocolVersion < oldestClient)
+          throw errors.INCOMPATIBLE_PROTOCOL({ data: { revision, oldestClient } })
         admit?.(session)
         session.authenticated = true
         if (input.clientId !== undefined) claim(session, input.clientId)
         session.transport.authenticated()
-        return { epoch, protocolVersion }
+        return { epoch, protocolVersion: revision }
       }),
     },
   })

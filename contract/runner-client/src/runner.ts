@@ -3,7 +3,7 @@ import {
   maxUploadBytes,
   maxUploadPartLength,
   maxVoicePartLength,
-  protocolVersion,
+  compatibility,
   type AgentDetail,
   type AgentIntegration,
   type AgentName,
@@ -62,7 +62,7 @@ import {
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
-import { connect, type Transport, type WireStatus } from "@novadeck/wire/client"
+import { connect, serves, type Transport, type WireStatus } from "@novadeck/wire/client"
 
 import { lost, type RunnerErrorCode } from "./errors.js"
 import { followAll, followRestarting, followSession, type Reset } from "./follow.js"
@@ -102,8 +102,25 @@ export type HistoryWatchItem = HistoryChange | Reset
  */
 export type WorkWatchItem = WorkChange | Reset
 
+// Each procedure's dotted path in `T`, as `sessions.save`.
+type Paths<T, Prefix extends string = ""> = {
+  [K in keyof T & string]: T[K] extends { readonly "~orpc": unknown }
+    ? `${Prefix}${K}`
+    : Paths<T[K], `${Prefix}${K}.`>
+}[keyof T & string]
+
+/** A procedure of the runner's contract, by its dotted path. */
+export type ProcedurePath = Paths<typeof contract>
+
 export type Runner = {
   readonly status: WireStatus
+  /**
+   * Whether the runner has the procedure at `path`: one the contract marks `since` a revision
+   * newer than the runner's isn't there, and calling it rejects with `UNSUPPORTED` without
+   * asking. A UI asks before it offers what such a procedure does. While reconnecting, it
+   * answers for the runner it last reached, which the next handshake may replace.
+   */
+  supports(path: ProcedurePath): boolean
   /**
    * Yields the current status, then the latest one after each change, until the runner
    * closes. Quick successive changes may be coalesced. `break` stops it at any time.
@@ -842,9 +859,19 @@ export const connectRunner = async (
     ...options,
     contract,
     transport,
-    protocolVersion,
+    revision: compatibility.revision,
+    oldestServer: compatibility.oldestRunner,
     fatal: (code) => code === "WORKSPACE_TOO_NEW",
   })
+  let revision = connection.session().revision
+  const current = (): number => {
+    try {
+      revision = connection.session().revision
+    } catch {
+      // Reconnecting or closed: the runner last reached stands.
+    }
+    return revision
+  }
   const call = async <T>(operation: (client: WireClient) => Promise<T>): Promise<T> => {
     const session = connection.session()
     try {
@@ -858,6 +885,7 @@ export const connectRunner = async (
       return connection.status.value
     },
     watch: () => connection.status.watch(),
+    supports: (path) => serves(contract, path.split("."), current()),
     projects: {
       list: () => call((client) => client.projects.list()),
       create: (input) => call((client) => client.projects.create(input)),

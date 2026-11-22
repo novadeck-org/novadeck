@@ -1,4 +1,4 @@
-import { contract, protocolVersion } from "@novadeck/protocol"
+import { compatibility, contract } from "@novadeck/protocol"
 import type { MessagePortLike } from "@novadeck/wire"
 import { messagePort } from "@novadeck/wire/client"
 import { memoryPorts } from "@novadeck/wire/testing"
@@ -22,7 +22,10 @@ export const fakeRunner = async (router: Router) => {
   const links: MessagePortLike[] = []
   const handshake = {
     wire: {
-      handshake: api.wire.handshake.handler(() => ({ epoch, protocolVersion })),
+      handshake: api.wire.handshake.handler(() => ({
+        epoch,
+        protocolVersion: compatibility.revision,
+      })),
     },
   }
   const handler = new RPCHandler({ ...router, ...handshake } as never)

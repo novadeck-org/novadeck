@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite"
 
 import { createScreen } from "@novadeck/emulator/headless"
 import {
-  protocolVersion,
+  compatibility,
   type contract,
   type TerminalEvent,
   type WireClient,
@@ -58,7 +58,8 @@ const fixture = async (resources: Resources, options: ServerOptions = {}) => {
     resources.defer(disconnect)
     await once(socket, "open", { signal: AbortSignal.timeout(5_000) })
     const client = createWireClient<typeof contract>(socketChannel(socket))
-    if (authenticate) await client.wire.handshake({ protocolVersion, token })
+    if (authenticate)
+      await client.wire.handshake({ protocolVersion: compatibility.revision, token })
     return { client, socket, disconnect }
   }
 
@@ -248,13 +249,17 @@ describe("WebSocket authentication and protocol", () => {
     future.close()
     const app = await fixture(resources, { database: path })
     const { client } = await app.connect(false)
-    await expect(client.wire.handshake({ protocolVersion, token: "wrong" })).rejects.toMatchObject({
+    await expect(
+      client.wire.handshake({ protocolVersion: compatibility.revision, token: "wrong" }),
+    ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     })
-    await expect(client.wire.handshake({ protocolVersion: 99, token })).rejects.toMatchObject({
-      code: "INCOMPATIBLE_PROTOCOL",
-    })
-    await expect(client.wire.handshake({ protocolVersion, token })).rejects.toMatchObject({
+    await expect(
+      client.wire.handshake({ protocolVersion: compatibility.oldestClient - 1, token }),
+    ).rejects.toMatchObject({ code: "INCOMPATIBLE_PROTOCOL" })
+    await expect(
+      client.wire.handshake({ protocolVersion: compatibility.revision, token }),
+    ).rejects.toMatchObject({
       code: "WORKSPACE_TOO_NEW",
     })
     await expect(client.projects.list()).rejects.toBeDefined()
@@ -306,6 +311,20 @@ describe("workspace metadata API", () => {
       { ...session, name: "Renamed session", state: '{"panes":[]}' },
     ])
     await expect(connection.client.terminals.list({ sessionId: session.id })).resolves.toEqual([])
+  })
+
+  it("serves a newer UI, dropping a field this runner doesn't know", async ({ resources }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    const { project } = await app.setup(client)
+    // As a UI of a later revision sends it, with a field this one never had.
+    const rename = { projectId: project.id, name: "From a newer UI", colour: "teal" }
+    await expect(client.projects.rename(rename as never)).resolves.toBeDefined()
+    await expect(client.projects.list()).resolves.toEqual([{ ...project, name: "From a newer UI" }])
+    // What it knows is still checked as strictly as ever.
+    await expect(
+      client.projects.rename({ projectId: project.id, name: "", colour: "teal" } as never),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" })
   })
 
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
@@ -631,7 +650,7 @@ describe("terminal attachment and recovery API", () => {
     resources.defer(() => socket.terminate())
     await once(socket, "open", { signal: AbortSignal.timeout(5_000) })
     const client = createWireClient<typeof contract>(socketChannel(socket))
-    await client.wire.handshake({ protocolVersion, token })
+    await client.wire.handshake({ protocolVersion: compatibility.revision, token })
     // Flush the request onto TCP, then drop the connection without a close frame.
     // The server may either reject the request or finish creation after release.
     const originalSend = socket.send.bind(socket)

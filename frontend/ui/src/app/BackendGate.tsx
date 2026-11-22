@@ -214,6 +214,8 @@ export const BackendGate = ({ selection, render, onShown }: GateProps): ReactNod
                   window.close()
                   setQuit(true)
                 }}
+                // The runner's newer page, for a page older than its runner.
+                onReload={() => window.location.reload()}
               />
             )
           }

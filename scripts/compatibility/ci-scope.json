@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The contract's check against the newest release, which Quality's Contract job and release.yml run on Linux: on a pull request only its own test reads it."
+}

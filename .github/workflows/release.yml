@@ -98,6 +98,13 @@ jobs:
             exit 1
           fi
 
+      # The contract against the newest release's (scripts/compatibility), as each pull request's
+      # Quality run compares it: two that each raised the revision from the same release pass
+      # alone, and merged together would ship one's change under the revision the other's
+      # release already has. Nothing is released while main's contract doesn't fit its window.
+      - name: Check Contract Against Newest Release
+        run: node scripts/compatibility/main.ts
+
       # Versions count from the latest stable release (scripts/release-version): its commits
       # since decide the cycle's major, minor or patch step, and each later prerelease takes the
       # next patch.

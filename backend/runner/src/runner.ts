@@ -3,7 +3,7 @@ import { unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import { errors, protocolVersion } from "@novadeck/protocol"
+import { compatibility, errors } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
 import { terminalPriorities, userScopes } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions } from "@novadeck/wire/server"
@@ -596,7 +596,8 @@ const refusingRunner = (): Runner => ({
   // A client that proves itself is told why, and nothing else is served. The runner stays
   // up, so a client that retries is told again instead of finding a process that crashed.
   sessions: createSessions({
-    protocolVersion,
+    revision: compatibility.revision,
+    oldestClient: compatibility.oldestClient,
     router: {},
     admit: () => {
       throw new ORPCError("WORKSPACE_TOO_NEW", { status: errors.WORKSPACE_TOO_NEW.status })
@@ -671,7 +672,8 @@ const startRunner = (options: RunnerOptions): Runner => {
   let closing: Promise<void> | undefined
   return {
     sessions: createSessions({
-      protocolVersion,
+      revision: compatibility.revision,
+      oldestClient: compatibility.oldestClient,
       router: createRouter({
         store,
         terminals,
