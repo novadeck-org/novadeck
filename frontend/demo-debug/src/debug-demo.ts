@@ -195,6 +195,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       },
     },
     turns,
+    true,
   )
   const approvals = createDemoApprovals(
     () => sink?.dispatch,
@@ -259,7 +260,14 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   // On the panel's own agents, which the tour runs one of. The inner demo's tour is the one its
   // player follows, so the panel's actions reach it.
   const tour = isDemoTour(inner.tour) ? inner.tour : demoTour(states.agents.state, () => latest)
-  if (isDemoTour(tour)) tour.follow(states.agents.state, () => latest)
+  if (isDemoTour(tour)) {
+    tour.follow(states.agents.state, () => latest)
+    // The lead's command waits in the panel's own approvals, which the person answers there.
+    tour.approver(
+      (from, command, cwd) =>
+        new Promise((resolve) => approvals.askToRun(from, command, cwd, resolve)),
+    )
+  }
   const backend: Backend = installs.wrap({
     ...withoutWorktrees,
     ...(launch.worktrees && offered ? { worktrees: offered } : {}),

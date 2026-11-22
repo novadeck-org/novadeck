@@ -103,6 +103,18 @@ describe("demo approvals", () => {
     expect(controls.approvals.pending.getSnapshot()).toEqual([])
   })
 
+  it("tells whoever asked to run a command whether the person allowed it, declined, or it was taken back", () => {
+    const { controls } = setup()
+    const heard: boolean[] = []
+    controls.askToRun(key("a"), "node dev.mjs 5173", "~/.novadeck/tour", (yes) => heard.push(yes))
+    controls.askToRun(key("a"), "node dev.mjs 5173", "~/.novadeck/tour", (yes) => heard.push(yes))
+    controls.askToRun(key("a"), "node dev.mjs 5173", "~/.novadeck/tour", (yes) => heard.push(yes))
+    controls.approvals.answer("approval-1", true)
+    controls.approvals.answer("approval-2", false)
+    controls.withdraw()
+    expect(heard).toEqual([true, false, false])
+  })
+
   it("asks to take the selected terminal's worktree, and changes nothing in the demo", () => {
     const { controls, dispatched, run } = setup()
     run("Ask to take selected's worktree")

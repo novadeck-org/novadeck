@@ -11,7 +11,7 @@ import { playTourStory } from "./story"
 export const tourPhaseMs = { bind: 300, work: 400, finish: 400 } as const
 
 // What the tour's terminal is named once its agent describes itself.
-export const tourLeadName = "Tour lead"
+export const tourLeadName = "Game lead"
 
 const noop = () => {}
 
@@ -45,6 +45,18 @@ export const describedAs = (key: TerminalKey, by: string): BackendAction => ({
   titleSource: { kind: "agent", by },
 })
 
+// The lead's program ended and its shell is back at the prompt, as a harness that quits leaves it.
+export const leftToShell = (key: TerminalKey): BackendAction[] => [
+  { type: "terminal/update", target: target(key), terminalId: key.terminalId, agentRan: true },
+  { type: "terminal/process", target: target(key), terminalId: key.terminalId, process: "zsh" },
+  {
+    type: "terminal/status",
+    target: target(key),
+    terminalId: key.terminalId,
+    status: { state: "idle" },
+  },
+]
+
 // The lead's process ended, as one that exits reports.
 export const exited = (key: TerminalKey): BackendAction => ({
   type: "terminal/status",
@@ -68,8 +80,9 @@ type Player = {
 // Plays the tour's agent in its terminal: an optional startup screen, held until answered;
 // bound at the doorbell's ring where the harness waits for one (Antigravity), else at once;
 // working; describing itself (once nudged, where quiet); then, with the story on, opening its
-// first fixer, taking the person's terminal as its second, whose ask the person answers, and
-// saying both bugs are fixed (see `story.ts`); and a finished turn. Answers a function that stops it.
+// sculptor and score fixer, running the game's server and showing its page, and naming the game
+// once the person has named the hero (see `story.ts`); and a finished turn. Answers a function
+// that stops it.
 export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, stage }: Player) => {
   const plan = tour.take()
   const verbs = turns.as(harness)
@@ -113,7 +126,7 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
     const found = alive()
     if (!found) return
     dispatch([describedAs(key, found.handle ?? harness)])
-    if (!stage || !tour.story()) return finish("That's the tour's lead: ready.")
+    if (!stage || !tour.story()) return finish("That's the game lead: ready.")
     const stopStory = playTourStory({
       key,
       harness,
@@ -123,7 +136,9 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
       stage,
       terminal,
       quietTeam: plan.quietTeam === true,
-      finish: () => finish("Both bugs are fixed, each in its own worktree."),
+      quietSculptor: plan.quietSculptor === true,
+      noPage: plan.noPage === true,
+      finish: () => finish("The hero is sculpted and the score is fixed."),
     })
     stops.add(stopStory)
   }
@@ -198,5 +213,13 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
     dispatch([exited(key)])
   })
   stops.add(stopHere)
+  // Its program ends, its shell back, as the debug panel or `&tourAgent=shell` asks.
+  const leave = () => {
+    if (over) return
+    stop()
+    dispatch(leftToShell(key))
+  }
+  stops.add(tour.shelled(leave))
+  if (plan.shell) later(tourPhaseMs.bind * 2, leave)
   return stop
 }

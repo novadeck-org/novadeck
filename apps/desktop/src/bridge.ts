@@ -4,6 +4,11 @@ export const apiUrlArgumentPrefix = "--novadeck-api-url="
 export const databaseArgumentPrefix = "--novadeck-database="
 /** The relay agents start for Novadeck's MCP server and hooks, as the app ships it. */
 export const relayArgumentPrefix = "--novadeck-relay="
+/**
+ * Where the tour's seed project and libraries are, as the app ships or finds them: JSON, the
+ * folders `seed`, `phaser` and `three` (the runner's `TourAssets`).
+ */
+export const tourArgumentPrefix = "--novadeck-tour="
 /** The manifest of the voice engine voice input installs: a file shipped with the app. */
 export const voiceEngineArgumentPrefix = "--novadeck-voice-engine="
 /** Where the voice engine's archive comes from: an https address ending in "/", or a folder. */

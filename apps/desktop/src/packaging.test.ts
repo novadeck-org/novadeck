@@ -35,7 +35,12 @@ const copied = (): string[] =>
  * The files copied as they are checked in, not built: the license the GPL asks to ship, and
  * the notification sounds.
  */
-const checkedIn = ["../../LICENSE", "../../frontend/ui/src/sounds"]
+const checkedIn = [
+  "../../LICENSE",
+  "../../frontend/ui/src/sounds",
+  // The tour's project, and the libraries' files it ships from the runner's own dependencies.
+  ...copied().filter((from) => /backend\/runner\/(assets|node_modules)\//.test(from)),
+]
 /** The `from:`s that are a package's build output. */
 const built = (): string[] => copied().filter((from) => !checkedIn.includes(from))
 /** The package folder a `from:` is a build output of: the app's own for its `dist`. */

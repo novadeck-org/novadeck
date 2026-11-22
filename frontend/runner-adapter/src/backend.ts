@@ -135,7 +135,8 @@ export const runnerTour = (
     }),
   brief: (terminalId) => track(tour.brief(terminalId)),
   nudge: (terminalId) => track(tour.nudge(terminalId)),
-  fixer: (terminalId) => track(tour.fixer(terminalId)),
+  artist: (terminalId) => track(tour.artist(terminalId)),
+  keep: () => track(tour.keep()),
 })
 
 export type RunnerBackendOptions = {

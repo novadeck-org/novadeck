@@ -5,13 +5,13 @@ import { page, userEvent, type Locator } from "vitest/browser"
 import { helpButton, switchTourOn, takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
+import { consent } from "../support/tour"
 import { expectSelected, openWorkspace, terminalTabNames } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // Offered with Experimental on; its demo agent stops after its first step, as these specs need.
 const offered = "/?tourStory=off&channel=experimental"
 
-const consent = (): Locator => page.getByRole("dialog", { name: "Take the tour" })
 const welcome = (): Locator => page.getByRole("dialog", { name: "Welcome to Novadeck" })
 const start = (): Locator => consent().getByRole("button", { name: "Start the tour" })
 // Waits for the consent to say `words`, among the rest of what it says.
@@ -87,17 +87,26 @@ describe("The tour", () => {
     it("asks first, saying what it runs, where, and how to stop it", async () => {
       await openWorkspace(offered)
       await offerFromHelp()
-      await consentSays("Runs Claude Code on its cheapest model, on your own account")
-      await consentSays("a tiny repo with two bugs")
-      await consentSays("a sandbox repo, ~/.novadeck/tour")
-      await consentSays("Close the tour's terminal to stop it")
+      await consentSays(
+        "Your own agent leads a small team that builds a little browser game around a hero you name.",
+      )
+      await consentSays(
+        "You answer one question, approve one command, and play the game at the end.",
+      )
+      await consentSays(
+        "Runs four Claude Code agents on its cheapest model, on your own account, for about 4 minutes.",
+      )
+      await consentSays(
+        "Works in a sandbox repo under ~/.novadeck, made fresh each time. A game you finish is yours to keep.",
+      )
+      await consentSays("Close the tour's terminal to stop it at any time.")
       await expect.element(start()).toHaveFocus()
     })
 
     it("offers a choice of agent only where more than one can run it", async () => {
       await openWorkspace(offered)
       await offerFromHelp()
-      await consentSays("Runs Claude Code")
+      await consentSays("Runs four Claude Code agents")
       const picker = consent().getByRole("radiogroup", { name: "Agent for the tour" })
       expect(picker.query()).toBeNull()
       await consent().getByRole("button", { name: "Not now" }).click()

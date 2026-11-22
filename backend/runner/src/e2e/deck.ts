@@ -176,14 +176,21 @@ export type Deck = {
   readonly seen: ReturnType<typeof wire>["seen"]
   /** The runner's tour, as `tour.prepare` and `tour.brief` answer. */
   readonly tour: ReturnType<typeof wire>["tour"]
-  /** The id the deck's window controls its terminals by, which `tour.fixer` types on behalf of. */
+  /** The id the deck's window controls its terminals by. */
   readonly owner: string
   /** The project's works, as `works.preview` reads them. */
   readonly works: ReturnType<typeof wire>["works"]
   /** The git worktrees agents opened, as the runner keeps them. */
   readonly worktrees: ReturnType<typeof wire>["worktrees"]
-  /** Opens a plain shell in the project and session of `beside`, as the person's New terminal does. */
-  readonly openBeside: (beside: Pick<DeckTerminal, "id">, cwd?: string) => Promise<DeckTerminal>
+  /**
+   * Opens a shell in the project and session of `beside`, as the person's New terminal does,
+   * plain or, with `command`, running it at its first prompt.
+   */
+  readonly openBeside: (
+    beside: Pick<DeckTerminal, "id">,
+    cwd?: string,
+    command?: string,
+  ) => Promise<DeckTerminal>
   /**
    * Makes a project at `cwd`, as a client's `projects.create` does, with a session, and opens
    * a terminal there that runs `command` at its shell's first prompt.
@@ -1099,9 +1106,14 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     get worktrees() {
       return runner.worktrees
     },
-    openBeside: async ({ id }, cwd) => {
+    openBeside: async ({ id }, cwd, command) => {
       const { sessionId, cwd: at } = runner.terminals.get(id)
-      return openInUse(runner, { id: randomUUID(), sessionId, cwd: cwd ?? at })
+      return openInUse(runner, {
+        id: randomUUID(),
+        sessionId,
+        cwd: cwd ?? at,
+        ...(command !== undefined && { command }),
+      })
     },
     openAt: async (cwd, command) => {
       const made = await runner.store.createProject({ id: randomUUID(), name: "Tour", cwd })

@@ -85,6 +85,8 @@ for (const setup of setups) {
       expect(prepared.directory).toBe(join(run.sandbox.home, folder))
       expect(prepared.removed).toEqual([])
       expect(prepared.brief).toBe("doorbell")
+      // Whether the game's dev server runs here depends on this computer's Node or Python.
+      expect(typeof prepared.page).toBe("boolean")
       // The program first, then its options, then (where it takes one) the start line last.
       const [program] = prepared.command.split(" ")
       expect(program).toBe(setup.agent)
@@ -116,17 +118,22 @@ for (const setup of setups) {
         expect(loaded).not.toMatch(/open_agent|describe|Steps|lead agent/)
       }
       expect(await readFile(join(prepared.directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
-      // A tiny git repo on main with one commit by the tour's own name, the marker kept out of it.
-      expect((await readdir(prepared.directory)).toSorted()).toEqual(
-        [
+      // The seed game with its libraries beside it, in a tiny git repo on main with one commit
+      // by the tour's own name, the marker and the libraries kept out of it.
+      expect(await readdir(prepared.directory)).toEqual(
+        expect.arrayContaining([
           ".claude",
           ".git",
           ".novadeck-tour",
           "AGENTS.md",
           "CLAUDE.md",
           "README.md",
-          "split.js",
-        ].toSorted(),
+          "dev.mjs",
+          "index.html",
+          "model",
+          "src",
+          "vendor",
+        ]),
       )
       const gitIn = (...args: string[]) =>
         execFileSync("git", ["-C", prepared.directory, ...args], {
@@ -135,7 +142,11 @@ for (const setup of setups) {
       expect(gitIn("branch", "--show-current")).toBe("main")
       expect(gitIn("log", "--format=%an <%ae>")).toBe("Novadeck tour <tour@novadeck.invalid>")
       expect(gitIn("status", "--porcelain")).toBe("")
+      // What is committed is the project as the person keeps it, not the tour's rules.
+      expect(gitIn("show", "HEAD:AGENTS.md")).not.toContain("Novadeck tour sandbox")
+      expect(gitIn("ls-files")).not.toContain(".claude/")
       expect(gitIn("ls-files")).not.toContain(".novadeck-tour")
+      expect(gitIn("ls-files")).not.toContain("vendor/")
       await expect(readFile(join(prepared.directory, tourMarker), "utf8")).resolves.toContain(
         "Novadeck's tour",
       )
@@ -189,8 +200,8 @@ for (const setup of setups) {
       // script, whose first step the model follows, as an agent's task.
       const notice = deliveries(first).find((one) => one.from === "novadeck")
       expect(notice?.text).toContain("## Steps")
-      expect(notice?.text).toContain("fix-tip")
-      expect(notice?.text).toContain("bill splitter with two bugs")
+      expect(notice?.text).toContain("fix-score")
+      expect(notice?.text).toContain("browser game")
       // The brief's own first step: the call to `describe`, and its greeting.
       await terminal.until("The tour has begun.", 60_000)
       await through(terminal, ["settled"])
@@ -233,6 +244,24 @@ for (const setup of setups) {
         expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
       )
       await expect(readFile(join(second.directory, tourMarker), "utf8")).resolves.toBeTruthy()
+    })
+
+    it("leaves a kept project to the person, and takes the next folder for the next run", async ({
+      e2e: run,
+    }) => {
+      const first = await prepare(run)
+      // The lead isn't up in this run: keeping rings nobody, and never fails for it.
+      await run.deck.tour.keep()
+      await expect(readdir(first.directory)).resolves.not.toContain(".novadeck-tour")
+      const gitIn = (...args: string[]) =>
+        execFileSync("git", ["-C", first.directory, ...args], { encoding: "utf8" }).trim()
+      expect(gitIn("status", "--porcelain")).toBe("")
+      expect(gitIn("ls-files")).not.toContain(".claude/")
+      // Asked again (the client does at the story's end and on its button), it changes nothing.
+      await run.deck.tour.keep()
+      const second = await prepare(run)
+      expect(second.directory).toBe(join(run.sandbox.home, ".novadeck", "tour-2"))
+      expect(await readdir(first.directory)).toContain("src")
     })
 
     if (setup.agent === "codex")

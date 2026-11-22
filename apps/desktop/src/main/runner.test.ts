@@ -54,6 +54,7 @@ const start = (options: { transcriptKey?: Promise<string | null> } = {}) => {
     entry: "/app/out/main/runner.js",
     database: "/data/workspace.sqlite",
     relay: "/app/relay",
+    tour: '{"seed":"/app/tour/seed"}',
     engine: "/app/voice/engine.json",
     source: "https://example.test/voice",
     murmurEngine: "/app/murmur/engine.json",
@@ -90,6 +91,7 @@ describe("the runner's process", () => {
       expect(worker?.args).toEqual([
         "--novadeck-database=/data/workspace.sqlite",
         expect.stringContaining("/app/relay"),
+        expect.stringContaining("/app/tour/seed"),
         expect.stringContaining("/app/voice/engine.json"),
         expect.stringContaining("https://example.test/voice"),
         expect.stringContaining("/app/murmur/engine.json"),

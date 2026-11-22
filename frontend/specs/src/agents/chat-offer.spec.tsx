@@ -219,8 +219,9 @@ describe("Agent Chat's offer", () => {
         .getByRole("dialog", { name: "Take the tour" })
         .getByRole("button", { name: "Start the tour" })
         .click()
-      const coach = page.getByRole("region", { name: "Tour step" })
-      await expect.element(coach).toBeVisible()
+      // The tour is on while its End tour control shows; a step's caption comes and goes with
+      // what the step points at.
+      await expect.element(page.getByRole("button", { name: "End tour" })).toBeVisible()
       await expectStaysAbsent(card())
     })
   })

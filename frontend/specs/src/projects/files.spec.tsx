@@ -161,8 +161,7 @@ describe("The Files panel", () => {
 
   context("when the demo has no files", () => {
     it("has no Files toggle", async () => {
-      // The plain demo lists the tour's repo; the Babcia demo has no tour and no files.
-      await openWorkspace("/?demo=babcia")
+      await openWorkspace()
 
       await expect.element(sidebarPanel("Terminals")).toBeVisible()
       await expect.element(sidebarPanel("Files")).not.toBeInTheDocument()

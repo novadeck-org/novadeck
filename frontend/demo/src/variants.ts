@@ -29,11 +29,13 @@ export const createDemo = (
   variant: DemoVariant,
   terminals?: DemoTerminalSetup,
   turns: DemoTurns = demoTurns(),
+  // The tour's project lists its files where the demo has no Files panel (the debug panel's).
+  tourFiles = false,
 ): Backend => {
   const backend =
     variant === "showcase"
-      ? withTourAgent(showcaseDemo(terminals, turns), turns)
-      : plainDemo(variant, terminals, undefined, turns)
+      ? withTourAgent(showcaseDemo(terminals, turns), turns, tourFiles)
+      : plainDemo(variant, terminals, undefined, turns, tourFiles)
   // The videos' demos keep their cues by the backend they made, and move nothing. The others
   // make each agent's shells an item on its bar, as the runner does.
   return variant === "babcia" || variant === "launch" ? backend : withShellItems(withMoves(backend))

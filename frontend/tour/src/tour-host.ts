@@ -3,10 +3,7 @@ import type { Backend } from "@novadeck/core/port"
 import type { Store } from "@novadeck/core/store"
 import type { SidebarPanel, ViewMode, Workspace } from "@novadeck/core/types"
 
-import type { TourPreview } from "./signals"
 import type { TourEffects } from "./start"
-
-export type { TourPreview } from "./signals"
 
 /**
  * What the tour needs of the app it runs in: the backend's tour and what its signals read, the
@@ -14,12 +11,9 @@ export type { TourPreview } from "./signals"
  * it over once, at the tour's provider; the tour reaches nothing else of it.
  */
 export type TourHost = {
-  readonly backend: Pick<Backend, "tour" | "agents" | "messages" | "inbox" | "works">
+  readonly backend: Pick<Backend, "tour" | "agents" | "messages" | "inbox" | "works" | "approvals">
   readonly workspace: Store<Workspace>
   readonly commands: TourCommands
-  // The files the person has open as the merged preview of the agents' work, as the app keeps
-  // them: the tour can't read the app's store, and its last step is the person opening one.
-  readonly previews: Store<readonly TourPreview[]>
 }
 
 export type TourCommands = Pick<TourEffects, "openTour" | "add"> & {
@@ -29,7 +23,7 @@ export type TourCommands = Pick<TourEffects, "openTour" | "add"> & {
   readonly reveal: (terminalId: string, panel?: SidebarPanel) => void
   // Brings back a terminal of another project, switching to it.
   readonly revealTerminal: (terminalId: string, projectId: string) => void
-  // Opens a tab of a terminal's side pane by its item key.
+  // Opens a tab of a terminal's side pane by its item id, or `messages`.
   readonly openBarTab: (terminalId: string, key: BarKey) => void
   readonly showInbox: () => void
   // Frames every window (Canvas).

@@ -62,7 +62,7 @@
 /* The caption box: one short line, lettered, tilted a little, popping in over three frames. */
 .tour-caption {
   position: fixed;
-  z-index: 40;
+  z-index: 60;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -211,7 +211,7 @@
 }
 .tour-controls-free {
   position: fixed;
-  z-index: 40;
+  z-index: 60;
   translate: -50% -50%;
 }
 
@@ -243,6 +243,10 @@
 .tour-button-go:hover {
   background: color-mix(in srgb, var(--tour-neon) 18%, var(--tour-night));
 }
+.tour-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* A cut's wipe: an ink sheet with a slanted edge slides in from the right in hard steps, the
    act's name stamps down, and it slides off while the act already plays under it. It takes no
@@ -250,7 +254,7 @@
 .tour-wipe {
   position: fixed;
   inset: 0 -40px 0 18%;
-  z-index: 45;
+  z-index: 65;
   display: flex;
   align-items: center;
   gap: 32px;
@@ -313,7 +317,7 @@
   position: fixed;
   bottom: 44px;
   left: 50%;
-  z-index: 40;
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 8px;

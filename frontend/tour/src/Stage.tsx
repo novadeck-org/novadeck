@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { firstTarget, targetElements, windowSelector, type TargetsOf } from "./anchors"
+import { captionDelayMs, hasPointed } from "./caption"
 import { placeBox, sameBox, type Box } from "./place"
 import { tourActs, type Coach, type TourAct } from "./steps"
 
@@ -33,12 +34,17 @@ type Scene = {
   readonly subject: Box | null
   readonly area: Box | null
   readonly windows: readonly Box[]
+  // The modal dialogs open now, which the caption box never lies over.
+  readonly dialogs: readonly Box[]
 }
 
-const noScene: Scene = { subject: null, area: null, windows: [] }
+const noScene: Scene = { subject: null, area: null, windows: [], dialogs: [] }
 
 const sameScene = (a: Scene, b: Scene): boolean =>
-  sameBox(a.subject, b.subject) && sameBox(a.area, b.area) && sameBoxes(a.windows, b.windows)
+  sameBox(a.subject, b.subject) &&
+  sameBox(a.area, b.area) &&
+  sameBoxes(a.windows, b.windows) &&
+  sameBoxes(a.dialogs, b.dialogs)
 
 const drawn = (box: Box | null): box is Box => box !== null && box.width > 0 && box.height > 0
 
@@ -188,16 +194,8 @@ const unmark = (element: HTMLElement, mark: string): void => {
 // What a coach marks now: where to look, and the first of its targets to press that's drawn.
 const marksOf = (
   coach: Coach | null,
-  lead: string,
-  askingRow: string | null,
-  previewWindow: string | null,
+  where: TargetsOf,
 ): { readonly look: HTMLElement[]; readonly click: HTMLElement[] } => {
-  const where: TargetsOf = {
-    lead,
-    terminalId: coach?.terminalId ?? lead,
-    askingRow,
-    previewWindow,
-  }
   return {
     look: coach?.look ? targetElements(coach.look, where) : [],
     click: coach?.click ? firstTarget(coach.click, where) : [],
@@ -228,6 +226,9 @@ const lookAt = (subject: HTMLElement | undefined): Scene => {
     subject: boxOf(holder),
     area: boxOf(area),
     windows: [...(area?.querySelectorAll(windowSelector) ?? [])].map(boxOf).filter(drawn),
+    dialogs: [...document.querySelectorAll('[role="alertdialog"], [role="dialog"]')]
+      .map(boxOf)
+      .filter(drawn),
   }
 }
 
@@ -243,9 +244,7 @@ const markMs = 120
  */
 const useMarks = (
   coach: Coach | null,
-  lead: string,
-  askingRow: string | null,
-  previewWindow: string | null,
+  where: Omit<TargetsOf, "terminalId" | "tab">,
   looking: boolean,
 ): Scene => {
   const [read, setRead] = useState<{ readonly coach: Coach | null; readonly scene: Scene }>({
@@ -257,7 +256,11 @@ const useMarks = (
     const looked = new Set<HTMLElement>()
     const clicked = new Set<HTMLElement>()
     const tick = (): void => {
-      const marks = marksOf(coach, lead, askingRow, previewWindow)
+      const marks = marksOf(coach, {
+        ...where,
+        terminalId: coach?.terminalId ?? where.roles.lead ?? "",
+        tab: coach?.tab,
+      })
       remark(lookMark, looked, marks.look)
       remark(clickMark, clicked, marks.click)
       const next = lookAt(marks.look[0] ?? marks.click[0])
@@ -275,7 +278,7 @@ const useMarks = (
       remark(lookMark, looked, [])
       remark(clickMark, clicked, [])
     }
-  }, [coach, lead, askingRow, previewWindow, looking])
+  }, [coach, where, looking])
   return looking && read.coach === coach ? read.scene : noScene
 }
 
@@ -340,29 +343,33 @@ const useWipe = (act: TourAct): TourAct | null => {
  */
 export const TourStage = ({
   coach,
-  terminalId,
+  roles,
+  team,
+  open,
   agent,
   act,
   askingRow,
-  previewWindow,
   away,
   onEnd,
   onBack,
 }: {
   readonly coach: Coach | null
-  readonly terminalId: string
+  // The terminals of the roles found, and of the lead's teammates, which the stage marks.
+  readonly roles: TargetsOf["roles"]
+  readonly team: readonly string[]
+  // What each role's pane shows now.
+  readonly open: TargetsOf["open"]
   readonly agent: AgentName
   readonly act: TourAct
   // The Inbox row of the team's question waiting now, which the stage marks to press.
   readonly askingRow: string | null
-  // The window that shows the merged preview of the tour's file, which the stage looks at.
-  readonly previewWindow: string | null
   // The tour's project isn't the one on screen.
   readonly away: boolean
   readonly onEnd: () => void
   readonly onBack: () => void
 }): React.JSX.Element => {
-  const scene = useMarks(coach, terminalId, askingRow, previewWindow, !away)
+  const where = useMemo(() => ({ roles, team, askingRow, open }), [roles, team, askingRow, open])
+  const scene = useMarks(coach, where, !away)
   const slot = useFooterSlot(!away)
   const wiping = useWipe(act)
   // What else the caption box keeps clear of, kept while the same, so its placing isn't redone
@@ -447,10 +454,6 @@ const footlessControls = (area: Box): readonly Box[] => [
 
 // The step's caption box: its line lettered in Nyx's box from the skits, and a note under it for
 // a moment the person has to act on; placed by its own size beside what it names.
-// How long a caption box holds back once what its step marks shows, so the mark comes first and
-// the box after it; and how long it waits at most for a mark that never shows.
-const holdMs = 1_000
-const holdAtMostMs = 3_000
 
 const CaptionBox = ({
   coach,
@@ -472,23 +475,23 @@ const CaptionBox = ({
   // where it marks nothing), and from then on. Counted from the first time only: a mark the
   // view drops for a moment, as windows come and the camera reframes, doesn't start it over.
   const marks = coach.look !== undefined || (coach.click?.length ?? 0) > 0
-  const pointed = !marks || scene.subject !== null
   const [pointedOnce, setPointedOnce] = useState(false)
-  if (pointed && !pointedOnce) setPointedOnce(true)
+  const pointed = hasPointed(pointedOnce, marks, scene.subject !== null)
+  if (pointed !== pointedOnce) setPointedOnce(pointed)
   const [shown, setShown] = useState(false)
   useEffect(() => {
-    if (shown) return
-    const timer = setTimeout(() => setShown(true), pointedOnce ? holdMs : holdAtMostMs)
+    if (shown || !pointedOnce) return
+    const timer = setTimeout(() => setShown(true), captionDelayMs)
     return () => clearTimeout(timer)
   }, [pointedOnce, shown])
   const [place, setPlace] = useState<{ readonly left: number; readonly top: number } | null>(null)
   useLayoutEffect(() => {
     const element = box.current
-    if (!element) return
+    if (!element || !pointedOnce) return
     const placeNow = (): void => {
       const { width, height } = element.getBoundingClientRect()
       const keepClear = coach.overWindows ? clear : [...scene.windows, ...clear]
-      const placed = placeBox(scene.subject, { width, height }, area, keepClear)
+      const placed = placeBox(scene.subject, { width, height }, area, keepClear, scene.dialogs)
       setPlace((current) =>
         current && current.left === placed.left && current.top === placed.top ? current : placed,
       )
@@ -497,7 +500,9 @@ const CaptionBox = ({
     const sized = new ResizeObserver(placeNow)
     sized.observe(element)
     return () => sized.disconnect()
-  }, [scene, area, clear, coach.overWindows])
+  }, [scene, area, clear, coach.overWindows, pointedOnce])
+  // No box on screen while its step has nothing to point at.
+  if (!pointedOnce) return <></>
   return (
     <section
       ref={box}

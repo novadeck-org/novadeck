@@ -8,7 +8,7 @@ const startLine = "Start the Novadeck tour: follow AGENTS.md in this folder."
 
 // The launch lines the runner builds for each harness (backend/runner/src/tour/launch.ts),
 // on each one's cheapest model.
-const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed">>> = {
+const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed" | "page">>> = {
   claude: {
     command: `claude --model haiku --effort low --permission-mode acceptEdits "${startLine}"`,
     brief: "launch",
@@ -26,7 +26,8 @@ const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed"
   },
 }
 
-export const demoRun = (agent: AgentName): Omit<TourRun, "directory" | "removed"> => launches[agent]
+export const demoRun = (agent: AgentName): Omit<TourRun, "directory" | "removed" | "page"> =>
+  launches[agent]
 
 // Why the demo's tour won't start, where the debug panel says it shouldn't: as a runner
 // refuses one (a folder of the person's own in its place), with the sentence it gives.

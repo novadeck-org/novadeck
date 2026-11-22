@@ -63,6 +63,8 @@ const open = (agent: "claude" | "agy" = "claude", setup?: (tour: DemoTour) => vo
       ?.history.find((each) => each.id === target.workspaceSessionId)
       ?.state.roster.terminals.find((each) => each.id === terminal.id)
   const at = async (ms: number) => {
+    // The player and its stage load on their first start.
+    await vi.dynamicImportSettled()
     await vi.advanceTimersByTimeAsync(ms)
     return held()
   }

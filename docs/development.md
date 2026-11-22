@@ -578,14 +578,14 @@ Agents:
   their own, a file every 3 to 7 s, resting 10 to 20 s between turns, only while their
   terminal's agent works and asks nothing of the person (a permission, question or plan stops
   the writing and its cursor; nothing moves under `?still` or reduced motion). The `plain` and
-  `welcome` variants have no Files panel, as their storefront terminals are plain shells. "Agent
+  `welcome` variants have no Files panel, as their storefront terminals are plain shells (the debug panel's demo, and `?channel=experimental`, add one for the tour's project alone; see the Tour item). "Agent
   writes a file" and "Agent stops writing (Files only)" act on the selected storefront agent
   terminal (Crow otherwise): the row pulses and its cursor moves, or goes; the second only
   clears the cursor, and the agent's turn is ended with the Agent group's states. "Third agent
   edits Checkout.tsx" adds the storefront's third terminal's agent (`owl`) to a row that
   already shows Moth and Crow, folding the chips into "+1". "Agent writes Checkout.tsx" has the
   selected storefront agent write that file at once (see "File preview" below). "Agent creates a file in a folder"
-  adds `src/api/payments.ts`, so a folded `src/api` pulses and shows Crow's chip. "A folder can't
+  adds `src/api/payments.ts`: a closed `src/api` opens by itself (a folder opens the first time it comes to hold a change, unless the person closed it) and shows Crow's chip, with `payments.ts` added inside. "A folder can't
   be read", "A folder lists only part" and "The project's files can't be read" make the next
   reads of `src/cart`, of `src/components` and of the root fail, list two files, and fail (the
   panel reads again when it is shown again, so switch panels and back): a muted "Can't read this
@@ -766,60 +766,99 @@ App:
   shows only with Experimental on and the tour's own switch on: choose the panel's "Experimental
   on" (App > Updates), open Preferences once for the flag to follow, and turn on Onboarding tour
   in its Experimental tab, as a spec does with `?channel=experimental` and `switchTourOn()`
-  (`support/help.tsx`). With the switch off there is no Help button, as its menu holds the tour alone. Take the tour opens its consent on the first
-  connected agent (with a choice where several are); Start the tour opens a "Tour" project with
-  one terminal starting that agent on its cheapest model. "Fail next start" makes the next Start
-  the tour fail as a folder of the person's own at `~/.novadeck/tour` does, the consent staying
-  open with why; "Next start: models unlisted" fails it as Codex not signed in yet does, with a
-  Start button that opens the agent in a terminal. A spec asks with the address:
-  `&tourStart=fails` and `&tourStart=unlisted` fail the first start.
+  (`support/help.tsx`). With the switch off there is no Help button, as its menu holds the tour
+  alone. Take the tour opens its consent on the first connected agent (with a choice where
+  several are); Start the tour opens a "Tour" project with one terminal starting that agent on
+  its cheapest model. "Fail next start" makes the next Start the tour fail as a folder of the
+  person's own at `~/.novadeck/tour` does, the consent staying open with why; "Next start:
+  models unlisted" fails it as Codex not signed in yet does, with a Start button that opens the
+  agent in a terminal. A spec asks with the address: `&tourStart=fails` and
+  `&tourStart=unlisted` fail the first start.
   The tour's terminal runs a scripted agent (`frontend/demo/src/tour/player.ts`): after a few
-  hundred ms it binds, works and names its terminal "Tour lead" (as its own describe);
+  hundred ms it binds, works and names its terminal "Game lead" (as its own describe);
   Antigravity starts working only once the UI rang `brief`. Then the story
-  (`frontend/demo/src/tour/story.ts`, as a runner would report it): the tour's folder is a tiny
-  repo with `split.js` and two bugs. The lead opens a first fixer ("Tip fixer", a terminal with
-  `ledBy` = the lead, on the lead's own harness), which opens its worktree
-  `fix-tip` (a work in the Worktrees panel), edits `split.js` there and tells the lead "Fixed
-  bug 1.". The person then opens a terminal (the tour's coach marks New terminal): the UI calls
-  `Tour.fixer` for it and the demo takes it as the second fixer ("Money fixer", led by the lead,
-  on the lead's harness), which opens `fix-money` and asks the Inbox "Whole amounts: $12.00 or
-  $12?" (options A and B, A recommended); once answered it edits `money()` the way they chose,
-  tells the lead "Fixed bug 2." and the lead says both bugs are fixed. The Files panel lists the
-  tour's repo (the tour's wrapper adds a files feed where the demo has none, and a project window
-  where its companions can't open one), and `works.preview` of `split.js` shows both fixes'
-  hunks merged. The Worktrees panel and the Files overlay show in the tour's project even with
-  Agent worktrees off (`useWorktreesShown`), and only there. "Tour story: answer the money ask
-  (A)" / "(B)" answer it as the person would; "Tour story: the lead's fixer stays quiet until
-  nudged" has the next lead wait for `Tour.nudge` before opening its fixer; "Tour agent: stop"
-  exits the lead's process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust" /
-  "sign-in" / "hooks" hold the next one at that startup screen until "Answer the startup screen";
-  "Tour agent: quiet until nudged" has the next one sit idle at its prompt, no turn begun, until
-  `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has the next one
-  raise a permission dialog (an Inbox row, Unblock) and wait for the person's answer before it
-  goes on, and the tour's coach points at its terminal meanwhile. Addresses: `&tourScreen=startup|sign-in|hooks`
-  (`&tourScreenMs=<n>` answers the screen after n ms), `&tourAgent=quiet|permission`,
-  `&tourStory=off` (stop after the lead names itself), `&tourTeam=quiet`,
-  `&tourPatienceMs=<n>` (the UI's wait before nudging).
-  As the agent goes, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
+  (`frontend/demo/src/tour/story.ts`, as a runner would report it; its files, model, page and
+  cover are made in `tour/content.ts`, loaded only as a story plays, so the website's bundle
+  doesn't carry them): the tour's folder is a small browser game, as the runner's seed has it.
+  The lead opens two teammates (terminals with `ledBy` = the lead, on the lead's own harness):
+  "Sculptor" and "Score fixer". A few seconds later it asks to run the game's server
+  (`backend.approvals.pending` holds a `run` approval from the lead: the app's approval dialog,
+  "Run command"; the plain demo has an approvals store of its own for it, and the debug demo
+  routes it to the panel's, so `Tour.prepare`'s `page` can be true on both); once allowed, the
+  lead opens a "Game server" terminal (`openedBy` = the lead, no lead of its own) and shows the
+  game's `page` item on its own bar. The Sculptor opens its worktree `hero`, shows a `model`
+  item (`hero.gltf`, a tiny glTF whose buffer is a data address, drawn by the 3D pane) and asks
+  the Inbox "Who is your game's hero?" (A rocket / A robot / A cat; own words allowed); once
+  answered it tells the lead "The hero is ...", writes `model/hero.gltf` (the open pane hears a
+  new stamp: a rocket, robot or cat sculpted, and a rocket for words that name neither) and
+  tells the lead "Hero sculpted."; the lead opens `game` and sets `src/config.js`, and its page
+  item loads afresh. The Score fixer opens `fix-score`, changes `src/score.js` and `README.md`,
+  shows a `changes` item (with its diffs, read by `companions.changeFile`) and tells the lead
+  "Score fixed.". Each agent's writes are works (the Worktrees panel) and a feed in the Files
+  panel (cursors, pulses, chips), by the writer's handle. When the UI adds a terminal in the
+  tour's project with the lead's command and calls `Tour.artist` for it, the demo plays an
+  agent there on no team (`tour/artist.ts`): once rung it names itself "Cover artist", asks the
+  lead "I'm drawing the cover for your game. What is it called, and who is its hero?", the lead
+  answers once it knows the hero, and the artist opens `cover`, adds `art/cover.svg`, shows an
+  `image` item and tells the lead. `Tour.keep` resolves. The Files panel lists the game's files
+  (`vendor/` ignored; the tour's feed is added only where the tour is offered, so no other demo shows a Files button: `?channel=experimental`, and the debug panel's demo, which now has a Files panel in its plain and welcome variants too), and `works.preview` of `src/score.js` and `src/config.js` shows the
+  agents' hunks merged. The Worktrees panel and the Files overlay show in the tour's project
+  even with Agent worktrees off (`useWorktreesShown`, `isTourFolder`: `tour`, `tour-2`, ...), and
+  only there.
+  The panel's actions: "Tour story: answer the hero ask (A rocket)" / "(own words)" answer the
+  Sculptor's ask as the person would; "Tour story: the lead's team stays quiet until nudged" has
+  the next lead wait for `Tour.nudge` before opening its team, "the sculptor stays quiet until
+  nudged" leaves the next Sculptor idle at its prompt (no model, no ask) until a nudge, and "the
+  artist stays quiet until nudged" does the same for the artist once its brief was rung; "Tour
+  story: no page (as on a computer without Node or Python)" makes the next `Tour.prepare` answer
+  `page: false` (no server, no page, the steps for them left out); "Tour story: the artist never
+  starts" leaves the artist's terminal with no agent in it, so its steps drop after the tour's wait
+  and the last step says "Three agents. One game. Play it."; "Tour story: keeping fails" makes
+  the next `Tour.keep` reject, for the closing card's error line and Try again; "Tour agent: exits
+  to its shell" ends the lead's program with its shell back (`agentRan`, an idle shell), for the
+  coach "It didn't start."; "Tour agent: stop"
+  exits the lead's process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust"
+  / "sign-in" / "hooks" hold the next one at that startup screen until "Answer the startup
+  screen"; "Tour agent: quiet until nudged" has the next one sit idle at its prompt, no turn
+  begun, until `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has
+  the next one raise a permission dialog (an Inbox row, Unblock) and wait for the person's
+  answer before it goes on, and the tour's coach points at its terminal meanwhile. Addresses:
+  `&tourScreen=startup|sign-in|hooks` (`&tourScreenMs=<n>` answers the screen after n ms),
+  `&tourAgent=quiet|permission`, `&tourStory=off` (stop after the lead names itself),
+  `&tourTeam=quiet`, `&tourSculptor=quiet`, `&tourArtist=quiet|never`, `&tourAgent=shell`, `&tourPage=none`,
+  `&tourKeep=fails`, `&tourPatienceMs=<n>` (the UI's wait before nudging).
+  As the agents go, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
   plays four acts in Canvas, the first and the last opened by a wipe (an ink sheet with the
-  act's name), the cuts at its start and its result, and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's own
-  elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
+  act's name), and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's
+  own elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
   press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
-  (where what clips it leaves room), over all it holds, and, a second after a mark shows, letters one caption box beside them in space no window takes. Its seven steps:
-  "Your own agent. In a sandbox repo." (the lead describes itself); "It put a fixer on bug 1."
-  (the fixer is there and named); "Your turn. Open a terminal." (the Terminals panel opens and
-  New terminal is marked; the driver hands the shell the person opens to `Tour.fixer`, once, with
-  retries, and a backend without it has no such step; done once the team has two); "Your call.
-  They wait on you." (the Inbox, until the money ask is answered); "Now they fix it. Each in its
-  own worktree." (done once both fixers have sent the lead a message); "Both fixes, merged. Open
-  the file." (the Files panel opens, `split.js` is marked, and the step waits as long as the
-  person takes until its merged preview is open, which the app hands the tour as `previews`
-  in the `TourHost`); and "Two agents. One file. Merged live." (a few seconds on the preview,
-  then the closing card). While a startup screen holds, the coach says "It wants an answer
-  first." with that screen's words under it, or "It's asking your permission." while the lead or a
-  teammate has an Unblock row waiting in the Inbox (any harness's own dialog, or a held message).
-  End tour sits in the footer; while another project is on screen, a small bar stands in for it.
-  A run kept in session storage by a version with other steps is dropped, not followed.
+  (where what clips it leaves room), over all it holds, and, a second after a mark shows,
+  letters one caption box beside them in space no window takes. Its twelve steps: "Your own
+  agent. It leads the build." (the lead describes itself); "It hired a team." (both teammates
+  there and named); "They want to run the game. Say yes." (the approval's Run command is marked,
+  and the step waits on the person); "The game, live. Still plain." (the lead's page tab);
+  "Your call. Who's the hero?" (the Inbox: the asking row, then the sheet's answers, until it is
+  answered); "Every blink is an agent writing." (the Files panel); "Your hero, in 3D. Spin it."
+  (the Sculptor's model tab); "It shows what it changed." (the Score fixer's changes tab);
+  "Another agent. Not on the team." (the driver opens the artist's terminal, once, with the
+  lead's command, and rings `Tour.artist` with retries once its agent shows); "It found the lead
+  by itself. And asked." (the artist's Messages tab); "Its cover. For your game." (its image
+  tab); and "Four agents. One game. Play it." (the lead's page, a while, then the closing card:
+  "It's yours now."). The UI calls `Tour.keep` itself, once, as the story ends; the card's
+  Keep building only goes back to the lead in Focus, and a refused keep shows "Novadeck couldn't
+  keep the project: ..." with Try again. A run whose lead's command was declined (the approval
+  gone for 8 s with no terminal and no page) drops the run and page steps and ends on the model,
+  and one whose artist's terminal is closed, ended or never shows an agent within the wait drops
+  the artist's three steps and ends on "Three agents. One game. Play it.". A backend without `Tour.artist` has no artist
+  steps, and a run with `page: false` leaves out the run and page steps and ends on the model
+  ("Four agents. One game. Yours."). While a startup screen holds, the coach says "It wants an
+  answer first." with that screen's words under it, "It didn't start." (an agent's program ended, its shell back), or "It's asking your permission." while an
+  agent of the story has an Unblock row waiting in the Inbox (any harness's own dialog, or a
+  held message). End tour sits in the footer; while another project is on screen, a small bar
+  stands in for it. A run kept in session storage by a version with other steps is dropped, not
+  followed. The specs (`tour.spec.tsx`, `tour-driver.spec.tsx`, `tour-story.spec.tsx`, with
+  `support/tour.tsx`) read the caption from the page itself, as the approval's modal hides the
+  rest from role queries.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search

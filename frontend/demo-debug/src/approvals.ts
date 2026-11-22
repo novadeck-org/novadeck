@@ -35,8 +35,15 @@ export const createDemoApprovals = (
   readonly approvals: Approvals
   // Makes `from` ask to close `terminal`, queued behind the approvals already waiting.
   readonly askToClose: (from: TerminalKey, terminal: TerminalKey) => void
-  // Makes `from` ask to open a terminal running a command, confirmed or not.
-  readonly askToRun: (from: TerminalKey, command: string, cwd: string) => void
+  // Makes `from` ask to open a terminal running a command, confirmed or not; `answered` hears
+  // whether the person allowed it (declined, or taken back, is false). The demo opens none: the
+  // tour's story opens its own on a yes.
+  readonly askToRun: (
+    from: TerminalKey,
+    command: string,
+    cwd: string,
+    answered?: (approved: boolean) => void,
+  ) => void
   // Makes `from` ask to lead `terminal` with a brief.
   readonly askToLead: (from: TerminalKey, terminal: TerminalKey, brief: string) => void
   // Makes `from` ask to take `terminal`'s worktree on `branch` at `path`.
@@ -60,6 +67,8 @@ export const createDemoApprovals = (
   const pending = createStore<readonly Approval[]>([])
   // Where each approval's terminal lives, to act on it on a confirmation.
   const targets = new Map<string, { terminal: TerminalKey; from: TerminalKey }>()
+  // Who hears each run's answer.
+  const heard = new Map<string, (approved: boolean) => void>()
   let count = 0
   const queue = (from: TerminalKey, terminal: TerminalKey, action: Approval["action"]): void => {
     count += 1
@@ -78,6 +87,8 @@ export const createDemoApprovals = (
         const action = pending.getSnapshot().find((each) => each.requestId === requestId)?.action
         targets.delete(requestId)
         pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
+        heard.get(requestId)?.(approved)
+        heard.delete(requestId)
         if (!approved || !found || !action) return
         // A run's terminal would be new: the demo opens none.
         if (action.type === "run") return
@@ -124,7 +135,10 @@ export const createDemoApprovals = (
       },
     },
     askToClose: (from, terminal) => queue(from, terminal, { type: "close" }),
-    askToRun: (from, command, cwd) => queue(from, from, { type: "run", command, cwd }),
+    askToRun: (from, command, cwd, answered) => {
+      if (answered) heard.set(`approval-${count + 1}`, answered)
+      queue(from, from, { type: "run", command, cwd })
+    },
     askToLead: (from, terminal, brief) => queue(from, terminal, { type: "lead", brief }),
     askToTake: (from, terminal, branch, path) =>
       queue(from, terminal, { type: "take", path, branch }),
@@ -141,6 +155,8 @@ export const createDemoApprovals = (
         },
       ]),
     withdraw: () => {
+      for (const answered of heard.values()) answered(false)
+      heard.clear()
       targets.clear()
       pending.update(() => [])
     },

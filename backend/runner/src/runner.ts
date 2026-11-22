@@ -26,6 +26,7 @@ import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { SeenTerminals } from "./terminals/seen.js"
 import { Uploads } from "./terminals/uploads.js"
+import type { TourAssets } from "./tour/seed.js"
 import { Tour } from "./tour/tour.js"
 import { Voice } from "./voice/service.js"
 import { Works } from "./works/works.js"
@@ -82,6 +83,11 @@ export type RunnerOptions = {
    * the one `@novadeck/relay` built by default. The desktop app passes the one it ships.
    */
   relay?: string
+  /**
+   * Where the tour's seed project and the libraries it runs on are (`TourAssets`); the repository's
+   * own files and `node_modules` by default. The desktop app passes the ones it ships.
+   */
+  tour?: TourAssets
   /**
    * Voice input's speech engine: `engine` is the path to its manifest (`engine.json`),
    * `source` where its archive is, an https URL ending in `/` or a folder, and `directory`
@@ -443,7 +449,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const projects = new Projects(store, terminals, items, worktrees)
   // In the person's home, where the agents are looked for too.
   const tour = new Tour({
+    ...(options.tour !== undefined && { assets: options.tour }),
     ...(options.agents?.home !== undefined && { home: options.agents.home }),
+    // Where the game's server command is looked for: the person's terminal's PATH.
+    environment: () => agents.environment(),
     connected: (agent) => agents.connected(agent),
     models: (agent) => agents.models(agent),
     // Every project, those being removed too, whose removal the tour waits for.
@@ -452,15 +461,6 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     cwdOf: (terminalId) => terminals.get(terminalId).cwd,
     leadOf: (terminalId) => terminals.messaging.leadOf(terminalId)?.terminalId,
     handleOf: (terminalId) => terminals.get(terminalId).handle,
-    ranAgent: (terminalId) => terminals.get(terminalId).agentRan,
-    isFreshShell: (terminalId) => {
-      const shell = terminals.get(terminalId)
-      return shell.started && !shell.busy && !shell.agentRan && shell.command === null
-    },
-    adopt: (terminalId, leadId, before) => terminals.adopt(terminalId, leadId, before),
-    expect: (terminalId, agent) => terminals.messaging.expect(terminalId, agent),
-    type: (terminalId, line, ownerId) =>
-      terminals.write({ terminalId, data: `${line}\r` }, ownerId),
     worktreesFolder: () => rootFolder.make(),
   })
   // Not awaited: the runner starts at once, and a failure only leaves rows for the next start.

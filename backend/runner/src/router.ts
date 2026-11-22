@@ -105,7 +105,7 @@ const noCheckouts = {
   update: () => Promise.resolve({ ok: false as const, said: "There is nothing to update." }),
 }
 
-const noTour: Pick<Tour, "prepare" | "brief" | "nudge" | "fixer"> = {
+const noTour: Pick<Tour, "prepare" | "brief" | "nudge" | "artist" | "keep"> = {
   prepare: () => Promise.reject(new DomainError("CONFLICT", "No tour is offered.")),
   brief: () => {
     throw new DomainError("CONFLICT", "No tour is offered.")
@@ -113,9 +113,10 @@ const noTour: Pick<Tour, "prepare" | "brief" | "nudge" | "fixer"> = {
   nudge: () => {
     throw new DomainError("CONFLICT", "No tour is offered.")
   },
-  fixer: () => {
+  artist: () => {
     throw new DomainError("CONFLICT", "No tour is offered.")
   },
+  keep: () => Promise.reject(new DomainError("CONFLICT", "No tour is offered.")),
 }
 
 /**
@@ -160,7 +161,7 @@ export const createRouter = (options: {
   const works = options.works ?? noWorks
   const checkouts = options.checkouts ?? noCheckouts
   const forges = options.forges ?? noForges
-  const tour: Pick<Tour, "prepare" | "brief" | "nudge" | "fixer"> = options.tour ?? noTour
+  const tour: Pick<Tour, "prepare" | "brief" | "nudge" | "artist" | "keep"> = options.tour ?? noTour
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -487,9 +488,8 @@ export const createRouter = (options: {
       prepare: api.tour.prepare.handler(({ input }) => tour.prepare(input.agent)),
       brief: api.tour.brief.handler(({ input }) => tour.brief(input.terminalId)),
       nudge: api.tour.nudge.handler(({ input }) => tour.nudge(input.terminalId)),
-      fixer: api.tour.fixer.handler(({ input, context }) =>
-        tour.fixer(input.terminalId, context.session.id),
-      ),
+      artist: api.tour.artist.handler(({ input }) => tour.artist(input.terminalId)),
+      keep: api.tour.keep.handler(() => tour.keep()),
     },
   })
 }

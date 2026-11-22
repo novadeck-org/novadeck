@@ -1972,21 +1972,58 @@ one from an earlier runner.
   second for it).
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
-  (`backend/runner/src/tour/`). The tour's folder, `~/.novadeck/tour`, is a tiny git repository:
-  a bill splitter, `split.js`, with two bugs (a tip read as a fraction, an amount shown with one
-  decimal), its `README.md` that lists them, and one commit on `main` by "Novadeck tour"
+  (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep:
+  Phaser runs it and three.js draws its hero from a 3D model (`model/hero.gltf`, built of four
+  ready shapes in `model/shapes.bin`). Its files are the seed in `backend/runner/assets/tour/seed/`
+  (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written), and
+  the two libraries are written beside them as files under `vendor/` (`phaser.min.js` with its
+  license, and three's `three.module.js`, `three.core.js`, `GLTFLoader.js`,
+  `BufferGeometryUtils.js`, `SkeletonUtils.js` with its license). The seed's `.gitignore` keeps
+  `vendor/` out of the sandbox's git, so worktrees don't carry it and agents' searches skip it
+  (the project's note tells agents never to read it). The runner reads the files in one place
+  (`seedFiles`, `tour/seed.ts`): from the repository (`assets/tour/seed` and the packages'
+  folders in `node_modules`) in development, tests and a standalone runner, and from the folders
+  `RunnerOptions.tour` names (`TourAssets`: `seed`, `phaser`, `three`) where given. The packaged
+  desktop app ships them as `extraResources` (`tour/seed`, and each library's few files in its
+  package layout under `tour/phaser` and `tour/three`), the main process names them
+  (`tourAssets()` in `apps/desktop/src/main/resources.ts`: the resources folder when packaged,
+  the repository otherwise) and passes them to the runner utility process as one JSON argument
+  (`--novadeck-tour=`). Files that can't be read are a `CONFLICT` in words for the person
+  ("Novadeck's tour project files couldn't be read here ... Reinstall Novadeck"), asked before
+  anything is removed.
+  The folder is the first of `~/.novadeck/tour`, `tour-2`, `tour-3`, ... up to `tour-99` that is
+  missing, empty or holds the `.novadeck-tour` marker (so a run wipes it); one the person kept
+  (files and no marker, see `tour.keep`) is passed over, never refused. It is `CONFLICT` only
+  where `tour` itself is no folder, or all ninety-nine are taken. "The tour's folder" everywhere
+  (`isTours`, `openPolicy`, the worktrees exception, the page's own check) means one of those
+  names with its marker in it, checked with one synchronous look, by the path as given or by real
+  paths, with Windows' and macOS' case folding.
+  The folder is a tiny git repository with one commit on `main` by "Novadeck tour"
   (`tour@novadeck.invalid`, given per command: the person's git config is never touched, nor
-  their signing or hooks), with the `.novadeck-tour` marker kept out of it by
-  `.git/info/exclude`. Without git it is a `CONFLICT` ("The tour needs git..."), asked before
-  anything is removed. It removes every project open at the folder, closing their terminals, so
-  nothing runs there; empties the folder and writes the repo, beside a neutral sandbox note
-  (`AGENTS.md`, which Codex and Antigravity read, and `CLAUDE.md`, which imports it: no role,
-  no steps, since every tour agent starts in the same folder and would follow a script it
-  loaded) and a project `.claude/settings.json` (`defaultMode: acceptEdits`, so a Claude Code
-  agent started there with no flags takes edits unasked and a plan mode in the person's own
-  settings doesn't hold it); it also makes the folder agents' worktrees live in (`~/.novadeck/
+  their signing or hooks, nor their global ignore file: the seed is added with
+  `core.excludesFile` emptied, so only the seed's own `.gitignore` (which keeps `vendor/` out)
+  decides what is committed). What is committed is the project as the person keeps it:
+  `AGENTS.md` is the project's note and `CLAUDE.md` imports it. The tour's own files are laid
+  over it after the commit, where git doesn't see them (`laySandbox`): the sandbox note (no role,
+  no steps, since every tour agent starts in the same folder and would follow a script it loaded;
+  with the run's harness's shell rule) in the working `AGENTS.md`, marked `skip-worktree`, so the
+  status stays clean and every worktree made from the commit carries the project's note; and a
+  project `.claude/settings.json` (`defaultMode: acceptEdits`, so a Claude Code agent started
+  there with no flags takes edits unasked and a plan mode in the person's own settings doesn't
+  hold it), uncommitted. The marker and that file are kept out by `.git/info/exclude`. Without git
+  it is a `CONFLICT` ("The tour needs git..."), asked before anything is removed. It removes every
+  project open at the chosen folder, closing their terminals, so nothing runs there; empties the
+  folder and writes the seed and libraries; it also makes the folder agents' worktrees live in (`~/.novadeck/
   worktrees`), before any agent starts, as the harness shims pass it on only where it exists;
-  and answers `{ directory, command, brief, model?, removed }`.
+  and answers `{ directory, command, brief, model?, removed, page }`.
+  `page` is whether the lead will run the game's dev server (`tour/serving.ts`): the first of
+  `node`, `python3`, `python` that answers `--version` (5 s at most) as Node or Python 3, looked
+  for on the PATH of the person's environment as their terminals have it (the login shell's, what
+  `agents.environment()` gives, which a desktop app started from Finder has but its own process
+  doesn't), since the server command runs in a terminal of theirs (a
+  Windows Store alias stub doesn't count) runs the seed's `dev.mjs` or `dev.py` on a free port
+  of 127.0.0.1 (bound to port 0, read, closed); with none, `page` is false and the lead's script
+  has no serving steps.
   `command` starts the agent there on its cheapest model (Claude Code's `haiku`, Codex's newest
   `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, each at its lowest
   effort), taking edits in the folder without asking for this launch only
@@ -1994,24 +2031,31 @@ one from an earlier runner.
   on-request`, `--mode accept-edits`), with no prompt on it, and nothing written to the agent's
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
-  tells every agent never to use their name, even one it knows. It has the lead open one
-  teammate with `open_agent`, the first fixer, on the lead's own harness and its cheapest
-  model, at its lowest effort as above, with its task
-  as the message: describe itself, open a worktree on `fix-tip`, fix bug 1 in `split.js` there
-  by absolute path, and tell the lead; it tells the person that they start a second fixer for
-  bug 2 by opening a terminal, which joins the team (`tour.fixer`), and, once both fixers have
-  reported, that both bugs are fixed, each in its own worktree. The lead never edits. A teammate
-  the lead opens in the folder starts with the same write flags as the lead, for that launch
-  only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
-  command line carries them right after the model). A terminal in the folder that has a lead
-  is a teammate, and its `open_agent` is refused (`Tour.openPolicy`), so a teammate that
-  follows a script anyway can't nest a team. `removed` names the projects it removed. A folder
-  there that is no folder, or that holds files without the marker, is the person's and is never
-  emptied: `CONFLICT`, refused before any project is removed, as are an agent Novadeck isn't
-  connected to and a second run while one is being readied. An agent whose cheapest model can't
-  be told is `MODELS_UNLISTED`: Codex lists its models (its `models_cache.json`) only once it
-  has started signed in. Neither changes anything. The client then opens the folder as a
-  project and starts `command` in a terminal of it (`terminals.create`).
+  tells every agent never to use their name, even one it knows. It has the lead describe itself
+  and greet, open two teammates with `open_agent` on the lead's own harness and its cheapest
+  model, at its lowest effort as above, each with its task as the message (the Sculptor shows
+  `model/hero.gltf`, asks the person "Who is your game's hero?", tells the lead the answer and
+  reshapes the model in a worktree on `hero`; the Score fixer fixes `src/score.js` and the
+  README's "Known bug" in a worktree on `fix-score` and shows its changes), and, where `page` is
+  true, `open_terminal` the dev server's command (`node dev.mjs <port>`, say, which the person
+  approves in the app's usual dialog) and `show` its page; later the lead opens a worktree on
+  `game` and sets `src/config.js` once the Sculptor names the hero, and answers an agent that
+  isn't its teammate (the artist) about the game. What each agent is told of the shell follows
+  its harness (`shellRule`, in the lead's script, both tasks, the artist's brief and the
+  folder's note): Claude Code and Antigravity, which read and write files with tools of their
+  own, run no shell command; Codex, which reads files only through its shell, uses it to read
+  files and for nothing else (probed 2026-11-22, 0.171.0: told to run none, its agents couldn't
+  read the files they were to change). A
+  teammate the lead opens in the folder starts with the same write flags as the lead, for that
+  launch only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
+  command line carries them right after the model). Only the run's lead opens agents in the
+  tour's folder: every other terminal there, a teammate or the artist, has its `open_agent`
+  refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team.
+  `removed` names the projects it removed. A second run while one is being readied is a
+  `CONFLICT`, as is an agent Novadeck isn't connected to. An agent whose cheapest model can't be
+  told is `MODELS_UNLISTED`: Codex lists its models (its `models_cache.json`) only once it has
+  started signed in. Neither changes anything. The client then opens the folder as a project and
+  starts `command` in a terminal of it (`terminals.create`).
   Agent worktrees work for every terminal in the tour's folder whatever the person's "Agent
   worktrees" setting (never changed by the tour): the MCP server lists the worktree tools and
   the calls go through (`WorktreesWiring.enabled(terminalId)`), the folder counts as ready for
@@ -2019,26 +2063,35 @@ one from an earlier runner.
 - `tour.brief({ terminalId })` rings the lead's script (composed of the run last readied) to the
   agent in the terminal, as Novadeck's notice, for every harness: the doorbell delivers it once
   the agent's prompt shows and its MCP tools are listed. It records the terminal as the run's
-  lead. Its delivery's note frames it as the agent's task (the one notice that is), and its
-  text keeps its quotes and angle brackets (escaped as every message's is), whole: it is under
-  the 8 KB a delivery prints. A terminal whose agent hasn't shown yet, or that isn't in the
-  tour's folder, is a `CONFLICT`, as is a runner that has readied no run; the client asks once
-  it has bound.
-- `tour.fixer({ terminalId })` takes the terminal the person opened in the tour's project as
-  the run's second fixer, once per run, with no approval asked (the person asked for it by
-  opening the terminal at the tour's prompt). It must be in the tour's folder, a plain shell at
-  its prompt (no agent has run in it, none runs, it has no lead), not the lead, with the run's
-  lead started and still there; otherwise `CONFLICT`, and nothing changes. Then, in one go: it
-  types the run's agent launch (`command` of the run, the cheapest model and the write flags)
-  into the shell, on behalf of the window that controls the terminal; makes the run's lead its
-  lead and tells the lead it joined, as `join` does once approved (`adoptTeammate`); expects
-  the agent there; and rings it the second fixer's brief, as Novadeck's notice for every
-  harness, which waits for the agent's first session as any message to an agent that is
-  starting does. The brief (framed as a task, under 8 KB) has it describe itself, open a
-  worktree on `fix-money`, `ask` the person "Whole amounts: $12.00 or $12?" (recommending
-  `$12.00`), end its turn, fix `money()` in `split.js` in that worktree by the answer (their own
-  words win; dismissed is `$12.00`), and `send` the lead "Fixed bug 2.". `tour.nudge` works for
-  it as for the lead.
+  lead. Its delivery's note frames it as the agent's task (the one notice that is, with the
+  artist's), and its text keeps its quotes and angle brackets (escaped as every message's is),
+  whole: it is under the 8 KB a delivery prints. A terminal whose agent hasn't shown yet, or
+  that isn't in the tour's folder, is a `CONFLICT`, as is a runner that has readied no run; the
+  client asks once it has bound.
+- `tour.artist({ terminalId })` rings the artist's brief to the agent in the terminal, as
+  Novadeck's notice, as `tour.brief` rings the lead's. The artist is an agent on no team that
+  the client starts in a new terminal of the tour's project with the run's `command`; its brief
+  (framed as a task, under 8 KB) has it describe itself as "Cover artist", find the lead with
+  `agents`, ask it what the game is, open a worktree on `cover` once answered, draw
+  `art/cover.svg`, `show` it and tell the lead. Refused as `tour.brief` is, and as a `CONFLICT`
+  where the run has no lead yet, the terminal is the lead or has a lead, or the run's artist is
+  another terminal. The terminal counts as the run's artist only once the ring went through, so a
+  terminal whose agent hasn't shown can be asked again; asked again after that it rings nothing.
+  `tour.nudge` works for it as for the lead.
+- `tour.keep()` is the person keeping the project. The client calls it by itself when the tour's
+  story ends (the closing card shows), so a finished tour is never wiped by the next one, and
+  again if the person presses the card's button: it is idempotent. For the run's folder it writes
+  the project's note back to `AGENTS.md` and clears its `skip-worktree` bit (`releaseSandbox`),
+  takes the tour's two lines out of `.git/info/exclude` (so a `.claude/settings.json` the person
+  adds later isn't ignored), removes the tour's `.claude/settings.json` (and `.claude` if then
+  empty) and, last, the marker (`keepTourFolder`; the marker going last means a failure midway can
+  be repeated). After it `git status` in the folder is clean and `git ls-files` has no `.claude/`.
+  It rings the lead that the tour is over, best effort and only when the run's lead is known, and
+  forgets the run; no tour rule applies to the folder and a later run takes the next name. A
+  folder without the marker is not the tour's and is left alone, so a repeat does nothing. With no
+  run in memory (the runner restarted since) it keeps every folder among `tour` to `tour-99` that
+  holds the marker and is open as a project (by its cwd, with `inTour`'s real-path and case
+  handling), and with none it resolves doing nothing. It never fails for want of a run.
 - `tour.nudge({ terminalId })` rings the agent in one of the tour's terminals a fixed line, as
   Novadeck's notice, to carry on from the step it is on: the UI's tour driver sends it where a
   step has waited on the agent past its patience. Refused as `tour.brief` is.

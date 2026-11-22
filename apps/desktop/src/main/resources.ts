@@ -45,6 +45,36 @@ export const relayPath = (): string => {
   return join(dirname(relay), "dist", name)
 }
 
+/** The folders the tour's seed project and libraries are read from (`TourAssets`, the runner's). */
+export type TourFolders = { readonly seed: string; readonly phaser: string; readonly three: string }
+
+/**
+ * Where the runner finds the tour's seed project and the libraries its page runs on: shipped in
+ * the resources folder, each library as the files it takes of its package, or, in development,
+ * the repository's seed and the packages' own folders, found from the runner package. The
+ * runner is bundled, so it can't find them from its own place.
+ */
+export const tourAssets = (): TourFolders => {
+  if (app.isPackaged) {
+    const folder = join(process.resourcesPath, "tour")
+    return {
+      seed: join(folder, "seed"),
+      phaser: join(folder, "phaser"),
+      three: join(folder, "three"),
+    }
+  }
+  const entry = createRequire(join(app.getAppPath(), "package.json")).resolve("@novadeck/runner")
+  const runner = createRequire(entry)
+  // A package's folder is two up from its entry (`src/phaser.js`, `build/three.cjs`):
+  // neither lists its manifest among its exports.
+  const packageFolder = (name: string): string => join(dirname(runner.resolve(name)), "..")
+  return {
+    seed: join(dirname(entry), "..", "assets", "tour", "seed"),
+    phaser: packageFolder("phaser"),
+    three: packageFolder("three"),
+  }
+}
+
 /**
  * The repository the packaged build was released from, as `resources/app-update.yml`
  * names it, or undefined when that file is missing or names none GitHub could have.

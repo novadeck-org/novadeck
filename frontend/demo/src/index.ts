@@ -662,6 +662,8 @@ export const plainDemo = (
   terminals?: DemoTerminalSetup,
   turnMs?: number,
   turns: DemoTurns = demoTurns(turnMs),
+  // The tour's project lists its files (see `withTourAgent`).
+  tourFiles = false,
 ): Backend => {
   const backend = plainBackend(variant, terminals, turns)
   // The cues of Babcia and Launch are kept by the backend their own wrapper returns: their
@@ -669,7 +671,7 @@ export const plainDemo = (
   // The videos' one-offs have no tour.
   return variant === "babcia" || variant === "launch"
     ? backend
-    : withTourAgent(withFeedback(backend, turns), turns)
+    : withTourAgent(withFeedback(backend, turns), turns, tourFiles)
 }
 
 const plainBackend = (
@@ -830,6 +832,9 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
             : "plain",
           terminals,
           turnMs > 0 ? turnMs : undefined,
+          undefined,
+          // The tour is offered with Experimental on, and plays its Files step there.
+          params.get("channel") === "experimental",
         ),
       ),
     ),
@@ -838,9 +843,13 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   // `&tourStart=unlisted` as Codex not signed in yet does. Its agent is played as a runner
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
-  // itself until nudged, `&tourAgent=permission` has it ask the person's permission first, and `&tourPatienceMs=<n>` is how long the UI waits before nudging. The
-  // lead then opens its first fixer and plays the story on: `&tourStory=off` stops it after it
-  // names itself, and `&tourTeam=quiet` has it open its fixer only once nudged again.
+  // itself until nudged, `&tourAgent=permission` has it ask the person's permission first, and
+  // `&tourPatienceMs=<n>` is how long the UI waits before nudging. The lead then opens its team
+  // and plays the story on: `&tourStory=off` stops it after it names itself, `&tourTeam=quiet`
+  // has it open its team only once nudged again, `&tourSculptor=quiet` and `&tourArtist=quiet`
+  // keep those agents idle until nudged, `&tourArtist=never` has the artist's agent never start,
+  // `&tourAgent=shell` has the lead's program end, its shell back, `&tourPage=none` is a computer with neither Node nor
+  // Python (no server, no page), and `&tourKeep=fails` makes the first Keep building fail.
   if (isDemoTour(backend.tour)) {
     const screen = params.get("tourScreen")
     if (tourScreens.includes(screen as TourScreen)) backend.tour.holdAt(screen as TourScreen)
@@ -854,6 +863,12 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ...(positive("tourScreenMs") !== undefined && { screenMs: positive("tourScreenMs")! }),
     })
     if (params.get("tourTeam") === "quiet") backend.tour.goQuietTeam()
+    if (params.get("tourSculptor") === "quiet") backend.tour.goQuietSculptor()
+    if (params.get("tourArtist") === "quiet") backend.tour.goQuietArtist()
+    if (params.get("tourArtist") === "never") backend.tour.goArtistNever()
+    if (params.get("tourAgent") === "shell") backend.tour.goShell()
+    if (params.get("tourPage") === "none") backend.tour.goNoPage()
+    if (params.get("tourKeep") === "fails") backend.tour.failKeep()
     if (params.get("tourStart") === "fails") backend.tour.failNext()
     if (params.get("tourStart") === "unlisted") backend.tour.failNext("unlisted")
   }

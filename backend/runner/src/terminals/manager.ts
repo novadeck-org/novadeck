@@ -42,7 +42,6 @@ import { stripInherited } from "../shell/inherited.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { ownedWorktrees, worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
-import { adoptTeammate } from "./adopt.js"
 import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
@@ -1667,11 +1666,6 @@ export class Terminals {
   /** The person ends a terminal's lead (see `Leads.releaseByPerson`). */
   releaseLead(terminalId: string): void {
     this.calls.leads.releaseByPerson(terminalId)
-  }
-
-  /** The tour's second fixer joins its lead's team unasked (see `adoptTeammate`). */
-  adopt(terminalId: string, leadId: string, before?: () => void): Promise<void> {
-    return adoptTeammate(this.calls.host, terminalId, leadId, before)
   }
 
   /** The person moves a terminal and its team to another session (see `Moves.move`). */

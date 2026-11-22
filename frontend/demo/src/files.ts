@@ -285,8 +285,12 @@ const plain: Tree = {
 
 // What `folder` lists of a tree of `entries` (the tour's repo, which has no fixture of its own
 // here), or throws as a folder that isn't there does.
-export const listEntries = (paths: readonly string[], folder: string): FolderListing => {
-  const tree: Tree = { entries: paths, ignored: [] }
+export const listEntries = (
+  paths: readonly string[],
+  folder: string,
+  hidden: readonly string[] = [],
+): FolderListing => {
+  const tree: Tree = { entries: paths, ignored: hidden }
   const known = paths.some((path) => trimmed(path) === folder || path.startsWith(`${folder}/`))
   if (folder !== "" && !known) throw new Error("There is no such folder")
   return { entries: listFixture(tree, folder), truncated: false }

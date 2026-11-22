@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -11,21 +11,34 @@ import { harnesses } from "../harnesses/registry.js"
 import {
   maxDeliveryBytes,
   novadeckSender,
+  tourArtistMark,
   tourBriefMark,
-  tourFixerMark,
   type Message,
 } from "../messaging/messages.js"
 import { deliveredBytes } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
-import { firstFixerTask, nudgeLine, secondFixerBrief, tourBrief } from "./brief.js"
+import {
+  artistBrief,
+  keptLine,
+  nudgeLine,
+  projectNote,
+  sandboxNote,
+  shellRule,
+  tourBrief,
+  type Serving,
+} from "./brief.js"
 import { tourFolder, tourMarker } from "./folder.js"
-import { Tour, withinFolder, type TourHost } from "./tour.js"
+import { repositoryAssets, type TourAssets } from "./seed.js"
+import { Tour, type TourHost } from "./tour.js"
 
 // Where a harness lives, for the model lists the tour picks from: Novadeck's own lists ignore it.
 const install: Install = { env: {}, home: "/home/x", platform: "linux", plugin: "/plugins" }
 
 const conflict = (error: unknown): boolean =>
   error instanceof DomainError && error.code === "CONFLICT"
+
+// How the dev server runs, unless a test says otherwise: not what this computer has.
+const served: Serving = { command: "node dev.mjs 5173", url: "http://127.0.0.1:5173/" }
 
 const tourIn = (
   home: string,
@@ -43,26 +56,22 @@ const tourIn = (
     cwds?: Readonly<Record<string, string>>
     // The terminal leading each led terminal.
     leads?: Readonly<Record<string, string>>
-    // The terminals that are plain shells at their prompt.
-    shells?: readonly string[]
-    // The terminals typing into which fails, as a closed terminal's.
-    failing?: readonly string[]
-    // The terminals an agent has run in.
-    ran?: readonly string[]
-    // What an adoption waits for, as a shell's first prompt, before it goes on.
-    gate?: Promise<void>
+    // How the dev server runs here; `served` by default.
+    serving?: Serving | null
+    // Where the seed's files are, if not in the repository.
+    assets?: TourAssets
+    // Terminals that refuse a notice with an error, as one that is gone.
+    gone?: readonly string[]
   } = {},
 ) => {
   const projects = options.projects ?? []
   const rung = options.notices ?? []
   const removed: string[] = []
-  // What the tour did to the terminals: the lines typed, the leads set, the agents expected.
-  const typed: [string, string, string][] = []
-  const adopted: [string, string][] = []
-  const expected: [string, AgentName][] = []
   let folders = 0
   const host: TourHost = {
     home,
+    ...(options.assets !== undefined && { assets: options.assets }),
+    serving: () => Promise.resolve(options.serving === undefined ? served : options.serving),
     connected: (agent) => Promise.resolve((options.connected ?? ["claude"]).includes(agent)),
     models: (agent) =>
       options.lists?.[agent]
@@ -79,6 +88,7 @@ const tourIn = (
       },
     },
     notice: (terminalId, text) => {
+      if (options.gone?.includes(terminalId)) throw new DomainError("TERMINAL_NOT_FOUND")
       if (!(options.shown ?? ["lead"]).includes(terminalId)) return false
       rung.push([terminalId, text])
       return true
@@ -86,18 +96,6 @@ const tourIn = (
     cwdOf: (terminalId) => options.cwds?.[terminalId] ?? tourFolder(home),
     leadOf: (terminalId) => options.leads?.[terminalId],
     handleOf: (terminalId) => `h-${terminalId}`,
-    ranAgent: (terminalId) => (options.ran ?? []).includes(terminalId),
-    isFreshShell: (terminalId) => (options.shells ?? []).includes(terminalId),
-    adopt: async (terminalId, leadId, before) => {
-      await options.gate
-      before()
-      adopted.push([terminalId, leadId])
-    },
-    expect: (terminalId, agent) => void expected.push([terminalId, agent]),
-    type: (terminalId, line, ownerId) => {
-      if (options.failing?.includes(terminalId)) throw new DomainError("TERMINAL_EXITED", "closed")
-      typed.push([terminalId, line, ownerId])
-    },
     worktreesFolder: () => void folders++,
   }
   const tour = new Tour(host)
@@ -110,9 +108,6 @@ const tourIn = (
     tour,
     removed,
     brief,
-    typed,
-    adopted,
-    expected,
     folders: () => folders,
   }
 }
@@ -125,27 +120,92 @@ const scratchHome = async (resources: { defer: (cleanup: () => Promise<void>) =>
   return home
 }
 
+type Resources = { defer: (cleanup: () => Promise<void>) => void }
+
+// A run readied in a scratch home, its notices kept, with the terminals `lead`, `mine` and `next`
+// showing in the tour's folder unless the options say otherwise.
+const readied = async (resources: Resources, options: Parameters<typeof tourIn>[1] = {}) => {
+  const home = await scratchHome(resources)
+  const notices: [string, string][] = []
+  const made = tourIn(home, { notices, shown: ["lead", "mine", "next"], ...options })
+  await made.tour.prepare("claude")
+  return { ...made, notices, home }
+}
+
+// What is in a folder, every file by its name with `/`.
+const filesOf = async (folder: string, prefix = ""): Promise<string[]> => {
+  const entries = await readdir(join(folder, prefix), { withFileTypes: true })
+  const names = await Promise.all(
+    entries.map((entry) =>
+      entry.isDirectory() ? filesOf(folder, `${prefix}${entry.name}/`) : [`${prefix}${entry.name}`],
+    ),
+  )
+  return names.flat()
+}
+
 describe("readying the tour", () => {
-  it("writes the brief in the folder and answers the launch line", async ({ resources }) => {
+  it("writes the seed project, the libraries and the brief's files, and answers the launch line", async ({
+    resources,
+  }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
     const prepared = await tour.prepare("claude")
     const directory = tourFolder(home)
-    expect(prepared).toMatchObject({ directory, brief: "doorbell", model: "haiku", removed: [] })
+    expect(prepared).toMatchObject({
+      directory,
+      brief: "doorbell",
+      model: "haiku",
+      removed: [],
+      page: true,
+    })
     expect(prepared.command).toMatch(/^claude --model haiku /)
-    expect((await readdir(directory)).toSorted()).toEqual(
-      [".claude", ".git", "AGENTS.md", "CLAUDE.md", "README.md", "split.js", tourMarker].toSorted(),
+    const files = await filesOf(directory)
+    expect(files).toEqual(
+      expect.arrayContaining([
+        tourMarker,
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".claude/settings.json",
+        ".gitignore",
+        "README.md",
+        "dev.mjs",
+        "dev.py",
+        "index.html",
+        "model/hero.gltf",
+        "model/shapes.bin",
+        "src/score.js",
+        "src/config.js",
+        "vendor/phaser/phaser.min.js",
+        "vendor/phaser/LICENSE.md",
+        "vendor/three/build/three.module.js",
+        "vendor/three/build/three.core.js",
+        "vendor/three/examples/jsm/loaders/GLTFLoader.js",
+        "vendor/three/examples/jsm/utils/BufferGeometryUtils.js",
+        "vendor/three/examples/jsm/utils/SkeletonUtils.js",
+        "vendor/three/LICENSE",
+      ]),
     )
+    // The tour's own maker of the model's shapes isn't part of the project.
+    expect(files).not.toContain("make-shapes.mjs")
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("claude"))
     expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
-    // Both bugs are in one file, so the merged preview shows both fixes.
-    const source = await readFile(join(directory, "split.js"), "utf8")
-    expect(source).toContain("(total + total * tip) / people")
-    expect(source).toContain("amount.toFixed(1)")
     expect(JSON.parse(await readFile(join(directory, ".claude", "settings.json"), "utf8"))).toEqual(
-      {
-        permissions: { defaultMode: "acceptEdits" },
-      },
+      { permissions: { defaultMode: "acceptEdits" } },
     )
+    // The model's binary is written as it is.
+    const assets = await repositoryAssets()
+    expect(await readFile(join(directory, "model", "shapes.bin"))).toEqual(
+      await readFile(join(assets.seed, "model", "shapes.bin")),
+    )
+    expect((await stat(join(directory, "vendor", "phaser", "phaser.min.js"))).size).toBeGreaterThan(
+      100_000,
+    )
+  })
+
+  it("says there is no page where the dev server can't run here", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    const { tour } = tourIn(home, { serving: null })
+    await expect(tour.prepare("claude")).resolves.toMatchObject({ page: false })
   })
 
   it("removes the projects open at its folder, and no other", async ({ resources }) => {
@@ -191,12 +251,12 @@ describe("readying the tour", () => {
     })
     const prepared = tour.prepare("claude")
     // Still closing: what the earlier run left is untouched.
-    await writeFile(join(directory, "index.html"), "<p>made</p>")
+    await writeFile(join(directory, "scratch.html"), "<p>made</p>")
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(await readdir(directory)).toContain("index.html")
+    expect(await readdir(directory)).toContain("scratch.html")
     closed()
     await prepared
-    expect(await readdir(directory)).not.toContain("index.html")
+    expect(await readdir(directory)).not.toContain("scratch.html")
   })
 
   it("refuses an agent whose cheapest model can't be told, changing nothing", async ({
@@ -215,23 +275,55 @@ describe("readying the tour", () => {
     await expect(readdir(tourFolder(home))).rejects.toThrow()
   })
 
-  for (const agent of ["claude", "codex", "agy"] as const)
-    it(`refuses a folder of the person's own before removing any project, with ${agent}`, async ({
-      resources,
-    }) => {
-      const home = await scratchHome(resources)
-      const directory = tourFolder(home)
-      await mkdir(directory, { recursive: true })
-      await writeFile(join(directory, "notes.md"), "mine\n")
-      const { tour, removed } = tourIn(home, {
-        connected: [agent],
-        lists: { codex: [{ id: "gpt-e2e-luna", efforts: ["low"] }] },
-        projects: [project("mine", directory), project("inside", join(directory, "site"))],
-      })
-      await expect(tour.prepare(agent)).rejects.toSatisfy(conflict)
-      expect(removed).toEqual([])
-      expect(await readdir(directory)).toEqual(["notes.md"])
+  it("says so in words where the seed's files can't be read, changing nothing", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const real = await repositoryAssets()
+    const { tour, removed } = tourIn(home, {
+      assets: { ...real, seed: join(home, "missing") },
+      projects: [project("old-tour", tourFolder(home))],
     })
+    const refused = await tour.prepare("claude").catch((error: unknown) => error)
+    expect(refused).toSatisfy(conflict)
+    expect((refused as Error).message).toMatch(/project files couldn't be read/)
+    expect(removed).toEqual([])
+    await expect(readdir(tourFolder(home))).rejects.toThrow()
+  })
+
+  it("takes the next folder where the person kept the first, whose project stays open", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const kept = tourFolder(home)
+    await mkdir(kept, { recursive: true })
+    await writeFile(join(kept, "game.js"), "mine\n")
+    const { tour, removed } = tourIn(home, { projects: [project("kept", kept)] })
+    const prepared = await tour.prepare("claude")
+    expect(prepared.directory).toBe(tourFolder(home, 2))
+    expect(prepared.removed).toEqual([])
+    expect(removed).toEqual([])
+    expect(await readdir(kept)).toEqual(["game.js"])
+  })
+
+  it("reuses the folder it made, wiping it, as long as the marker is in it", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const { tour } = tourIn(home)
+    const first = await tour.prepare("claude")
+    await writeFile(join(first.directory, "extra.txt"), "x")
+    const second = await tour.prepare("claude")
+    expect(second.directory).toBe(first.directory)
+    expect(await readdir(second.directory)).not.toContain("extra.txt")
+  })
+
+  it("refuses where its first folder is no folder at all", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    await mkdir(join(home, ".novadeck"), { recursive: true })
+    await writeFile(tourFolder(home), "not a folder")
+    await expect(tourIn(home).tour.prepare("claude")).rejects.toSatisfy(conflict)
+  })
 
   it("refuses a second run while the first is being readied", async ({ resources }) => {
     const home = await scratchHome(resources)
@@ -249,16 +341,16 @@ describe("readying the tour", () => {
   })
 })
 
-// The arguments the brief gives `open_agent` for its fixer.
+// The arguments the brief gives `open_agent` for each teammate.
 const opened = (text: string): string[] =>
-  [...text.matchAll(/Call `open_agent` with (agent "[^\n]*?)(?:, and as|\n)/g)].map(
+  [...text.matchAll(/Call `open_agent`(?: again)? with (agent "[^\n]*?), and as/g)].map(
     ([, each]) => each!,
   )
 
 const luna: Model = { id: "gpt-e2e-luna", efforts: ["low", "medium"] }
 
 describe("the sandbox repo", () => {
-  it("is a git repo on main with one commit by the tour, the marker kept out of it", async ({
+  it("is a git repo on main with one commit by the tour, the marker and the libraries kept out of it", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
@@ -273,9 +365,56 @@ describe("the sandbox repo", () => {
     expect(gitIn("rev-list", "--count", "HEAD")).toBe("1")
     expect(gitIn("log", "--format=%an <%ae>")).toBe("Novadeck tour <tour@novadeck.invalid>")
     expect(gitIn("status", "--porcelain")).toBe("")
-    expect(gitIn("ls-files").split("\n").toSorted()).toEqual(
-      [".claude/settings.json", "AGENTS.md", "CLAUDE.md", "README.md", "split.js"].toSorted(),
+    const tracked = gitIn("ls-files").split("\n")
+    expect(tracked).toEqual(
+      expect.arrayContaining([
+        ".gitignore",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md",
+        "dev.mjs",
+        "model/shapes.bin",
+        "src/score.js",
+      ]),
     )
+    expect(tracked).not.toContain(tourMarker)
+    expect(tracked.some((name) => name.startsWith(".claude/"))).toBe(false)
+    expect(tracked.filter((name) => name.startsWith("vendor/"))).toEqual([])
+  })
+
+  it("commits the project's own note while the folder holds the sandbox's, the status clean", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const { tour } = tourIn(home)
+    await tour.prepare("claude")
+    const directory = tourFolder(home)
+    const gitIn = (...args: string[]) =>
+      execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim()
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("claude"))
+    expect(gitIn("show", "HEAD:AGENTS.md")).toBe(projectNote.trim())
+    expect(gitIn("status", "--porcelain")).toBe("")
+    // A worktree made during the tour carries the project, not the tour's rules or settings.
+    const worktree = join(home, "mine")
+    gitIn("worktree", "add", "-b", "hero", worktree)
+    expect(await readFile(join(worktree, "AGENTS.md"), "utf8")).toBe(projectNote)
+    expect(await readdir(worktree)).not.toContain(".claude")
+  })
+
+  it("gives a worktree of it no vendor folder, while the folder itself has it", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const { tour } = tourIn(home)
+    await tour.prepare("claude")
+    const directory = tourFolder(home)
+    const worktree = join(home, "worktree")
+    execFileSync("git", ["-C", directory, "worktree", "add", "-b", "hero", worktree], {
+      encoding: "utf8",
+    })
+    expect(await readdir(worktree)).not.toContain("vendor")
+    expect(await readdir(worktree)).toContain("src")
+    expect(await readdir(directory)).toContain("vendor")
   })
 
   it("is made afresh for each run, one commit again", async ({ resources }) => {
@@ -283,9 +422,9 @@ describe("the sandbox repo", () => {
     const { tour } = tourIn(home)
     await tour.prepare("claude")
     const directory = tourFolder(home)
-    await writeFile(join(directory, "split.js"), "changed\n")
+    await writeFile(join(directory, "src", "score.js"), "changed\n")
     await tour.prepare("claude")
-    expect(await readFile(join(directory, "split.js"), "utf8")).toContain("share")
+    expect(await readFile(join(directory, "src", "score.js"), "utf8")).toContain("points")
     expect(
       execFileSync("git", ["-C", directory, "rev-list", "--count", "HEAD"], {
         encoding: "utf8",
@@ -302,17 +441,49 @@ describe("the sandbox repo", () => {
 })
 
 describe("the brief's facts", () => {
-  it("has a lead's own harness open its fixer on its cheapest model", async ({ resources }) => {
+  it("has a lead's own harness open both teammates on its cheapest model, their tasks quoted", async ({
+    resources,
+  }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("bill splitter with two bugs")
-    expect(text).toContain('branch "fix-tip"')
-    expect(opened(text)).toEqual(['agent "claude", model "haiku", effort "low"'])
+    expect(opened(text)).toEqual([
+      'agent "claude", model "haiku", effort "low"',
+      'agent "claude", model "haiku", effort "low"',
+    ])
+    expect(text).toContain("> You are Sculptor, a teammate in Novadeck's tour.")
+    expect(text).toContain("> You are Score fixer, a teammate in Novadeck's tour.")
+    expect(text).toContain('branch "hero"')
+    expect(text).toContain('branch "fix-score"')
   })
 
-  it("keeps the fixer on the lead's harness and its cheapest model, whatever else is connected", async ({
+  it("names the serving command and the page's address where the game can be served", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const { tour, brief } = tourIn(home, {
+      serving: { command: "python3 dev.py 6123", url: "http://127.0.0.1:6123/" },
+    })
+    await tour.prepare("claude")
+    const text = brief()
+    expect(text).toContain('`command` "python3 dev.py 6123"')
+    expect(text).toContain("http://127.0.0.1:6123/")
+    expect(text).toContain("open_terminal")
+  })
+
+  it("names neither where it can't", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    const { tour, brief } = tourIn(home, { serving: null })
+    await tour.prepare("claude")
+    const text = brief()
+    expect(text).not.toContain("dev.mjs")
+    expect(text).not.toContain("dev.py")
+    expect(text).not.toContain("127.0.0.1")
+    expect(text).not.toContain("Game server")
+  })
+
+  it("keeps the teammates on the lead's harness and its cheapest model, whatever else is connected", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
@@ -321,11 +492,14 @@ describe("the brief's facts", () => {
       lists: { codex: [luna] },
     })
     await tour.prepare("agy")
-    expect(opened(brief())).toEqual([expect.stringMatching(/^agent "agy", model "/)])
+    expect(opened(brief())).toEqual([
+      expect.stringMatching(/^agent "agy", model "/),
+      expect.stringMatching(/^agent "agy", model "/),
+    ])
     await tour.prepare("claude")
-    expect(opened(brief())).toEqual(['agent "claude", model "haiku", effort "low"'])
+    expect(opened(brief())[0]).toBe('agent "claude", model "haiku", effort "low"')
     await tour.prepare("codex")
-    expect(opened(brief())).toEqual(['agent "codex", model "gpt-e2e-luna", effort "low"'])
+    expect(opened(brief())[1]).toBe('agent "codex", model "gpt-e2e-luna", effort "low"')
   })
 
   it("leaves out an effort a model takes none of", async ({ resources }) => {
@@ -335,7 +509,7 @@ describe("the brief's facts", () => {
       lists: { codex: [{ id: "gpt-e2e-luna", efforts: [] }] },
     })
     await tour.prepare("codex")
-    expect(opened(brief())).toEqual(['agent "codex", model "gpt-e2e-luna"'])
+    expect(opened(brief())[0]).toBe('agent "codex", model "gpt-e2e-luna"')
   })
 
   it("never names the person, and tells its agents not to", async ({ resources }) => {
@@ -378,21 +552,23 @@ describe("ringing the tour's brief", () => {
     expect(id).toBe("t1")
     expect(text.startsWith(tourBriefMark)).toBe(true)
     expect(text).toContain("## Steps")
-    // The fixer's task goes in whole, with what the doorbell frames.
-    expect(text).toContain('Call `open_worktree` with branch "fix-tip"')
     // Delivered whole: wrapped as Novadeck's notice, in every harness, it fits one delivery,
     // which a harness takes no more than (a brief past it is rung but never handed over).
     expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
-    // And so it does on the longest harness and model names, as `agy`'s.
+    // And so it does on the longest harness and model names, as `agy`'s, with the serving steps.
     const longest = tourBrief({
       lead: "@a-twenty-char-name-x",
-      fixer: {
-        agent: "agy",
-        model: "gemini-3-flash-lite-preview",
-        effort: "medium",
-      },
+      mate: { agent: "agy", model: "gemini-3-flash-lite-preview", effort: "medium" },
+      serving: { command: "python3 dev.py 65535", url: "http://127.0.0.1:65535/" },
     })
     expect(deliveredBytes(noticeOf(longest))).toBeLessThanOrEqual(maxDeliveryBytes)
+    // And with Codex's longer rule for the shell, which each of its three texts carries.
+    const codex = tourBrief({
+      lead: "@a-twenty-char-name-x",
+      mate: { agent: "codex", model: "gpt-9.9-codex-max-luna", effort: "medium" },
+      serving: { command: "python3 dev.py 65535", url: "http://127.0.0.1:65535/" },
+    })
+    expect(deliveredBytes(noticeOf(codex))).toBeLessThanOrEqual(maxDeliveryBytes)
   })
 
   it("is refused before a run is readied", () => {
@@ -417,197 +593,237 @@ describe("ringing the tour's brief", () => {
   })
 })
 
-describe("the second fixer's brief", () => {
-  it("fits one delivery, with a long handle for its lead", () => {
-    const text = secondFixerBrief("@a-twenty-char-name-x")
-    expect(text.startsWith(tourFixerMark)).toBe(true)
-    expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
+describe("what the briefs say of the shell", () => {
+  // Codex reads files only through its shell, so "run no shell command" leaves it unable to
+  // read the file it is to change; the others have tools of their own for files.
+  it("lets Codex read files with it and nothing else, and tells the others to run none", () => {
+    expect(shellRule("codex")).toMatch(/only to read files/)
+    expect(shellRule("claude")).toBe("Run no shell command.")
+    expect(shellRule("agy")).toBe("Run no shell command.")
   })
 
-  it("is the one the lead's brief quotes for the first, which is no notice", () => {
-    expect(tourBrief({ lead: "@fox", fixer: { agent: "claude", model: "haiku" } })).toContain(
-      "> You are Tip fixer, a teammate in Novadeck's tour.",
-    )
-  })
-
-  it("asks the person which whole amounts show, then fixes money in its own worktree", () => {
-    const text = secondFixerBrief("@moth")
-    expect(text).toContain('branch "fix-money"')
-    expect(text).toContain("Whole amounts: $12.00 or $12?")
-    expect(text).toContain('"recommend":0')
-    expect(text).toContain('dismissed the question, use "$12.00"')
-    expect(text).toContain('`to` "@moth"')
-    expect(text).toMatch(/Run no\s+shell command and never call `open_agent`/)
-  })
-
-  it("has the first fixer fix the tip in its own worktree by absolute path", () => {
-    const task = firstFixerTask("@fox")
-    expect(task).toContain('branch "fix-tip"')
-    expect(task).toContain("(total + total * tip / 100) / people")
-    expect(task).toContain("by its absolute path")
-    expect(task).toContain("Fixed bug 1.")
-    // It answers to the lead's handle, never a terminal id.
-    expect(task).toContain('`to` "@fox"')
+  it("says so in the lead's brief, both teammates' tasks, the artist's brief and the folder's note", () => {
+    for (const agent of ["claude", "codex", "agy"] as const) {
+      const rule = shellRule(agent)
+      const lead = tourBrief({ lead: "@fox", mate: { agent, model: "m" }, serving: null })
+      // Once for the lead, once in each quoted task.
+      expect(lead.split(rule)).toHaveLength(4)
+      expect(artistBrief(agent)).toContain(rule)
+      expect(sandboxNote(agent)).toContain(rule)
+    }
   })
 })
 
-describe("taking the person's terminal as the second fixer", () => {
-  const ready = async (
-    resources: { defer: (cleanup: () => Promise<void>) => void },
-    options: Parameters<typeof tourIn>[1] = {},
-  ) => {
+describe("the artist's brief", () => {
+  it("fits one delivery, and is framed as the artist's", () => {
+    const text = artistBrief("codex")
+    expect(text.startsWith(tourArtistMark)).toBe(true)
+    expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
+  })
+
+  it("has the artist find the lead itself, ask it, and draw in its own worktree", () => {
+    const text = artistBrief("claude")
+    expect(text).toContain("Call `agents`")
+    expect(text).toContain('branch "cover"')
+    expect(text).toContain("art/cover.svg")
+  })
+})
+
+describe("ringing the artist's brief", () => {
+  it("rings it to an agent on no team, once the lead has started", async ({ resources }) => {
+    const { tour, brief, notices } = await readied(resources)
+    brief()
+    tour.artist("mine")
+    expect(notices.at(-1)).toEqual(["mine", artistBrief("claude")])
+  })
+
+  it("rings nothing twice for the same terminal, and refuses another", async ({ resources }) => {
+    const { tour, brief, notices } = await readied(resources)
+    brief()
+    tour.artist("mine")
+    tour.artist("mine")
+    expect(notices.filter(([id]) => id === "mine")).toHaveLength(1)
+    expect(() => tour.artist("next")).toThrow(/artist has started already/)
+  })
+
+  it("is refused before a run is readied and before the lead has started", async ({
+    resources,
+  }) => {
+    expect(() => tourIn("/nowhere").tour.artist("mine")).toThrow(/hasn't been readied/)
+    const { tour } = await readied(resources)
+    expect(() => tour.artist("mine")).toThrow(/lead hasn't started/)
+  })
+
+  it("refuses the lead, a teammate and a terminal elsewhere, ringing nothing", async ({
+    resources,
+  }) => {
+    const { tour, brief, notices } = await readied(resources, {
+      shown: ["lead", "led", "away"],
+      leads: { led: "lead" },
+      cwds: { away: "/h/code" },
+    })
+    brief()
+    const before = notices.length
+    expect(() => tour.artist("lead")).toThrow(/lead or a teammate/)
+    expect(() => tour.artist("led")).toThrow(/lead or a teammate/)
+    expect(() => tour.artist("away")).toThrow(/isn't one of the tour's/)
+    expect(notices).toHaveLength(before)
+  })
+
+  it("can be asked again where the agent hasn't shown yet, and claims only once it has", async ({
+    resources,
+  }) => {
+    const shown = ["lead"]
     const home = await scratchHome(resources)
     const notices: [string, string][] = []
-    const made = tourIn(home, {
-      notices,
-      shown: ["lead", "mine", "next"],
-      shells: ["mine"],
-      ...options,
-      cwds: {
-        lead: tourFolder(home),
-        mine: tourFolder(home),
-        next: tourFolder(home),
-        ...options.cwds,
-      },
+    const { tour, brief } = tourIn(home, { notices, shown })
+    await tour.prepare("claude")
+    brief()
+    expect(() => tour.artist("mine")).toThrow(/hasn't started yet/)
+    shown.push("mine")
+    tour.artist("mine")
+    expect(notices.at(-1)?.[0]).toBe("mine")
+  })
+})
+
+describe("the person keeping the project", () => {
+  const statusOf = (directory: string) =>
+    execFileSync("git", ["-C", directory, "status", "--porcelain"], { encoding: "utf8" }).trim()
+
+  it("hands the folder over: no marker, the project's note, none of the tour's Claude settings", async ({
+    resources,
+  }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
+    await tour.keep()
+    const directory = tourFolder(home)
+    const files = await filesOf(directory)
+    expect(files).not.toContain(tourMarker)
+    expect(files).not.toContain(".claude/settings.json")
+    expect(await readdir(directory)).not.toContain(".claude")
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(projectNote)
+    // The project itself is whole.
+    expect(files).toEqual(expect.arrayContaining(["src/score.js", "vendor/phaser/phaser.min.js"]))
+  })
+
+  it("leaves git as the person's own: clean, nothing of the tour's tracked or excluded", async ({
+    resources,
+  }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
+    await tour.keep()
+    const directory = tourFolder(home)
+    expect(statusOf(directory)).toBe("")
+    const gitIn = (...args: string[]) =>
+      execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim()
+    expect(gitIn("ls-files")).not.toContain(".claude/")
+    expect(gitIn("ls-files", "-v", "AGENTS.md")).toMatch(/^H /)
+    const exclude = await readFile(join(directory, ".git", "info", "exclude"), "utf8")
+    expect(exclude).not.toContain("settings.json")
+    expect(exclude).not.toContain(tourMarker)
+  })
+
+  it("keeps the person's own files in .claude", async ({ resources }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
+    await writeFile(join(tourFolder(home), ".claude", "mine.md"), "mine")
+    await tour.keep()
+    expect(await readdir(join(tourFolder(home), ".claude"))).toEqual(["mine.md"])
+  })
+
+  it("rings the lead that the tour is over, and forgets the run", async ({ resources }) => {
+    const { tour, brief, notices } = await readied(resources)
+    brief()
+    await tour.keep()
+    expect(notices.at(-1)).toEqual(["lead", keptLine])
+    expect(() => tour.brief("lead")).toThrow(/hasn't been readied/)
+  })
+
+  it("is harmless when asked again, and rings nothing the second time", async ({ resources }) => {
+    const { tour, brief, notices, home } = await readied(resources)
+    brief()
+    await tour.keep()
+    const rung = notices.length
+    await expect(tour.keep()).resolves.toBeUndefined()
+    expect(notices).toHaveLength(rung)
+    expect(await readFile(join(tourFolder(home), "AGENTS.md"), "utf8")).toBe(projectNote)
+  })
+
+  it("never writes over a folder the person already has: without the marker it does nothing", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const mine = tourFolder(home)
+    await mkdir(mine, { recursive: true })
+    await writeFile(join(mine, "AGENTS.md"), "mine\n")
+    const { tour } = tourIn(home, { projects: [project("mine", mine)] })
+    await expect(tour.keep()).resolves.toBeUndefined()
+    expect(await readFile(join(mine, "AGENTS.md"), "utf8")).toBe("mine\n")
+  })
+
+  it("never fails for a lead that is gone, or one that never started", async ({ resources }) => {
+    const first = await readied(resources)
+    await expect(first.tour.keep()).resolves.toBeUndefined()
+    const gone: string[] = []
+    const second = await readied(resources, { gone })
+    second.brief()
+    gone.push("lead")
+    await expect(second.tour.keep()).resolves.toBeUndefined()
+  })
+
+  it("keeps, after a restart, each marked folder open as a project, and no other", async ({
+    resources,
+  }) => {
+    const { home } = await readied(resources)
+    // A second tour folder, marked but closed, and a third that is open: only open ones are kept.
+    const other = tourFolder(home, 2)
+    const closed = tourFolder(home, 3)
+    for (const folder of [other, closed]) {
+      // eslint-disable-next-line no-await-in-loop -- Two small folders.
+      await mkdir(folder, { recursive: true })
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await writeFile(join(folder, tourMarker), "")
+    }
+    const restarted = tourIn(home, {
+      projects: [project("one", tourFolder(home)), project("two", join(other, "site"))],
     })
-    await made.tour.prepare("claude")
-    return { ...made, notices, home }
-  }
+    await restarted.tour.keep()
+    expect(await readdir(tourFolder(home))).not.toContain(tourMarker)
+    expect(await readdir(other)).not.toContain(tourMarker)
+    expect(await readdir(closed)).toContain(tourMarker)
+    expect(statusOf(tourFolder(home))).toBe("")
+    expect(await readFile(join(tourFolder(home), "AGENTS.md"), "utf8")).toBe(projectNote)
+  })
 
-  it("types the launch line, makes the lead its lead, and rings it the brief", async ({
+  it("does nothing after a restart where no tour folder is open", async ({ resources }) => {
+    const { home } = await readied(resources)
+    const restarted = tourIn(home)
+    await expect(restarted.tour.keep()).resolves.toBeUndefined()
+    expect(await readdir(tourFolder(home))).toContain(tourMarker)
+  })
+
+  it("makes the folder no longer the tour's, and a later run takes the next one", async ({
     resources,
   }) => {
-    const { tour, brief, typed, adopted, expected, notices } = await ready(resources)
+    const { tour, brief, home } = await readied(resources)
     brief()
-    await tour.fixer("mine", "window")
-    expect(typed).toHaveLength(1)
-    expect(typed[0]).toEqual([
-      "mine",
-      expect.stringMatching(/^claude --model haiku .*--permission-mode acceptEdits/),
-      "window",
-    ])
-    expect(adopted).toEqual([["mine", "lead"]])
-    expect(expected).toEqual([["mine", "claude"]])
-    const [id, text] = notices.at(-1)!
-    expect(id).toBe("mine")
-    expect(text).toBe(secondFixerBrief("@h-lead"))
-  })
-
-  it("is for a run once", async ({ resources }) => {
-    const { tour, brief, typed } = await ready(resources, {
-      shells: ["mine", "again"],
-    })
-    brief()
-    await tour.fixer("mine", "window")
-    await expect(tour.fixer("again", "window")).rejects.toThrow(/started already/)
-    expect(typed).toHaveLength(1)
-  })
-
-  it("waits for the lead to have started, and for a run", async ({ resources }) => {
-    const { tour } = await ready(resources)
-    await expect(tour.fixer("mine", "window")).rejects.toThrow(/lead hasn't started/)
-    const none = tourIn("/nowhere").tour
-    await expect(none.fixer("mine", "window")).rejects.toThrow(/hasn't been readied/)
-  })
-
-  it("refuses a terminal elsewhere, one with an agent or a lead, and the lead itself, changing nothing", async ({
-    resources,
-  }) => {
-    const { tour, brief, typed, adopted } = await ready(resources, {
-      shells: ["mine", "away"],
-      cwds: { away: "/h/code" },
-      leads: { led: "lead" },
-    })
-    brief()
-    await expect(tour.fixer("away", "window")).rejects.toThrow(/isn't one of the tour's/)
-    await expect(tour.fixer("led", "window")).rejects.toThrow(/lead or a teammate/)
-    await expect(tour.fixer("lead", "window")).rejects.toThrow(/lead or a teammate/)
-    await expect(tour.fixer("busy", "window")).rejects.toThrow(DomainError)
-    expect(typed).toEqual([])
-    expect(adopted).toEqual([])
-  })
-
-  it("refuses a terminal that isn't a plain shell at its prompt", async ({ resources }) => {
-    const { tour, brief, typed } = await ready(resources, { shells: [] })
-    brief()
-    await expect(tour.fixer("mine", "window")).rejects.toThrow(/plain shell/)
-    expect(typed).toEqual([])
-  })
-
-  it("asks a shell still loading its profile nothing of its prompt until it has shown one", async ({
-    resources,
-  }) => {
-    let open = (): void => {}
-    const gate = new Promise<void>((resolve) => (open = resolve))
-    const shells: string[] = []
-    const { tour, brief, typed } = await ready(resources, { shells, gate })
-    brief()
-    const done = tour.fixer("mine", "window")
-    // Not refused for being busy meanwhile: it settles once its prompt is there.
-    shells.push("mine")
-    open()
-    await done
-    expect(typed.map(([id]) => id)).toEqual(["mine"])
-  })
-
-  it("answers a second call, while the first waits, as one to ask again, and a conflict once adopted", async ({
-    resources,
-  }) => {
-    let open = (): void => {}
-    const gate = new Promise<void>((resolve) => (open = resolve))
-    const { tour, brief } = await ready(resources, { shells: ["mine", "other"], gate })
-    brief()
-    const first = tour.fixer("mine", "window")
-    await expect(tour.fixer("other", "window")).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
-    open()
-    await first
-    await expect(tour.fixer("other", "window")).rejects.toMatchObject({ code: "CONFLICT" })
-  })
-
-  it("gives the claim back where the shell isn't plain once its prompt is there", async ({
-    resources,
-  }) => {
-    let open = (): void => {}
-    const gate = new Promise<void>((resolve) => (open = resolve))
-    const shells = ["mine", "next"]
-    const { tour, brief, typed } = await ready(resources, { shells, gate })
-    brief()
-    const first = tour.fixer("mine", "window")
-    // The person ran something in it meanwhile.
-    shells.splice(0, 1)
-    open()
-    await expect(first).rejects.toThrow(/plain shell/)
-    await tour.fixer("next", "window")
-    expect(typed.map(([id]) => id)).toEqual(["next"])
-  })
-
-  it("refuses a shell an agent has run in, before it waits for anything", async ({ resources }) => {
-    const { tour, brief, typed } = await ready(resources, { shells: ["mine"], ran: ["mine"] })
-    brief()
-    await expect(tour.fixer("mine", "window")).rejects.toThrow(/plain shell/)
-    expect(typed).toEqual([])
-  })
-
-  it("gives the run back where typing fails, so the person's next terminal can be taken", async ({
-    resources,
-  }) => {
-    const { tour, brief, typed, adopted } = await ready(resources, {
-      shells: ["mine", "next"],
-      failing: ["mine"],
-    })
-    brief()
-    await expect(tour.fixer("mine", "window")).rejects.toThrow(/closed/)
-    expect(adopted).toEqual([])
-    await tour.fixer("next", "window")
-    expect(typed.map(([id]) => id)).toEqual(["next"])
+    expect(tour.isTours("lead")).toBe(true)
+    expect(tour.openPolicy("lead").flags).toBeDefined()
+    await tour.keep()
+    expect(tour.isTours("lead")).toBe(false)
+    expect(tour.openPolicy("lead")).toEqual({})
+    const next = await tour.prepare("claude")
+    expect(next.directory).toBe(tourFolder(home, 2))
+    // The kept project is as the person left it.
+    expect(await readdir(tourFolder(home))).toContain("src")
   })
 })
 
 describe("nudging the tour's agent", () => {
-  it("rings it a fixed line to carry on from its step, in the tour's folder only", () => {
-    const notices: [string, string][] = []
-    const { tour } = tourIn("/h", {
-      notices,
+  it("rings it a fixed line to carry on from its step, in the tour's folder only", async ({
+    resources,
+  }) => {
+    const { tour, notices } = await readied(resources, {
       shown: ["lead", "elsewhere"],
       cwds: { elsewhere: "/h/code" },
     })
@@ -617,36 +833,20 @@ describe("nudging the tour's agent", () => {
   })
 })
 
-describe("a project's folder within the tour's", () => {
-  it("is the folder itself or one inside it, never one beside it", () => {
-    expect(withinFolder("/h/.novadeck/tour", "/h/.novadeck/tour", "linux")).toBe(true)
-    expect(withinFolder("/h/.novadeck/tour/site/", "/h/.novadeck/tour", "linux")).toBe(true)
-    expect(withinFolder("/h/.novadeck/tour-old", "/h/.novadeck/tour", "linux")).toBe(false)
-    expect(withinFolder("/h/.novadeck", "/h/.novadeck/tour", "linux")).toBe(false)
-  })
-
-  it("tells cases apart only where the file system does", () => {
-    expect(withinFolder("/h/.Novadeck/Tour", "/h/.novadeck/tour", "linux")).toBe(false)
-    expect(withinFolder("/h/.Novadeck/Tour", "/h/.novadeck/tour", "darwin")).toBe(true)
-    expect(
-      withinFolder("C:\\Users\\x\\.Novadeck\\TOUR", "c:/users/x/.novadeck/tour", "win32"),
-    ).toBe(true)
-  })
-})
-
 describe("the brief's wording", () => {
   it("keeps the nudge from making an agent redo a step", () => {
     expect(nudgeLine).toContain("Don't redo a step.")
   })
 
-  it("leaves the choice to the person, and says the second fixer joins", async ({ resources }) => {
+  it("leaves the choice to the person, and has the lead answer the artist", async ({
+    resources,
+  }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("Never answer a fixer's question to the person yourself")
-    expect(text).toMatch(/Never open a second\s+fixer yourself/)
-    expect(text).toContain("both bugs are fixed, each in its own worktree")
+    expect(text).toContain("Never answer a teammate's question to the person yourself")
+    expect(text).toContain("An agent that isn't your teammate asks about the game")
   })
 })
 
@@ -663,37 +863,37 @@ describe("what the folder's own instructions say", () => {
     }
     const note = await readFile(join(folder, "AGENTS.md"), "utf8")
     expect(note.replaceAll(/\s+/g, " ")).toContain("If you were given a task, do only that task.")
-    expect(note).toContain("run no shell command")
+    expect(note).toContain("Run no shell command.")
     expect(nudgeLine).toContain("tour brief Novadeck sent you")
-  })
-
-  it("has the brief tell the lead to run no shell and never edit, and each fixer never to open agents", async ({
-    resources,
-  }) => {
-    const home = await scratchHome(resources)
-    const { tour, brief } = tourIn(home)
-    await tour.prepare("claude")
-    const text = brief()
-    expect(text).toContain("Run no shell command at all")
-    expect(text).toContain("Never edit a file yourself")
-    expect(text).toContain("never call `open_agent`")
-    expect(text.match(/if\s+they're\s+deferred, load them first/g)?.length).toBe(2)
-    expect(text).toContain("don't explain,")
-    expect(secondFixerBrief("@moth")).toContain("if they're deferred, load them first")
   })
 })
 
 describe("what an agent's open_agent is subject to in the tour", () => {
-  it("refuses a teammate in the folder", () => {
-    const { tour } = tourIn("/h", { leads: { mate: "lead" } })
-    expect(tour.openPolicy("mate").refusal).toMatch(/only the tour's lead opens agents/)
+  it("refuses a teammate and the artist, who have no business opening agents", async ({
+    resources,
+  }) => {
+    const { tour, brief } = await readied(resources, {
+      shown: ["lead", "mine"],
+      leads: { mate: "lead" },
+    })
+    brief()
+    tour.artist("mine")
+    expect(tour.openPolicy("mate").refusal).toMatch(
+      /only the lead of Novadeck's tour opens agents/i,
+    )
+    expect(tour.openPolicy("mine").refusal).toMatch(
+      /only the lead of Novadeck's tour opens agents/i,
+    )
   })
 
-  it("starts the lead's agents with the tour's write flags, for each harness", () => {
-    const { tour } = tourIn("/h")
+  it("starts the lead's agents with the tour's write flags, for each harness", async ({
+    resources,
+  }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
     const policy = tour.openPolicy("lead")
     expect(policy.refusal).toBeUndefined()
-    const at = "/h/.novadeck/tour"
+    const at = tourFolder(home)
     expect(policy.flags?.("claude", at)).toEqual(["--permission-mode", "acceptEdits"])
     expect(policy.flags?.("codex", at)).toEqual([
       "--sandbox",
@@ -704,21 +904,37 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     expect(policy.flags?.("agy", at)).toEqual(["--mode", "accept-edits"])
   })
 
-  it("gives the lead's agents no write flags where they start outside the tour's folder", () => {
-    const { tour } = tourIn("/h")
+  it("gives the lead's agents no write flags where they start outside the tour's folder", async ({
+    resources,
+  }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
     const policy = tour.openPolicy("lead")
     expect(policy.flags?.("claude", "/h/code")).toEqual([])
-    expect(policy.flags?.("codex", "/h/.novadeck/tour/sub")).not.toEqual([])
+    expect(policy.flags?.("codex", join(tourFolder(home), "sub"))).not.toEqual([])
+  })
+
+  it("follows the run's folder, whichever of the tour's names it has", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    await mkdir(tourFolder(home), { recursive: true })
+    await writeFile(join(tourFolder(home), "mine.md"), "mine")
+    const second = tourFolder(home, 2)
+    const { tour } = tourIn(home, { cwds: { lead: second }, shown: ["lead"] })
+    await tour.prepare("claude")
+    tour.brief("lead")
+    expect(tour.isTours("lead")).toBe(true)
+    expect(tour.openPolicy("lead").flags).toBeDefined()
   })
 
   it.skipIf(process.platform === "win32")(
     "gives write flags to an agent that starts in the tour's folder by its real path, where the home is a link",
     async ({ resources }) => {
       const real = await scratchHome(resources)
-      await mkdir(join(real, ".novadeck", "tour"), { recursive: true })
       const linked = join(await scratchHome(resources), "home")
       await symlink(real, linked)
       const { tour } = tourIn(linked)
+      await tour.prepare("claude")
+      tour.brief("lead")
       const policy = tour.openPolicy("lead")
       expect(policy.flags?.("claude", join(real, ".novadeck", "tour"))).toEqual([
         "--permission-mode",
@@ -728,19 +944,25 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     },
   )
 
-  it("leaves a led terminal elsewhere, and a terminal the runner doesn't have, alone", () => {
-    const { tour } = tourIn("/h", {
-      leads: { mate: "lead", away: "lead" },
+  it("leaves a terminal elsewhere alone", async ({ resources }) => {
+    const { tour, brief } = await readied(resources, {
+      leads: { away: "lead" },
       cwds: { away: "/h/code" },
     })
+    brief()
     expect(tour.openPolicy("away")).toEqual({})
   })
 })
 
 describe("which terminals are the tour's", () => {
-  it("are those in its folder, and none the runner doesn't have", () => {
-    const { tour } = tourIn("/h", { cwds: { away: "/h/code" } })
+  it("are those in its folder, and none elsewhere", async ({ resources }) => {
+    const { tour } = await readied(resources, { cwds: { away: "/h/code" } })
     expect(tour.isTours("lead")).toBe(true)
     expect(tour.isTours("away")).toBe(false)
+  })
+
+  it("are none before a folder holds the marker", () => {
+    const { tour } = tourIn("/h")
+    expect(tour.isTours("lead")).toBe(false)
   })
 })

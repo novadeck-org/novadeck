@@ -1,6 +1,7 @@
 import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
+import { isOnBar } from "@novadeck/core/items"
 import type { AgentMode, Backend } from "@novadeck/core/port"
 import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
@@ -510,8 +511,25 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       {driver.closing && (
         <Suspense fallback={null}>
           <TourClosingCard
-            agent={driver.closing.agent}
             canRemove={tourProjectThere}
+            keepError={driver.closing.keepError}
+            onRetryKeep={driver.retryKeep}
+            onKeep={() => {
+              const closing = driver.closing
+              driver.close()
+              if (!closing) return
+              // Focus puts the agent's terminal and the live game side by side, where Canvas lays
+              // the page's pane over the terminal. Ignored where Focus isn't enabled.
+              commands.changeView("focus")
+              if (closing.projectId) commands.revealTerminal(closing.terminalId, closing.projectId)
+              else commands.reveal(closing.terminalId)
+              const page = workspaceStore
+                .getSnapshot()
+                .projects.flatMap((project) => project.history)
+                .flatMap(({ state }) => state.items)
+                .find((item) => item.kind === "page" && isOnBar(item, closing.terminalId))
+              if (page) commands.openBarTab(closing.terminalId, page.id)
+            }}
             {...(backend.pickDirectory && {
               onOpen: () => {
                 const closing = driver.closing

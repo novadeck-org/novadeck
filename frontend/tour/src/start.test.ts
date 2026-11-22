@@ -8,6 +8,7 @@ const run = (brief: TourRun["brief"]): TourRun => ({
   command: brief === "launch" ? 'claude --model haiku "Start"' : "agy --model flash",
   brief,
   removed: ["old"],
+  page: true,
 })
 
 // The effects, each recording what it was asked to do, in order.

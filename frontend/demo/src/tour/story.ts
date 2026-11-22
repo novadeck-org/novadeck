@@ -8,26 +8,59 @@ import { demoTourFolder, type DemoTour, type TourStage } from "../tour"
 import { demoRun } from "../tour-runs"
 import { planFile, worktreeRoot } from "../works"
 import { terminalOf } from "../workspace"
-import { moneyAnswers, moneyBranch, splitFile, tipBranch } from "./split"
+import {
+  branches,
+  configFile,
+  coverFile,
+  fixerChanges,
+  fixerDiffs,
+  heroFile,
+  heroOf,
+  modelOf,
+  pageContent,
+  readmeFile,
+  scoreFile,
+  serverCommand,
+  type Hero,
+} from "./content"
 
-// The rest of the tour's story, as a runner would report it once the lead described itself: it
-// opens a fixer for the first bug, which opens its worktree, edits split.js and reports; the
-// person opens a terminal and the tour hands it their own agent as the second fixer, which opens
-// its worktree and asks which way to show whole amounts; once answered it edits and reports; and
-// the lead says both are fixed. Every step reaches the UI as the real thing does: terminals the
-// lead leads, messages between them, an Inbox ask, works that change split.js.
+// The story of the tour, as a runner would report it once the lead described itself: the lead
+// opens a sculptor and a score fixer, asks to run the game's server and shows its page; the
+// sculptor shows its model and asks the person who the hero is, then sculpts it; the fixer fixes
+// the score and shows its changes; the lead names the game. An artist the tour starts on no team
+// asks the lead what the game is, and draws its cover (`artist.ts`). Every step reaches the UI as
+// the real thing does: terminals the lead leads, messages between them, an Inbox ask, works that
+// change files, items on the agents' bars, writes in the Files panel.
 
 // How long each step takes: short and fixed, so specs run fast. The person's answer, and their
-// terminal, wait as long as they take.
-export const tourStoryMs = { open: 300, bind: 300, work: 300, talk: 300, show: 400 } as const
+// yes to the command, wait as long as they take.
+export const tourStoryMs = {
+  open: 300,
+  bind: 300,
+  work: 300,
+  talk: 300,
+  show: 400,
+  // How long after its team is opened the lead asks to run the server: the team step's line has
+  // its moment first (it holds 3 s once both teammates are named).
+  serve: 3_800,
+} as const
 
-export const tipFixerName = "Tip fixer"
-export const moneyFixerName = "Money fixer"
+export const sculptorName = "Sculptor"
+export const fixerName = "Score fixer"
+export const artistName = "Cover artist"
+export const serverName = "Game server"
 
-export const moneySubject = "Whole amounts: $12.00 or $12?"
+export const heroSubject = "Who is your game's hero?"
+export const heroOptions = ["A rocket", "A robot", "A cat"] as const
 
-export const fixedTip = "Fixed bug 1."
-export const fixedMoney = "Fixed bug 2."
+export const heroTold = (hero: Hero): string => `The hero is ${hero.name}.`
+export const heroSculpted = "Hero sculpted."
+export const scoreFixed = "Score fixed."
+export const coverAsk =
+  "I'm drawing the cover for your game. What is it called, and who is its hero?"
+export const coverTold = `The cover is done: ${coverFile} in my worktree.`
+export const coverAnswer = (hero: Hero): string =>
+  `It's "${hero.title}", and its hero is ${hero.name}. Its picture belongs in ${coverFile}.`
 
 const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
   projectId,
@@ -50,12 +83,21 @@ export const openedTeammate = (
   terminal: { ...terminal, ledBy: lead, openedBy: lead },
 })
 
-// A terminal the person opened, taken by the tour as the lead's second fixer: led by it from now.
-export const adoptedTeammate = (key: TerminalKey, lead: string): BackendAction => ({
-  type: "terminal/update",
+// A terminal the lead opened with `open_terminal`: its own, led by no one, titled by the lead.
+export const openedShell = (
+  key: TerminalKey,
+  terminal: TerminalMetadata,
+  lead: string,
+  by: string,
+): BackendAction => ({
+  type: "terminal/add",
   target: target(key),
-  terminalId: key.terminalId,
-  ledBy: lead,
+  terminal: {
+    ...terminal,
+    name: serverName,
+    titleSource: { kind: "agent", by },
+    openedBy: lead,
+  },
 })
 
 // An agent's describe: its terminal takes the name, as the agent's own, by its handle.
@@ -67,9 +109,9 @@ export const namedAs = (key: TerminalKey, name: string, by: string): BackendActi
   titleSource: { kind: "agent", by },
 })
 
-// The second fixer's ask, as the runner's `ask` makes its row: options A and B, from its
-// terminal, the agent working on meanwhile.
-export const moneyAsk = (
+// The sculptor's ask, as the runner's `ask` makes its row: three options, from its terminal, the
+// agent working on meanwhile.
+export const heroAsk = (
   key: TerminalKey,
   terminal: TerminalMetadata,
   harness: AgentName,
@@ -91,36 +133,36 @@ export const moneyAsk = (
   stopped: false,
   seen: false,
   ask: {
-    subject: moneySubject,
-    body: "money() shows $12.5 for 12.50, and for a whole amount it would show $12.0. Which should it show for $12?",
+    subject: heroSubject,
+    body: "I'll sculpt it in 3D out of simple shapes. Pick one, or type anything you like.",
     details: null,
     hardToUndo: null,
     shape: {
       type: "options",
-      options: moneyAnswers.map(({ label, summary }) => ({
-        label,
-        summary,
-        details: null,
-        code: null,
-      })),
-      recommend: 0,
+      options: heroOptions.map((label) => ({ label, summary: null, details: null, code: null })),
+      recommend: null,
     },
   },
 })
 
-// The answer picking option `option`, as the Inbox sends it.
-export const pickMoney = (option: number): InboxAnswer => ({
+// The answer picking option `option`, or giving the person's own words, as the Inbox sends it.
+export const pickHero = (answer: number | string): InboxAnswer => ({
   kind: "ask",
-  answer: { type: "reply", option, text: "" },
+  answer:
+    typeof answer === "number"
+      ? { type: "reply", option: answer, text: "" }
+      : { type: "reply", option: null, text: answer },
 })
 
-// The option an answer chose, by index (the person's own words win in the real agent; here they
-// pick the first); an ask that ended unanswered (dismissed, withdrawn) is the first.
-export const chosenMoney = (answer: InboxAnswer | undefined): number => {
+// The hero an answer names: the option picked, or the person's own words. An ask that ended
+// unanswered (dismissed, withdrawn) leaves the first option.
+export const chosenHero = (answer: InboxAnswer | undefined): Hero => {
   const reply = answer?.kind === "ask" && answer.answer.type === "reply" ? answer.answer : undefined
-  return reply?.option !== null && reply?.option !== undefined && moneyAnswers[reply.option]
-    ? reply.option
-    : 0
+  const option = reply?.option
+  if (option !== null && option !== undefined && heroOptions[option])
+    return heroOf(heroOptions[option])
+  const own = reply?.text.trim()
+  return heroOf(own || heroOptions[0])
 }
 
 type Story = {
@@ -132,16 +174,20 @@ type Story = {
   readonly stage: TourStage
   // The lead's terminal as the workspace holds it now; none once it's closed.
   readonly terminal: () => TerminalMetadata | undefined
-  // The lead opens its fixer only once nudged again.
+  // The lead opens its team only once nudged again.
   readonly quietTeam: boolean
-  // Ends the lead's turn once both fixes are reported.
+  // The sculptor does nothing, once it is there, until nudged.
+  readonly quietSculptor: boolean
+  // There is no page: this computer has neither Node nor Python.
+  readonly noPage: boolean
+  // Ends the lead's turn once both teammates have reported.
   readonly finish: () => void
 }
 
 const handleOf = (found: TerminalMetadata | undefined, fallback: string) =>
   found?.handle ?? fallback
 
-type Teammate = {
+export type Teammate = {
   readonly key: TerminalKey
   readonly handle: string
   readonly harness: AgentName
@@ -157,6 +203,8 @@ export const playTourStory = ({
   stage,
   terminal,
   quietTeam,
+  quietSculptor,
+  noPage,
   finish,
 }: Story): (() => void) => {
   const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -187,14 +235,14 @@ export const playTourStory = ({
     if (!sent && then) later(tourStoryMs.talk, then)
   }
 
-  // Each fixer's report the lead heard: once both are in, it says so and finishes its turn.
+  // Each teammate's report the lead heard: once both are in, it ends its turn.
   const reported = new Set<string>()
   const reports = (mate: Teammate) => {
     reported.add(mate.key.terminalId)
     if (reported.size >= 2) later(tourStoryMs.show, finish)
   }
 
-  // A fixer binds, works and names itself, then goes on with `named`.
+  // A teammate binds, works and names itself, then goes on with `named`.
   const settle = (mate: Teammate, name: string, named: () => void) => {
     stage.messages?.join(sessionTarget, { terminalId: mate.key.terminalId, handle: mate.handle })
     later(tourStoryMs.bind, () => {
@@ -208,7 +256,7 @@ export const playTourStory = ({
     })
   }
 
-  // The fixer opens its worktree (`open_worktree`) on `branch`.
+  // The teammate opens its worktree (`open_worktree`) on `branch`.
   const worktree = (mate: Teammate, branch: string) =>
     stage.works?.openBranch(
       {
@@ -218,53 +266,66 @@ export const playTourStory = ({
       },
       branch,
     )
-  // It edits split.js there, `lines` added and one removed.
-  const edit = (mate: Teammate, lines: number) =>
-    stage.works?.setFiles(mate.key.terminalId, [planFile(splitFile, lines, 1)], Date.now())
+  // It writes `files` there: the work changes exactly these, and the Files panel shows each as
+  // the agent writes it, its cursor on the last.
+  const write = (
+    mate: Teammate,
+    files: readonly {
+      readonly path: string
+      readonly added: number
+      readonly removed: number
+      readonly status?: "added"
+    }[],
+  ) => {
+    stage.works?.setFiles(
+      mate.key.terminalId,
+      files.map(({ path, added, removed, status }) =>
+        planFile(path, added, removed, status ? { status } : {}),
+      ),
+      Date.now(),
+    )
+    for (const file of files) stage.files?.write(mate.handle, file.path, file.status ?? "modified")
+  }
   // It tells the lead, and its turn ends.
-  const report = (mate: Teammate, text: string) => {
+  const report = (mate: Teammate, text: string, counted = true) => {
     say(mate, text)
+    stage.files?.end(mate.handle)
     turns.as(mate.harness).finish(mate.key, current(mate.key), "completed", {
       after: tourStoryMs.talk,
       reply: text,
     })
-    later(tourStoryMs.talk, () => reports(mate))
+    if (counted) later(tourStoryMs.talk, () => reports(mate))
   }
 
-  // The lead opens the first fixer: a terminal it leads, with a handle at once, which binds,
-  // works, names itself, opens its worktree, edits and reports.
-  const hire = () => {
+  // The lead opens a teammate: a terminal it leads, with a handle at once.
+  const hire = (fallback: string): Teammate | undefined => {
     const found = lead()
-    if (!found) return
-    // On the lead's own harness, as the second fixer, the person's own agent, is.
-    const at = harness
+    if (!found) return undefined
     const base = stage.newTerminal({
       target: sessionTarget,
       directory: demoTourFolder,
-      launch: { command: teammateCommand(at) },
+      launch: { command: teammateCommand(harness) },
     })
     const mate: Teammate = {
       key: { ...sessionTarget, terminalId: base.id },
-      handle: handleOf(base, "tipfixer"),
-      harness: at,
+      handle: handleOf(base, fallback),
+      harness,
     }
     dispatch([openedTeammate(mate.key, base, found.id)])
-    settle(mate, tipFixerName, () => {
-      worktree(mate, tipBranch)
-      later(tourStoryMs.work, () => {
-        edit(mate, 1)
-        report(mate, fixedTip)
-      })
-    })
+    return mate
   }
 
-  // The second fixer's ask waits for the person's answer, as long as it takes, then it edits the
-  // way they chose and reports.
-  const asked = (mate: Teammate) => {
+  // The hero the person chose, once they did.
+  let hero: Hero | undefined
+
+  // The sculptor's ask waits for the person's answer, as long as it takes; then the sculptor
+  // tells the lead who the hero is, the lead names the game in its own worktree, and the sculptor
+  // sculpts the model, which the open pane shows anew.
+  const asked = (mate: Teammate, modelId: string) => {
     const writer = current(mate.key)
     if (!lead() || !writer) return
     const project = stage.workspace()?.projects.find(({ id }) => id === key.projectId)
-    const row = moneyAsk(mate.key, writer, mate.harness, project?.name ?? "", Date.now())
+    const row = heroAsk(mate.key, writer, mate.harness, project?.name ?? "", Date.now())
     let seen = false
     let ended = false
     const end = () => {
@@ -274,11 +335,13 @@ export const playTourStory = ({
       stops.delete(stop)
       stopAnswer()
       stops.delete(stopAnswer)
-      const option = chosenMoney(stage.answeredWith(row.id))
-      stage.picked(option)
+      const chosen = chosenHero(stage.answeredWith(row.id))
+      hero = chosen
+      stage.chose(chosen)
+      say(mate, heroTold(chosen))
       later(tourStoryMs.talk, () => {
-        edit(mate, moneyAnswers[option]?.lines.length ?? 1)
-        report(mate, fixedMoney)
+        sculpt(mate, modelId, chosen)
+        named(chosen)
       })
     }
     const check = () => {
@@ -292,7 +355,7 @@ export const playTourStory = ({
       if (seen || held?.settled) end()
     }
     const stop = stage.inbox?.state.subscribe(check) ?? (() => {})
-    const stopAnswer = tour.money((option) => stage.answerRow(row.id, pickMoney(option)))
+    const stopAnswer = tour.hero((answer) => stage.answerRow(row.id, pickHero(answer)))
     stops.add(stop)
     stops.add(stopAnswer)
     if (!stage.inbox) return later(tourStoryMs.talk, end)
@@ -300,25 +363,87 @@ export const playTourStory = ({
     check()
   }
 
-  // The tour hands the shell the person opened their own agent: led by the lead from now, it
-  // binds, works, names itself, opens its worktree and asks.
-  let adopted = false
-  const adopt = (terminalId: string) => {
+  // The sculptor rewrites hero.gltf in its worktree, and tells the lead.
+  const sculpt = (mate: Teammate, modelId: string, chosen: Hero) => {
+    write(mate, [{ path: heroFile, added: 38, removed: 12 }])
+    stage.update(modelId, modelOf(chosen, "2"))
+    later(tourStoryMs.work, () => report(mate, heroSculpted))
+  }
+
+  // The lead opens its worktree and names the game in src/config.js.
+  const named = (chosen: Hero) => {
     const found = lead()
-    const shell = current({ ...sessionTarget, terminalId })
-    if (!found || !shell || adopted) return
-    if (shell.directory !== demoTourFolder || shell.ledBy) return
-    if (shell.state === "running" && shell.agent) return
-    adopted = true
-    const mate: Teammate = {
-      key: { ...sessionTarget, terminalId },
-      handle: handleOf(shell, "moneyfixer"),
-      harness,
-    }
-    dispatch([adoptedTeammate(mate.key, found.id)])
-    settle(mate, moneyFixerName, () => {
-      worktree(mate, moneyBranch)
-      later(tourStoryMs.work, () => asked(mate))
+    if (!found) return
+    const mate: Teammate = { key, handle: handleOf(found, harness), harness }
+    later(tourStoryMs.work, () => {
+      worktree(mate, branches.lead)
+      later(tourStoryMs.work, () => {
+        write(mate, [{ path: configFile, added: 8, removed: 8 }])
+        stage.page(key, pageContent(chosen, 2))
+        later(tourStoryMs.talk, () => stage.files?.end(mate.handle))
+      })
+    })
+  }
+
+  // The sculptor binds, names itself, opens its worktree, shows its model and asks.
+  const sculptor = (mate: Teammate) =>
+    settle(mate, sculptorName, () => {
+      worktree(mate, branches.sculptor)
+      later(tourStoryMs.work, () => {
+        const model = modelOf(undefined, "1")
+        const id = stage.show(mate.key, {
+          kind: "model",
+          name: "hero.gltf",
+          detail: "glTF, 3 kB",
+          path: `${worktreeRoot("tour", branches.sculptor)}/${heroFile}`,
+          url: null,
+          content: model.content,
+          bytes: model.bytes,
+        })
+        later(tourStoryMs.show, () => asked(mate, id))
+      })
+    })
+
+  // The fixer binds, names itself, opens its worktree, fixes the score, shows its changes and
+  // reports.
+  const fixer = (mate: Teammate) =>
+    settle(mate, fixerName, () => {
+      worktree(mate, branches.fixer)
+      later(tourStoryMs.work, () => {
+        write(mate, [
+          { path: scoreFile, added: 1, removed: 4 },
+          { path: readmeFile, added: 0, removed: 4 },
+        ])
+        later(tourStoryMs.show, () => {
+          const root = worktreeRoot("tour", branches.fixer)
+          stage.show(mate.key, {
+            kind: "changes",
+            name: "fix-score",
+            detail: "2 files · +1 −8",
+            path: root,
+            url: null,
+            content: { state: "ready", stamp: "1", content: fixerChanges(root) },
+            diffs: fixerDiffs,
+          })
+          report(mate, scoreFixed)
+        })
+      })
+    })
+
+  // The lead asks to run the game's server in a new terminal, which waits on the person's yes;
+  // allowed, a terminal of its own opens and the lead shows the game's page.
+  const serve = () => {
+    const found = lead()
+    if (!found) return
+    void stage.approve(key, serverCommand, demoTourFolder).then((approved) => {
+      if (over || !approved || !lead()) return
+      const base = stage.newTerminal({
+        target: sessionTarget,
+        directory: demoTourFolder,
+        title: serverName,
+      })
+      dispatch([openedShell(key, base, found.id, handleOf(found, harness))])
+      later(tourStoryMs.show, () => stage.page(key, pageContent(undefined, 1)))
     })
   }
 
@@ -329,16 +454,51 @@ export const playTourStory = ({
       terminalId: key.terminalId,
       handle: handleOf(found, harness),
     })
-    stops.add(tour.onFixer(adopt))
-    later(tourStoryMs.open, hire)
+    later(tourStoryMs.open, () => {
+      const first = hire("sculptor")
+      if (first && quietSculptor) {
+        // Held at its prompt, no turn begun, until the tour nudges (the lead, which the tour
+        // can't tell from it, or the teammate itself).
+        const before = nudged(first.key.terminalId)
+        const wake = () => {
+          if (nudged(first.key.terminalId) <= before) return
+          stop()
+          stops.delete(stop)
+          sculptor(first)
+        }
+        const stop = tour.nudged.subscribe(wake)
+        stops.add(stop)
+        turns.as(first.harness).rest(first.key, current(first.key))
+        stage.messages?.join(sessionTarget, {
+          terminalId: first.key.terminalId,
+          handle: first.handle,
+        })
+      } else if (first) sculptor(first)
+      later(tourStoryMs.open, () => {
+        const second = hire("fixer")
+        if (second) fixer(second)
+        if (!noPage) later(tourStoryMs.serve, serve)
+        // Its steps so far done, the lead ends its turn: its team is at work, and each message
+        // that comes back wakes it. A lead at rest is what the tour's wait on it counts.
+        later(tourStoryMs.show, () =>
+          turns.as(harness).finish(key, terminal(), "completed", {
+            after: tourStoryMs.talk,
+            reply: "My team is at work.",
+          }),
+        )
+      })
+    })
   }
 
-  // A lead told to wait opens its fixer only once nudged again after the point it's at now.
-  const nudges = () => tour.nudged.getSnapshot().filter((id) => id === key.terminalId).length
+  // Nudges the tour rang a terminal (or the lead, which stands for a teammate it can't name yet).
+  const nudged = (terminalId: string) =>
+    tour.nudged.getSnapshot().filter((id) => id === terminalId || id === key.terminalId).length
+
+  // A lead told to wait opens its team only once nudged again after the point it's at now.
   if (quietTeam) {
-    const before = nudges()
+    const before = nudged(key.terminalId)
     const wake = () => {
-      if (nudges() <= before) return
+      if (nudged(key.terminalId) <= before) return
       stop()
       stops.delete(stop)
       begin()
@@ -346,6 +506,28 @@ export const playTourStory = ({
     const stop = tour.nudged.subscribe(wake)
     stops.add(stop)
   } else begin()
+
+  // The artist's question, which the lead answers once it knows the hero.
+  stops.add(
+    stage.onArtistAsk((artist) => {
+      const answer = () => {
+        if (!hero) return later(tourStoryMs.talk, answer)
+        const found = lead()
+        if (!found) return
+        const told = () => stage.artistAnswered(artist, hero!)
+        const sent = stage.messages?.send(
+          sessionTarget,
+          handleOf(found, harness),
+          artist.handle,
+          coverAnswer(hero),
+          told,
+          told,
+        )
+        if (!sent) later(tourStoryMs.talk, told)
+      }
+      later(tourStoryMs.talk, answer)
+    }),
+  )
 
   return () => {
     over = true

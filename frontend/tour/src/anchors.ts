@@ -1,4 +1,4 @@
-import { tourFile } from "./signals"
+import type { PaneTab, TourRole, TourSignals } from "./signals"
 import type { TourTarget } from "./steps"
 
 const area = (): Element | null => document.querySelector("[data-workspace-area]")
@@ -21,50 +21,76 @@ const first = (root: ParentNode | null | undefined, selector: string): HTMLEleme
   return found ? [found] : []
 }
 
-// What the targets are read against: the tour's lead, the terminal the coach names, the Inbox row
-// of the team's question waiting now, and the window that shows the merged preview of the tour's
-// file.
+// What the targets are read against: the terminals of the roles found, the terminal the coach
+// names (the lead's where it names none), the teammates' terminals, and the Inbox row of the
+// team's question waiting now.
 export type TargetsOf = {
-  readonly lead: string
+  readonly roles: TourSignals["roles"]
   readonly terminalId: string
+  readonly team: readonly string[]
   readonly askingRow: string | null
-  readonly previewWindow: string | null
+  // What each role's pane shows now.
+  readonly open: TourSignals["open"]
+  // The tab a pane target is about.
+  readonly tab?: PaneTab | undefined
 }
 
+// A terminal's window where it is drawn, as a list of what to mark.
+const windowOf = (id: string | undefined): HTMLElement[] => {
+  const element = id === undefined ? null : terminalElement(id)
+  return element && drawn(element) ? [element] : []
+}
+
+// A terminal's companion pane, only while the step's tab is its open, top one: before that
+// there is nothing to look at, and nothing is marked.
+const paneOf = (
+  id: string | undefined,
+  shows: PaneTab | null | undefined,
+  tab: PaneTab | undefined,
+): HTMLElement[] =>
+  id === undefined || tab === undefined || shows !== tab
+    ? []
+    : first(area(), `[data-companion-of="${CSS.escape(id)}"]`)
+
 /**
- * The elements a target names now, as drawn: none where the view hides them. `lead` is the
- * tour's lead terminal and `terminal` the one the coach names (the lead's where it names none);
- * `team` every other window of the tour; `new-terminal` the sidebar's New terminal button;
- * `asking-row` the Inbox row of the team's question; `answers` the answers of the request sheet
- * open now; `file-row` the tour's file in the Files panel; `preview` the window that shows its
- * merged preview.
+ * The elements a target names now, as drawn: none where the view hides them. A role names its
+ * terminal's window (`lead`, `sculptor`, `fixer`, `artist`) or, with `-pane`, its companion pane;
+ * `terminal` the one the coach names (the lead's where it names none); `team` the windows of the
+ * lead's teammates, not the terminals it opened for the game's server; `approve` the approval
+ * dialog's button to allow; `asking-row` the Inbox row of the team's question; `answers` the
+ * answers of the request sheet open now; `files` the Files panel.
  */
 export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElement[] => {
-  const { lead, terminalId, askingRow, previewWindow } = where
+  const { roles, terminalId, team, askingRow, open, tab } = where
   switch (target) {
     case "lead":
-    case "terminal": {
-      const element = terminalElement(target === "lead" ? lead : terminalId)
-      return element && drawn(element) ? [element] : []
-    }
-    case "team":
-      return [...(area()?.querySelectorAll<HTMLElement>(windowSelector) ?? [])].filter(
-        (element) => element.dataset.terminal !== lead && drawn(element),
+    case "sculptor":
+    case "fixer":
+    case "artist":
+      return windowOf(roles[target])
+    case "lead-pane":
+    case "sculptor-pane":
+    case "fixer-pane":
+    case "artist-pane":
+      return paneOf(
+        roles[target.slice(0, -"-pane".length) as TourRole],
+        open[target.slice(0, -"-pane".length) as TourRole],
+        tab,
       )
-    case "new-terminal":
-      return first(document, "[data-terminals-create]")
+    case "terminal":
+      return windowOf(terminalId)
+    case "team":
+      return team.flatMap(windowOf)
+    case "approve":
+      return first(document, '[role="alertdialog"] button.button.primary')
     case "asking-row":
       return askingRow
         ? first(document, `[data-tour="inbox-card"][data-inbox-row="${CSS.escape(askingRow)}"]`)
         : []
     case "answers":
       return first(document, '[role="dialog"] [role="group"]:has(button)')
-    case "file-row":
-      return first(document, `[role="treeitem"][data-path="${CSS.escape(tourFile)}"]`)
-    case "preview": {
-      const element = previewWindow ? terminalElement(previewWindow) : null
-      return element && drawn(element) ? [element] : []
-    }
+    case "files":
+      return first(document, "#files-panel")
   }
 }
 

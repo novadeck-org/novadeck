@@ -42,12 +42,16 @@ const clamp = (value: number, low: number, high: number): number =>
  * - else the free spot of the area nearest it (with no subject, the lowest), as a Grid's empty
  *   cell, or beside the sidebar where it points into it;
  * - else docked at the foot of the area, in its middle, as in a Grid with no cell free.
+ * A modal dialog (`dialogs`) is an obstacle that holds for every step, even one whose box may lie
+ * over windows: the box keeps clear of it wherever any free space fits, and otherwise goes to the
+ * area's bottom centre rather than over it.
  */
 export const placeBox = (
   subject: Box | null,
   card: Size,
   area: Box,
   windows: readonly Box[],
+  dialogs: readonly Box[] = [],
 ): { readonly left: number; readonly top: number } => {
   const fit = (left: number, top: number) => ({
     left: clamp(left, area.left + margin, area.left + area.width - card.width - margin),
@@ -55,6 +59,7 @@ export const placeBox = (
   })
   const free = (place: { left: number; top: number }): boolean =>
     !windows.some((window) => overlaps({ ...place, ...card }, window)) &&
+    !dialogs.some((dialog) => overlaps({ ...place, ...card }, dialog)) &&
     !(subject && overlaps({ ...place, ...card }, subject))
   if (subject) {
     const right = subject.left + subject.width

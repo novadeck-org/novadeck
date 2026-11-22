@@ -14,6 +14,7 @@ import {
   logArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
+  tourArgumentPrefix,
   voiceEngineArgumentPrefix,
   voiceSourceArgumentPrefix,
   type RunnerCommand,
@@ -124,6 +125,8 @@ export const startRunner = (options: {
   entry: string
   database: string
   relay: string
+  /** Where the tour's seed project and libraries are (`tourAssets`), as JSON. */
+  tour: string
   /** The voice engine's manifest and where its archive is downloaded from. */
   engine: string
   source: string
@@ -162,6 +165,7 @@ export const startRunner = (options: {
       [
         `${databaseArgumentPrefix}${options.database}`,
         `${relayArgumentPrefix}${options.relay}`,
+        `${tourArgumentPrefix}${options.tour}`,
         `${voiceEngineArgumentPrefix}${options.engine}`,
         `${voiceSourceArgumentPrefix}${options.source}`,
         `${murmurEngineArgumentPrefix}${options.murmurEngine}`,

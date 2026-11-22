@@ -371,7 +371,7 @@ export const closeRefusal =
 // at the root `Placed` names; one that has works changes its first.
 export type DemoWorksControl = {
   readonly gain: (at: Placed, lines?: number) => void
-  // The terminal's worktree on `branch`, just made (the tour's fixers open theirs so): it differs
+  // The terminal's worktree on `branch`, just made (the tour's teammates open theirs so): it differs
   // from nothing; none is made where the terminal has one.
   readonly openBranch: (at: Placed, branch: string) => void
   // The terminal's work changes exactly these files, as of `at`: what an agent's edit leaves.

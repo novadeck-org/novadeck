@@ -244,12 +244,14 @@ export type TerminalMoveUndo = {
 // once the agent shows in its terminal, which the UI asks for with `Tour.brief` (`doorbell`).
 // `model` is the one the agent starts on, where one was picked. `removed` are the projects that
 // were open at the folder, which the backend removed, terminals and all, before emptying it.
+// `page` is whether the lead will run the game's dev server and show its page.
 export type TourRun = {
   readonly directory: string
   readonly command: string
   readonly brief: "launch" | "doorbell"
   readonly model?: string | undefined
   readonly removed: readonly string[]
+  readonly page: boolean
 }
 
 // Why a run of the tour can't start where the agent has to start first, as Codex does before
@@ -273,10 +275,12 @@ export type Tour = {
   // Optional. Rings the tour's agent in the terminal a nudge to carry on with its brief, as
   // Novadeck's notice, where it has gone quiet; for the tour's own terminals only.
   readonly nudge?: (terminalId: string) => Promise<void>
-  // Optional. Takes a terminal the person opened in the tour's project, a shell with no agent
-  // in it yet, as the tour's second fixer: the backend starts the run's agent there, led by the
-  // tour's lead, and rings it its brief once it shows. A backend without it has no such step.
-  readonly fixer?: (terminalId: string) => Promise<void>
+  // Optional. Rings the artist's brief to the agent in the terminal the UI opened in the tour's
+  // project, an agent on no team, once it shows there. A backend without it has no artist.
+  readonly artist?: (terminalId: string) => Promise<void>
+  // Optional. The person keeps the tour's project: it stops being the tour's, so nothing of the
+  // tour's rules applies to it and no later run touches it, and the lead is told.
+  readonly keep?: () => Promise<void>
   // Optional. How long the tour waits on its agent at a step before nudging it, in ms; the UI's
   // own wait when absent. The demo shortens it for specs.
   readonly patienceMs?: number

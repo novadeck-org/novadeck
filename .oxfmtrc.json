@@ -5,5 +5,12 @@
   "singleQuote": false,
   "sortImports": true,
   "sortPackageJson": true,
-  "ignorePatterns": ["out", "release", "storybook-static", "coverage", "pnpm-lock.yaml"]
+  "ignorePatterns": [
+    "out",
+    "release",
+    "storybook-static",
+    "coverage",
+    "pnpm-lock.yaml",
+    "backend/runner/assets/tour/seed"
+  ]
 }

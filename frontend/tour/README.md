@@ -9,8 +9,7 @@ the workspace's signals and plays its steps, and what it draws over the workspac
 
 - **It depends on `core` and the toolkit, and on no other frontend package.** The app hands it
   what it needs once, at `TourProvider`, as a `TourHost` (`src/tour-host.ts`): the backend's tour, the
-  workspace, the app's hook for reading it, the files the person has open as a merged preview,
-  and the commands that move the view as the person's would. `scripts/workspace/graph.test.ts` holds it off the UI, the chat, the items package, every
+  workspace, and the commands that move the view as the person's would. `scripts/workspace/graph.test.ts` holds it off the UI, the chat, the items package, every
   backend and every harness.
 - **Its look is its own.** The tour is meant to stand apart from the app, so what it draws over
   the workspace (`print.css`) takes no colour from the app's themes: Nyx's caption box from the

@@ -1009,12 +1009,17 @@ export const contract = {
     // with its brief from the step it is on, where it has gone quiet. A terminal elsewhere, or
     // whose agent hasn't shown yet, is a CONFLICT.
     nudge: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
-    // Takes a terminal the person opened in the tour's project, a shell with no agent in it, as
-    // the tour's second fixer: starts the run's agent there on the tour's model with the tour's
-    // write flags, led by the tour's lead, and rings it its brief once it shows (as `brief`
-    // does). A terminal outside the tour's folder, one that already runs something, or a run
-    // that already has its second fixer is a CONFLICT.
-    fixer: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // Rings the agent in a terminal of the tour's folder the artist's brief, as `brief` rings
+    // the lead's: the artist is an agent on no team, started by the tour beside the others.
+    // As `brief`, a terminal elsewhere or whose agent hasn't shown yet is a CONFLICT; so is no
+    // run, no lead yet, a terminal that is the lead or has one, or a run whose artist is
+    // another terminal. Asking again for the same terminal rings nothing twice.
+    artist: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // The person keeps the project: its folder stops being the tour's (the marker goes, the
+    // project's own AGENTS.md replaces the sandbox's rules, the tour's Claude Code settings
+    // go), its lead is told, and the run is forgotten. A later run starts in another folder.
+    // No run is a CONFLICT.
+    keep: procedure.input(z.void()).output(z.void()),
   },
 }
 

@@ -1,0 +1,19 @@
+{
+  "asset": {"version":"2.0"},
+  "buffers": [{"uri":"shapes.bin","byteLength":22416}],
+  "bufferViews": [{"buffer":0,"byteOffset":0,"byteLength":288,"target":34962},{"buffer":0,"byteOffset":288,"byteLength":288,"target":34962},{"buffer":0,"byteOffset":576,"byteLength":72,"target":34963},{"buffer":0,"byteOffset":648,"byteLength":5100,"target":34962},{"buffer":0,"byteOffset":5748,"byteLength":5100,"target":34962},{"buffer":0,"byteOffset":10848,"byteLength":4608,"target":34963},{"buffer":0,"byteOffset":15456,"byteLength":1200,"target":34962},{"buffer":0,"byteOffset":16656,"byteLength":1200,"target":34962},{"buffer":0,"byteOffset":17856,"byteLength":576,"target":34963},{"buffer":0,"byteOffset":18432,"byteLength":1608,"target":34962},{"buffer":0,"byteOffset":20040,"byteLength":1608,"target":34962},{"buffer":0,"byteOffset":21648,"byteLength":768,"target":34963}],
+  "accessors": [{"bufferView":0,"componentType":5126,"count":24,"type":"VEC3","min":[-0.5,-0.5,-0.5],"max":[0.5,0.5,0.5]},{"bufferView":1,"componentType":5126,"count":24,"type":"VEC3"},{"bufferView":2,"componentType":5123,"count":36,"type":"SCALAR"},{"bufferView":3,"componentType":5126,"count":425,"type":"VEC3","min":[-0.5,-0.5,-0.5],"max":[0.5,0.5,0.5]},{"bufferView":4,"componentType":5126,"count":425,"type":"VEC3"},{"bufferView":5,"componentType":5123,"count":2304,"type":"SCALAR"},{"bufferView":6,"componentType":5126,"count":100,"type":"VEC3","min":[-0.5,-0.5,-0.5],"max":[0.5,0.5,0.5]},{"bufferView":7,"componentType":5126,"count":100,"type":"VEC3"},{"bufferView":8,"componentType":5123,"count":288,"type":"SCALAR"},{"bufferView":9,"componentType":5126,"count":134,"type":"VEC3","min":[-0.5,-0.5,-0.5],"max":[0.5,0.5,0.5]},{"bufferView":10,"componentType":5126,"count":134,"type":"VEC3"},{"bufferView":11,"componentType":5123,"count":384,"type":"SCALAR"}],
+  "scene": 0,
+  "materials": [
+    {"name":"grey","pbrMetallicRoughness":{"baseColorFactor":[0.6,0.6,0.6,1],"metallicFactor":0,"roughnessFactor":0.8}}
+  ],
+  "meshes": [
+    {"name":"grey box","primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":2,"material":0}]},
+    {"name":"grey sphere","primitives":[{"attributes":{"POSITION":3,"NORMAL":4},"indices":5,"material":0}]}
+  ],
+  "nodes": [
+    {"name":"cube","mesh":0,"translation":[-0.7,0.5,0]},
+    {"name":"ball","mesh":1,"translation":[0.7,0.5,0]}
+  ],
+  "scenes": [{"nodes":[0,1]}]
+}

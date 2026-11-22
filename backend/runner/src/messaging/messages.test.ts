@@ -9,12 +9,12 @@ import {
   freshId,
   holdOf,
   maxDeliveryBytes,
-  isFixerBrief,
+  isArtistBrief,
   isTourBrief,
   novadeckSender,
   threadBetween,
   tourBriefMark,
-  tourFixerMark,
+  tourArtistMark,
   threadMs,
   waiting,
   markLength,
@@ -411,22 +411,22 @@ describe("person and lead delivery boundaries", () => {
   })
 })
 
-describe("the tour's brief to its second fixer", () => {
-  const fixerBrief = (from = novadeckSender): Message =>
-    message({ from, text: `${tourFixerMark} Step 1.` })
+describe("the tour's brief to its artist", () => {
+  const artistBrief = (from = novadeckSender): Message =>
+    message({ from, text: `${tourArtistMark} Step 1.` })
 
   it("is only Novadeck's own notice, and no lead's brief", () => {
-    expect(isFixerBrief(fixerBrief())).toBe(true)
-    expect(isFixerBrief(fixerBrief(message().from))).toBe(false)
-    expect(isTourBrief(fixerBrief())).toBe(false)
+    expect(isArtistBrief(artistBrief())).toBe(true)
+    expect(isArtistBrief(artistBrief(message().from))).toBe(false)
+    expect(isTourBrief(artistBrief())).toBe(false)
   })
 
-  it("is framed as the agent's task, as a fixer's", () => {
-    const wrapped = wrap([fixerBrief()], () => false, "MARK")
-    expect(wrapped).toContain("brief for you, a fixer")
+  it("is framed as the agent's task, as the artist's", () => {
+    const wrapped = wrap([artistBrief()], () => false, "MARK")
+    expect(wrapped).toContain("brief for you, the artist")
     expect(wrapped).toContain("this is your task now")
     expect(wrapped).not.toContain("the lead: the user just started")
-    expect(noteKinds([fixerBrief()], () => false)).toEqual([])
+    expect(noteKinds([artistBrief()], () => false)).toEqual([])
   })
 })
 

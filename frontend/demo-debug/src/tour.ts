@@ -33,7 +33,7 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
       })),
       {
         label: "Answer the startup screen",
-        hint: 'The tour agent held at a startup screen goes on: it binds, works, names its terminal "Tour lead" and finishes its turn',
+        hint: 'The tour agent held at a startup screen goes on: it binds, works, names its terminal "Game lead" and opens its team',
         run: () => tour.answer(),
       },
       {
@@ -47,19 +47,49 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
         run: () => tour.askPermission(),
       },
       {
-        label: "Tour story: answer the money ask (A)",
-        hint: "While the second fixer's ask waits in the Inbox (Whole amounts: $12.00 or $12?), answers it with option A, $12.00, as the person would: the row goes, the fixer edits money() in its worktree and tells the lead, and the lead says both bugs are fixed",
-        run: () => tour.answerMoney(0),
-      },
-      {
-        label: "Tour story: answer the money ask (B)",
-        hint: "The same ask answered with option B, $12: the merged preview of split.js shows money() dropping .00 from whole amounts",
-        run: () => tour.answerMoney(1),
-      },
-      {
-        label: "Tour story: the lead's fixer stays quiet until nudged",
-        hint: "The next tour lead names itself, then waits for the tour's nudge before opening its first fixer",
+        label: "Tour story: the lead's team stays quiet until nudged",
+        hint: "The next tour lead names itself, then waits for the tour's nudge before opening its Sculptor and Score fixer",
         run: () => tour.goQuietTeam(),
+      },
+      {
+        label: "Tour story: the sculptor stays quiet until nudged",
+        hint: "In the next run the Sculptor opens but sits idle at its prompt, so no model and no question appear, until the tour nudges it",
+        run: () => tour.goQuietSculptor(),
+      },
+      {
+        label: "Tour story: the artist stays quiet until nudged",
+        hint: "In the next run the Cover artist, once the tour started it in a new terminal and rang its brief, stays idle: it names itself, asks the lead and draws its cover only once nudged",
+        run: () => tour.goQuietArtist(),
+      },
+      {
+        label: "Tour story: the artist never starts",
+        hint: "In the next run the tour opens the artist's terminal but no agent ever shows in it, so after the tour's wait the artist's three steps are dropped and the last one says Three agents. One game. Play it.",
+        run: () => tour.goArtistNever(),
+      },
+      {
+        label: "Tour story: no page (as on a computer without Node or Python)",
+        hint: "The next run has no page: the lead opens no Game server terminal, asks for no command, and shows no page, so the tour skips those two steps and ends on the Sculptor's model",
+        run: () => tour.goNoPage(),
+      },
+      {
+        label: "Tour story: answer the hero ask (A rocket)",
+        hint: "While the Sculptor's ask waits in the Inbox (Who is your game's hero?), answers it with A rocket as the person would: the row goes, the Sculptor tells the lead, and the 3D model is sculpted again",
+        run: () => tour.answerHero(0),
+      },
+      {
+        label: "Tour story: answer the hero ask (own words)",
+        hint: "The same ask answered in your own words, a cat named Pixel: the Sculptor sculpts a cat, and the lead names the game for it in src/config.js",
+        run: () => tour.answerHero("my cat Pixel"),
+      },
+      {
+        label: "Tour story: keeping fails",
+        hint: "The next Keep building on the closing card fails, and the card says why and stays; the try after goes through",
+        run: () => tour.failKeep(),
+      },
+      {
+        label: "Tour agent: exits to its shell",
+        hint: "The running tour lead's program ends and its shell is back at the prompt, as Claude Code leaves where you don't trust the folder: the tour says It didn't start. and to end it and take it again",
+        run: () => tour.exitToShell(),
       },
       {
         label: "Tour agent: stop",

@@ -11,6 +11,7 @@ import {
 } from "../support/keyboard"
 import { switchProject, workspaceSwitcher } from "../support/sessions"
 import { closeConfirmation, confirmClose, tabAction } from "../support/terminals"
+import { coach, consent, expectLookAt, windowNamed } from "../support/tour"
 import {
   expectSelected,
   openWorkspace,
@@ -23,8 +24,6 @@ import { context, describe, expect, it } from "../test"
 // Its demo agent stops after the first step: these specs are about the driver, not the story.
 const offered = "/?tourStory=off&channel=experimental"
 
-const consent = (): Locator => page.getByRole("dialog", { name: "Take the tour" })
-const coach = (): Locator => page.getByRole("region", { name: "Tour step" })
 const bar = (): Locator => page.getByRole("region", { name: "Tour", exact: true })
 
 // Waits for the bar that stands in for the tour to say `words`.
@@ -57,11 +56,23 @@ beforeEach(switchTourOn)
 describe("The tour's driver", () => {
   it("points at the agent as it starts, and moves on once it has taken its brief", async () => {
     await startTour()
-    await coachSays("Your own agent. In a sandbox repo.")
+    await coachSays("Your own agent. It leads the build.")
     await expect.element(page.getByText(/^Act 1, Your agent\./)).toBeInTheDocument()
     // The agent describes itself as the tour's lead: its step is done.
-    await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
-    await coachSays("It put a fixer on bug 1.")
+    await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
+    // Its next step is the team's: the demo's lead opens none here, so nothing is marked yet and
+    // no caption shows, but the act has begun.
+    await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
+  })
+
+  it("marks the agent's window to look at while it starts, in the page's own element", async () => {
+    await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
+    await coachSays("Your own agent. It leads the build.")
+    await expectLookAt(() => windowNamed(terminalTabNames()[0]!))
+    // The mark is drawn inside what it marks, not over the page.
+    const marked = document.querySelector("[data-tour-look]")!
+    expect(marked.matches("[data-terminal]")).toBe(true)
+    expect(document.querySelectorAll("[data-tour-click]")).toHaveLength(0)
   })
 
   it("drops a run kept by a version whose steps were others, rather than follow it at the wrong one", async () => {
@@ -71,12 +82,20 @@ describe("The tour's driver", () => {
         terminalId: "gone",
         agent: "claude",
         brief: "launch",
+        command: "claude",
+        page: true,
         step: 3,
         waitingSince: 0,
         nudged: false,
         briefed: true,
         asked: false,
         entered: true,
+        tabbed: false,
+        doneAt: null,
+        artist: null,
+        artistBriefed: false,
+        // The step it was at is another's here.
+        stepId: "model",
       }),
     )
     await openWorkspace(offered)
@@ -87,19 +106,19 @@ describe("The tour's driver", () => {
 
   it("leaves the keyboard's focus where it was", async () => {
     await startTour()
-    await coachSays("Your own agent. In a sandbox repo.")
+    await coachSays("Your own agent. It leads the build.")
     expect(coach().element().contains(document.activeElement)).toBe(false)
   })
 
   it("leaves the workspace's shortcuts, and Escape, to the person", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-    await coachSays("Your own agent. In a sandbox repo.")
+    await coachSays("Your own agent. It leads the build.")
     await pressShortcut("find")
     await expect.element(findDialog()).toBeVisible()
     await press("{Escape}")
     await expect.element(findDialog()).not.toBeInTheDocument()
     // The coach stays, as nothing it asked for was dismissed.
-    await coachSays("Your own agent. In a sandbox repo.")
+    await coachSays("Your own agent. It leads the build.")
   })
 
   context("while the agent asks the person something of its own first", () => {
@@ -107,12 +126,12 @@ describe("The tour's driver", () => {
       await startTour(`${offered}&tourScreen=sign-in&tourScreenMs=1500`)
       await coachSays("It wants an answer first.")
       await coachSays("sign in")
-      await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
+      await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     })
 
     it("says what folder trust asks", async () => {
       await startTour(`${offered}&tourScreen=startup&tourScreenMs=1500`)
-      await coachSays("trust the tour's folder")
+      await coachSays('pick "Yes, I trust this folder" here (it starts on "No")')
     })
 
     it("says what Novadeck's hooks being off asks", async () => {
@@ -129,7 +148,7 @@ describe("The tour's driver", () => {
       // The person's wait isn't the agent's silence: no nudge or move on comes meanwhile.
       await new Promise((resolve) => setTimeout(resolve, 1500))
       await coachSays("It's asking your permission.")
-      expect(terminalTabNames()).not.toContain("Tour lead")
+      expect(terminalTabNames()).not.toContain("Game lead")
 
       // The terminal on screen holds its own agent's rows out of the Inbox, so the person looks
       // away first, and answers there.
@@ -148,18 +167,29 @@ describe("The tour's driver", () => {
         .click()
 
       await bar().getByRole("button", { name: "Back to the tour" }).click()
-      await coachSays("It put a fixer on bug 1.")
+      await expect.element(page.getByText(/^Act 2, The team\./)).toBeInTheDocument()
       // The Inbox the person answered in is still open: the terminals are listed in their panel.
       await sidebarPanel("Terminals").click()
-      await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
+      await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
+    })
+  })
+
+  context("while the agent's program has ended and its shell is back", () => {
+    it("says it didn't start, pointing at its terminal, and what to do", async () => {
+      await startTour(`${offered}&tourAgent=shell&tourPatienceMs=60000`)
+      await coachSays("It didn't start.")
+      await coachSays("Its terminal says why. End the tour and take it again.")
+      expect(document.querySelectorAll("[data-tour-click]")).toHaveLength(1)
+      await page.getByRole("button", { name: "End tour" }).click()
+      await expect.element(coach()).not.toBeInTheDocument()
     })
   })
 
   it("nudges an agent gone quiet, which then goes on", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=600`)
-    await coachSays("Your own agent. In a sandbox repo.")
+    await coachSays("Your own agent. It leads the build.")
     // Quiet, it never names itself unless nudged.
-    await expect.poll(terminalTabNames, leadNamed).toContain("Tour lead")
+    await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
   })
 
   context("as the person leaves it", () => {
@@ -173,20 +203,20 @@ describe("The tour's driver", () => {
 
     it("gives way while the person is in another project, and takes them back", async () => {
       await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-      await coachSays("Your own agent. In a sandbox repo.")
+      await coachSays("Your own agent. It leads the build.")
       await switchProject("storefront")
       await expect.element(coach()).not.toBeInTheDocument()
       await barSays("The tour goes on in its project.")
       await bar().getByRole("button", { name: "Back to the tour" }).click()
       await expect.poll(() => workspaceSwitcher().element().textContent ?? "").toContain("Tour")
       await expectSelected(terminalTabNames()[0]!)
-      await coachSays("Your own agent. In a sandbox repo.")
+      await coachSays("Your own agent. It leads the build.")
     })
   })
 
   it("ends when its lead's terminal closes", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
-    await coachSays("Your own agent. In a sandbox repo.")
+    await coachSays("Your own agent. It leads the build.")
     await tabAction(`Close ${terminalTabNames()[0]}`).click()
     // A running agent asks first.
     if (closeConfirmation().query()) await confirmClose()

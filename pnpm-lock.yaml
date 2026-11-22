@@ -358,6 +358,12 @@ importers:
       node-pty:
         specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
+      phaser:
+        specifier: 3.90.0
+        version: 3.90.0
+      three:
+        specifier: 0.187.0
+        version: 0.187.0
       ws:
         specifier: 'catalog:'
         version: 8.22.2
@@ -5135,6 +5141,9 @@ packages:
   perfect-freehand@1.2.3:
     resolution: {integrity: sha512-bHZSfqDHGNlPpgH2yxXgPHlQSPpEbo+qg7li0M78J9vNAi2yjwLeA4x79BEQhX44lEWpCLSFCeRZwpw0niiXPA==}
 
+  phaser@3.90.0:
+    resolution: {integrity: sha512-/cziz/5ZIn02uDkC9RzN8VF9x3Gs3XdFFf9nkiMEQT3p7hQlWuyjy4QWosU802qqno2YSLn2BfqwOKLv/sSVfQ==}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -9734,6 +9743,10 @@ snapshots:
   perfect-debounce@2.1.0: {}
 
   perfect-freehand@1.2.3: {}
+
+  phaser@3.90.0:
+    dependencies:
+      eventemitter3: 5.0.4
 
   picocolors@1.1.1: {}
 

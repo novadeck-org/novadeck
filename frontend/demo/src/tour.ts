@@ -1,15 +1,17 @@
-import type { ProjectFiles } from "@novadeck/core/files"
+import type { FilesState, ProjectFiles } from "@novadeck/core/files"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxAnswer } from "@novadeck/core/inbox"
 import {
   emptyCompanions,
   itemIdOf,
+  type ChangeFileDiff,
   type Companions,
   type Item,
   type ItemContent,
 } from "@novadeck/core/items"
-import type { AgentConnection, Backend, Tour } from "@novadeck/core/port"
-import { createStore, type Store } from "@novadeck/core/store"
+import type { AgentConnection, Approval, Backend, Tour, TerminalKey } from "@novadeck/core/port"
+import type { WorkspaceAction } from "@novadeck/core/state"
+import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import type { CompanionWindowMeta, Workspace } from "@novadeck/core/types"
 import type { WorkPreview } from "@novadeck/core/works"
 
@@ -17,6 +19,8 @@ import type { DemoTurns } from "./agents/turns"
 import { listEntries } from "./files"
 import { isDemoInbox, type DemoInbox } from "./inbox"
 import { createDemoMessages, isDemoMessages, type DemoMessages } from "./messages"
+import type { Hero } from "./tour/content"
+import type { Held } from "./tour/stage"
 import { isDemoWorks, type DemoWorks } from "./works"
 import { terminalOf } from "./workspace"
 
@@ -25,7 +29,7 @@ export const demoTourFolder = "~/.novadeck/tour"
 
 // What a start answers, loaded only as one is readied: the website's visitor demo, which never
 // offers the tour, doesn't carry it in its first load.
-const runs = () => import("./tour-runs")
+const loadRuns = () => import("./tour-runs")
 
 // The screens a tour agent can be held at before Novadeck reaches it (`AgentStatus.startup`).
 export type TourScreen = "startup" | "sign-in" | "hooks"
@@ -43,12 +47,43 @@ export type TourAgentPlan = {
   // Its lead asks the person's permission, as its harness's own dialog, before it goes on:
   // it waits until the person answers.
   readonly permission?: boolean | undefined
+  // The sculptor, once its lead opened it, does nothing until nudged.
+  readonly quietSculptor?: boolean | undefined
+  // The artist, once the tour rang its brief, does nothing until nudged.
+  readonly quietArtist?: boolean | undefined
+  // The artist's agent never starts: its terminal stays at a shell that shows no agent.
+  readonly artistNever?: boolean | undefined
+  // The lead's program ends once it has bound, its shell back at the prompt (as Claude Code
+  // does where the person doesn't trust the folder).
+  readonly shell?: boolean | undefined
+  // This computer has neither Node nor Python: the lead runs no server and shows no page.
+  readonly noPage?: boolean | undefined
 }
 
-// What a lead needs of the backend to play the story's rest (see `tour/story.ts`): the
-// workspace as it is now, a new terminal of the demo's numbering, the agents' messages and the
-// Inbox where the demo has them, the works the fixers' worktrees make, and a way to say which
-// way the person had whole amounts shown.
+// Asks the person's leave for `from` to run a command in a new terminal, as the app's approval
+// dialog does; answers whether they allowed it.
+export type TourApprover = (from: TerminalKey, command: string, cwd: string) => Promise<boolean>
+
+// What an agent shows on its bar in the story: the item and what the pane reads of it, and, for
+// a model, the bytes `part` reads, and, for changes, the diffs of its files.
+export type TourShow = {
+  readonly kind: "page" | "model" | "changes" | "image"
+  readonly name: string
+  readonly detail: string
+  readonly path: string | null
+  readonly url: string | null
+  readonly content: ItemContent
+  readonly bytes?: Uint8Array<ArrayBuffer> | undefined
+  readonly diffs?: Readonly<Record<string, ChangeFileDiff>> | undefined
+}
+
+// An agent of the story that is not on the lead's team, which the lead answers.
+export type TourMate = { readonly key: TerminalKey; readonly handle: string }
+
+// What the story needs of the backend (see `tour/story.ts`): the workspace as it is now, a new
+// terminal of the demo's numbering, the agents' messages and the Inbox where the demo has them,
+// the works the agents' worktrees make, the Files panel's feed, the approval dialog, and what an
+// agent shows on its bar.
 export type TourStage = {
   readonly workspace: () => Workspace | undefined
   readonly newTerminal: Backend["newTerminal"]
@@ -58,10 +93,39 @@ export type TourStage = {
   readonly answeredWith: (id: string) => InboxAnswer | undefined
   // Answers a row as the person would in the Inbox.
   readonly answerRow: (id: string, answer: InboxAnswer) => void
-  // The demo's works, where it has them: the fixers' worktrees and their changes to split.js.
+  // The demo's works, where it has them: the agents' worktrees and their changes.
   readonly works: DemoWorks | undefined
-  // The option the person picked for whole amounts, which the merged preview of split.js shows.
-  readonly picked: (option: number) => void
+  // What the agents write in the tour's project, as the Files panel shows it, by the writer's
+  // handle.
+  readonly files:
+    | {
+        readonly write: (handle: string, path: string, kind: "added" | "modified") => void
+        readonly end: (handle: string) => void
+      }
+    | undefined
+  // The person's leave to run the lead's command.
+  readonly approve: TourApprover
+  // Shows an item on a terminal's bar, answering its id.
+  readonly show: (key: TerminalKey, shown: TourShow) => string
+  // Shows the lead's page, or, shown, loads it afresh as it now is.
+  readonly page: (key: TerminalKey, content: ItemContent) => void
+  // What an item shows now, once its file changed (a model sculpted).
+  readonly update: (
+    id: string,
+    now: { readonly content: ItemContent; readonly bytes?: Uint8Array<ArrayBuffer> | undefined },
+  ) => void
+  // The hero the person named, which the merged preview of the game's files shows.
+  readonly chose: (hero: Hero) => void
+  // The lead's handle, where a run's lead is there.
+  readonly leadHandle: () => string | undefined
+  // The artist asked the lead about the game; the lead hears it, and tells the artist once it has
+  // answered.
+  readonly askedLead: (artist: TourMate & { readonly harness: AgentName }) => void
+  readonly onArtistAsk: (
+    listener: (artist: TourMate & { readonly harness: AgentName }) => void,
+  ) => () => void
+  readonly artistAnswered: (artist: TourMate, hero: Hero) => void
+  readonly onArtistAnswered: (key: TerminalKey, listener: (hero: Hero) => void) => () => void
 }
 
 export type DemoTour = Tour & {
@@ -70,6 +134,8 @@ export type DemoTour = Tour & {
   readonly failNext: (how?: "folder" | "unlisted") => void
   // The terminals whose agent was rung the start line, oldest first.
   readonly briefed: Store<readonly string[]>
+  // The terminals whose agent was rung the artist's brief, oldest first.
+  readonly artists: Store<readonly string[]>
   // The terminals whose agent was nudged, oldest first.
   readonly nudged: Store<readonly string[]>
   // The next run's agent waits at `screen` (none: runs as usual) until it's answered.
@@ -78,14 +144,14 @@ export type DemoTour = Tour & {
   readonly goQuiet: (quiet?: boolean) => void
   // Answers the screen an agent waits at.
   readonly answer: () => void
-  // What a spec asks of the address: `patienceMs` is what the UI waits before nudging, and
-  // `screenMs` answers a held screen on its own after that long.
   // Follows another set of connected agents and workspace: the debug demo's, which runs the
   // tour on the panel's agents and reuses the inner demo's tour (and so its player).
   readonly follow: (
     agents: Store<readonly AgentConnection[]>,
     workspace: () => Workspace | undefined,
   ) => void
+  // What a spec asks of the address: `patienceMs` is what the UI waits before nudging, and
+  // `screenMs` answers a held screen on its own after that long.
   readonly configure: (options: { patienceMs?: number; screenMs?: number; story?: boolean }) => void
   // Whether the lead plays the rest of the story after describing itself (`&tourStory=off`
   // stops it there).
@@ -94,11 +160,35 @@ export type DemoTour = Tour & {
   readonly askPermission: (ask?: boolean) => void
   // The next run's lead opens its team only once nudged again after it described itself.
   readonly goQuietTeam: (quiet?: boolean) => void
-  // Answers the second fixer's ask by its option, as the person would: nothing while none waits.
-  readonly answerMoney: (option?: number) => void
-  readonly money: (listener: (option: number) => void) => () => void
-  // Hears the person's new terminal handed to the tour (`tour.fixer`).
-  readonly onFixer: (listener: (terminalId: string) => void) => () => void
+  // The next run's sculptor does nothing until nudged.
+  readonly goQuietSculptor: (quiet?: boolean) => void
+  // The next run's artist does nothing, once briefed, until nudged.
+  readonly goQuietArtist: (quiet?: boolean) => void
+  // Whether the artist of the run now playing stays quiet until nudged (taken with the lead's plan).
+  readonly artistQuiet: () => boolean
+  // The next run's artist never starts: nothing of its agent shows in its terminal.
+  readonly goArtistNever: (never?: boolean) => void
+  // Whether the artist of the run now playing never starts (taken with the lead's plan).
+  readonly artistNever: () => boolean
+  // The next run's lead's program ends once it has bound, its shell back.
+  readonly goShell: (shell?: boolean) => void
+  // The running lead's program ends, its shell back at the prompt: "It didn't start.".
+  readonly exitToShell: () => void
+  readonly shelled: (listener: () => void) => () => void
+  // The next run has no page, as on a computer with neither Node nor Python.
+  readonly goNoPage: (none?: boolean) => void
+  // Answers the sculptor's ask as the person would, by its option or in their own words:
+  // nothing while none waits.
+  readonly answerHero: (answer?: number | string) => void
+  readonly hero: (listener: (answer: number | string) => void) => () => void
+  // The next keep fails, as when the folder can't be written, for the closing card to say so.
+  readonly failKeep: (fail?: boolean) => void
+  // How many runs were readied, so the story tells a run's lead from its artist.
+  readonly runs: () => number
+  // Where the lead's command is asked of the person: the demo's own approval dialog by default,
+  // or the debug panel's.
+  readonly approver: (next: TourApprover) => void
+  readonly approve: TourApprover
   // The lead's agent stops, its process exited, as one that can't go on does.
   readonly stop: () => void
   readonly stopped: (listener: () => void) => () => void
@@ -108,6 +198,9 @@ export type DemoTour = Tour & {
   readonly screenMs: () => number | undefined
   readonly answered: (listener: () => void) => () => void
 }
+
+// Where no dialog is wired, the lead's command isn't allowed.
+const declined: TourApprover = () => Promise.resolve(false)
 
 const tours = new WeakSet<Tour>()
 
@@ -124,15 +217,22 @@ export const demoTour = (
   let agents = initialAgents
   let workspace = initialWorkspace
   let failing: "folder" | "unlisted" | undefined
+  let keepFails = false
+  let runs = 0
   const briefed = createStore<readonly string[]>([])
+  const artists = createStore<readonly string[]>([])
   const nudged = createStore<readonly string[]>([])
   let plan: TourAgentPlan = { quiet: false }
   let screenMs: number | undefined
   let story = true
-  // The story's events, which its lead hears: an option the person picked, or the stop.
-  const fixers = new Set<(terminalId: string) => void>()
-  const events = new Set<(event: number | "stop" | "answer") => void>()
-  const hear = (listener: (event: number | "stop" | "answer") => void) => {
+  let artistQuiet = false
+  let artistNever = false
+  let approver: TourApprover = declined
+  // The story's events, which its lead hears: the stop, or an answer to a held screen; and the
+  // person's answer to the sculptor's ask.
+  const events = new Set<(event: "stop" | "answer" | "shell") => void>()
+  const heroes = new Set<(answer: number | string) => void>()
+  const hear = (listener: (event: "stop" | "answer" | "shell") => void) => {
     events.add(listener)
     return () => void events.delete(listener)
   }
@@ -141,6 +241,7 @@ export const demoTour = (
       failing = how
     },
     briefed,
+    artists,
     nudged,
     holdAt: (screen) => {
       plan = { ...plan, screen }
@@ -162,12 +263,38 @@ export const demoTour = (
     goQuietTeam: (quiet = true) => {
       plan = { ...plan, quietTeam: quiet }
     },
-    answerMoney: (option = 0) => events.forEach((each) => each(option)),
-    money: (listener) => hear((event) => typeof event === "number" && listener(event)),
-    onFixer: (listener) => {
-      fixers.add(listener)
-      return () => void fixers.delete(listener)
+    goQuietSculptor: (quiet = true) => {
+      plan = { ...plan, quietSculptor: quiet }
     },
+    goQuietArtist: (quiet = true) => {
+      plan = { ...plan, quietArtist: quiet }
+    },
+    goNoPage: (none = true) => {
+      plan = { ...plan, noPage: none }
+    },
+    artistQuiet: () => artistQuiet,
+    goArtistNever: (never = true) => {
+      plan = { ...plan, artistNever: never }
+    },
+    artistNever: () => artistNever,
+    goShell: (shell = true) => {
+      plan = { ...plan, shell }
+    },
+    exitToShell: () => events.forEach((each) => each("shell")),
+    shelled: (listener) => hear((event) => event === "shell" && listener()),
+    answerHero: (answer = 0) => heroes.forEach((each) => each(answer)),
+    hero: (listener) => {
+      heroes.add(listener)
+      return () => void heroes.delete(listener)
+    },
+    failKeep: (fail = true) => {
+      keepFails = fail
+    },
+    runs: () => runs,
+    approver: (next) => {
+      approver = next
+    },
+    approve: (from, command, cwd) => approver(from, command, cwd),
     stop: () => events.forEach((each) => each("stop")),
     stopped: (listener) => hear((event) => event === "stop" && listener()),
     configure: (options) => {
@@ -180,6 +307,8 @@ export const demoTour = (
     take: () => {
       const taken = plan
       plan = { quiet: false }
+      artistQuiet = taken.quietArtist === true
+      artistNever = taken.artistNever === true
       return taken
     },
     screenMs: () => screenMs,
@@ -189,14 +318,15 @@ export const demoTour = (
     prepare: async (agent) => {
       const fails = failing
       failing = undefined
-      const { demoRun, demoRefusal } = await runs()
+      const { demoRun, demoRefusal } = await loadRuns()
       if (fails) throw demoRefusal(fails, agent)
       const connected = agents.getSnapshot().some((each) => each.agent === agent && each.connected)
       if (!connected) throw new Error("Novadeck isn't connected to it, so the tour can't start.")
       const removed = (workspace()?.projects ?? [])
         .filter((project) => project.directory === demoTourFolder)
         .map((project) => project.id)
-      return { ...demoRun(agent), directory: demoTourFolder, removed }
+      runs += 1
+      return { ...demoRun(agent), directory: demoTourFolder, removed, page: plan.noPage !== true }
     },
     brief: (terminalId) => {
       briefed.update((ids) => [...ids, terminalId])
@@ -206,11 +336,15 @@ export const demoTour = (
       nudged.update((ids) => [...ids, terminalId])
       return Promise.resolve()
     },
-    // The terminal is the run's second fixer: the story's lead takes it (and ignores one that
-    // isn't a shell of the tour's, or a second).
-    fixer: (terminalId) => {
-      fixers.forEach((each) => each(terminalId))
+    // The terminal is the run's artist: the story's artist takes its brief.
+    artist: (terminalId) => {
+      artists.update((ids) => (ids.includes(terminalId) ? ids : [...ids, terminalId]))
       return Promise.resolve()
+    },
+    keep: () => {
+      if (!keepFails) return Promise.resolve()
+      keepFails = false
+      return Promise.reject(new Error("AGENTS.md can't be written in this folder."))
     },
   }
   tours.add(tour)
@@ -223,18 +357,66 @@ export const tourHarness = (command: string): AgentName | undefined => {
   return program === "claude" || program === "codex" || program === "agy" ? program : undefined
 }
 
+// The demo's approval dialog for the tour where the backend has none of its own: the lead's
+// command waits in a store the app's approvals read, and the person's answer resolves it.
+const tourApprovals = (): {
+  readonly approvals: NonNullable<Backend["approvals"]>
+  readonly ask: TourApprover
+} => {
+  const pending = createStore<readonly Approval[]>([])
+  const answers = new Map<string, (approved: boolean) => void>()
+  let count = 0
+  return {
+    approvals: {
+      pending,
+      answer: (requestId, approved) => {
+        const settle = answers.get(requestId)
+        answers.delete(requestId)
+        pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
+        settle?.(approved)
+      },
+    },
+    ask: (from, command, cwd) =>
+      new Promise((resolve) => {
+        count += 1
+        const requestId = `tour-approval-${count}`
+        answers.set(requestId, resolve)
+        pending.update((waiting) => [
+          ...waiting,
+          {
+            requestId,
+            from: from.terminalId,
+            terminalId: from.terminalId,
+            action: { type: "run", command, cwd },
+          },
+        ])
+      }),
+  }
+}
+
+// How much of a model's file one read of it gives.
+const partBytes = 2 * 1024 * 1024
+
 // The backend with the tour's agent played in the terminals the UI adds in the tour's folder,
 // as a runner would report one (see `tour/player.ts`, loaded as the first one starts). Where the
 // story is on, the lead's teammates talk through the backend's messages (made here where it has
-// none: only terminals that join show one), ask through its Inbox and show their card through
-// its companions.
-export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
+// none: only terminals that join show one), ask through its Inbox, show their items through its
+// companions and write through its Files, and the lead's command waits in an approval.
+export const withTourAgent = (
+  backend: Backend,
+  turns: DemoTurns,
+  // Whether the tour's project lists files where the demo has no Files panel of its own: only
+  // where the tour is offered, so no other demo shows a Files button the tour alone needs.
+  offerFiles = false,
+): Backend => {
   let latest: Workspace | undefined
   // The demo's tour, on its own agents, joins here, not in every demo: the website's visitor
   // demo, which offers no tour, carries none of it.
   const tour = isDemoTour(backend.tour)
     ? backend.tour
     : demoTour(backend.agents?.state ?? createStore<readonly AgentConnection[]>([]), () => latest)
+  const own = backend.approvals ? undefined : tourApprovals()
+  if (own) tour.approver(own.ask)
   let sink: Parameters<NonNullable<Backend["start"]>>[0] | undefined
   const stops = new Set<() => void>()
   const exists = (target: { projectId: string; workspaceSessionId: string }, terminalId: string) =>
@@ -247,120 +429,184 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
     inbox?.answer(id, answer)
   }
   const works = isDemoWorks(backend.works) ? backend.works : undefined
-  let money = 0
-  const stage: TourStage = {
-    workspace: () => latest,
-    newTerminal: (request) => backend.newTerminal(request),
-    messages: isDemoMessages(messages) ? messages : undefined,
-    inbox,
-    answeredWith: (id) => answers.get(id),
-    answerRow,
-    works,
-    picked: (option) => {
-      money = option
-    },
-  }
+  // The lead of the latest run, which the next terminal of an agent in the folder is not: that
+  // is the run's artist.
+  let lead: { readonly run: number; readonly key: TerminalKey } | undefined
+  let hero: Hero | undefined
   // Whether a project is the tour's, by its folder.
   const isTour = (projectId: string): boolean =>
     latest?.projects.find(({ id }) => id === projectId)?.directory === demoTourFolder
   // The tour's repo in the Files panel, beside whatever files the demo has: the tour's project
-  // lists its own files, the changes laid over them by the works.
+  // lists its own files, the changes laid over them by the agents' writes.
   const baseFiles: ProjectFiles = backend.files ?? {
     state: createStore({ projects: {} }),
     list: (_projectId, folder) => Promise.resolve(listEntries(["README.md"], folder)),
   }
+  // Where the agents' writes go: the panel's own feed, where the demo keeps one it can change.
+  const feed: MutableStore<FilesState> | undefined =
+    "update" in baseFiles.state ? (baseFiles.state as MutableStore<FilesState>) : undefined
   const files: ProjectFiles = {
     ...baseFiles,
     list: async (projectId, folder) => {
       if (!isTour(projectId)) return baseFiles.list(projectId, folder)
-      const { tourEntries } = await import("./tour/split")
-      return listEntries(tourEntries, folder)
+      const { tourEntries, tourIgnored } = await import("./tour/content")
+      return listEntries(tourEntries, folder, tourIgnored)
     },
   }
-  // Where the demo's panes can't open a file in the project's window (the plain demo's), the tour's
-  // repo opens in one as the runner would make it: pointed at the file, the window made under
-  // the id asked, which `follow` then reads from what the story kept.
+
+  // What the agents showed, and whoever follows it.
+  const held = new Map<string, Held>()
+  const following = new Map<string, Set<(content: ItemContent) => void>>()
+  const tell = (id: string): void => {
+    const found = held.get(id)
+    if (found) for (const on of following.get(id) ?? []) on(found.content)
+  }
+  // The stage the story plays on, built as the first agent starts and kept for the run's agents.
+  let staged: Promise<TourStage> | undefined
+  const stageOf = (): Promise<TourStage> =>
+    (staged ??= import("./tour/stage").then(({ createStage }) =>
+      createStage({
+        latest: () => latest,
+        sink: () => sink,
+        tour,
+        newTerminal: (request) => backend.newTerminal(request),
+        messages: isDemoMessages(messages) ? messages : undefined,
+        inbox,
+        answers,
+        answerRow,
+        works,
+        feed,
+        lead: () => lead?.key,
+        setHero: (next) => {
+          hero = next
+        },
+        held,
+        tell,
+      }),
+    ))
+  // The tour's items follow what the agents showed; the tour's repo opens in the project's window
+  // as the runner would make it (where the demo's panes can't): pointed at the file, the window
+  // made under the id asked.
   const base = backend.companions ?? emptyCompanions()
-  const heldContent = new Map<string, ItemContent>()
   const projectWindows = new Map<string, { itemId: string; windowId: string }>()
   let opened = 0
-  const companions: Companions = base.openInProject
-    ? base
-    : {
-        ...base,
-        follow: (target, itemId, options, on) => {
-          const content = heldContent.get(String(itemId))
-          if (!content) return base.follow(target, itemId, options, on)
-          on(content)
-          return () => {}
-        },
-        openInProject: async (target, path, windowId) => {
-          const { splitFile, splitMain } = await import("./tour/split")
-          const folder = latest?.projects.find(({ id }) => id === target.projectId)?.directory
-          const full = /^[/~]/.test(path) || !folder ? path : `${folder}/${path}`
-          const key = `${target.projectId}/${target.workspaceSessionId}`
-          const known = projectWindows.get(key)
-          const id = known?.itemId ?? `tour-file-${(opened += 1)}`
-          const window = known?.windowId ?? windowId
-          projectWindows.set(key, { itemId: id, windowId: window })
-          const name = path.split("/").pop() ?? path
-          const lines = path === splitFile ? splitMain.trimEnd().split("\n") : [`# ${path}`]
-          heldContent.set(id, {
-            state: "ready",
-            stamp: "1",
-            content: {
+  const companions: Companions = {
+    ...base,
+    follow: (at, itemId, options, on) => {
+      const id = String(itemId)
+      if (!held.has(id)) return base.follow(at, itemId, options, on)
+      const each = following.get(id) ?? new Set()
+      each.add(on)
+      following.set(id, each)
+      on(held.get(id)!.content)
+      return () => void each.delete(on)
+    },
+    part: (at, itemId, part) => {
+      const found = held.get(String(itemId))
+      if (!found?.bytes)
+        return base.part
+          ? base.part(at, itemId, part)
+          : Promise.reject(new Error("There is nothing to read there"))
+      if (part.file !== undefined)
+        return Promise.reject(new Error("That file isn't one the model names"))
+      if (found.content.state === "ready" && found.content.stamp !== part.stamp)
+        return Promise.resolve({ state: "changed" })
+      return Promise.resolve({
+        state: "part",
+        bytes: found.bytes.slice(part.offset, part.offset + partBytes),
+      })
+    },
+    changeFile: (at, itemId, path, layers) => {
+      const diff = held.get(String(itemId))?.diffs?.[path]
+      if (diff) return Promise.resolve(diff)
+      return (
+        base.changeFile?.(at, itemId, path, layers) ?? Promise.reject(new Error("No such change"))
+      )
+    },
+    changeRange: (at, itemId, layers) => {
+      const found = held.get(String(itemId))?.content
+      if (found?.state === "ready" && found.content.kind === "changes")
+        return Promise.resolve({ files: found.content.files, truncated: false })
+      return base.changeRange?.(at, itemId, layers) ?? Promise.reject(new Error("No such change"))
+    },
+    changeRead: (at, itemId, path) =>
+      held.get(String(itemId))
+        ? Promise.resolve()
+        : (base.changeRead?.(at, itemId, path) ?? Promise.resolve()),
+    ...(base.openInProject
+      ? {}
+      : {
+          openInProject: async (at, path, windowId) => {
+            const { mainOf } = await import("./tour/content")
+            const folder = latest?.projects.find(({ id }) => id === at.projectId)?.directory
+            const full = /^[/~]/.test(path) || !folder ? path : `${folder}/${path}`
+            const key = `${at.projectId}/${at.workspaceSessionId}`
+            const known = projectWindows.get(key)
+            const id = known?.itemId ?? `tour-file-${(opened += 1)}`
+            const window = known?.windowId ?? windowId
+            projectWindows.set(key, { itemId: id, windowId: window })
+            const name = path.split("/").pop() ?? path
+            const lines = mainOf(path) ?? [`# ${path}`]
+            const content: ItemContent = {
+              state: "ready",
+              stamp: "1",
+              content: {
+                kind: "file",
+                path: full,
+                firstLine: 1,
+                lines,
+                from: 1,
+                to: lines.length,
+                total: lines.length,
+                truncated: false,
+                clamped: false,
+              },
+            }
+            held.set(id, { content })
+            const item: Item = {
+              id: itemIdOf(id),
+              holder: { windowId: window },
               kind: "file",
+              name,
+              detail: path,
               path: full,
-              firstLine: 1,
-              lines,
-              from: 1,
-              to: lines.length,
-              total: lines.length,
-              truncated: false,
-              clamped: false,
-            },
-          })
-          const item: Item = {
-            id: itemIdOf(id),
-            holder: { windowId: window },
-            kind: "file",
-            name,
-            detail: path,
-            path: full,
-            url: null,
-            lines: null,
-            secret: false,
-            by: "person",
-            from: null,
-            version: 1,
-            openAsked: true,
-            shownAt: Date.now(),
-            plan: null,
-          }
-          const meta: CompanionWindowMeta = {
-            id: window,
-            home: "project",
-            itemId: item.id,
-            name,
-            titleSource: { kind: "default" },
-          }
-          sink?.dispatch([
-            { type: "item/upsert", target, item },
-            { type: "window/upsert", target, window: meta },
-          ])
-          return { item, window: meta }
-        },
-      }
-  // split.js as both fixers' works merge it, where the demo has works.
+              url: null,
+              lines: null,
+              secret: false,
+              by: "person",
+              from: null,
+              version: 1,
+              openAsked: true,
+              shownAt: Date.now(),
+              plan: null,
+            }
+            const meta: CompanionWindowMeta = {
+              id: window,
+              home: "project",
+              itemId: item.id,
+              name,
+              titleSource: { kind: "default" },
+            }
+            sink?.dispatch([
+              { type: "item/upsert", target: at, item },
+              { type: "window/upsert", target: at, window: meta },
+            ])
+            return { item, window: meta }
+          },
+        }),
+  }
+  // The files the agents' works change, as they merge: `src/score.js` and `src/config.js`.
   const previewed: NonNullable<Backend["works"]> | undefined = backend.works && {
     ...backend.works,
     preview: async (projectId, path): Promise<WorkPreview> => {
       if (!isTour(projectId)) return backend.works!.preview(projectId, path)
-      const { splitFile, splitMain, tipBranch, tipHunk, moneyHunk } = await import("./tour/split")
-      if (path !== splitFile) return { main: null, works: [], renames: [] }
+      const { mainOf, hunkOf } = await import("./tour/content")
+      const main = mainOf(path)
+      if (!main) return { main: null, works: [], renames: [] }
       const changing = (works?.worksOf(projectId) ?? []).flatMap((work) => {
-        const file = work.files.find((each) => each.path === splitFile)
-        if (!file) return []
+        const file = work.files.find((each) => each.path === path)
+        const hunk = file && hunkOf(path, hero)
+        if (!file || !hunk) return []
         return [
           {
             root: work.root,
@@ -368,44 +614,50 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
             branch: work.branch ?? null,
             status: "modified" as const,
             changedAt: file.changedAt,
-            hunks: [work.branch === tipBranch ? tipHunk : moneyHunk(money)],
+            hunks: [hunk],
           },
         ]
       })
-      return { main: splitMain, works: changing, renames: [] }
+      return { main: main.join("\n") + "\n", works: changing, renames: [] }
     },
   }
-  return {
-    ...backend,
-    tour,
-    messages,
-    files,
-    companions,
-    ...(previewed && { works: previewed }),
-    ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerRow } } : {}),
-    commit: (workspace, actions) => {
-      latest = workspace
-      backend.commit(workspace, actions)
-      for (const action of actions) {
-        // A teammate the lead opened is played by the lead's story, not as a lead of its own.
-        if (
-          action.type !== "terminal/add" ||
-          action.terminal.directory !== demoTourFolder ||
-          action.terminal.ledBy
-        )
-          continue
-        const harness = tourHarness(action.terminal.command)
-        const at = sink
-        if (!harness || !at) continue
-        const key = { ...action.target, terminalId: action.terminal.id }
-        let stop: (() => void) | undefined
-        let stopped = false
-        const end = () => {
-          stopped = true
-          stop?.()
-        }
-        stops.add(end)
-        void import("./tour/player").then(({ playTourAgent }) => {
+  const play = (action: Extract<WorkspaceAction, { type: "terminal/add" }>): void => {
+    const harness = tourHarness(action.terminal.command)
+    const at = sink
+    if (!harness || !at) return
+    const key = { ...action.target, terminalId: action.terminal.id }
+    // The first agent of a run is its lead; any other the tour's folder starts is its artist.
+    const run = tour.runs()
+    const artist = lead?.run === run
+    if (!artist) {
+      lead = { run, key }
+      hero = undefined
+      held.clear()
+    }
+    let stop: (() => void) | undefined
+    let stopped = false
+    const end = () => {
+      stopped = true
+      stop?.()
+    }
+    stops.add(end)
+    const terminal = () => terminalOf(latest, key)
+    void (artist
+      ? Promise.all([stageOf(), import("./tour/artist")]).then(([stage, { playTourArtist }]) => {
+          if (stopped) return
+          stop = playTourArtist({
+            key,
+            harness,
+            tour,
+            turns,
+            dispatch: at.dispatch,
+            terminal,
+            stage,
+            quiet: tour.artistQuiet(),
+            never: tour.artistNever(),
+          })
+        })
+      : Promise.all([stageOf(), import("./tour/player")]).then(([stage, { playTourAgent }]) => {
           if (stopped) return
           stop = playTourAgent({
             key,
@@ -413,10 +665,33 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
             tour,
             turns,
             dispatch: at.dispatch,
-            terminal: () => terminalOf(latest, key),
+            terminal,
             stage,
           })
-        })
+        }))
+  }
+  return {
+    ...backend,
+    tour,
+    messages,
+    ...(backend.files || offerFiles ? { files } : {}),
+    companions,
+    ...(own && { approvals: own.approvals }),
+    ...(previewed && { works: previewed }),
+    ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerRow } } : {}),
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+      for (const action of actions) {
+        // A teammate the lead opened is played by the lead's story, not as an agent of its own.
+        if (
+          action.type !== "terminal/add" ||
+          action.terminal.directory !== demoTourFolder ||
+          action.terminal.ledBy ||
+          action.terminal.openedBy
+        )
+          continue
+        play(action)
       }
     },
     start: (next) => {
@@ -426,6 +701,7 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
         stop?.()
         for (const end of stops) end()
         stops.clear()
+        lead = undefined
         if (sink === next) sink = undefined
       }
     },

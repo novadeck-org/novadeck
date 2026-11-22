@@ -11,6 +11,7 @@ import {
   logArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
+  tourArgumentPrefix,
   voiceEngineArgumentPrefix,
   voiceSourceArgumentPrefix,
   type RunnerCommand,
@@ -21,6 +22,19 @@ import { watchMainProcess } from "./main-watch.js"
 
 const argument = (prefix: string): string | undefined =>
   process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length)
+
+// The tour's folders as the main process gave them (JSON), or none where they are missing or
+// not three paths: the runner then looks in the repository, and the tour says if it finds none.
+const tourAssetsOf = (text: string | undefined) => {
+  try {
+    const { seed, phaser, three } = JSON.parse(text ?? "") as Record<string, unknown>
+    return typeof seed === "string" && typeof phaser === "string" && typeof three === "string"
+      ? { seed, phaser, three }
+      : undefined
+  } catch {
+    return undefined
+  }
+}
 
 // The runner's own log, runner.log beside the main process's: the main process may die and this one still
 // lands. Opened first, so even a runner that fails to start says why. It shows nothing on
@@ -67,6 +81,7 @@ const checks = mainWatch && setInterval(() => mainWatch.check(), checkMs).unref(
 // Runs in an Electron utility process, so PTYs live outside the main process.
 const database = argument(databaseArgumentPrefix)
 const relay = argument(relayArgumentPrefix)
+const tour = tourAssetsOf(argument(tourArgumentPrefix))
 const engine = argument(voiceEngineArgumentPrefix)
 const source = argument(voiceSourceArgumentPrefix)
 const murmurEngine = argument(murmurEngineArgumentPrefix)
@@ -91,6 +106,7 @@ const runner = createRunner({
     uploads: join(dirname(database), "uploads"),
   }),
   ...(relay !== undefined && { relay }),
+  ...(tour !== undefined && { tour }),
   // A dialog it could not read, saved for a bug report, goes in a folder beside the logs.
   ...(setup && { dialogs: join(setup.folder, "dialogs") }),
   // Its installed engine and models live in a `voice` folder beside the database.

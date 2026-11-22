@@ -70,4 +70,27 @@ describe("Where the tour's caption box stands", () => {
     expect(place.left + card.width).toBeLessThanOrEqual(small.width)
     expect(place.top + card.height).toBeLessThanOrEqual(small.top + small.height)
   })
+
+  context("with a dialog open", () => {
+    const dialog: Box = { left: 420, top: 250, width: 440, height: 200 }
+
+    it("keeps clear of it, though its box may lie over windows", () => {
+      const subject: Box = { left: 500, top: 300, width: 200, height: 40 }
+      const place = placeBox(subject, card, area, [], [dialog])
+      expect(overlaps(place, dialog)).toBe(false)
+    })
+
+    it("goes beside or under it for a subject within it", () => {
+      const button: Box = { left: 760, top: 400, width: 90, height: 30 }
+      const place = placeBox(button, card, area, [lead, fox, owl], [dialog])
+      for (const taken of [dialog, lead, fox, owl]) expect(overlaps(place, taken)).toBe(false)
+    })
+
+    it("docks at the bottom centre rather than over it where nothing is free", () => {
+      const whole: Box = { left: 0, top: 50, width: 1280, height: 700 }
+      const place = placeBox(null, card, area, [], [whole])
+      expect(place.top + card.height).toBeLessThanOrEqual(area.top + area.height)
+      expect(place.left).toBe((1280 - card.width) / 2)
+    })
+  })
 })
