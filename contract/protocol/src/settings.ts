@@ -55,6 +55,10 @@ export const runnerSettings = z.strictObject({
   // How agents work with each other (see `agentMode`), the pick that counts while `agentModes`
   // is on; Herd until the person picks another.
   agentMode,
+  // Whether the shipping gate is on, an Experimental feature, off until the person turns it
+  // on: Claude Code's and Codex's shell commands that ship work (push to another branch, land,
+  // open or merge a PR) then need a permit, and while it is off nothing changes.
+  shippingGate: z.boolean(),
 })
 
 // The settings as the runner reports them, with what it can do whatever they say.

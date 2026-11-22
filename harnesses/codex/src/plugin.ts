@@ -28,6 +28,9 @@ const events = [
   "PostToolUse",
 ]
 
+// Every name Codex gives its shell tool, for the shipping gate's PreToolUse (probed on 0.171: `Bash`).
+const shellTools = "Bash|shell|shell_command|exec_command|local_shell|container\\.exec|unified_exec"
+
 // Codex runs an Interrupt hook for 3 seconds at most, and warns at every start of a plugin
 // that asks for longer (0.159.3, `normalize_command_hook`), which hides its first screen's
 // logo behind the warning's banner. The hook reports an Interrupt within 2 seconds.
@@ -121,6 +124,17 @@ export const disconnect: Harness["disconnect"] = [
   { argv: ["codex", "plugin", "marketplace", "remove", marketplace.name], optional: true },
 ]
 
+/**
+ * Codex copies the plugin as it installs it (seen 0.171, under `pluginCache`, by version), so
+ * a hook Novadeck renders otherwise, as with the shipping gate on, reaches it only installed
+ * again. Compared only while the gate is on or was just switched (`Harness.installed`).
+ */
+export const installed: NonNullable<Harness["installed"]> = {
+  directory: (install) => join(pluginCache(codexHome(install)), manifest.version),
+  files: [join("hooks", "hooks.json")],
+  gated: true,
+}
+
 /** The file holding the `-c` setting that gives a session the worktrees' folder to write. */
 export const rootsFile = "writable-roots.txt"
 
@@ -157,7 +171,10 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
               // async question, which asks without waiting. The matcher matches the
               // whole name: `request_user_input` alone doesn't fire for the async one.
               ...(event === "PreToolUse" && {
-                matcher: "request_user_input|request_permissions|request_user_input_async",
+                matcher:
+                  machine.shippingGate === true
+                    ? `request_user_input|request_permissions|request_user_input_async|${shellTools}`
+                    : "request_user_input|request_permissions|request_user_input_async",
               }),
               hooks: [
                 {

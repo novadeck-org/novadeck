@@ -30,14 +30,14 @@ const nothingWaiting = noticeText("Messages", {
 })
 
 /** What a reply line's hook adds when its messages couldn't come now: the replies stand. */
-const repliesWaiting = noticeText("Inbox", {
+const repliesWaiting = noticeText("Messages", {
   facts:
     "The Inbox replies in this prompt are the user's own; their full messages are still " +
     "waiting and come on a later turn.",
 })
 
 /** What a reply line's hook adds when its messages came another way. */
-const repliesCame = noticeText("Inbox", {
+const repliesCame = noticeText("Messages", {
   facts:
     "The Inbox replies in this prompt are the user's own; their full messages already " +
     "reached you.",

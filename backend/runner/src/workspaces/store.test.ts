@@ -3443,6 +3443,7 @@ describe("saved terminals", () => {
       worktrees: false,
       agentModes: false,
       agentMode: "herd",
+      shippingGate: false,
     })
     workspace.settings.saveRunner({ transcripts: false })
     workspace.settings.saveRunner({ welcomed: true })
@@ -3456,6 +3457,7 @@ describe("saved terminals", () => {
       worktrees: false,
       agentModes: false,
       agentMode: "herd",
+      shippingGate: false,
     })
   })
 
@@ -3502,6 +3504,15 @@ describe("saved terminals", () => {
     workspace.settings.saveRunner({ agentModes: false })
     expect(effectiveAgentMode(workspace.settings.runner())).toBe("herd")
     expect(workspace.settings.runner().agentMode).toBe("swarm")
+  })
+
+  it("keep whether the shipping gate is on, off until turned on", ({ kept }) => {
+    const workspace = kept()
+    expect(workspace.settings.runner().shippingGate).toBe(false)
+    workspace.settings.saveRunner({ shippingGate: true })
+    expect(workspace.settings.runner().shippingGate).toBe(true)
+    workspace.settings.saveRunner({ shippingGate: false })
+    expect(workspace.settings.runner().shippingGate).toBe(false)
   })
 
   it("keep whether agents get worktrees, off until turned on", ({ kept }) => {
@@ -3644,6 +3655,7 @@ describe("the messages", () => {
       worktrees: false,
       agentModes: false,
       agentMode: "herd",
+      shippingGate: false,
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()

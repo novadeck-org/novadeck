@@ -9,6 +9,7 @@ import type { InboxRecords } from "../messaging/inbox.js"
 import type { MessageRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import type { InstalledShell } from "../shell/install.js"
+import type { Shipping } from "../shipping/service.js"
 import type { ClosedRecords } from "../workspaces/closed.js"
 import type { WorktreesWiring } from "../worktrees/calls.js"
 import type { AnswersOptions } from "./answers.js"
@@ -87,6 +88,8 @@ export type TerminalOptions = {
    * asked each time it looks; null for never, as when omitted.
    */
   hibernateAfterMinutes?: () => number | null
+  /** The shipping gate, answering shell commands agents are about to run; none where it isn't offered. */
+  shipping?: Shipping
   /** How agents work with each other, asked each time an agent's tools are listed: Herd when omitted. */
   agentMode?: () => AgentMode
   /** The waits of hibernation, as in some tests. */

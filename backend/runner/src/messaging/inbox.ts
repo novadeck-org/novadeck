@@ -656,7 +656,12 @@ export class Inbox {
     return dismissedNotice(queued.asks)
   }
 
-  answer(id: string, input: AskAnswer): void {
+  /**
+   * Answers an open ask. What comes back is the terminal it was for and the words the person
+   * wrote in their own answer (none for a chosen option alone): the runner's own record of what
+   * they said, never an option's label, which the agent wrote.
+   */
+  answer(id: string, input: AskAnswer): { readonly terminalId: string; readonly text: string } {
     if (this.closed) throw new DomainError("CLOSING")
     const entry = this.entries.get(id)
     if (
@@ -709,6 +714,7 @@ export class Inbox {
     )
     this.changed(entry.terminalId)
     this.maintain(entry.terminalId)
+    return { terminalId: entry.terminalId, text }
   }
 
   read(ids: readonly string[]): void {

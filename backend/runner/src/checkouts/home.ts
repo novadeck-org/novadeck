@@ -65,7 +65,7 @@ const commons = new Map<string, { readonly stamp: string; readonly common: strin
 const keptCommons = 1024
 
 /** The repository's common dir of a folder, asked of git once while its checkout stands. */
-const commonOf = async (folder: string): Promise<string | undefined> => {
+export const commonOf = async (folder: string): Promise<string | undefined> => {
   const info = await stat(join(folder, ".git")).catch(() => undefined)
   const stamp = info ? `${info.ino}:${info.birthtimeMs}:${info.mtimeMs}` : undefined
   const known = commons.get(folder)

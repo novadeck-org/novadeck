@@ -515,7 +515,18 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         opening: false,
       }
     // Only a session announced at its own prompt may be rung before its first turn.
-    if (!event.ready) return { ...arrived(delivery), state: "fresh" }
+    if (!event.ready) {
+      const fresh: Delivery = { ...arrived(delivery), state: "fresh" }
+      // Codex's and Antigravity's first prompt binds the session it starts, so the person's
+      // Enter that submitted it came before the binding, while no session was bound: kept
+      // for that prompt, which the hook after this one tells, to be judged theirs, if the
+      // binding's own hook fired within the window of it.
+      const fired = firing(event, slackMs)
+      const enteredAt = pendingEnter(delivery, fired.at, fired.windowMs)
+      return enteredAt !== undefined && fresh.box.empty
+        ? { ...fresh, box: { ...fresh.box, enteredAt } }
+        : fresh
+    }
     return atPrompt(delivery, event, slackMs)
   }
   // What the person typed after their last Enter outlasts the binding's end, which may be

@@ -432,6 +432,16 @@ describe("restoring a screen", () => {
     expect(doorbell.drawn()).toBe(1)
   })
 
+  it("draws the newest rings of a long session, past many older ones", async () => {
+    const nonces = Array.from({ length: 30 }, (_, index) => `ring${index}`)
+    const { doorbell, write } = open(100, rings(...nonces))
+    await write(nonces.map((nonce) => `${tag.replace("n7Q2xk", nonce)}\r\nout\r\n`).join(""))
+    doorbell.rescan()
+    const rows = doorbell.audit().map((entry) => entry.pieces[0]!.row)
+    expect(rows).toHaveLength(30)
+    expect(Math.max(...rows)).toBe(58)
+  })
+
   it("draws several rings with a nonce each, and none twice", async () => {
     const { doorbell, write } = open(100, rings("n7Q2xk", "other1"))
     await write(

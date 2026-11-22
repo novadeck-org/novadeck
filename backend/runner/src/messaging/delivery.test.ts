@@ -541,6 +541,23 @@ describe("the person's submission", () => {
     },
   )
 
+  it("is the person's for a first prompt whose Enter came before its own binding, as Codex's and Antigravity's", () => {
+    // Their first prompt binds the session: the Enter that submitted it came while none was.
+    const submitted = run(unbound, key("enter", at), { ...binds, at: at + 300 })
+    expect(submitted).toMatchObject({ state: "fresh", box: { empty: true, enteredAt: at } })
+    expect(run(submitted, prompted(at + 310))).toMatchObject({ byPerson: true })
+    // Not an Enter past the window of the binding, nor one the person typed after.
+    const stale = run(unbound, key("enter", at), { ...binds, at: at + 20_000 })
+    expect(run(stale, prompted(at + 20_010))).toMatchObject({ byPerson: false })
+    const drafted = run(unbound, key("enter", at), key("content", at + 100), {
+      ...binds,
+      at: at + 300,
+    })
+    expect(run(drafted, prompted(at + 310))).toMatchObject({ byPerson: false })
+    // No Enter at all: the harness's own first prompt.
+    expect(run(unbound, binds, prompted(at + 310))).toMatchObject({ byPerson: false })
+  })
+
   it("keeps text typed after the next Enter when an older hook arrives late", () => {
     const next = run(
       settled,

@@ -1674,6 +1674,65 @@ A background subagent finishing can start a root turn by itself (see
 [Harness coverage](harness-coverage.md)); that is a turn like any other, though it
 doesn't make the prompt known empty.
 
+### The shipping gate
+
+Behind Preferences → Experimental → "Shipping gate" (`shippingGate`, off by default), for Claude
+Code and Codex; Antigravity is not covered yet (its probe is open), and behaves as it always did.
+The design is `architecture/grants.md`. Agents ship with their own `git` and `gh`; Novadeck's hook
+only gates them (`backend/runner/src/shipping/`).
+
+- **What ships.** `gh pr create`, `gh pr merge`, `gh pr edit --base X` (a PR into X), and a push
+  or ref move (merge, pull, fetch into a branch, rebase, cherry-pick, reset, `branch -f`/`-m`/`-c`,
+  `update-ref`, `checkout -B`, `switch -C`) whose target is not the agent's own branch: the branch
+  checked out in a worktree its terminal owns in this repository (matched by its git common
+  dir), pushed to the same name, and not any worktree's home. Tags, `--all`, `--mirror`,
+  deletes, refspec globs, `gh release create` and mutating `gh api` calls (any non-GET
+  `-X`/`--method`, attached or spaced, or a field or input) can't be read and are refused. The reader
+  (`reader.ts`, on the shell reader `words.ts`) reads the raw command, never the pruned report.
+- **Exact allows only.** A command is allowed only when every segment is a shipping action a
+  live permit covers, plus `cd X` or `git -C X`. A tail (`&& …`, `;`, a pipe, `&`), an expansion,
+  a wrapper (`bash -c`, `eval`, `env`), `git -c …`, env prefixes, `--receive-pack`/`--exec`, a
+  custom merge strategy and `gh pr merge --admin` are refused, with the reason in the deny.
+  So is a redirect into a file (only `2>&1`, `>/dev/null`, `2>/dev/null` and input pass), and any
+  flag a `gh pr` verb's table doesn't list: each verb has its own (`-r` is `--rebase` in `merge`,
+  `--reviewer` in `create`), attached values (`-Rowner/repo`, `-Bmain`, `--base=x`) are read, and a
+  PR's URL must name the repository the command resolves. `gh pr edit --base X` counts as opening
+  a PR into X, and once it runs the merge permits given for that PR are void.
+- **Permits** (`permits.ts`) last ten minutes per (terminal, action, target, repository), in
+  memory (a restart fails closed); a force push's is single use. They come from the user's own
+  words, quoted in `request_permit`'s `said` (two whole words at least, found at word boundaries,
+  case and spacing aside; the permit notice and the record show the words they matched) in the ring of the last
+  three prompts the person typed into that terminal's root session, none older than an hour (a
+  `/clear` starts a new ring; doorbells, deliveries and a command-line prompt never enter it; an
+  Inbox reply's own words enter from the runner's record of the answer, never from an option's
+  label), or from the user's answer to an action card. Every permit is logged (`shipping.permit`):
+  who, what, target, the quote or the card and the client that answered, and when.
+  A permitted push or merge still runs the repository's own git hooks (`pre-push` and the like),
+  as it would without Novadeck: the gate allows the command, it doesn't skip what the command runs.
+- **The card** is a request Novadeck holds on the agent's behalf (`cards.ts`): it joins the
+  agent's `requests` in `agents.detail` with a `choices` dialog (Allow, Deny) and `detached`, so
+  the chat and the Inbox draw it with the shared request card, and the person's Send is never
+  refused for it. It is drawn from fields Novadeck resolved. The answer resolves in the runner
+  (`held.ts`), gives the permit on Allow, and tells the agent in a Novadeck notice. One card is
+  open per (terminal, action, target), and another source giving the permit withdraws it.
+- **Hook answers.** Claude Code: PreToolUse for `Bash`, in the per-launch settings file the shim
+  passes (nothing of the person's is written), allow or deny. Codex: PreToolUse widened to the
+  shell tools, and PermissionRequest. A Codex permitted command in a restricted sandbox is denied
+  once with "run it again asking for escalation; Novadeck approves it", remembered five minutes,
+  and the PermissionRequest allows the escalation. An answer's effects (a single-use permit
+  used, the escalation remembered) happen only once the relay acknowledges it printed the answer
+  (a lease, as messages have), and an answer not ready by the hook's own deadline is no answer,
+  so the harness decides. A Codex command's `workdir` is the folder it runs in; a payload with no
+  whole folder gets no opinion. The hook stays silent in Claude's bypass mode,
+  in Codex's `never` with `danger-full-access`, and where the person's own allow rule covers
+  every segment (read from Claude's settings files and Codex's rules, never written).
+- **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
+  plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
+  `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept
+  running once it is off sends its shell tools' PreToolUse still; the runner ignores those, as it
+  ignores any PreToolUse but Codex's three question tools. Switching it writes the files again and applies at the next
+  agent launch (Codex asks the person to review its hooks once).
+
 ### Hook answers
 
 Today the hook only reports. For messaging, the Stop and prompt-time hooks also **ask**
@@ -2040,11 +2099,11 @@ under `Show`) instead of adding a kind.
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Describe`      | The standing ask for a title and a summary (and the drift check); `terminals/nudges.ts`.                                                                                                                    |
 | `Show`          | What the agent shows the person: the standing notice of the bar beside the terminal (`nudges.ts`); a shown page that had problems (`terminals/troubles.ts`).                                                |
-| `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`); the hook's line on a reply doorbell.                                                                              |
+| `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`).                                                                                                                   |
 | `Worktrees`     | The setting on, off and early (`nudges.ts`); a worktree changing owner (`worktrees/calls.ts`).                                                                                                              |
 | `Restart`       | A turn or a wait cut short by a restart (`terminals/interrupted.ts`).                                                                                                                                       |
 | `Resources`     | Something agents share running short, and who holds it: CPU strain (`terminals/host-load.ts`); a queued check and who holds the runners (`terminals/queue-notices.ts`).                                     |
-| `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell with nothing waiting (`messaging/hook-answers.ts`); the heading of a delivery's rules.                                           |
+| `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell or a reply line whose messages wait or came already (`messaging/hook-answers.ts`); the heading of a delivery's rules.            |
 | `Terminals`     | The outcome of a request to close a terminal (`terminals/closes.ts`) or to run a command in a new one (`terminals/runs.ts`).                                                                                |
 | `Team`          | Who leads whom and who sees whom: a lead beginning or ending (`terminals/leads.ts`); a team joined, left or handed over (`terminals/teams.ts`); a terminal moved to another session (`terminals/moves.ts`). |
 | `Inbox answers` | The heading of the delivery rules for the person's Inbox responses.                                                                                                                                         |
@@ -2054,25 +2113,39 @@ Standing notices ride on the prompt, a blank line apart; event notices are sent 
 message from `novadeck`. The doorbell lines (`harnesses/core/src/prompts.ts`) and the tour's
 step lines are no notices and keep their own forms, as do tool results and refusals.
 
-**What the person sees.** An event notice (one the runner delivered as a message from `novadeck`,
-with a ring, a prompt or tool call's hook, or a Stop's continuation) is never shown by its facts;
-the agent's text never changes. `noticeSeen` in `@novadeck/protocol/notices` is the one map from a notice's kind
-to the line the person reads, shared by the chat and the terminal overlay: `Restart` "You notice
-Novadeck restarted.", `Terminals` "You notice terminals open and close.", `Team` "You notice the
-team shift.", `Worktrees` "You notice a worktree change hands.", `Inbox` "You notice an ask leave
-the Inbox.", `Resources` "You notice shared resources are busy.", `Show` "You notice problems in
-something shown." The kinds earlier builds wrote map to their family (`Host load` and `CI queue` to
-Resources, `Page` to Show, `Lead` and `Move` to Team, `Close` and `Run` to Terminals), as a
-resumed session's old transcript holds them; a notice of no known kind, or with no header (the
-legacy prefix), reads "You notice something." (`readNotice` there strips the header and splits the
+**What the person sees.** A notice is never shown by its facts; the agent's text never changes.
+`noticeSeen` in `@novadeck/protocol/notices` is the one map from a notice's kind to the line the
+person reads, shared by the chat and the terminal overlay. An event notice (one the runner delivered
+as a message from `novadeck`, with a ring, a prompt or tool call's hook, or a Stop's continuation)
+says its family's line: `Restart` "You notice Novadeck restarted.", `Terminals` "You notice
+terminals open and close.", `Team` "You notice the team shift.", `Worktrees` "You notice a worktree
+change hands.", `Inbox` "You notice an ask leave the Inbox.", `Resources` "You notice shared
+resources are busy.", `Show` "You notice problems in something shown.", `Shipping` "You notice your
+answer reach the agent.", `Messages` "You notice a message still on its way.", `Describe` "You
+notice the terminal wants a title." A standing notice says what it is about: `Show` "You notice the
+bar beside the terminal.", `Inbox` "You notice the Inbox keeps a copy.", `Describe` "You notice the
+terminal wants a title.", `Worktrees` "You notice worktrees are on.", else its family's line; a
+hook's own line on how the prompt's messages came (`Messages`, as "No agent messages are waiting
+any more.") reads "You notice Novadeck check for messages." The
+kinds earlier builds wrote map to their family (`Host load` and `CI queue` to Resources, `Page` to
+Show, `Lead` and `Move` to Team, `Close` and `Run` to Terminals), as a resumed session's old
+transcript holds them. A message from Novadeck with no header is a brief it hands the agent, such as
+the tour's, and reads "You notice Novadeck hand over a task."; one of no known kind, or with the
+legacy prefix, reads "You notice something." (`readNotice` there strips the header and splits the
 facts from the `→` actions.)
 
-Agent Chat shows each notice as a quiet bell line, as the doorbell's own line is: Novadeck's mark
+Notices delivered together are one line (`noticesSeen`): a ring's, and those outside a ring
+recorded at the same moment with nothing between them, as one hook prints them (each harness's
+decoder dates a hook's notices alike). The line says each one's line once, in order, joined by
+`·`; where more than one is a standing notice of how Novadeck works (the bar, the Inbox, the title,
+worktrees), as a session's first prompt carries them, those read once as "You notice Novadeck set
+the agent up."
+
+Agent Chat shows that line as a quiet bell line, as the doorbell's own line is: Novadeck's mark
 (the `NovaMark` of the toasts, muted, as tall as a prompt's mark and centred on it) in the gutter, the words
-in the muted ink and regular weight, a dashed rule to the edge, and the time. An event notice's
-words are its family's line; a click opens the notice itself under it (facts, detail lines, each
-`→` action on its own line) and closes it again. A standing notice's words are still its facts
-(no line of its own yet), which a click opens in place to the whole.
+in the muted ink and regular weight, a dashed rule to the edge, and the time. A click opens the
+notices themselves under it (facts, detail lines, each `→` action on its own line, each under its
+kind where there are several) and closes them again.
 Two paths bring them there. An event notice, delivered as a message from `novadeck`, is
 kept like any delivered message and listed beside the threads as `TerminalMessages.notices`
 (the latest 200, with `deliveredAt`; never in a thread, so the Messages pane leaves them
@@ -2083,7 +2156,7 @@ Inbox's "took your asks out" reads by its line though it rides a prompt's hook. 
 what the prompt's hook printed (Claude Code's `hook_additional_context` attachment, Codex's
 developer message, Antigravity's `EPHEMERAL_MESSAGE` step), and the decoders read it as one
 `notice` item per notice, splitting off any `<novadeck-messages>` delivery the same text holds
-(that is the ring's). The chat shows each under the prompt it rode on.
+(that is the ring's). The chat shows them under the prompt they rode on, as one line.
 
 ### The doorbell
 
@@ -2522,8 +2595,8 @@ that row (never another row). The harness's own screen is untouched, and copying
   `:`, `·`, `…` and `+N more` dim. Messages share the row equally (each at least about 30
   cells), the ones that don't fit becoming `+N more`. Novadeck's notices that follow one another are
   one share: a `novadeck` badge (the ink at 20% over the row's ground, its text at 85%), then their
-  family lines (`noticeSeen`, one rule with the chat; never the facts) dim and italic, joined by a
-  dim `·`, with no `@handle` hues. Short of cells the lines are cut with a dim `…`, and the badge
+  family lines (`noticeSeen`, one rule with the chat; never the facts), each once, dim and italic,
+  joined by a dim `·`, with no `@handle` hues. Short of cells the lines are cut with a dim `…`, and the badge
   only where the row is narrower than it. A group is placed in delivery order between the other
   parts, set off by the dim `  ·  `. The person's Inbox
   reply is `you: …` in their hue. A ring whose content isn't known says a dim `doorbell`.
@@ -3078,17 +3151,40 @@ again on each call.
 
 - **Agent worktrees.** While the runner setting `worktrees` is on (read live at each turn's
   start, so a flip counts at the next turn), every root session of every harness is told
-  to work in Novadeck's worktrees (`worktreesOnNotice`): before changing a file, open one
-  with `open_worktree` or take one with `take_worktree`, one for each repository it
-  changes, or more; name branches as the repository's own instructions say; use absolute
-  paths into the worktree and `git -C <worktree>` for git, never `cd` and then git (Claude
-  Code refuses it, and no shell's folder stays outside the one it started in); read the
-  instruction files `open_worktree` lists, which aren't loaded from there; and, when done,
-  give the worktree to whoever continues or leave it for the person, closing only work
-  that's merged or abandoned. It says nothing of committing, as some sandboxes (Codex's
-  workspace-write) can't. It is independent of `describe`, and not a `Nudges` trigger:
-  `worktreesDue` decides it from the setting and `told.worktrees`, the digest of the
-  notice last told (`worktreesDigests`).
+  that worktrees are the default (`worktreesOnNotice`): its changes go in a worktree it opens
+  with `open_worktree` or takes with `take_worktree`, one for each repository it changes, not
+  in its terminal's checkout, and what the user asked decides otherwise (told to work in
+  place, or in a given folder, it does). That default is said plainly, with the user's
+  words as the one way out (a first wording that only offered the tools made Claude edit in
+  place in a plain fix, 0 of 1 runs, where the old wording and the plain default each had a
+  worktree opened in 4 of 4: two Claude and two Codex runs); the rest is facts: a
+  worktree's home is the branch its work belongs on (the branch it started from, or the
+  `home` it gives), and Novadeck shows it merged once home holds its work. Its action
+  lines are conveniences: name branches as the repository's own instructions say; use
+  absolute paths into the worktree and `git -C <worktree>` for git, never `cd` and then git
+  (Claude Code refuses it, and no shell's folder stays outside the one it started in); the
+  instruction files `open_worktree` lists aren't loaded from there; `give_worktree` hands a
+  worktree to whoever continues, `close_worktree` removes merged or abandoned work. It says
+  nothing of committing, merging or pull requests, as some sandboxes (Codex's
+  workspace-write) can't commit and what to do with the work is the user's to say. It is
+  independent of `describe`, and not a `Nudges` trigger: `worktreesDue` decides it from the
+  setting and `told.worktrees`, the digest of the notice last told (`worktreesDigests`).
+  - **A terminal's folder in no git repository** (`worktreesGitlessNotice`, instead of the on
+    notice): the on notice whole, with the fact that files outside any repository are changed in
+    place while a repository's files still go in a worktree (`open_worktree`'s `repo` takes a
+    folder in one). It serves a folder of repositories, such as a project's root with the
+    repositories below it, and a project mixing repositories with plain folders. It is said
+    rather than left out because the session still sees the worktree tools. The folder is the
+    terminal's `cwd` as its reports last said it, so only a harness that reports a moved
+    folder is told the notice its new folder needs, by its digest; one that doesn't keeps the
+    notice of the folder it started in. Whether it is in a repository is read from the files
+    alone (`inRepository`: a `.git` file, or folder with a `HEAD`, in the real path's folder or
+    a parent; a bare repository, no folder or one that is gone is unknown), kept ten seconds
+    per folder and waited for 250 ms at most; a turn that delivers something never waits, using
+    only what is kept. Unknown keeps the gitless notice for a session told it, else the on
+    notice. Told off, a session told either notice hears the off notice. `open_worktree` and
+    `take_worktree` say "changed in place" for a folder git says is in no repository, and git's
+    own words for any other error.
   - **Claude Code and Codex** hold what the prompt's hook printed, so the notice comes once:
     when a session begins or resumes without it, after a compaction (which clears `told`),
     and when the setting flips on or the wording changes. A resumed session of the same

@@ -43,6 +43,8 @@ export type WorktreesWiring = {
    * tour terminal's (`terminalId`) needs only the folder.
    */
   readonly ready: (startedAt: number | undefined, relists: boolean, terminalId?: string) => boolean
+  /** Whether a folder is in a git repository, from the files alone (`repositoryKnown`). */
+  readonly inRepository?: (folder: string, wait: boolean) => Promise<boolean | undefined>
   /** A branch's pull request, where a forge the person switched on found one (`Forges`). */
   readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
 }

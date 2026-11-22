@@ -40,6 +40,8 @@ import { Messaging } from "../messaging/messaging.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { stripInherited } from "../shell/inherited.js"
 import { type Ack, type Call } from "../shell/reports.js"
+import { answeredCard } from "../shipping/held.js"
+import type { Shipping } from "../shipping/service.js"
 import type { HintFacts } from "../voice/hint.js"
 import { ownedWorktrees, worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
 import { Approvals } from "./approvals.js"
@@ -239,6 +241,7 @@ export class Terminals {
       | "pty"
       | "hibernateAfterMinutes"
       | "agentMode"
+      | "shipping"
       | "hibernation"
     >
   > & {
@@ -249,6 +252,7 @@ export class Terminals {
     projectFolder: ((sessionId: string) => string | undefined) | undefined
     projectOf: ((sessionId: string) => string | undefined) | undefined
     worktrees: WorktreesWiring | undefined
+    shipping: Shipping | undefined
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
     install: (agent: AgentName) => Promise<Install | undefined>
@@ -317,6 +321,7 @@ export class Terminals {
       projectFolder: options.projectFolder,
       projectOf: options.projectOf,
       worktrees: options.worktrees,
+      shipping: options.shipping,
       openMs: positive(options.openMs, 6_000),
       install: options.install ?? (() => Promise.resolve(undefined)),
       models: options.models ?? (() => Promise.resolve([])),
@@ -353,7 +358,8 @@ export class Terminals {
       scopes: this.pty.scopes,
       handlers: {
         report: (report) => this.reporting.queueReport(report),
-        ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
+        ask: (report, deadline, gate) => this.reporting.queueAsk(report, deadline, gate),
+        gating: (agent, event) => options.shipping?.gating(agent, event) ?? false,
         ack: (ack) => this.acknowledge(ack),
         call: (call) => this.calls.call(call),
         tools: (from, session, listed) => {
@@ -416,6 +422,7 @@ export class Terminals {
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
           this.typing.boxes.view(record.summary.id),
+          this.options.shipping?.enabled() ? this.options.shipping.cards.of(record.summary.id) : [],
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
@@ -427,6 +434,8 @@ export class Terminals {
           this.messaging.shownAgent(terminalId),
         ),
     })
+    // An action card opened, answered or withdrawn changes what the terminal's agent asks.
+    this.options.shipping?.attach(this.records, (record) => this.streams.detailed(record))
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
       records: () => this.records.values(),
@@ -497,6 +506,7 @@ export class Terminals {
       trees: () => this.trees,
       platform: () => this.options.platform,
       worktrees: () => this.options.worktrees,
+      shipping: () => this.options.shipping,
     })
     this.companion = new Companion(this.options.items, {
       records: () => this.records,
@@ -517,6 +527,7 @@ export class Terminals {
       },
       held: (id, root, held) => this.reporting.held(id, root, held),
       ...(options.agentMode && { mode: options.agentMode }),
+      gated: (agent) => this.options.shipping?.covers(agent) ?? false,
       onWake: (id) => this.sleepers.ask(id),
     })
     this.inbox = new Inbox(
@@ -712,6 +723,7 @@ export class Terminals {
       messaging: () => this.messaging,
       inbox: () => this.inbox,
       feedback: () => this.feedback,
+      shipping: () => this.options.shipping,
       peers: () => this.peers,
       opens: () => this.opens,
       approvals: () => this.confirms,
@@ -1095,8 +1107,19 @@ export class Terminals {
    * person would with its keys (see `Answers`). No message of the person's, nor a doorbell
    * ring, comes between the answer and the words that follow it.
    */
-  answer(input: { terminalId: string; request: string; answer: RequestAnswer }): Promise<void> {
-    return this.typing.answer(input.terminalId, input.request, input.answer)
+  answer(
+    input: { terminalId: string; request: string; answer: RequestAnswer },
+    client?: string,
+  ): Promise<void> {
+    const { terminalId, request, answer } = input
+    const held = answeredCard(
+      this.options.shipping,
+      this.records.get(terminalId),
+      request,
+      answer,
+      client,
+    )
+    return held ?? this.typing.answer(terminalId, request, answer)
   }
 
   /**
@@ -1419,6 +1442,7 @@ export class Terminals {
     this.sleepers.forget(terminalId)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
+    this.options.shipping?.closed(terminalId)
     this.bindings.forgetCaptures(terminalId)
     this.murmur?.gone(terminalId)
     if (claims) {
@@ -1573,6 +1597,7 @@ export class Terminals {
   /** A hook printed what a lease delivered. */
   private acknowledge(ack: Ack): void {
     this.peers.acknowledge(ack)
+    this.options.shipping?.acknowledged(ack.terminalId, ack.leaseId)
   }
 
   inboxEntries(): InboxEntry[] {
@@ -1582,7 +1607,8 @@ export class Terminals {
     return this.inbox.watch(signal)
   }
   answerAsk(id: string, answer: AskAnswer): void {
-    this.inbox.answer(id, answer)
+    const { terminalId, text } = this.inbox.answer(id, answer)
+    this.reporting.quotedReply(terminalId, text)
   }
   readTells(ids: readonly string[]): void {
     this.inbox.read(ids)

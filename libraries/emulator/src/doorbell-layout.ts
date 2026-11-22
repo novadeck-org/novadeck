@@ -57,7 +57,7 @@ const badgeWidth = cells(badgeText)
 const lineJoin = " · "
 
 // What one share of the row holds: a message, or the notices that follow one another, which
-// draw as one badge and their lines.
+// draw as one badge and their lines, each line once.
 type Unit =
   | { readonly kind: "message"; readonly part: Exclude<RingPart, { kind: "notice" }> }
   | { readonly kind: "notices"; readonly lines: readonly string[] }
@@ -67,9 +67,10 @@ const unitsOf = (parts: readonly RingPart[]): Unit[] => {
   for (const part of parts) {
     const last = out.at(-1)
     if (part.kind !== "notice") out.push({ kind: "message", part })
-    else if (last?.kind === "notices")
-      out[out.length - 1] = { ...last, lines: [...last.lines, part.text] }
-    else out.push({ kind: "notices", lines: [part.text] })
+    else if (last?.kind === "notices") {
+      if (!last.lines.includes(part.text))
+        out[out.length - 1] = { ...last, lines: [...last.lines, part.text] }
+    } else out.push({ kind: "notices", lines: [part.text] })
   }
   return out
 }

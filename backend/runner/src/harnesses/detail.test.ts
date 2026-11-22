@@ -8,7 +8,7 @@ import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import { apply, started, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
-import { agentDetail, rootRef } from "./detail.js"
+import { agentDetail, heldRef, rootRef } from "./detail.js"
 import { harnesses } from "./registry.js"
 
 type Scenario = { events: { event: string; payload: Report["payload"] }[] }
@@ -92,6 +92,37 @@ describe("an agent's detail", () => {
       coverage: null,
       prompts: [],
       box: null,
+    })
+  })
+
+  it("lists a held action card as a detached permission with Allow and Deny, after the agent's own", () => {
+    const { binding, activity } = replay("question")
+    const card = {
+      id: "c1",
+      title: "Merge PR #1170 into main?",
+      detail: "Repository: r/app",
+      askedAt: 5,
+    }
+    const detail = agentDetail(
+      "00000000-0000-4000-8000-000000000001",
+      binding,
+      activity,
+      null,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [card],
+    )
+    expect(schema.parse(detail)).toEqual(detail)
+    expect(detail.requests.map(({ tool }) => tool)).toEqual(["AskUserQuestion", "request_permit"])
+    expect(detail.requests[1]).toMatchObject({
+      ref: heldRef(binding, card),
+      kind: "permission",
+      subject: "Merge PR #1170 into main?",
+      detached: true,
+      answered: false,
+      dialog: { type: "choices", id: "permit-c1", options: [{ id: "allow" }, { id: "deny" }] },
     })
   })
 

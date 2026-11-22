@@ -32,6 +32,7 @@ export const noticeKinds = [
   "Notices",
   "Terminals",
   "Team",
+  "Shipping",
 ] as const
 
 export type NoticeKind = (typeof noticeKinds)[number]

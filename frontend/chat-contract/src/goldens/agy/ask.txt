@@ -15,10 +15,10 @@ assistant: Planned.
 
 # plan_feedback/approved
 note: plan approved
-notice: this terminal has no summary yet. When it suits, call Novadeck's summarize tool with a line or two on what you work on here; other agents read it in their agents listing. This notice needs no reply.
+notice: You notice something. | this terminal has no summary yet. When it suits, call Novadeck's summarize tool with a line or two on what you work on here; other agents read it in their agents listing. This notice needs no reply.
 assistant: Reacted.
 
 # plan_feedback/rejected
 user: [Rejected] implementation_plan.md
-notice: this terminal has no summary yet. When it suits, call Novadeck's summarize tool with a line or two on what you work on here; other agents read it in their agents listing. This notice needs no reply.
+notice: You notice something. | this terminal has no summary yet. When it suits, call Novadeck's summarize tool with a line or two on what you work on here; other agents read it in their agents listing. This notice needs no reply.
 assistant: Reacted.

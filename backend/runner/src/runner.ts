@@ -20,6 +20,7 @@ import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { codexConfig, installShellFiles } from "./shell/install.js"
+import { Shipping } from "./shipping/service.js"
 import { ActiveTerminals } from "./terminals/active.js"
 import { ClientWindows } from "./terminals/client-windows.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
@@ -40,6 +41,7 @@ import {
 } from "./workspaces/store.js"
 import { keepWorktreeChanges } from "./worktrees/changes-shown.js"
 import { MainCheckouts } from "./worktrees/main-checkout.js"
+import { repositoryKnown } from "./worktrees/repo.js"
 import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
@@ -191,6 +193,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       : installShellFiles(options.shell, {
           ...(options.relay !== undefined && { relay: options.relay }),
           ...(options.worktreesRoot !== undefined && { worktrees: options.worktreesRoot }),
+          gate: store.settings.runner().shippingGate,
           // Whether Codex is connected is known only once these are written (see below).
           pwsh: "kept",
           fresh: true,
@@ -212,6 +215,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       await installShellFiles(shell, {
         ...(options.relay !== undefined && { relay: options.relay }),
         ...(options.worktreesRoot !== undefined && { worktrees: options.worktreesRoot }),
+        gate: store.settings.runner().shippingGate,
         pwsh: process.platform === "win32" && (await agents.connected("codex")),
       })
     }
@@ -250,7 +254,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles
-    .then((written) => (written ? agents.refresh() : []))
+    .then((written) => (written ? agents.refresh(store.settings.runner().shippingGate) : []))
     .catch((error: unknown) =>
       log.error("harnesses.refresh-failed", "Novadeck could not refresh its plugins", {
         err: error,
@@ -399,7 +403,17 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...(options.worktreesRoot !== undefined && { path: options.worktreesRoot }),
   })
   rootFolder.ensure()
+  // The shipping gate (Experimental): read live, so the switch counts at once.
+  const shipping = new Shipping({
+    enabled: () => store.settings.runner().shippingGate,
+    owned: { ofTerminal: (id) => worktrees.ownedRows(id), all: () => worktrees.all() },
+    notify: (terminalId, text) =>
+      shippingTerminals().messaging.notice(terminalId, text, { always: true }),
+  })
+  // The terminals below are made with the gate, which asks them only once it is answering.
+  const shippingTerminals = (): Terminals => terminals
   const terminals = new Terminals({
+    shipping,
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
@@ -408,6 +422,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       enabled: (terminalId) => worktreesOn(terminalId),
       ready: (startedAt, relists, terminalId) =>
         rootFolder.ready(startedAt, relists, terminalId !== undefined && tour.isTours(terminalId)),
+      inRepository: repositoryKnown,
       // Read only by MCP calls, which come once the forges below are made.
       pullRequest: (commonDir, branch) => forges.pullRequest(commonDir, branch),
     },
@@ -632,6 +647,8 @@ const logFailure = (path: readonly string[], error: unknown): void => {
 const startRunner = (options: RunnerOptions): Runner => {
   const {
     store,
+    shellFiles,
+    rewriteShellFiles,
     terminals,
     items,
     agents,
@@ -672,6 +689,17 @@ const startRunner = (options: RunnerOptions): Runner => {
         transcriptsAvailable: () => transcriptsAvailable(sealer),
         closing: () => closing !== undefined,
         settingsSaved: () => rootFolder.ensure(),
+        // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
+        // hooks, so they are written again, and a Codex copy that differs is installed again.
+        shippingSwitched: () =>
+          void shellFiles
+            .then(() => rewriteShellFiles())
+            .then(() => agents.refresh(true))
+            .catch((error: unknown) =>
+              log.error("shipping.rewrite-failed", "Novadeck could not write the gate's hooks", {
+                err: error,
+              }),
+            ),
         tour,
         activity,
         clients,

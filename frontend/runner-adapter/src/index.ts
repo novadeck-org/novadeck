@@ -131,6 +131,7 @@ export const connectRunnerBackend = async (
         hibernateAfterMinutes,
         agentModes,
         agentMode,
+        shippingGate,
         worktrees,
       },
       agents,
@@ -164,6 +165,7 @@ export const connectRunnerBackend = async (
           hibernateAfterMinutes,
           agentModes,
           agentMode,
+          shippingGate,
           worktrees,
         })
         created.push(next)

@@ -161,6 +161,12 @@ export type Harness = {
   readonly installed?: {
     readonly directory: (install: Install) => string
     readonly files: readonly string[]
+    /**
+     * Compared only while the shipping gate is on, or just after it was switched, which
+     * is when its hooks differ from the copy: with the gate off and never on, nothing
+     * is compared, as before.
+     */
+    readonly gated?: boolean
   }
   /**
    * What keeps its messaging from working whole once connected, where something does, as
@@ -658,6 +664,12 @@ export type Machine = {
    * the harness may write there under the person's own permission mode.
    */
   readonly worktreesRoot?: string
+  /**
+   * Whether the Experimental shipping gate is on: Claude Code's per-launch settings then
+   * register its PreToolUse hook for shell commands, and Codex's plugin widens its PreToolUse
+   * matcher to them. Absent when it is off, and every file is written as it always was.
+   */
+  readonly shippingGate?: boolean
   /**
    * The folders the person's own Codex config lets a session write besides its own
    * (`sandbox_workspace_write.writable_roots`, read from it, never written), which Codex's shim

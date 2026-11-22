@@ -65,6 +65,13 @@ describe("a ring row's layout", () => {
     expect(runs.at(-1)).toMatchObject({ italic: true })
   })
 
+  it("says each line of a badge group once", () => {
+    const shift = notice("You notice the team shift.")
+    expect(text(layoutRing([shift, notice("You notice something."), shift], 80))).toBe(
+      " novadeck  You notice the team shift. · You notice something.",
+    )
+  })
+
   it("keeps agents' and the person's parts as they are, the notices between them one badge group", () => {
     const runs = layoutRing(
       [

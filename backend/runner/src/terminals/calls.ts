@@ -12,6 +12,7 @@ import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
+import type { Shipping } from "../shipping/service.js"
 import { list } from "../text.js"
 import { WorktreeCalls, type WorktreeCallsHost } from "../worktrees/calls.js"
 import { closeWay, type ApprovalOutcome } from "./approvals.js"
@@ -91,6 +92,8 @@ export type CallsHost = LeadsHost &
   WorktreeCallsHost & {
     readonly inbox: () => Inbox
     readonly feedback: () => Feedback
+    /** The shipping gate, where the runner offers it. */
+    readonly shipping: () => Shipping | undefined
     /** Agents' requests for a new terminal, on their way to the client. */
     readonly opens: () => OpenRequests
     readonly companion: () => Companion
@@ -757,14 +760,43 @@ export class Calls {
         return this.teams.leave(call)
       case "handLead":
         return this.teams.hand(call)
-      case "worktrees":
-        return Promise.resolve(this.worktrees.listed(call))
-      case "mode":
+      case "worktrees": {
+        // Also whether the Experimental shipping gate is on, which lists `request_permit`.
+        const listed = this.worktrees.listed(call)
         return Promise.resolve(
-          callerOf(this.host.records(), call)
-            ? { ok: true, mode: this.host.agentMode() }
-            : unansweredCalls.mode,
+          listed.ok ? { ...listed, gate: this.host.shipping()?.enabled() === true } : listed,
         )
+      }
+      case "permit": {
+        const caller = callerOf(this.host.records(), call)
+        const shipping = this.host.shipping()
+        if (!caller) return Promise.resolve(unansweredCalls.permit)
+        if (!shipping?.enabled())
+          return Promise.resolve({
+            ok: false,
+            reason: "The shipping gate is off, so no shipping command needs a permit.",
+          })
+        const { action, target, said, folder, remote } = call.request as { [key: string]: unknown }
+        return shipping.declare(call.terminalId, {
+          action: typeof action === "string" ? action : "",
+          ...(typeof target === "string" && { target }),
+          ...(typeof said === "string" && { said }),
+          ...(typeof folder === "string" && { folder }),
+          ...(typeof remote === "string" && { remote }),
+        })
+      }
+      case "mode": {
+        const caller = callerOf(this.host.records(), call)
+        if (!caller) return Promise.resolve(unansweredCalls.mode)
+        // Also whether the shipping gate covers this terminal's harness, which the approval
+        // rule in the texts says.
+        const agent = caller.summary.agent
+        return Promise.resolve({
+          ok: true,
+          mode: this.host.agentMode(),
+          gated: agent !== null && this.host.shipping()?.covers(agent) === true,
+        })
+      }
       case "openWorktree":
         return this.worktrees.open(call)
       case "takeWorktree":

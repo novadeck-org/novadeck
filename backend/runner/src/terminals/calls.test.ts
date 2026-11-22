@@ -579,3 +579,69 @@ describe("the open call", () => {
     })
   })
 })
+
+describe("the mode call", () => {
+  const answer = async (agent: string | null, enabled: boolean) => {
+    const host = {
+      records: () => new Map([["t1", { terminal: { exiting: false }, token, summary: { agent } }]]),
+      agentMode: () => "herd",
+      shipping: () => ({ covers: (name: string) => enabled && name !== "agy" }),
+    } as unknown as CallsHost
+    return new Calls(1000, host).call({ type: "mode", terminalId: "t1", token, request: {} })
+  }
+
+  it("says whether the shipping gate covers the caller's harness", async () => {
+    expect(await answer("claude", true)).toEqual({ ok: true, mode: "herd", gated: true })
+    expect(await answer("codex", true)).toEqual({ ok: true, mode: "herd", gated: true })
+    expect(await answer("claude", false)).toEqual({ ok: true, mode: "herd", gated: false })
+    expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: false })
+    expect(await answer(null, true)).toEqual({ ok: true, mode: "herd", gated: false })
+  })
+})
+
+describe("the permit call", () => {
+  const permit = {
+    type: "permit",
+    terminalId: "t1",
+    token,
+    request: { action: "push", target: "main", said: "push it", folder: "/w", remote: "fork" },
+  } as const
+  const setup = (enabled: boolean) => {
+    const declared: unknown[][] = []
+    const shipping = {
+      enabled: () => enabled,
+      declare: async (...args: unknown[]) => (declared.push(args), { ok: true, state: "asked" }),
+    }
+    const host = {
+      records: () => new Map([["t1", { terminal: { exiting: false }, token }]]),
+      shipping: () => shipping,
+    } as unknown as CallsHost
+    return { permitting: new Calls(1000, host), declared }
+  }
+
+  it("declares what the agent said to the gate, as the terminal that called", async () => {
+    const { permitting, declared } = setup(true)
+    expect(await permitting.call(permit)).toEqual({ ok: true, state: "asked" })
+    expect(declared).toEqual([
+      ["t1", { action: "push", target: "main", said: "push it", folder: "/w", remote: "fork" }],
+    ])
+  })
+
+  it("keeps to the strings it is given, and an action it names", async () => {
+    const { permitting, declared } = setup(true)
+    await permitting.call({ ...permit, request: { action: 7, target: 1, said: {}, remote: [] } })
+    expect(declared).toEqual([["t1", { action: "" }]])
+  })
+
+  it("is refused while the gate is off, and for a caller without the terminal's token", async () => {
+    const off = setup(false)
+    expect(await off.permitting.call(permit)).toMatchObject({ ok: false })
+    expect(off.declared).toEqual([])
+    const on = setup(true)
+    expect(await on.permitting.call({ ...permit, token: "b".repeat(48) })).toEqual({
+      ok: false,
+      reason: "Novadeck couldn't declare it.",
+    })
+    expect(on.declared).toEqual([])
+  })
+})

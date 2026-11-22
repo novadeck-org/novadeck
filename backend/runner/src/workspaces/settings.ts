@@ -169,6 +169,7 @@ export class Settings {
       worktrees: saved.get("worktrees") === "true",
       agentModes: saved.get("agentModes") === "true",
       agentMode: agentModeOf(saved.get("agentMode")),
+      shippingGate: saved.get("shippingGate") === "true",
     }
   }
 

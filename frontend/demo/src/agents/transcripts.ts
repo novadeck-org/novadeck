@@ -44,8 +44,10 @@ export type DemoOutcome = (
   readonly planning?: true
 }
 
-export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
-  Partial<
+// `together`: recorded at the same moment as the draft before it, as one hook's notices are.
+export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> & {
+  readonly together?: true
+} & Partial<
     Pick<
       ChatItem,
       | "tool"
@@ -189,7 +191,7 @@ export const written = (
 ): ChatItem[] =>
   drafts.map((draft, index) => ({
     id: `${terminalId}:${index + 1}`,
-    at: now - (drafts.length - index) * 30_000,
+    at: now - (drafts.length - (draft.together ? index - 1 : index)) * 30_000,
     role: draft.role,
     kind: draft.kind,
     text: draft.text,
@@ -510,13 +512,16 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
   "04": {
     items: written("04", now, [
       user("Review the checkout change on this branch for bugs, and fix what you find."),
-      // What the prompt's hook added: Novadeck's standing notices, a line each under the prompt.
+      // What the prompt's hook added: Novadeck's standing notices, one line under the prompt.
       standing(
         "Novadeck · Describe\nThis terminal has no summary yet.\n→ Once you've been given work, call describe with a title and a summary.",
       ),
-      standing(
-        "Novadeck · Inbox\nThe Inbox shows the user a copy of your questions and reports when they're away.\n→ Put every question your turn ends waiting on in it with ask.",
-      ),
+      {
+        ...standing(
+          "Novadeck · Inbox\nThe Inbox shows the user a copy of your questions and reports when they're away.\n→ Put every question your turn ends waiting on in it with ask.",
+        ),
+        together: true,
+      },
       say("I'll read the diff first, then have two explorers check the call sites."),
       use(
         "call_04a",

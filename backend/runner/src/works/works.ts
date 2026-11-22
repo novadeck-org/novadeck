@@ -16,7 +16,7 @@ import {
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
-import { targetOf, type Target } from "../checkouts/home.js"
+import { commonOf, targetOf, type Target } from "../checkouts/home.js"
 import { listChanges, type Listed } from "../checkouts/listing.js"
 import {
   branchOf,
@@ -35,6 +35,7 @@ import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { folderOf, projectPathOf, repoPath } from "./folder.js"
+import { landedByReflog } from "./landed.js"
 import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
@@ -897,6 +898,19 @@ export class Works {
       // Git failing is not an answer: what was told stands, and the next pass reads it again.
       if (merged === undefined) return "keep"
       if (merged) return quiet(true)
+      // Landed by git itself: a merge of this branch into a holder, in its reflog. A fast-forward
+      // one leaves history looking as if the branch only caught up, which `mergedWork` can't tell.
+      if (
+        await landedByReflog(
+          root,
+          await commonOf(root),
+          target.holders.map((each) => each.name),
+          branch,
+          snapshot.head,
+          start,
+        )
+      )
+        return quiet(true)
       // Another holder counts only where merging into it changes nothing too: a worktree that
       // just caught up with home has commits main lacks, which are home's, not its own.
       for (const holder of others) {

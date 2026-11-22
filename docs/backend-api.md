@@ -1950,7 +1950,7 @@ one from an earlier runner.
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
 - `settings.get()` and
-  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, agentModes?, agentMode? })`
+  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, agentModes?, agentMode?, shippingGate? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
   Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
@@ -1965,7 +1965,9 @@ one from an earlier runner.
   open git worktrees through Novadeck's tools (off until the person turns it on, in
   Preferences' Experimental tab), whether Solo and Swarm may be picked (`agentModes`, off until
   the person turns it on in the same tab; while off, agents work as a Herd whatever `agentMode`
-  holds, and the saved pick returns with the switch), and how agents work with each other,
+  holds, and the saved pick returns with the switch), whether the shipping gate is on
+  (`shippingGate`, off until the person turns it on in the same tab; see "The shipping gate" in
+  agent-messaging.md), and how agents work with each other,
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a

@@ -95,6 +95,9 @@ const borders = "│┃║|"
 // screen, which is no ring.
 const beforeTag = /^[\s❯›>│┃║|▌▐]*$/
 const afterTag = /^[\s│┃║|]*$/
+// What a delivery block's first row may hold before it: Claude Code's "⎿  Stop hook says:" (or
+// "feedback:"), Codex's "└", a border and blanks.
+const beforeBlock = /^[\s│┃║|⎿└]*(?:Stop hook (?:says|feedback):\s*)?$/
 // The most rows below a tag the person's own multi-line box may hold, to the cursor.
 const maxBoxRows = 12
 
@@ -118,11 +121,15 @@ const mapRow = (line: IBufferLine, cols: number): { text: string; col: number[] 
 }
 
 // Whether the row could start a ring's tag or a delivery block: what is cheap to ask of its text.
+// What is before it must be what a harness puts there (`beforeTag`, `beforeBlock`), so a tag quoted
+// in output, as a search of this code prints it, costs no more than any other row.
 const couldStart = (text: string): boolean => {
   for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at + 1)) {
+    const before = text.slice(0, at)
     const rest = strip(text.slice(at).replace(/[\s│┃║|]+$/, ""))
-    if (startsRing(rest) || tagOf(rest) !== undefined) return true
-    if (rest.startsWith(blockOpen) || blockOpen.startsWith(rest)) return true
+    if (beforeTag.test(before) && (startsRing(rest) || tagOf(rest) !== undefined)) return true
+    if (beforeBlock.test(before) && (rest.startsWith(blockOpen) || blockOpen.startsWith(rest)))
+      return true
   }
   return false
 }
@@ -728,10 +735,13 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     stats.verifyMs += performance.now() - t0
   }
 
-  // The most rows a scan reads in full: output dense with "<" (markup, diffs) costs no more.
+  // The most rows a scan of the screen's rows reads in full, as it runs at every write while armed:
+  // output dense with "<" (markup, diffs) costs no more. A scan of the whole buffer, after a
+  // restore, a resize or a return from the alternate screen, reads every row that could start
+  // one: a long session holds more rings than this, and its newest are the ones on screen.
   const maxCandidates = 24
 
-  const scan = (from: number, to: number): void => {
+  const scan = (from: number, to: number, budget: number): void => {
     if (content.rings.size === 0 && content.deliveries.length === 0) return
     // A pager or an editor on the alternate screen: nothing of it is a ring.
     if (buffer().type === "alternate" && !options.alternate?.()) return
@@ -748,7 +758,7 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
       for (const piece of entry.pieces) claimed.add(piece.marker.line)
     }
     let candidates = 0
-    for (let y = a; y <= b && candidates < maxCandidates; y += 1) {
+    for (let y = a; y <= b && candidates < budget; y += 1) {
       stats.rowsScanned += 1
       if (claimed.has(y)) continue
       const line = buf.getLine(y)
@@ -777,10 +787,10 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
 
   const scanViewport = (): void => {
     const buf = buffer()
-    scan(buf.viewportY, buf.viewportY + terminal.rows - 1)
+    scan(buf.viewportY, buf.viewportY + terminal.rows - 1, maxCandidates)
   }
 
-  const scanAll = (): void => scan(0, buffer().length - 1)
+  const scanAll = (): void => scan(0, buffer().length - 1, Infinity)
 
   const dropAll = (): void => {
     for (const entry of entries.values()) remove(entry)
