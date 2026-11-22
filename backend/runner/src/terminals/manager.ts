@@ -527,6 +527,7 @@ export class Terminals {
       },
       held: (id, root, held) => this.reporting.held(id, root, held),
       ...(options.agentMode && { mode: options.agentMode }),
+      gated: (agent) => this.options.shipping?.covers(agent) ?? false,
       onWake: (id) => this.sleepers.ask(id),
     })
     this.inbox = new Inbox(

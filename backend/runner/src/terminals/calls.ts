@@ -777,12 +777,18 @@ export class Calls {
           ...(typeof remote === "string" && { remote }),
         })
       }
-      case "mode":
-        return Promise.resolve(
-          callerOf(this.host.records(), call)
-            ? { ok: true, mode: this.host.agentMode() }
-            : unansweredCalls.mode,
-        )
+      case "mode": {
+        const caller = callerOf(this.host.records(), call)
+        if (!caller) return Promise.resolve(unansweredCalls.mode)
+        // Also whether the shipping gate covers this terminal's harness, which the approval
+        // rule in the texts says.
+        const agent = caller.summary.agent
+        return Promise.resolve({
+          ok: true,
+          mode: this.host.agentMode(),
+          gated: agent !== null && this.host.shipping()?.covers(agent) === true,
+        })
+      }
       case "openWorktree":
         return this.worktrees.open(call)
       case "takeWorktree":

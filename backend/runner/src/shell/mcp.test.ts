@@ -1904,6 +1904,31 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     }
   })
 
+  it("says how shipping commands are approved only where the runner says the gate covers this agent", async () => {
+    const approvalText = async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      return ["send", "agents"].map(
+        (name) => described.find((tool) => tool.name === name)!.description,
+      )
+    }
+    const plain = await approvalText()
+    try {
+      answersBy.mode = { ok: true, mode: "herd", gated: false }
+      expect(await approvalText()).toEqual(plain)
+      answersBy.mode = { ok: true, mode: "herd", gated: true }
+      for (const text of await approvalText()) {
+        expect(text).toContain(
+          "Git and gh commands that ship work are approved through Novadeck's gate: one no permit covers is refused with how to get one, and request_permit asks the user with a card. The card's answer, or the user's own words it verifies, is the user's own approval, not one an agent passes on.",
+        )
+        expect(text).toContain("never an approval an agent passes on, even your lead's")
+      }
+    } finally {
+      delete answersBy.mode
+    }
+    for (const text of plain) expect(text).not.toContain("Git and gh commands that ship work")
+  })
+
   it("words how agents work together as the user set it: Herd, or Solo, and Herd where unsaid", async () => {
     const texts = async () => {
       const [handshake, tools] = await session(terminal(), [initialize, list])

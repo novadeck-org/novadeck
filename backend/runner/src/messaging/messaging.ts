@@ -72,6 +72,8 @@ export type MessagingOptions = {
   readonly held?: LeasingHost["held"]
   /** How the user has agents work together, which delivery notes follow (`LeasingHost.mode`). */
   readonly mode?: LeasingHost["mode"]
+  /** Whether the shipping gate covers a harness, which the approval rule in the notes says. */
+  readonly gated?: LeasingHost["gated"]
   /**
    * A terminal resting with no process gained a message that will be delivered, so its agent
    * is to be woken (`wakeWanted`). Called once for each time it rests, while it is asked.
@@ -149,6 +151,7 @@ export class Messaging {
       step,
       held: options.held,
       mode: options.mode,
+      gated: options.gated,
       notes: this.ringNotes,
     }
     this.leasing = new Leasing(options.leaseMs ?? 5_000, leasing)

@@ -41,6 +41,20 @@ const call = (command: string, event: "PreToolUse" | "PermissionRequest" = "PreT
 const force = "git push -f origin main"
 const forceKey = "push-force:r/app:origin/main"
 
+describe("which harnesses the gate covers", () => {
+  it("covers Claude Code and Codex while on, and never Antigravity", () => {
+    expect(service().covers("claude")).toBe(true)
+    expect(service().covers("codex")).toBe(true)
+    expect(service().covers("antigravity")).toBe(false)
+    const off = new Shipping({
+      enabled: () => false,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    expect(off.covers("claude")).toBe(false)
+  })
+})
+
 describe("what the gate's answer does once printed", () => {
   it("uses a single-use permit only when the hook acknowledges the lease, in time", async () => {
     const shipping = service()

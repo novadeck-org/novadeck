@@ -227,6 +227,11 @@ export class Shipping {
     return this.host.enabled()
   }
 
+  /** Whether the gate is on and covers `agent`'s harness (Antigravity isn't gated yet). */
+  covers(agent: AgentName): boolean {
+    return this.host.enabled() && (agent === "claude" || agent === "codex")
+  }
+
   /** Whether the gate answers `agent`'s `event`: Claude's PreToolUse, Codex's PreToolUse and PermissionRequest. */
   gating(agent: AgentName, event: string): boolean {
     if (!this.host.enabled()) return false
