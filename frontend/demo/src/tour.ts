@@ -43,10 +43,10 @@ export type TourStage = {
   readonly newTerminal: Backend["newTerminal"]
   readonly messages: DemoMessages | undefined
   readonly inbox: DemoInbox | undefined
-  // What the person last answered a row of the Inbox, as the story's ask needs to read it.
+  // What the person last answered an entry of the Inbox, as the story's ask needs to read it.
   readonly answeredWith: (id: string) => InboxAnswer | undefined
-  // Answers a row as the person would in the Inbox.
-  readonly answerRow: (id: string, answer: InboxAnswer) => void
+  // Answers an entry as the person would in the Inbox.
+  readonly answerEntry: (id: string, answer: InboxAnswer) => void
   // Makes what a shown item holds follow-able, before its item is upserted.
   readonly hold: (itemId: string, content: ItemContent) => void
 }
@@ -223,7 +223,7 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
   const messages = backend.messages ?? createDemoMessages([], false, exists)
   const inbox = isDemoInbox(backend.inbox) ? backend.inbox : undefined
   const answers = new Map<string, InboxAnswer>()
-  const answerRow = (id: string, answer: InboxAnswer): void => {
+  const answerEntry = (id: string, answer: InboxAnswer): void => {
     answers.set(id, answer)
     inbox?.answer(id, answer)
   }
@@ -235,14 +235,14 @@ export const withTourAgent = (backend: Backend, turns: DemoTurns): Backend => {
     messages: isDemoMessages(messages) ? messages : undefined,
     inbox,
     answeredWith: (id) => answers.get(id),
-    answerRow,
+    answerEntry,
     hold: (itemId, content) => void held.set(itemId, content),
   }
   return {
     ...backend,
     tour,
     messages,
-    ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerRow } } : {}),
+    ...(inbox && backend.inbox ? { inbox: { ...backend.inbox, answer: answerEntry } } : {}),
     companions: {
       ...companions,
       follow: (target, itemId, options, on) => {

@@ -151,7 +151,7 @@ const answeredOf = (
 const askingRowOf = (inbox: InboxState | undefined, team: ReadonlySet<string>): string | null =>
   questionsOf(inbox, team).find((row) => !row.settled)?.id ?? null
 
-// The first of the team's agents waiting on the person's yes: an unsettled Unblock row.
+// The first of the team's agents waiting on the person's yes: an unsettled Unblock entry.
 const permissionOf = (
   inbox: InboxState | undefined,
   team: ReadonlySet<string>,

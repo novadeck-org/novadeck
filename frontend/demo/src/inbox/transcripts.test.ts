@@ -1,25 +1,25 @@
 import { agentContext, answersOf } from "@novadeck/core/agents/steps"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { terminalKeyPath } from "@novadeck/core/types"
 
 import { plainDemo } from "../index"
 import { describe, expect, it } from "../test"
 import { demoInboxIds } from "./fixtures"
 
-// What an Inbox row's sheet reads of its agent in the Inbox demo, as `useAgentContext`
+// What an Inbox entry's sheet reads of its agent in the Inbox demo, as `useAgentContext`
 // does: its conversation and the messages delivered to it.
-const contextOf = (row: InboxRow) => {
+const contextOf = (entry: InboxEntry) => {
   const backend = plainDemo("inbox")
-  const store = backend.conversations!.conversation(row.source)
+  const store = backend.conversations!.conversation(entry.source)
   const stop = store.subscribe(() => {})
   const conversation = store.getSnapshot()
   stop()
-  const threads = backend.messages!.state.getSnapshot().terminals[terminalKeyPath(row.source)]
+  const threads = backend.messages!.state.getSnapshot().terminals[terminalKeyPath(entry.source)]
   return agentContext(conversation.agent, conversation.items, answersOf(threads))
 }
 
-const rows = (): readonly InboxRow[] => plainDemo("inbox").inbox!.state.getSnapshot().items
-const rowWith = (id: string): InboxRow => rows().find((each) => each.id === id)!
+const entries = (): readonly InboxEntry[] => plainDemo("inbox").inbox!.state.getSnapshot().items
+const rowWith = (id: string): InboxEntry => entries().find((each) => each.id === id)!
 
 describe("the Inbox demo's agents' context", () => {
   it("gives an agent the person's words and its steps since, a failure among them", () => {
@@ -68,9 +68,9 @@ describe("the Inbox demo's agents' context", () => {
     ])
   })
 
-  it("gives every row on a terminal whose agent the person spoke to the words they gave", () => {
+  it("gives every entry on a terminal whose agent the person spoke to the words they gave", () => {
     const backend = plainDemo("inbox")
-    const conversing = rows().filter((each) => {
+    const conversing = entries().filter((each) => {
       const store = backend.conversations!.conversation(each.source)
       const stop = store.subscribe(() => {})
       const { agent } = store.getSnapshot()

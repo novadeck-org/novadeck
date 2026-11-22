@@ -1,5 +1,5 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { demoTerminalId } from "@novadeck/demo/samples"
@@ -201,7 +201,7 @@ export const mcpAsk = (
   kind: AskKind,
   now: number,
   agent: AgentName,
-): InboxRow | undefined => {
+): InboxEntry | undefined => {
   const project = workspace?.projects.find((each) => each.id === key.projectId)
   const terminal = terminalOf(workspace, key)
   if (!project || !terminal) return undefined

@@ -8,7 +8,7 @@ import {
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
-import { inboxType, rowKey, type InboxRow, type InboxState } from "@novadeck/core/inbox"
+import { inboxType, entryKey, type InboxEntry, type InboxState } from "@novadeck/core/inbox"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -23,13 +23,13 @@ import { started, useInboxContext } from "./InboxProvider"
 import { useSight } from "./read-on-leaving"
 import { Text } from "./sheet-parts"
 
-// Whether the person answered the row, here, and it has since gone: it keeps its place in
+// Whether the person answered the entry, here, and it has since gone: it keeps its place in
 // the list, answered, until the sheet closes.
 const answeredIn = (
-  row: InboxRow,
+  entry: InboxEntry,
   state: Pick<InboxState, "answering" | "failed">,
-  ghosts: Readonly<Record<string, InboxRow>>,
-): boolean => row.id in ghosts && !state.answering[row.id] && !state.failed[row.id]
+  ghosts: Readonly<Record<string, InboxEntry>>,
+): boolean => entry.id in ghosts && !state.answering[entry.id] && !state.failed[entry.id]
 
 // A row follows the pointer once it has moved a few pixels, so a click still opens it; the
 // keyboard moves rows with Alt and the arrows instead, so dnd-kit adds no keyboard sensor and
@@ -60,13 +60,13 @@ type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 // A row that asks drags among the others that do, into the person's order (`drag`), and can
 // be snoozed (S): it keeps its place, marked, its bell-off where its wait shows, and there its
 // unsnooze button instead of a dismiss button.
-const Row = ({
-  row,
+const InboxRow = ({
+  entry,
   place,
   asks,
   drag,
 }: {
-  readonly row: InboxRow
+  readonly entry: InboxEntry
   // Its place in the list, which keeps a row that doesn't drag where it is.
   readonly place: number
   readonly asks: boolean
@@ -81,7 +81,7 @@ const Row = ({
     handleRef,
     isDragSource: dragging,
   } = useSortable({
-    id: row.id,
+    id: entry.id,
     index: drag ? drag.index : place,
     group: drag ? "asks" : "still",
     disabled: !drag,
@@ -102,7 +102,7 @@ const Row = ({
     dismiss,
     snooze,
   } = useInboxContext()
-  const { settled } = row
+  const { settled } = entry
   // An update is seen once its row has been in sight for a moment, on the Inbox's panel while
   // it shows, and read when the person leaves the list. A panel on its way out stays in sight
   // to the observer until it has faded (sidebar.css), so the panel's own flag says when it shows.
@@ -117,55 +117,55 @@ const Row = ({
   // One whose read failed waits to be opened, as the landing lands it to be read by hand.
   const unread =
     active &&
-    row.kind === "update" &&
+    entry.kind === "update" &&
     !settled &&
-    !state.answering[row.id] &&
-    state.failed[row.id] === undefined
-  useSight(element, unread, looking, () => sighted(row))
-  const type = inboxType(row)
-  const pending = Boolean(state.answering[row.id])
-  // Answered here and gone from the backend's rows, which keeps it until its sheet closes.
-  const answered = answeredIn(row, state, ghosts)
+    !state.answering[entry.id] &&
+    state.failed[entry.id] === undefined
+  useSight(element, unread, looking, () => sighted(entry))
+  const type = inboxType(entry)
+  const pending = Boolean(state.answering[entry.id])
+  // Answered here and gone from the backend's entries, which keeps it until its sheet closes.
+  const answered = answeredIn(entry, state, ghosts)
   const answering = pending || answered
-  const Icon = pending ? LoaderCircle : icons[iconKey(row)]
-  const current = view.open === row.id
-  const snoozable = snooze !== undefined && asking(row) && !answering
-  const snoozed = Boolean(row.snoozed) && !answering
+  const Icon = pending ? LoaderCircle : icons[iconKey(entry)]
+  const current = view.open === entry.id
+  const snoozable = snooze !== undefined && asking(entry) && !answering
+  const snoozed = Boolean(entry.snoozed) && !answering
   // A snoozed row's unsnooze button has the dismiss button's place: it is brought back before
   // it is dismissed.
   const dismissable =
     dismiss !== undefined &&
-    row.kind === "ask" &&
+    entry.kind === "ask" &&
     !settled &&
     !pending &&
     !answered &&
     !(snoozed && snoozable)
-  const subject = subjectOf(row).replaceAll("`", "")
-  const toggleSnooze = (): void => snooze?.(row, !row.snoozed)
+  const subject = subjectOf(entry).replaceAll("`", "")
+  const toggleSnooze = (): void => snooze?.(entry, !entry.snoozed)
   const extras = settled
     ? [endedWords[settled.how]]
     : [
         snoozed ? "Snoozed" : null,
-        started(drafts[rowKey(row)]) && !answering ? "Draft" : null,
-        answering ? null : resumesLabel(row),
-        readLabel(row),
+        started(drafts[entryKey(entry)]) && !answering ? "Draft" : null,
+        answering ? null : resumesLabel(entry),
+        readLabel(entry),
       ].filter((extra): extra is string => extra !== null)
   return (
     <div
       ref={ref}
       role="listitem"
       className="item inbox-row"
-      data-inbox-row={row.id}
+      data-inbox-row={entry.id}
       data-tour="inbox-card"
       data-type={type}
-      data-tint={answered ? "muted" : tintOf(row)}
-      data-seen={row.seen}
+      data-tint={answered ? "muted" : tintOf(entry)}
+      data-seen={entry.seen}
       data-needs={asks}
       data-settled={settled?.how}
       data-dismissable={dismissable}
       data-snoozable={snoozable}
       data-snoozed={snoozed || undefined}
-      data-arrived={view.arrived.includes(row.id)}
+      data-arrived={view.arrived.includes(entry.id)}
       data-selected={current}
       data-dragging={dragging || undefined}
     >
@@ -177,14 +177,14 @@ const Row = ({
           [onStep && "Alt+ArrowUp Alt+ArrowDown", snoozable && "S"].filter(Boolean).join(" ") ||
           undefined
         }
-        aria-label={`${typeWords[type]}: ${subject}, ${row.source.projectName}${
+        aria-label={`${typeWords[type]}: ${subject}, ${entry.source.projectName}${
           settled ? `, ${endedWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
         }`}
         aria-current={current ? "true" : undefined}
         onClick={(event) => {
           // Pressed again, the open row closes its sheet.
           if (current) return close()
-          open(row.id)
+          open(entry.id)
           // From the keyboard, on to the sheet that opens.
           if (event.detail === 0) focusSheetSoon()
         }}
@@ -226,8 +226,8 @@ const Row = ({
             !event.altKey
           ) {
             event.preventDefault()
-            const next = nextRowButton(row.id)
-            dismiss(row.id)
+            const next = nextRowButton(entry.id)
+            dismiss(entry.id)
             next?.focus()
             return
           }
@@ -240,22 +240,22 @@ const Row = ({
           <Icon size={14} strokeWidth={1.6} />
         </span>
         <span className="inbox-row-subject text-body">
-          <Text text={subjectOf(row)} />
+          <Text text={subjectOf(entry)} />
         </span>
         <span className="inbox-row-wait text-caption">
           {settled ? (
             waitLabel(settled.at, now)
           ) : snoozed ? (
             <BellOff size={14} strokeWidth={1.6} aria-hidden="true" />
-          ) : row.stopped && !answering ? (
-            waitLabel(row.at, now)
+          ) : entry.stopped && !answering ? (
+            waitLabel(entry.at, now)
           ) : (
             ""
           )}
         </span>
         <span className="inbox-row-meta text-caption">
-          <span className="inbox-row-project" title={row.source.projectName}>
-            {row.source.projectName}
+          <span className="inbox-row-project" title={entry.source.projectName}>
+            {entry.source.projectName}
           </span>
           {extras.map((extra) => (
             <span
@@ -281,7 +281,7 @@ const Row = ({
               // The keyboard was on this button, which goes with the click: it stays on the row.
               const keyboard = event.detail === 0
               const select = event.currentTarget.previousElementSibling
-              dismiss(row.id)
+              dismiss(entry.id)
               if (keyboard && select instanceof HTMLElement) select.focus()
             }}
           >
@@ -290,11 +290,11 @@ const Row = ({
         </Tooltip>
       ) : null}
       {snoozable ? (
-        <Tooltip content={row.snoozed ? "Unsnooze · S" : "Snooze · S"}>
+        <Tooltip content={entry.snoozed ? "Unsnooze · S" : "Snooze · S"}>
           <button
             type="button"
             className="inbox-row-snooze icon-button dim size-7"
-            aria-label={`${row.snoozed ? "Unsnooze" : "Snooze"}: ${subject}`}
+            aria-label={`${entry.snoozed ? "Unsnooze" : "Snooze"}: ${subject}`}
             onClick={(event) => {
               // The keyboard was on this button, which goes with the click: it stays on the row.
               const keyboard = event.detail === 0
@@ -305,7 +305,7 @@ const Row = ({
               if (keyboard) select?.focus()
             }}
           >
-            {row.snoozed ? (
+            {entry.snoozed ? (
               <Bell size={14} strokeWidth={1.6} />
             ) : (
               <BellOff size={14} strokeWidth={1.6} />
@@ -356,45 +356,45 @@ export const arrangedIds = (
 }
 
 // Everything across the workspace that asks for the person, one row each.
-const needsBefore = (before: InboxRow | undefined): boolean =>
+const needsBefore = (before: InboxEntry | undefined): boolean =>
   before !== undefined && asking(before)
 
 const InboxListView = (): React.JSX.Element => {
   const { shown, view, working, state, ghosts, arrange } = useInboxContext()
-  const placements = shown.map((row) => ({
-    row,
-    asks: asking(row) && !answeredIn(row, state, ghosts),
+  const placements = shown.map((entry) => ({
+    entry,
+    asks: asking(entry) && !answeredIn(entry, state, ghosts),
     // A row that resolved in place among the asks keeps its place with them.
-    placed: row.settled !== undefined && needsBefore(view.base[row.id]),
+    placed: entry.settled !== undefined && needsBefore(view.base[entry.id]),
   }))
   // The rows that drag: those that ask, until the person answers them, where the backend
   // keeps an order.
   const dragged = arrange
     ? placements
-        .filter(({ row, asks }) => asks && !state.answering[row.id])
-        .map(({ row }) => row.id)
+        .filter(({ entry, asks }) => asks && !state.answering[entry.id])
+        .map(({ entry }) => entry.id)
     : []
   const move = (id: string, to: number): void => {
     const from = dragged.indexOf(id)
     const at = Math.max(0, Math.min(dragged.length - 1, to))
     if (!arrange || from < 0 || from === at) return
     const order = dragged.toSpliced(from, 1).toSpliced(at, 0, id)
-    const moving = shown.find((row) => row.id === id)
+    const moving = shown.find((entry) => entry.id === id)
     setMoved(
       `${moving ? `${subjectOf(moving).replaceAll("`", "")}: m` : "M"}oved to ${at + 1} of ${dragged.length}`,
     )
     // The rows that ask and are still there, one answered meanwhile among them, and one that
     // resolved in place, which keeps it.
-    const live = new Set(state.items.map((row) => row.id))
+    const live = new Set(state.items.map((entry) => entry.id))
     const kept = new Set(
       placements
-        .filter(({ row, placed }) => live.has(row.id) && (asking(row) || placed))
-        .map(({ row }) => row.id),
+        .filter(({ entry, placed }) => live.has(entry.id) && (asking(entry) || placed))
+        .map(({ entry }) => entry.id),
     )
-    const byId = new Map(shown.map((row) => [row.id, row]))
+    const byId = new Map(shown.map((entry) => [entry.id, entry]))
     arrange(
       arrangedIds(
-        shown.map((row) => row.id),
+        shown.map((entry) => entry.id),
         kept,
         dragged,
         order,
@@ -452,12 +452,12 @@ const InboxListView = (): React.JSX.Element => {
               move(id, source.index)
             }}
           >
-            {placements.map(({ row, asks }, index) => {
-              const place = dragged.indexOf(row.id)
+            {placements.map(({ entry, asks }, index) => {
+              const place = dragged.indexOf(entry.id)
               return (
-                <Row
-                  key={row.id}
-                  row={row}
+                <InboxRow
+                  key={entry.id}
+                  entry={entry}
                   place={index}
                   asks={asks}
                   drag={
@@ -466,8 +466,8 @@ const InboxListView = (): React.JSX.Element => {
                       : {
                           index: place,
                           onStep: (by) => {
-                            move(row.id, place + by)
-                            focusRow(row.id)
+                            move(entry.id, place + by)
+                            focusRow(entry.id)
                           },
                         }
                   }

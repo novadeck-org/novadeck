@@ -1919,7 +1919,7 @@ is marked `hibernating`. That mark gates the record: `attach` is TERMINAL_NOT_FO
 tells nothing (the list keeps the running summary), `prompted` and the sampler do nothing, a
 `create` waits, and `lastProgram` is pinned to the bound agent first, so the shell that is left
 is not taken for what resumes. The shell's exit then publishes no exit, does not unregister the
-terminal from messaging and leaves its Inbox rows alone; `host.discard` lets the ended terminal
+terminal from messaging and leaves its Inbox entries alone; `host.discard` lets the ended terminal
 go at once (a drained id would answer CONFLICT, which the adapter reads as success). Only then,
 if the terminal was not closed meanwhile, does it rest and one `changed` tell watchers it
 sleeps, so a wake cannot meet the old record.
@@ -2663,7 +2663,7 @@ output, not that the model acted on it.
   message of the thread after it, idle or not; a message that isn't idle sets the count
   back to none. While held, each message is still judged idle or not, for its answer,
   but the count stays as it was. A message at or past the hold is held `release` even
-  while messaging is paused, so the hold's Inbox row stays. The hold is the thread's,
+  while messaging is paused, so the hold's Inbox entry stays. The hold is the thread's,
   and lasts until the person releases or stops it: a held message that goes `gone` (as
   with its session) is like any other, and one that comes back waits held again, its hop
   being past the hold. A held thread is continued like any thread, within ten minutes of its last message; after
@@ -2973,7 +2973,7 @@ ends the watch of that shell: an agent that never binds may open a dialog of its
 and Codex may raise a screen over a prompt it drew a few seconds before. It reaches `agents()` and, as
 `TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
 screen" (or "Waiting for you to sign in, in its terminal", or what holds its hooks) in its
-tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
+tooltip, and the chat view gives way to the screen. It raises no Inbox entry: no
 request stands behind it.
 
 Chat also leaves the terminal visible until the agent's prompt or session is known, even
@@ -3429,7 +3429,7 @@ optional `messages` capability (`core/messages.ts`):
   head has the way back, and the way to the peer's terminal. In You, entries say what they
   are (Asks you, Asked you · answered, withdrawn, session ended or reply not delivered;
   Tells you, Told you), a reply quotes its question, a New line comes before the first
-  unread entry, an open question has **Answer**, which opens its Inbox row, and the head
+  unread entry, an open question has **Answer**, which opens its Inbox entry, and the head
   counts the questions that wait. The view shows no holds: a thread held as a loop is
   the runner's and the Inbox's (`messages.release`), never released or stopped here.
 - **Critters.** Each handle has an 8×8 critter drawn for its word

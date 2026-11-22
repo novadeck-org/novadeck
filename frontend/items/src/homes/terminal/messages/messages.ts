@@ -124,7 +124,7 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
 }
 
 // What the messages' views know of the session around the terminal: the other terminals
-// by handle, and the ways out of the pane, to another terminal and to the Inbox row an
+// by handle, and the ways out of the pane, to another terminal and to the Inbox entry an
 // entry waits in.
 // The peers are a store, which only the views that draw them subscribe to, so a terminal
 // whose pane is shut never renders again as an agent starts or stops working.

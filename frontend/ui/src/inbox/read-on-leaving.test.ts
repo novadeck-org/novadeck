@@ -3,7 +3,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { context, describe, expect, it } from "../test"
 import { createSightReader, sightDwellMs } from "./read-on-leaving"
 
-describe("seeing an update by its row in sight", () => {
+describe("seeing an update by its entry in sight", () => {
   beforeEach(() => void vi.useFakeTimers())
   afterEach(() => void vi.useRealTimers())
 
@@ -12,7 +12,7 @@ describe("seeing an update by its row in sight", () => {
     return { seen, sight: createSightReader({ focused, seen }) }
   }
 
-  context("a row in sight while the window has focus", () => {
+  context("an entry in sight while the window has focus", () => {
     it("is seen once it has stayed in sight for the dwell", () => {
       const { seen, sight } = reader()
       sight.sight(true)
@@ -33,7 +33,7 @@ describe("seeing an update by its row in sight", () => {
     })
   })
 
-  context("a row scrolled past", () => {
+  context("an entry scrolled past", () => {
     it("isn't seen, and its wait starts again when it comes back", () => {
       const { seen, sight } = reader()
       sight.sight(true)
@@ -47,7 +47,7 @@ describe("seeing an update by its row in sight", () => {
     })
   })
 
-  context("a row in sight while the window has no focus", () => {
+  context("an entry in sight while the window has no focus", () => {
     it("isn't seen until the focus comes back for the dwell", () => {
       const { seen, sight } = reader(false)
       sight.sight(true)
@@ -68,7 +68,7 @@ describe("seeing an update by its row in sight", () => {
     })
   })
 
-  context("a row that goes before the dwell is up", () => {
+  context("an entry that goes before the dwell is up", () => {
     it("isn't seen", () => {
       const { seen, sight } = reader()
       sight.sight(true)

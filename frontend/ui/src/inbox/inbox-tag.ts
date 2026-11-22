@@ -1,10 +1,10 @@
-import { inboxType, type InboxRow, type InboxType, type SettledHow } from "@novadeck/core/inbox"
+import { inboxType, type InboxEntry, type InboxType, type SettledHow } from "@novadeck/core/inbox"
 
 import { tintOf, type Tint } from "./inbox-icons"
 import { actionOf } from "./inbox-text"
 
 // The word that leads a sheet's head, so what kind of message it is reads before any of it:
-// with the row's own icon and tint. Pure, so the words read apart from the markup.
+// with the entry's own icon and tint. Pure, so the words read apart from the markup.
 
 export type TagWord =
   | "Command"
@@ -46,11 +46,11 @@ const settledWords = {
   away: "Ended",
 } as const satisfies Record<SettledHow, TagWord>
 
-const wordOf = (row: InboxRow): TagWord => {
-  switch (row.kind) {
+const wordOf = (entry: InboxEntry): TagWord => {
+  switch (entry.kind) {
     case "request": {
-      if (row.request.kind === "question") return "Question"
-      const action = actionOf(row.request)
+      if (entry.request.kind === "question") return "Question"
+      const action = actionOf(entry.request)
       if (action === "plan") return "Plan"
       if (action === "run") return "Command"
       if (action === "edit") return "Edit"
@@ -59,20 +59,20 @@ const wordOf = (row: InboxRow): TagWord => {
     case "held":
       return "Held"
     case "ask":
-      return row.ask.shape.type === "action" ? "Your move" : "Question"
+      return entry.ask.shape.type === "action" ? "Your move" : "Question"
     case "trouble":
-      if (row.trouble.type === "failed") return "Error"
-      if (row.trouble.type === "limit") return "Limit"
-      if (row.trouble.type === "stuck") return "Stuck"
+      if (entry.trouble.type === "failed") return "Error"
+      if (entry.trouble.type === "limit") return "Limit"
+      if (entry.trouble.type === "stuck") return "Stuck"
       return "Undelivered"
     case "update":
       return "Update"
   }
 }
 
-// A resolved row asks nothing, and says how it ended, in gray.
-export const tagOf = (row: InboxRow): Tag => {
-  const type = inboxType(row)
-  if (row.settled) return { word: settledWords[row.settled.how], type, tint: tintOf(row) }
-  return { word: wordOf(row), type, tint: tintOf(row) }
+// A resolved entry asks nothing, and says how it ended, in gray.
+export const tagOf = (entry: InboxEntry): Tag => {
+  const type = inboxType(entry)
+  if (entry.settled) return { word: settledWords[entry.settled.how], type, tint: tintOf(entry) }
+  return { word: wordOf(entry), type, tint: tintOf(entry) }
 }

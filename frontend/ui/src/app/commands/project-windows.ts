@@ -26,14 +26,14 @@ export type ProjectWindowCommands = {
   readonly shownElsewhere: (projectId: string) => boolean
   // Opens the project in a new window, or brings forward the window that shows it.
   readonly openInNewWindow: (projectId: string) => void
-  // Hands the terminal, and the Inbox row for it if one is named, to the window that shows its
+  // Hands the terminal, and the Inbox entry for it if one is named, to the window that shows its
   // project, which comes forward, or to this window when none does; with project windows on.
   // `quiet` is for what an agent did, which only goes there, never raising a window.
   // False, with nothing done, when they are off or the terminal's project is unknown.
   readonly handOffTerminal: (terminalId: string, rowId?: string, quiet?: boolean) => boolean
-  // The same for an Inbox row, but only when another window shows its project: the window it
+  // The same for an Inbox entry, but only when another window shows its project: the window it
   // is listed in opens it otherwise.
-  readonly handOffRow: (row: { readonly id: string; readonly terminalId: string }) => boolean
+  readonly handOffEntry: (entry: { readonly id: string; readonly terminalId: string }) => boolean
   // Reads the project from the runner again and puts it in place of this window's copy, which
   // another window may have changed since, a project this window never heard of joining it.
   // Never the project this window shows: its copy is the live one, with edits yet to be saved.
@@ -92,7 +92,7 @@ export const createProjectWindowCommands = (ctx: CommandContext): ProjectWindowC
       })
       return true
     },
-    handOffRow: ({ id, terminalId }) => {
+    handOffEntry: ({ id, terminalId }) => {
       if (!windows) return false
       const projectId = projectOf(workspace.getSnapshot(), terminalId)
       if (projectId === undefined || !shownElsewhere(ui.getSnapshot(), windows, projectId))

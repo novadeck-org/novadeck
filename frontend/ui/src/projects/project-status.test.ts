@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "@novadeck/core/types"
 
@@ -16,24 +16,27 @@ import {
 // Unread ends by session context, then terminal id, as the app keeps them.
 type Unread = Readonly<Record<string, Readonly<Record<string, "unread" | "failed">>>>
 const noUnread: Unread = {}
-const projectStatus = (project: WorkspaceProject, unread: Unread, rows: InboxRow[] = []) =>
-  statusOf(project, (session, id) => unread[session]?.[id], rows, now)
-const projectStatuses = (projects: WorkspaceProject[], unread: Unread, rows: InboxRow[] = []) =>
-  statusesOf(projects, (session, id) => unread[session]?.[id], rows, now)
-const projectAsk = (project: WorkspaceProject, unread: Unread, rows: InboxRow[] = []) =>
-  askOf(project, (session, id) => unread[session]?.[id], rows, now)
+const projectStatus = (project: WorkspaceProject, unread: Unread, entries: InboxEntry[] = []) =>
+  statusOf(project, (session, id) => unread[session]?.[id], entries, now)
+const projectStatuses = (
+  projects: WorkspaceProject[],
+  unread: Unread,
+  entries: InboxEntry[] = [],
+) => statusesOf(projects, (session, id) => unread[session]?.[id], entries, now)
+const projectAsk = (project: WorkspaceProject, unread: Unread, entries: InboxEntry[] = []) =>
+  askOf(project, (session, id) => unread[session]?.[id], entries, now)
 const projectAsks = (projects: WorkspaceProject[], unread: Unread) =>
   asksOf(projects, (session, id) => unread[session]?.[id], [], now)
 
 const now = 1_000_000
 
-// An Inbox row of this terminal, as the backend lists it.
-const rowOf = (
+// An Inbox entry of this terminal, as the backend lists it.
+const entryOf = (
   projectId: string,
   terminal: TerminalMetadata,
-  content: Pick<InboxRow, "kind"> & Record<string, unknown>,
-  extra: Partial<InboxRow> = {},
-): InboxRow =>
+  content: Pick<InboxEntry, "kind"> & Record<string, unknown>,
+  extra: Partial<InboxEntry> = {},
+): InboxEntry =>
   ({
     id: `${projectId}-${terminal.id}-${content.kind}`,
     source: {
@@ -50,9 +53,9 @@ const rowOf = (
     seen: false,
     ...content,
     ...extra,
-  }) as InboxRow
+  }) as InboxEntry
 const askRow = (projectId: string, terminal: TerminalMetadata, type: "text" | "action") =>
-  rowOf(projectId, terminal, {
+  entryOf(projectId, terminal, {
     kind: "ask",
     ask: {
       subject: "Which one?",

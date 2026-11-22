@@ -133,7 +133,7 @@ export type WorkspaceCommands = ShellCommands &
     // Adds the terminal an agent asked for beside its own, in that terminal's session,
     // and answers the request; it comes into view only when the request asks.
     readonly openRequested: (request: TerminalRequest) => void
-    // Brings a terminal into view wherever it is, as a click on an Inbox row or a desktop
+    // Brings a terminal into view wherever it is, as a click on an Inbox entry or a desktop
     // notification about it asks: its project and session to the front, the terminal
     // selected, and on Canvas the camera flown in to it. A panel given turns the sidebar to
     // it in the same step. With project windows on, a terminal of a project another window

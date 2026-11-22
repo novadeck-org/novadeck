@@ -39,8 +39,8 @@ export type RunnerSettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
 }
 
-// Inbox rows as saved, by id, or none where they can't be read.
-const inboxRowsOf = (text: string | undefined): string[] => {
+// Inbox entries as saved, by id, or none where they can't be read.
+const inboxEntryIdsOf = (text: string | undefined): string[] => {
   if (text === undefined) return []
   try {
     const order = runnerSettings.shape.inboxOrder.safeParse(JSON.parse(text))
@@ -162,8 +162,8 @@ export class Settings {
     return {
       transcripts: saved.get("transcripts") !== "false",
       welcomed: saved.get("welcomed") === "true",
-      inboxOrder: inboxRowsOf(saved.get("inboxOrder")),
-      inboxSnoozed: inboxRowsOf(saved.get("inboxSnoozed")),
+      inboxOrder: inboxEntryIdsOf(saved.get("inboxOrder")),
+      inboxSnoozed: inboxEntryIdsOf(saved.get("inboxSnoozed")),
       inboxHistory: inboxHistoryOf(saved.get("inboxHistory")),
       hibernateAfterMinutes: hibernateOf(saved.get("hibernateAfterMinutes")),
       worktrees: saved.get("worktrees") === "true",

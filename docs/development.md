@@ -218,7 +218,7 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox rows of every kind over those its agents make), `welcome` or
+demo with hardcoded Inbox entries of every kind over those its agents make), `welcome` or
 `chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
 Canvas, one waiting to run a command; `frontend/demo/src/videos/chirp.ts`) or `babcia` (a one-off
 for the video "Babcia": project bar-mleczny's twelve Claude Code, Codex and Antigravity agents
@@ -239,7 +239,7 @@ done; or each alone), 4 three asks at once (or each alone: a permission, after t
 its Inbox sheet lists, a plan, a question with its own pick), 5
 the lead Orders API opens three teammates, each briefed by its lead as a message; one asks the
 person a question and messages its lead the same one, the lead answers first and the teammate
-withdraws its ask; another reports done (a done mark and an Update row, and the same to its lead as
+withdraws its ask; another reports done (a done mark and an Update entry, and the same to its lead as
 a message), 6 the page and then the changes (`show { changes }`) or a screenshot of three takes
 on a button (6c) shown in the pane, each cue selecting Order status page first as Babcia's 5
 does, 7 every agent
@@ -371,7 +371,7 @@ Agents:
   set, which the runner never keeps an item for, so the item stays to show "has no background
   shells now") and Many shells (ten, in every state, to scroll and unfold). When a later verb
   leaves the agent with no shells at all, the demo takes the Shells item away, as the runner
-  does, and an open pane says "The shells are gone." Rest leaves it at its prompt with nothing running or asking; the Inbox rows it wrote (a done report,
+  does, and an open pane says "The shells are gone." Rest leaves it at its prompt with nothing running or asking; the Inbox entries it wrote (a done report,
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
@@ -788,7 +788,7 @@ App:
   "hooks" hold the next one at that startup screen until "Answer the startup screen"; "Tour
   agent: quiet until nudged" has the next one sit idle at its prompt, no turn begun, until
   `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has the next one
-  raise a permission dialog (an Inbox row, Unblock) and wait for the person's answer before it
+  raise a permission dialog (an Inbox entry, Unblock) and wait for the person's answer before it
   goes on, and the tour's coach points at its terminal meanwhile. Addresses: `&tourScreen=startup|sign-in|hooks`
   (`&tourScreenMs=<n>` answers the screen after n ms), `&tourAgent=quiet|permission`,
   `&tourStory=off` (stop after the lead names itself), `&tourTeam=quiet`,
@@ -1481,8 +1481,8 @@ the UI store's `windows`); the page decides at once what an action does:
   is retried until it lands however the limit moves), the others' copies here being stale until it takes
   them on, so two windows never overwrite each other's layouts.
 - **Routing.** What is about a project goes to its window, which comes forward and goes there
-  (`handOffToProjectWindow`): `reveal` (an Inbox row's "Go to terminal", a message link, a toast),
-  an Inbox row's sheet (`InboxProvider`'s `routeAway`), and a notification's click. A notification's click
+  (`handOffToProjectWindow`): `reveal` (an Inbox entry's "Go to terminal", a message link, a toast),
+  an Inbox entry's sheet (`InboxProvider`'s `routeAway`), and a notification's click. A notification's click
   always brings some window forward: the project's, else the one that raised it, else the voice's
   (`clickNotice` in `window/voice.ts`). With none showing the project, the window acted in switches to
   it as before. What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
@@ -1494,7 +1494,7 @@ the UI store's `windows`); the page decides at once what an action does:
   (`ClientWindows`, `Followers.newest`), which is also what a client that says nothing gets. What an agent
   does never raises a window: an `open_agent` with focus for a project another window shows is handed
   over `quiet`, so that window goes there without coming forward or taking the system's focus. Only
-  the person's own actions (an Inbox row, a notification click, a swap, Open in new window) bring a window
+  the person's own actions (an Inbox entry, a notification click, a swap, Open in new window) bring a window
   forward. A request from a session the receiving window doesn't know (made after it loaded) is
   answered "The terminal that asked isn't open in Novadeck."; with routing by project this mostly goes
   away.

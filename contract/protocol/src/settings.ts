@@ -1,9 +1,9 @@
 import { z } from "zod"
 
-// How many of the Inbox's rows, and how long a row's key (`<id>@<at>`), the person's order
+// How many of the Inbox's entries, and how long an entry's key (`<id>@<at>`), the person's order
 // of them and their snoozes keep.
 export const maxInboxOrder = 200
-export const maxInboxRowIdLength = 200
+export const maxInboxEntryIdLength = 200
 // How many resolved rows the Inbox lists, the latest, and how long one of them, as the runner
 // keeps it for the app (`inboxHistory`), runs at most.
 export const maxInboxResolved = 10
@@ -32,13 +32,13 @@ export const runnerSettings = z.strictObject({
   transcripts: z.boolean(),
   // Whether the person has seen the first-run choice of agents to connect.
   welcomed: z.boolean(),
-  // The Inbox's rows that ask, each by its id and when it began (`<id>@<at>`), in the order
+  // The Inbox's entries that ask, each by its id and when it began (`<id>@<at>`), in the order
   // the person dragged them into; empty until they do.
-  inboxOrder: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
-  // The Inbox's rows the person snoozed, each by its id and when it began (`<id>@<at>`), the
+  inboxOrder: z.array(z.string().min(1).max(maxInboxEntryIdLength)).max(maxInboxOrder),
+  // The Inbox's entries the person snoozed, each by its id and when it began (`<id>@<at>`), the
   // latest last; empty until they snooze one.
-  inboxSnoozed: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
-  // The Inbox's rows the app derives itself, as JSON, trimmed, the latest last: those it made
+  inboxSnoozed: z.array(z.string().min(1).max(maxInboxEntryIdLength)).max(maxInboxOrder),
+  // The Inbox's entries the app derives itself, as JSON, trimmed, the latest last: those it made
   // resolved (a dialog answered, a held message released, a usage limit over), at most ten, and
   // the open ones it had, which the runner can't tell the end of; kept so they come back after a
   // restart. Empty until there are any.

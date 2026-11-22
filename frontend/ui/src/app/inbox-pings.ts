@@ -1,4 +1,4 @@
-import { rowKey, type Inbox, type InboxRow } from "@novadeck/core/inbox"
+import { entryKey, type Inbox, type InboxEntry } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 import { handleText } from "@novadeck/core/terminals/handle"
 
@@ -13,13 +13,13 @@ import type { UiStore } from "./ui-store"
 // The Inbox these follow: the landed one, which knows what landed quietly, or any with a state.
 export type NeedsInbox = Pick<Inbox, "state"> & Partial<Pick<LandedInbox, "landedQuietly">>
 
-// How long a new row that needs the person waits before it pings: one the person or the
+// How long a new entry that needs the person waits before it pings: one the person or the
 // agent settles in that time never does. (A permission request has already waited its own
-// 3 s before it becomes a row.)
+// 3 s before it becomes an entry.)
 export const needGraceMs = 2000
 
-// How long before this started a row may have begun and still be new: a request becomes
-// a row only once its dialog shows, a few seconds after it was asked.
+// How long before this started an entry may have begun and still be new: a request becomes
+// an entry only once its dialog shows, a few seconds after it was asked.
 const launchSlackMs = 5000
 
 // The most the icon's count says; the desktop app takes 0 to 999.
@@ -27,15 +27,15 @@ const maxBadge = 999
 
 // The notifications Novadeck has shown, so that one source takes its own back and no
 // other's: a terminal has one notification at a time, a newer one replacing it, and what
-// cleared when an Inbox row left must not close the finish notice that came after it.
+// cleared when an Inbox entry left must not close the finish notice that came after it.
 export type NoticeBoard = {
-  // Shows a notice for `owner`, replacing whatever its terminal showed. `rowId` is the Inbox
-  // row the notice is about, if it is about one.
-  readonly show: (owner: string, notice: Notice, rowId?: string) => void
+  // Shows a notice for `owner`, replacing whatever its terminal showed. `entryId` is the Inbox
+  // entry the notice is about, if it is about one.
+  readonly show: (owner: string, notice: Notice, entryId?: string) => void
   // Closes the terminal's notification if `owner`'s is still the latest.
   readonly close: (owner: string, terminalId: string) => void
-  // The row the terminal's latest notification is about, for a click on it to open.
-  readonly rowIdOf: (terminalId: string) => string | undefined
+  // The entry the terminal's latest notification is about, for a click on it to open.
+  readonly entryIdOf: (terminalId: string) => string | undefined
 }
 
 // A backend's board is the one: what rings notices and what hears their clicks share it. The
@@ -46,10 +46,10 @@ export const noticeBoard = (notices: Backend["notices"], ding: Ding): NoticeBoar
   if (!notices) return undefined
   const known = boards.get(notices)
   if (known) return known
-  const latest = new Map<string, { owner: string; rowId: string | undefined }>()
+  const latest = new Map<string, { owner: string; entryId: string | undefined }>()
   const board: NoticeBoard = {
-    show: (owner, notice, rowId) => {
-      latest.set(notice.id, { owner, rowId })
+    show: (owner, notice, entryId) => {
+      latest.set(notice.id, { owner, entryId })
       if (notices.sounds) {
         // The desktop app's own notification plays the sound, so only a notice the ding lets
         // through carries it: one of a burst, or a terminal's second, is silent.
@@ -64,69 +64,69 @@ export const noticeBoard = (notices: Backend["notices"], ding: Ding): NoticeBoar
       latest.delete(terminalId)
       notices.close?.(terminalId)
     },
-    rowIdOf: (terminalId) => latest.get(terminalId)?.rowId,
+    entryIdOf: (terminalId) => latest.get(terminalId)?.entryId,
   }
   boards.set(notices, board)
   return board
 }
 
-// What a desktop notification says of a row that needs the person: the Inbox row's own
+// What a desktop notification says of an entry that needs the person: the Inbox entry's own
 // byline as the title, led by who it is from as a finish notice's is ("@moth asks you:
-// Checkout"; Novadeck's own rows are its own), and its subject, a command included, as the
+// Checkout"; Novadeck's own entries are its own), and its subject, a command included, as the
 // body.
-export const needNotice = (row: InboxRow): Notice => {
-  const { handle, title, terminalId } = row.source
-  const label = labelOf(row)
+export const needNotice = (entry: InboxEntry): Notice => {
+  const { handle, title, terminalId } = entry.source
+  const label = labelOf(entry)
   const what = label.charAt(0).toLowerCase() + label.slice(1)
   return {
     id: terminalId,
-    title: fromNovadeck(row)
+    title: fromNovadeck(entry)
       ? `${label}: ${title}`
       : handle
         ? `${handleText(handle)} ${what}: ${title}`
         : `${title} ${what}`,
-    body: subjectOf(row).replaceAll("`", ""),
+    body: subjectOf(entry).replaceAll("`", ""),
   }
 }
 
-// The row a notification about a terminal stands for: the one it names (`rowId`) if it still
-// stands; without one, or once it has gone, the terminal's done report, else its first row.
-export const rowOfNotice = (
+// The entry a notification about a terminal stands for: the one it names (`entryId`) if it still
+// stands; without one, or once it has gone, the terminal's done report, else its first entry.
+export const entryOfNotice = (
   terminalId: string,
-  rows: readonly InboxRow[],
-  rowId?: string,
-): InboxRow | undefined => {
-  const onTerminal = rows.filter(
+  entries: readonly InboxEntry[],
+  entryId?: string,
+): InboxEntry | undefined => {
+  const onTerminal = entries.filter(
     ({ source, settled }) => source.terminalId === terminalId && !settled,
   )
   return (
-    onTerminal.find(({ id }) => id === rowId) ??
-    (rowId === undefined
+    onTerminal.find(({ id }) => id === entryId) ??
+    (entryId === undefined
       ? onTerminal.find((each) => each.kind === "update" && each.update.type === "done")
       : undefined) ??
     onTerminal[0]
   )
 }
 
-// What a click on a terminal's notification does: the Inbox opens on the row the notice was
-// about (`rowId`) if it still stands (a notice names its row); without one, or once it
-// has gone, the terminal's done report, else its first row, and the terminal itself when it
-// has none. `rows` are the backend's own, as the Inbox may hold the row back.
+// What a click on a terminal's notification does: the Inbox opens on the entry the notice was
+// about (`entryId`) if it still stands (a notice names its entry); without one, or once it
+// has gone, the terminal's done report, else its first entry, and the terminal itself when it
+// has none. `entries` are the backend's own, as the Inbox may hold the entry back.
 export const clickNotice = (
   terminalId: string,
-  rows: readonly InboxRow[],
+  entries: readonly InboxEntry[],
   to: {
-    // Opens the row's sheet for that row alone (see the Inbox's `OpenOptions`).
+    // Opens the entry's sheet for that entry alone (see the Inbox's `OpenOptions`).
     readonly open: (id: string, after: (() => void) | undefined) => void
-    // Shows the Inbox for the row; returns what puts the sidebar back, unless it showed already.
+    // Shows the Inbox for the entry; returns what puts the sidebar back, unless it showed already.
     readonly peekInbox: () => (() => void) | undefined
     readonly reveal: (terminalId: string) => void
   },
-  rowId?: string,
+  entryId?: string,
 ): void => {
-  const row = rowOfNotice(terminalId, rows, rowId)
-  if (!row) return to.reveal(terminalId)
-  to.open(row.id, to.peekInbox())
+  const entry = entryOfNotice(terminalId, entries, entryId)
+  if (!entry) return to.reveal(terminalId)
+  to.open(entry.id, to.peekInbox())
 }
 
 // What the app icon's count wears on Windows, where the taskbar takes an image: a filled
@@ -160,14 +160,14 @@ export const drawBadge = (count: number): string | null => {
 
 const onWindows = (): boolean => navigator.platform.startsWith("Win")
 
-// Follows the Inbox for what rings the person: each new row that needs them (what the bell
+// Follows the Inbox for what rings the person: each new entry that needs them (what the bell
 // counts) is handed to `ring` once, after `graceMs` and only if it still stands, and `ring`
-// says whether it rang. A ringing row that then leaves the Inbox for `graceMs` is handed to
-// `leave`: one that drops out of a recompute and comes back keeps its own ring. Rows there
+// says whether it rang. A ringing entry that then leaves the Inbox for `graceMs` is handed to
+// `leave`: one that drops out of a recompute and comes back keeps its own ring. Entries there
 // when this starts, or that began well before it, are taken as seen, and one that leaves
-// before it rings is new again if it comes back. `change` hears the rows that wait on the
+// before it rings is new again if it comes back. `change` hears the entries that wait on the
 // person (the bell's) after every Inbox change. A doorbell (the OS ping, the toast) is a `ring` that
-// takes a row only while its own case holds, which is how one row never rings two.
+// takes an entry only while its own case holds, which is how one entry never rings two.
 // Returns the stop.
 export const followNeeds = (
   inbox: NeedsInbox,
@@ -178,38 +178,38 @@ export const followNeeds = (
     change,
   }: {
     graceMs: number
-    ring: (row: InboxRow) => boolean
-    leave: (row: InboxRow) => void
-    change?: (waiting: readonly InboxRow[]) => void
+    ring: (entry: InboxEntry) => boolean
+    leave: (entry: InboxEntry) => void
+    change?: (waiting: readonly InboxEntry[]) => void
   },
 ): (() => void) => {
   const startedAt = Date.now()
   const seen = new Set<string>()
-  // The rows whose ring stands, by key.
-  const rung = new Map<string, InboxRow>()
-  // The rung rows gone from the Inbox, which leave once they've stayed gone for `graceMs`.
+  // The entries whose ring stands, by key.
+  const rung = new Map<string, InboxEntry>()
+  // The rung entries gone from the Inbox, which leave once they've stayed gone for `graceMs`.
   const leaving = new Map<string, ReturnType<typeof setTimeout>>()
-  // The grace each new row waits out, by key.
+  // The grace each new entry waits out, by key.
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const waitingKeys = (): Set<string> =>
-    new Set(needing(inbox.state.getSnapshot().items).map(rowKey))
+    new Set(needing(inbox.state.getSnapshot().items).map(entryKey))
   // What the person snoozed is no longer rung, but stays seen: brought back, it is no news.
   const snoozedKeys = (): Set<string> =>
     new Set(
       inbox.state
         .getSnapshot()
-        .items.filter((row) => row.snoozed)
-        .map(rowKey),
+        .items.filter((entry) => entry.snoozed)
+        .map(entryKey),
     )
   const sound = (key: string): void => {
-    const row = needing(inbox.state.getSnapshot().items).find((each) => rowKey(each) === key)
-    if (!row || rung.has(key)) return
-    if (ring(row)) rung.set(key, row)
+    const entry = needing(inbox.state.getSnapshot().items).find((each) => entryKey(each) === key)
+    if (!entry || rung.has(key)) return
+    if (ring(entry)) rung.set(key, entry)
   }
   const follow = (): void => {
     const waiting = needing(inbox.state.getSnapshot().items)
-    const keys = new Set(waiting.map(rowKey))
-    for (const [key, row] of rung) {
+    const keys = new Set(waiting.map(entryKey))
+    for (const [key, entry] of rung) {
       const timer = leaving.get(key)
       if (keys.has(key)) {
         if (timer !== undefined) clearTimeout(timer)
@@ -222,7 +222,7 @@ export const followNeeds = (
             if (waitingKeys().has(key)) return
             rung.delete(key)
             if (!snoozedKeys().has(key)) seen.delete(key)
-            leave(row)
+            leave(entry)
           }, graceMs),
         )
     }
@@ -235,15 +235,15 @@ export const followNeeds = (
         clearTimeout(timers.get(key))
         timers.delete(key)
       }
-    for (const row of waiting) {
-      const key = rowKey(row)
+    for (const entry of waiting) {
+      const key = entryKey(entry)
       if (seen.has(key)) continue
       seen.add(key)
       // One that began well before this started, as the Inbox fills in after launch, isn't
       // new; a request asked just before, whose dialog it waited on, is.
-      if (row.at < startedAt - launchSlackMs) continue
+      if (entry.at < startedAt - launchSlackMs) continue
       // One that landed while the person looked at its terminal they have already seen there.
-      if (inbox.landedQuietly?.(row)) continue
+      if (inbox.landedQuietly?.(entry)) continue
       timers.set(
         key,
         setTimeout(() => {
@@ -255,7 +255,7 @@ export const followNeeds = (
     // The count is the bell's.
     change?.(needing(inbox.state.getSnapshot().items))
   }
-  for (const row of needing(inbox.state.getSnapshot().items)) seen.add(rowKey(row))
+  for (const entry of needing(inbox.state.getSnapshot().items)) seen.add(entryKey(entry))
   follow()
   const stop = inbox.state.subscribe(follow)
   return () => {
@@ -265,7 +265,7 @@ export const followNeeds = (
   }
 }
 
-// Counts each new row that needs the person in `ui`'s `bellRings`, after the grace the toast
+// Counts each new entry that needs the person in `ui`'s `bellRings`, after the grace the toast
 // and the OS ping wait (see `followNeeds`), so the Inbox's dot rings for it. Unlike them it
 // rings whatever the person's focus, view or notification settings: it is the app's own quiet
 // mark, there while they look. Returns the stop.
@@ -283,11 +283,11 @@ export const watchBellRings = (
     leave: () => {},
   })
 
-// Follows the Inbox for the person who isn't looking at it. A new row that needs them
+// Follows the Inbox for the person who isn't looking at it. A new entry that needs them
 // pings once (see `followNeeds`), only if the page still hasn't their focus and the person
-// wants them (`notifyNeeds`); a row that pinged and then leaves the Inbox takes its
+// wants them (`notifyNeeds`); an entry that pinged and then leaves the Inbox takes its
 // notification back. While the page has their focus a toast rings instead, in
-// inbox-toasts.ts. A row whose toast waits behind a modal dialog there goes to whichever
+// inbox-toasts.ts. An entry whose toast waits behind a modal dialog there goes to whichever
 // comes first: this ping if the person leaves the app with the dialog open, else the toast
 // once it closes. The app icon's `badge` follows the bell's count, drawn as an image where
 // `image` says the platform takes one, and clears when this stops. Returns the stop.
@@ -310,37 +310,38 @@ export const watchInboxPings = (
   } = {},
 ): (() => void) => {
   let counted: number | undefined
-  // The rows that rang while the page was focused but a modal dialog covered it, so the toast
+  // The entries that rang while the page was focused but a modal dialog covered it, so the toast
   // holds them: if the person leaves the app before the dialog closes they ping instead; if
   // the dialog closes with them there, the toast has them and these are forgotten.
-  const deferred = new Map<string, InboxRow>()
-  const ping = (row: InboxRow): void => board?.show(rowKey(row), needNotice(row), row.id)
+  const deferred = new Map<string, InboxEntry>()
+  const ping = (entry: InboxEntry): void =>
+    board?.show(entryKey(entry), needNotice(entry), entry.id)
   const handOver = (): void => {
     const state = ui.getSnapshot()
     if (deferred.size === 0 || (state.pageFocused && modalOpen(state))) return
-    const standing = new Set(needing(inbox.state.getSnapshot().items).map(rowKey))
-    const rows = [...deferred.values()]
+    const standing = new Set(needing(inbox.state.getSnapshot().items).map(entryKey))
+    const entries = [...deferred.values()]
     deferred.clear()
     if (state.pageFocused || !state.preferences.notifyNeeds) return
-    for (const row of rows) if (standing.has(rowKey(row))) ping(row)
+    for (const entry of entries) if (standing.has(entryKey(entry))) ping(entry)
   }
   const stopHanding = ui.subscribe(handOver)
   const stop = followNeeds(inbox, {
     graceMs,
-    ring: (row) => {
+    ring: (entry) => {
       const state = ui.getSnapshot()
       if (!state.preferences.notifyNeeds || !board) return false
       if (state.pageFocused) {
         if (!heldForToast(state, desktop)) return false
-        deferred.set(rowKey(row), row)
+        deferred.set(entryKey(entry), entry)
         return true
       }
-      ping(row)
+      ping(entry)
       return true
     },
-    leave: (row) => {
-      deferred.delete(rowKey(row))
-      board?.close(rowKey(row), row.source.terminalId)
+    leave: (entry) => {
+      deferred.delete(entryKey(entry))
+      board?.close(entryKey(entry), entry.source.terminalId)
     },
     change: (waiting) => {
       const count = Math.min(waiting.length, maxBadge)

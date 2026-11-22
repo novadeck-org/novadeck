@@ -14,7 +14,7 @@ import {
   type AskShape,
   type Inbox,
   type InboxAnswer,
-  type InboxRow,
+  type InboxEntry,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
@@ -31,7 +31,7 @@ import { InboxSheet } from "./InboxSheet"
 
 // What the sheet records of the plan approvals it answered.
 const { planAnswered } = vi.hoisted(() => ({
-  planAnswered: vi.fn<(row: InboxRow) => void>(),
+  planAnswered: vi.fn<(entry: InboxEntry) => void>(),
 }))
 vi.mock("./plan-text", async (original) => ({
   ...(await original<typeof import("./plan-text")>()),
@@ -47,9 +47,9 @@ Object.assign(globalThis, {
   },
 })
 
-type Agent = InboxRow["source"]["agent"]
+type Agent = InboxEntry["source"]["agent"]
 
-const source = (handle: string, agent: Agent = "codex"): InboxRow["source"] => ({
+const source = (handle: string, agent: Agent = "codex"): InboxEntry["source"] => ({
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: `t-${handle}`,
@@ -59,7 +59,7 @@ const source = (handle: string, agent: Agent = "codex"): InboxRow["source"] => (
   projectName: "Project",
 })
 
-// A request row of the agent `agent`, asking with `dialog`.
+// A request entry of the agent `agent`, asking with `dialog`.
 const requested = (
   dialog: ChatDialog | null,
   {
@@ -79,7 +79,7 @@ const requested = (
     tool?: string
     subject?: string | null
   } = {},
-): InboxRow => ({
+): InboxEntry => ({
   id,
   source: source(handle, agent),
   at,
@@ -102,7 +102,7 @@ const requested = (
 type Asking = Omit<NonNullable<Parameters<typeof requested>[1]>, "tool" | "subject">
 
 // A permission, or a plan, whose dialog offers `options`.
-const permission = (options: readonly ChatDialogOption[], asking: Asking = {}): InboxRow =>
+const permission = (options: readonly ChatDialogOption[], asking: Asking = {}): InboxEntry =>
   requested({ type: "choices", id: "d", title: null, detail: "pnpm add x", options }, asking)
 
 const asked = (shape: AskShape, { id = "a", hard = null as string | null, at = 1 } = {}) =>
@@ -114,7 +114,7 @@ const asked = (shape: AskShape, { id = "a", hard = null as string | null, at = 1
     seen: false,
     kind: "ask",
     ask: { subject: "Which catalog?", body: "Choose one.", details: null, hardToUndo: hard, shape },
-  }) satisfies InboxRow
+  }) satisfies InboxEntry
 
 const questions = (
   list: readonly ChatQuestion[],
@@ -122,7 +122,7 @@ const questions = (
     chat = "prompt" as "prompt" | "field" | null,
     ...asking
   }: Asking & { chat?: "prompt" | "field" | null } = {},
-): InboxRow =>
+): InboxEntry =>
   requested(
     { type: "questions", id: "d", chat, questions: list },
     { id: "q", handle: "moth", kind: "question", subject: null, ...asking },
@@ -149,7 +149,7 @@ const formField = (id: string, more: Partial<ChatFormField> = {}): ChatFormField
 })
 
 // An MCP server asking for a form to be filled in.
-const form = (fields: readonly ChatFormField[], asking: Asking = {}): InboxRow =>
+const form = (fields: readonly ChatFormField[], asking: Asking = {}): InboxEntry =>
   requested(
     { type: "form", id: "f", message: "Name the deploy", fields },
     { id: "form", handle: "crow", kind: "question", tool: "Elicitation", subject: null, ...asking },
@@ -220,9 +220,9 @@ const write = (element: HTMLInputElement | HTMLTextAreaElement, value: string): 
     element.dispatchEvent(new Event("input", { bubbles: true }))
   })
 
-// The Inbox over these rows with the nth one's sheet open, and the answers it gives.
+// The Inbox over these entries with the nth one's sheet open, and the answers it gives.
 const mount = (
-  inboxRows: readonly InboxRow[],
+  inboxEntries: readonly InboxEntry[],
   {
     failing = false,
     open = 0,
@@ -236,11 +236,11 @@ const mount = (
   } = {},
 ) => {
   const revealed: string[] = []
-  // The list puts the row added last first; these rows are given oldest first, as they were
+  // The list puts the entry added last first; these entries are given oldest first, as they were
   // added, so the one with the greater `at` is listed below.
   const state = createStore<InboxState>({
     ...emptyInbox,
-    items: inboxRows.map((row) => ({ ...row, at: 1000 - row.at })),
+    items: inboxEntries.map((entry) => ({ ...entry, at: 1000 - entry.at })),
   })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
@@ -266,11 +266,11 @@ const mount = (
     conversations ? createElement(AgentContextProvider, { conversations, openLogs }, page) : page,
   )
   mounted = view
-  // The nth of the rows as given, whatever place the list puts it in.
+  // The nth of the entries as given, whatever place the list puts it in.
   const openRow = (at: number): void =>
     act(() =>
       view.container
-        .querySelector<HTMLElement>(`[data-inbox-row="${inboxRows[at]!.id}"] .inbox-row-select`)!
+        .querySelector<HTMLElement>(`[data-inbox-row="${inboxEntries[at]!.id}"] .inbox-row-select`)!
         .click(),
     )
   openRow(open)
@@ -373,7 +373,7 @@ const click = (element: Element): void => act(() => (element as HTMLElement).cli
 const other = () =>
   document.querySelector<HTMLInputElement>(".inbox-sheet input[aria-label^='Other']")!
 // An input of a form, by the label of its field.
-const entry = (label: string): HTMLInputElement =>
+const textField = (label: string): HTMLInputElement =>
   Array.from(document.querySelectorAll(".inbox-sheet .request-form-field"))
     .find((each) => each.querySelector(".request-form-label")?.textContent?.startsWith(label))!
     .querySelector("input")!
@@ -714,9 +714,9 @@ describe("The Console sheet", () => {
   })
 
   context("for the receipt of an answer", () => {
-    // The first row's answer taken, the sheet moved on to a second: what it says it did.
+    // The first entry's answer taken, the sheet moved on to a second: what it says it did.
     const receipted = async (
-      first: InboxRow,
+      first: InboxEntry,
       answer: (inbox: ReturnType<typeof mount>) => void,
     ): Promise<string | null> => {
       const inbox = mount([first, asked({ type: "text" }, { id: "second", at: 5 })])
@@ -741,7 +741,7 @@ describe("The Console sheet", () => {
 
     const cases: readonly [
       string,
-      () => InboxRow,
+      () => InboxEntry,
       (inbox: ReturnType<typeof mount>) => void,
       string,
     ][] = [
@@ -832,13 +832,13 @@ describe("The Console sheet", () => {
         "Sent back @crow's plan.",
       ],
     ]
-    for (const [name, row, answer, note] of cases)
+    for (const [name, entry, answer, note] of cases)
       it(`says ${name} as "${note}"`, async () => {
-        expect(await receipted(row(), answer)).toBe(note)
+        expect(await receipted(entry(), answer)).toBe(note)
       })
 
     it("says a tool's yes by the tool", async () => {
-      const row = requested(
+      const entry = requested(
         {
           type: "choices",
           id: "d",
@@ -848,7 +848,7 @@ describe("The Console sheet", () => {
         },
         { tool: "WebFetch", agent: "claude" },
       )
-      expect(await receipted(row, once("Yes"))).toBe("Allowed @crow's WebFetch.")
+      expect(await receipted(entry, once("Yes"))).toBe("Allowed @crow's WebFetch.")
     })
   })
 
@@ -1391,8 +1391,8 @@ describe("The Console sheet", () => {
     it("sends what was filled in on Submit, and says so on the receipt", async () => {
       const inbox = mount([form(deploy()), asked({ type: "text" }, { id: "second", at: 5 })])
       expect(control("Submit").getAttribute("aria-disabled")).toBe("true")
-      write(entry("Name"), "api")
-      write(entry("Count"), "3")
+      write(textField("Name"), "api")
+      write(textField("Count"), "3")
       click(control("Submit"))
 
       expect(inbox.sent).toEqual([
@@ -1508,7 +1508,7 @@ describe("The Console sheet", () => {
       const inbox = mount([
         form([formField("name", { required: true }), formField("dry", { kind: "boolean" })]),
       ])
-      write(entry("Name"), "api")
+      write(textField("Name"), "api")
       click(
         Array.from(
           document.querySelectorAll<HTMLInputElement>(".inbox-sheet input[type=radio]"),
@@ -1517,7 +1517,7 @@ describe("The Console sheet", () => {
       expect(marked()).toBe(true)
       await inbox.reopen()
 
-      expect(entry("Name").value).toBe("api")
+      expect(textField("Name").value).toBe("api")
       click(control("Submit"))
       expect(inbox.sent).toMatchObject([
         { answer: { action: "accept", values: { name: "api", dry: true } } },
@@ -1525,7 +1525,7 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
-    it("drops a draft with its row", async () => {
+    it("drops a draft with its entry", async () => {
       const inbox = mount([permission(codex, { id: "x" }), permission(codex, { id: "y", at: 1 })])
       inbox.press("No, and tell Codex")
       inbox.type("Use npm.")
@@ -1616,7 +1616,7 @@ describe("The Console sheet", () => {
       await nextFrame()
 
       expect(text(".inbox-sheet-head .handle-chip")).toBe("@crow")
-      expect(document.activeElement).toBe(entry("Note"))
+      expect(document.activeElement).toBe(textField("Note"))
       inbox.key("Enter")
       click(control("Submit"))
       expect(inbox.sent).toHaveLength(1)
@@ -1687,7 +1687,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for a row that takes the place of one answered", () => {
+  context("for an entry that takes the place of one answered", () => {
     it("shows as waiting, not as the old answer", async () => {
       const inbox = mount([
         permission(codex, { id: "a", handle: "crow", at: 0 }),
@@ -1899,7 +1899,7 @@ describe("The Console sheet", () => {
   })
 
   context("for trouble", () => {
-    const limited = (minutes: number): InboxRow => ({
+    const limited = (minutes: number): InboxEntry => ({
       id: "l",
       source: source("moth"),
       at: 0,
@@ -1946,7 +1946,7 @@ describe("The Console sheet", () => {
     })
 
     it("offers Continue now only once a limit has reset", async () => {
-      const limit = (resetsAt: number): InboxRow => ({
+      const limit = (resetsAt: number): InboxEntry => ({
         id: "l",
         source: source("fox"),
         at: 0,
@@ -1970,7 +1970,7 @@ describe("The Console sheet", () => {
   })
 
   context("for the Inbox's own kinds", () => {
-    const own: readonly [string, InboxRow, string][] = [
+    const own: readonly [string, InboxEntry, string][] = [
       ["an ask", asked({ type: "text" }), "Has a question"],
       [
         "an ask to act on",
@@ -1992,7 +1992,7 @@ describe("The Console sheet", () => {
             text: "hello",
             heldFor: "loop",
           },
-        } as unknown as InboxRow,
+        } as unknown as InboxEntry,
         "Holds a message",
       ],
       [
@@ -2009,9 +2009,9 @@ describe("The Console sheet", () => {
         "Has an update",
       ],
     ]
-    for (const [name, row, title] of own)
+    for (const [name, entry, title] of own)
       it(`draws ${name} in the card's frame, titled "${title}"`, async () => {
-        const inbox = mount([row])
+        const inbox = mount([entry])
 
         expect(card()?.querySelector("header.request-head h3")?.textContent).toBe(title)
         expect(card()?.getAttribute("aria-label")).toContain(title)
@@ -2087,7 +2087,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for an answered row opened again", () => {
+  context("for an answered entry opened again", () => {
     it("says what its answer did, stays on it, and lets j go past it", async () => {
       const inbox = mount(
         [
@@ -2152,7 +2152,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("as answered rows pile up", () => {
+  context("as answered entries pile up", () => {
     const listed = () =>
       Array.from(document.querySelectorAll("[data-inbox-row]")).map((row) =>
         row.getAttribute("data-inbox-row"),
@@ -2191,7 +2191,7 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
-    it("moves on from a newer row that took an answered one's id", async () => {
+    it("moves on from a newer entry that took an answered one's id", async () => {
       const inbox = mount([
         permission(codex, { id: "a", handle: "crow", at: 0 }),
         permission(codex, { id: "b", handle: "fox", at: 1 }),

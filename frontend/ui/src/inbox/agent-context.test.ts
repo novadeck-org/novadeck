@@ -6,7 +6,7 @@ import {
   type Conversations,
   noDoorbell,
 } from "@novadeck/core/conversation"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 import { terminalKeyPath } from "@novadeck/core/types"
@@ -33,7 +33,7 @@ const source = {
   projectName: "Project",
 } as const
 
-const row: InboxRow = {
+const entry: InboxEntry = {
   id: "i",
   source,
   at: 0,
@@ -75,7 +75,7 @@ const transcript: readonly ChatItem[] = [
   item({ role: "tool", kind: "tool-result", call: "c", at: 12, text: "Tests  48 passed (48)" }),
 ]
 
-// A backend's conversation of the row's terminal, counting who follows it, and its messages.
+// A backend's conversation of the entry's terminal, counting who follows it, and its messages.
 const backend = () => {
   const conversation = createStore<Conversation>(noConversation)
   let following = 0
@@ -146,11 +146,11 @@ const backend = () => {
   }
 }
 
-// What the hook gives for the row, each time it renders.
+// What the hook gives for the entry, each time it renders.
 const mount = (sources: Omit<Parameters<typeof AgentContextProvider>[0], "children"> | null) => {
   const seen: (AgentContext | undefined)[] = []
   const Probe = () => {
-    seen.push(useAgentContext(row))
+    seen.push(useAgentContext(entry))
     return null
   }
   const probe = createElement(Probe)
@@ -160,7 +160,7 @@ const mount = (sources: Omit<Parameters<typeof AgentContextProvider>[0], "childr
   }
 }
 
-describe("an Inbox row's agent context", () => {
+describe("an Inbox entry's agent context", () => {
   it("is none outside the app, with no backend to read it from", () => {
     const { seen, unmount } = mount(null)
     expect(seen.at(-1)).toBeUndefined()
@@ -193,11 +193,11 @@ describe("an Inbox row's agent context", () => {
       steps: [{ kind: "run", tool: "Bash", arg: "pnpm test", result: "Tests  48 passed (48)" }],
     })
     // The call its step came from, as the chat draws it.
-    expect(seen.at(-1)?.entries.map((entry) => entry.run?.detail)).toEqual(["pnpm test"])
+    expect(seen.at(-1)?.entries.map((each) => each.run?.detail)).toEqual(["pnpm test"])
     unmount()
   })
 
-  it("follows the conversation only while the sheet shows the row", () => {
+  it("follows the conversation only while the sheet shows the entry", () => {
     const { conversations, messages, following } = backend()
     const { unmount } = mount({ conversations, messages })
     expect(following()).toBe(1)

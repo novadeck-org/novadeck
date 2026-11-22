@@ -6,7 +6,7 @@ import {
   noTelemetry,
 } from "@novadeck/core/agents/telemetry"
 import type { Conversations } from "@novadeck/core/conversation"
-import { withSnoozes, type InboxRow } from "@novadeck/core/inbox"
+import { withSnoozes, type InboxEntry } from "@novadeck/core/inbox"
 import { emptyCompanions, itemIdOf, type Item } from "@novadeck/core/items"
 import type {
   AgentConnection,
@@ -37,7 +37,7 @@ import { createDemoForges } from "./forges"
 import { demoHandle } from "./handles"
 import { withHistory } from "./history"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox/fixtures"
+import { demoInboxEntries, demoEntries, demoPlanStates } from "./inbox/fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox/transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { withMoves } from "./moves"
@@ -409,19 +409,19 @@ export const withConversations = (
 }
 
 // A backend with the demo's Inbox (see `createDemoInbox`): what its agents wait on, from the
-// conversations and messages `backend` has, which `withConversations` gave it, and `rows`
+// conversations and messages `backend` has, which `withConversations` gave it, and `entries`
 // over them, the demo's own. Answering one of those for an agent that waits takes the agent
 // past it, to wait for the person's next words. Its messages keep a record of what the
 // person answered, where they are the demo's.
 export const withInbox = (
   backend: Backend,
   turns: DemoTurns,
-  rows: readonly InboxRow[] = [],
+  entries: readonly InboxEntry[] = [],
 ): Backend => {
   const { conversations, messages } = backend
   if (!conversations) throw new Error("withInbox wraps a backend withConversations made")
   const record = isDemoMessages(messages) ? messages.record : undefined
-  const inbox = createDemoInbox(Date.now(), rows, record, {
+  const inbox = createDemoInbox(Date.now(), entries, record, {
     conversations,
     messages,
     resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
@@ -542,14 +542,15 @@ export const withPlanShows = (backend: Backend): Backend => {
       const stop = backend.start?.(sink)
       const shown = new Set<string>()
       const look = (): void => {
-        for (const row of inbox.state.getSnapshot().items) {
-          if (row.kind !== "request" || row.request.kind !== "plan" || shown.has(row.id)) continue
-          shown.add(row.id)
+        for (const entry of inbox.state.getSnapshot().items) {
+          if (entry.kind !== "request" || entry.request.kind !== "plan" || shown.has(entry.id))
+            continue
+          shown.add(entry.id)
           // Its plan is never shown: the box waits, then the dialog's words stand in.
-          if (row.id === demoPlanStates.missing) continue
-          const { projectId, workspaceSessionId, terminalId, handle } = row.source
-          const role = row.request.subagent ? "subagent" : "root"
-          const loading = row.id === demoPlanStates.loading
+          if (entry.id === demoPlanStates.missing) continue
+          const { projectId, workspaceSessionId, terminalId, handle } = entry.source
+          const role = entry.request.subagent ? "subagent" : "root"
+          const loading = entry.id === demoPlanStates.loading
           const plan = (latest ? itemsOf(latest) : seedItems(backend.seed)).find(
             (item) =>
               !loading &&
@@ -562,14 +563,14 @@ export const withPlanShows = (backend: Backend): Backend => {
               type: "item/upsert",
               target: { projectId, workspaceSessionId },
               item: plan
-                ? { ...plan, version: plan.version + 1, shownAt: row.at }
-                : demoPlanItem(terminalId, handle, role, row.at, loading ? loadingSuffix : ""),
+                ? { ...plan, version: plan.version + 1, shownAt: entry.at }
+                : demoPlanItem(terminalId, handle, role, entry.at, loading ? loadingSuffix : ""),
             },
           ])
         }
       }
       look()
-      // A row can reach the Inbox inside a workspace commit (an agent's status, heard by the
+      // An entry can reach the Inbox inside a workspace commit (an agent's status, heard by the
       // conversation the Inbox follows), where no transaction may start: its plan shows once
       // the commit is done.
       let stopped = false
@@ -646,7 +647,7 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 })
 
 // The demos with no showcase: the plain one, the agents', the agents' with
-// messages between them, the agents' with every kind of Inbox row, the plain one with its
+// messages between them, the agents' with every kind of Inbox entry, the plain one with its
 // first-run welcome dialog open, and Chirp's, Babcia's and Launch's, one-offs for videos (see
 // `videos/chirp.ts`, `videos/babcia.ts` and `videos/launch.ts`). Each has
 // the Inbox its agents make; the Inbox demo shows the hardcoded rows of every kind over theirs.
@@ -801,7 +802,7 @@ const plainBackend = (
               messages: createDemoMessages([inboxLeadMessages(now)]),
             },
             turns,
-            demoInboxRows(now),
+            demoInboxEntries(now),
           ),
         ),
         turns,

@@ -1,8 +1,8 @@
 import {
-  rowKey,
+  entryKey,
   type Inbox,
   type InboxAnswer,
-  type InboxRow,
+  type InboxEntry,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { drafted, untouched, type DialogDraft } from "@novadeck/requests/drafts"
@@ -27,8 +27,8 @@ import {
   asks,
   initialView,
   keptOrder,
-  nextRow,
-  openRow,
+  nextEntry,
+  openEntry,
   rearranged,
   release,
   settle,
@@ -38,12 +38,12 @@ import {
 } from "./inbox-state"
 import { useReadOnLeaving } from "./read-on-leaving"
 
-// An answer the person gave, kept with its row and what it did, so the sheet can say so
-// after the backend drops the row.
-export type Sent = { readonly row: InboxRow; readonly note: string }
+// An answer the person gave, kept with its entry and what it did, so the sheet can say so
+// after the backend drops the entry.
+export type Sent = { readonly entry: InboxEntry; readonly note: string }
 
 // The line the next sheet opens with once an answer has taken: what it did, said with the
-// agent's handle (`note`), for the row `from`.
+// agent's handle (`note`), for the entry `from`.
 export type Receipt = { readonly from: string; readonly note: string }
 
 // What the person has started to answer with and not sent: their words to an agent's own ask,
@@ -57,72 +57,72 @@ export type Draft = {
 }
 export const noDraft: Draft = { text: "", option: null, request: null }
 
-// Whether there is anything in a draft worth a "Draft" on the row.
+// Whether there is anything in a draft worth a "Draft" on the entry.
 export const started = (draft: Draft | undefined): boolean =>
   draft !== undefined &&
   (draft.text.trim() !== "" || draft.option !== null || drafted(draft.request ?? undefined))
 
 export type InboxContextValue = {
   readonly state: InboxState
-  // The rows the list shows, and those held back while a sheet is open.
-  readonly shown: readonly InboxRow[]
-  readonly held: readonly InboxRow[]
+  // The entries the list shows, and those held back while a sheet is open.
+  readonly shown: readonly InboxEntry[]
+  readonly held: readonly InboxEntry[]
   readonly view: InboxView
   readonly now: number
-  // The row whose sheet is open: as the backend has it (resolved, where it resolved while
+  // The entry whose sheet is open: as the backend has it (resolved, where it resolved while
   // open), or, once answered and dropped, as it was.
-  readonly current: InboxRow | undefined
+  readonly current: InboxEntry | undefined
   // What the last answer did, which the sheet it moved on to says.
   readonly receipt: Receipt | null
   readonly sent: Readonly<Record<string, Sent>>
-  // The drafts, by `rowKey`: a newer row under the same id is another ask, with none yet.
+  // The drafts, by `entryKey`: a newer entry under the same id is another ask, with none yet.
   readonly drafts: Readonly<Record<string, Draft>>
-  // Rows answered and dropped by the backend that keep their row, answered, until the
+  // Entries answered and dropped by the backend that keep their entry, answered, until the
   // sheet closes (the backend lists most as resolved instead).
-  readonly ghosts: Readonly<Record<string, InboxRow>>
+  readonly ghosts: Readonly<Record<string, InboxEntry>>
   // Whether the Inbox is on a screen of its own, where the list and a sheet each take it.
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
   readonly working: boolean
-  // Whether the Inbox's panel is on screen, where an update's row can be seen.
+  // Whether the Inbox's panel is on screen, where an update's entry can be seen.
   readonly active: boolean
   // Whether the person looks at the page: it has their focus and no dialog covers it.
   readonly looking: boolean
-  // Notes an update's row as seen in the list: it is read once the person leaves the list.
-  readonly sighted: (row: InboxRow) => void
-  // Opens a row's sheet; with `once`, for that row alone (see `OpenOptions`).
+  // Notes an update's entry as seen in the list: it is read once the person leaves the list.
+  readonly sighted: (entry: InboxEntry) => void
+  // Opens an entry's sheet; with `once`, for that entry alone (see `OpenOptions`).
   readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
   readonly showHeld: () => void
   readonly setDraft: (key: string, patch: Partial<Draft>) => void
-  readonly submit: (row: InboxRow, answer: InboxAnswer, note: string) => void
-  // Changes how a row is handled without answering it, as turning auto-resume on or off.
-  readonly change: (row: InboxRow, answer: InboxAnswer) => void
+  readonly submit: (entry: InboxEntry, answer: InboxAnswer, note: string) => void
+  // Changes how an entry is handled without answering it, as turning auto-resume on or off.
+  readonly change: (entry: InboxEntry, answer: InboxAnswer) => void
   // Dismisses an open ask; absent where the backend has no such.
   readonly dismiss: ((id: string) => void) | undefined
-  // Keeps the rows that ask in the order the person dragged them into; absent where the
-  // backend keeps no order, and the rows can't be dragged.
-  readonly arrange: ((rows: readonly InboxRow[]) => void) | undefined
-  // Snoozes a row (`on`) or brings it back; snoozed from its open sheet, the next that asks
+  // Keeps the entries that ask in the order the person dragged them into; absent where the
+  // backend keeps no order, and the entries can't be dragged.
+  readonly arrange: ((entries: readonly InboxEntry[]) => void) | undefined
+  // Snoozes an entry (`on`) or brings it back; snoozed from its open sheet, the next that asks
   // opens, as after an answer. Absent where the backend keeps no snoozes.
-  readonly snooze: ((row: InboxRow, on: boolean) => void) | undefined
-  readonly reveal: (row: InboxRow) => void
+  readonly snooze: ((entry: InboxEntry, on: boolean) => void) | undefined
+  readonly reveal: (entry: InboxEntry) => void
 }
 
 // How a sheet opens.
 //
-// A sheet opened `once` with an `after`, while no sheet is open, is a one-off: once its row
+// A sheet opened `once` with an `after`, while no sheet is open, is a one-off: once its entry
 // is answered, snoozed from it, or gone, or the person closes it after it resolved, the
 // sheet closes instead of going on to what asks next, and `after` runs. Another `once` open
 // while a one-off is open is one too, with the first one's `after`. Any other open, or
 // closing it before then, makes it an ordinary sheet, and `after` never runs.
 export type OpenOptions = {
-  // Opens the sheet in this window even for a row whose project another window shows, which
+  // Opens the sheet in this window even for an entry whose project another window shows, which
   // `routeAway` would give to that window: this window is the one that was handed it.
   readonly here?: boolean
-  // The rows, where the caller read them newer than the last commit.
-  readonly rows?: readonly InboxRow[]
-  // For its row alone, as a click on a toast or a notice opens it.
+  // The entries, where the caller read them newer than the last commit.
+  readonly entries?: readonly InboxEntry[]
+  // For its entry alone, as a click on a toast or a notice opens it.
   readonly once?: boolean
   // Puts back what the Inbox took the place of; absent where the Inbox showed already.
   readonly after?: (() => void) | undefined
@@ -130,12 +130,12 @@ export type OpenOptions = {
 
 const InboxContext = createContext<InboxContextValue | null>(null)
 
-// Opens the row `pick` finds among those listed now, for a view outside the Inbox: one
+// Opens the entry `pick` finds among those listed now, for a view outside the Inbox: one
 // function for as long as the Inbox lasts, so a view holding it never renders again with
 // the Inbox's every change. None in a view rendered on its own.
-// Given `once`, it opens for its row alone, with `once.after` (see `OpenOptions`).
+// Given `once`, it opens for its entry alone, with `once.after` (see `OpenOptions`).
 export type InboxOpener = (
-  pick: (rows: readonly InboxRow[]) => InboxRow | undefined,
+  pick: (entries: readonly InboxEntry[]) => InboxEntry | undefined,
   once?: { readonly after: (() => void) | undefined },
   options?: { readonly here?: boolean },
 ) => void
@@ -150,10 +150,10 @@ export const useInboxContext = (): InboxContextValue => {
   return value
 }
 
-// An answer's row, by id and when it started waiting: a newer row may take an old id.
-const answerKey = (row: InboxRow): string => `${row.id}@${row.at}`
+// An answer's entry, by id and when it started waiting: a newer entry may take an old id.
+const answerKey = (entry: InboxEntry): string => `${entry.id}@${entry.at}`
 
-// How long a freshly arrived row stays marked, and how often waits are read again.
+// How long a freshly arrived entry stays marked, and how often waits are read again.
 const arrivedMs = 1700
 const tickMs = 30_000
 
@@ -181,11 +181,11 @@ export const InboxProvider = ({
   children,
 }: {
   readonly inbox: Inbox
-  // Shows the terminal a row is from.
+  // Shows the terminal an entry is from.
   readonly reveal: (terminalId: string) => void
-  // Gives a row to another window where one shows its project, which then opens its sheet
+  // Gives an entry to another window where one shows its project, which then opens its sheet
   // (`OpenOptions.here`); true when it did, and the sheet doesn't open here.
-  readonly routeAway?: ((row: InboxRow) => boolean) | undefined
+  readonly routeAway?: ((entry: InboxEntry) => boolean) | undefined
   // Present where the Inbox has a screen of its own at a time.
   readonly phone?: Phone | undefined
   // Whether any agent in the workspace is at work.
@@ -202,10 +202,10 @@ export const InboxProvider = ({
   const [view, setView] = useState<InboxView>(initialView)
   const [answered, setAnswered] = useState<Readonly<Record<string, Sent>>>({})
   const [receipt, setReceipt] = useState<Receipt | null>(null)
-  // The answers the sheet has moved on from, by row id and when it started waiting (a newer
-  // row may take an old id): opened again, their sheet stays, answered.
+  // The answers the sheet has moved on from, by entry id and when it started waiting (a newer
+  // entry may take an old id): opened again, their sheet stays, answered.
   const movedOn = useRef(new Set<string>())
-  // The row whose sheet is open as a one-off, and what runs once it is done with (see
+  // The entry whose sheet is open as a one-off, and what runs once it is done with (see
   // `OpenOptions`).
   const oneOff = useRef<{ readonly id: string; readonly after: () => void } | null>(null)
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
@@ -216,7 +216,7 @@ export const InboxProvider = ({
     return () => window.clearInterval(timer)
   }, [])
 
-  // With no sheet open, new rows join the list; the ones that do are marked a moment.
+  // With no sheet open, new entries join the list; the ones that do are marked a moment.
   const settled = settle(view, state.items, active)
   if (settled !== view) setView(settled)
   useEffect(() => {
@@ -225,13 +225,13 @@ export const InboxProvider = ({
     return () => window.clearTimeout(timer)
   }, [view.arrived])
 
-  // An answer is no answer to a newer row that has taken its id.
+  // An answer is no answer to a newer entry that has taken its id.
   const sent = useMemo(
     () =>
       Object.fromEntries(
         Object.entries(answered).filter(([id, answer]) => {
-          const live = state.items.find((row) => row.id === id)
-          return live === undefined || live.at === answer.row.at
+          const live = state.items.find((entry) => entry.id === id)
+          return live === undefined || live.at === answer.entry.at
         }),
       ),
     [answered, state.items],
@@ -240,16 +240,16 @@ export const InboxProvider = ({
     () =>
       Object.fromEntries(
         Object.entries(sent)
-          .filter(([id]) => !state.items.some((row) => row.id === id))
-          .map(([id, answer]) => [id, answer.row]),
+          .filter(([id]) => !state.items.some((entry) => entry.id === id))
+          .map(([id, answer]) => [id, answer.entry]),
       ),
     [sent, state.items],
   )
-  // A draft for a row that is gone, and not shown answered, is dropped.
+  // A draft for an entry that is gone, and not shown answered, is dropped.
   const gone = Object.keys(drafts).filter(
     (key) =>
-      !Object.values(ghosts).some((row) => rowKey(row) === key) &&
-      !state.items.some((row) => rowKey(row) === key),
+      !Object.values(ghosts).some((entry) => entryKey(entry) === key) &&
+      !state.items.some((entry) => entryKey(entry) === key),
   )
   if (gone.length > 0)
     setDrafts((record) =>
@@ -267,22 +267,22 @@ export const InboxProvider = ({
     phone,
     ghosts,
     arranged,
-    snoozing: undefined as ((row: InboxRow, on: boolean) => void) | undefined,
+    snoozing: undefined as ((entry: InboxEntry, on: boolean) => void) | undefined,
   })
   useLayoutEffect(() => {
     latest.current = { ...latest.current, state, view, phone, ghosts, arranged }
   })
-  const heldRows = useMemo(() => held(view, state.items), [view, state.items])
+  const heldEntries = useMemo(() => held(view, state.items), [view, state.items])
   // An ask that settles while its sheet is open stays open, settled, to say so; one settled
   // before opens no sheet (`open`).
   const standing = state.items.find(({ id }) => id === view.open)
-  const current = standing ?? (view.open === null ? undefined : sent[view.open]?.row)
+  const current = standing ?? (view.open === null ? undefined : sent[view.open]?.entry)
 
   const open = useCallback(
-    (id: string, { rows, once = false, after, here = false }: OpenOptions = {}): void => {
+    (id: string, { entries, once = false, after, here = false }: OpenOptions = {}): void => {
       const { state: snapshot, view: before, phone: screen, arranged: order } = latest.current
-      const list = rows ?? snapshot.items
-      const found = list.find((row) => row.id === id)
+      const list = entries ?? snapshot.items
+      const found = list.find((entry) => entry.id === id)
       // Handed to another window, this one stays as it was, a peek at the Inbox put back.
       if (found && !here && routeAway?.(found)) return after?.()
       const kept = once
@@ -290,9 +290,9 @@ export const InboxProvider = ({
         : undefined
       if (kept) oneOff.current = { id, after: kept }
       else if (oneOff.current?.id !== id) oneOff.current = null
-      // Answered rows keep their place, and their answers, until the sheet closes.
+      // Answered entries keep their place, and their answers, until the sheet closes.
       if (before.open !== id) setReceipt(null)
-      setView(openRow(before, id, list, order))
+      setView(openEntry(before, id, list, order))
       if (found && !found.seen) inbox.see(id)
       // Opening an update reads it: it stays, resolved, as history.
       if (found?.kind === "update" && !found.settled)
@@ -302,7 +302,7 @@ export const InboxProvider = ({
     [inbox, routeAway],
   )
 
-  // Closing forgets every answer the sheet moved on from: their rows go with it.
+  // Closing forgets every answer the sheet moved on from: their entries go with it.
   const close = useCallback((): void => {
     const { state: snapshot, view: before, phone: screen } = latest.current
     if (before.open === null) return
@@ -313,7 +313,7 @@ export const InboxProvider = ({
     movedOn.current.clear()
     setView(closeSheet(before, snapshot.items))
     screen?.showList()
-    // A one-off whose row resolved while it was open, as an ask replied to in its terminal, is
+    // A one-off whose entry resolved while it was open, as an ask replied to in its terminal, is
     // done with as well.
     const settledOpen = snapshot.items.find(({ id }) => id === before.open)?.settled
     if (once?.id === before.open && settledOpen) once.after()
@@ -325,9 +325,9 @@ export const InboxProvider = ({
   }, [])
 
   // Once an answer has taken, on to what asks next, with the receipt; with nothing left, the
-  // sheet closes. The answered row keeps its place, answered, until it does.
+  // sheet closes. The answered entry keeps its place, answered, until it does.
   const moveOn = useCallback(
-    (from: InboxRow, note: string): void => {
+    (from: InboxEntry, note: string): void => {
       const { state: snapshot, view: before, arranged: order } = latest.current
       if (before.open !== from.id || movedOn.current.has(answerKey(from))) return
       movedOn.current.add(answerKey(from))
@@ -337,14 +337,14 @@ export const InboxProvider = ({
         close()
         return once.after()
       }
-      const target = nextRow(snapshot.items, from.id, snapshot, order)
+      const target = nextEntry(snapshot.items, from.id, snapshot, order)
       if (!target) return close()
       setReceipt({ from: from.id, note })
-      // The list stays as it is, the answered row in it, unless what is next has yet to join.
+      // The list stays as it is, the answered entry in it, unless what is next has yet to join.
       const kept = before.order.includes(target.id)
         ? before
         : release(before, snapshot.items, order)
-      setView(openRow(kept, target.id, snapshot.items, order))
+      setView(openEntry(kept, target.id, snapshot.items, order))
       if (!target.seen) inbox.see(target.id)
       // Its row comes into view, for the sheet to sit beside.
       requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView?.({ block: "nearest" }))
@@ -360,7 +360,7 @@ export const InboxProvider = ({
       ? sent[view.open]
       : undefined
   useEffect(() => {
-    if (done) moveOn(done.row, done.note)
+    if (done) moveOn(done.entry, done.note)
   }, [done, moveOn])
 
   const setDraft = useCallback((key: string, patch: Partial<Draft>): void => {
@@ -374,15 +374,15 @@ export const InboxProvider = ({
   }, [])
 
   const submit = useCallback(
-    (row: InboxRow, answer: InboxAnswer, note: string): void => {
-      setAnswered((record) => ({ ...record, [row.id]: { row, note } }))
-      inbox.answer(row.id, answer)
+    (entry: InboxEntry, answer: InboxAnswer, note: string): void => {
+      setAnswered((record) => ({ ...record, [entry.id]: { entry, note } }))
+      inbox.answer(entry.id, answer)
     },
     [inbox],
   )
 
   const change = useCallback(
-    (row: InboxRow, answer: InboxAnswer): void => inbox.answer(row.id, answer),
+    (entry: InboxEntry, answer: InboxAnswer): void => inbox.answer(entry.id, answer),
     [inbox],
   )
 
@@ -391,17 +391,17 @@ export const InboxProvider = ({
   // its way or failed isn't read again.
   const noteSeen = useReadOnLeaving(active && looking, (keys) => {
     const snapshot = inbox.state.getSnapshot()
-    for (const row of snapshot.items)
+    for (const entry of snapshot.items)
       if (
-        keys.has(rowKey(row)) &&
-        row.kind === "update" &&
-        !row.settled &&
-        !snapshot.answering[row.id] &&
-        snapshot.failed[row.id] === undefined
+        keys.has(entryKey(entry)) &&
+        entry.kind === "update" &&
+        !entry.settled &&
+        !snapshot.answering[entry.id] &&
+        snapshot.failed[entry.id] === undefined
       )
-        inbox.answer(row.id, { kind: "update", action: "read" })
+        inbox.answer(entry.id, { kind: "update", action: "read" })
   })
-  const sighted = useCallback((row: InboxRow): void => noteSeen(rowKey(row)), [noteSeen])
+  const sighted = useCallback((entry: InboxEntry): void => noteSeen(entryKey(entry)), [noteSeen])
 
   const dismiss = useMemo(
     () => (inbox.dismiss ? (id: string): void => inbox.dismiss?.(id) : undefined),
@@ -411,12 +411,12 @@ export const InboxProvider = ({
   const arrange = useMemo(
     () =>
       inbox.arrange
-        ? (rows: readonly InboxRow[]): void => {
-            inbox.arrange?.(keptOrder(latest.current.arranged, rows.map(rowKey)))
+        ? (entries: readonly InboxEntry[]): void => {
+            inbox.arrange?.(keptOrder(latest.current.arranged, entries.map(entryKey)))
             setView((before) =>
               rearranged(
                 before,
-                rows.map(({ id }) => id),
+                entries.map(({ id }) => id),
               ),
             )
           }
@@ -427,22 +427,22 @@ export const InboxProvider = ({
   const snooze = useMemo(
     () =>
       inbox.snooze
-        ? (row: InboxRow, on: boolean): void => {
+        ? (entry: InboxEntry, on: boolean): void => {
             const { view: before, arranged: order } = latest.current
-            inbox.snooze?.(row.id, on)
-            if (!on || before.open !== row.id) return
+            inbox.snooze?.(entry.id, on)
+            if (!on || before.open !== entry.id) return
             const once = oneOff.current
-            if (once?.id === row.id) {
+            if (once?.id === entry.id) {
               close()
               return once.after()
             }
             const snapshot = inbox.state.getSnapshot()
-            const target = nextRow(snapshot.items, row.id, snapshot, order)
+            const target = nextEntry(snapshot.items, entry.id, snapshot, order)
             // With nothing left, the keyboard goes back to the snoozed row.
             if (!target) {
               close()
               requestAnimationFrame(() =>
-                rowOf(row.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus(),
+                rowOf(entry.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus(),
               )
               return
             }
@@ -450,7 +450,7 @@ export const InboxProvider = ({
             const kept = before.order.includes(target.id)
               ? before
               : release(before, snapshot.items, order)
-            setView(openRow(kept, target.id, snapshot.items, order))
+            setView(openEntry(kept, target.id, snapshot.items, order))
             if (!target.seen) inbox.see(target.id)
             requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView?.({ block: "nearest" }))
             // The keyboard goes on to the next sheet, as from its row.
@@ -464,15 +464,15 @@ export const InboxProvider = ({
     latest.current.snoozing = snooze
   }, [snooze])
 
-  const revealRow = useCallback(
-    (row: InboxRow): void => {
+  const revealEntry = useCallback(
+    (entry: InboxEntry): void => {
       close()
-      reveal(row.source.terminalId)
+      reveal(entry.source.terminalId)
     },
     [close, reveal],
   )
 
-  // An open sheet whose row is gone without an answer of the person's closes with it.
+  // An open sheet whose entry is gone without an answer of the person's closes with it.
   // A one-off's goes back to what the Inbox took the place of, as after an answer.
   useEffect(() => {
     if (view.open === null || current) return
@@ -521,26 +521,26 @@ export const InboxProvider = ({
       if (live.open === null && !inList) return
       if (!inSheet && !inList && target !== document.body && target !== document) return
       if (arrow && (live.open === null || inList)) return
-      // S in the open sheet snoozes its row, or brings it back; on a row, the row does.
+      // S in the open sheet snoozes its entry, or brings it back; on a row, the row does.
       if (sleep) {
-        const row = snapshot.items.find(({ id }) => id === live.open)
-        if (inList || !row || !asks(row) || snapshot.answering[row.id]) return
+        const entry = snapshot.items.find(({ id }) => id === live.open)
+        if (inList || !entry || !asks(entry) || snapshot.answering[entry.id]) return
         if (!latest.current.snoozing) return
         event.preventDefault()
-        latest.current.snoozing(row, !row.snoozed)
+        latest.current.snoozing(entry, !entry.snoozed)
         return
       }
       const to = stepFrom(
-        // Resolved and snoozed rows are stepped past.
+        // Resolved and snoozed entries are stepped past.
         visible(live, snapshot.items, dropped, order).filter(
-          (row) => (!row.settled && !row.snoozed) || row.id === live.open,
+          (entry) => (!entry.settled && !entry.snoozed) || entry.id === live.open,
         ),
         live.open,
         event.key === "j" || event.key === "ArrowRight" ? 1 : -1,
       )
       if (!to) return
       event.preventDefault()
-      // A row that is gone, answered, is stepped from where it was.
+      // An entry that is gone, answered, is stepped from where it was.
       if (to.id !== live.open) open(to.id)
       // The keyboard goes with it: to the next sheet, after an arrow, so the next goes on from
       // there; else to the row, so the row it is on is the one that shows it.
@@ -556,7 +556,7 @@ export const InboxProvider = ({
     () => ({
       state,
       shown,
-      held: heldRows,
+      held: heldEntries,
       view,
       now,
       current,
@@ -578,12 +578,12 @@ export const InboxProvider = ({
       dismiss,
       arrange,
       snooze,
-      reveal: revealRow,
+      reveal: revealEntry,
     }),
     [
       state,
       shown,
-      heldRows,
+      heldEntries,
       view,
       now,
       current,
@@ -605,17 +605,17 @@ export const InboxProvider = ({
       dismiss,
       arrange,
       snooze,
-      revealRow,
+      revealEntry,
     ],
   )
   const opener = useCallback<InboxOpener>(
     (pick, once, options) => {
-      // The Inbox as it is now: a row just revealed is there before the next commit.
-      const rows = inbox.state.getSnapshot().items
-      const found = pick(rows)
+      // The Inbox as it is now: an entry just revealed is there before the next commit.
+      const entries = inbox.state.getSnapshot().items
+      const found = pick(entries)
       const here = options?.here === true
       if (found)
-        open(found.id, once ? { rows, once: true, after: once.after, here } : { rows, here })
+        open(found.id, once ? { entries, once: true, after: once.after, here } : { entries, here })
     },
     [open, inbox],
   )

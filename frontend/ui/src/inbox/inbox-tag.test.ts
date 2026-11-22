@@ -1,10 +1,10 @@
 import type { ChatRequest } from "@novadeck/core/conversation"
-import type { AgentAsk, InboxRow, Trouble } from "@novadeck/core/inbox"
+import type { AgentAsk, InboxEntry, Trouble } from "@novadeck/core/inbox"
 
 import { describe, expect, it } from "../test"
 import { tagOf } from "./inbox-tag"
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -15,7 +15,7 @@ const source: InboxRow["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const request = (kind: ChatRequest["kind"], tool: string): InboxRow => ({
+const request = (kind: ChatRequest["kind"], tool: string): InboxEntry => ({
   ...base,
   kind: "request",
   request: {
@@ -30,12 +30,12 @@ const request = (kind: ChatRequest["kind"], tool: string): InboxRow => ({
     askedAt: 0,
   },
 })
-const ask = (shape: AgentAsk["shape"], hardToUndo: string | null = null): InboxRow => ({
+const ask = (shape: AgentAsk["shape"], hardToUndo: string | null = null): InboxEntry => ({
   ...base,
   kind: "ask",
   ask: { subject: "s", body: "", details: null, hardToUndo, shape },
 })
-const trouble = (value: Trouble, stopped = true): InboxRow => ({
+const trouble = (value: Trouble, stopped = true): InboxEntry => ({
   ...base,
   stopped,
   kind: "trouble",
@@ -82,7 +82,7 @@ describe("A sheet's kind tag", () => {
     expect(tagOf(request("permission", "Bash")).tint).toBe("attention")
   })
 
-  it("says how a resolved row ended, in gray", () => {
+  it("says how a resolved entry ended, in gray", () => {
     const resolved = (how: "answered" | "dismissed" | "replied" | "ended") =>
       tagOf({ ...ask({ type: "text" }), settled: { how, at: 1 } })
     expect(resolved("answered")).toMatchObject({ word: "Answered", tint: "muted" })

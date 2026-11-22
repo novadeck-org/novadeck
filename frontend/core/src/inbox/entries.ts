@@ -5,7 +5,7 @@ import {
   ordered,
   type AgentAsk,
   type InboxContent,
-  type InboxRow,
+  type InboxEntry,
   type InboxSource,
   type InboxTurn,
   type Settled,
@@ -30,13 +30,13 @@ import {
 } from "../types"
 import { second } from "../units"
 
-// The Inbox's rows, as a backend that builds them from the app's own state derives them:
+// The Inbox's entries, as a backend that builds them from the app's own state derives them:
 // what every agent terminal waits on the person for, from the terminals' statuses (a usage
 // limit), the stored failed turns (their error), the messages held for release, the requests
 // of the agents that ask, and what agents wrote through Novadeck's MCP `ask`, `tell` and
-// `done`. A completed turn makes no row. The runner's Inbox and the demo's keep it current.
+// `done`. A completed turn makes no entry. The runner's Inbox and the demo's keep it current.
 
-// How long a request's dialog may stay unread before its row shows anyway, to be answered
+// How long a request's dialog may stay unread before its entry shows anyway, to be answered
 // in the terminal.
 export const dialogMs = 3 * second
 
@@ -111,7 +111,7 @@ const heldOf = (
   thread: MessageThread,
   message: AgentMessage,
   where: Where[],
-): InboxRow | undefined => {
+): InboxEntry | undefined => {
   const named = (party: MessageParty) =>
     party.kind === "agent"
       ? where.find(({ terminal }) => terminal.id === party.terminalId)
@@ -145,7 +145,7 @@ const heldOf = (
 
 // The messages for a terminal's idle agent, the longest of which has waited at least
 // `longHoldMs`: why the doorbell can't wake it (null where it hasn't said), since when, and
-// how many (none held for the person's release or a pause, which have rows and switches of
+// how many (none held for the person's release or a pause, which have entries and switches of
 // their own).
 const heldLong = (
   messages: TerminalThreads | undefined,
@@ -186,17 +186,17 @@ export const leadHearsOf = (workspace: Workspace, context: string, terminalId: s
   return !!here && reportsToLead(here, where)
 }
 
-// Each terminal's rows.
+// Each terminal's entries.
 const candidates = (
   { messages, requests, now, longHoldMs }: InboxInputs,
   here: Where,
-): readonly InboxRow[] => {
+): readonly InboxEntry[] => {
   const { project, session, terminal } = here
   const agent = agentOf(terminal)
   if (!agent || terminal.state !== "running" || !terminal.agent) return []
   const status = terminal.agent
   const source = sourceOf(here, agent)
-  const found: InboxRow[] = []
+  const found: InboxEntry[] = []
   const add = (id: string, at: number, stopped: boolean, content: InboxContent): void => {
     found.push({ id, source, at, stopped, seen: false, ...content })
   }
@@ -236,7 +236,7 @@ const candidates = (
       trouble: { type: "waits", waits: held.waits, count: held.count },
     })
 
-  // A usage limit is a state of the current end, not a stored row: with its window known, limit
+  // A usage limit is a state of the current end, not a stored entry: with its window known, limit
   // trouble; limited with none found, failed trouble. It leaves when the agent works again.
   const turn = status.lastTurn
   if (turn && !status.working) {
@@ -262,9 +262,9 @@ const candidates = (
   return found
 }
 
-// Every row the Inbox now holds, the newest first: each of a terminal's rows, each thread held
+// Every entry the Inbox now holds, the newest first: each of a terminal's entries, each thread held
 // for release, and the entries the runner lists resolved.
-export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
+export const inboxEntries = (inputs: InboxInputs): InboxEntry[] => {
   const where = whereOf(inputs.workspace)
   const all = where.flatMap((here) => candidates(inputs, here))
   for (const entry of inputs.entries) {
@@ -315,31 +315,31 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
 
   // A stored failed turn shows while its terminal exists with the same handle, whatever runs
   // in it: trouble that stops the agent only while it is the terminal's current end and the
-  // agent rests, and informs otherwise. A completed one makes no row: it marks its tab unread.
-  for (const row of inputs.turns) {
-    if (row.outcome !== "failed") continue
+  // agent rests, and informs otherwise. A completed one makes no entry: it marks its tab unread.
+  for (const entry of inputs.turns) {
+    if (entry.outcome !== "failed") continue
     const here = where.find(
       ({ project, session, terminal }) =>
-        project.id === row.projectId &&
-        session.id === row.workspaceSessionId &&
-        terminal.id === row.terminalId &&
-        (terminal.handle ?? "") === row.handle,
+        project.id === entry.projectId &&
+        session.id === entry.workspaceSessionId &&
+        terminal.id === entry.terminalId &&
+        (terminal.handle ?? "") === entry.handle,
     )
     if (!here) continue
-    const source = sourceOf(here, row.agent)
+    const source = sourceOf(here, entry.agent)
     const { terminal } = here
     const current =
       terminal.state === "running" &&
-      terminal.agent?.lastTurn?.at === row.at &&
+      terminal.agent?.lastTurn?.at === entry.at &&
       !agentWorking(terminal)
     all.push({
-      id: row.id,
+      id: entry.id,
       source,
-      at: row.at,
+      at: entry.at,
       stopped: current,
       seen: false,
       kind: "trouble",
-      trouble: { type: "failed", error: row.error, stored: true },
+      trouble: { type: "failed", error: entry.error, stored: true },
     })
   }
 
@@ -347,7 +347,7 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
   // held message.
   // A thread's parties are terminals by id, looked up in the session of the terminal that
   // lists it. A party's handle only reads as the party: it may be another terminal's by now.
-  const threads = new Map<string, InboxRow>()
+  const threads = new Map<string, InboxEntry>()
   for (const [key, messages] of Object.entries(inputs.messages.terminals)) {
     const { projectId, workspaceSessionId } = terminalKeyOfPath(key)
     const session = where.filter(
@@ -356,26 +356,27 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
     for (const thread of messages.threads) {
       if (!thread.held || threads.has(thread.id)) continue
       const message = thread.messages.find((each) => each.held === "release")
-      const row = message && heldOf(thread, message, session)
-      if (row) threads.set(thread.id, row)
+      const entry = message && heldOf(thread, message, session)
+      if (entry) threads.set(thread.id, entry)
     }
   }
 
-  // A terminal's rows all show: nothing replaces or hides another.
+  // A terminal's entries all show: nothing replaces or hides another.
   return ordered([...all, ...threads.values()])
 }
 
-// Rows that read the same keep their old objects, so what shows them stays as it is.
+// Entries that read the same keep their old objects, so what shows them stays as it is.
 export const reuse = (
-  before: readonly InboxRow[],
-  next: readonly InboxRow[],
-): readonly InboxRow[] => {
-  const old = new Map(before.map((row) => [row.id, row]))
-  const rows = next.map((row) => {
-    const known = old.get(row.id)
-    return known && JSON.stringify(known) === JSON.stringify(row) ? known : row
+  before: readonly InboxEntry[],
+  next: readonly InboxEntry[],
+): readonly InboxEntry[] => {
+  const old = new Map(before.map((entry) => [entry.id, entry]))
+  const entries = next.map((entry) => {
+    const known = old.get(entry.id)
+    return known && JSON.stringify(known) === JSON.stringify(entry) ? known : entry
   })
-  return rows.length === before.length && rows.every((row, index) => row === before[index])
+  return entries.length === before.length &&
+    entries.every((entry, index) => entry === before[index])
     ? before
-    : rows
+    : entries
 }

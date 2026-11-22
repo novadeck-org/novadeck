@@ -3,7 +3,7 @@ import {
   inboxType,
   ordered,
   type InboxAnswer,
-  type InboxRow,
+  type InboxEntry,
   type InboxTurn,
 } from "@novadeck/core/inbox"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -14,7 +14,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { answerMs as chatAnswerMs, answeredMs } from "./agents/chat"
 import { demoTurnMs, demoTurns } from "./agents/turns"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox/fixtures"
+import { demoInboxIds, demoInboxEntries, demoInboxEntriesAll } from "./inbox/fixtures"
 import { plainDemo, type PlainVariant } from "./index"
 import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -26,7 +26,7 @@ afterEach(() => vi.useRealTimers())
 
 const now = 1_000_000_000_000
 
-// The rows that are still open; the resolved ones stay listed beside them, as history.
+// The entries that are still open; the resolved ones stay listed beside them, as history.
 const ids = (inbox: ReturnType<typeof createDemoInbox>): string[] =>
   inbox.state
     .getSnapshot()
@@ -36,46 +36,48 @@ const ids = (inbox: ReturnType<typeof createDemoInbox>): string[] =>
 const resolvedOf = (inbox: ReturnType<typeof createDemoInbox>, id: string) =>
   inbox.state.getSnapshot().items.find((each) => each.id === id)?.settled
 
-describe("the demo Inbox's rows", () => {
+describe("the demo Inbox's entries", () => {
   it("covers every type, each kind and every ask shape", () => {
     // The list starts with most of them; the debug panel adds the rest.
-    const rows = demoInboxRowsAll(now)
-    expect(new Set(rows.map(inboxType))).toEqual(new Set(["unblock", "ask", "trouble", "update"]))
-    expect(new Set(rows.map((each) => each.kind))).toEqual(
+    const entries = demoInboxEntriesAll(now)
+    expect(new Set(entries.map(inboxType))).toEqual(
+      new Set(["unblock", "ask", "trouble", "update"]),
+    )
+    expect(new Set(entries.map((each) => each.kind))).toEqual(
       new Set(["request", "held", "ask", "trouble", "update"]),
     )
-    const shapes = rows.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
+    const shapes = entries.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
     expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
-    const troubles = rows.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
+    const troubles = entries.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
     expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed", "waits"]))
-    const requests = rows.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
+    const requests = entries.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
     expect(new Set(requests)).toEqual(new Set(["permission", "question", "plan"]))
-    const updates = rows.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
+    const updates = entries.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
     expect(new Set(updates)).toEqual(new Set(["done", "told"]))
   })
 
   it("presents an ask whose answer is an action as an unblock, and a question as an ask", () => {
-    const rows = demoInboxRowsAll(now)
-    const typeOf = (id: string) => inboxType(rows.find((each) => each.id === id)!)
+    const entries = demoInboxEntriesAll(now)
+    const typeOf = (id: string) => inboxType(entries.find((each) => each.id === id)!)
     expect(typeOf(demoInboxIds.login)).toBe("unblock")
     expect(typeOf(demoInboxIds.question)).toBe("ask")
     expect(typeOf(demoInboxIds.done)).toBe("update")
   })
 
-  it("puts one row on each sample terminal, none seen, none from the future", () => {
+  it("puts one entry on each sample terminal, none seen, none from the future", () => {
     // The states the debug panel adds too: each on a terminal of its own, but for a held
     // message, which is its thread's, and messages held long, which are the terminal's
     // alongside whatever else it shows.
-    const rows = demoInboxRowsAll(now).filter(
+    const entries = demoInboxEntriesAll(now).filter(
       (each) => each.kind !== "held" && !(each.kind === "trouble" && each.trouble.type === "waits"),
     )
-    const terminals = rows.map((each) => each.source.terminalId)
+    const terminals = entries.map((each) => each.source.terminalId)
     expect(new Set(terminals).size).toBe(terminals.length)
-    expect(rows.every((each) => !each.seen && each.at <= now)).toBe(true)
+    expect(entries.every((each) => !each.seen && each.at <= now)).toBe(true)
   })
 
   it("gives the Codex permission Codex's own options", () => {
-    const codex = demoInboxRows(now).find((each) => each.id === demoInboxIds.codexPermission)
+    const codex = demoInboxEntries(now).find((each) => each.id === demoInboxIds.codexPermission)
     const dialog = codex?.kind === "request" ? codex.request.dialog : null
     expect(dialog?.type === "choices" ? dialog.options.map((each) => each.label) : []).toEqual([
       "Yes, proceed",
@@ -88,7 +90,7 @@ describe("the demo Inbox's rows", () => {
 
 describe("the demo Inbox", () => {
   context("when the next answer is made to fail", () => {
-    it("keeps the row and says why, then answers normally", () => {
+    it("keeps the entry and says why, then answers normally", () => {
       const inbox = createDemoInbox(now)
       inbox.failNext()
       inbox.answer(demoInboxIds.held, { kind: "held", action: "release" })
@@ -104,7 +106,7 @@ describe("the demo Inbox", () => {
   })
 
   context("when an answer is sent", () => {
-    it("marks the row answering, then removes it", () => {
+    it("marks the entry answering, then removes it", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.held, { kind: "held", action: "release" })
       expect(inbox.state.getSnapshot().answering).toEqual({ [demoInboxIds.held]: true })
@@ -114,14 +116,14 @@ describe("the demo Inbox", () => {
       expect(ids(inbox)).not.toContain(demoInboxIds.held)
     })
 
-    it("ignores a row that is not there", () => {
+    it("ignores an entry that is not there", () => {
       const inbox = createDemoInbox(now)
       const before = inbox.state.getSnapshot()
       inbox.answer("nothing", { kind: "held", action: "stop" })
       expect(inbox.state.getSnapshot()).toBe(before)
     })
 
-    it("fails an answer meant for another kind of row, leaving the row", () => {
+    it("fails an answer meant for another kind of entry, leaving the entry", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.held, { kind: "update", action: "read" })
       vi.advanceTimersByTime(answerMs)
@@ -131,7 +133,7 @@ describe("the demo Inbox", () => {
   })
 
   context("when auto-resume is turned off at a limit", () => {
-    it("keeps the row, now waiting on the person", () => {
+    it("keeps the entry, now waiting on the person", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.limit, {
         kind: "trouble",
@@ -166,8 +168,8 @@ describe("the demo Inbox", () => {
     })
   })
 
-  context("when a row is seen", () => {
-    it("marks only that row", () => {
+  context("when an entry is seen", () => {
+    it("marks only that entry", () => {
       const inbox = createDemoInbox(now)
       inbox.see(demoInboxIds.stuck)
       const seen = inbox.state.getSnapshot().items.filter((each) => each.seen)
@@ -178,8 +180,8 @@ describe("the demo Inbox", () => {
   context("when an update is read", () => {
     it("stays, resolved, and nothing that waits is touched", () => {
       const inbox = createDemoInbox(now)
-      const waiting = demoInboxRows(now).filter((each) => each.kind !== "update")
-      for (const update of demoInboxRows(now).filter((each) => each.kind === "update"))
+      const waiting = demoInboxEntries(now).filter((each) => each.kind !== "update")
+      for (const update of demoInboxEntries(now).filter((each) => each.kind === "update"))
         inbox.answer(update.id, { kind: "update", action: "read" })
       vi.advanceTimersByTime(answerMs)
       expect(ids(inbox)).toEqual(ordered(waiting).map((each) => each.id))
@@ -188,7 +190,7 @@ describe("the demo Inbox", () => {
     })
   })
 
-  context("when the person answers one of its own rows", () => {
+  context("when the person answers one of its own entries", () => {
     it("resolves it with the answer: an option, a dialog's words, or a thread stopped", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.webhook, {
@@ -211,10 +213,10 @@ describe("the demo Inbox", () => {
     })
   })
 
-  context("when a row arrives", () => {
+  context("when an entry arrives", () => {
     it("joins the Inbox, replacing one with its ID, until it is cleared", () => {
       const inbox = createDemoInbox(now, [])
-      const [first] = demoInboxRows(now) as [InboxRow]
+      const [first] = demoInboxEntries(now) as [InboxEntry]
       inbox.add(first)
       inbox.add({ ...first, at: now + 1 })
       expect(inbox.state.getSnapshot().items).toEqual([{ ...first, at: now + 1 }])
@@ -251,11 +253,11 @@ const boot = (variant: PlainVariant = "agents") => {
         (terminal) =>
           terminal.id === demoTerminalId({ projectId, workspaceSessionId: "initial" }, slot),
       )
-  const rowOn = (projectId: string, slot: number): InboxRow | undefined =>
+  const rowOn = (projectId: string, slot: number): InboxEntry | undefined =>
     inbox.state
       .getSnapshot()
       .items.find(
-        (row) => !row.settled && row.source.terminalId === terminalOf(projectId, slot)?.id,
+        (entry) => !entry.settled && entry.source.terminalId === terminalOf(projectId, slot)?.id,
       )
   // An agent's turn ends as the terminal's status says, a completed one standing past the
   // grace that tells it a finish.
@@ -266,7 +268,7 @@ const boot = (variant: PlainVariant = "agents") => {
     outcome: "completed" | "failed" = "completed",
     more: Partial<AgentTurnEnd> = {},
   ): Promise<readonly InboxTurn[]> => {
-    const before = new Set(inbox.turns?.getSnapshot()?.map((row) => row.id))
+    const before = new Set(inbox.turns?.getSnapshot()?.map((entry) => entry.id))
     const terminal = terminalOf(projectId, slot)
     if (terminal?.state !== "running") throw new Error("a running terminal")
     ends += 1
@@ -292,23 +294,23 @@ const boot = (variant: PlainVariant = "agents") => {
       },
     ] as never)
     await vi.advanceTimersByTimeAsync(finishGraceMs + 1)
-    return (inbox.turns?.getSnapshot() ?? []).filter((row) => !before.has(row.id))
+    return (inbox.turns?.getSnapshot() ?? []).filter((entry) => !before.has(entry.id))
   }
   return { backend, inbox, store, unbind, terminalOf, rowOn, finish, turns }
 }
 
-// The row of this id the Inbox shows.
-const rowWith = (inbox: ReturnType<typeof createDemoInbox>, id: string): InboxRow | undefined =>
+// The entry of this id the Inbox shows.
+const rowWith = (inbox: ReturnType<typeof createDemoInbox>, id: string): InboxEntry | undefined =>
   inbox.state.getSnapshot().items.find((each) => each.id === id && !each.settled)
 
 const waitsOn = (terminal: TerminalMetadata | undefined) =>
   terminal?.state === "running" ? terminal.agent?.attention?.kind : undefined
 
 // The first option of a request's dialog, as the person would pick it.
-const firstChoice = (row: InboxRow | undefined): InboxAnswer => {
-  if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+const firstChoice = (entry: InboxEntry | undefined): InboxAnswer => {
+  if (entry?.kind !== "request" || entry.request.dialog?.type !== "choices")
     throw new Error("not a dialog of choices")
-  const { dialog } = row.request
+  const { dialog } = entry.request
   return {
     kind: "request",
     answer: { type: "choice", dialog: dialog.id, option: dialog.options[0]!.id },
@@ -339,7 +341,7 @@ describe("the agents demo's Inbox", () => {
       workspaceSessionId: "initial",
       terminalId: found.terminal.id,
     }
-    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    const question = demoInboxEntriesAll(now).find((each) => each.kind === "ask")!
     inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
     await backend.conversations!.send(key, "continue", { automatic: true })
     await vi.advanceTimersByTimeAsync(1)
@@ -370,7 +372,7 @@ describe("the agents demo's Inbox", () => {
       workspaceSessionId: "initial",
       terminalId: found.terminal.id,
     }
-    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    const question = demoInboxEntriesAll(now).find((each) => each.kind === "ask")!
     // The agent works, and a Continue waits behind its turn; the person takes the line back.
     expect(turns.prompt("Get on with it.", found.terminal, key)).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
@@ -384,7 +386,7 @@ describe("the agents demo's Inbox", () => {
     expect(ids(inbox)).toContain("ask-here")
   })
 
-  it("settles an agent's open asks as replied when the person writes to it, and no other row", async () => {
+  it("settles an agent's open asks as replied when the person writes to it, and no other entry", async () => {
     const { inbox, turns, store } = boot()
     const found = store
       .getSnapshot()
@@ -408,7 +410,7 @@ describe("the agents demo's Inbox", () => {
       workspaceSessionId: "initial",
       terminalId: found.terminal.id,
     }
-    const all = demoInboxRowsAll(now)
+    const all = demoInboxEntriesAll(now)
     const question = all.find((each) => each.kind === "ask")!
     const update = all.find((each) => each.kind === "update")!
     const here = { ...question.source, ...key }
@@ -419,17 +421,17 @@ describe("the agents demo's Inbox", () => {
     // An ask made after a prompt was queued (the demo's lasts from `now`) stays.
     inbox.add({ ...question, id: "ask-later", at: now + 5, source: here })
     expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
-    const row = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)!
+    const entry = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)!
     // Open until the agent is told, within its turn.
     await vi.advanceTimersByTimeAsync(1)
-    expect(row("ask-here").settled).toBeUndefined()
+    expect(entry("ask-here").settled).toBeUndefined()
     await vi.advanceTimersByTimeAsync(demoTurnMs)
     expect(ids(inbox)).toContain("ask-later")
     const left = ids(inbox)
     // It stays, settled; an ask on another terminal, and an update on this one, are as they were.
-    expect(row("ask-here").settled).toMatchObject({ how: "replied" })
-    expect(row("ask-elsewhere").settled).toBeUndefined()
-    expect(row("update-here").settled).toBeUndefined()
+    expect(entry("ask-here").settled).toMatchObject({ how: "replied" })
+    expect(entry("ask-elsewhere").settled).toBeUndefined()
+    expect(entry("update-here").settled).toBeUndefined()
     expect(left).toEqual(expect.arrayContaining(["update-here", "ask-elsewhere"]))
   })
 
@@ -457,14 +459,14 @@ describe("the agents demo's Inbox", () => {
       workspaceSessionId: "initial",
       terminalId: found.terminal.id,
     }
-    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    const question = demoInboxEntriesAll(now).find((each) => each.kind === "ask")!
     inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
     expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
     await backend.conversations!.interrupt(key)
     await vi.advanceTimersByTimeAsync(demoTurnMs * 2)
-    const row = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
-    expect(row.settled).toBeUndefined()
+    const entry = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
+    expect(entry.settled).toBeUndefined()
   })
 
   it("leaves an agent's open asks open when its turn on the person's words is taken another way", async () => {
@@ -492,7 +494,7 @@ describe("the agents demo's Inbox", () => {
       workspaceSessionId: "initial",
       terminalId: found.terminal.id,
     }
-    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    const question = demoInboxEntriesAll(now).find((each) => each.kind === "ask")!
     inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
     expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
@@ -511,37 +513,37 @@ describe("the agents demo's Inbox", () => {
     await vi.advanceTimersByTimeAsync(demoTurnMs * 3)
     await answering
     expect(terminalAt()).toMatchObject({ agent: { lastTurn: { outcome: "completed" } } })
-    const row = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
-    expect(row.settled).toBeUndefined()
+    const entry = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
+    expect(entry.settled).toBeUndefined()
   })
 
   it("dismisses an open ask in place, and lets its agent withdraw one or end its session", async () => {
     const { inbox } = boot()
-    const all = demoInboxRowsAll(now)
+    const all = demoInboxEntriesAll(now)
     const question = all.find((each) => each.kind === "ask")!
     inbox.add({ ...question, id: "ask-a" })
     inbox.add({ ...question, id: "ask-b" })
-    const row = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)
+    const entry = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)
     inbox.dismiss!("ask-a")
-    expect(row("ask-a")?.settled).toMatchObject({ how: "dismissed" })
-    expect(row("ask-a")?.stopped).toBe(false)
+    expect(entry("ask-a")?.settled).toMatchObject({ how: "dismissed" })
+    expect(entry("ask-a")?.stopped).toBe(false)
     expect(ids(inbox)).not.toContain("ask-a")
     // A withdrawn ask leaves the Inbox, as the runner's does; one whose agent's session ended
     // stays, resolved.
     inbox.resolve("ask-b", "withdrawn")
-    expect(row("ask-b")).toBeUndefined()
+    expect(entry("ask-b")).toBeUndefined()
     inbox.add({ ...question, id: "ask-c" })
     inbox.resolve("ask-c", "gone")
-    expect(row("ask-c")?.settled).toMatchObject({ how: "ended" })
+    expect(entry("ask-c")?.settled).toMatchObject({ how: "ended" })
     // A resolved ask cannot be answered or dismissed again.
     inbox.answer("ask-c", { kind: "ask", answer: { type: "reply", option: null, text: "x" } })
     inbox.dismiss!("ask-c")
-    expect(row("ask-c")?.settled).toMatchObject({ how: "ended" })
+    expect(entry("ask-c")?.settled).toMatchObject({ how: "ended" })
   })
 
   it("leaves an ask open, with no answer error, when its dismissal fails", () => {
     const { inbox } = boot()
-    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    const question = demoInboxEntriesAll(now).find((each) => each.kind === "ask")!
     inbox.add({ ...question, id: "ask-a" })
     inbox.failNext()
     inbox.dismiss!("ask-a")
@@ -554,7 +556,7 @@ describe("the agents demo's Inbox", () => {
     ).toBeDefined()
   })
 
-  it("makes no row of the draft an Ask made, nor of the agent's finish, beside a held thread", async () => {
+  it("makes no entry of the draft an Ask made, nor of the agent's finish, beside a held thread", async () => {
     const { backend, inbox, rowOn, store, finish } = boot()
     const found = store
       .getSnapshot()
@@ -581,9 +583,9 @@ describe("the agents demo's Inbox", () => {
     await backend.feedback!.ask!(key, "")
     await vi.advanceTimersByTimeAsync(3 * 1500 + 100)
     // The writing turn ended unseen: the agent finished while the person looked elsewhere, and
-    // the demo stored its finish as a row, which is no Inbox row.
+    // the demo stored its finish as an entry, which is no Inbox entry.
     await finish(found.project, Number(found.terminal.id.slice(-2)))
-    const held = demoInboxRowsAll(now).find((each) => each.id === demoInboxIds.held)!
+    const held = demoInboxEntriesAll(now).find((each) => each.id === demoInboxIds.held)!
     inbox.add({
       ...held,
       id: "held-here",
@@ -607,14 +609,14 @@ describe("the agents demo's Inbox", () => {
       ["api-service", 4, "permission"],
       ["docs-site", 1, "question"],
     ] as const) {
-      const row = rowOn(project, slot)
-      expect(row?.kind === "request" && row.request.kind, `${project} ${slot}`).toBe(kind)
+      const entry = rowOn(project, slot)
+      expect(entry?.kind === "request" && entry.request.kind, `${project} ${slot}`).toBe(kind)
     }
-    expect(inbox.state.getSnapshot().items.every((row) => row.kind === "request")).toBe(true)
+    expect(inbox.state.getSnapshot().items.every((entry) => entry.kind === "request")).toBe(true)
   })
 
   context("when a request is answered", () => {
-    it("moves its agent on, as an answer on its screen does, and the row goes", async () => {
+    it("moves its agent on, as an answer on its screen does, and the entry goes", async () => {
       const { inbox, rowOn, terminalOf } = boot()
       const codex = rowOn("storefront", 4)
       expect(waitsOn(terminalOf("storefront", 4))).toBe("permission")
@@ -627,7 +629,7 @@ describe("the agents demo's Inbox", () => {
       expect(rowOn("storefront", 4)).toBeUndefined()
     })
 
-    it("says why where the answer didn't take, and keeps the row", async () => {
+    it("says why where the answer didn't take, and keeps the entry", async () => {
       const { inbox, rowOn } = boot()
       const codex = rowOn("storefront", 4)!
       inbox.failNext()
@@ -639,18 +641,18 @@ describe("the agents demo's Inbox", () => {
   })
 
   context("when an agent finished while the person looked elsewhere", () => {
-    it("stores its reply as a finished turn that marks its tab, and lists no row", async () => {
+    it("stores its reply as a finished turn that marks its tab, and lists no entry", async () => {
       const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
-      const [row] = await finish("design-system", 1)
-      expect(row).toMatchObject({ projectId: "design-system", outcome: "completed" })
-      expect(rowWith(inbox, row!.id)).toBeUndefined()
+      const [entry] = await finish("design-system", 1)
+      expect(entry).toMatchObject({ projectId: "design-system", outcome: "completed" })
+      expect(rowWith(inbox, entry!.id)).toBeUndefined()
 
-      inbox.readFinishes?.([{ context: "design-system/initial", terminalId: row!.terminalId }])
-      expect(inbox.turns?.getSnapshot()?.some((each) => each.id === row!.id)).toBe(false)
+      inbox.readFinishes?.([{ context: "design-system/initial", terminalId: entry!.terminalId }])
+      expect(inbox.turns?.getSnapshot()?.some((each) => each.id === entry!.id)).toBe(false)
     })
 
-    it("records no row for an end that hit a usage limit", async () => {
+    it("records no entry for an end that hit a usage limit", async () => {
       const { finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
 
@@ -660,7 +662,7 @@ describe("the agents demo's Inbox", () => {
       ).toEqual([])
     })
 
-    it("lists every end as its own row, and records one only after the grace", async () => {
+    it("lists every end as its own entry, and records one only after the grace", async () => {
       const { inbox, finish, store, terminalOf } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
       const first = await finish("design-system", 1)
@@ -694,7 +696,7 @@ describe("the agents demo's Inbox", () => {
       expect(listed()).toBe(before + 1)
     })
 
-    it("drops a terminal's rows when the person reads its finishes", async () => {
+    it("drops a terminal's entries when the person reads its finishes", async () => {
       const { inbox, finish, terminalOf } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
       const [kept] = await finish("infra", 1)
@@ -702,15 +704,15 @@ describe("the agents demo's Inbox", () => {
       inbox.readFinishes?.([
         { context: "design-system/initial", terminalId: terminalOf("design-system", 1)!.id },
       ])
-      const left = inbox.turns?.getSnapshot()?.map((row) => row.id)
+      const left = inbox.turns?.getSnapshot()?.map((entry) => entry.id)
       expect(left).toContain(kept!.id)
       expect(left).not.toContain(read!.id)
     })
 
-    it("drops the rows of a terminal that closed", async () => {
+    it("drops the entries of a terminal that closed", async () => {
       const { inbox, finish, store, terminalOf } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
-      const [row] = await finish("design-system", 1)
+      const [entry] = await finish("design-system", 1)
       const closing = terminalOf("design-system", 1)!
       store.transact([
         {
@@ -720,11 +722,11 @@ describe("the agents demo's Inbox", () => {
         },
       ] as never)
       expect(terminalOf("design-system", 1)).toBeUndefined()
-      expect(inbox.turns?.getSnapshot()?.some((each) => each.id === row!.id)).toBe(false)
+      expect(inbox.turns?.getSnapshot()?.some((each) => each.id === entry!.id)).toBe(false)
     })
   })
 
-  context("when trouble is answered and its row stays", () => {
+  context("when trouble is answered and its entry stays", () => {
     it("holds its buttons a moment, then gives them back", async () => {
       const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
@@ -741,8 +743,8 @@ describe("the agents demo's Inbox", () => {
     })
   })
 
-  context("when a row is seen", () => {
-    it("marks only that row", () => {
+  context("when an entry is seen", () => {
+    it("marks only that entry", () => {
       const { inbox, rowOn } = boot()
       const codex = rowOn("storefront", 4)!
       inbox.see(codex.id)
@@ -752,7 +754,7 @@ describe("the agents demo's Inbox", () => {
   })
 
   context("when the app unbinds it", () => {
-    it("empties of what the agents wait on, and of the rows it stored", async () => {
+    it("empties of what the agents wait on, and of the entries it stored", async () => {
       const { inbox, unbind, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
       await finish("design-system", 1)
@@ -761,7 +763,7 @@ describe("the agents demo's Inbox", () => {
       expect(inbox.turns?.getSnapshot()).toBeUndefined()
     })
 
-    it("forgets what it knew of their rows, once bound again", async () => {
+    it("forgets what it knew of their entries, once bound again", async () => {
       const { inbox, rowOn, unbind, store } = boot()
       const codex = rowOn("storefront", 4)!
       inbox.see(codex.id)
@@ -777,7 +779,7 @@ describe("the agents demo's Inbox", () => {
     })
   })
 
-  context("when the workspace changes in a way no row shows", () => {
+  context("when the workspace changes in a way no entry shows", () => {
     it("keeps the Inbox as it was", () => {
       const { inbox, store, terminalOf } = boot()
       const before = inbox.state.getSnapshot()
@@ -793,18 +795,19 @@ describe("the agents demo's Inbox", () => {
     })
   })
 
-  it("names each request by its terminal, so the same sample in two sessions is two rows", () => {
+  it("names each request by its terminal, so the same sample in two sessions is two entries", () => {
     const { rowOn, terminalOf } = boot()
     const codex = rowOn("storefront", 4)
     expect(codex?.id).toContain(terminalOf("storefront", 4)!.id)
   })
 })
 
-describe("the Inbox demo's own rows", () => {
+describe("the Inbox demo's own entries", () => {
   it("take the place of a dialog their terminal's agent shows, and only that", () => {
     const { inbox, terminalOf } = boot("inbox")
-    const rows = inbox.state.getSnapshot().items
-    const on = (terminalId: string) => rows.filter((each) => each.source.terminalId === terminalId)
+    const entries = inbox.state.getSnapshot().items
+    const on = (terminalId: string) =>
+      entries.filter((each) => each.source.terminalId === terminalId)
     const codex = terminalOf("storefront", 4)!.id
     expect(
       on(codex)
@@ -812,7 +815,7 @@ describe("the Inbox demo's own rows", () => {
         .map((each) => each.id),
     ).toEqual([demoInboxIds.codexPermission])
     const standing = new Set(
-      rows
+      entries
         .filter((each) => !each.id.startsWith("request:") && each.kind !== "held")
         .filter((each) => each.kind !== "update")
         .map((each) => each.source.terminalId),
@@ -834,7 +837,7 @@ describe("the Inbox demo's own rows", () => {
 
 describe("an agent that calls done", () => {
   const report = { subject: "Search rebuilt", body: "All 412 pages, no broken links." }
-  const updateOn = (found: ReturnType<typeof boot>): InboxRow | undefined =>
+  const updateOn = (found: ReturnType<typeof boot>): InboxEntry | undefined =>
     found.inbox.state
       .getSnapshot()
       .items.find(
@@ -871,29 +874,29 @@ describe("an agent that calls done", () => {
     })
   })
 
-  it("makes no Inbox row when it finishes without calling done", async () => {
+  it("makes no Inbox entry when it finishes without calling done", async () => {
     const found = boot()
     await vi.advanceTimersByTimeAsync(10_000)
     await call(found, "mobile-app", 1, null)
     await vi.advanceTimersByTimeAsync(finishGraceMs + 1)
 
     expect(updateOn(found)).toBeUndefined()
-    expect(found.inbox.turns?.getSnapshot()?.some((row) => row.projectId === "mobile-app")).toBe(
-      true,
-    )
+    expect(
+      found.inbox.turns?.getSnapshot()?.some((entry) => entry.projectId === "mobile-app"),
+    ).toBe(true)
   })
 
   it("is read by the person, and goes", async () => {
     const found = boot()
     await vi.advanceTimersByTimeAsync(10_000)
     await call(found)
-    const row = updateOn(found)!
+    const entry = updateOn(found)!
 
-    found.inbox.answer(row.id, { kind: "update", action: "read" })
-    expect(rowWith(found.inbox, row.id)).toBeUndefined()
+    found.inbox.answer(entry.id, { kind: "update", action: "read" })
+    expect(rowWith(found.inbox, entry.id)).toBeUndefined()
     // It stays, resolved, as history.
     expect(
-      found.inbox.state.getSnapshot().items.find(({ id }) => id === row.id)?.settled,
+      found.inbox.state.getSnapshot().items.find(({ id }) => id === entry.id)?.settled,
     ).toMatchObject({
       how: "read",
     })
@@ -927,10 +930,10 @@ describe("an agent that calls done", () => {
 })
 
 describe("The demo Inbox's order", () => {
-  it("keeps the rows still listed, by key, and forgets the rest", () => {
+  it("keeps the entries still listed, by key, and forgets the rest", () => {
     const inbox = createDemoInbox(Date.now())
     const [first, second] = inbox.state.getSnapshot().items
-    const key = (row: typeof first) => `${row!.id}@${row!.at}`
+    const key = (entry: typeof first) => `${entry!.id}@${entry!.at}`
     inbox.arrange?.([key(second), "gone@1", key(first)])
     expect(inbox.order?.getSnapshot()).toEqual([key(second), key(first)])
   })

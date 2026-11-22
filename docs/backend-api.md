@@ -314,7 +314,7 @@ for a second (`processPollMs`), as a sample would tell elsewhere.
 latest `done` of the session bound in the terminal, read or not (from the report log, so
 not ended by the Inbox's day), unless the person's
 prompt or a message delivered to the agent came after it. It follows the Inbox and those
-inputs as they change, so a client's done mark needs no Inbox row, and looking at the
+inputs as they change, so a client's done mark needs no Inbox entry, and looking at the
 terminal never ends it. After a runner restart it is the resumed session's until a binding
 has ended; Codex and Antigravity bind only at their first prompt, so until then it comes
 from that saved session. The agents listing's "reported done" follows the same rule.
@@ -331,7 +331,7 @@ project can): it then draws the project's next, and the handle it left rests an 
 ids, so a move leaves its team's links as they are. `handles` (by terminal id) and `lead` (the
 id `left` gave) undo an earlier move: a handle is taken back where nothing in the project holds it
 and no other terminal freed it within the hour, and the terminal rejoins that lead if it is there, without asking. `terminals.watch` tells each moved terminal as a
-`changed` with its new `sessionId`; its Inbox rows and its companion bar's items go with it,
+`changed` with its new `sessionId`; its Inbox entries and its companion bar's items go with it,
 and each running agent hears of it as a notice, with any new handles and the lead it left (a
 sleeping agent isn't woken for it). A terminal that is closing, stopping to rest, being woken,
 whose agent has a terminal on its way (`open_agent`), whose lead's brief to it hasn't arrived
@@ -1953,8 +1953,8 @@ one from an earlier runner.
   `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, agentModes?, agentMode?, shippingGate? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
-  Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
-  (each `<row id>@<when it began>`, at most 200 of each, and 200 characters), the Inbox's rows
+  Inbox entries that ask in the order the person dragged them into, and the entries they snoozed
+  (each `<entry id>@<when it began>`, at most 200 of each, and 200 characters), the Inbox's entries
   that ended and the runner can't tell of itself (a dialog answered, a held message released, a
   usage limit over) as the app made them resolved, and those it still had open, each a JSON
   string with its long texts cut, the latest ten resolved and at most fifty open, about 64 KB

@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 
 import { needing } from "../inbox/inbox-state"
 
@@ -13,8 +13,8 @@ export type InboxBadge = {
 }
 
 // The Inbox's badge, undefined while nothing waits: what isn't an update.
-export const inboxBadge = (rows: readonly InboxRow[]): InboxBadge | undefined => {
-  const waiting = needing(rows)
+export const inboxBadge = (entries: readonly InboxEntry[]): InboxBadge | undefined => {
+  const waiting = needing(entries)
   if (waiting.length === 0) return undefined
   return { count: waiting.length, label: `Inbox, ${waiting.length} waiting` }
 }

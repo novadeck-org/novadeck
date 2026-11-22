@@ -131,7 +131,7 @@ for (const agent of agentNames)
       ])
     })
 
-    it("outlives the Inbox's row: read, and a day later, the done is still the session's", () => {
+    it("outlives the Inbox's entry: read, and a day later, the done is still the session's", () => {
       const records = memoryInbox()
       const run = setup(records)
       run.open("t1", agent, "s1")
@@ -365,7 +365,7 @@ for (const agent of agentNames)
       expect([where(withdrawn), where(kept)]).toEqual(["real", "real"])
     })
 
-    it("moves reports whose Inbox rows are long gone, which only the log still holds", () => {
+    it("moves reports whose Inbox entries are long gone, which only the log still holds", () => {
       const records = memoryInbox()
       const run = setup(records)
       const owner = run.open("t1", agent, "tentative")

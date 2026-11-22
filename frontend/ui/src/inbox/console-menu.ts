@@ -1,7 +1,7 @@
 import { askToFixNudge } from "@novadeck/core/agents/steps"
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
 import { optionExtras } from "@novadeck/core/conversation/extras"
-import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
+import type { AskOption, InboxAnswer, InboxEntry, Trouble } from "@novadeck/core/inbox"
 
 import { actionOf, agentName, clock, recommended, waitLabel } from "./inbox-text"
 
@@ -43,7 +43,7 @@ export type MenuRow =
     }
   // Shows the terminal: what can't be answered from here.
   | { readonly type: "reveal"; readonly label: string; readonly effect: string | null }
-  // Changes how the Inbox row is handled, without answering it: it stays.
+  // Changes how the Inbox entry is handled, without answering it: it stays.
   | {
       readonly type: "toggle"
       readonly label: string
@@ -57,10 +57,10 @@ export type Menu = {
   readonly hard: boolean
 }
 
-// The way to the row's terminal.
+// The way to the entry's terminal.
 const goToTerminal: MenuRow = { type: "reveal", label: "Go to terminal", effect: null }
 
-// Every menu ends on the way to the row's terminal, where it has none of its own.
+// Every menu ends on the way to the entry's terminal, where it has none of its own.
 const withTerminal = (menu: Menu): Menu =>
   menu.rows.some((row) => row.type === "reveal")
     ? menu
@@ -112,22 +112,22 @@ export const requestReceipt = (
 }
 
 // What the person may write in place of an agent's options, or as its answer.
-const ownWords = (row: InboxRow, label = "Reply in your own words"): MenuRow => ({
+const ownWords = (entry: InboxEntry, label = "Reply in your own words"): MenuRow => ({
   type: "words",
   label,
-  placeholder: `Reply to ${agentName(row.source.agent)}`,
-  field: `Reply to ${agentName(row.source.agent)}`,
+  placeholder: `Reply to ${agentName(entry.source.agent)}`,
+  field: `Reply to ${agentName(entry.source.agent)}`,
   required: true,
   answer: (text) => ({ kind: "ask", answer: { type: "reply", option: null, text: text.trim() } }),
-  receipt: () => `Reply queued for @${row.source.handle}.`,
+  receipt: () => `Reply queued for @${entry.source.handle}.`,
   refused: () => null,
 })
 
-const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
-  const { ask, source } = row
+const askMenu = (entry: Extract<InboxEntry, { kind: "ask" }>): Menu => {
+  const { ask, source } = entry
   const { shape } = ask
   const hard = ask.hardToUndo !== null
-  if (shape.type === "text") return { rows: [ownWords(row, "Reply")], hard }
+  if (shape.type === "text") return { rows: [ownWords(entry, "Reply")], hard }
   if (shape.type === "action")
     return {
       rows: [
@@ -140,7 +140,7 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
           answer: { kind: "ask", answer: { type: "done" } },
           receipt: `Told @${source.handle} it's done.`,
         },
-        ownWords(row),
+        ownWords(entry),
       ],
       hard,
     }
@@ -158,7 +158,7 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
           receipt: `Reply queued for @${source.handle}.`,
         }
       }),
-      ownWords(row),
+      ownWords(entry),
     ],
     hard,
   }
@@ -184,12 +184,12 @@ const troubleRow = (
   receipt,
 })
 
-const troubleMenu = (row: InboxRow, trouble: Trouble, now: number): Menu => {
-  const { handle } = row.source
+const troubleMenu = (entry: InboxEntry, trouble: Trouble, now: number): Menu => {
+  const { handle } = entry.source
   switch (trouble.type) {
     case "failed":
       return {
-        rows: row.stopped
+        rows: entry.stopped
           ? [
               troubleRow(
                 "Ask it to fix",
@@ -214,7 +214,7 @@ const troubleMenu = (row: InboxRow, trouble: Trouble, now: number): Menu => {
             type: "words",
             label: "Nudge it in your own words",
             placeholder: "What should it try?",
-            field: `What ${agentName(row.source.agent)} should try`,
+            field: `What ${agentName(entry.source.agent)} should try`,
             required: true,
             answer: (text) => ({
               kind: "trouble",
@@ -255,16 +255,16 @@ const troubleMenu = (row: InboxRow, trouble: Trouble, now: number): Menu => {
   }
 }
 
-// The rows a sheet draws as its own, every kind but a request, which its card answers.
-export type OwnRow = Exclude<InboxRow, { readonly kind: "request" }>
+// The entries a sheet draws as its own, every kind but a request, which its card answers.
+export type OwnEntry = Exclude<InboxEntry, { readonly kind: "request" }>
 
-// The menu of a row of the Inbox's own, at `now`: a limit's reset is read against it.
-export const menuOf = (row: OwnRow, now: number): Menu => withTerminal(answersOf(row, now))
+// The menu of an entry of the Inbox's own, at `now`: a limit's reset is read against it.
+export const menuOf = (entry: OwnEntry, now: number): Menu => withTerminal(answersOf(entry, now))
 
-const answersOf = (row: OwnRow, now: number): Menu => {
-  switch (row.kind) {
+const answersOf = (entry: OwnEntry, now: number): Menu => {
+  switch (entry.kind) {
     case "held": {
-      const { from, to } = row.held
+      const { from, to } = entry.held
       return {
         rows: [
           {
@@ -290,9 +290,9 @@ const answersOf = (row: OwnRow, now: number): Menu => {
       }
     }
     case "ask":
-      return askMenu(row)
+      return askMenu(entry)
     case "trouble":
-      return troubleMenu(row, row.trouble, now)
+      return troubleMenu(entry, entry.trouble, now)
     case "update":
       // Opening it read it: all that is left to do is to answer in the terminal.
       return { rows: [], hard: false }

@@ -1,5 +1,5 @@
 import { agentWorking } from "@novadeck/core/agents/finish"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { inboxMarks } from "@novadeck/core/inbox/marks"
 import { doneText, terminalGlance } from "@novadeck/core/terminals/ending"
 import { waitingOf, wakeGraceMs } from "@novadeck/core/terminals/waiting"
@@ -69,14 +69,14 @@ const terminalStatus = (
   sessionId: string,
   terminal: TerminalMetadata,
   unread: UnreadEnds,
-  rows: readonly InboxRow[],
+  entries: readonly InboxEntry[],
   now: number,
 ): ProjectStatus | undefined => {
   if (terminal.state === "exited" || terminal.state === "failed") return undefined
   const at = { projectId: project.id, workspaceSessionId: sessionId, terminalId: terminal.id }
   const { need, phase, failed } = terminalGlance(
     terminal,
-    inboxMarks(rows, at, now),
+    inboxMarks(entries, at, now),
     unread(`${project.id}/${sessionId}`, terminal.id),
     now,
   )
@@ -106,12 +106,12 @@ export const sessionStatuses = (
   project: WorkspaceProject,
   session: WorkspaceSession,
   unread: UnreadEnds,
-  rows: readonly InboxRow[],
+  entries: readonly InboxEntry[],
   now: number,
 ): { readonly terminal: TerminalMetadata; readonly status: ProjectStatus }[] => {
   const shown: { terminal: TerminalMetadata; status: ProjectStatus }[] = []
   for (const terminal of session.state.roster.terminals) {
-    const status = terminalStatus(project, session.id, terminal, unread, rows, now)
+    const status = terminalStatus(project, session.id, terminal, unread, entries, now)
     if (status !== undefined) shown.push({ terminal, status })
   }
   return shown
@@ -128,13 +128,13 @@ export const mostPressingOf = (statuses: Iterable<ProjectStatus>): ProjectStatus
 const mostPressing = (
   project: WorkspaceProject,
   unread: UnreadEnds,
-  rows: readonly InboxRow[],
+  entries: readonly InboxEntry[],
   now: number,
   counts: (status: ProjectStatus) => boolean,
 ): ProjectStatus | undefined =>
   mostPressingOf(
     project.history.flatMap((session) =>
-      sessionStatuses(project, session, unread, rows, now)
+      sessionStatuses(project, session, unread, entries, now)
         .map(({ status }) => status)
         .filter(counts),
     ),
@@ -147,9 +147,9 @@ const any = (): boolean => true
 export const projectStatus = (
   project: WorkspaceProject,
   unread: UnreadEnds,
-  rows: readonly InboxRow[] = [],
+  entries: readonly InboxEntry[] = [],
   now = Date.now(),
-): ProjectStatus | undefined => mostPressing(project, unread, rows, now, any)
+): ProjectStatus | undefined => mostPressing(project, unread, entries, now, any)
 
 // What a project's terminals ask of the person: the most pressing status among them that
 // does, which the switcher's dot reads, so a done report under an agent paused at its limit
@@ -157,9 +157,9 @@ export const projectStatus = (
 export const projectAsk = (
   project: WorkspaceProject,
   unread: UnreadEnds,
-  rows: readonly InboxRow[] = [],
+  entries: readonly InboxEntry[] = [],
   now = Date.now(),
-): ProjectStatus | undefined => mostPressing(project, unread, rows, now, needsPerson)
+): ProjectStatus | undefined => mostPressing(project, unread, entries, now, needsPerson)
 
 // Whether an agent is at work in any of the projects, in any of their sessions.
 export const anyAgentWorking = (projects: readonly WorkspaceProject[]): boolean =>
@@ -189,24 +189,24 @@ const byProject = (
 export const projectStatuses = (
   projects: readonly WorkspaceProject[],
   unread: UnreadEnds,
-  rows: readonly InboxRow[] = [],
+  entries: readonly InboxEntry[] = [],
   now = Date.now(),
 ): Readonly<Record<string, ProjectStatus>> =>
-  byProject(projects, (project) => projectStatus(project, unread, rows, now))
+  byProject(projects, (project) => projectStatus(project, unread, entries, now))
 
 // What every project asks of the person, by its id, where one asks anything.
 export const projectAsks = (
   projects: readonly WorkspaceProject[],
   unread: UnreadEnds,
-  rows: readonly InboxRow[] = [],
+  entries: readonly InboxEntry[] = [],
   now = Date.now(),
 ): Readonly<Record<string, ProjectStatus>> =>
-  byProject(projects, (project) => projectAsk(project, unread, rows, now))
+  byProject(projects, (project) => projectAsk(project, unread, entries, now))
 
 // When a project's status next changes by time alone, so a view can read them again then:
 // the grace after a job an agent's harness gives up on, or after its wake-up, passing,
 // which ends its wait. Undefined while nothing waits that way; a limit resetting is the
-// Inbox's (`nextLimitReset`), and the needs it makes are read from its rows.
+// Inbox's (`nextLimitReset`), and the needs it makes are read from its entries.
 export const nextStatusChange = (
   projects: readonly WorkspaceProject[],
   now = Date.now(),

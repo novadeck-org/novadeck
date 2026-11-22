@@ -22,7 +22,7 @@ export const ZenDock = ({
   view: ViewMode
   enabledViews: ViewMode[]
   badge: InboxBadge | undefined
-  // How many new Inbox rows the bell has rung for, which its dot rings with.
+  // How many new Inbox entries the bell has rung for, which its dot rings with.
   bellRings: number
   onCreate: () => void
   onViewChange: (view: ViewMode) => void

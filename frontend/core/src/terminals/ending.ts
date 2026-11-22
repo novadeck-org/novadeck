@@ -125,7 +125,7 @@ export const waitingAgents = (
 // permission, a plan, a held message, an action only they can do) or `ask` (a question).
 export type TerminalNeed = "unblock" | "ask"
 
-// What a dialog its agent shows now needs, which shows at once, before the Inbox's row:
+// What a dialog its agent shows now needs, which shows at once, before the Inbox's entry:
 // a question asks, a permission or a plan unblocks.
 const attentionNeed = (terminal: TerminalMetadata): TerminalNeed | undefined => {
   const agent = terminal.state === "running" ? terminal.agent : undefined
@@ -134,7 +134,7 @@ const attentionNeed = (terminal: TerminalMetadata): TerminalNeed | undefined => 
   return agent.attention.kind === "question" ? "ask" : "unblock"
 }
 
-// The mark: the need the Inbox's rows make (`terminalNeed` in inbox.ts) and the one its
+// The mark: the need the Inbox's entries make (`terminalNeed` in inbox.ts) and the one its
 // live dialog makes, an unblock winning.
 export const terminalNeedMark = (
   terminal: TerminalMetadata,
@@ -244,7 +244,7 @@ export const attentionText = (terminal: TerminalMetadata): string | undefined =>
 }
 
 // The kind of dialog a need comes from: what the agent's harness shows, or the request an
-// Inbox row stands for.
+// Inbox entry stands for.
 export type NeedDialog = "permission" | "question" | "plan"
 
 const dialogLead: Record<NeedDialog, string> = {
@@ -256,12 +256,12 @@ const dialogLead: Record<NeedDialog, string> = {
 const dialogBare: Record<NeedDialog, string> = { ...dialogLead, question: "Asks a question" }
 
 // What a terminal needs, in words for its description, from whichever source decided its mark
-// (`terminalNeedMark`). The kind comes first and the subject of the Inbox's row after it
+// (`terminalNeedMark`). The kind comes first and the subject of the Inbox's entry after it
 // where there is one: "Needs permission: pnpm test …", "Plan ready for review: Checkout flow",
 // "Asks: Where should feedback go?", "Needs you: wrangler login" for a row that is no dialog
 // (a held message, a sign-in, a limit). The kind is the row's own (`dialog`) while the Inbox
 // decided the mark, so the words keep their kind from the dialog's first moment, before the
-// Inbox's row, to the row. With no subject: what the live dialog says when it decided the mark
+// Inbox's entry, to the row. With no subject: what the live dialog says when it decided the mark
 // (as in "Plan ready for review"), else the row's kind, else the need alone. `inbox` is the
 // Inbox's need, not the mark.
 export const needText = (
@@ -315,7 +315,7 @@ export type TerminalGlance = {
 // Whether a terminal's live dialogs are all its snoozed requests', which make no mark.
 const asleep = (terminal: TerminalMetadata, marks: InboxMarks): boolean => {
   const agent = terminal.state === "running" ? terminal.agent : undefined
-  // No Inbox row stands behind a startup screen, so no snooze can set it aside.
+  // No Inbox entry stands behind a startup screen, so no snooze can set it aside.
   if (agent?.startup) return false
   return (agent?.attention?.count ?? 0) <= (marks.snoozedRequests ?? 0)
 }

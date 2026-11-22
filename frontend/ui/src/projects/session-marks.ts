@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { handleText } from "@novadeck/core/terminals/handle"
 import type { WorkspaceProject } from "@novadeck/core/types"
 
@@ -31,12 +31,12 @@ const namedLines = 3
 export const sessionMarks = (
   project: WorkspaceProject,
   unread: UnreadEnds,
-  rows: readonly InboxRow[],
+  entries: readonly InboxEntry[],
   now: number,
 ): Readonly<Record<string, SessionMark>> => {
   const marks: Record<string, SessionMark> = {}
   for (const session of project.history) {
-    const shown = sessionStatuses(project, session, unread, rows, now)
+    const shown = sessionStatuses(project, session, unread, entries, now)
     const count = (status: ProjectStatus): number =>
       shown.filter((each) => each.status === status).length
     const named = (status: "unblock" | "ask", label: string): string[] =>

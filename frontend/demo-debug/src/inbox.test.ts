@@ -12,7 +12,7 @@ import { inboxGroups } from "./inbox"
 import { describe, expect, it } from "./test"
 import type { DemoActionContext } from "./types"
 
-// The sample projects the Inbox's rows are about.
+// The sample projects the Inbox's entries are about.
 const seed = demoSeed(0, true)
 
 const run = (inbox: ReturnType<typeof createDemoInbox>, label: string, notes: string[] = []) => {
@@ -52,7 +52,7 @@ describe("the debug panel's Inbox group", () => {
     expect(group!.actions.every((action) => action.hint.length > 0)).toBe(true)
   })
 
-  it("adds one row of a kind, waiting from now", () => {
+  it("adds one entry of a kind, waiting from now", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Stuck agent")
     const [added] = inbox.state.getSnapshot().items
@@ -63,20 +63,20 @@ describe("the debug panel's Inbox group", () => {
   it("adds four asks at once, from four different terminals", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Several asks at once")
-    const rows = inbox.state.getSnapshot().items
+    const entries = inbox.state.getSnapshot().items
 
-    expect(rows).toHaveLength(4)
-    expect(new Set(rows.map((row) => row.source.terminalId)).size).toBe(4)
-    expect(new Set(rows.map((row) => row.source.projectId)).size).toBe(4)
-    expect(rows.every((row) => row.kind !== "update")).toBe(true)
+    expect(entries).toHaveLength(4)
+    expect(new Set(entries.map((entry) => entry.source.terminalId)).size).toBe(4)
+    expect(new Set(entries.map((entry) => entry.source.projectId)).size).toBe(4)
+    expect(entries.every((entry) => entry.kind !== "update")).toBe(true)
   })
 
   it("adds messages held long behind a dialog, for the doorbell's trouble sheet", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Messages held long")
-    const [row] = inbox.state.getSnapshot().items
+    const [entry] = inbox.state.getSnapshot().items
 
-    expect(row).toMatchObject({
+    expect(entry).toMatchObject({
       id: demoInboxIds.waits,
       kind: "trouble",
       trouble: { type: "waits", waits: "dialog", count: 2 },
@@ -86,19 +86,19 @@ describe("the debug panel's Inbox group", () => {
   it("adds the next kind that is missing, until every kind is there", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
-    // Lifecycle controls and variants change or add rows rather than adding a kind.
+    // Lifecycle controls and variants change or add entries rather than adding a kind.
     const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 23
-    for (let each = 0; each < kinds; each += 1) run(inbox, "A new row arrives", notes)
+    for (let each = 0; each < kinds; each += 1) run(inbox, "A new entry arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
-    run(inbox, "A new row arrives", notes)
+    run(inbox, "A new entry arrives", notes)
     expect(notes).toEqual(["Every kind is in the Inbox already."])
   })
 
   it("adds Codex's form from an MCP server, which only its screen tells, as its text", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Form from an MCP server, in Codex")
-    const [row] = inbox.state.getSnapshot().items
-    expect(row).toMatchObject({
+    const [entry] = inbox.state.getSnapshot().items
+    expect(entry).toMatchObject({
       kind: "request",
       source: { agent: "codex" },
       request: {
@@ -112,29 +112,29 @@ describe("the debug panel's Inbox group", () => {
   it("adds a permission whose command hides a line, for the card to mark", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Command hiding lines")
-    const [row] = inbox.state.getSnapshot().items
-    expect(row?.kind === "request" && row.request.dialog?.type === "choices").toBe(true)
-    if (row?.kind !== "request" || row.request.dialog?.type !== "choices") return
-    expect(row.request.dialog.detail).toBe(demoHiddenCommand)
+    const [entry] = inbox.state.getSnapshot().items
+    expect(entry?.kind === "request" && entry.request.dialog?.type === "choices").toBe(true)
+    if (entry?.kind !== "request" || entry.request.dialog?.type !== "choices") return
+    expect(entry.request.dialog.detail).toBe(demoHiddenCommand)
   })
 
   it("adds a permission for a script of twelve lines, for the sheet to scroll in its box", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Long command")
-    const [row] = inbox.state.getSnapshot().items
-    if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+    const [entry] = inbox.state.getSnapshot().items
+    if (entry?.kind !== "request" || entry.request.dialog?.type !== "choices")
       throw new Error("not a permission")
-    expect(row.request.dialog.detail).toBe(demoLongCommand)
+    expect(entry.request.dialog.detail).toBe(demoLongCommand)
     expect(demoLongCommand.split("\n")).toHaveLength(12)
   })
 
   it("adds one of Claude's questions that takes several picks and the person's words", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Pick several, with your own words")
-    const [row] = inbox.state.getSnapshot().items
-    if (row?.kind !== "request" || row.request.dialog?.type !== "questions")
+    const [entry] = inbox.state.getSnapshot().items
+    if (entry?.kind !== "request" || entry.request.dialog?.type !== "questions")
       throw new Error("not a question")
-    expect(row.request.dialog.questions).toMatchObject([{ multiSelect: true, text: true }])
+    expect(entry.request.dialog.questions).toMatchObject([{ multiSelect: true, text: true }])
   })
 
   it.each([
@@ -143,19 +143,19 @@ describe("the debug panel's Inbox group", () => {
   ])("adds a plan approval for the box's %s state", (label, id) => {
     const inbox = createDemoInbox(1, [])
     run(inbox, label)
-    const [row] = inbox.state.getSnapshot().items
-    expect(row?.id).toBe(id)
-    expect(row?.kind === "request" && row.request.kind).toBe("plan")
+    const [entry] = inbox.state.getSnapshot().items
+    expect(entry?.id).toBe(id)
+    expect(entry?.kind === "request" && entry.request.kind).toBe("plan")
   })
 
   it("adds Claude Code's plan whose way back is the field that says what to change", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Plan with a change field")
-    const [row] = inbox.state.getSnapshot().items
-    expect(row?.id).toBe(demoInboxIds.plan)
-    expect(row?.kind === "request" && row.request.dialog?.type === "choices").toBe(true)
-    if (row?.kind !== "request" || row.request.dialog?.type !== "choices") return
-    expect(row.request.dialog.options.at(-1)).toEqual({
+    const [entry] = inbox.state.getSnapshot().items
+    expect(entry?.id).toBe(demoInboxIds.plan)
+    expect(entry?.kind === "request" && entry.request.dialog?.type === "choices").toBe(true)
+    if (entry?.kind !== "request" || entry.request.dialog?.type !== "choices") return
+    expect(entry.request.dialog.options.at(-1)).toEqual({
       id: "3",
       label: "Tell Claude what to change",
       text: "field",
@@ -181,7 +181,7 @@ describe("the debug panel's Inbox group", () => {
     expect(inbox.state.getSnapshot().failed[demoInboxIds.preview]).toBe(
       "That ask is no longer available.",
     )
-    expect(inbox.state.getSnapshot().items.some((row) => row.id === demoInboxIds.preview)).toBe(
+    expect(inbox.state.getSnapshot().items.some((entry) => entry.id === demoInboxIds.preview)).toBe(
       true,
     )
     expect(inbox.state.getSnapshot().answering).toEqual({})
@@ -203,41 +203,41 @@ describe("the debug panel's Inbox group", () => {
     ])
   })
 
-  it("makes a resolved row of every kind reachable, in four groups", () => {
+  it("makes a resolved entry of every kind reachable, in four groups", () => {
     const inbox = createDemoInbox(1, [])
     for (const label of [
       "Resolved dialogs",
       "Resolved asks",
       "Resolved updates",
-      "Resolved Novadeck rows",
+      "Resolved Novadeck entries",
     ])
       run(inbox, label)
     const hows = inbox.state
       .getSnapshot()
-      .items.map((row) => row.settled?.how)
+      .items.map((entry) => entry.settled?.how)
       .filter((how) => how !== undefined)
     // Only the ten that resolved last are listed, of seventeen.
     expect(hows).toHaveLength(10)
-    for (const row of inbox.state.getSnapshot().items) expect(row.stopped).toBe(false)
+    for (const entry of inbox.state.getSnapshot().items) expect(entry.stopped).toBe(false)
   })
 
-  it("lists every way a row ends once the seventeen are added", () => {
+  it("lists every way an entry ends once the seventeen are added", () => {
     const inbox = createDemoInbox(1, [])
-    run(inbox, "Seventeen resolved rows")
+    run(inbox, "Seventeen resolved entries")
     const items = inbox.state.getSnapshot().items
     expect(items).toHaveLength(10)
     // Newest first by when each was added, none of them open.
     expect(items.map(({ at }) => at)).toEqual(items.map(({ at }) => at).toSorted((a, b) => b - a))
-    expect(items.every((row) => row.settled !== undefined)).toBe(true)
+    expect(items.every((entry) => entry.settled !== undefined)).toBe(true)
   })
 
-  it("resolves each group's rows with how they ended and what was answered", () => {
+  it("resolves each group's entries with how they ended and what was answered", () => {
     for (const [label, hows] of [
       ["Resolved dialogs", ["answered", "answered", "terminal", "gone"]],
       ["Resolved asks", ["answered", "dismissed", "replied", "answered", "ended"]],
       ["Resolved updates", ["read", "read"]],
       [
-        "Resolved Novadeck rows",
+        "Resolved Novadeck entries",
         ["released", "stopped", "worked", "worked", "delivered", "worked"],
       ],
     ] as const) {
@@ -247,7 +247,7 @@ describe("the debug panel's Inbox group", () => {
         inbox.state
           .getSnapshot()
           .items.toSorted((a, b) => a.at - b.at)
-          .map((row) => row.settled?.how),
+          .map((entry) => entry.settled?.how),
         label,
       ).toEqual(hows)
     }
@@ -256,12 +256,12 @@ describe("the debug panel's Inbox group", () => {
     expect(
       dialogs.state
         .getSnapshot()
-        .items.find((row) => row.kind === "request" && row.settled?.how === "answered")?.settled
-        ?.answer,
+        .items.find((entry) => entry.kind === "request" && entry.settled?.how === "answered")
+        ?.settled?.answer,
     ).toBeDefined()
   })
 
-  it("leaves an ask replied in its terminal as a settled row", () => {
+  it("leaves an ask replied in its terminal as a settled entry", () => {
     const inbox = createDemoInbox(1, [])
     run(inbox, "Ask replied in terminal")
     expect(inbox.state.getSnapshot().items).toMatchObject([
@@ -287,9 +287,9 @@ describe("the debug panel's Inbox group", () => {
     }
   })
 
-  it("clears the rows it and the Inbox demo added", () => {
+  it("clears the entries it and the Inbox demo added", () => {
     const inbox = createDemoInbox(1)
-    run(inbox, "Clear the added rows")
+    run(inbox, "Clear the added entries")
     expect(inbox.state.getSnapshot().items).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
-import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
+import type { AgentAsk, InboxAnswer, InboxEntry } from "@novadeck/core/inbox"
 import {
   noMessages,
   type AgentMessage,
@@ -230,7 +230,7 @@ const askText = (ask: AgentAsk): string => {
 }
 
 export type DemoMessages = Messages & {
-  readonly record: (row: InboxRow, answer?: InboxAnswer, outcome?: InboxHistory) => void
+  readonly record: (entry: InboxEntry, answer?: InboxAnswer, outcome?: InboxHistory) => void
   // An agent's message to another of a session, by handle: queued at first, and delivered once
   // the doorbell has rung (`rungMs` later), nothing holds it (a pause, a loop hold on its
   // thread, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
@@ -344,10 +344,10 @@ export const createDemoMessages = (
   }
   return {
     state,
-    record: (row, answer, outcome) => {
-      if (row.kind !== "ask" && row.kind !== "update") return
+    record: (entry, answer, outcome) => {
+      if (entry.kind !== "ask" && entry.kind !== "update") return
       if (answer && answer.kind !== "ask" && answer.kind !== "update") return
-      const { source } = row
+      const { source } = entry
       const target = { projectId: source.projectId, workspaceSessionId: source.workspaceSessionId }
       const index = boxes.findIndex(
         (box) =>
@@ -355,42 +355,43 @@ export const createDemoMessages = (
           box.target.workspaceSessionId === target.workspaceSessionId,
       )
       const box: DemoSessionMessages = boxes[index] ?? { target, terminals: [], threads: [] }
-      const id = `t-${row.id.replaceAll("-", "")}`
+      const id = `t-${entry.id.replaceAll("-", "")}`
       const thread = box.threads.find((each) => each.id === id)
-      const content = row.kind === "ask" ? row.ask : row.kind === "update" ? row.update : null
+      const content =
+        entry.kind === "ask" ? entry.ask : entry.kind === "update" ? entry.update : null
       if (!content) return
       const reply = answer?.kind === "ask" ? answer.answer : null
       const option =
         reply?.type === "reply" &&
         reply.option !== null &&
-        row.kind === "ask" &&
-        row.ask.shape.type === "options"
-          ? row.ask.shape.options[reply.option]?.label
+        entry.kind === "ask" &&
+        entry.ask.shape.type === "options"
+          ? entry.ask.shape.options[reply.option]?.label
           : undefined
       const text = reply
         ? reply.type === "done"
-          ? row.kind === "ask" && row.ask.shape.type === "action"
-            ? row.ask.shape.doneLabel
+          ? entry.kind === "ask" && entry.ask.shape.type === "action"
+            ? entry.ask.shape.doneLabel
             : "Done."
           : [option, reply.text].filter(Boolean).join("\n\n")
-        : row.kind === "ask"
-          ? askText(row.ask)
+        : entry.kind === "ask"
+          ? askText(entry.ask)
           : `${content.subject}\n\n${content.body}`
       const message: DemoMessage = {
-        id: reply ? `answer:${row.id}` : row.id,
+        id: reply ? `answer:${entry.id}` : entry.id,
         inbox: reply
           ? "answer"
-          : row.kind === "ask"
+          : entry.kind === "ask"
             ? "ask"
-            : row.kind === "update" && row.update.type === "done"
+            : entry.kind === "update" && entry.update.type === "done"
               ? "done"
               : "tell",
         ...(!reply ? { inboxState: outcome ?? (answer ? "read" : "open") } : {}),
         from: reply ? { kind: "person" } : partyOf(source.handle),
         to: reply ? partyOf(source.handle) : { kind: "person" },
         text,
-        sentAt: reply ? Date.now() : row.at,
-        deliveredAt: reply ? null : row.at,
+        sentAt: reply ? Date.now() : entry.at,
+        deliveredAt: reply ? null : entry.at,
         state: reply ? "queued" : "delivered",
         hop: (thread?.messages.length ?? 0) + 1,
       }
@@ -714,7 +715,7 @@ export const checkoutMessages = (
               ],
             },
             // An entry: moth asked the person, who answered, as the runner keeps a thread for
-            // an entry. Those still open come from the Inbox's rows (`demoEntries`). The
+            // an entry. Those still open come from the Inbox's entries (`demoEntries`). The
             // question is a real one's length, wider than a reply's bubble, as the Messages
             // spec checks the reply's quote of it stays in the chat.
             {

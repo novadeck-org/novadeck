@@ -1,5 +1,5 @@
 import type { Conversations } from "@novadeck/core/conversation"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
@@ -443,7 +443,7 @@ const preview: SampleArtifact = {
 
 // The question the asking helper puts to the person: only its lead can answer it.
 const helperAskId = "babcia-helper-ask"
-const helperAsk = (helper: number, now: number): InboxRow => ({
+const helperAsk = (helper: number, now: number): InboxEntry => ({
   id: helperAskId,
   source: {
     projectId: bar,
@@ -486,7 +486,7 @@ const yesOrNo = ["Yes", "No"].map((label) => ({
   details: null,
   code: null,
 }))
-const mannersAsk = (kind: keyof typeof mannersIds, now: number): InboxRow => {
+const mannersAsk = (kind: keyof typeof mannersIds, now: number): InboxEntry => {
   const job = jobs[babcia.manners - 1]!
   return {
     id: mannersIds[kind],
@@ -534,12 +534,12 @@ export type BabciaCues = {
   readonly permission: () => void
   readonly plan: () => void
   readonly question: () => void
-  // One agent's turn ends in an error: a Trouble row, and its line goes red.
+  // One agent's turn ends in an error: a Trouble entry, and its line goes red.
   readonly fail: () => void
   // The lead opens three helper terminals, which its team wire draws to, and rests while they
   // work.
   readonly helpers: () => void
-  // The agent with manners asks to force-push to main (an Ask row, Yes or No). Told No, its
+  // The agent with manners asks to force-push to main (an Ask entry, Yes or No). Told No, its
   // turn goes on, and a moment later it asks, politely, to open a pull request instead; told
   // Yes to that, it works on.
   readonly manners: () => void

@@ -70,7 +70,7 @@ export type LoggedReport = {
   readonly subject: string | null
   /** How the turn ended. */
   readonly outcome: "completed" | "failed" | null
-  /** The start of a completed turn's reply, or a failed one's error, redacted as its Inbox row is. */
+  /** The start of a completed turn's reply, or a failed one's error, redacted as its Inbox entry is. */
   readonly text: string | null
   /** The latest pull request link in a report's subject or body, found as it was written. */
   readonly pr: string | null
@@ -122,7 +122,7 @@ export const reportOf = (entry: InboxEntry, from: number | null = null): LogWrit
 /**
  * The log row a stored Inbox record makes, by the rules the Inbox reads it with at start:
  * undefined for a record of an agent this build doesn't know, or whose content it would
- * drop. For the migration that fills the log from the Inbox's rows, which must never fail
+ * drop. For the migration that fills the log from the Inbox's entries, which must never fail
  * on one.
  */
 export const storedReport = (
@@ -183,7 +183,7 @@ const keyOf = (agent: string, sessionId: string): string => `${agent}\u0000${ses
 
 /**
  * What the agent sessions reported and how their turns ended, in memory, apart from the
- * Inbox's rows, which the person's reading and a day's passing take away: a peer's `agents`
+ * Inbox's entries, which the person's reading and a day's passing take away: a peer's `agents`
  * and a lead's `team` read it, as do the terminal summary's standing `done`. The store keeps
  * the same rows (the Inbox saves each with its own entry); this holds all but their bodies.
  * Rows are by agent session, not terminal: a terminal restored from History, or a session

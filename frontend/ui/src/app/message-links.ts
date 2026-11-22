@@ -1,5 +1,5 @@
 import { messagePeers } from "@novadeck/core/derivations"
-import { entryRow } from "@novadeck/core/inbox"
+import { inboxEntryOf } from "@novadeck/core/inbox"
 import { samePeers, type MessagePeer } from "@novadeck/core/messages"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import type { MessageLinks } from "@novadeck/items/messages"
@@ -35,7 +35,7 @@ export const useMessageLinks = (): MessageLinks => {
       answer: (entry) => {
         // For that ask alone: once answered, the sidebar goes back to what it showed.
         const after = commands.peekInbox()
-        openInbox?.((items) => entryRow(items, entry), { after })
+        openInbox?.((items) => inboxEntryOf(items, entry), { after })
       },
     }),
     [peers, commands, openInbox],

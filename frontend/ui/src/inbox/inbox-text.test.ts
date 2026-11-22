@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 
 import { describe, expect, it } from "../test"
 import {
@@ -15,7 +15,7 @@ import {
   waitLabel,
 } from "./inbox-text"
 
-const source: InboxRow["source"] = {
+const source: InboxEntry["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -26,7 +26,7 @@ const source: InboxRow["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const permission = (tool: string, subject: string | null): InboxRow => ({
+const permission = (tool: string, subject: string | null): InboxEntry => ({
   ...base,
   kind: "request",
   request: {
@@ -42,7 +42,7 @@ const permission = (tool: string, subject: string | null): InboxRow => ({
   },
 })
 
-const asking = (subject: string | null, questions: number): InboxRow => ({
+const asking = (subject: string | null, questions: number): InboxEntry => ({
   ...base,
   kind: "request",
   request: {
@@ -109,7 +109,7 @@ describe("A recommended option", () => {
   })
 })
 
-describe("An Inbox row's subject", () => {
+describe("An Inbox entry's subject", () => {
   it("says what a command or an edit would do", () => {
     expect(subjectOf(permission("Bash", "pnpm test"))).toBe("Run `pnpm test`?")
     expect(subjectOf(permission("Edit", "src/a.ts"))).toBe("Edit `src/a.ts`?")
@@ -128,7 +128,7 @@ describe("An Inbox row's subject", () => {
   })
 
   it("names a form an MCP server asks for by what it says it is for", () => {
-    const form = (message: string): InboxRow => ({
+    const form = (message: string): InboxEntry => ({
       ...base,
       kind: "request",
       request: {
@@ -148,7 +148,7 @@ describe("An Inbox row's subject", () => {
   })
 
   it("names where a held message goes", () => {
-    const row: InboxRow = {
+    const entry: InboxEntry = {
       ...base,
       kind: "held",
       held: {
@@ -160,18 +160,18 @@ describe("An Inbox row's subject", () => {
         heldFor: "loop",
       },
     }
-    expect(subjectOf(row)).toBe("Release a held message to B?")
+    expect(subjectOf(entry)).toBe("Release a held message to B?")
   })
 
   it("names a limit's window and whose it is", () => {
-    const row: InboxRow = {
+    const entry: InboxEntry = {
       ...base,
       kind: "trouble",
       trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: true, evidence: [] },
     }
-    expect(subjectOf(row)).toBe("Hit Claude's 5-hour limit")
-    const fable: InboxRow = {
-      ...row,
+    expect(subjectOf(entry)).toBe("Hit Claude's 5-hour limit")
+    const fable: InboxEntry = {
+      ...entry,
       trouble: {
         type: "limit",
         minutes: 10_080,
@@ -185,7 +185,7 @@ describe("An Inbox row's subject", () => {
   })
 
   it("counts the messages a hold keeps from the agent, and says what holds them", () => {
-    const held = (count: number, waits: "draft" | "dialog"): InboxRow => ({
+    const held = (count: number, waits: "draft" | "dialog"): InboxEntry => ({
       ...base,
       kind: "trouble",
       trouble: { type: "waits", waits, count },
@@ -204,14 +204,14 @@ describe("An Inbox row's subject", () => {
   })
 })
 
-describe("How a resolved row ended", () => {
+describe("How a resolved entry ended", () => {
   it("says it in a line, with what the person answered", () => {
-    const ask: InboxRow = {
+    const ask: InboxEntry = {
       ...base,
       kind: "ask",
       ask: { subject: "s", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
     }
-    const ended = (settled: NonNullable<InboxRow["settled"]>): InboxRow => ({ ...ask, settled })
+    const ended = (settled: NonNullable<InboxEntry["settled"]>): InboxEntry => ({ ...ask, settled })
     expect(endedLine(ended({ how: "answered", at: 1, answer: "Green" }))).toBe(
       "You answered: Green",
     )
@@ -222,7 +222,7 @@ describe("How a resolved row ended", () => {
     expect(endedLine(ask)).toBeNull()
   })
 
-  it("has a short phrase for every way a row ends", () => {
+  it("has a short phrase for every way an entry ends", () => {
     expect(Object.keys(endedWords).toSorted()).toEqual([
       "answered",
       "away",
@@ -248,8 +248,8 @@ describe("A sheet's label", () => {
   })
 })
 
-describe("An Inbox row's reading time", () => {
-  const ask = (body: string): InboxRow => ({
+describe("An Inbox entry's reading time", () => {
+  const ask = (body: string): InboxEntry => ({
     ...base,
     kind: "ask",
     ask: { subject: "s", body, details: null, hardToUndo: null, shape: { type: "text" } },
@@ -263,7 +263,7 @@ describe("An Inbox row's reading time", () => {
 })
 
 describe("A limit that resumes", () => {
-  const limit = (autoResume: boolean | null): InboxRow => ({
+  const limit = (autoResume: boolean | null): InboxEntry => ({
     ...base,
     stopped: !autoResume,
     kind: "trouble",

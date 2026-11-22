@@ -19,17 +19,17 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "3a · One agent asks",
-              hint: "Checkout tests asks to run pnpm test:e2e: an Unblock row, and its mark reads asking",
+              hint: "Checkout tests asks to run pnpm test:e2e: an Unblock entry, and its mark reads asking",
               run: () => cues.permission(),
             },
             {
               label: "3b · One agent fails",
-              hint: "Stripe webhooks' turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble row that reads it",
+              hint: "Stripe webhooks' turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble entry that reads it",
               run: () => cues.fail(),
             },
             {
               label: "3c · One agent finishes",
-              hint: "Inventory sync ends its turn with a done report: a done mark and an Update row",
+              hint: "Inventory sync ends its turn with a done report: a done mark and an Update entry",
               run: () => cues.finishOne(),
             },
             {
@@ -39,17 +39,17 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "4a · Permission",
-              hint: "Checkout tests asks to run pnpm test:e2e: an Unblock row",
+              hint: "Checkout tests asks to run pnpm test:e2e: an Unblock entry",
               run: () => cues.permission(),
             },
             {
               label: "4b · Plan",
-              hint: "Order emails' plan waits for approval: an Unblock row",
+              hint: "Order emails' plan waits for approval: an Unblock entry",
               run: () => cues.plan(),
             },
             {
               label: "4c · Question",
-              hint: "Cart drawer asks where the cart should be kept, one option marked (Recommended): an Ask row",
+              hint: "Cart drawer asks where the cart should be kept, one option marked (Recommended): an Ask entry",
               run: () => cues.question(),
             },
             {
@@ -59,12 +59,12 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "5b · Teammate asks, and its lead answers",
-              hint: "Cart endpoint asks which API version the storefront calls (an Ask row) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 8 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing",
+              hint: "Cart endpoint asks which API version the storefront calls (an Ask entry) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 8 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing",
               run: () => cues.teammateAsks(),
             },
             {
               label: "5c · Teammate reports done to its lead",
-              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update row) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane. Run 5a first",
+              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update entry) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane. Run 5a first",
               run: () => cues.teammateDone(),
             },
             {
@@ -99,12 +99,12 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "8c · A Codex agent asks to run a command",
-              hint: "Search index, a Codex agent, asks to run pnpm test --filter search in Codex's own words: an Unblock row. Allowed, it runs them and reports done about 2 s later: an Update row",
+              hint: "Search index, a Codex agent, asks to run pnpm test --filter search in Codex's own words: an Unblock entry. Allowed, it runs them and reports done about 2 s later: an Update entry",
               run: () => cues.command(),
             },
             {
               label: "8d · An Antigravity agent asks to approve its plan",
-              hint: "Inventory sync, the deck's Antigravity agent, shows its implementation plan (Stock sync) beside its window, without opening it, and asks to approve it in Antigravity's words (1 artifact to review: Approve, Reject, Tell it what to change): an Unblock row whose sheet shows the plan. Answered, it goes on working",
+              hint: "Inventory sync, the deck's Antigravity agent, shows its implementation plan (Stock sync) beside its window, without opening it, and asks to approve it in Antigravity's words (1 artifact to review: Approve, Reject, Tell it what to change): an Unblock entry whose sheet shows the plan. Answered, it goes on working",
               run: () => cues.agyPlan(),
             },
           ],

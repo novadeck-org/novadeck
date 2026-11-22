@@ -34,7 +34,7 @@ describe("the desktop window a spec reads", () => {
   it("is the page's, once the workspace opens again", async () => {
     await openWorkspace(route)
     desktopWindow.arrive(demoInboxIds.preview)
-    await expect.poll(desktopWindow.rowIds).toContain(demoInboxIds.preview)
+    await expect.poll(desktopWindow.entryIds).toContain(demoInboxIds.preview)
 
     await cleanup()
     await openWorkspace(route)
@@ -42,6 +42,6 @@ describe("the desktop window a spec reads", () => {
     desktopWindow.arrive(demoInboxIds.webhook)
 
     // The new page's backend never heard of the first arrival.
-    await expect.poll(desktopWindow.rowIds).toEqual([demoInboxIds.webhook])
+    await expect.poll(desktopWindow.entryIds).toEqual([demoInboxIds.webhook])
   })
 })

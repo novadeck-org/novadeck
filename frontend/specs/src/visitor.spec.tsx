@@ -315,7 +315,7 @@ describe("the visitor build", () => {
   })
 
   describe("on its desk", () => {
-    // The landing rule lands an Inbox row of the terminal being looked at quietly, which takes the
+    // The landing rule lands an Inbox entry of the terminal being looked at quietly, which takes the
     // page to have the person's focus; a spec browser's frame has none until a click gives it, so
     // each case here gives it, whatever ran before.
     beforeEach(async () => {
@@ -339,7 +339,7 @@ describe("the visitor build", () => {
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review: Checkout flow")
-      // The visitor looks at the asking terminal: its Inbox row lands on the bell at once, quietly.
+      // The visitor looks at the asking terminal: its Inbox entry lands on the bell at once, quietly.
       await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
       await expect.element(workspaceSwitcher()).not.toHaveAttribute("data-project-status")
       await page.getByRole("button", { name: labelled("Select ", "Checkout review") }).click()
@@ -351,7 +351,7 @@ describe("the visitor build", () => {
       // seen by whoever looks at it.
       await openWorkspace("/?visitor=on&turnMs=200&nudgeMs=1000")
       // Codex reviews, and asks nothing while the plan waits; the visitor looks at the plan,
-      // whose Inbox row lands on the bell, quietly.
+      // whose Inbox entry lands on the bell, quietly.
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review: Checkout flow")

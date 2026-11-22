@@ -15,12 +15,12 @@ import { describe, expect, it } from "../test"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "../types"
 import {
   dialogMs,
-  inboxRows,
+  inboxEntries,
   leadHearsOf,
   type Asked,
   type InboxInputs,
   type WrittenEntry,
-} from "./rows"
+} from "./entries"
 
 // The terminals these tests have, by handle: 01 is moth, 02 is fox.
 const idOf = (handle: string): string => ({ moth: "01", fox: "02", owl: "03", crow: "04" })[handle]!
@@ -125,8 +125,8 @@ const messagesOf = (...threads: MessageThread[]): MessagesState => ({
   terminals: { "p/s/01": { terminalId: "01", handle: "moth", agent: true, threads } },
 })
 
-// The marks these tests state, by session context then terminal, stand for the stored row of
-// that terminal's current end: the row the runner keeps for it.
+// The marks these tests state, by session context then terminal, stand for the stored entry of
+// that terminal's current end: the entry the runner keeps for it.
 type Marks = Readonly<Record<string, Readonly<Record<string, "done" | "failed">>>>
 
 const rowsOf = (workspace: Workspace, marks: Marks): InboxTurn[] =>
@@ -169,7 +169,7 @@ const inputs = (
   ...more,
 })
 
-const entry = (change: Partial<WrittenEntry> = {}): WrittenEntry => ({
+const written = (change: Partial<WrittenEntry> = {}): WrittenEntry => ({
   id: "entry-1",
   terminalId: "01",
   projectId: "p",
@@ -193,10 +193,10 @@ const entry = (change: Partial<WrittenEntry> = {}): WrittenEntry => ({
 const done: Marks = { "p/s": { "01": "done" } }
 const failed: Marks = { "p/s": { "01": "failed" } }
 
-describe("The Inbox's rows", () => {
-  it("makes no row of an agent held at its startup screen: its tab says so", () => {
+describe("The Inbox's entries", () => {
+  it("makes no entry of an agent held at its startup screen: its tab says so", () => {
     const held = workspaceOf(agentTerminal(1, { working: false, startup: "startup" }))
-    expect(inboxRows(inputs(held, { now: 60 * 60_000 }))).toEqual([])
+    expect(inboxEntries(inputs(held, { now: 60 * 60_000 }))).toEqual([])
   })
 
   describe("a request", () => {
@@ -205,15 +205,15 @@ describe("The Inbox's rows", () => {
     )
 
     it("comes from the oldest request, waiting since it was asked", () => {
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(waiting, {
           requests: { "01": [asked("r1", 4000), asked("r2", 5000), asked("r3", 6000)] },
           now: 5500,
         }),
       )
 
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
         id: "request:r1",
         at: 4000,
         stopped: true,
@@ -234,8 +234,8 @@ describe("The Inbox's rows", () => {
     it("does not fall forward to a newer request while the oldest has no dialog yet", () => {
       const requests = { "01": [asked("r1", 4000, null), asked("r2", 4500)] }
 
-      expect(inboxRows(inputs(waiting, { requests, now: 5000 }))).toEqual([])
-      expect(inboxRows(inputs(waiting, { requests, now: 4000 + dialogMs }))[0]).toMatchObject({
+      expect(inboxEntries(inputs(waiting, { requests, now: 5000 }))).toEqual([])
+      expect(inboxEntries(inputs(waiting, { requests, now: 4000 + dialogMs }))[0]).toMatchObject({
         id: "request:r1",
       })
     })
@@ -248,33 +248,33 @@ describe("The Inbox's rows", () => {
           lastTurn: turn({ outcome: "failed", error: "x" }),
         }),
       )
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(both, { unread: failed, requests: { "01": [asked("r1", 9000)] } }),
       )
-      const pending = inboxRows(inputs(both, { unread: failed, requests: {} }))
+      const pending = inboxEntries(inputs(both, { unread: failed, requests: {} }))
 
       // A subagent's or the screen's request can stand after the root's Stop.
-      expect(rows.map((row) => row.id).toSorted()).toEqual(["request:r1", "trouble:01:100"])
-      expect(pending.map((row) => row.id)).toEqual(["trouble:01:100"])
+      expect(entries.map((entry) => entry.id).toSorted()).toEqual(["request:r1", "trouble:01:100"])
+      expect(pending.map((entry) => entry.id)).toEqual(["trouble:01:100"])
     })
 
     it("waits for a dialog a moment, then shows without one to be answered in the terminal", () => {
       const requests = { "01": [asked("r1", 4000, null)] }
 
-      expect(inboxRows(inputs(waiting, { requests, now: 4000 + dialogMs - 1 }))).toEqual([])
-      const [row] = inboxRows(inputs(waiting, { requests, now: 4000 + dialogMs }))
-      expect(row).toMatchObject({ id: "request:r1", kind: "request", request: { dialog: null } })
+      expect(inboxEntries(inputs(waiting, { requests, now: 4000 + dialogMs - 1 }))).toEqual([])
+      const [entry] = inboxEntries(inputs(waiting, { requests, now: 4000 + dialogMs }))
+      expect(entry).toMatchObject({ id: "request:r1", kind: "request", request: { dialog: null } })
     })
 
     it("is none once the agent no longer waits, whatever was last read", () => {
       const rested = workspaceOf(agentTerminal(1))
 
-      expect(inboxRows(inputs(rested, { requests: { "01": [asked("r1", 1)] } }))).toEqual([])
+      expect(inboxEntries(inputs(rested, { requests: { "01": [asked("r1", 1)] } }))).toEqual([])
     })
 
     it("keeps its identity and time across changes elsewhere", () => {
-      const first = inboxRows(inputs(waiting, { requests: { "01": [asked("r1", 4000)] } }))
-      const later = inboxRows(
+      const first = inboxEntries(inputs(waiting, { requests: { "01": [asked("r1", 4000)] } }))
+      const later = inboxEntries(
         inputs(waiting, { requests: { "01": [asked("r1", 4000)] }, now: 99_000 }),
       )
 
@@ -287,16 +287,16 @@ describe("The Inbox's rows", () => {
     const rested = (end: Partial<AgentTurnEnd>) =>
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn(end) }))
 
-    it("makes no row, stored or not: it only marks its tab", () => {
-      expect(inboxRows(inputs(rested({ reply: "Done. Tests pass." }), { unread: done }))).toEqual(
-        [],
-      )
-      expect(inboxRows(inputs(rested({})))).toEqual([])
+    it("makes no entry, stored or not: it only marks its tab", () => {
+      expect(
+        inboxEntries(inputs(rested({ reply: "Done. Tests pass." }), { unread: done })),
+      ).toEqual([])
+      expect(inboxEntries(inputs(rested({})))).toEqual([])
     })
 
-    it("leaves a failed row of the same terminal as it was", () => {
+    it("leaves a failed entry of the same terminal as it was", () => {
       const ws = rested({ outcome: "failed", error: "x" })
-      expect(inboxRows(inputs(ws, { unread: failed }))).toMatchObject([
+      expect(inboxEntries(inputs(ws, { unread: failed }))).toMatchObject([
         { id: "trouble:01:100", kind: "trouble" },
       ])
     })
@@ -304,7 +304,7 @@ describe("The Inbox's rows", () => {
 
   describe("a done report", () => {
     const report = (change: Partial<WrittenEntry> = {}): WrittenEntry =>
-      entry({
+      written({
         id: "entry:done-1",
         content: { kind: "done", subject: "Search rebuilt", body: "All 412 pages." },
         ...change,
@@ -312,8 +312,8 @@ describe("The Inbox's rows", () => {
     const worker = (): TerminalMetadata => ({ ...agentTerminal(2), ledBy: "01" })
 
     it("is an update of its terminal that the person reads, not stopping the agent", () => {
-      const rows = inboxRows(inputs(workspaceOf(agentTerminal(1)), { entries: [report()] }))
-      expect(rows).toMatchObject([
+      const entries = inboxEntries(inputs(workspaceOf(agentTerminal(1)), { entries: [report()] }))
+      expect(entries).toMatchObject([
         {
           id: "entry:done-1",
           kind: "update",
@@ -326,8 +326,8 @@ describe("The Inbox's rows", () => {
 
     it("is kept for a terminal without a handle, which the demo stores as an empty one", () => {
       const { handle: _handle, ...bare } = agentTerminal(1)
-      const rows = inboxRows(inputs(workspaceOf(bare), { entries: [report({ handle: "" })] }))
-      expect(rows).toMatchObject([{ id: "entry:done-1", update: { type: "done" } }])
+      const entries = inboxEntries(inputs(workspaceOf(bare), { entries: [report({ handle: "" })] }))
+      expect(entries).toMatchObject([{ id: "entry:done-1", update: { type: "done" } }])
     })
 
     it("stays after its agent exits, like a tell", () => {
@@ -337,22 +337,22 @@ describe("The Inbox's rows", () => {
         exitCode: 0,
         signal: null,
       }
-      expect(inboxRows(inputs(workspaceOf(exited), { entries: [report()] }))).toMatchObject([
+      expect(inboxEntries(inputs(workspaceOf(exited), { entries: [report()] }))).toMatchObject([
         { id: "entry:done-1", update: { type: "done" } },
       ])
-      expect(inboxRows(inputs(workspaceOf(), { entries: [report()] }))).toEqual([])
+      expect(inboxEntries(inputs(workspaceOf(), { entries: [report()] }))).toEqual([])
     })
 
     it("is the person's for a worker too, while its lead runs or not", () => {
-      const entries = [report({ terminalId: "02", handle: "fox" })]
-      expect(inboxRows(inputs(workspaceOf(agentTerminal(1), worker()), { entries }))).toMatchObject(
-        [{ id: "entry:done-1", update: { type: "done" } }],
-      )
+      const given = [report({ terminalId: "02", handle: "fox" })]
+      expect(
+        inboxEntries(inputs(workspaceOf(agentTerminal(1), worker()), { entries: given })),
+      ).toMatchObject([{ id: "entry:done-1", update: { type: "done" } }])
       const shell = { ...agentTerminal(1), process: "bash" }
-      expect(inboxRows(inputs(workspaceOf(shell, worker()), { entries }))).toMatchObject([
+      expect(inboxEntries(inputs(workspaceOf(shell, worker()), { entries: given }))).toMatchObject([
         { id: "entry:done-1" },
       ])
-      expect(inboxRows(inputs(workspaceOf(worker()), { entries }))).toMatchObject([
+      expect(inboxEntries(inputs(workspaceOf(worker()), { entries: given }))).toMatchObject([
         { id: "entry:done-1" },
       ])
     })
@@ -364,7 +364,7 @@ describe("The Inbox's rows", () => {
         content: { kind: "tell", subject: "Heads-up", body: "b" },
       })
       expect(
-        inboxRows(inputs(workspaceOf(agentTerminal(1), worker()), { entries: [told] })),
+        inboxEntries(inputs(workspaceOf(agentTerminal(1), worker()), { entries: [told] })),
       ).toMatchObject([{ update: { type: "told" } }])
     })
   })
@@ -389,9 +389,9 @@ describe("The Inbox's rows", () => {
       )
 
     it("is trouble with its error while its mark is unread", () => {
-      const [row] = inboxRows(inputs(ended({ error: "API Error: 529" }), { unread: failed }))
+      const [entry] = inboxEntries(inputs(ended({ error: "API Error: 529" }), { unread: failed }))
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         id: "trouble:01:100",
         at: 100,
         stopped: true,
@@ -401,35 +401,37 @@ describe("The Inbox's rows", () => {
     })
 
     it("has no error to show where its harness gave none", () => {
-      const [row] = inboxRows(inputs(ended({}), { unread: failed }))
+      const [entry] = inboxEntries(inputs(ended({}), { unread: failed }))
 
-      expect(row).toMatchObject({ trouble: { type: "failed", error: null } })
+      expect(entry).toMatchObject({ trouble: { type: "failed", error: null } })
     })
 
     it("goes once the person has viewed the terminal", () => {
-      expect(inboxRows(inputs(ended({ error: "x" })))).toEqual([])
+      expect(inboxEntries(inputs(ended({ error: "x" })))).toEqual([])
     })
 
     it("informs, and doesn't stop the agent, once it is no longer the current end", () => {
-      const row = rowsOf(ended({ error: "x" }), failed)[0]!
-      const rows = inboxRows({
+      const entry = rowsOf(ended({ error: "x" }), failed)[0]!
+      const entries = inboxEntries({
         ...inputs(ended({ error: "x" })),
-        turns: [row, { ...row, id: "older", at: 50 }],
+        turns: [entry, { ...entry, id: "older", at: 50 }],
       })
 
-      expect(rows.map(({ id, stopped }) => [id, stopped]).toSorted()).toEqual([
+      expect(entries.map(({ id, stopped }) => [id, stopped]).toSorted()).toEqual([
         ["older", false],
         ["trouble:01:100", true],
       ])
     })
 
     it("informs while the agent works on", () => {
-      const row = rowsOf(ended({}), failed)[0]!
+      const entry = rowsOf(ended({}), failed)[0]!
       const working = workspaceOf(
         agentTerminal(1, { working: true, lastTurn: turn({ outcome: "failed" }) }),
       )
 
-      expect(inboxRows({ ...inputs(working), turns: [row] })).toMatchObject([{ stopped: false }])
+      expect(inboxEntries({ ...inputs(working), turns: [entry] })).toMatchObject([
+        { stopped: false },
+      ])
     })
   })
 
@@ -440,11 +442,11 @@ describe("The Inbox's rows", () => {
       )
 
     it("is trouble Novadeck can't resume, shown without an unread mark", () => {
-      const [row] = inboxRows(
+      const [entry] = inboxEntries(
         inputs(limited({ error: "5-hour limit reached", limit: { minutes: 300, resetsAt: 9e12 } })),
       )
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         id: "limit:01:100",
         stopped: true,
         trouble: {
@@ -458,26 +460,26 @@ describe("The Inbox's rows", () => {
     })
 
     it("names a window of unknown length with 0 minutes and says so where no error came", () => {
-      const [row] = inboxRows(inputs(limited({ limit: { minutes: null, resetsAt: 9e12 } })))
+      const [entry] = inboxEntries(inputs(limited({ limit: { minutes: null, resetsAt: 9e12 } })))
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         trouble: { minutes: 0, evidence: [{ text: "Usage limit reached" }] },
       })
     })
 
-    it("is derived from the current end, with no row stored for it", () => {
-      const rows = inboxRows(
+    it("is derived from the current end, with no entry stored for it", () => {
+      const entries = inboxEntries(
         inputs(limited({ error: "x", limit: { minutes: 60, resetsAt: 9e12 } })),
       )
 
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({ trouble: { type: "limit" } })
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({ trouble: { type: "limit" } })
     })
 
     it("is failed trouble where it was limited with no window found", () => {
-      const [row] = inboxRows(inputs(limited({ error: "x", limited: true })))
+      const [entry] = inboxEntries(inputs(limited({ error: "x", limited: true })))
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         id: "limit:01:100",
         stopped: true,
         trouble: { type: "failed", error: "x" },
@@ -487,7 +489,7 @@ describe("The Inbox's rows", () => {
     it("goes with the agent's next turn", () => {
       const next = workspaceOf(agentTerminal(1, { working: true }))
 
-      expect(inboxRows(inputs(next))).toEqual([])
+      expect(inboxEntries(inputs(next))).toEqual([])
     })
   })
 
@@ -505,9 +507,9 @@ describe("The Inbox's rows", () => {
           message({ id: "m2", hop: 4, sentAt: 60, text: "Later" }),
         ],
       })
-      const [row] = inboxRows(inputs(pair, { messages: messagesOf(held) }))
+      const [entry] = inboxEntries(inputs(pair, { messages: messagesOf(held) }))
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         id: "held:th1",
         at: 50,
         stopped: true,
@@ -526,12 +528,12 @@ describe("The Inbox's rows", () => {
 
     it("carries why the thread is held, or none", () => {
       const reason = (heldFor: "loop" | null) =>
-        inboxRows(inputs(pair, { messages: messagesOf(thread({ heldFor })) }))[0]
+        inboxEntries(inputs(pair, { messages: messagesOf(thread({ heldFor })) }))[0]
       expect(reason("loop")).toMatchObject({ held: { heldFor: "loop" } })
       expect(reason(null)).toMatchObject({ held: { heldFor: null } })
     })
 
-    it("is one row for a thread both its terminals list", () => {
+    it("is one entry for a thread both its terminals list", () => {
       const messages: MessagesState = {
         ...noMessages,
         terminals: {
@@ -545,7 +547,7 @@ describe("The Inbox's rows", () => {
         },
       }
 
-      expect(inboxRows(inputs(pair, { messages }))).toHaveLength(1)
+      expect(inboxEntries(inputs(pair, { messages }))).toHaveLength(1)
     })
 
     it("is not stopped while the sender's agent works", () => {
@@ -553,16 +555,16 @@ describe("The Inbox's rows", () => {
         agentTerminal(1, { working: true }),
         agentTerminal(2, { working: false }, "codex"),
       )
-      const [row] = inboxRows(inputs(busy, { messages: messagesOf(thread()) }))
+      const [entry] = inboxEntries(inputs(busy, { messages: messagesOf(thread()) }))
 
-      expect(row).toMatchObject({ stopped: false })
+      expect(entry).toMatchObject({ stopped: false })
     })
 
     it("comes from the recipient's terminal where the sender is gone", () => {
       const alone = workspaceOf(agentTerminal(2, { working: false }, "codex"))
-      const [row] = inboxRows(inputs(alone, { messages: messagesOf(thread()) }))
+      const [entry] = inboxEntries(inputs(alone, { messages: messagesOf(thread()) }))
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         stopped: true,
         source: { terminalId: "02", agent: "codex" },
         held: { from: { handle: "moth", title: "moth" }, to: { title: "Terminal 2" } },
@@ -573,9 +575,9 @@ describe("The Inbox's rows", () => {
       // moth (01) closed, and 03 has its handle now; the held message is moth's, to fox (02).
       const stranger: TerminalMetadata = { ...agentTerminal(3), handle: "moth" }
       const workspace = workspaceOf(agentTerminal(2, { working: false }, "codex"), stranger)
-      const [row] = inboxRows(inputs(workspace, { messages: messagesOf(thread()) }))
+      const [entry] = inboxEntries(inputs(workspace, { messages: messagesOf(thread()) }))
 
-      expect(row).toMatchObject({
+      expect(entry).toMatchObject({
         stopped: true,
         source: { terminalId: "02", agent: "codex" },
         held: { from: { handle: "moth", title: "moth" }, to: { title: "Terminal 2" } },
@@ -614,8 +616,8 @@ describe("The Inbox's rows", () => {
         [one, two],
         [two, one],
       ]) {
-        const rows = inboxRows(inputs({ activeProjectId: "one", projects }, { messages }))
-        expect(rows).toMatchObject([
+        const entries = inboxEntries(inputs({ activeProjectId: "one", projects }, { messages }))
+        expect(entries).toMatchObject([
           {
             id: "held:th1",
             source: { projectId: "two", workspaceSessionId: "two-s", terminalId: "01" },
@@ -627,8 +629,10 @@ describe("The Inbox's rows", () => {
     it("is none while messaging is paused, and none once released", () => {
       const paused = thread({ messages: [message({ held: "paused" })] })
 
-      expect(inboxRows(inputs(pair, { messages: messagesOf(paused) }))).toEqual([])
-      expect(inboxRows(inputs(pair, { messages: messagesOf(thread({ held: false })) }))).toEqual([])
+      expect(inboxEntries(inputs(pair, { messages: messagesOf(paused) }))).toEqual([])
+      expect(inboxEntries(inputs(pair, { messages: messagesOf(thread({ held: false })) }))).toEqual(
+        [],
+      )
     })
   })
 
@@ -658,9 +662,9 @@ describe("The Inbox's rows", () => {
     })
     const at = 1_000 + longHoldMs
 
-    it("is a trouble row of the recipient's terminal, from when the hold began", () => {
+    it("is a trouble entry of the recipient's terminal, from when the hold began", () => {
       const messages = heldFor([waiting({ id: "m1" }), waiting({ id: "m2", state: "leased" })])
-      expect(inboxRows(inputs(pair, { messages, now: at }))).toEqual([
+      expect(inboxEntries(inputs(pair, { messages, now: at }))).toEqual([
         expect.objectContaining({
           id: "waits:02:1000",
           at: 1_000,
@@ -682,35 +686,39 @@ describe("The Inbox's rows", () => {
         agentTerminal(1, { working: false }),
         agentTerminal(2, { working: true }, "codex"),
       )
-      expect(inboxRows(inputs(busy, { messages: heldFor([waiting()]), now: at }))).toEqual([])
+      expect(inboxEntries(inputs(busy, { messages: heldFor([waiting()]), now: at }))).toEqual([])
     })
 
     it("says why it holds as the hold says, whatever that is", () => {
-      const [row] = inboxRows(inputs(pair, { messages: heldFor([waiting()], "dialog"), now: at }))
-      expect(row).toMatchObject({
+      const [entry] = inboxEntries(
+        inputs(pair, { messages: heldFor([waiting()], "dialog"), now: at }),
+      )
+      expect(entry).toMatchObject({
         trouble: { type: "waits", waits: "dialog", count: 1 },
       })
     })
 
     it("is raised where the doorbell gave no reason, as when the screen never calms", () => {
-      const [row] = inboxRows(inputs(pair, { messages: heldFor([waiting()], null), now: at }))
-      expect(row).toMatchObject({ trouble: { type: "waits", waits: null, count: 1 } })
+      const [entry] = inboxEntries(inputs(pair, { messages: heldFor([waiting()], null), now: at }))
+      expect(entry).toMatchObject({ trouble: { type: "waits", waits: null, count: 1 } })
     })
 
     it("is none until the hold has lasted, nor once no message waits or the hold ends", () => {
-      expect(inboxRows(inputs(pair, { messages: heldFor([waiting()]), now: at - 1 }))).toEqual([])
+      expect(inboxEntries(inputs(pair, { messages: heldFor([waiting()]), now: at - 1 }))).toEqual(
+        [],
+      )
       const delivered = waiting({ state: "delivered", deliveredAt: 2_000 })
-      expect(inboxRows(inputs(pair, { messages: heldFor([delivered]), now: at }))).toEqual([])
+      expect(inboxEntries(inputs(pair, { messages: heldFor([delivered]), now: at }))).toEqual([])
       const ended: MessagesState = {
         ...heldFor([waiting()]),
         terminals: {
           "p/s/02": { ...heldFor([waiting()]).terminals["p/s/02"]!, waitsSince: null },
         },
       }
-      expect(inboxRows(inputs(pair, { messages: ended, now: at }))).toEqual([])
+      expect(inboxEntries(inputs(pair, { messages: ended, now: at }))).toEqual([])
       // Moth's own messages to fox wait in its listing, not for it.
       const sent = heldFor([waiting({ from: agentParty("fox"), to: agentParty("moth") })])
-      expect(inboxRows(inputs(pair, { messages: sent, now: at }))).toEqual([])
+      expect(inboxEntries(inputs(pair, { messages: sent, now: at }))).toEqual([])
     })
 
     it("counts no message held for the person's release, or a pause, which have their own", () => {
@@ -719,15 +727,15 @@ describe("The Inbox's rows", () => {
         message({ id: "m2" }),
         waiting({ id: "m3", state: "held", held: "paused" }),
       ])
-      const rows = inboxRows(inputs(pair, { messages, now: at }))
-      expect(rows.find((row) => row.kind === "trouble")).toMatchObject({
+      const entries = inboxEntries(inputs(pair, { messages, now: at }))
+      expect(entries.find((entry) => entry.kind === "trouble")).toMatchObject({
         trouble: { count: 1 },
       })
     })
 
     it("gives way to the agent's own ask, and comes whatever turn it last ended", () => {
-      const ask = entry({ terminalId: "02", agent: "codex", handle: "fox" })
-      const [shown] = inboxRows(
+      const ask = written({ terminalId: "02", agent: "codex", handle: "fox" })
+      const [shown] = inboxEntries(
         inputs(pair, { messages: heldFor([waiting()]), entries: [ask], now: at }),
       )
       expect(shown).toMatchObject({ id: "entry-1", kind: "ask" })
@@ -735,7 +743,7 @@ describe("The Inbox's rows", () => {
         agentTerminal(1, { working: false }),
         agentTerminal(2, { working: false, lastTurn: turn() }, "codex"),
       )
-      const [first] = inboxRows(
+      const [first] = inboxEntries(
         inputs(finished, {
           messages: heldFor([waiting()]),
           unread: { "p/s": { "02": "done" } },
@@ -750,14 +758,14 @@ describe("The Inbox's rows", () => {
         agentTerminal(1, { working: false }),
         agentTerminal(2, { working: false, attention: { kind: "permission", count: 1 } }, "codex"),
       )
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(asking, {
           messages: heldFor([waiting()], "asking"),
           requests: { "02": [asked("r1", 0)] },
           now: at,
         }),
       )
-      expect(rows.map(({ kind }) => kind).toSorted()).toEqual(["request", "trouble"])
+      expect(entries.map(({ kind }) => kind).toSorted()).toEqual(["request", "trouble"])
     })
   })
 
@@ -770,12 +778,14 @@ describe("The Inbox's rows", () => {
           lastTurn: turn({ reply: "old" }),
         }),
       )
-      const rows = inboxRows(inputs(both, { unread: done, requests: { "01": [asked("r1", 5)] } }))
+      const entries = inboxEntries(
+        inputs(both, { unread: done, requests: { "01": [asked("r1", 5)] } }),
+      )
 
-      expect(rows.map((row) => row.id)).toEqual(["request:r1"])
+      expect(entries.map((entry) => entry.id)).toEqual(["request:r1"])
     })
 
-    it("keeps a held thread beside the terminal's other row", () => {
+    it("keeps a held thread beside the terminal's other entry", () => {
       const pair = workspaceOf(
         agentTerminal(1, {
           working: false,
@@ -783,9 +793,9 @@ describe("The Inbox's rows", () => {
         }),
         agentTerminal(2, { working: false }, "codex"),
       )
-      const rows = inboxRows(inputs(pair, { unread: failed, messages: messagesOf(thread()) }))
+      const entries = inboxEntries(inputs(pair, { unread: failed, messages: messagesOf(thread()) }))
 
-      expect(rows.map((row) => row.id)).toEqual(["trouble:01:100", "held:th1"])
+      expect(entries.map((entry) => entry.id)).toEqual(["trouble:01:100", "held:th1"])
     })
 
     it("shows every held thread, the newest first", () => {
@@ -808,7 +818,7 @@ describe("The Inbox's rows", () => {
         },
       }
 
-      expect(inboxRows(inputs(both, { messages })).map((row) => row.id)).toEqual([
+      expect(inboxEntries(inputs(both, { messages })).map((entry) => entry.id)).toEqual([
         "held:newer",
         "held:older",
       ])
@@ -823,14 +833,14 @@ describe("The Inbox's rows", () => {
         agentTerminal(3, { working: false, lastTurn: turn({ at: 5, outcome: "failed" }) }),
         agentTerminal(4, { working: false }, "zsh"),
       )
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(workspace, {
           unread: { "p/s": { "01": "done", "03": "failed" } },
           requests: { "02": [asked("r1", 20)] },
         }),
       )
 
-      expect(rows.map((row) => row.id)).toEqual(["request:r1", "trouble:03:5"])
+      expect(entries.map((entry) => entry.id)).toEqual(["request:r1", "trouble:03:5"])
     })
 
     it("holds nothing for a terminal that runs no agent, and nothing for completed turns", () => {
@@ -842,20 +852,20 @@ describe("The Inbox's rows", () => {
         process: "zsh",
         state: "idle",
       }
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(workspaceOf(shell, agentTerminal(2, { working: false, lastTurn: turn() })), {
           unread: { "p/s": { "01": "done", "02": "done" } },
         }),
       )
 
-      expect(rows).toEqual([])
+      expect(entries).toEqual([])
     })
   })
 
   describe("an entry", () => {
     const attention: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
     const told = (id = "told-1", at = 4000, settled?: WrittenEntry["settled"]): WrittenEntry =>
-      entry({
+      written({
         id,
         at,
         content: { kind: "tell", subject: "Preview ready", body: "Open the preview." },
@@ -865,18 +875,18 @@ describe("The Inbox's rows", () => {
     it("derives whether an ask waits from the agent's current working state", () => {
       for (const agent of ["claude", "codex", "agy"] as const) {
         for (const working of [true, false]) {
-          const rows = inboxRows(
+          const entries = inboxEntries(
             inputs(workspaceOf(agentTerminal(1, { working }, agent)), {
-              entries: [entry({ agent })],
+              entries: [written({ agent })],
             }),
           )
-          expect(rows[0]).toMatchObject({ kind: "ask", stopped: !working, source: { agent } })
+          expect(entries[0]).toMatchObject({ kind: "ask", stopped: !working, source: { agent } })
         }
       }
     })
 
-    it("lists a settled ask as a settled row, stopped false, whatever its terminal's agent does now", () => {
-      const settled = entry({ settled: { how: "dismissed", at: 5000 } })
+    it("lists a settled ask as a settled entry, stopped false, whatever its terminal's agent does now", () => {
+      const settled = written({ settled: { how: "dismissed", at: 5000 } })
       // Working, resting, another agent's session in the terminal, and an ended one.
       const exited: TerminalMetadata = {
         ...agentTerminal(1),
@@ -890,39 +900,41 @@ describe("The Inbox's rows", () => {
         agentTerminal(1, { working: false }, "codex"),
         exited,
       ]) {
-        expect(inboxRows(inputs(workspaceOf(terminal), { entries: [settled] }))).toMatchObject([
+        expect(inboxEntries(inputs(workspaceOf(terminal), { entries: [settled] }))).toMatchObject([
           { id: "entry-1", kind: "ask", stopped: false, settled: { how: "dismissed", at: 5000 } },
         ])
       }
       // An open ask of an agent that is no longer there is dropped, a settled one is not; neither
       // outlives its terminal.
       const other = workspaceOf(agentTerminal(1, { working: false }, "codex"))
-      expect(inboxRows(inputs(other, { entries: [entry()] }))).toEqual([])
+      expect(inboxEntries(inputs(other, { entries: [written()] }))).toEqual([])
       // A resolved one outlives its terminal, under its project, whose it was named.
-      expect(inboxRows(inputs(workspaceOf(), { entries: [settled] }))).toMatchObject([
+      expect(inboxEntries(inputs(workspaceOf(), { entries: [settled] }))).toMatchObject([
         { id: "entry-1", source: { handle: "moth", title: "Closed terminal", projectName: "App" } },
       ])
       const nowhere = { ...settled, projectId: "other" }
-      expect(inboxRows(inputs(workspaceOf(), { entries: [nowhere] }))).toEqual([])
+      expect(inboxEntries(inputs(workspaceOf(), { entries: [nowhere] }))).toEqual([])
     })
 
     it("lists resolved entries with the rest, the newest first by when each was added", () => {
-      const entries = [
-        entry({ id: "old", at: 1000, settled: { how: "dismissed", at: 6000 } }),
-        entry({ id: "new", at: 4000, settled: { how: "replied", at: 9000 } }),
+      const given = [
+        written({ id: "old", at: 1000, settled: { how: "dismissed", at: 6000 } }),
+        written({ id: "new", at: 4000, settled: { how: "replied", at: 9000 } }),
         told("told", 2000),
-        entry({ id: "open", at: 3000 }),
+        written({ id: "open", at: 3000 }),
       ]
-      const rows = inboxRows(inputs(workspaceOf(agentTerminal(1, { working: false })), { entries }))
-      expect(rows.map(({ id }) => id)).toEqual(["new", "open", "told", "old"])
+      const entries = inboxEntries(
+        inputs(workspaceOf(agentTerminal(1, { working: false })), { entries: given }),
+      )
+      expect(entries.map(({ id }) => id)).toEqual(["new", "open", "told", "old"])
     })
 
     it("lists a read tell as resolved", () => {
-      const entries = [told("read", 2000, { how: "read", at: 3000 })]
-      const [row] = inboxRows(
-        inputs(workspaceOf(agentTerminal(1, { working: false })), { entries }),
+      const given = [told("read", 2000, { how: "read", at: 3000 })]
+      const [entry] = inboxEntries(
+        inputs(workspaceOf(agentTerminal(1, { working: false })), { entries: given }),
       )
-      expect(row?.settled).toEqual({ how: "read", at: 3000 })
+      expect(entry?.settled).toEqual({ how: "read", at: 3000 })
     })
 
     it("keeps an unread tell after its agent exits, with its original attribution", () => {
@@ -932,39 +944,39 @@ describe("The Inbox's rows", () => {
         exitCode: 0,
         signal: null,
       }
-      const rows = inboxRows(inputs(workspaceOf(exited), { entries: [entry(), told()] }))
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({
+      const entries = inboxEntries(inputs(workspaceOf(exited), { entries: [written(), told()] }))
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
         id: "told-1",
         kind: "update",
         stopped: false,
         source: { agent: "claude", handle: "moth" },
         update: { type: "told" },
       })
-      expect(inboxRows(inputs(workspaceOf(), { entries: [told()] }))).toEqual([])
+      expect(inboxEntries(inputs(workspaceOf(), { entries: [told()] }))).toEqual([])
     })
 
-    it("lists a current permission or plan and an older stopped MCP ask, each its own row", () => {
+    it("lists a current permission or plan and an older stopped MCP ask, each its own entry", () => {
       for (const kind of ["permission", "plan"] as const) {
         const request = asked("gate", 8000)
         const waiting = workspaceOf(
           agentTerminal(1, { working: false, attention: { kind, count: 1 } }),
         )
-        const rows = inboxRows(
+        const entries = inboxEntries(
           inputs(waiting, {
-            entries: [entry()],
+            entries: [written()],
             requests: { "01": [{ ...request, request: { ...request.request, kind } }] },
           }),
         )
-        expect(rows.map(({ id }) => id).toSorted()).toEqual(["entry-1", "request:gate"])
+        expect(entries.map(({ id }) => id).toSorted()).toEqual(["entry-1", "request:gate"])
       }
     })
 
-    it("keeps a gate's unread dialog grace for the request's row, not for the ask beside it", () => {
+    it("keeps a gate's unread dialog grace for the request's entry, not for the ask beside it", () => {
       const waiting = workspaceOf(agentTerminal(1, attention))
       for (const requests of [{}, { "01": [asked("gate", 9500, null)] }]) {
-        const rows = inboxRows(inputs(waiting, { entries: [entry()], requests }))
-        expect(rows.map(({ id }) => id)).toEqual(["entry-1"])
+        const entries = inboxEntries(inputs(waiting, { entries: [written()], requests }))
+        expect(entries.map(({ id }) => id)).toEqual(["entry-1"])
       }
     })
 
@@ -973,17 +985,17 @@ describe("The Inbox's rows", () => {
       const waiting = workspaceOf(
         agentTerminal(1, { working: false, attention: { kind: "question", count: 1 } }),
       )
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(waiting, {
-          entries: [entry()],
+          entries: [written()],
           requests: { "01": [{ ...question, request: { ...question.request, kind: "question" } }] },
         }),
       )
-      expect(rows.map(({ id }) => id).toSorted()).toEqual(["entry-1", "request:question"])
+      expect(entries.map(({ id }) => id).toSorted()).toEqual(["entry-1", "request:question"])
     })
 
     it("lists two tells from one terminal, the newer first", () => {
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(workspaceOf(agentTerminal(1, { working: false })), {
           entries: [
             { ...told("merged"), at: 20 },
@@ -991,17 +1003,17 @@ describe("The Inbox's rows", () => {
           ],
         }),
       )
-      expect(rows.map(({ id }) => id)).toEqual(["merged", "opened"])
+      expect(entries.map(({ id }) => id)).toEqual(["merged", "opened"])
     })
 
     it("lists an ask beside the tells of the same terminal, and not its completed turn", () => {
-      const rows = inboxRows(
+      const entries = inboxEntries(
         inputs(workspaceOf(agentTerminal(1, { working: false, lastTurn: turn() })), {
           unread: done,
-          entries: [entry({ id: "ask" }), told("t1"), told("t2")],
+          entries: [written({ id: "ask" }), told("t1"), told("t2")],
         }),
       )
-      expect(rows.map(({ id }) => id).toSorted()).toEqual(["ask", "t1", "t2"])
+      expect(entries.map(({ id }) => id).toSorted()).toEqual(["ask", "t1", "t2"])
     })
 
     it("ignores entries for terminals outside their recorded ownership context", () => {
@@ -1013,7 +1025,7 @@ describe("The Inbox's rows", () => {
         { agent: "codex" as const },
       ]) {
         expect(
-          inboxRows(inputs(workspaceOf(agentTerminal(1)), { entries: [entry(change)] })),
+          inboxEntries(inputs(workspaceOf(agentTerminal(1)), { entries: [written(change)] })),
         ).toEqual([])
       }
     })

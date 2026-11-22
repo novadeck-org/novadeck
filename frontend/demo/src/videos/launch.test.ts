@@ -1,5 +1,5 @@
 import { agentContext } from "@novadeck/core/agents/steps"
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import { planItemOf } from "@novadeck/core/inbox/plan"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -40,7 +40,7 @@ const open = () => {
     return found?.state === "running" ? found.agent : undefined
   }
   // What is still open; the rows that resolved stay beside them, as the Inbox's history.
-  const rows = (): readonly InboxRow[] =>
+  const rows = (): readonly InboxEntry[] =>
     inbox.state.getSnapshot().items.filter((each) => !each.settled)
   return { backend, store, inbox, cues, terminals, agent, rows, turns }
 }
@@ -614,7 +614,7 @@ describe("the launch demo", () => {
       text: expect.stringContaining("pricing endpoint answers"),
     })
     expect(agent(launch.lead)).toMatchObject({ working: true })
-    // And the report is its `done` too: a done mark and an Update row.
+    // And the report is its `done` too: a done mark and an Update entry.
     expect(agent(launch.reports)).toMatchObject({ reported: true })
     expect(rows()).toMatchObject([{ kind: "update", source: { title: "Pricing endpoint" } }])
   })

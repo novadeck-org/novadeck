@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { InboxEntry } from "@novadeck/core/inbox"
 import type { MessageParty } from "@novadeck/core/messages"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -44,7 +44,7 @@ const open = () => {
     return found?.state === "running" ? found.agent : undefined
   }
   // What is still open; the rows that resolved stay beside them, as the Inbox's history.
-  const rows = (): readonly InboxRow[] =>
+  const rows = (): readonly InboxEntry[] =>
     inbox.state.getSnapshot().items.filter((each) => !each.settled)
   return { backend, store, inbox, cues, terminals, terminal, agent, rows }
 }
@@ -99,15 +99,15 @@ describe("the Babcia demo", () => {
     const { cues, inbox, rows, agent } = open()
     cues.asks()
     const answers = {
-      "Order form": (row: InboxRow) =>
+      "Order form": (row: InboxEntry) =>
         row.kind === "request" && row.request.dialog?.type === "choices"
           ? { type: "choice" as const, dialog: row.request.dialog.id, option: "1" }
           : undefined,
-      Accessibility: (row: InboxRow) =>
+      Accessibility: (row: InboxEntry) =>
         row.kind === "request" && row.request.dialog?.type === "choices"
           ? { type: "choice" as const, dialog: row.request.dialog.id, option: "2" }
           : undefined,
-      "Menu page": (row: InboxRow) =>
+      "Menu page": (row: InboxEntry) =>
         row.kind === "request" && row.request.dialog?.type === "questions"
           ? {
               type: "questions" as const,
@@ -800,10 +800,10 @@ describe("the Babcia demo", () => {
       answer: { type: "reply" as const, option: label === "Yes" ? 0 : 1, text: "" },
     })
     // The open ask's subject, as the person reads it.
-    const subjects = (rows: readonly InboxRow[]) =>
+    const subjects = (rows: readonly InboxEntry[]) =>
       rows.flatMap((row) => (row.kind === "ask" ? [row.ask.subject] : []))
 
-    it("asks to force-push to main, as an Ask row with Yes and No, and the badge reads one", () => {
+    it("asks to force-push to main, as an Ask entry with Yes and No, and the badge reads one", () => {
       const { cues, rows, agent } = open()
       cues.manners()
       cues.manners()

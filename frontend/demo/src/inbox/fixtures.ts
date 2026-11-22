@@ -1,16 +1,16 @@
 import type { ChatRequest } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { AskOption, InboxContent, InboxRow } from "@novadeck/core/inbox"
+import type { AskOption, InboxContent, InboxEntry } from "@novadeck/core/inbox"
 
 import { demoHandle } from "../handles"
 import { demoTerminalId, terminals } from "../samples"
 
-// The hardcoded rows of the demo's Inbox, on the sample terminals: the list the Inbox demo
+// The hardcoded entries of the demo's Inbox, on the sample terminals: the list the Inbox demo
 // starts with, and the states the debug panel adds.
 
 const minute = 60_000
 
-// Where a row comes from: a sample terminal of a sample project, by its number, running
+// Where an entry comes from: a sample terminal of a sample project, by its number, running
 // `agent`. The terminal's title is the sample's own, as the sidebar shows it.
 const sourceOf = (projectId: string, number: number, agent: AgentName) => ({
   projectId,
@@ -32,7 +32,10 @@ type Fixture = {
   readonly content: InboxContent
 }
 
-const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixture, now: number) =>
+const entryOf = (
+  { id, project, terminal, agent, minutes, stopped, content }: Fixture,
+  now: number,
+) =>
   ({
     ...content,
     id,
@@ -40,7 +43,7 @@ const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixt
     at: now - minutes * minute,
     stopped,
     seen: false,
-  }) satisfies InboxRow
+  }) satisfies InboxEntry
 
 // The Claude edit dialog Novadeck can't read, as it is on screen.
 const editScreen = `Edit file
@@ -380,7 +383,7 @@ const extraFixtures: readonly Fixture[] = [
       trouble: {
         type: "limit",
         minutes: 0,
-        // Set by `demoInboxRows`, which knows now.
+        // Set by `demoInboxEntries`, which knows now.
         resetsAt: 0,
         autoResume: null,
         evidence: [{ text: "Usage limit reached", result: null, times: 1 }],
@@ -439,7 +442,7 @@ const extraFixtures: readonly Fixture[] = [
       kind: "held",
       held: {
         threadId: "demo-thread-gone",
-        // The sender's terminal has closed: it shows by its handle, and the row is the
+        // The sender's terminal has closed: it shows by its handle, and the entry is the
         // recipient's.
         from: { handle: "kestrel", title: "kestrel" },
         to: { handle: demoHandle(4), title: "Release notes" },
@@ -637,7 +640,7 @@ const fixtures: readonly Fixture[] = [
       trouble: {
         type: "limit",
         minutes: 300,
-        // Set by `demoInboxRows`, which knows now.
+        // Set by `demoInboxEntries`, which knows now.
         resetsAt: 0,
         autoResume: true,
         evidence: [{ text: "5-hour limit reached", result: null, times: 1 }],
@@ -678,9 +681,9 @@ const fixtures: readonly Fixture[] = [
   },
 ]
 
-// The hardcoded rows, as they stand at `now`: each waited as long as the sample says, and
+// The hardcoded entries, as they stand at `now`: each waited as long as the sample says, and
 // the limit resets in 1 h 12 min.
-export const demoInboxRows = (now: number): InboxRow[] => rowsOf(fixtures, now)
+export const demoInboxEntries = (now: number): InboxEntry[] => entriesOf(fixtures, now)
 
 // The messages demo's entries from the checkout's Claude Code (moth): a tell the person
 // hasn't read and a question still open, which its Messages pane lists with the one it
@@ -722,15 +725,15 @@ const entries: readonly Fixture[] = [
   },
 ]
 
-export const demoEntries = (now: number): InboxRow[] => rowsOf(entries, now)
+export const demoEntries = (now: number): InboxEntry[] => entriesOf(entries, now)
 
 // Those, and the states the debug panel adds.
-export const demoInboxRowsAll = (now: number): InboxRow[] =>
-  rowsOf([...fixtures, ...extraFixtures], now)
+export const demoInboxEntriesAll = (now: number): InboxEntry[] =>
+  entriesOf([...fixtures, ...extraFixtures], now)
 
-const rowsOf = (all: readonly Fixture[], now: number): InboxRow[] =>
+const entriesOf = (all: readonly Fixture[], now: number): InboxEntry[] =>
   all.map((fixture) =>
-    rowOf(
+    entryOf(
       fixture.content.kind === "trouble" && fixture.content.trouble.type === "limit"
         ? {
             ...fixture,

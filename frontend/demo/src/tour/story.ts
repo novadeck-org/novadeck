@@ -1,5 +1,5 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { InboxAnswer, InboxRow } from "@novadeck/core/inbox"
+import type { InboxAnswer, InboxEntry } from "@novadeck/core/inbox"
 import { itemIdOf, type Item, type ItemContent } from "@novadeck/core/items"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import type { TerminalMetadata } from "@novadeck/core/types"
@@ -80,7 +80,7 @@ export const namedAs = (key: TerminalKey, name: string, by: string): BackendActi
   titleSource: { kind: "agent", by },
 })
 
-// The copywriter's ask, as the runner's `ask` makes its row: options A and B, each with its
+// The copywriter's ask, as the runner's `ask` makes its entry: options A and B, each with its
 // line, from the copywriter's terminal, the agent working on meanwhile.
 export const taglineAsk = (
   key: TerminalKey,
@@ -88,7 +88,7 @@ export const taglineAsk = (
   harness: AgentName,
   projectName: string,
   at: number,
-): InboxRow => ({
+): InboxEntry => ({
   id: `tour-ask-${key.terminalId}`,
   kind: "ask",
   source: {
@@ -326,7 +326,7 @@ export const playTourStory = ({
     const writer = current(copywriter.key)
     if (!found || !writer) return
     const project = stage.workspace()?.projects.find(({ id }) => id === key.projectId)
-    const row = taglineAsk(
+    const entry = taglineAsk(
       copywriter.key,
       writer,
       copywriter.harness,
@@ -342,7 +342,7 @@ export const playTourStory = ({
       stops.delete(stop)
       stopAnswer()
       stops.delete(stopAnswer)
-      const { label, line } = chosenTagline(stage.answeredWith(row.id))
+      const { label, line } = chosenTagline(stage.answeredWith(entry.id))
       later(tourStoryMs.talk, () => {
         say(copywriter, "lead", taglineMessage(label, line), () => present(line))
         turns.as(copywriter.harness).finish(copywriter.key, current(copywriter.key), "completed", {
@@ -353,20 +353,20 @@ export const playTourStory = ({
     }
     const check = () => {
       const state = stage.inbox?.state.getSnapshot()
-      const held = state?.items.find(({ id }) => id === row.id)
+      const held = state?.items.find(({ id }) => id === entry.id)
       if (held && !held.settled) {
         seen = true
         return
       }
-      // Answered, which takes the row away, or dismissed or withdrawn, which settles it.
+      // Answered, which takes the entry away, or dismissed or withdrawn, which settles it.
       if (seen || held?.settled) end()
     }
     const stop = stage.inbox?.state.subscribe(check) ?? (() => {})
-    const stopAnswer = tour.tagline((option) => stage.answerRow(row.id, pickTagline(option)))
+    const stopAnswer = tour.tagline((option) => stage.answerEntry(entry.id, pickTagline(option)))
     stops.add(stop)
     stops.add(stopAnswer)
     if (!stage.inbox) return later(tourStoryMs.talk, end)
-    stage.inbox.add(row)
+    stage.inbox.add(entry)
     check()
   }
 

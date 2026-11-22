@@ -33,15 +33,15 @@ describe("the story's pieces", () => {
 
   it("asks as the runner's ask does: options A and B, each with its line", () => {
     const terminal = { id: "t", name: "Copywriter", handle: "fox" } as TerminalMetadata
-    const row = taglineAsk(key, terminal, "claude", "Tour", 5)
-    expect(row).toMatchObject({
+    const entry = taglineAsk(key, terminal, "claude", "Tour", 5)
+    expect(entry).toMatchObject({
       kind: "ask",
       stopped: false,
       source: { terminalId: "t", handle: "fox", agent: "claude", projectName: "Tour" },
       ask: { subject: taglineSubject, shape: { type: "options" } },
     })
-    if (row.kind !== "ask" || row.ask.shape.type !== "options") throw new Error("not options")
-    expect(row.ask.shape.options.map(({ label, summary }) => [label, summary])).toEqual(
+    if (entry.kind !== "ask" || entry.ask.shape.type !== "options") throw new Error("not options")
+    expect(entry.ask.shape.options.map(({ label, summary }) => [label, summary])).toEqual(
       taglines.map(({ label, line }) => [label, line]),
     )
   })
@@ -134,16 +134,18 @@ describe("the story in the demo", () => {
 
     // The ask waits in the Inbox as long as the person takes.
     await at(60_000)
-    const rows = backend.inbox!.state.getSnapshot().items.filter((row) => row.kind === "ask")
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ source: { terminalId: copywriter.id }, stopped: false })
+    const entries = backend.inbox!.state.getSnapshot().items.filter((entry) => entry.kind === "ask")
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ source: { terminalId: copywriter.id }, stopped: false })
     expect(session().state.items.some((item) => item.name === "tour-strip.html")).toBe(false)
 
     tour.answerTagline(1)
     await at(5000)
     // The answered ask no longer waits: it stays settled, or goes.
     expect(
-      backend.inbox!.state.getSnapshot().items.filter((row) => row.kind === "ask" && !row.settled),
+      backend
+        .inbox!.state.getSnapshot()
+        .items.filter((entry) => entry.kind === "ask" && !entry.settled),
     ).toHaveLength(0)
     const shown = session().state.items.find((item) => item.name === "tour-strip.html")
     expect(shown).toMatchObject({ by: "agent", openAsked: true, from: { terminalId: lead } })
