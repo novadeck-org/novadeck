@@ -42,6 +42,7 @@ export {
   type AgentIntegration,
   agentLimits,
   agentName,
+  agentNameRead,
   agentSessionId,
   type AgentTelemetry,
   conflictReason,
@@ -142,6 +143,8 @@ export {
   workPreviewWork,
 } from "./works.js"
 export { compatibility, type Compatibility } from "./compatibility.js"
+export { isDropped, newer, openMark, readerOf, type Open, type Sent, type Unknown } from "./open.js"
+export { answerReaders } from "./readers.js"
 export { maxWebSocketMessageBytes } from "./connection.js"
 export {
   type ForgeHost,
@@ -151,6 +154,7 @@ export {
   forgeLimits,
   type ForgeName,
   forgeName,
+  forgeNameRead,
   type PullRequest,
   pullRequest,
 } from "./forges.js"
@@ -160,6 +164,7 @@ export {
   requestAnswer,
   type RequestAnswer,
   requestDialog,
+  requestDialogRead,
   type RequestDialog,
 } from "./dialogs.js"
 export { type FeedbackDraft, feedbackKind, type FeedbackKind, maxFeedbackText } from "./feedback.js"
@@ -168,6 +173,7 @@ export {
   type AgentAsk,
   askAnswer,
   type AskAnswer,
+  inboxContent,
   inboxEntry,
   type InboxEntry,
   inboxTextLimits,

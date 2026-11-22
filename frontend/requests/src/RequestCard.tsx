@@ -243,7 +243,10 @@ export const RequestCard = ({
   }
   const { dialog } = request
   const onlyTheTerminal =
-    request.answered || dialog === null || (dialog.type === "raw" && !live?.keys)
+    request.answered ||
+    dialog === null ||
+    dialog.type === "newer" ||
+    (dialog.type === "raw" && !live?.keys)
   return (
     <RequestFrame
       ref={frame}

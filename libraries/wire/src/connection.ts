@@ -3,7 +3,7 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 import type { Channel } from "./channel.js"
 import { hasCode, normalize, serverWindow, WireError, type Incompatibility } from "./errors.js"
 import type { WireContract } from "./handshake.js"
-import { gated } from "./since.js"
+import { gated, type Outputs } from "./since.js"
 import { sleep } from "./sleep.js"
 import type { Transport } from "./transport.js"
 import { Watched, type Watching } from "./watched.js"
@@ -46,6 +46,8 @@ export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
    * side is behind (`incompatibility`).
    */
   readonly oldestServer: number
+  /** What the client reads a newer server's answers through, as an app's open schemas say. */
+  readonly outputs?: Outputs
   /**
    * Codes that end the connection for good, beside the wire's own (`UNAUTHORIZED`,
    * `INCOMPATIBLE_PROTOCOL`, `CLOSED`): no reconnection would succeed.
@@ -174,7 +176,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
         )
       }
       return {
-        client: gated(client, contract, server),
+        client: gated(client, contract, server, this.options.outputs),
         epoch: opened.epoch,
         revision: server,
         channel,

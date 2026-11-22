@@ -38,7 +38,9 @@ code moving inside the repository.
 
 A change to `contract/protocol` follows docs/backend-api.md ("Versions"): it raises
 `revision` in `compatibility.ts` once per release, and a change that can't be additive moves
-`oldestClient` or `oldestRunner` past the newest release's revision. Write `contract.json`
+`oldestClient` or `oldestRunner` past the newest release's revision. An output's enum or
+union that grows takes new values freely once it is open (`openEnum`, `openUnion`, "Open
+schemas" there), and its UI handles `newer`. Write `contract.json`
 again with `pnpm --filter @novadeck/protocol test -u`. On a conflict in it, take either side,
 write it again the same way, then run `node scripts/compatibility/main.ts`: a change merged first
 may already have raised `revision` past the release, or need yours raised once more.

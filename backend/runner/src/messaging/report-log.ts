@@ -1,15 +1,19 @@
 import {
-  inboxEntry,
+  inboxContent,
   maxTurnError,
   maxTurnFilePath,
   maxTurnFiles,
   replyPreviewLength,
   type AgentName,
-  type InboxEntry,
+  type InboxEntry as ListedEntry,
+  type Sent,
 } from "@novadeck/protocol"
 
 import { cut } from "../text.js"
 import { pullRequestIn, type Happening, type Reports } from "./peers.js"
+
+// The runner's own entries, which never hold the placeholders a UI reads in.
+type InboxEntry = Sent<ListedEntry>
 
 /** What a turn entry holds of its end. */
 export type TurnContent = Extract<InboxEntry["content"], { kind: "turn" }>
@@ -31,7 +35,7 @@ export const clampedTurn = (content: unknown): TurnContent | undefined => {
         return path ? [path] : []
       })
     : []
-  const parsed = inboxEntry.shape.content.safeParse({
+  const parsed = inboxContent.safeParse({
     kind: "turn",
     outcome: raw["outcome"] === "completed" ? "completed" : "failed",
     reply: clipped(raw["reply"], replyPreviewLength),
@@ -147,7 +151,7 @@ export const storedReport = (
     typeof raw === "object" && raw !== null && "kind" in raw && raw.kind === "turn"
       ? clampedTurn(raw)
       : (() => {
-          const parsed = inboxEntry.shape.content.safeParse(raw)
+          const parsed = inboxContent.safeParse(raw)
           return parsed.success ? parsed.data : undefined
         })()
   if (!content) return undefined

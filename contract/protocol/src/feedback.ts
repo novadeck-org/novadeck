@@ -1,7 +1,8 @@
 import { z } from "zod"
 
-import { agentName } from "./agents.js"
+import { agentNameRead } from "./agents.js"
 import { id } from "./fields.js"
+import { openEnum } from "./open.js"
 
 // An agent's feedback draft for the people building Novadeck, written with its `feedback`
 // tool: its kind and text, as the website takes a note (2,000 characters at most), and who
@@ -9,7 +10,11 @@ import { id } from "./fields.js"
 // reached it, not when the agent drafted it on its own. The runner holds drafts in memory
 // only, one per terminal, until the app sends one or the person discards it
 // (`feedback.settle`); it never sends one itself, and a restart forgets them.
-export const feedbackKind = z.enum(["bug", "idea", "other"])
+// A kind a UI doesn't know reads as `other`.
+export const feedbackKind = openEnum(["bug", "idea", "other"], {
+  since: 3,
+  unknown: { fallback: "other" },
+})
 export const maxFeedbackText = 2000
 
 export const feedbackDraft = z.strictObject({
@@ -17,7 +22,7 @@ export const feedbackDraft = z.strictObject({
   terminalId: id,
   projectId: id,
   workspaceSessionId: id,
-  agent: agentName,
+  agent: agentNameRead,
   handle: z.string(),
   at: z.number(),
   kind: feedbackKind,

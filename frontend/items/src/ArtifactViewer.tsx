@@ -40,7 +40,7 @@ export const artifactLook = (
 ): { readonly name: string; readonly label: string } => ({ name: item.name, label: item.name })
 
 // Why it can't show, in a few words, as a peek says it.
-const shortReasons: Record<UnavailableReason, string> = {
+export const shortReasons: Record<UnavailableReason, string> = {
   missing: "Not there any more",
   unreadable: "Can't be read",
   "not-a-file": "Not a file",
@@ -48,6 +48,7 @@ const shortReasons: Record<UnavailableReason, string> = {
   binary: "Not text",
   secret: "May hold secrets. Click to open.",
   gone: "Gone",
+  newer: "Needs a newer Novadeck",
 }
 
 // The largest file a kind previews, where the pane says it: the runner's `pdfLimits` and
@@ -81,6 +82,8 @@ const reasonText = (
       return `${name} may hold secrets, so it shows only when you ask.`
     case "gone":
       return `${name} is gone.`
+    case "newer":
+      return `${name} needs a newer Novadeck to show. Update Novadeck to see it here.`
   }
 }
 

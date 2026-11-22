@@ -15,6 +15,7 @@ import {
   Globe,
   Image,
   MessagesSquare,
+  CircleDashed,
   SquareTerminal,
   type LucideIcon,
 } from "lucide-react"
@@ -29,7 +30,7 @@ import { noLinks, type MessagesHandle } from "./messages/messages"
 // What the icons, names and labels were before the registry, as the switches wrote them. A
 // terminal's drawing of its bar, from the registry and its own messages, must give the same
 // for every shape of member.
-const expectedKindIcons: Record<ShownKind | "shells", LucideIcon> = {
+const expectedKindIcons: Record<ShownKind | "shells" | "newer", LucideIcon> = {
   image: Image,
   video: Film,
   audio: AudioLines,
@@ -40,9 +41,14 @@ const expectedKindIcons: Record<ShownKind | "shells", LucideIcon> = {
   page: Globe,
   changes: GitCompare,
   shells: SquareTerminal,
+  // A kind a newer Novadeck shows, which the switches never had.
+  newer: CircleDashed,
 }
 const expectedIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
-const expectedIconOf = (artifact: { kind: ShownKind | "shells"; name: string }): LucideIcon =>
+const expectedIconOf = (artifact: {
+  kind: ShownKind | "shells" | "newer"
+  name: string
+}): LucideIcon =>
   artifact.kind === "file" && expectedIsMarkdown(artifact.name)
     ? BookText
     : expectedKindIcons[artifact.kind]
@@ -78,7 +84,14 @@ const expectedLookOf = (
           name: title,
           label: `${item.plan?.role === "subagent" ? "Subagent plan" : "Plan"}: ${title}`,
         }
-      : { icon: expectedMemberIcon(member), name: item.name, label: item.name }
+      : item.kind === "newer"
+        ? // A kind a newer Novadeck shows says so to a screen reader too.
+          {
+            icon: expectedMemberIcon(member),
+            name: item.name,
+            label: `${item.name}, which needs a newer Novadeck`,
+          }
+        : { icon: expectedMemberIcon(member), name: item.name, label: item.name }
   if (!member.placed) return look
   const from = origin ?? "another terminal"
   return { ...look, name: `${look.name} · from ${from}`, label: `${look.label}, from ${from}` }
@@ -124,6 +137,9 @@ const change = itemFixture("change", "01", { kind: "changes", name: "Changes", p
 const shellList = itemFixture("shells", "01", { kind: "shells", name: "Shells", path: null })
 const messages: BarMember = { kind: "messages", key: messagesKey }
 
+// An item of a kind a newer Novadeck shows.
+const newerItem = itemFixture("newer", "01", { kind: "newer", name: "hologram" })
+
 const shapes: Record<string, BarMember> = {
   plan: itemMember(plan),
   "subagent plan": itemMember(subagent),
@@ -139,6 +155,7 @@ const shapes: Record<string, BarMember> = {
   page: itemMember(web),
   changes: itemMember(change),
   shells: itemMember(shellList),
+  newer: itemMember(newerItem),
   messages,
   "placed plan": itemMember(plan, true),
   "placed markdown file": itemMember(markdown, true),
@@ -168,6 +185,7 @@ describe("a terminal's drawing of its bar", () => {
         page: [shapes.page!, shapes.page!],
         changes: [shapes.changes!, shapes.changes!],
         shells: [shapes.shells!],
+        newer: [shapes.newer!],
       }
       for (const [stack, members] of Object.entries(stacks) as [StackKind, BarMember[]][]) {
         const slot: BarSlot = { key: `stack-${stack}`, stack, members }

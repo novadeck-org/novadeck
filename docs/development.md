@@ -386,8 +386,17 @@ Agents:
   lead); "Ask to take selected's worktree" has it ask to take the selected terminal's worktree
   (allowing changes nothing in the demo); "Ask to join selected's team", "Ask to leave
   selected's team" and "Ask to hand its team to selected" raise the cards for `join`, `leave`
-  and `hand_lead` (confirming sets the asker's lead in the demo workspace); "Withdraw
-  approvals" takes them back.
+  and `hand_lead` (confirming sets the asker's lead in the demo workspace); "Ask for something
+  newer" raises the placeholder for an action a newer Novadeck's runner asks about (only Not now,
+  which puts it aside); "Withdraw approvals" takes them back.
+- **A newer Novadeck's values:** every placeholder for what a newer runner sends that this build
+  doesn't know is reachable: the approval above; in the `agents` demo the fifth agent's chat holds a
+  dialog of type `newer` (`05:newer`, terminal only) and the sixth's a `newer` note (a quiet row whose
+  text unfolds); the Inbox group's "Ask in a shape from a newer Novadeck", "Dialog from a newer
+  Novadeck" and "Update from a newer Novadeck" (never marked read); in the `showcase` demo the dev
+  server's Timeline item (kind `newer`) and scene.usdz (content reason `newer`) say they need a newer
+  Novadeck to show; "Asleep, a newer Novadeck's agent" (also in the gallery) is a sleeper this build
+  never wakes; and History's "Gift cards" row says its agent needs a newer Novadeck to restore.
 - **Doorbell** and **Messages:** only in the `messages` variant, on the selected terminal.
   Doorbell puts its idle agent where the doorbell can't ring it (working, a prompt queued,
   shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane

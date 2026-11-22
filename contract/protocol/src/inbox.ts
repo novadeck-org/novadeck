@@ -1,7 +1,8 @@
 import { z } from "zod"
 
-import { agentName, turnError, turnFiles, turnReply } from "./agents.js"
+import { agentNameRead, turnError, turnFiles, turnReply } from "./agents.js"
 import { id } from "./fields.js"
+import { openUnion } from "./open.js"
 import { hiddenIn, maxCommandLines, unsafeInLine } from "./text.js"
 
 // How long each text of an agent's ask, tell or done runs at most, in UTF-16 code units: a
@@ -37,7 +38,7 @@ const askOption = z.strictObject({
   code: z.strictObject({ path: line, text: markdown }).nullable(),
 })
 
-const askShape = z.discriminatedUnion("type", [
+const askShapes = [
   z.strictObject({ type: z.literal("text") }),
   z
     .strictObject({
@@ -68,14 +69,24 @@ const askShape = z.discriminatedUnion("type", [
     directory: oneLine(inboxTextLimits.directory).nullable(),
     doneLabel: line,
   }),
-])
+] as const
+const askShape = z.discriminatedUnion("type", askShapes)
 
-export const agentAsk = z.strictObject({
+const askFields = {
   subject: line,
   body: markdown,
   details: markdown.nullable(),
   hardToUndo: z.string().max(inboxTextLimits.hardToUndo).nullable(),
-  shape: askShape,
+}
+
+// An ask as an agent puts it, which the runner parses as it is.
+export const agentAsk = z.strictObject({ ...askFields, shape: askShape })
+
+// An ask as a runner lists it to a UI, which reads a shape it doesn't know as `newer`: the
+// ask stays, saying it needs a newer Novadeck to answer, and sends no answer.
+const agentAskRead = z.strictObject({
+  ...askFields,
+  shape: openUnion("type", askShapes, { since: 3, unknown: "placeholder" }),
 })
 
 export const askAnswer = z.discriminatedUnion("type", [
@@ -103,30 +114,53 @@ const entrySettled = z.strictObject({
   answer: z.string().max(inboxTextLimits.markdown).optional(),
 })
 
+const contentOptions = [
+  z.strictObject({ kind: z.literal("ask"), ask: agentAskRead }),
+  z.strictObject({ kind: z.literal("tell"), subject: line, body: markdown }),
+  // The agent's own report that the task it was given is finished.
+  z.strictObject({ kind: z.literal("done"), subject: line, body: markdown }),
+  // A finished turn of the agent: stored until the person reads it, which removes it.
+  // `at` is the end's own `lastTurn.at`.
+  z.strictObject({
+    kind: z.literal("turn"),
+    outcome: z.enum(["completed", "failed"]),
+    reply: turnReply.nullable(),
+    error: turnError.nullable(),
+    files: turnFiles,
+  }),
+] as const
+
+// What an entry holds, as the runner keeps and parses it.
+export const inboxContent = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("ask"), ask: agentAsk }),
+  z.strictObject({ kind: z.literal("tell"), subject: line, body: markdown }),
+  // The agent's own report that the task it was given is finished.
+  z.strictObject({ kind: z.literal("done"), subject: line, body: markdown }),
+  // A finished turn of the agent: stored until the person reads it, which removes it.
+  // `at` is the end's own `lastTurn.at`.
+  z.strictObject({
+    kind: z.literal("turn"),
+    outcome: z.enum(["completed", "failed"]),
+    reply: turnReply.nullable(),
+    error: turnError.nullable(),
+    files: turnFiles,
+  }),
+])
+
+// What an entry holds, as a runner lists it to a UI, which reads a kind it doesn't know as
+// `newer`: the entry stays in the Inbox, saying it needs a newer Novadeck.
+const inboxContentRead = openUnion("kind", contentOptions, { since: 3, unknown: "placeholder" })
+
 export const inboxEntry = z.strictObject({
   id,
   terminalId: id,
   projectId: id,
   workspaceSessionId: id,
-  agent: agentName,
+  agent: agentNameRead,
   sessionId: z.string(),
   handle: z.string(),
   at: z.number(),
-  content: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("ask"), ask: agentAsk }),
-    z.strictObject({ kind: z.literal("tell"), subject: line, body: markdown }),
-    // The agent's own report that the task it was given is finished.
-    z.strictObject({ kind: z.literal("done"), subject: line, body: markdown }),
-    // A finished turn of the agent: stored until the person reads it, which removes it.
-    // `at` is the end's own `lastTurn.at`.
-    z.strictObject({
-      kind: z.literal("turn"),
-      outcome: z.enum(["completed", "failed"]),
-      reply: turnReply.nullable(),
-      error: turnError.nullable(),
-      files: turnFiles,
-    }),
-  ]),
+  content: inboxContentRead,
   // Only on an entry that is no longer open (see `entrySettled`).
   settled: entrySettled.optional(),
 })

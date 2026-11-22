@@ -12,7 +12,7 @@ const minute = 60_000
 
 // Where an entry comes from: a sample terminal of a sample project, by its number, running
 // `agent`. The terminal's title is the sample's own, as the sidebar shows it.
-const sourceOf = (projectId: string, number: number, agent: AgentName) => ({
+const sourceOf = (projectId: string, number: number, agent: AgentName | "newer") => ({
   projectId,
   workspaceSessionId: "initial",
   terminalId: demoTerminalId({ projectId, workspaceSessionId: "initial" }, number),
@@ -26,7 +26,8 @@ type Fixture = {
   readonly id: string
   readonly project: string
   readonly terminal: number
-  readonly agent: AgentName
+  // `newer`: an agent of a harness a newer Novadeck integrates.
+  readonly agent: AgentName | "newer"
   readonly minutes: number
   readonly stopped: boolean
   readonly content: InboxContent
@@ -96,6 +97,20 @@ const rawRequest: ChatRequest = {
   answered: false,
   askedAt: Date.now(),
   dialog: { type: "raw", text: editScreen, reason: "unsupported" },
+}
+
+// A dialog a newer Novadeck's runner reads that this build doesn't know: answered in the
+// terminal.
+const newerRequest: ChatRequest = {
+  id: "demo-newer-dialog",
+  kind: "permission",
+  tool: "Bash",
+  subject: "pnpm lint --fix",
+  choices: [],
+  subagent: false,
+  answered: false,
+  askedAt: Date.now(),
+  dialog: { type: "newer" },
 }
 
 // Claude marks the option it would pick with "(Recommended)" in its label.
@@ -270,6 +285,9 @@ export const demoInboxIds = {
   waits: "demo-waits",
   entryTell: "demo-entry-tell",
   entryAsk: "demo-entry-ask",
+  newerAsk: "demo-newer-ask",
+  newerDialog: "demo-newer-dialog",
+  newerUpdate: "demo-newer-update",
 } as const
 
 // Claude's plan dialog: the first yes sets something standing, so it is a quiet link and
@@ -493,6 +511,51 @@ const extraFixtures: readonly Fixture[] = [
     minutes: 1,
     stopped: true,
     content: { kind: "request", request: plainDenyRequest },
+  },
+  // What a newer Novadeck's runner sends that this build can't show: an ask in a shape it
+  // doesn't know, a request whose dialog it doesn't know, and an update of a kind it doesn't.
+  {
+    id: demoInboxIds.newerAsk,
+    project: "mobile-app",
+    terminal: 1,
+    agent: "newer",
+    minutes: 3,
+    stopped: true,
+    content: {
+      kind: "ask",
+      ask: {
+        subject: "Which rollout should the new queue use?",
+        body: "The queue is ready to ship. I'd like your pick between a staged rollout and a single switch, and I can only ask it in a form this Novadeck doesn't know.",
+        details: null,
+        hardToUndo: null,
+        shape: { type: "newer" },
+      },
+    },
+  },
+  {
+    id: demoInboxIds.newerDialog,
+    project: "design-system",
+    terminal: 1,
+    agent: "claude",
+    minutes: 2,
+    stopped: true,
+    content: { kind: "request", request: newerRequest },
+  },
+  {
+    id: demoInboxIds.newerUpdate,
+    project: "dotfiles",
+    terminal: 1,
+    agent: "newer",
+    minutes: 12,
+    stopped: false,
+    content: {
+      kind: "update",
+      update: {
+        type: "newer",
+        subject: "An entry of a kind this Novadeck doesn't know",
+        body: "Its agent may be waiting on it: it stays here, unread, until a newer Novadeck shows it.",
+      },
+    },
   },
 ]
 

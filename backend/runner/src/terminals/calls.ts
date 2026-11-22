@@ -2,7 +2,7 @@ import { resolve as resolvePath } from "node:path"
 
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { startLine } from "@novadeck/harness-core/prompts"
-import type { AgentName } from "@novadeck/protocol"
+import { isAgentName, type AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
 
@@ -794,7 +794,7 @@ export class Calls {
         return Promise.resolve({
           ok: true,
           mode: this.host.agentMode(),
-          gated: agent !== null && this.host.shipping()?.covers(agent) === true,
+          gated: isAgentName(agent) && this.host.shipping()?.covers(agent) === true,
         })
       }
       case "openWorktree":

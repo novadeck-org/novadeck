@@ -1,5 +1,6 @@
 import type { ClosedTerminal, History, HistoryState } from "@novadeck/core/history"
 import { createStore } from "@novadeck/core/store"
+import { newer, type ClosedTerminal as RunnerRow } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
 
 import { consume } from "./streams"
@@ -15,6 +16,11 @@ export type RunnerHistory = {
 }
 
 // Newest first, the rows of every project.
+// A row as the history holds it: one of a harness a newer Novadeck integrates shows as a plain
+// terminal's, which the runner still restores.
+const rowOf = (row: RunnerRow): ClosedTerminal =>
+  row.agent === newer ? { ...row, agent: null } : { ...row, agent: row.agent }
+
 const byClosedAt = (rows: Iterable<ClosedTerminal>): ClosedTerminal[] =>
   [...rows].toSorted((a, b) => b.closedAt - a.closedAt)
 
@@ -52,9 +58,9 @@ export const createRunnerHistory = (
         }
         case "changed": {
           touch([change.closed.id])
-          if (incoming) incoming.set(change.closed.id, change.closed)
+          if (incoming) incoming.set(change.closed.id, rowOf(change.closed))
           else {
-            held.set(change.closed.id, change.closed)
+            held.set(change.closed.id, rowOf(change.closed))
             publish()
           }
           break
@@ -98,7 +104,7 @@ export const createRunnerHistory = (
         // out: it is newer than the answer.
         for (const [id, row] of held)
           if (row.projectId === projectId && !touched.has(id)) held.delete(id)
-        for (const row of rows) if (!touched.has(row.id)) held.set(row.id, row)
+        for (const row of rows) if (!touched.has(row.id)) held.set(row.id, rowOf(row))
         publish()
         return byClosedAt([...held.values()].filter((row) => row.projectId === projectId))
       } finally {

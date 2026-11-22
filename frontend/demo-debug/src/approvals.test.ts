@@ -185,6 +185,17 @@ describe("demo approvals", () => {
     ])
   })
 
+  it("asks for something only a newer Novadeck knows, which a yes or no leaves as it is", () => {
+    const { controls, dispatched, run } = setup()
+    run("Ask for something newer")
+    expect(controls.approvals.pending.getSnapshot()).toMatchObject([
+      { from: "b", terminalId: "a", action: { type: "newer" } },
+    ])
+    controls.approvals.answer("approval-1", true)
+    expect(controls.approvals.pending.getSnapshot()).toEqual([])
+    expect(dispatched).toEqual([])
+  })
+
   it("ends a lead when the person releases the terminal", () => {
     const { controls, dispatched } = setup()
     controls.release(key("a"))

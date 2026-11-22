@@ -24,7 +24,8 @@ export const demoWakes =
   (key: TerminalKey): (() => void) => {
     const timer = setTimeout(() => {
       const asleep = terminal(key)
-      if (asleep?.state !== "sleeping" || held?.(key)) return
+      // A newer Novadeck's agent is never woken here, as the app's own runner backend leaves it.
+      if (asleep?.state !== "sleeping" || held?.(key) || asleep.agent === "newer") return
       const { agent, reported } = asleep
       dispatch([
         {

@@ -135,6 +135,14 @@ export const rowView = (
       const connection = connections?.find(({ agent }) => agent === availability.agent)
       // Connected since the runner last looked; it checks again when the row is restored.
       if (connection?.connected && !connection.busy) return ready
+      if (availability.agent === "newer")
+        return {
+          state: "disconnected",
+          inert: true,
+          end: { kind: "word", text: "Not connected" },
+          reason: "Its agent needs a newer Novadeck to restore",
+          connect: undefined,
+        }
       return {
         state: "disconnected",
         inert: true,

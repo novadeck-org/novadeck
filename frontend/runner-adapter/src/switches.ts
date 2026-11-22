@@ -1,9 +1,23 @@
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentConnection, AgentMode, Backend } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
+import { newer } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
 
 import type { RunnerBackendOptions } from "./backend"
+
+// Harnesses and forges a newer Novadeck's runner integrates that this build doesn't know
+// aren't switched from here: they're left out of its lists, their settings kept on the runner.
+const knownAgents = <T extends { readonly agent: string }>(
+  list: readonly T[],
+): (T & { readonly agent: AgentConnection["agent"] })[] =>
+  list.filter(
+    (each): each is T & { readonly agent: AgentConnection["agent"] } => each.agent !== newer,
+  )
+const knownForges = <T extends { readonly forge: string }>(
+  list: readonly T[],
+): (T & { readonly forge: ForgeName })[] =>
+  list.filter((each): each is T & { readonly forge: ForgeName } => each.forge !== newer)
 
 // The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
 // idle agents run, how agents work with each other, whether agents get worktrees, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
@@ -62,10 +76,10 @@ export const runnerSwitches = (
   const shippingGate = createStore(gated ?? false)
   const worktrees = createStore(allowed ?? false)
   const agents = createStore<readonly AgentConnection[]>(
-    (integrations ?? []).map((agent) => ({ ...agent, busy: false })),
+    knownAgents(integrations ?? []).map((agent) => ({ ...agent, busy: false })),
   )
   const forges = createStore<readonly ForgeConnection[]>(
-    (forgeStates ?? []).map((forge) => ({ ...forge, busy: false })),
+    knownForges(forgeStates ?? []).map((forge) => ({ ...forge, busy: false })),
   )
   const welcome = createStore(welcomed === false)
   const updateForge = (forge: ForgeName, next: (current: ForgeConnection) => ForgeConnection) =>
@@ -82,7 +96,7 @@ export const runnerSwitches = (
       error: undefined,
     }))
     void track(calls.set(forge, enabled)).then(
-      (result) => updateForge(forge, () => ({ ...result, busy: false })),
+      (result) => updateForge(forge, () => ({ ...result, forge, busy: false })),
       (error: unknown) =>
         updateForge(forge, (current) => ({
           ...current,
@@ -98,7 +112,7 @@ export const runnerSwitches = (
     return track(calls.list(options?.fresh ? { fresh: true } : undefined)).then(
       (list) => {
         forges.update((current) =>
-          list.map((found) => {
+          knownForges(list).map((found) => {
             const shown = current.find((item) => item.forge === found.forge)
             // A change under way, or one made since the list was asked, reports its own result.
             const since = forgeSwitched.get(found.forge) !== asked.get(found.forge)
@@ -122,7 +136,7 @@ export const runnerSwitches = (
       busy: true,
     }))
     void track(runner.agents.set(agent, connected)).then(
-      (result) => updateAgent(agent, () => ({ ...result, busy: false })),
+      (result) => updateAgent(agent, () => ({ ...result, agent, busy: false })),
       (error: unknown) =>
         updateAgent(agent, ({ available, connected: was }) => ({
           agent,
@@ -137,7 +151,7 @@ export const runnerSwitches = (
     track(runner.agents.list(options?.fresh ? { fresh: true } : undefined)).then(
       (list) => {
         agents.update((current) =>
-          list.map((found) => {
+          knownAgents(list).map((found) => {
             const shown = current.find((item) => item.agent === found.agent)
             // A change under way reports its own result.
             return shown?.busy ? shown : { ...found, busy: false }

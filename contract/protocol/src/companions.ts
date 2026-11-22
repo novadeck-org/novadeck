@@ -1,7 +1,8 @@
 import { z } from "zod"
 
-import { agentLimits, agentName } from "./agents.js"
+import { agentLimits, agentNameRead } from "./agents.js"
 import { id } from "./fields.js"
+import { openEnum, openUnion } from "./open.js"
 import { handle, terminalTitle } from "./terminals.js"
 
 // How long an item's name and detail, a path, a page's address and the element to bring into
@@ -124,19 +125,24 @@ export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum([
-    "image",
-    "video",
-    "audio",
-    "pdf",
-    "model",
-    "file",
-    "folder",
-    "page",
-    "plan",
-    "changes",
-    "shells",
-  ]),
+  // A kind a newer runner shows that a UI doesn't know is `newer`: the item keeps its tab
+  // and place, saying it needs a newer Novadeck to show it.
+  kind: openEnum(
+    [
+      "image",
+      "video",
+      "audio",
+      "pdf",
+      "model",
+      "file",
+      "folder",
+      "page",
+      "plan",
+      "changes",
+      "shells",
+    ],
+    { since: 3, unknown: "placeholder" },
+  ),
   name: z.string().max(companionLimits.name),
   detail: z.string().max(companionLimits.detail),
   path: z.string().max(companionLimits.path).nullable(),
@@ -150,7 +156,7 @@ export const companionItem = z.strictObject({
   shownAt: z.number(),
   plan: z
     .strictObject({
-      agent: agentName,
+      agent: agentNameRead,
       role: z.enum(["root", "subagent"]),
       source: z.enum(["file", "text"]),
     })
@@ -372,7 +378,11 @@ export const changeFileDiff = z.strictObject({
 // file of its own to step to. Both are absent otherwise.
 export const folderEntry = z.strictObject({
   name: z.string().min(1).max(folderLimits.name),
-  kind: z.enum(["folder", "image", "video", "audio", "pdf", "model", "text", "other"]),
+  // A kind a UI doesn't know reads as `other`, listed as itself.
+  kind: openEnum(["folder", "image", "video", "audio", "pdf", "model", "text", "other"], {
+    since: 3,
+    unknown: { fallback: "other" },
+  }),
   size: z.number().nonnegative(),
   modifiedAt: z.number(),
   children: z.int().nonnegative().nullable(),
@@ -422,148 +432,157 @@ export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("ready"),
     stamp: z.string().max(128),
-    content: z.discriminatedUnion("kind", [
-      z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
-      z
-        .strictObject({
-          kind: z.literal("file"),
-          path: z.string().max(companionLimits.path),
-          firstLine: z.int().min(1),
-          // A data file's lines run as long as its text; others' are held to the limits below.
-          lines: z.array(z.string().max(companionLimits.data)).max(companionLimits.data + 1),
-          from: z.int().min(1),
-          to: z.int().min(1),
-          total: z.int().nonnegative().nullable(),
-          truncated: z.boolean(),
-          clamped: z.boolean(),
-        })
-        .check((context) => {
-          const { path, lines } = context.value
-          const issue = (message: string): void => {
-            context.issues.push({ code: "custom", input: context.value, path: ["lines"], message })
-          }
-          if (isDataPath(path)) {
-            const size = lines.reduce((sum, line) => sum + line.length, 0)
-            if (size > companionLimits.data) issue("A data file's text runs past its limit")
-            return
-          }
-          if (lines.length > companionLimits.lines) issue("Too many lines")
-          if (lines.some((line) => line.length > companionLimits.lineLength))
-            issue("A line runs past its limit")
-        }),
-      z.strictObject({
-        kind: z.literal("page"),
-        url: z.string().max(companionLimits.url),
-        shown: z.int().min(1),
-        scroll: z.string().max(companionLimits.scroll).optional(),
-      }),
-      z.strictObject({
-        kind: z.literal("folder"),
-        path: z.string().max(companionLimits.path),
-        within: z.string().max(companionLimits.path),
-        entries: z.array(folderEntry).max(folderLimits.entries),
-        total: z.int().nonnegative(),
-        truncated: z.boolean(),
-      }),
-      z.strictObject({
-        kind: z.literal("changes"),
-        root: z.string().max(companionLimits.path),
-        base: z.string().max(256),
-        head: z.string().max(maxCompareRef).optional(),
-        // For a compare that reads a remote-tracking ref: when the repository's origin was last
-        // fetched (epoch milliseconds; absent if never) and why its last fetch failed, if it did.
-        origin: z
+    content: openUnion(
+      "kind",
+      [
+        z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
+        z
           .strictObject({
-            fetchedAt: z.number().optional(),
-            failed: z.string().max(300).optional(),
+            kind: z.literal("file"),
+            path: z.string().max(companionLimits.path),
+            firstLine: z.int().min(1),
+            // A data file's lines run as long as its text; others' are held to the limits below.
+            lines: z.array(z.string().max(companionLimits.data)).max(companionLimits.data + 1),
+            from: z.int().min(1),
+            to: z.int().min(1),
+            total: z.int().nonnegative().nullable(),
+            truncated: z.boolean(),
+            clamped: z.boolean(),
           })
-          .optional(),
-        layers: z.array(changeLayer).max(maxChangeLayers),
-        // The files the change as a whole differs from main by, as `changeRange` lists a
-        // range (the layers' own files added up are not that), up to `maxChangedFiles`.
-        files: z.array(changedFile).max(maxChangedFiles),
-        read: z.array(z.string().max(companionLimits.path)).max(maxChangedFiles),
-        truncated: z.boolean(),
-      }),
-      z.strictObject({
-        kind: z.literal("shells"),
-        agent: agentName,
-        shells: z
-          .array(
-            z.strictObject({
-              id: z.string().min(1).max(agentLimits.name),
-              command: z.string().max(agentLimits.command),
-              since: z.number(),
-              exit: z
-                .strictObject({ at: z.number(), code: z.number().int().nullable() })
-                .nullable(),
-              output: z.discriminatedUnion("state", [
-                z.strictObject({
-                  state: z.literal("ready"),
-                  firstLine: z.int().min(1),
-                  lines: z
-                    .array(z.string().max(companionLimits.lineLength))
-                    .max(companionLimits.shellLines),
-                  total: z.int().nonnegative(),
-                }),
-                z.strictObject({ state: z.literal("none") }),
-                z.strictObject({ state: z.literal("unreadable") }),
-                z.strictObject({ state: z.literal("gone") }),
-              ]),
-            }),
-          )
-          .max(agentLimits.shells),
-      }),
-      z.strictObject({
-        kind: z.literal("plan"),
-        text: z.string().max(companionLimits.plan),
-        truncated: z.boolean(),
-        changedAt: z.number().nullable(),
-        // Whether `companions.save` can write it: a plan in a file, not one the agent
-        // keeps in its transcript.
-        writable: z.boolean(),
-        // Whether Novadeck's plugin is installed into the plan's agent, which tells it to
-        // re-read the plan and apply the notes left in it.
-        skill: z.boolean(),
-      }),
-      z.strictObject({
-        kind: z.literal("video"),
-        mime: z.string().max(64),
-        size: z.int().nonnegative().max(videoLimits.bytes),
-        shown: z.int().min(1),
-        at: z.number().nonnegative().optional(),
-      }),
-      z.strictObject({
-        kind: z.literal("audio"),
-        mime: z.string().max(64),
-        size: z.int().nonnegative().max(videoLimits.bytes),
-        shown: z.int().min(1),
-        at: z.number().nonnegative().optional(),
-      }),
-      z.strictObject({
-        kind: z.literal("pdf"),
-        size: z.int().nonnegative().max(pdfLimits.bytes),
-      }),
-      z.strictObject({
-        kind: z.literal("model"),
-        format: z.enum(modelFormats),
-        size: z.int().nonnegative().max(modelLimits.bytes),
-        files: z
-          .array(
-            z.strictObject({
-              name: z.string().max(companionLimits.path),
-              size: z.int().nonnegative().max(modelLimits.bytes),
-              stamp: z.string().max(128),
-            }),
-          )
-          .max(modelLimits.files),
-        refused: z
-          .array(
-            z.strictObject({ name: z.string().max(companionLimits.path), reason: modelRefusal }),
-          )
-          .max(modelLimits.files),
-      }),
-    ]),
+          .check((context) => {
+            const { path, lines } = context.value
+            const issue = (message: string): void => {
+              context.issues.push({
+                code: "custom",
+                input: context.value,
+                path: ["lines"],
+                message,
+              })
+            }
+            if (isDataPath(path)) {
+              const size = lines.reduce((sum, line) => sum + line.length, 0)
+              if (size > companionLimits.data) issue("A data file's text runs past its limit")
+              return
+            }
+            if (lines.length > companionLimits.lines) issue("Too many lines")
+            if (lines.some((line) => line.length > companionLimits.lineLength))
+              issue("A line runs past its limit")
+          }),
+        z.strictObject({
+          kind: z.literal("page"),
+          url: z.string().max(companionLimits.url),
+          shown: z.int().min(1),
+          scroll: z.string().max(companionLimits.scroll).optional(),
+        }),
+        z.strictObject({
+          kind: z.literal("folder"),
+          path: z.string().max(companionLimits.path),
+          within: z.string().max(companionLimits.path),
+          entries: z.array(folderEntry).max(folderLimits.entries),
+          total: z.int().nonnegative(),
+          truncated: z.boolean(),
+        }),
+        z.strictObject({
+          kind: z.literal("changes"),
+          root: z.string().max(companionLimits.path),
+          base: z.string().max(256),
+          head: z.string().max(maxCompareRef).optional(),
+          // For a compare that reads a remote-tracking ref: when the repository's origin was last
+          // fetched (epoch milliseconds; absent if never) and why its last fetch failed, if it did.
+          origin: z
+            .strictObject({
+              fetchedAt: z.number().optional(),
+              failed: z.string().max(300).optional(),
+            })
+            .optional(),
+          layers: z.array(changeLayer).max(maxChangeLayers),
+          // The files the change as a whole differs from main by, as `changeRange` lists a
+          // range (the layers' own files added up are not that), up to `maxChangedFiles`.
+          files: z.array(changedFile).max(maxChangedFiles),
+          read: z.array(z.string().max(companionLimits.path)).max(maxChangedFiles),
+          truncated: z.boolean(),
+        }),
+        z.strictObject({
+          kind: z.literal("shells"),
+          agent: agentNameRead,
+          shells: z
+            .array(
+              z.strictObject({
+                id: z.string().min(1).max(agentLimits.name),
+                command: z.string().max(agentLimits.command),
+                since: z.number(),
+                exit: z
+                  .strictObject({ at: z.number(), code: z.number().int().nullable() })
+                  .nullable(),
+                output: z.discriminatedUnion("state", [
+                  z.strictObject({
+                    state: z.literal("ready"),
+                    firstLine: z.int().min(1),
+                    lines: z
+                      .array(z.string().max(companionLimits.lineLength))
+                      .max(companionLimits.shellLines),
+                    total: z.int().nonnegative(),
+                  }),
+                  z.strictObject({ state: z.literal("none") }),
+                  z.strictObject({ state: z.literal("unreadable") }),
+                  z.strictObject({ state: z.literal("gone") }),
+                ]),
+              }),
+            )
+            .max(agentLimits.shells),
+        }),
+        z.strictObject({
+          kind: z.literal("plan"),
+          text: z.string().max(companionLimits.plan),
+          truncated: z.boolean(),
+          changedAt: z.number().nullable(),
+          // Whether `companions.save` can write it: a plan in a file, not one the agent
+          // keeps in its transcript.
+          writable: z.boolean(),
+          // Whether Novadeck's plugin is installed into the plan's agent, which tells it to
+          // re-read the plan and apply the notes left in it.
+          skill: z.boolean(),
+        }),
+        z.strictObject({
+          kind: z.literal("video"),
+          mime: z.string().max(64),
+          size: z.int().nonnegative().max(videoLimits.bytes),
+          shown: z.int().min(1),
+          at: z.number().nonnegative().optional(),
+        }),
+        z.strictObject({
+          kind: z.literal("audio"),
+          mime: z.string().max(64),
+          size: z.int().nonnegative().max(videoLimits.bytes),
+          shown: z.int().min(1),
+          at: z.number().nonnegative().optional(),
+        }),
+        z.strictObject({
+          kind: z.literal("pdf"),
+          size: z.int().nonnegative().max(pdfLimits.bytes),
+        }),
+        z.strictObject({
+          kind: z.literal("model"),
+          format: z.enum(modelFormats),
+          size: z.int().nonnegative().max(modelLimits.bytes),
+          files: z
+            .array(
+              z.strictObject({
+                name: z.string().max(companionLimits.path),
+                size: z.int().nonnegative().max(modelLimits.bytes),
+                stamp: z.string().max(128),
+              }),
+            )
+            .max(modelLimits.files),
+          refused: z
+            .array(
+              z.strictObject({ name: z.string().max(companionLimits.path), reason: modelRefusal }),
+            )
+            .max(modelLimits.files),
+        }),
+      ],
+      { since: 3, unknown: "placeholder" },
+    ),
   }),
   z.strictObject({
     state: z.literal("unavailable"),
@@ -621,7 +640,7 @@ export const wroteFolder = z.strictObject({
   path: z.string().min(1).max(companionLimits.path),
   real: z.string().min(1).max(companionLimits.path),
   handle,
-  agent: agentName,
+  agent: agentNameRead,
   at: z.number(),
 })
 

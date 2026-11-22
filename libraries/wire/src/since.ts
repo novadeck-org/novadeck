@@ -35,12 +35,69 @@ export const serves = (contract: unknown, path: readonly string[], revision: num
 }
 
 /**
+ * How a client reads what a server of another build answers: `reader` gives, for a
+ * procedure's path, what to read its answer or each of its stream's items through, or
+ * `undefined` to take them as they come; a stream skips an item read as one `skips` names.
+ */
+export type Outputs = {
+  readonly reader: (path: readonly string[]) => ((value: unknown) => unknown) | undefined
+  readonly skips: (value: unknown) => boolean
+}
+
+const isStream = (value: unknown): value is AsyncIterator<unknown> & AsyncIterable<unknown> =>
+  typeof value === "object" && value !== null && Symbol.asyncIterator in value
+
+// `stream` with each item read through `read`, those read as skipped left out; finishing or
+// failing it finishes or fails the stream it reads.
+const readStream = (
+  stream: AsyncIterator<unknown>,
+  read: (value: unknown) => unknown,
+  skips: (value: unknown) => boolean,
+): AsyncIterableIterator<unknown> => ({
+  async next() {
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Items are read in order.
+      const result = await stream.next()
+      if (result.done) return result
+      const value = read(result.value)
+      if (!skips(value)) return { done: false, value }
+    }
+  },
+  return: (value?: unknown) =>
+    stream.return ? stream.return(value) : Promise.resolve({ done: true, value }),
+  throw: (error?: unknown) => (stream.throw ? stream.throw(error) : Promise.reject(error)),
+  [Symbol.asyncIterator]() {
+    return this
+  },
+})
+
+const procedurePaths = (node: unknown, path: readonly string[] = []): string[][] =>
+  isProcedure(node)
+    ? [[...path]]
+    : isNode(node)
+      ? Object.entries(node).flatMap(([key, inner]) => procedurePaths(inner, [...path, key]))
+      : []
+
+/**
  * `client` as it calls a server of `revision`: a procedure the server is too old to have
  * rejects with `UNSUPPORTED` at once, without asking it, instead of failing there as a call it
- * doesn't know. When the server has every procedure, `client` is returned as it is.
+ * doesn't know; and where `outputs` reads a procedure's answers, they come read. When the
+ * server has every procedure and nothing is read, `client` is returned as it is.
  */
-export const gated = <T extends object>(client: T, contract: unknown, revision: number): T => {
-  if (newest(contract) <= revision) return client
+export const gated = <T extends object>(
+  client: T,
+  contract: unknown,
+  revision: number,
+  outputs?: Outputs,
+): T => {
+  const readers = new Map(
+    procedurePaths(contract).flatMap((path) => {
+      const read = outputs?.reader(path)
+      return read ? [[path.join("."), read] as const] : []
+    }),
+  )
+  if (newest(contract) <= revision && readers.size === 0) return client
+  const skips = outputs?.skips ?? (() => false)
   const wrap = <U extends object>(target: U, node: unknown, path: readonly string[]): U =>
     new Proxy(target, {
       get(inner, key, receiver) {
@@ -58,9 +115,15 @@ export const gated = <T extends object>(client: T, contract: unknown, revision: 
                 `The server, at revision ${revision}, doesn't have ${at.join(".")}, which came in revision ${since}.`,
               ),
             )
-        return isProcedure(child) ||
-          value === null ||
-          (typeof value !== "object" && typeof value !== "function")
+        if (isProcedure(child)) {
+          const read = readers.get(at.join("."))
+          if (!read || typeof value !== "function") return value
+          return async (...args: unknown[]) => {
+            const answer: unknown = await (value as (...given: unknown[]) => unknown)(...args)
+            return isStream(answer) ? readStream(answer, read, skips) : read(answer)
+          }
+        }
+        return value === null || (typeof value !== "object" && typeof value !== "function")
           ? value
           : wrap(value as object, child, at)
       },

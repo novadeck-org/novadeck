@@ -25,6 +25,7 @@ import {
   conflictReason,
   maxPromptImages,
   maxUploadBytes,
+  newer,
   normalisedText,
   promptImageTypes,
   promptFailure,
@@ -152,7 +153,25 @@ const end = (stream: Stream<unknown> | undefined): void => {
   void stream?.return?.()?.catch?.(() => {})
 }
 
-const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
+// An item of a role or kind a newer runner tells of that this build doesn't know keeps its
+// place, as a quiet row with its text: never dropped, so the chat never looks emptier than it is.
+const itemOf = (session: string, item: TranscriptItem): ChatItem =>
+  item.role === newer || item.kind === newer
+    ? {
+        ...knownItemOf(session, { ...item, role: "note", kind: "text", note: undefined }),
+        run: null,
+        outcome: null,
+        note: { type: "newer" },
+      }
+    : knownItemOf(session, { ...item, role: item.role, kind: item.kind })
+
+const knownItemOf = (
+  session: string,
+  item: TranscriptItem & {
+    readonly role: Exclude<TranscriptItem["role"], typeof newer>
+    readonly kind: Exclude<TranscriptItem["kind"], typeof newer>
+  },
+): ChatItem => ({
   id: `${session}:${item.index}`,
   at: item.at,
   role: item.role,

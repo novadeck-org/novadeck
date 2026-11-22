@@ -1,7 +1,8 @@
 import { z } from "zod"
 
-import { agentName } from "./agents.js"
+import { agentNameRead } from "./agents.js"
 import { id } from "./fields.js"
+import { openEnum, openUnion } from "./open.js"
 import { handle } from "./terminals.js"
 
 const messageId = z.string().regex(/^m-[a-z0-9]{1,32}$/)
@@ -20,16 +21,11 @@ const messageState = z.enum(["queued", "leased", "delivered", "held", "gone"])
 // (`working`), a turn that ended normally with the prompt known empty (`settled`), the
 // doorbell waking it (`ringing`), the person busy at the prompt (`drafting`), or a turn
 // that ended without a normal stop (`unknown`).
-const deliveryState = z.enum([
-  "unbound",
-  "fresh",
-  "ready",
-  "working",
-  "settled",
-  "ringing",
-  "drafting",
-  "unknown",
-])
+// A state a UI doesn't know reads as `unknown`.
+const deliveryState = openEnum(
+  ["unbound", "fresh", "ready", "working", "settled", "ringing", "drafting", "unknown"],
+  { since: 3, unknown: { fallback: "unknown" } },
+)
 
 // Who a message is from or for: a terminal's agent, by the terminal's id (`terminalId`; its
 // `handle` is how the party reads, and may be another terminal's later), or the person, whose Inbox answers reach agents as messages and whose Inbox history shows the
@@ -41,12 +37,12 @@ const messageParty = z.discriminatedUnion("kind", [
     kind: z.literal("agent"),
     terminalId: id,
     handle,
-    agent: agentName.nullable(),
+    agent: agentNameRead.nullable(),
   }),
   personParty,
 ])
 const messageRecipient = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("agent"), terminalId: id, handle, agent: agentName }),
+  z.strictObject({ kind: z.literal("agent"), terminalId: id, handle, agent: agentNameRead }),
   personParty,
 ])
 
@@ -118,24 +114,29 @@ export const listedNoticesMost = 200
 // shows the first words of one row). An agent's message has its sender's handle; a notice is Novadeck's
 // own, as sent, header and all (`@novadeck/protocol/notices` reads it); `person` is an Inbox reply.
 // `id` is the message's, which finds a turn-end delivery block (it holds no nonce).
-const ringPart = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("agent"),
-    handle,
-    text: z.string().max(ringTextMost),
-    id: messageId.optional(),
-  }),
-  z.strictObject({
-    kind: z.literal("notice"),
-    text: z.string().max(ringTextMost),
-    id: messageId.optional(),
-  }),
-  z.strictObject({
-    kind: z.literal("person"),
-    text: z.string().max(ringTextMost),
-    id: messageId.optional(),
-  }),
-])
+// A part of a kind a UI doesn't know is left out of the row.
+const ringPart = openUnion(
+  "kind",
+  [
+    z.strictObject({
+      kind: z.literal("agent"),
+      handle,
+      text: z.string().max(ringTextMost),
+      id: messageId.optional(),
+    }),
+    z.strictObject({
+      kind: z.literal("notice"),
+      text: z.string().max(ringTextMost),
+      id: messageId.optional(),
+    }),
+    z.strictObject({
+      kind: z.literal("person"),
+      text: z.string().max(ringTextMost),
+      id: messageId.optional(),
+    }),
+  ],
+  { since: 3, unknown: "drop" },
+)
 
 // A ring the doorbell typed into the terminal, by its nonce, and when. Only the rings the runner
 // typed are drawn, matched by the nonce in the row. `seq` counts a terminal's rings and deliveries

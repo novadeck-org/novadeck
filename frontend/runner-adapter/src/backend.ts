@@ -31,6 +31,7 @@ import {
   maxInboxOrder,
   maxInboxHistoryRows,
   maxInboxEntryIdLength,
+  newer,
   type AgentName,
   type AgentIntegration,
   type ForgeIntegration,
@@ -1267,6 +1268,9 @@ export const runnerBackend = (
     const { terminalId, workspaceSessionId } = entry.key
     const { cols, rows } = entry.size
     const agent = resumeAgent(entry)
+    // An agent of a harness a newer Novadeck integrates is never woken from here: without its
+    // resume the runner would start a plain shell in its place. It stays asleep, its session kept.
+    if (agent === newer) return
     const retry: Retry = { done: ["CONFLICT"], stillWanted, cancelled: () => entry.closed }
     const resume = agent ? { resume: agent } : {}
     const create = async () => {
@@ -1378,13 +1382,13 @@ export const runnerBackend = (
   // The program the terminal waits to restore, as the workspace last committed it.
   const restoredOf = ({ key }: RunnerEntry): string | undefined => terminalOf(key)?.restoredProcess
   // The agent a fresh shell resumes: a sleeper's own, else the program the terminal lost.
-  const resumeAgent = (entry: RunnerEntry): AgentName | undefined =>
+  const resumeAgent = (entry: RunnerEntry): AgentName | typeof newer | undefined =>
     entry.status.state === "sleeping"
       ? entry.status.agent
       : (runnerSummaries.get(entry.key.terminalId)?.restingAgent ??
         resumableProgram(restoredOf(entry)))
   // The agent the runner is waking for a terminal it has no shell for: not asleep, and wanted.
-  const restingOf = (entry: RunnerEntry): AgentName | undefined => {
+  const restingOf = (entry: RunnerEntry): AgentName | typeof newer | undefined => {
     const summary = runnerSummaries.get(entry.key.terminalId)
     return summary && !summary.started && !summary.sleeping
       ? (summary.restingAgent ?? undefined)

@@ -34,7 +34,9 @@ export const itemIdOf = (id: string): ItemId => id as ItemId
 // Who holds the item: a terminal's bar, or a window of its own.
 export type ItemHolder = { readonly terminalId: string } | { readonly windowId: string }
 
-export type ItemKind = ShownKind | "plan" | "shells"
+// `newer` is a kind a newer Novadeck's runner shows that this one doesn't know: it keeps its
+// tab and place, saying it needs a newer Novadeck to show it.
+export type ItemKind = ShownKind | "plan" | "shells" | "newer"
 
 export type Item = {
   readonly id: ItemId
@@ -110,6 +112,7 @@ export const kindRules: Record<ItemKind, KindRule> = {
   changes: { pointer: "changes", follow: "shown", close: "remove" },
   plan: { pointer: "none", follow: "always", close: "hide" },
   shells: { pointer: "none", follow: "shown", close: "hide" },
+  newer: { pointer: "none", follow: "shown", close: "remove" },
 }
 
 type Pointer = Pick<Item, "kind" | "path" | "url">
@@ -433,7 +436,8 @@ export type PlanContent = {
 }
 
 // Why an item can't show: its file is gone or can't be read, is no file, is too large or
-// isn't text, may hold secrets and wasn't asked for, or its plan is gone.
+// isn't text, may hold secrets and wasn't asked for, or its plan is gone; or what it holds is
+// of a kind a newer Novadeck shows and this one doesn't know (`newer`).
 export type UnavailableReason =
   | "missing"
   | "unreadable"
@@ -442,6 +446,7 @@ export type UnavailableReason =
   | "binary"
   | "secret"
   | "gone"
+  | "newer"
 
 // What an item holds now. `stamp` names this exact content: it changes whenever the
 // content does, and a plan's edit says which stamp it was made on. `size` is in bytes,

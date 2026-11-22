@@ -108,12 +108,13 @@ export type ChatBlock =
       readonly truncated: boolean
     }
   // A part of the record the backend can't read, where it stands: the line as written, empty
-  // where it can't be shown.
+  // where it can't be shown. `newer` where it is a part a newer Novadeck tells of.
   | {
       readonly kind: "gap"
       readonly id: string
       readonly raw: string
       readonly truncated: boolean
+      readonly newer?: true | undefined
     }
   // A subagent's report, apart from the commands and from other agents' messages. Claude Code
   // and Antigravity: the subagent's tool call (`ToolRun.subagent`) with its result as `text`,
@@ -441,6 +442,14 @@ export const groupItems = (
         })
       else if (note.type === "gap")
         blocks.push({ kind: "gap", id: item.id, raw: item.text, truncated: item.truncated })
+      else if (note.type === "newer")
+        blocks.push({
+          kind: "gap",
+          id: item.id,
+          raw: item.text,
+          truncated: item.truncated,
+          newer: true,
+        })
       else if (note.type === "plan-approved")
         blocks.push({ kind: "note", id: item.id, text: "plan approved" })
       else if (note.type === "notice") {

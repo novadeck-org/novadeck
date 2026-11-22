@@ -13,6 +13,11 @@ describe("the demo's History", () => {
     const rows = createDemoHistory(now).history.state.getSnapshot().rows
     const states = rows.map((row) => row.availability.state)
     for (const state of ["ready", "gone", "disconnected", "open"]) expect(states).toContain(state)
+    // One whose agent a newer Novadeck integrates.
+    expect(rows.map((row) => row.availability)).toContainEqual({
+      state: "disconnected",
+      agent: "newer",
+    })
     expect(rows.filter((row) => row.agent === null).length).toBeGreaterThan(0)
     expect(rows.map((row) => row.closedAt)).toEqual(
       rows.map((row) => row.closedAt).toSorted((a, b) => b - a),

@@ -1,8 +1,9 @@
 import { columns, exit, rows, terminalEvents } from "@novadeck/terminal"
 import { z } from "zod"
 
-import { agentActivity, agentName, agentTelemetry } from "./agents.js"
+import { agentActivity, agentNameRead, agentTelemetry } from "./agents.js"
 import { directory, id } from "./fields.js"
+import { openUnion } from "./open.js"
 import { asLine, singleLine } from "./text.js"
 
 /** The largest file a client may paste into a terminal, in bytes. */
@@ -157,17 +158,17 @@ export const terminalSummary = z.strictObject({
   process: foregroundProcess.nullable(),
   // The agent that reported a session in this shell since its last prompt, so a client
   // can name the program where the process alone cannot, as on Windows. Null otherwise.
-  agent: agentName.nullable(),
+  agent: agentNameRead.nullable(),
   // The agent whose own empty prompt shows there, with Novadeck's hooks running for it,
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.
-  ready: agentName.nullable(),
+  ready: agentNameRead.nullable(),
   // The agent expected there, held at one of its own screens that wait for the person, a
   // folder-trust, update, sign-in or onboarding screen, before it reported a session, or at
   // its own prompt with Novadeck's hooks off (`hooks`). Null otherwise, and once its prompt
   // shows with its hooks on or a session is reported, but for a session bound at a prompt that
   // says it isn't signed in (`sign-in`), until the prompt no longer says so.
-  startup: z.strictObject({ agent: agentName, screen: startupScreen }).nullable(),
+  startup: z.strictObject({ agent: agentNameRead, screen: startupScreen }).nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
   // A command the person runs in the agent's own shell mode (`!sleep 15`), which no hook
@@ -192,7 +193,7 @@ export const terminalSummary = z.strictObject({
   sleeping: z.boolean(),
   // The agent that sleeps there or is waking there, whose session a `create` resumes;
   // null for a terminal with a shell or nothing to resume.
-  restingAgent: agentName.nullable(),
+  restingAgent: agentNameRead.nullable(),
   // When a sleeping terminal's agent last ended a turn, in epoch milliseconds, as its
   // standing `done` or its stored finished turns tell; null for any other terminal, or when
   // none is kept. A terminal with a shell says it by its agent's activity.
@@ -256,22 +257,28 @@ export type TerminalMoved = z.infer<typeof terminalMoved>
 // introduction if it has one; `leave`, to leave the team of the lead that is the request's
 // `terminalId`; `hand`, to hand its team to the terminal that is the request's `terminalId`, one
 // it leads.
-const approvalAction = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("close") }),
-  z.strictObject({ type: z.literal("run"), command: startupCommand, cwd: directory }),
-  z.strictObject({ type: z.literal("lead"), brief: z.string().min(1).max(4096) }),
-  z.strictObject({
-    type: z.literal("take"),
-    path: z.string().min(1).max(4096),
-    branch: z.string().min(1).max(512),
-  }),
-  z.strictObject({
-    type: z.literal("join"),
-    message: z.string().min(1).max(4096).optional(),
-  }),
-  z.strictObject({ type: z.literal("leave") }),
-  z.strictObject({ type: z.literal("hand") }),
-])
+// An action a UI doesn't know is `newer`: the request stays, saying it needs a newer Novadeck
+// to answer, and offers no answer of its own.
+const approvalAction = openUnion(
+  "type",
+  [
+    z.strictObject({ type: z.literal("close") }),
+    z.strictObject({ type: z.literal("run"), command: startupCommand, cwd: directory }),
+    z.strictObject({ type: z.literal("lead"), brief: z.string().min(1).max(4096) }),
+    z.strictObject({
+      type: z.literal("take"),
+      path: z.string().min(1).max(4096),
+      branch: z.string().min(1).max(512),
+    }),
+    z.strictObject({
+      type: z.literal("join"),
+      message: z.string().min(1).max(4096).optional(),
+    }),
+    z.strictObject({ type: z.literal("leave") }),
+    z.strictObject({ type: z.literal("hand") }),
+  ],
+  { since: 3, unknown: "placeholder" },
+)
 
 // `terminals.approvals` items: an agent in terminal `from` asked, through Novadeck's MCP
 // server, to do `action` to `terminalId`, a terminal of its session that runs an agent, so

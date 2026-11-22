@@ -20,7 +20,8 @@ export type Compatibility = {
  * is inside it, as a UI and its runner always shipped together until then.
  */
 export const compatibility: Compatibility = {
-  revision: 2,
-  oldestClient: 2,
+  // 3: UIs read open schemas tolerantly (open.ts), which UIs at 2 don't.
+  revision: 3,
+  oldestClient: 3,
   oldestRunner: 2,
 }

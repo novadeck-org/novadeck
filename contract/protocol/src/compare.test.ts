@@ -5,6 +5,7 @@ import { z } from "zod"
 import { compareContracts, judgeContract, judgeReleases, type Finding } from "./compare.js"
 import { compatibility, type Compatibility } from "./compatibility.js"
 import { contract } from "./contract.js"
+import { openEnum, openUnion } from "./open.js"
 import { snapshotContract, type ContractSnapshot } from "./snapshot.js"
 
 const window = (
@@ -324,6 +325,63 @@ describe("compareContracts", () => {
         ["runner", "output/name"],
       ])
     })
+  })
+})
+
+describe("open schemas", () => {
+  const items = (kind: z.ZodType) => ({
+    items: { list: call.input(z.void()).output(z.array(z.strictObject({ id: z.uuid(), kind }))) },
+  })
+  const uiFindings = (before: object, after: object, at: Compatibility) =>
+    compareContracts(snap(before, window(3)), snap(after, at)).findings.filter(
+      (finding) => finding.behind === "ui",
+    )
+
+  it("let a new value pass once every UI in the window reads it tolerantly", () => {
+    const before = items(openEnum(["image", "file"], { since: 3, unknown: "placeholder" }))
+    const after = items(
+      openEnum(["image", "file", "hologram"], { since: 3, unknown: "placeholder" }),
+    )
+    expect(uiFindings(before, after, window(4, 3, 3))).toEqual([])
+  })
+
+  it("leave older UIs behind while the window still takes UIs from before the mark", () => {
+    const before = items(openEnum(["image", "file"], { since: 3, unknown: "placeholder" }))
+    const after = items(
+      openEnum(["image", "file", "hologram"], { since: 3, unknown: "placeholder" }),
+    )
+    expect(uiFindings(before, after, window(4, 2, 2))).not.toEqual([])
+  })
+
+  it("let a new variant pass in an open union", () => {
+    const union = (...variants: string[]) =>
+      items(
+        openUnion(
+          "type",
+          variants.map((type) => z.strictObject({ type: z.literal(type) })) as never,
+          { since: 3, unknown: "placeholder" },
+        ),
+      )
+    expect(
+      uiFindings(union("close", "run"), union("close", "run", "hand"), window(4, 3, 3)),
+    ).toEqual([])
+  })
+
+  it("hold a released mark as it was", () => {
+    const before = items(openEnum(["image"], { since: 3, unknown: "placeholder" }))
+    const after = items(openEnum(["image"], { since: 2, unknown: "placeholder" }))
+    expect(uiFindings(before, after, window(4, 3, 3)).map(({ reason }) => reason)).toContain(
+      "changed or lost the open mark a release had",
+    )
+  })
+
+  it("refuse a new mark that names a revision the release's UIs had", () => {
+    const before = items(z.enum(["image"]))
+    const after = items(openEnum(["image"], { since: 3, unknown: "placeholder" }))
+    expect(uiFindings(before, after, window(4, 3, 3)).map(({ reason }) => reason)).toEqual([
+      expect.stringContaining("is marked open since 3"),
+      expect.stringContaining('takes "newer"'),
+    ])
   })
 })
 

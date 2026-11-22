@@ -39,3 +39,42 @@ describe("gated", () => {
     expect(old.sessions.save()).toBe("saved")
   })
 })
+
+describe("gated, reading answers", () => {
+  const skipped = Symbol("skipped")
+  const items = async function* () {
+    yield "a"
+    yield "skip"
+    yield "b"
+  }
+  const client = {
+    sessions: {
+      save: () => Promise.resolve("saved"),
+      watch: () => Promise.resolve(items()),
+    },
+  }
+  const outputs = {
+    reader: (path: readonly string[]) =>
+      path.join(".") === "sessions.watch"
+        ? (value: unknown) => (value === "skip" ? skipped : `read ${String(value)}`)
+        : path.join(".") === "sessions.save"
+          ? (value: unknown) => `read ${String(value)}`
+          : undefined,
+    skips: (value: unknown) => value === skipped,
+  }
+
+  it("reads a call's answer", async () => {
+    expect(await gated(client, contract, 4, outputs).sessions.save()).toBe("read saved")
+  })
+
+  it("reads each of a stream's items, leaving out those read as skipped", async () => {
+    const read: unknown[] = []
+    for await (const item of await gated(client, contract, 4, outputs).sessions.watch())
+      read.push(item)
+    expect(read).toEqual(["read a", "read b"])
+  })
+
+  it("returns the client as it is when it reads nothing", () => {
+    expect(gated(client, contract, 4, { reader: () => undefined, skips: () => false })).toBe(client)
+  })
+})

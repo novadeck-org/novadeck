@@ -1,14 +1,19 @@
 import { z } from "zod"
 
-import { requestDialog } from "./dialogs.js"
+import { requestDialogRead } from "./dialogs.js"
 import { directory, id } from "./fields.js"
 import { agentNames } from "./harnesses.js"
+import { openEnum } from "./open.js"
 import { singleLine } from "./text.js"
 
 // Agents whose sessions Novadeck identifies and can resume once connected: Claude Code,
 // Codex and Antigravity. An agent session id is what the agent itself names its
 // session: a UUID today, kept to a plain token so a shell can run it as it is.
 export const agentName = z.enum(agentNames)
+// An agent as a runner tells of it, which a UI reads tolerantly: one of a harness a newer
+// runner integrates and this UI doesn't is `newer`, a plain agent with no harness of its
+// own here. Inputs, and whatever the runner parses, keep `agentName`.
+export const agentNameRead = openEnum(agentNames, { since: 3, unknown: "placeholder" })
 export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
 
 // How long the start of an agent's last reply runs at most, in UTF-16 code units: enough
@@ -60,7 +65,7 @@ export const limitScope = z.string().min(1).max(telemetryLimits.scope)
 // wake the agent (`background`); idle otherwise; or unknown when they have not said. `attention`
 // counts the requests waiting on the person, and names the kind of the oldest one.
 export const agentActivity = z.strictObject({
-  state: z.enum(["working", "idle", "unknown"]),
+  state: openEnum(["working", "idle", "unknown"], { since: 3, unknown: { fallback: "unknown" } }),
   // What its ended turn left running that wakes it once done: subagents, which keep it
   // working, and other tasks such as commands, which don't, as one may run for ever,
   // counted; both zero where its harness says only that something runs. While its turn
@@ -156,7 +161,10 @@ export const agentActivity = z.strictObject({
   // reply. Null while a turn runs and before the first ends.
   lastTurn: z
     .strictObject({
-      outcome: z.enum(["completed", "failed", "interrupted", "unknown"]),
+      outcome: openEnum(["completed", "failed", "interrupted", "unknown"], {
+        since: 3,
+        unknown: { fallback: "unknown" },
+      }),
       reply: turnReply.nullable(),
       at: z.number(),
       // A failed turn's error as its harness said it; null otherwise or where it gave none.
@@ -282,7 +290,7 @@ export type AgentBox = z.infer<typeof agentBox>
 // Its plans are companion items (`companionItem`).
 export const agentDetail = z.strictObject({
   terminalId: id,
-  agent: agentName.nullable(),
+  agent: agentNameRead.nullable(),
   sessionId: agentSessionId.nullable(),
   activity: agentActivity.nullable(),
   telemetry: agentTelemetry.nullable(),
@@ -305,7 +313,7 @@ export const agentDetail = z.strictObject({
         tool: z.string().max(agentLimits.name),
         subject: z.string().max(agentLimits.subject).nullable(),
         choices: z.array(z.string().max(agentLimits.name)).max(agentLimits.choices),
-        dialog: requestDialog.nullable(),
+        dialog: requestDialogRead.nullable(),
         // Whether Novadeck answered it, through `agents.answer`, and the agent has yet to
         // report it settled: nothing more is to be answered there meanwhile.
         answered: z.boolean(),
@@ -327,7 +335,7 @@ export const agentDetail = z.strictObject({
 // An agent Novadeck can connect: whether it is installed here, and whether Novadeck's
 // plugin, which reports its sessions so they can resume, is installed into it.
 export const agentIntegration = z.strictObject({
-  agent: agentName,
+  agent: agentNameRead,
   available: z.boolean(),
   connected: z.boolean(),
   // What keeps a connected agent's messaging from working whole, where something does:

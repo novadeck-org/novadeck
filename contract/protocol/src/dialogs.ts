@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { openUnion } from "./open.js"
+
 // How long each string a dialog shows may run, by the name of its field (a form field's
 // `choices` are labels), and a raw dialog's text, in UTF-16 code units: what the runner
 // reads off a screen is cut to these. Ids and counts are never cut.
@@ -45,7 +47,7 @@ const dialogOption = z.strictObject({
   label: z.string().max(dialogTextLimits.label),
   text: z.enum(["field", "prompt"]).nullable(),
 })
-export const requestDialog = z.discriminatedUnion("type", [
+const dialogOptions = [
   z.strictObject({
     type: z.literal("choices"),
     id: z.string().max(64),
@@ -101,7 +103,15 @@ export const requestDialog = z.discriminatedUnion("type", [
     text: z.string().max(maxRawDialogText),
     reason: z.enum(["unrecognized", "unsupported", "failed"]),
   }),
-])
+] as const
+export const requestDialog = z.discriminatedUnion("type", dialogOptions)
+// A dialog as a runner shows it to a UI, which reads one of a type it doesn't know as
+// `newer`: the request stays, saying to answer it in the terminal or a newer Novadeck. The
+// runner parses its adapters' reads with `requestDialog`.
+export const requestDialogRead = openUnion("type", dialogOptions, {
+  since: 3,
+  unknown: "placeholder",
+})
 
 // The person's answer to a request's dialog, naming the dialog they answered by its `id`:
 // one of its `choices` by id, with their words for an option that takes them; an answer

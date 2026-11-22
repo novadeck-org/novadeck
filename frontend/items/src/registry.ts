@@ -7,6 +7,7 @@ import { file } from "./kinds/file"
 import { folder } from "./kinds/folder"
 import { image } from "./kinds/image"
 import { model } from "./kinds/model"
+import { newer } from "./kinds/newer"
 import { page } from "./kinds/page"
 import { pdf } from "./kinds/pdf"
 import { plan } from "./kinds/plan"
@@ -29,6 +30,7 @@ export const registry = {
   changes,
   plan,
   shells,
+  newer,
 } satisfies Registry
 
 // The registration that draws `item`.

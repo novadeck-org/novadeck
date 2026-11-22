@@ -12,7 +12,8 @@ export type ClosedTerminalState =
   | { readonly state: "ready" }
   | { readonly state: "restoring" }
   | { readonly state: "gone"; readonly reason: "conversation" | "folder" }
-  | { readonly state: "disconnected"; readonly agent: AgentName }
+  // `newer`: an agent of a harness a newer Novadeck integrates that this one doesn't know.
+  | { readonly state: "disconnected"; readonly agent: AgentName | "newer" }
   | { readonly state: "open"; readonly handle: string; readonly terminalId: string }
 
 export type ClosedTerminal = {

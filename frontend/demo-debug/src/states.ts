@@ -416,6 +416,7 @@ const gallery: readonly {
   { name: "Agent exited", state: (key) => agentRanHere(key) },
   { name: "Starting", state: (key) => starting(key) },
   { name: "Asleep", state: (key, harness) => sleeping(key, harness) },
+  { name: "Asleep, newer agent", state: (key) => sleeping(key, "newer") },
   {
     name: "Asleep, done",
     state: (key, harness) => sleeping(key, harness, true, Date.now() - doneAgoMs),
@@ -676,6 +677,11 @@ export const createDemoStates = (
           "Asleep",
           "The agent has a saved session and no process",
           (key, { dispatch, harness }) => dispatch(hold(key, sleeping(key, harness))),
+        ),
+        setting(
+          "Asleep, a newer Novadeck's agent",
+          "The agent belongs to a harness only a newer Novadeck knows: its tab shows it asleep and this build never wakes it, whoever looks",
+          (key, { dispatch }) => dispatch(hold(key, sleeping(key, "newer"))),
         ),
         setting("Waking", "Its agent is on the way back", (key, { dispatch, harness }) =>
           dispatch(waking(key, harness)),

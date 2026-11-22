@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { openEnum } from "./open.js"
 import { singleLine } from "./text.js"
 
 // Forges: where a repository's pull requests live (GitHub, GitLab, Azure DevOps), read with
@@ -10,6 +11,12 @@ import { singleLine } from "./text.js"
 export const forgeLimits = { title: 512, url: 2048, host: 253, hosts: 32 } as const
 
 export const forgeName = z.enum(["github", "gitlab", "azure"])
+// A forge as a runner lists it, which a UI reads as `newer` where it doesn't know it: listed as
+// needing a newer Novadeck, its switch left alone. `forges.set` takes `forgeName`.
+export const forgeNameRead = openEnum(["github", "gitlab", "azure"], {
+  since: 3,
+  unknown: "placeholder",
+})
 
 const command = z
   .string()
@@ -47,7 +54,7 @@ export const forgeHost = z.strictObject({
 // host, as github.com, where no repository is on one yet). Hosts are looked at only while
 // the forge is switched on and its tool is installed; otherwise the list is empty.
 export const forgeIntegration = z.strictObject({
-  forge: forgeName,
+  forge: forgeNameRead,
   available: z.boolean(),
   enabled: z.boolean(),
   installer: command.optional(),

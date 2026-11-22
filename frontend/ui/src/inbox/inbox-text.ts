@@ -9,9 +9,11 @@ import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 const minute = 60_000
 const hour = 60 * minute
 
-// The harness as a short word in a sentence.
-export const agentName = (agent: AgentName): string =>
-  harnesses.find((each) => each.id === agent)?.shortName ?? agent
+// The harness as a short word in a sentence; one a newer Novadeck integrates, as what it is.
+export const agentName = (agent: AgentName | "newer"): string =>
+  agent === "newer"
+    ? "the agent"
+    : (harnesses.find((each) => each.id === agent)?.shortName ?? agent)
 
 // How long ago, as a row's right edge says it: "now", "7m", "1h 12m", "2d".
 export const waitLabel = (at: number, now: number): string => {

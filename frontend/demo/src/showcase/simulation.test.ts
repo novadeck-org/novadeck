@@ -149,12 +149,21 @@ describe("showcase agents", () => {
     expect(contentOf(itemIdOf("nothing"))).toMatchObject({ reason: "gone" })
   })
 
-  it("show one of each reason something can't show", () => {
+  it("show each reason something can't show, a newer Novadeck's twice (a kind and a content)", () => {
     const reasons = devServerArtifacts.flatMap(({ content }) =>
       content.state === "unavailable" ? [content.reason] : [],
     )
     expect(reasons.toSorted()).toEqual(
-      ["binary", "gone", "missing", "not-a-file", "too-large", "unreadable"].toSorted(),
+      [
+        "binary",
+        "gone",
+        "missing",
+        "newer",
+        "newer",
+        "not-a-file",
+        "too-large",
+        "unreadable",
+      ].toSorted(),
     )
   })
 

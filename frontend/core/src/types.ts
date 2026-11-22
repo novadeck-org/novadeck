@@ -210,9 +210,10 @@ export type TerminalStatus =
   // A saved agent session with no process: the runner starts it again when someone needs it.
   // `reported`: its agent's `done` still stands. `endedAt`: when its agent's last turn ended,
   // where the runner kept it, so its tab can say how long ago.
+  // `newer`: an agent of a harness a newer Novadeck integrates, which this one never wakes.
   | {
       readonly state: "sleeping"
-      readonly agent: AgentName
+      readonly agent: AgentName | "newer"
       readonly reported?: true
       readonly endedAt?: number
     }

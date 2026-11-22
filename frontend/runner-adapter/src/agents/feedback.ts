@@ -1,5 +1,5 @@
 import type { AgentFeedbackDraft, Feedback, FeedbackDrafts } from "@novadeck/core/feedback"
-import type { FeedbackDraft } from "@novadeck/protocol"
+import { newer, type FeedbackDraft, type Sent } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
 
 // The runner's side of feedback: the app's sender (the footer card's) with the runner's
@@ -7,7 +7,7 @@ import { hasCode, type Runner } from "@novadeck/runner-client"
 // follows the drafts the agents write, to be sent through the app's `send` and then settled.
 // Both exist only where the app can send, so an agent is asked only when its draft could go.
 
-const draftOf = (entry: FeedbackDraft): AgentFeedbackDraft => ({
+const draftOf = (entry: Sent<FeedbackDraft>): AgentFeedbackDraft => ({
   id: entry.id,
   terminal: {
     projectId: entry.projectId,
@@ -44,7 +44,12 @@ const followDrafts = (
       try {
         for await (const entries of next) {
           if (stream !== next) return
-          publish(entries.map(draftOf))
+          // A draft a newer Novadeck's agent wrote waits on the runner for a Novadeck that knows it.
+          publish(
+            entries.flatMap((entry) =>
+              entry.agent === newer ? [] : [draftOf({ ...entry, agent: entry.agent })],
+            ),
+          )
         }
       } catch {
         // The client opens the stream again after a reconnection; one closed for good just

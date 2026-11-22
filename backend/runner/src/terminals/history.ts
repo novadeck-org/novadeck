@@ -958,7 +958,9 @@ const refusal = (state: ClosedTerminalState): string => {
         ? "The folder that conversation ran in is gone."
         : "That conversation is gone."
     case "disconnected":
-      return `Novadeck isn't connected to ${agentLabel(state.agent)}, so it can't resume its conversations.`
+      return isAgentName(state.agent)
+        ? `Novadeck isn't connected to ${agentLabel(state.agent)}, so it can't resume its conversations.`
+        : "Novadeck isn't connected to that agent, so it can't resume its conversations."
     case "open":
       return `That conversation is open in ${mention(state.handle)}.`
     case "ready":

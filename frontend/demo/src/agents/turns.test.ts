@@ -49,7 +49,8 @@ const open = (variant: DemoVariant = "agents") => {
     text?: string,
   ) => {
     const dialog = requests(at).find((each) => each.id === request)!.dialog!
-    if (dialog.type === "raw" || dialog.type === "form") throw new Error("Not answerable here")
+    if (dialog.type === "raw" || dialog.type === "form" || dialog.type === "newer")
+      throw new Error("Not answerable here")
     const answering = chat.answer(
       at,
       request,

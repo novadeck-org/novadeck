@@ -95,13 +95,15 @@ export type ChatItem = {
   readonly thinking?: true | undefined
   // On a `note` item, what its harness recorded between turns: the mode it says it's in, each
   // time it says so, a plan approved, or a compaction, whose summary is the item's text; or a
-  // gap, a part of the record the backend can't read, the line as written its text, if any.
+  // gap, a part of the record the backend can't read, the line as written its text, if any;
+  // or a part a newer Novadeck's runner tells of that this one doesn't know, its text, if any.
   readonly note?:
     | { readonly type: "mode"; readonly mode: string }
     | { readonly type: "plan-approved" }
     | { readonly type: "compaction" }
     | { readonly type: "gap" }
     | { readonly type: "notice" }
+    | { readonly type: "newer" }
     | undefined
   // On a user item, the images the prompt carried, in the order of their `[Image #N]`
   // placeholders in its words; absent where it had none or its record doesn't hold them.
@@ -177,6 +179,9 @@ export type ChatDialog =
       readonly text: string
       readonly reason: "unrecognized" | "unsupported" | "failed"
     }
+  // A dialog a newer Novadeck's runner shows that this one doesn't know: answered in the
+  // terminal, or in a newer Novadeck, never here.
+  | { readonly type: "newer" }
 
 // The person's answer to a dialog: an option by id, with their words where it takes them;
 // an answer per question, by ids, with the options picked and/or their own words; or a

@@ -1113,6 +1113,17 @@ const Raw = ({
   </div>
 )
 
+// A dialog a newer Novadeck's runner shows that this one doesn't know: said as such, with the
+// terminal's own rows where they are here, and nothing to answer it with.
+const Newer = ({ live }: { readonly live: Live | undefined }): React.JSX.Element => (
+  <div className="request-dialog">
+    <p className="request-raw-reason">
+      Update Novadeck to answer this here, or answer it in the terminal.
+    </p>
+    {live?.rows}
+  </div>
+)
+
 // The dialog's controls: a menu for choices, tabbed pages for questions, a line per field for a
 // form, the terminal's own rows or the dialog's text for one the chat can't answer.
 export const RequestDialog = ({
@@ -1140,6 +1151,8 @@ export const RequestDialog = ({
     <Questions dialog={dialog} replying={replying} onReply={onReply} {...controls} />
   ) : dialog.type === "form" ? (
     <Form dialog={dialog} {...controls} />
+  ) : dialog.type === "newer" ? (
+    <Newer live={live} />
   ) : (
     <Raw dialog={dialog} live={live} diagnostics={diagnostics} />
   )

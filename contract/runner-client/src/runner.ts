@@ -2,6 +2,7 @@ import {
   contract,
   maxUploadBytes,
   maxUploadPartLength,
+  answerReaders,
   maxVoicePartLength,
   compatibility,
   type AgentDetail,
@@ -862,6 +863,9 @@ export const connectRunner = async (
     transport,
     revision: compatibility.revision,
     oldestServer: compatibility.oldestRunner,
+    // A newer runner's values and variants this build doesn't know, read as its open
+    // schemas say: kept as placeholders, read as a catch-all, or left out.
+    outputs: answerReaders,
     fatal: (code) => code === "WORKSPACE_TOO_NEW",
   })
   let revision = connection.session().revision

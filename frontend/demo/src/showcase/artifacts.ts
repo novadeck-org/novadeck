@@ -715,6 +715,13 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
     cannot("too-large", 14_680_064),
   ),
   unavailable("dev-archive", { name: "studio.zip" }, cannot("binary", 2_310_144)),
+  // Of a kind a newer Novadeck's runner shows, and a file whose content is of one.
+  unavailable(
+    "dev-timeline",
+    { kind: "newer", name: "Timeline", detail: "A kind this build doesn't know" },
+    cannot("newer"),
+  ),
+  unavailable("dev-scene", { name: "scene.usdz" }, cannot("newer")),
   unavailable(
     "dev-env",
     { name: ".env.local", secret: true },

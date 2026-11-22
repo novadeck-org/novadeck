@@ -60,7 +60,8 @@ export const planItemOf = (
   if (entry.kind !== "request" || entry.request.kind !== "plan") return none
   const { terminalId, agent } = entry.source
   const role = entry.request.subagent ? "subagent" : "root"
-  const since = entry.at - planLeadMs[agent]
+  // A newer Novadeck's agent writes its plan no earlier than it asks, as far as this one knows.
+  const since = entry.at - (agent === "newer" ? 0 : planLeadMs[agent])
   const found = items
     .filter(
       (item) =>

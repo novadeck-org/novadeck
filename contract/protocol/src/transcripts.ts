@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { agentRef } from "./agents.js"
+import { openEnum, openUnion } from "./open.js"
 
 // How long an item's text runs at most, and a tool's or an author's name, in UTF-16 code
 // units, and how many items one change carries.
@@ -18,7 +19,11 @@ export const outcomeLimits = { lines: 40, lineText: 512 } as const
 // What a tool call was, as its harness's decoder says: the chat's one line for it. Both
 // strings are bounded as the item's own text is, since they are derived from it.
 export const toolRun = z.strictObject({
-  kind: z.enum(["run", "read", "write", "search", "web", "agent", "plan", "other"]),
+  // A kind a newer runner tells of that a UI doesn't know reads as `other`.
+  kind: openEnum(["run", "read", "write", "search", "web", "agent", "plan", "other"], {
+    since: 3,
+    unknown: { fallback: "other" },
+  }),
   // What the tool is called to a person: "Ran", "Edited", "Messaged @fox", or an unknown
   // tool's own name.
   title: z.string().max(transcriptLimits.text),
@@ -88,13 +93,18 @@ export const toolOutcome = z.strictObject({
 // part of the conversation its decoder has never seen, the line as written its `text`, which
 // is empty where that line holds the agent's reasoning too; or a notice, one of Novadeck's own
 // that rode on a hook's output, its text the item's `text` (`@novadeck/protocol/notices` reads it).
-export const transcriptNote = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("mode"), mode: z.string().min(1).max(64) }),
-  z.strictObject({ type: z.literal("plan-approved") }),
-  z.strictObject({ type: z.literal("compaction") }),
-  z.strictObject({ type: z.literal("gap") }),
-  z.strictObject({ type: z.literal("notice") }),
-])
+// A note of a type a UI doesn't know is an annotation it leaves out, with its item.
+export const transcriptNote = openUnion(
+  "type",
+  [
+    z.strictObject({ type: z.literal("mode"), mode: z.string().min(1).max(64) }),
+    z.strictObject({ type: z.literal("plan-approved") }),
+    z.strictObject({ type: z.literal("compaction") }),
+    z.strictObject({ type: z.literal("gap") }),
+    z.strictObject({ type: z.literal("notice") }),
+  ],
+  { since: 3, unknown: "drop" },
+)
 export type TranscriptImage = z.infer<typeof transcriptImage>
 export type TranscriptImageResult = z.infer<typeof transcriptImageResult>
 export type TranscriptNote = z.infer<typeof transcriptNote>
@@ -133,8 +143,13 @@ export const transcriptItem = z
   .strictObject({
     index: z.number().int().nonnegative(),
     at: z.number().nullable(),
-    role: z.enum(["user", "assistant", "agent", "tool", "note"]),
-    kind: z.enum(["text", "tool-call", "tool-result"]),
+    // A role or kind a newer runner tells of that a UI doesn't know is `newer`: the item keeps
+    // its place in the chat, as a quiet row that needs a newer Novadeck, its text shown.
+    role: openEnum(["user", "assistant", "agent", "tool", "note"], {
+      since: 3,
+      unknown: "placeholder",
+    }),
+    kind: openEnum(["text", "tool-call", "tool-result"], { since: 3, unknown: "placeholder" }),
     text: z.string().max(transcriptLimits.text),
     truncated: z.boolean(),
     tool: z.string().max(transcriptLimits.name).nullable(),

@@ -443,6 +443,13 @@ describe("demo states", () => {
       expect(states.holds(key("05"))).toBe(false)
     })
 
+    it("holds a sleeper whose agent a newer Novadeck integrates, which this build never wakes", () => {
+      const { run, terminal, states } = panel("04")
+      run("Asleep, a newer Novadeck's agent")
+      expect(terminal("04")).toMatchObject({ state: "sleeping", agent: "newer" })
+      expect(states.holds(key("04"))).toBe(true)
+    })
+
     it("holds every sleeper the gallery sets, not the waking ones", async () => {
       const { run, added, terminal, states } = panel("04")
       await run("Every state at once")
@@ -454,6 +461,7 @@ describe("demo states", () => {
       for (const name of [
         "Asleep",
         "Asleep, done",
+        "Asleep, newer agent",
         "Asleep, asks (MCP)",
         "Asleep, reply unread",
         "Asleep, stopped with an error",
@@ -574,13 +582,13 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The sixteen that set no agent verb: four that ask through MCP (their Inbox entries are the
+      // The seventeen that set no agent verb: four that ask through MCP (their Inbox entries are the
       // demo's own), unheard, at its startup screen, program, a shell an agent opened, one an
-      // agent exited from, starting, asleep (twice more with a done report and an ask), waking
+      // agent exited from, starting, asleep (three times more with a done report, a newer agent and an ask), waking
       // (twice, one with an ask), and the three ways to end.
-      expect(released).toHaveLength(16)
+      expect(released).toHaveLength(17)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(16)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(17)
     })
 
     it("calls its verbs without letting go", () => {

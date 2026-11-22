@@ -207,7 +207,12 @@ describe("the launch demo", () => {
     const { cues, inbox, rows, agent } = open()
     cues.asks()
     for (const row of rows()) {
-      if (row.kind !== "request" || !row.request.dialog || row.request.dialog.type === "raw")
+      if (
+        row.kind !== "request" ||
+        !row.request.dialog ||
+        row.request.dialog.type === "raw" ||
+        row.request.dialog.type === "newer"
+      )
         throw new Error("a request")
       const { dialog } = row.request
       const answer =

@@ -117,6 +117,21 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Trouble entry saying two messages for the agent have waited long behind a dialog open in its idle terminal",
   },
   {
+    label: "Ask in a shape from a newer Novadeck",
+    name: "newerAsk",
+    hint: "Ask entry from an agent of a newer Novadeck: its question and words, but no answer rows",
+  },
+  {
+    label: "Dialog from a newer Novadeck",
+    name: "newerDialog",
+    hint: "Unblock entry whose dialog only a newer Novadeck reads: it says to update Novadeck to answer it here, or answer it in the terminal",
+  },
+  {
+    label: "Update from a newer Novadeck",
+    name: "newerUpdate",
+    hint: "Update entry of a kind this build doesn't know: said as such with its words, and never marked read from here: its agent may wait on it",
+  },
+  {
     label: "Done report",
     name: "done",
     hint: "Update entry with an agent's done report: its subject and a Markdown body",

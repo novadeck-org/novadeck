@@ -189,6 +189,9 @@ export type ApprovalAction =
   | { readonly type: "join"; readonly message?: string | undefined }
   | { readonly type: "leave" }
   | { readonly type: "hand" }
+  // An action a newer Novadeck's runner asks about that this one doesn't know: the person is
+  // told it needs a newer Novadeck to answer, and nothing is answered from here.
+  | { readonly type: "newer" }
 
 // An agent in terminal `from` asked for `action` on `terminalId`, so the app asks the person
 // first. It waits, with no time limit, until the person answers or the backend takes it

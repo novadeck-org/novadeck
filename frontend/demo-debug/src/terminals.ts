@@ -114,10 +114,11 @@ export const starting = (key: TerminalKey): BackendAction[] => [
 ]
 
 // An agent with its session saved and no process, resumed when someone needs it; `reported`
-// when its `done` still stands, `endedAt` when its last turn ended.
+// when its `done` still stands, `endedAt` when its last turn ended. `newer` is an agent of a
+// harness a newer Novadeck integrates, which this build never wakes.
 export const sleeping = (
   key: TerminalKey,
-  agent: AgentName,
+  agent: AgentName | "newer",
   reported = false,
   endedAt?: number,
 ): BackendAction[] => [

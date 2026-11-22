@@ -59,7 +59,8 @@ const plainRow = (title: string, folder: string, ago: number, program = "pnpm"):
 
 // The storefront's rows, newest first: what closed today, on earlier days, and each state a
 // row can be in. The conversation and the folder it ran in are gone for two; Codex and
-// Antigravity are not connected here, which the demo's Preferences can change for Codex;
+// Antigravity are not connected here, which the demo's Preferences can change for Codex, and
+// one's agent is of a harness a newer Novadeck knows;
 // @fox's conversation is open in a terminal of the session.
 const storefront: readonly Sample[] = [
   agentRow(
@@ -104,6 +105,20 @@ const storefront: readonly Sample[] = [
     day + 8 * 60 * minute,
     { state: "disconnected", agent: "codex" },
   ),
+  // An agent of a harness a newer Novadeck integrates: no icon this build knows, and no way to
+  // restore it here.
+  {
+    ...agentRow(
+      "claude",
+      "Gift cards",
+      "mink",
+      "Gift card balances at checkout",
+      day + 9 * 60 * minute,
+      { state: "disconnected", agent: "newer" },
+    ),
+    agent: null,
+    program: "newer-agent",
+  },
   agentRow(
     "claude",
     "Payment retries",

@@ -59,6 +59,8 @@ export const createDemoApprovals = (
   readonly askToLeave: (from: TerminalKey, terminal: TerminalKey) => void
   // Makes `from` ask to hand its team to `terminal`, which it leads.
   readonly askToHand: (from: TerminalKey, terminal: TerminalKey) => void
+  // Makes `from` ask for an action a newer Novadeck's runner knows and this build doesn't.
+  readonly askForNewer: (from: TerminalKey, terminal: TerminalKey) => void
   // The person ends `terminal`'s lead.
   readonly release: (terminal: TerminalKey) => void
   // Takes back every approval waiting, as the runner does when the terminals closed.
@@ -94,6 +96,8 @@ export const createDemoApprovals = (
         if (action.type === "run") return
         // The demo has no worktrees: the answer only goes away.
         if (action.type === "take") return
+        // An action this build doesn't know: nothing to carry out.
+        if (action.type === "newer") return
         // Teams: the demo's `ledBy` is the whole of it. A hand-over moves only the asker.
         if (action.type === "join" || action.type === "hand")
           return void dispatch()?.([
@@ -145,6 +149,7 @@ export const createDemoApprovals = (
     askToJoin: (from, terminal, message) => queue(from, terminal, { type: "join", message }),
     askToLeave: (from, terminal) => queue(from, terminal, { type: "leave" }),
     askToHand: (from, terminal) => queue(from, terminal, { type: "hand" }),
+    askForNewer: (from, terminal) => queue(from, terminal, { type: "newer" }),
     release: (terminal) =>
       dispatch()?.([
         {
@@ -251,6 +256,17 @@ export const approvalGroups = (
           const key = selected()
           if (!key) return note("Select a terminal first.")
           controls.askToRun(key, demoCommand, "~/projects/billing")
+        },
+      },
+      {
+        label: "Ask for something newer",
+        hint: "Modal: another terminal's agent asks for something only a newer Novadeck can show; it says so and offers only Not now, which sets it aside unanswered",
+        run: ({ selected, note }) => {
+          const key = selected()
+          if (!key) return note("Select a terminal first.")
+          const [asker] = othersOf(workspace(), key)
+          if (!asker) return note("Add a second terminal first.")
+          controls.askForNewer({ ...key, terminalId: asker.id }, key)
         },
       },
       {

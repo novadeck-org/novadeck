@@ -314,6 +314,8 @@ const dialogLines = (
       ...dialog.fields.flatMap((field) => wrap([span(`· ${field.label}`, "muted")], width)),
       ...hint("Answer this form from the chat, or type to go on.", width),
     ]
+  if (dialog.type === "newer")
+    return hint("This needs a newer Novadeck: answer it in the agent, or type to go on.", width)
   return [
     ...wrap([span(dialog.text.split("\n").slice(0, 12).join("\n"))], width),
     ...hint("The agent's own dialog: answer it in the agent, or type to go on.", width),

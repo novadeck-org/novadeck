@@ -66,7 +66,8 @@ const dialogOf = async (
 }
 
 /** The id of the dialog an answer names. */
-const idOf = ({ dialog }: { dialog: Dialog }): string => (dialog.type === "raw" ? "raw" : dialog.id)
+const idOf = ({ dialog }: { dialog: Dialog }): string =>
+  dialog.type === "raw" || dialog.type === "newer" ? dialog.type : dialog.id
 
 /** The dialog of `type`, or a failure showing what it was instead. */
 const choices = ({ dialog }: { dialog: Dialog }): Choices => {

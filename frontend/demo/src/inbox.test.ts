@@ -47,13 +47,13 @@ describe("the demo Inbox's entries", () => {
       new Set(["request", "held", "ask", "trouble", "update"]),
     )
     const shapes = entries.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
-    expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
+    expect(new Set(shapes)).toEqual(new Set(["options", "action", "text", "newer"]))
     const troubles = entries.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
     expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed", "waits"]))
     const requests = entries.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
     expect(new Set(requests)).toEqual(new Set(["permission", "question", "plan"]))
     const updates = entries.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
-    expect(new Set(updates)).toEqual(new Set(["done", "told"]))
+    expect(new Set(updates)).toEqual(new Set(["done", "told", "newer"]))
   })
 
   it("presents an ask whose answer is an action as an unblock, and a question as an ask", () => {

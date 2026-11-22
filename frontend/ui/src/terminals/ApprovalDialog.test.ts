@@ -39,13 +39,14 @@ const bar = () => dialog()?.querySelector(".modal-subject")?.textContent
 
 const show = (approval: ApprovalView | null) => {
   const onAnswer = vi.fn<(requestId: string, approved: boolean) => void>()
-  const page = render(createElement(ApprovalDialog, { approval, onAnswer }))
+  const onSetAside = vi.fn<(requestId: string) => void>()
+  const page = render(createElement(ApprovalDialog, { approval, onAnswer, onSetAside }))
   mounted.push(page)
   const button = (name: string) =>
     [...(dialog()?.querySelectorAll("button") ?? [])].find((item) => item.textContent === name)!
   const showNext = (next: ApprovalView | null) =>
-    page.rerender(createElement(ApprovalDialog, { approval: next, onAnswer }))
-  return { button, onAnswer, showNext }
+    page.rerender(createElement(ApprovalDialog, { approval: next, onAnswer, onSetAside }))
+  return { button, onAnswer, onSetAside, showNext }
 }
 
 describe("approval dialog", () => {
@@ -433,6 +434,21 @@ describe("approval dialog", () => {
         expect(onAnswer).toHaveBeenCalledWith(`approval-${action.type}`, false)
         mounted.splice(0).forEach((page) => page.unmount())
       }
+    })
+  })
+
+  context("when a newer Novadeck's agent asks for an action this one doesn't know", () => {
+    it("says it needs a newer Novadeck, offers no answer, and only puts it aside", async () => {
+      const { button, onAnswer, onSetAside } = show(view({ action: { type: "newer" } }))
+      await armed()
+      expect(dialog()?.textContent).toContain("asks for something this Novadeck can't show")
+      expect(dialog()?.textContent).toContain("Update Novadeck to answer it.")
+      expect(
+        [...(dialog()?.querySelectorAll("button") ?? [])].map((each) => each.textContent),
+      ).toEqual(["Not now"])
+      act(() => button("Not now").click())
+      expect(onSetAside).toHaveBeenCalledWith("approval-1")
+      expect(onAnswer).not.toHaveBeenCalled()
     })
   })
 

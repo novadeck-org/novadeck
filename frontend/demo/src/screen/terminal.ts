@@ -260,7 +260,7 @@ export const createDemoTerminalScreen = ({
     const failed = failing(request?.id)
     const dialog = request?.dialog
     // What the screen can't answer stands aside for a prompt, which moves the agent on.
-    if (!request || dialog?.type === "form" || dialog?.type === "raw") {
+    if (!request || dialog?.type === "form" || dialog?.type === "raw" || dialog?.type === "newer") {
       agent.conversations.send(key, text.trim()).catch(failed)
       return
     }

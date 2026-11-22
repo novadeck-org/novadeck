@@ -51,13 +51,16 @@ export type WrittenEntry = {
   readonly terminalId: string
   readonly projectId: string
   readonly workspaceSessionId: string
-  readonly agent: AgentName
+  // `newer` for an agent of a harness a newer Novadeck integrates that this one doesn't know.
+  readonly agent: AgentName | "newer"
   readonly handle: string
   readonly at: number
   readonly content:
     | { readonly kind: "ask"; readonly ask: AgentAsk }
     | { readonly kind: "tell"; readonly subject: string; readonly body: string }
     | { readonly kind: "done"; readonly subject: string; readonly body: string }
+    // An entry of a kind a newer Novadeck lists that this one doesn't know.
+    | { readonly kind: "newer" }
   // Only on an entry that is no longer open.
   readonly settled?: Settled | undefined
 }
@@ -90,14 +93,17 @@ const whereOf = (workspace: Workspace): Where[] =>
   )
 
 // The agent a terminal has, running or asleep with its session saved.
-const agentOf = (terminal: TerminalMetadata): AgentName | null =>
+const agentOf = (terminal: TerminalMetadata): AgentName | "newer" | null =>
   terminal.state === "sleeping"
     ? terminal.agent
     : terminal.state === "running" && isAgentProgram(terminal.process)
       ? (terminal.process as AgentName)
       : null
 
-const sourceOf = ({ project, session, terminal }: Where, agent: AgentName): InboxSource => ({
+const sourceOf = (
+  { project, session, terminal }: Where,
+  agent: AgentName | "newer",
+): InboxSource => ({
   projectId: project.id,
   workspaceSessionId: session.id,
   terminalId: terminal.id,
@@ -274,7 +280,11 @@ export const inboxEntries = (inputs: InboxInputs): InboxEntry[] => {
         session.id === entry.workspaceSessionId &&
         terminal.id === entry.terminalId &&
         (terminal.handle ?? "") === entry.handle &&
-        (entry.content.kind !== "ask" || entry.settled || agentOf(terminal) === entry.agent),
+        // A newer Novadeck's agent can't be told apart here: its ask stays, rather than going.
+        (entry.content.kind !== "ask" ||
+          entry.settled ||
+          entry.agent === "newer" ||
+          agentOf(terminal) === entry.agent),
     )
     // A resolved entry outlives its terminal: it keeps its project, and says whose it was.
     const project = inputs.workspace.projects.find(({ id }) => id === entry.projectId)
@@ -283,14 +293,23 @@ export const inboxEntries = (inputs: InboxInputs): InboxEntry[] => {
     const content: InboxContent =
       entryContent.kind === "ask"
         ? { kind: "ask", ask: entryContent.ask }
-        : {
-            kind: "update",
-            update: {
-              type: entryContent.kind === "done" ? "done" : "told",
-              subject: entryContent.subject,
-              body: entryContent.body,
-            },
-          }
+        : entryContent.kind === "newer"
+          ? {
+              kind: "update",
+              update: {
+                type: "newer",
+                subject: "Something this Novadeck can't show",
+                body: `@${entry.handle} left an entry that needs a newer Novadeck. Update Novadeck to read it here.`,
+              },
+            }
+          : {
+              kind: "update",
+              update: {
+                type: entryContent.kind === "done" ? "done" : "told",
+                subject: entryContent.subject,
+                body: entryContent.body,
+              },
+            }
     all.push({
       id: entry.id,
       source: here

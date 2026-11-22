@@ -162,6 +162,28 @@ describe("the debug panel's Inbox group", () => {
     })
   })
 
+  it("adds what a newer Novadeck sends that this build can't show", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Ask in a shape from a newer Novadeck")
+    run(inbox, "Dialog from a newer Novadeck")
+    run(inbox, "Update from a newer Novadeck")
+    const entries = inbox.state.getSnapshot().items
+    expect(entries.find((entry) => entry.id === demoInboxIds.newerAsk)).toMatchObject({
+      kind: "ask",
+      source: { agent: "newer" },
+      ask: { shape: { type: "newer" } },
+    })
+    expect(entries.find((entry) => entry.id === demoInboxIds.newerDialog)).toMatchObject({
+      kind: "request",
+      request: { dialog: { type: "newer" } },
+    })
+    expect(entries.find((entry) => entry.id === demoInboxIds.newerUpdate)).toMatchObject({
+      kind: "update",
+      source: { agent: "newer" },
+      update: { type: "newer" },
+    })
+  })
+
   it("makes the next answer fail", () => {
     const inbox = createDemoInbox(1)
     run(inbox, "Fail the next answer")

@@ -65,6 +65,10 @@ const short = (terminal: Party): string =>
   terminal.handle ? handleText(terminal.handle) : `“${clipped(terminal.name, 40)}”`
 
 const titleOf = ({ action, asker, target }: ApprovalView): string => {
+  if (action.type === "newer")
+    return asker
+      ? `${short(asker)} asks for something this Novadeck can't show`
+      : "An agent asks for something this Novadeck can't show"
   if (action.type === "run") return "Run this in a new terminal?"
   if (action.type === "take")
     return asker && target
@@ -177,6 +181,8 @@ const CommandView = ({
 
 // The words under the title: none for a command, whose body says it.
 const descriptionOf = ({ action, target }: ApprovalView): string | null => {
+  if (action.type === "newer")
+    return "Update Novadeck to answer it. Until then, it waits: nothing is answered from here."
   if (action.type === "run") return null
   if (action.type === "take")
     return `It would own the worktree on branch “${clipped(action.branch, 60)}” from now on, and ${target ? short(target) : "its agent"} is told.`
@@ -245,6 +251,8 @@ type ApprovalDialogProps = {
   readonly approval: ApprovalView | null
   // `approved` when the person agreed; false when they declined.
   readonly onAnswer: (requestId: string, approved: boolean) => void
+  // Puts aside an approval this build can't answer (a newer Novadeck's action), unanswered.
+  readonly onSetAside: (requestId: string) => void
 }
 
 // Asks before an agent does something the person should allow: closing a terminal that runs
@@ -252,7 +260,11 @@ type ApprovalDialogProps = {
 // running a command in a new terminal, or taking another terminal's git worktree, or joining
 // another agent's team, leaving its own, or handing its team to one of its members.
 // Declining is focused first; Escape and a click outside decline too.
-export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): React.JSX.Element => {
+export const ApprovalDialog = ({
+  approval,
+  onAnswer,
+  onSetAside,
+}: ApprovalDialogProps): React.JSX.Element => {
   // Each approval gets its own dialog: one answered while the next waits would otherwise
   // count the next one's Escape as a confirmation.
   const [generation, setGeneration] = useState({ id: "", count: 0 })
@@ -264,6 +276,8 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
   const join = approval?.action.type === "join"
   const leave = approval?.action.type === "leave"
   const hand = approval?.action.type === "hand"
+  // An action a newer Novadeck asks about: told, never answered, only put aside.
+  const newer = approval?.action.type === "newer"
   // The request whose command has been seen to its end.
   const [seen, setSeen] = useState("")
   return (
@@ -281,33 +295,39 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
       armMs={armMs}
       armKey={approval?.requestId ?? ""}
       confirmLabel={
-        run
-          ? "Run command"
-          : lead
-            ? "Let it lead"
-            : take
-              ? "Allow"
-              : join
-                ? "Let it join"
-                : leave
-                  ? "Let it leave"
-                  : hand
-                    ? "Hand over"
-                    : "Close terminal"
+        newer
+          ? undefined
+          : run
+            ? "Run command"
+            : lead
+              ? "Let it lead"
+              : take
+                ? "Allow"
+                : join
+                  ? "Let it join"
+                  : leave
+                    ? "Let it leave"
+                    : hand
+                      ? "Hand over"
+                      : "Close terminal"
       }
       cancelLabel={
-        run
-          ? "Don't run"
-          : lead || join || hand
-            ? "Decline"
-            : take
-              ? "Deny"
-              : leave
-                ? "Keep it"
-                : "Keep open"
+        newer
+          ? "Not now"
+          : run
+            ? "Don't run"
+            : lead || join || hand
+              ? "Decline"
+              : take
+                ? "Deny"
+                : leave
+                  ? "Keep it"
+                  : "Keep open"
       }
       onConfirm={() => approval && onAnswer(approval.requestId, true)}
-      onCancel={() => approval && onAnswer(approval.requestId, false)}
+      onCancel={() =>
+        approval && (newer ? onSetAside(approval.requestId) : onAnswer(approval.requestId, false))
+      }
       widthClassName={
         lead || run || take || join || leave || hand
           ? "w-[min(480px,calc(100vw-32px))]"

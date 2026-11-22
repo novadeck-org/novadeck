@@ -610,7 +610,8 @@ What each side tolerates:
   unread. What can trip it is what its types say: a field gone or now optional, another type,
   or a value of an enum or a union's variant it doesn't know. Where it parses an answer or an
   error's data at all, it does so with `readTolerantly` (`@novadeck/wire`), which drops the
-  keys a newer runner added; never with a schema's own `safeParse`.
+  keys a newer runner added; never with a schema's own `safeParse`. A value or variant it
+  doesn't know, in a schema marked open, it reads as that schema says (see "Open schemas").
 - **Strict stays** for the runner's own outputs (checked against the contract, so
   `contract.json` is what it sends), every declared field's values, unions told apart only by
   their keys, and agents' tool arguments.
@@ -622,12 +623,46 @@ How each kind of change ships:
 | New optional input field                                  | fine                   | the runner drops it    | add it; it must be harmless to ignore, or it's a new procedure                                                                                                             |
 | New output field                                          | ignored                | missing                | `.optional()`, or raise `oldestRunner`                                                                                                                                     |
 | New procedure                                             | never called           | missing                | `.meta({ since: <revision> })`, and the UI asks `runner.supports(path)` first (a call to it rejects with `UNSUPPORTED` without asking the runner); or raise `oldestRunner` |
-| New value or variant in an output                         | unknown to it          | fine                   | raise `oldestClient`                                                                                                                                                       |
+| New value or variant in an output                         | unknown to it          | fine                   | add it to an open schema, once every UI in the window reads it so; or mark the schema open (as of the next revision) and raise `oldestClient`                              |
 | New value, or a looser bound, in an input                 | fine                   | refused                | gate it on the runner's revision with a new procedure, or raise `oldestRunner`                                                                                             |
 | Removed or renamed procedure or field, new required input | broken                 | —                      | raise `oldestClient`; better, stage it: add the new one, move the UI to it, and remove the old one once the window has passed it                                           |
 
 Raising an edge past the newest release's revision is how a change that can't be additive
 is declared: the handshake then refuses that release's peers, with the message above.
+
+#### Open schemas
+
+An output's enum or discriminated union that grows often is marked open
+(`openEnum`, `openUnion` in `contract/protocol/src/open.ts`): `x-open: { since, unknown }`, in
+zod's meta and in `contract.json`. From revision `since`, UIs read a value or variant of it they
+don't know as `unknown` says, chosen by what losing it would cost:
+
+- `drop`, for what nobody waits on and nothing visible is lost: the list element or stream item
+  that holds it is left out (a transcript note, a part of a doorbell row).
+- `{ fallback }`, the catch-all the enum already has: a state reads `unknown`, a tool run's
+  kind `other`, a folder entry's kind `other`.
+- `placeholder`, for what someone waits on or sees: the value reads `newer`, or the variant
+  `{ <tag>: "newer" }`, which only the reader writes. The element keeps its place and says it
+  needs a newer Novadeck, and is never answered from here: an approval offers only "Not now",
+  a request and an Inbox ask offer no answer, an Inbox entry of an unknown kind is never marked
+  read, a companion item keeps its tab, a transcript item stays as a quiet row with its text,
+  and an agent of a harness this build doesn't know is a plain agent that is never woken here.
+
+`newer` widens the output's TS type, so every switch over it handles it. Inputs, and whatever
+the runner parses (agents' tool arguments, its adapters' reads, its own stored entries), keep
+the closed schema: `agentName` beside `agentNameRead`, `requestDialog` beside
+`requestDialogRead`, `inboxContent` beside the open entry; a test checks no input holds
+`newer`. The runner types its own records as `Sent<T>`, without the placeholders.
+
+The client reads through the open parts at the edge (`answerReaders`, given to the wire's client
+as `outputs`): each procedure's reader is made once from its output schema, and a procedure
+with none, as `terminals.attach`, is read as it comes, at no cost. The watch streams' own change
+types stay closed: a new change type carries new meaning, and a client that drops it would hold
+a wrong state until the next reset.
+
+The check lets a new value or variant into an open schema when the mark's `since` is at most
+`oldestClient`, so every UI in the window reads it tolerantly; a released mark only stays as it
+was, and a new one names a revision after the release's.
 
 `contract/protocol/contract.json` holds the contract as this build has it: the window, and
 each procedure's input and output (or stream items) as JSON Schema, with each error's data. The

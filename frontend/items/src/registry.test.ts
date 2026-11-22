@@ -46,6 +46,8 @@ const oldStackNames: Record<StackKind, { one: string; many: string }> = {
   page: { one: "page", many: "Pages" },
   changes: { one: "change", many: "Changes" },
   shells: { one: "shells", many: "Shells" },
+  // A kind a newer Novadeck shows, which the switches never had.
+  newer: { one: "item", many: "Items" },
 }
 
 describe("the registry", () => {
@@ -63,6 +65,7 @@ describe("the registry", () => {
         changes: true,
         plan: true,
         shells: true,
+        newer: true,
       }
       expect(Object.keys(registry).toSorted()).toEqual(Object.keys(kinds).toSorted())
       for (const [key, registration] of Object.entries(registry))

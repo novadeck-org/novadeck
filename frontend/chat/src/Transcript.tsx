@@ -572,7 +572,11 @@ const BlockView = memo(
         return (
           <RecordLine
             kind="gap"
-            words="part of the record the chat can't read"
+            words={
+              block.newer
+                ? "part of the conversation that needs a newer Novadeck"
+                : "part of the record the chat can't read"
+            }
             said={null}
             body={block.raw}
             truncated={block.truncated}

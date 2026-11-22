@@ -266,6 +266,8 @@ export const answerEntry = (
   }
   if (entry.kind === "update" && given.kind === "update") {
     tracker.forgive(id)
+    // A newer Novadeck's entry is never marked read from here: its agent may wait on it.
+    if (entry.update.type === "newer") return
     return actions.read([id])
   }
   if (entry.kind === "trouble" && given.kind === "trouble") {

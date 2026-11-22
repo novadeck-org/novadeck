@@ -1,5 +1,6 @@
 import type { InboxEntry, InboxType } from "@novadeck/core/inbox"
 import {
+  CircleDashed,
   ClipboardList,
   Flag,
   Gauge,
@@ -34,6 +35,7 @@ export type IconKey =
   | "stuck"
   | "done"
   | "told"
+  | "newer"
 
 export const icons: Readonly<Record<IconKey, LucideIcon>> = {
   permission: ShieldQuestionMark,
@@ -48,6 +50,7 @@ export const icons: Readonly<Record<IconKey, LucideIcon>> = {
   stuck: Repeat2,
   done: Flag,
   told: MessageSquareText,
+  newer: CircleDashed,
 }
 
 // The kind of an entry, for its icon: a harness's dialog by what it asks (a permission, a plan, a
@@ -88,7 +91,11 @@ export const tintOf = (entry: InboxEntry): Tint => {
     case "trouble":
       return entry.trouble.type === "limit" || entry.trouble.type === "waits" ? "note" : "danger"
     case "update":
-      return entry.update.type === "done" ? "success" : "ink"
+      return entry.update.type === "done"
+        ? "success"
+        : entry.update.type === "newer"
+          ? "note"
+          : "ink"
   }
 }
 

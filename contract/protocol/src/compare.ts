@@ -72,6 +72,7 @@ const understood = new Set([
   "required",
   "type",
   "x-optional",
+  "x-open",
   "x-zod",
 ])
 
@@ -178,12 +179,30 @@ type Reader = "validates" | "trusts"
  * that reads them drops or ignores them. When it can't tell, it says so, as a problem: never
  * a pass.
  */
+/**
+ * How an older UI reads the open schemas (`x-open`, open.ts) of the release it is from: a new
+ * value or variant in one passes once every UI in the window reads it so (its `since` is at
+ * most `oldestClient`), and a mark only stays as it was released.
+ */
+type Marks = { readonly oldestClient: number; readonly released: number }
+
+type Mark = { readonly since?: unknown }
+
+const markOf = (schema: Schema): Mark | undefined =>
+  isSchema(schema["x-open"]) ? (schema["x-open"] as Mark) : undefined
+
 const covers = (
   wideRoot: Schema,
   narrowRoot: Schema,
   reader: Reader,
+  marks?: Marks,
 ): ((wide: Schema, narrow: Schema, at: string) => Problem[]) => {
   const bounds = reader === "validates"
+  // Whether an older UI reads a value or variant of `wide` it doesn't know tolerantly.
+  const opens = (wide: Schema): boolean => {
+    const since = markOf(wide)?.since
+    return marks !== undefined && typeof since === "number" && since <= marks.oldestClient
+  }
   // Inside a union told apart by keys alone, a runner refuses a key an option doesn't name:
   // zod can't say which option failed only on it, so nothing drops it. Counted while the walk
   // is in one, as unions nest.
@@ -256,6 +275,25 @@ const covers = (
       )
     const optional: Problem[] =
       narrow["x-optional"] === true && wide["x-optional"] !== true ? problem("may be left out") : []
+    // A released mark stays as it was; a new one names a revision after the release's, as the
+    // release's UIs don't read it so.
+    if (marks !== undefined) {
+      const was = markOf(wide)
+      const now = markOf(narrow)
+      if (was !== undefined && !same(was, now))
+        optional.push(...problem("changed or lost the open mark a release had"))
+      const since = now?.since
+      if (
+        was === undefined &&
+        now !== undefined &&
+        (typeof since !== "number" || since <= marks.released)
+      )
+        optional.push(
+          ...problem(
+            `is marked open since ${String(since)}, which the release's UIs don't read so`,
+          ),
+        )
+    }
     if (isNever(narrow)) return optional
     if (isNever(wide)) return [...optional, ...problem("takes a value where it took none")]
 
@@ -294,7 +332,9 @@ const covers = (
       if (key !== undefined && value !== undefined) {
         const match = options.find((option) => same(tag(option, key), value))
         if (match === undefined)
-          return [...optional, ...problem(`adds the ${JSON.stringify(value)} variant of "${key}"`)]
+          return opens(wide)
+            ? optional
+            : [...optional, ...problem(`adds the ${JSON.stringify(value)} variant of "${key}"`)]
         return [...optional, ...check({ ...rest, ...match }, bare, at)]
       }
       // A nullable value's union reads its value as its one option would.
@@ -351,7 +391,8 @@ const covers = (
         const added = narrowValues.filter(
           (value) => !wideValues.some((known) => same(known, value)),
         )
-        if (added.length > 0) say(`takes ${shown(added)}, beyond ${shown(wideValues)}`)
+        if (added.length > 0 && !opens(wide))
+          say(`takes ${shown(added)}, beyond ${shown(wideValues)}`)
       }
     }
     // A schema of known values is judged by its values alone.
@@ -468,9 +509,10 @@ const compareSchemas = (
   narrow: JsonSchema,
   at: string,
   reader: Reader,
+  marks?: Marks,
 ): Problem[] => {
   try {
-    return covers(wide, narrow, reader)(wide, narrow, at)
+    return covers(wide, narrow, reader, marks)(wide, narrow, at)
   } catch (error) {
     return [{ at, reason: error instanceof Error ? error.message : String(error) }]
   }
@@ -494,6 +536,8 @@ export const compareContracts = (
   const found = (procedure: string, behind: Behind, problems: readonly Problem[]) =>
     findings.push(...problems.map(({ at, reason }) => ({ procedure, behind, at, reason })))
 
+  // An older UI reads what a newer runner answers as its own release's marks say.
+  const marks: Marks = { oldestClient: after.oldestClient, released: before.revision }
   for (const [path, old] of Object.entries(before.procedures)) {
     const now = after.procedures[path]
     if (now === undefined) {
@@ -517,7 +561,7 @@ export const compareContracts = (
       found(path, "runner", problem)
       continue
     }
-    found(path, "ui", compareSchemas(oldAnswer, nowAnswer, nowKind, "trusts"))
+    found(path, "ui", compareSchemas(oldAnswer, nowAnswer, nowKind, "trusts", marks))
     found(path, "runner", compareSchemas(nowAnswer, oldAnswer, nowKind, "trusts"))
   }
   for (const [path, now] of Object.entries(after.procedures)) {
@@ -536,7 +580,7 @@ export const compareContracts = (
     if (now === undefined) continue
     // An error's data is read as an answer is; data the reader never looked for is ignored.
     if (old !== null)
-      found(`errors.${code}`, "ui", compareSchemas(old, now ?? nothing, "data", "trusts"))
+      found(`errors.${code}`, "ui", compareSchemas(old, now ?? nothing, "data", "trusts", marks))
     if (now !== null)
       found(`errors.${code}`, "runner", compareSchemas(now, old ?? nothing, "data", "trusts"))
   }

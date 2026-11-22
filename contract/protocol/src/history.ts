@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { agentName } from "./agents.js"
+import { agentNameRead } from "./agents.js"
 import { directory, id } from "./fields.js"
 import { handle, terminalTitle } from "./terminals.js"
 
@@ -16,7 +16,7 @@ export const closedTerminalState = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("ready") }),
   z.strictObject({ state: z.literal("restoring") }),
   z.strictObject({ state: z.literal("gone"), reason: z.enum(["conversation", "folder"]) }),
-  z.strictObject({ state: z.literal("disconnected"), agent: agentName }),
+  z.strictObject({ state: z.literal("disconnected"), agent: agentNameRead }),
   z.strictObject({ state: z.literal("open"), handle, terminalId: id }),
 ])
 
@@ -30,7 +30,7 @@ export const closedTerminal = z.strictObject({
   title: terminalTitle,
   summary: z.string().max(historyLimits.summary).nullable(),
   handle: handle.nullable(),
-  agent: agentName.nullable(),
+  agent: agentNameRead.nullable(),
   program: z.string().max(historyLimits.program).nullable(),
   cwd: directory,
   closedAt: z.number(),

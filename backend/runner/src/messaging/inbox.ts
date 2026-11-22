@@ -14,7 +14,8 @@ import {
   type AgentAsk,
   type AgentName,
   type AskAnswer,
-  type InboxEntry,
+  type InboxEntry as ListedEntry,
+  type Sent,
   type TerminalMessages,
 } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
@@ -44,6 +45,9 @@ import {
   type LogWrite,
   type TurnContent,
 } from "./report-log.js"
+
+// The runner's own entries, which never hold the placeholders a UI reads in.
+type InboxEntry = Sent<ListedEntry>
 
 const log = logs.for("inbox")
 

@@ -128,6 +128,8 @@ const askMenu = (entry: Extract<InboxEntry, { kind: "ask" }>): Menu => {
   const { shape } = ask
   const hard = ask.hardToUndo !== null
   if (shape.type === "text") return { rows: [ownWords(entry, "Reply")], hard }
+  // An ask of a shape a newer Novadeck knows: nothing here answers it (the sheet says so).
+  if (shape.type === "newer") return { rows: [], hard }
   if (shape.type === "action")
     return {
       rows: [

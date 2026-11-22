@@ -30,7 +30,8 @@ export type InboxSource = {
   readonly terminalId: string
   // The terminal's handle, bare, such as `moth`: the UI writes it `@moth`.
   readonly handle: string
-  readonly agent: AgentName
+  // `newer` for an agent of a harness a newer Novadeck integrates that this one doesn't know.
+  readonly agent: AgentName | "newer"
   readonly title: string
   readonly projectName: string
 }
@@ -60,6 +61,9 @@ export type AskShape =
       readonly directory: string | null
       readonly doneLabel: string
     }
+  // A shape a newer Novadeck's agent asks in that this one doesn't know: shown, never answered
+  // from here.
+  | { readonly type: "newer" }
 
 // What the agent asked. `body` and `details` are Markdown; `hardToUndo` says why the
 // answer is hard to take back, where the agent says it is.
@@ -126,6 +130,9 @@ export type Trouble =
 export type Update =
   | { readonly type: "done"; readonly subject: string; readonly body: string }
   | { readonly type: "told"; readonly subject: string; readonly body: string }
+  // An entry of a kind a newer Novadeck lists that this one doesn't know: said as such, and
+  // never marked read from here, as its agent may wait on it.
+  | { readonly type: "newer"; readonly subject: string; readonly body: string }
 
 export type InboxContent =
   | { readonly kind: "request"; readonly request: ChatRequest }
@@ -243,7 +250,8 @@ export type InboxTurn = {
   readonly workspaceSessionId: string
   readonly terminalId: string
   readonly handle: string
-  readonly agent: AgentName
+  // `newer` for an agent of a harness a newer Novadeck integrates that this one doesn't know.
+  readonly agent: AgentName | "newer"
   readonly at: number
   readonly outcome: "completed" | "failed"
   readonly reply: string | null
