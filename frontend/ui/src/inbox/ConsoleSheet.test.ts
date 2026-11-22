@@ -1370,6 +1370,85 @@ describe("The Console sheet", () => {
     })
   })
 
+  context("for an agent's ask of several questions", () => {
+    const several = (): AskShape => ({
+      type: "questions",
+      questions: [
+        {
+          header: "Theme",
+          question: "Which theme?",
+          options: [
+            { label: "Fantasy", summary: "Castles" },
+            { label: "Sci-fi", summary: null },
+          ],
+          multiSelect: false,
+          recommend: 0,
+        },
+        {
+          header: "Genre",
+          question: "Which genres?",
+          options: [
+            { label: "RPG", summary: null },
+            { label: "FPS", summary: null },
+            { label: "RTS", summary: null },
+          ],
+          multiSelect: true,
+          recommend: null,
+        },
+      ],
+    })
+
+    it("is the pages a harness's questions get, under the ask's own words", async () => {
+      const inbox = mount([asked(several())])
+
+      expect(text(".request-head h3")).toBe("Has a question")
+      expect(text(".request-subject")).toBe("Which catalog?")
+      expect(text(".request-prose")).toBe("Choose one.")
+      expect(tabs().map((tab) => tab.textContent)).toEqual(["Theme", "Genre", "Submit"])
+      expect(shownPage()?.textContent).toContain("Which theme?")
+      // The agent's pick, said as a harness's tool says it; the person's own words take a row.
+      expect(pick("Fantasy").closest("label")?.textContent).toContain("Fantasy (Recommended)")
+      expect(shownPage()?.querySelector("input[type=text]")).not.toBeNull()
+      await inbox.done()
+    })
+
+    it("sends every question's picks and words at once, as the ask's answer", async () => {
+      const inbox = mount([asked(several())])
+      inbox.key("2", inbox.listed())
+      expect(shownPage()?.textContent).toContain("Which genres?")
+      click(pick("RTS"))
+      click(pick("RPG"))
+      act(() => tabs()[2]!.click())
+      expect(shownPage()?.querySelector("dl")?.textContent).toContain("RPG, RTS")
+      click(control("Submit answers"))
+
+      expect(inbox.sent).toEqual([
+        {
+          kind: "ask",
+          answer: {
+            type: "questions",
+            answers: [
+              { options: [1], text: "" },
+              { options: [0, 2], text: "" },
+            ],
+          },
+        },
+      ])
+      await inbox.done()
+    })
+
+    it("sends nothing until every question has an answer", async () => {
+      const inbox = mount([asked(several())])
+      inbox.key("1", inbox.listed())
+      act(() => tabs()[2]!.click())
+
+      expect(control("Submit answers").getAttribute("aria-disabled")).toBe("true")
+      click(control("Submit answers"))
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+  })
+
   context("for a form", () => {
     const deploy = () => [
       formField("name", { required: true }),

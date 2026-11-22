@@ -24,6 +24,7 @@ import {
   type HistoryChange,
   type InboxEntry,
   type InterruptResult,
+  type QuestionsAnswer,
   type ChangeFileDiff,
   type ChangeRange,
   type ItemContent,
@@ -756,6 +757,11 @@ export type Runner = {
     /** Answers an agent's ask with the person's answer. */
     answer(id: string, answer: AskAnswer): Promise<void>
     /**
+     * Answers an agent's ask of several questions, one answer per question in its order. Only a
+     * runner from revision 6 on asks those (`supports("inbox.answerQuestions")`).
+     */
+    answerQuestions(id: string, answers: QuestionsAnswer): Promise<void>
+    /**
      * Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
      * not touched. Unknown ids are skipped.
      */
@@ -1128,6 +1134,8 @@ export const connectRunner = async (
       watch: () =>
         followSession(connection, (client, signal) => client.inbox.watch(undefined, { signal })),
       answer: (id, answer) => call((client) => client.inbox.answer({ id, answer })),
+      answerQuestions: (id, answers) =>
+        call((client) => client.inbox.answerQuestions({ id, answers })),
       read: (ids) => call((client) => client.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((client) => client.inbox.dismiss({ id })),
     },

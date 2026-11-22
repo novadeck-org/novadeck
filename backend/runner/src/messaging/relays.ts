@@ -61,7 +61,7 @@ export class Relays {
     subject: string,
     text: string,
     commit: (message: Message) => void,
-    choice?: { readonly option?: string; readonly action?: string },
+    choice?: Pick<NonNullable<Message["response"]>, "option" | "action" | "answers">,
   ): void {
     const { store } = this.host
     const owner = this.inboxOwner(terminalId)

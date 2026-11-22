@@ -477,6 +477,9 @@ export const createRouter = (options: {
       list: api.inbox.list.handler(() => terminals.inboxEntries()),
       watch: api.inbox.watch.handler(({ signal }) => terminals.watchInbox(signal)),
       answer: api.inbox.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
+      answerQuestions: api.inbox.answerQuestions.handler(({ input }) =>
+        terminals.answerAsk(input.id, { type: "questions", answers: input.answers }),
+      ),
       read: api.inbox.read.handler(({ input }) => terminals.readTells(input.ids)),
       dismiss: api.inbox.dismiss.handler(({ input }) => terminals.dismissAsk(input.id)),
     },

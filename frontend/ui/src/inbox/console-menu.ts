@@ -130,6 +130,8 @@ const askMenu = (entry: Extract<InboxEntry, { kind: "ask" }>): Menu => {
   if (shape.type === "text") return { rows: [ownWords(entry, "Reply")], hard }
   // An ask of a shape a newer Novadeck knows: nothing here answers it (the sheet says so).
   if (shape.type === "newer") return { rows: [], hard }
+  // Its questions are answered in their own dialog, which the sheet draws.
+  if (shape.type === "questions") return { rows: [], hard }
   if (shape.type === "action")
     return {
       rows: [

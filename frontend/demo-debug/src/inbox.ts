@@ -52,6 +52,11 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Ask entry with three of Claude's questions in one card, one taking several picks: Send waits for all",
   },
   {
+    label: "Several questions in one ask",
+    name: "askQuestions",
+    hint: "Ask entry with three questions from Novadeck's own ask, drawn as Claude's several questions are: a tab each, one taking several picks, Submit waits for all",
+  },
+  {
     label: "Ask while working",
     name: "preview",
     hint: "Ask entry with a free-text answer while the agent keeps working",

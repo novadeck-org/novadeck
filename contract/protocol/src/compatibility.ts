@@ -24,7 +24,8 @@ export const compatibility: Compatibility = {
   // 4: sessions keep a revision, and clients share them (`sessions.change`, `sessions.watch`).
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
-  revision: 5,
+  // 6: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
+  revision: 6,
   oldestClient: 3,
   oldestRunner: 2,
 }

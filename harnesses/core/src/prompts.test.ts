@@ -39,6 +39,35 @@ describe("the reply line", () => {
     )
   })
 
+  it("says each question's answer of an ask of several, by its header, what was picked and written", () => {
+    const line = replyLine([
+      {
+        subject: "Theme and genre?",
+        answers: [
+          { question: "Theme", picked: ["Fantasy"], text: "" },
+          { question: "Genre", picked: ["RPG", "RTS"], text: "" },
+          { question: "Engine", picked: [], text: "whatever is quickest" },
+        ],
+        text: "",
+      },
+    ])!("q1")
+    expect(line).toBe(
+      '<novadeck-reply>Re your ask "Theme and genre?": For "Theme", I picked "Fantasy". For "Genre", I picked "RPG" and "RTS". For "Engine", I wrote: whatever is quickest.</novadeck-reply><end ring="q1"/>',
+    )
+  })
+
+  it("rings with the plain line for an answer to several questions holding what no line holds", () => {
+    expect(
+      replyLine([
+        {
+          subject: "Theme and genre?",
+          answers: [{ question: "Theme", picked: [], text: "🐉 dragons" }],
+          text: "",
+        },
+      ]),
+    ).toBeUndefined()
+  })
+
   it("is one line holding nothing a harness treats specially", () => {
     const line = replyLine([
       { subject: "Pay $5\nto @flint?", text: "yes\r\n\tdo it @ once, dzięki" },

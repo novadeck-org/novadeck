@@ -4,16 +4,19 @@ import { ToolCalls } from "@novadeck/chat/ToolCalls"
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
 import {
   entryKey,
+  type AskQuestion,
   type HeldMessage,
   type InboxAnswer,
   type InboxEntry,
   type Trouble,
 } from "@novadeck/core/inbox"
+import { askAnswerOf, askDialog } from "@novadeck/core/inbox/questions"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { Detail } from "@novadeck/requests/Detail"
 import type { DialogDraft } from "@novadeck/requests/drafts"
 import { answerWordsLimit, Menu, type MenuHandle, type MenuItem } from "@novadeck/requests/Menu"
 import { RequestCard, RequestFrame, type RequestPlace } from "@novadeck/requests/RequestCard"
+import { RequestDialog } from "@novadeck/requests/RequestDialog"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
@@ -471,6 +474,53 @@ const OwnMenu = ({
   )
 }
 
+// An agent's ask of several questions, answered with the dialog a harness's own questions get:
+// a tab a question, and a page that sends the answers. What the person picked stays with the
+// entry until they send it, as a request's does.
+const QuestionsAsk = ({
+  props,
+  entry,
+  questions,
+  handle,
+  arrived,
+}: {
+  readonly props: SheetContentProps
+  readonly entry: Extract<OwnEntry, { kind: "ask" }>
+  readonly questions: readonly AskQuestion[]
+  readonly handle: React.Ref<MenuHandle>
+  readonly arrived: boolean
+}): React.JSX.Element => {
+  const { answering, submit } = props
+  const { drafts, setDraft } = useInboxContext()
+  const refused = useRefused()
+  const key = entryKey(entry)
+  const dialog = askDialog(entry.id, questions)
+  return (
+    <RequestDialog
+      dialog={dialog}
+      kind="question"
+      live={undefined}
+      replying={false}
+      onReply={undefined}
+      refused={refused}
+      sending={answering}
+      send={(answer) => {
+        const given = askAnswerOf(questions, answer)
+        if (given)
+          submit({ kind: "ask", answer: given }, `Answers queued for @${entry.source.handle}.`)
+      }}
+      edited={() => {}}
+      draft={{
+        value: drafts[key]?.request ?? {},
+        onChange: (next: DialogDraft) => setDraft(key, { request: next }),
+      }}
+      arrived={arrived}
+      handle={handle}
+      place={place}
+    />
+  )
+}
+
 // A card of the Inbox's own kinds, in the frame of a request's. Resolved, it has no menu: it
 // says how it ended in its place.
 const OwnCard = ({
@@ -501,6 +551,14 @@ const OwnCard = ({
         <p className="request-note" role="status">
           {settled}
         </p>
+      ) : entry.kind === "ask" && entry.ask.shape.type === "questions" ? (
+        <QuestionsAsk
+          props={props}
+          entry={entry}
+          questions={entry.ask.shape.questions}
+          handle={handle}
+          arrived={arrived}
+        />
       ) : (
         model.rows.length > 0 && (
           <OwnMenu props={props} entry={entry} model={model} handle={handle} arrived={arrived} />

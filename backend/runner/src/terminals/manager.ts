@@ -1,7 +1,7 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
 import type { Install, Model } from "@novadeck/harness-core/harness"
 import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
-import { defaultAgentMode, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
+import { defaultAgentMode, type InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
   SliceChange,
@@ -35,7 +35,7 @@ import { DomainError } from "../errors.js"
 import { blocking } from "../harnesses/activity.js"
 import { deliveredKeys, harnesses } from "../harnesses/registry.js"
 import { Feedback } from "../messaging/feedback.js"
-import { Inbox } from "../messaging/inbox.js"
+import { Inbox, type AskAnswer } from "../messaging/inbox.js"
 import { Messaging } from "../messaging/messaging.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { stripInherited } from "../shell/inherited.js"

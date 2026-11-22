@@ -1,4 +1,5 @@
 import type { AgentAsk, InboxAnswer, InboxEntry } from "@novadeck/core/inbox"
+import { questionsWords } from "@novadeck/core/inbox/questions"
 import {
   noMessages,
   type AgentMessage,
@@ -217,7 +218,16 @@ const askText = (ask: AgentAsk): string => {
           .join("\n\n")
       : shape.type === "action"
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
-        : null
+        : shape.type === "questions"
+          ? shape.questions
+              .map((question, at) =>
+                [
+                  `${at + 1}. ${question.question}`,
+                  ...question.options.map((option) => `   - ${option.label}`),
+                ].join("\n"),
+              )
+              .join("\n\n")
+          : null
   return [
     ask.subject,
     ask.body,
@@ -373,7 +383,11 @@ export const createDemoMessages = (
           ? entry.kind === "ask" && entry.ask.shape.type === "action"
             ? entry.ask.shape.doneLabel
             : "Done."
-          : [option, reply.text].filter(Boolean).join("\n\n")
+          : reply.type === "questions"
+            ? entry.kind === "ask" && entry.ask.shape.type === "questions"
+              ? questionsWords(entry.ask.shape.questions, reply.answers)
+              : ""
+            : [option, reply.text].filter(Boolean).join("\n\n")
         : entry.kind === "ask"
           ? askText(entry.ask)
           : `${content.subject}\n\n${content.body}`

@@ -36,7 +36,7 @@ export type InboxSource = {
   readonly projectName: string
 }
 
-// An agent's answer shapes for `ask`: at most one of options or an action;
+// An agent's answer shapes for `ask`: at most one of options, several questions or an action;
 // none asks for the person's words. The person may always write their own answer.
 export type AskOption = {
   readonly label: string
@@ -61,9 +61,22 @@ export type AskShape =
       readonly directory: string | null
       readonly doneLabel: string
     }
+  // Several questions at once, each with its options, answered together.
+  | { readonly type: "questions"; readonly questions: readonly AskQuestion[] }
   // A shape a newer Novadeck's agent asks in that this one doesn't know: shown, never answered
   // from here.
   | { readonly type: "newer" }
+
+// One of an ask's several questions: the short name of its tab, the question, its options,
+// whether several may be picked, and the agent's pick, by index. The person may answer any of
+// them in their own words instead.
+export type AskQuestion = {
+  readonly header: string | null
+  readonly question: string
+  readonly options: readonly { readonly label: string; readonly summary: string | null }[]
+  readonly multiSelect: boolean
+  readonly recommend: number | null
+}
 
 // What the agent asked. `body` and `details` are Markdown; `hardToUndo` says why the
 // answer is hard to take back, where the agent says it is.
@@ -213,6 +226,14 @@ export type InboxAnswer =
       readonly answer:
         | { readonly type: "reply"; readonly option: number | null; readonly text: string }
         | { readonly type: "done" }
+        // A questions ask's answers, one per question in its order: options by index, and words.
+        | {
+            readonly type: "questions"
+            readonly answers: readonly {
+              readonly options: readonly number[]
+              readonly text: string
+            }[]
+          }
     }
   | {
       readonly kind: "trouble"

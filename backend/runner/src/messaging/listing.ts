@@ -18,12 +18,25 @@ type Standing = {
 /** When a thread's latest message was sent. */
 const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
 
+/** A question's answer as one line: the question it answers, and what the person chose and wrote. */
+export const answerLine = ({
+  question,
+  header,
+  picked,
+  text,
+}: NonNullable<NonNullable<Message["response"]>["answers"]>[number]): string =>
+  `${header ?? question}: ${[...picked, ...(text === undefined ? [] : [text])].join(", ")}`
+
 /** A message's text as the listing shows it: a response with what the person chose before it. */
 const listedText = (message: Message): string => {
   if (message.response?.feedback)
     return ["Asked to write feedback about Novadeck.", message.text].filter(Boolean).join("\n\n")
   if (message.response)
-    return [message.response.option ?? message.response.action, message.text]
+    return [
+      message.response.option ?? message.response.action,
+      ...(message.response.answers ?? []).map(answerLine),
+      message.text,
+    ]
       .filter(Boolean)
       .join("\n\n")
   return message.text

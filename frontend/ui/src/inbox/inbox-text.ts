@@ -134,7 +134,12 @@ const readWords = (entry: InboxEntry): number => {
     const options =
       shape.type === "options"
         ? shape.options.flatMap((option) => [option.label, option.summary ?? ""])
-        : []
+        : shape.type === "questions"
+          ? shape.questions.flatMap((question) => [
+              question.question,
+              ...question.options.flatMap((option) => [option.label, option.summary ?? ""]),
+            ])
+          : []
     return words([entry.ask.body, ...options].join(" "))
   }
   if (entry.kind === "update") return words(entry.update.body)
