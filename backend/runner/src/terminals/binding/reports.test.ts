@@ -90,6 +90,7 @@ describe("the screen an agent says it is at before its first session", () => {
     const reports = new Reports({
       records: () => new Map([["T", record]]),
       bindings: () => ({}),
+      shipping: () => undefined,
     } as unknown as ReportsHost)
     for (const said of states) {
       const [state, seq] = typeof said === "string" ? [said, 1] : said
@@ -411,7 +412,7 @@ describe("the worktrees notice at a root turn's start", () => {
 })
 
 describe("the shipping gate's answer to a shell command", () => {
-  const hook = (event: string, agent: "claude" | "codex" = "claude", token = "tok") => ({
+  const hook = (event: string, agent: "claude" | "codex" | "agy" = "claude", token = "tok") => ({
     terminalId: "T",
     token,
     agent,
@@ -454,6 +455,15 @@ describe("the shipping gate's answer to a shell command", () => {
     expect(await reports.queueAsk(hook("PreToolUse", "codex"), 5_000, call)).toEqual({
       leaseId: null,
       stdout: "",
+    })
+    expect(queued).toHaveBeenCalledOnce()
+  })
+
+  it("leaves Antigravity to its own dialog, its ask answer, where the gate has no opinion", async () => {
+    const { reports, queued } = setup(undefined)
+    expect(await reports.queueAsk(hook("PreToolUse", "agy"), 5_000, call)).toEqual({
+      leaseId: null,
+      stdout: '{"decision":"ask"}\n',
     })
     expect(queued).toHaveBeenCalledOnce()
   })

@@ -32,6 +32,29 @@ describe("a hook the shipping gate answers", () => {
     expect(read?.deadline).toBeTypeOf("number")
   })
 
+  it("reads Antigravity's run_command, from its toolCall, with the words it was launched with", () => {
+    const read = (toolCall: unknown, ancestors?: unknown) =>
+      relayHook(
+        {
+          ...hook("agy", "PreToolUse", { toolCall, cwd: abs("/w") }),
+          ...(ancestors !== undefined && { ancestors }),
+        },
+        undefined,
+        on,
+      )?.gate
+    const run = { name: "run_command", args: { CommandLine: "git push origin main" } }
+    expect(read(run)).toEqual({
+      event: "PreToolUse",
+      command: "git push origin main",
+      cwd: abs("/w"),
+    })
+    expect(read({ ...run, args: { ...run.args, Cwd: abs("/x") } })?.cwd).toBe(abs("/x"))
+    expect(read({ name: "write_file", args: { Path: "a" } })).toBeUndefined()
+    expect(read({ name: "run_command", args: {} })).toBeUndefined()
+    const launched = read(run, [{ pid: 7, name: "agy", args: ["--mode", "plan"] }])
+    expect(launched?.launch).toEqual(["--mode", "plan"])
+  })
+
   it("is a plain report, as it always was, while the gate is off", () => {
     const value = hook("claude", "PreToolUse", { tool_name: "Bash", tool_input: { command: "ls" } })
     expect(relayHook(value)?.gate).toBeUndefined()

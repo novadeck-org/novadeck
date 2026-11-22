@@ -1677,7 +1677,7 @@ doesn't make the prompt known empty.
 ### The shipping gate
 
 Behind Preferences → Experimental → "Shipping gate" (`shippingGate`, off by default), for Claude
-Code and Codex; Antigravity is not covered yet (its probe is open), and behaves as it always did.
+Code, Codex and Antigravity (see "Antigravity" below for how its gate differs).
 The design is `architecture/grants.md`. Agents ship with their own `git` and `gh`; Novadeck's hook
 only gates them (`backend/runner/src/shipping/`).
 
@@ -1726,6 +1726,29 @@ only gates them (`backend/runner/src/shipping/`).
   whole folder gets no opinion. The hook stays silent in Claude's bypass mode,
   in Codex's `never` with `danger-full-access`, and where the person's own allow rule covers
   every segment (read from Claude's settings files and Codex's rules, never written).
+- **Antigravity** (`shipping/auto.ts`). Its hook can deny but not allow, and a static
+  `permissions.allow` rule would run unasked whatever it matches, since a hook's `ask` is
+  silence against one (probed 1.5.14: bare and with a reason, with an exact `command(git push)`
+  rule, in accept-edits, the push ran with no dialog; the first probe's "ask shows the dialog"
+  used glob rules, which never match). So the shim writes no rule. Its PreToolUse answers
+  `{"decision":"deny","reason":…}` for a command no permit covers (the same text as the others'),
+  and is silent for any other, so its own confirmation shows as it always did. Where a live permit
+  covers the very command, Novadeck presses that confirmation's run-once option ("Yes, run
+  command", never "always allow" or "Persist to settings.json") through the driver that answers a
+  request from the chat or the Inbox. It answers only for the terminal's root agent's
+  `run_command`, whose dialog was read whole and shows exactly the call the hook recorded (a cut
+  or wrapped command is left to the person), and where the reader reads the whole command as
+  shipping that permits cover, with the exactness above; a single-use permit ends when the
+  answer is typed, and each auto-answer is logged (`shipping.auto-answer`). A dialog is decided
+  once, as it first reads, so a permit given later never answers one the person was waiting on.
+  The gate stays silent in `auto`, which runs commands unasked: the mode is the status line's
+  `cycle_mode` (it follows a Shift+Tab), else the launch's `--mode`, else `auto`. With the
+  runner down the relay prints Antigravity's `ask`, so the dialog waits for the person. The
+  person's own `command(...)` allow rules (read from `~/.gemini/antigravity-cli/settings.json`,
+  never written) leave a command to them, as the others'. On Windows where cmd prints before
+  hooks no PreToolUse is registered: nothing is refused there, and no request carries the
+  recorded call, so nothing is auto-answered; the person gets Antigravity's own dialog, as
+  before the gate.
 - **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
   plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
   `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept

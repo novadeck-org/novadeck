@@ -433,7 +433,7 @@ export const Preferences = ({
       id: "shipping-gate",
       label: "Shipping gate",
       description: shippingGate
-        ? "Claude Code and Codex may push to a branch that isn't their own, land into another branch, open a PR or merge one only with a permit: your own words typed in that agent's terminal, or your Allow on a card in the chat and the Inbox. Without one the command is refused and the agent is told to ask. Applies to agents started after you turn it on; Antigravity isn't covered yet."
+        ? "Claude Code, Codex and Antigravity may push to a branch that isn't their own, land into another branch, open a PR or merge one only with a permit: your own words typed in that agent's terminal, or your Allow on a card in the chat and the Inbox. Without one the command is refused and the agent is told to ask. Applies to agents started after you turn it on. Antigravity in auto mode, which runs commands without asking, is left as it is; where Windows' cmd prints before hooks, Antigravity has no refusal and asks you as it always did."
         : "Not available here.",
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),

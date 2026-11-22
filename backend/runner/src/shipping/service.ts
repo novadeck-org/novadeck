@@ -17,7 +17,7 @@ import { declare, ghDefault, ghPull, type Declared, type DeclareAnswer } from ".
 import { describeKey, describeSource, Gate, type Turn } from "./gate.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
 import { Permits, Quotes } from "./permits.js"
-import { claudeRules, codexRules } from "./rules.js"
+import { agyRules, claudeRules, codexRules } from "./rules.js"
 
 /** What the gate needs of the rest of the runner. */
 export type ShippingHost = {
@@ -69,6 +69,18 @@ export const turnOf = async (transcript: string | undefined): Promise<Turn | und
 
 const log = logs.for("shipping")
 
+/** The mode a launch's `--mode` names (`--mode x`, `-mode x`, `--mode=x`): the last one, as agy reads flags. */
+export const launchMode = (launch: readonly string[] | undefined): string | undefined => {
+  let mode: string | undefined
+  const words = launch ?? []
+  for (let at = 0; at < words.length; at += 1) {
+    const word = words[at]!
+    if (word === "--mode" || word === "-mode") mode = words[(at += 1)]
+    else if (/^--?mode=/.test(word)) mode = word.slice(word.indexOf("=") + 1)
+  }
+  return mode
+}
+
 /** What a hook prints, and the lease that says it was printed (null where nothing waits on that). */
 export type GateAnswer = { readonly stdout: string; readonly leaseId: string | null }
 
@@ -104,7 +116,8 @@ export class Shipping {
     this.gate = new Gate({
       lookups: (terminalId) => gitLookups(terminalId, host.owned),
       permits: this.permits,
-      rules: (agent, cwd) => (agent === "claude" ? claudeRules(cwd) : codexRules()),
+      rules: (agent, cwd) =>
+        agent === "claude" ? claudeRules(cwd) : agent === "codex" ? codexRules() : agyRules(),
       turn: turnOf,
     })
     // Every permit is on record: who, what, where, on whose word, and when.
@@ -227,16 +240,67 @@ export class Shipping {
     return this.host.enabled()
   }
 
-  /** Whether the gate is on and covers `agent`'s harness (Antigravity (agy) isn't gated yet). */
+  /** Whether the gate is on and covers `agent`'s harness: all three. */
   covers(agent: AgentName): boolean {
-    return this.host.enabled() && (agent === "claude" || agent === "codex")
+    return this.host.enabled() && (agent === "claude" || agent === "codex" || agent === "agy")
   }
 
-  /** Whether the gate answers `agent`'s `event`: Claude's PreToolUse, Codex's PreToolUse and PermissionRequest. */
+  /**
+   * Whether the gate answers `agent`'s `event`: Claude's and Antigravity's PreToolUse, Codex's
+   * PreToolUse and PermissionRequest. Antigravity's answers only to deny: a permitted command
+   * stays silent there, and its own confirmation is answered from the screen (`autoAnswer`).
+   */
   gating(agent: AgentName, event: string): boolean {
     if (!this.host.enabled()) return false
-    if (agent === "claude") return event === "PreToolUse"
+    if (agent === "claude" || agent === "agy") return event === "PreToolUse"
     return agent === "codex" && (event === "PreToolUse" || event === "PermissionRequest")
+  }
+
+  // The mode each Antigravity terminal's status line last said (`cycle_mode`: `plan` or
+  // `accept-edits`, none in `auto`), by terminal.
+  private readonly modes = new Map<string, string | null>()
+
+  /** An Antigravity status line came: the mode it names, or none (its default, `auto`). */
+  statusLine(terminalId: string, payload: { readonly [key: string]: unknown }): void {
+    const mode = payload.cycle_mode
+    this.modes.set(terminalId, typeof mode === "string" ? mode : null)
+  }
+
+  /**
+   * The mode an Antigravity terminal runs in: its status line's latest, which follows a Shift+Tab
+   * switch, else the launch's `--mode`, else its default, `auto`.
+   */
+  agyMode(terminalId: string, launch: readonly string[] | undefined): string {
+    const live = this.modes.get(terminalId)
+    if (live !== undefined) return live ?? "auto"
+    return launchMode(launch) ?? "auto"
+  }
+
+  /**
+   * What to type into Antigravity's own confirmation of a command, as the person would: the run
+   * once option, only where a live permit covers that very command, read as the gate reads it for
+   * Claude Code, and the dialog shows it whole. Undefined (the person answers) in any doubt.
+   * Antigravity shows the confirmation only where it asks, so the mode needs no look here.
+   */
+  async autoAnswer(
+    terminalId: string,
+    agent: AgentName,
+    command: string,
+    cwd: string,
+  ): Promise<{ readonly note: string; readonly used: () => void } | undefined> {
+    if (!this.covers(agent) || agent !== "agy") return undefined
+    try {
+      const covered = await this.gate.covered(terminalId, command, cwd)
+      if (!covered) return undefined
+      return {
+        used: covered.used,
+        note: covered.permits
+          .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
+          .join("; "),
+      }
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -252,8 +316,8 @@ export class Shipping {
     call: GateCall,
     until: number = Date.now() + 3_000,
   ): Promise<GateAnswer | undefined> {
-    if (!this.gating(agent, call.event) || (agent !== "claude" && agent !== "codex"))
-      return undefined
+    if (!this.gating(agent, call.event)) return undefined
+    if (agent !== "claude" && agent !== "codex" && agent !== "agy") return undefined
     let decision
     try {
       decision = await within(
@@ -263,7 +327,9 @@ export class Shipping {
           terminalId,
           command: call.command,
           cwd: call.cwd,
-          ...(call.mode !== undefined && { mode: call.mode }),
+          ...(agent === "agy"
+            ? { mode: this.agyMode(terminalId, call.launch) }
+            : call.mode !== undefined && { mode: call.mode }),
           ...(call.transcript !== undefined && { transcript: call.transcript }),
         }),
         until - Date.now(),
@@ -294,5 +360,6 @@ export class Shipping {
     this.permits.forget(terminalId)
     this.quotes.forget(terminalId)
     this.cards.forget(terminalId)
+    this.modes.delete(terminalId)
   }
 }

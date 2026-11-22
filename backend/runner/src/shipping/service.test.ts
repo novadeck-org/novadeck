@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { logs, useLogger } from "../log.js"
 import type { WorktreeRecord } from "../worktrees/records.js"
-import { Shipping } from "./service.js"
+import { launchMode, Shipping } from "./service.js"
 
 let dir: string
 let repo: string
@@ -42,10 +42,10 @@ const force = "git push -f origin main"
 const forceKey = "push-force:r/app:origin/main"
 
 describe("which harnesses the gate covers", () => {
-  it("covers Claude Code and Codex while on, and never Antigravity", () => {
+  it("covers Claude Code, Codex and Antigravity while on", () => {
     expect(service().covers("claude")).toBe(true)
     expect(service().covers("codex")).toBe(true)
-    expect(service().covers("agy")).toBe(false)
+    expect(service().covers("agy")).toBe(true)
     const off = new Shipping({
       enabled: () => false,
       owned: { ofTerminal: () => [], all: () => [] },
@@ -118,14 +118,88 @@ describe("what the gate's answer does once printed", () => {
     expect(Date.now() - started).toBeLessThan(250)
   })
 
-  it("answers nothing while it is off, or for Antigravity", async () => {
+  it("answers nothing while it is off", async () => {
     const off = new Shipping({
       enabled: () => false,
       owned: { ofTerminal: () => [], all: () => [] },
       notify: () => true,
     })
     expect(await off.answer("t", "claude", call(force))).toBeUndefined()
-    expect(await service().answer("t", "agy", call(force))).toBeUndefined()
+    expect(await off.answer("t", "agy", call(force))).toBeUndefined()
+  })
+})
+
+describe("Antigravity's answers", () => {
+  const push = "git push origin main"
+  const pushKey = "push:r/app:origin/main"
+  const agy = (shipping: Shipping, command: string, launch?: string[]) =>
+    shipping.answer("t", "agy", { ...call(command), ...(launch && { launch }) }, Date.now() + 3_000)
+  const denies = (answer: Awaited<ReturnType<typeof agy>>) => JSON.parse(answer!.stdout)
+
+  it("denies an unpermitted shipping command where it asks, with request_permit's text", async () => {
+    const launches = [["--mode", "accept-edits"], ["--mode=plan"], ["-mode", "plan"]]
+    const answers = await Promise.all(launches.map((launch) => agy(service(), push, launch)))
+    for (const answer of answers) {
+      expect(denies(answer)).toMatchObject({ decision: "deny" })
+      expect(denies(answer).reason).toContain("request_permit")
+      expect(answer?.leaseId).toBeNull()
+    }
+  })
+
+  it("stays silent for a permitted command, which its own confirmation then asks about", async () => {
+    const shipping = service()
+    shipping.permits.give("t", pushKey, false, { type: "quote", quote: "push it" })
+    expect(await agy(shipping, push, ["--mode", "accept-edits"])).toBeUndefined()
+    // Nothing was used up: the permit is used when the confirmation is answered.
+    expect(shipping.permits.covering("t", pushKey)).toBeDefined()
+  })
+
+  it("has no opinion in auto, by launch or by its status line, and of any other command", async () => {
+    const shipping = service()
+    expect(await agy(shipping, push)).toBeUndefined()
+    expect(await agy(shipping, push, ["--mode", "auto"])).toBeUndefined()
+    expect(await agy(shipping, "git status", ["--mode", "accept-edits"])).toBeUndefined()
+    // A status line names the mode as it is now, over the launch's.
+    shipping.statusLine("t", { cycle_mode: "accept-edits" })
+    expect(denies(await agy(shipping, push))).toMatchObject({ decision: "deny" })
+    shipping.statusLine("t", {})
+    expect(await agy(shipping, push, ["--mode", "accept-edits"])).toBeUndefined()
+    shipping.statusLine("t", { cycle_mode: "plan" })
+    expect(denies(await agy(shipping, push))).toMatchObject({ decision: "deny" })
+    shipping.closed("t")
+    expect(await agy(shipping, push)).toBeUndefined()
+  })
+
+  it("reads the launch's mode as agy reads its flags", () => {
+    expect(launchMode(["--mode", "plan", "x"])).toBe("plan")
+    expect(launchMode(["-mode=accept-edits"])).toBe("accept-edits")
+    expect(launchMode(["--mode", "plan", "--mode", "auto"])).toBe("auto")
+    expect(launchMode(["--model", "x"])).toBeUndefined()
+    expect(launchMode(undefined)).toBeUndefined()
+  })
+
+  it("answers its confirmation only for a command a live permit covers, whole", async () => {
+    const shipping = service()
+    const ask = (command: string, terminal = "t") =>
+      shipping.autoAnswer(terminal, "agy", command, repo)
+    expect(await ask(push)).toBeUndefined()
+    shipping.permits.give("t", pushKey, false, { type: "quote", quote: "push it" })
+    expect((await ask(push))?.note).toContain("push to origin/main in r/app")
+    // Another terminal's, a tail, and a command that is none of its shipping.
+    expect(await ask(push, "u")).toBeUndefined()
+    expect(await ask(`${push} && touch x`)).toBeUndefined()
+    expect(await ask("git status")).toBeUndefined()
+    expect(await shipping.autoAnswer("t", "claude", push, repo)).toBeUndefined()
+  })
+
+  it("uses a single-use permit once its answer is typed", async () => {
+    const shipping = service()
+    shipping.permits.give("t", forceKey, true, { type: "quote", quote: "force it" })
+    const auto = await shipping.autoAnswer("t", "agy", force, repo)
+    expect(auto).toBeDefined()
+    expect(shipping.permits.covering("t", forceKey)).toBeDefined()
+    auto!.used()
+    expect(shipping.permits.covering("t", forceKey)).toBeUndefined()
   })
 })
 

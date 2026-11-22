@@ -324,6 +324,21 @@ mod tests {
         assert_eq!(Config::default().fallback("codex", "PreToolUse"), "");
     }
 
+    // The shipping gate leans on this (architecture/grants.md): where the runner gives Antigravity
+    // no answer to a PreToolUse (no terminal, a payload too big, no connection, a timeout, an
+    // unheard or failed ask), it prints `ask`, so its own dialog waits for the person. Silence
+    // would let a rule or its default run the command unasked, and no configuration may empty it.
+    #[test]
+    fn antigravitys_pre_tool_use_never_falls_back_to_silence() {
+        let emptied = Config::of(&json!({ "fallbacks": { "agy": { "PreToolUse": "", "*": "" } } }));
+        assert_eq!(
+            emptied.fallback("agy", "PreToolUse"),
+            "{\"decision\":\"ask\"}\n"
+        );
+        // An unheard ask, a runner that answers no stdout, is the same fallback.
+        assert_eq!(Answer::of(r#"{"leaseId":null,"stdout":null}"#).stdout, None);
+    }
+
     #[test]
     fn gives_each_hook_the_time_it_had() {
         let config = config();
