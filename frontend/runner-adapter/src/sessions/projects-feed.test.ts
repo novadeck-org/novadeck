@@ -29,6 +29,7 @@ const listed = (...ids: string[]): ProjectsChange => ({
 const follow = (holding: () => boolean, removedHere: (id: string) => boolean = () => false) => {
   const feed = channel<ProjectsChange>()
   const dispatched: BackendAction[] = []
+  const sessions: [string, readonly string[]][] = []
   const live = followProjects({
     runner: {
       supports: () => true,
@@ -41,14 +42,24 @@ const follow = (holding: () => boolean, removedHere: (id: string) => boolean = (
     removedHere,
     holding,
     arranged: () => {},
+    sessionsArranged: (projectId, order) => sessions.push([projectId, order]),
     listed: ["project", "other"],
   })
   const lists = async (change: ProjectsChange) => {
     feed.push(change)
     await new Promise((done) => setTimeout(done, 0))
   }
-  return { live, lists, dispatched }
+  return { live, lists, dispatched, sessions }
 }
+
+describe("a project's sessions another client arranged", () => {
+  it("are told in its order, the projects left as they are", async () => {
+    const { lists, dispatched, sessions } = follow(() => false)
+    await lists({ type: "arranged", projectId: "project", order: ["b", "a"] })
+    expect(sessions).toEqual([["project", ["b", "a"]]])
+    expect(dispatched).toEqual([])
+  })
+})
 
 describe("projects another client removed", () => {
   it("go here", async () => {

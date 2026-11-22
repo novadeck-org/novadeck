@@ -384,11 +384,14 @@ describe("workspace metadata API", () => {
     expect(await listed()).toEqual([[project.id, false]])
     const sessions = await b.client.sessions.watch()
     expect((await sessions.next()).value).toMatchObject({ type: "revisions" })
-    // The next change of each kind, past those it isn't.
+    // The next change of each kind, past those it isn't; every kind it told, as a client of
+    // revision 4 reads them.
+    const told = new Set<string>()
     const next = async (type: string) => {
       for (;;) {
         // eslint-disable-next-line no-await-in-loop -- Changes are read in order.
         const { value } = await sessions.next()
+        told.add((value as { type: string }).type)
         if ((value as { type: string }).type === type) return value
       }
     }
@@ -415,7 +418,7 @@ describe("workspace metadata API", () => {
     })
     expect(await next("changed")).toMatchObject({ session: { id: second.id } })
     await a.client.sessions.arrange({ projectId: project.id, order: [session.id, second.id] })
-    expect(await next("arranged")).toEqual({
+    expect((await projects.next()).value).toEqual({
       type: "arranged",
       projectId: project.id,
       order: [session.id, second.id],
@@ -428,6 +431,8 @@ describe("workspace metadata API", () => {
       [session.id, second.id].toSorted(),
     )
     expect(await listed()).toEqual([[other.id, true]])
+    // The sessions' feed told only what revision 4 knows, the order on the projects' feed.
+    expect([...told].toSorted()).toEqual(["changed", "removed"])
     await projects.return?.(undefined)
     await sessions.return?.(undefined)
   })

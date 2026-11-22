@@ -63,7 +63,7 @@ export class Projects {
     )
     const arranged = this.sessions(projectId)
     for (const { id } of arranged) this.sessionFeed.changed(id)
-    this.sessionFeed.arranged(
+    this.projectFeed.arranged(
       projectId,
       arranged.map(({ id }) => id),
     )

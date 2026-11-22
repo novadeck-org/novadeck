@@ -90,9 +90,8 @@ export const sessionPatch = z.strictObject({
  * What `sessions.watch` tells a client: first each session's revision, by id, to read again
  * those it holds older; then each session as it changes (`writer`, `base`: who changed it
  * and from which revision, where a `sessions.change` did; a session changed again before it
- * was read comes once, as it is now), each project's sessions in their order once arranged,
- * and each session gone, those of a project removed among them. A client drops a kind it
- * doesn't know.
+ * was read comes once, as it is now), and each one gone, those of a project removed among
+ * them. A client from revision 5 drops a kind it doesn't know.
  */
 export const sessionChange = openUnion(
   "type",
@@ -107,11 +106,6 @@ export const sessionChange = openUnion(
       writer: z.string().max(64).nullable(),
       base: z.number().int().nonnegative().nullable(),
     }),
-    z.strictObject({
-      type: z.literal("arranged"),
-      projectId: id,
-      order: z.array(id).max(10_000),
-    }),
     z.strictObject({ type: z.literal("removed"), sessionId: id }),
   ],
   { since: 5, unknown: "drop" },
@@ -120,12 +114,19 @@ export const sessionChange = openUnion(
 /**
  * What `projects.watch` tells a client: the projects as `projects.list` gives them, in the
  * person's order with each one's pin, first and again after each project is made, renamed,
- * arranged or removed; a reader slower than the changes gets the latest list only. A client
- * drops a kind it doesn't know.
+ * arranged or removed; and a project's sessions in their order, once arranged. A reader slower
+ * than the changes gets the latest of each only. A client drops a kind it doesn't know.
  */
 export const projectsChange = openUnion(
   "type",
-  [z.strictObject({ type: z.literal("projects"), projects: z.array(project).max(10_000) })],
+  [
+    z.strictObject({ type: z.literal("projects"), projects: z.array(project).max(10_000) }),
+    z.strictObject({
+      type: z.literal("arranged"),
+      projectId: id,
+      order: z.array(id).max(10_000),
+    }),
+  ],
   { since: 5, unknown: "drop" },
 )
 

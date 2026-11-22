@@ -109,6 +109,9 @@ export type SessionSharing = {
   // a session again once a terminal or window its shared state names, which this client
   // didn't know, is known here.
   readonly seen: (initial: boolean, synced: readonly string[]) => void
+  // A project's sessions as another client arranged them, which the projects' feed tells
+  // (projects-feed.ts): laid in, unless they're in that order here.
+  readonly arranged: (projectId: string, order: readonly string[]) => void
   // Follows the runner's feed, where it has one, until `stop`.
   readonly follow: () => void
   readonly stop: () => void
@@ -489,6 +492,7 @@ export const createSessionSharing = (options: {
       })
       if (missing.length) queueMicrotask(() => missing.forEach(arriveHere))
     },
+    arranged,
     follow: () => {
       if (stream || !has("sessions.watch")) return
       const changes = runner.sessions.watch()
@@ -503,7 +507,6 @@ export const createSessionSharing = (options: {
             if (!hasCode(error, "DISCONNECTED", "CLOSING")) reportCaught(error)
           })
         else if (change.type === "changed") arrived(change.session)
-        else if (change.type === "arranged") arranged(change.projectId, change.order)
         else removed(change.sessionId)
       })
     },

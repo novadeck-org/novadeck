@@ -14,7 +14,8 @@ export type ProjectArrangement = {
  * Follows the projects as the runner holds them (`projects.watch`), for what another client
  * did to them: a project it made is read and joins this client's list, one it removed goes,
  * one it renamed takes the name, and how the projects are arranged is told (`arranged`) for
- * the page to take. All of it is laid in here and never sent back. A runner from before
+ * the page to take; a project's sessions as it arranged them are told too (`sessionsArranged`).
+ * All of it is laid in here and never sent back. A runner from before
  * revision 5 has no such feed: nothing is followed.
  */
 export const followProjects = (options: {
@@ -31,6 +32,7 @@ export const followProjects = (options: {
   // starts removes the tours before: held until `released`.
   readonly holding: () => boolean
   readonly arranged: (arrangement: ProjectArrangement) => void
+  readonly sessionsArranged: (projectId: string, order: readonly string[]) => void
   // The projects the runner listed as this client loaded.
   readonly listed: readonly string[]
 }): { readonly stop: () => void; readonly released: () => void } => {
@@ -53,7 +55,10 @@ export const followProjects = (options: {
   }
   const changes = runner.projects.watch()
   void consume(changes, (change) => {
-    if (change.type !== "projects") return
+    if (change.type === "arranged") {
+      options.sessionsArranged(change.projectId, change.order)
+      return
+    }
     const { projects: listed } = change
     there = new Set(listed.map(({ id }) => id))
     for (const { id } of listed) ever.add(id)

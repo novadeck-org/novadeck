@@ -5,9 +5,10 @@ const key = "projects"
 
 /**
  * The projects as they change, for the clients that share them (`projects.watch`): the whole
- * list, in the person's order with each one's pin, first and again after each change. A
- * reader slower than the changes gets the latest list only. The list is short and changes
- * seldom, so it goes whole, its order and pins exact.
+ * list, in the person's order with each one's pin, first and again after each change, and a
+ * project's sessions in their order once arranged. A reader slower than the changes gets the
+ * latest list, and each project's latest order, only. The list is short and changes seldom,
+ * so it goes whole, its order and pins exact.
  */
 export class ProjectFeed {
   private readonly readers = new Set<KeyedChanges<string, ProjectsChange>>()
@@ -19,6 +20,12 @@ export class ProjectFeed {
     if (this.readers.size === 0) return
     const change: ProjectsChange = { type: "projects", projects: [...this.list()] }
     for (const reader of this.readers) reader.changed(key, change)
+  }
+
+  /** Tells every reader the project's sessions in their order, once arranged. */
+  arranged(projectId: string, order: readonly string[]): void {
+    for (const reader of this.readers)
+      reader.changed(`project:${projectId}`, { type: "arranged", projectId, order: [...order] })
   }
 
   /** One client's stream, until `signal` aborts. */

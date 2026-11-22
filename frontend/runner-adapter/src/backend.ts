@@ -2162,6 +2162,7 @@ export const runnerBackend = (
       arranged: (arrangement) => {
         for (const listener of arrangedListeners) listener(arrangement)
       },
+      sessionsArranged: sharing.arranged,
       listed: listing.map(({ project }) => project.id),
     })
     window.addEventListener("pagehide", flush)

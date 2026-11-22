@@ -287,16 +287,18 @@ and `base` is the revision it made the patch on; the runner passes both on, and
 revisions }`, every session's revision by id, and then reports each write as `{ type:
 "changed", session, writer, base }` (the session whole; `writer` and `base` are null for
 every write but a change, a creation included), latest only where a reader falls behind,
-each project's sessions in their order once arranged as `{ type: "arranged", projectId, order }`,
 and each removal as `{ type: "removed", sessionId }`, those of a removed project among them. A
 client re-lists a project whose session the snapshot says is newer than what it holds, and
 every project when the snapshot names a session it doesn't hold or leaves out one it knew,
 so nothing written between its listing and its watch is missed. `projects.watch()` gives
 the projects as `projects.list` does, `{ type: "projects", projects }`, first and again after
-each project is made, renamed, arranged or removed, the latest list only where a reader falls
-behind. Both changes are open unions: a client drops a kind it doesn't know. The two session
-procedures are `since: 4` and `projects.watch` is `since: 5`: a client asks `runner.supports`
-first, and saves whole without a feed where the runner has none.
+each project is made, renamed, arranged or removed, and each project's sessions in their
+order once arranged, `{ type: "arranged", projectId, order }`; the latest of each only where a
+reader falls behind. The session order goes there because UIs of revision 4 read
+`sessions.watch` as it was then, knowing no other kind. Both changes are open unions from
+revision 5: a client drops a kind it doesn't know. The two session procedures are `since: 4`
+and `projects.watch` is `since: 5`: a client asks `runner.supports` first, and saves whole
+without a feed where the runner has none.
 
 The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a
 time: a terminal's canvas geometry, its hidden mark, its Grid span or its companion bar,
