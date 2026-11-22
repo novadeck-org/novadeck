@@ -227,7 +227,7 @@ export class Shipping {
     return this.host.enabled()
   }
 
-  /** Whether the gate is on and covers `agent`'s harness (Antigravity isn't gated yet). */
+  /** Whether the gate is on and covers `agent`'s harness (Antigravity (agy) isn't gated yet). */
   covers(agent: AgentName): boolean {
     return this.host.enabled() && (agent === "claude" || agent === "codex")
   }

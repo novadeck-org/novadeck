@@ -45,7 +45,7 @@ describe("which harnesses the gate covers", () => {
   it("covers Claude Code and Codex while on, and never Antigravity", () => {
     expect(service().covers("claude")).toBe(true)
     expect(service().covers("codex")).toBe(true)
-    expect(service().covers("antigravity")).toBe(false)
+    expect(service().covers("agy")).toBe(false)
     const off = new Shipping({
       enabled: () => false,
       owned: { ofTerminal: () => [], all: () => [] },
