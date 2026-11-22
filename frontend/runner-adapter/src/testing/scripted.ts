@@ -207,6 +207,8 @@ export const scripted = ({
   // (`settings.watch`, `preferences.*`), which the test pushes.
   follows?: boolean
 }) => {
+  // How the runner answers `preferences.set`, which a test may change as it goes.
+  const answers: { preference: () => Promise<number> } = { preference: async () => 1 }
   const settingsChanges = channel<RunnerSettingsState>()
   const preferenceChanges = channel<PreferenceChange>()
   const changes = channel<TerminalWatchItem>()
@@ -231,7 +233,7 @@ export const scripted = ({
       follows && (path === "settings.watch" || path === "preferences.get"),
     preferences: {
       get: unused,
-      set: note("preference", async () => 1),
+      set: note("preference", () => answers.preference()),
       watch: () => preferenceChanges.iterator,
     },
     projects: {
@@ -417,6 +419,10 @@ export const scripted = ({
     statuses,
     settingsChanges,
     preferenceChanges,
+    // Changes how the runner answers `preferences.set` from now on.
+    answerPreference: (answer: () => Promise<number>) => {
+      answers.preference = answer
+    },
     watches,
     received,
     calls,

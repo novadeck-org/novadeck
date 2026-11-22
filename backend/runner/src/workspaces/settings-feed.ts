@@ -86,8 +86,9 @@ export class PreferenceFeed {
   }
 
   /** One client's stream: every preference, then each change, until `signal` aborts. */
-  watch(signal: AbortSignal): AsyncGenerator<PreferenceChange> {
-    return follow(this.readers, new PreferenceReader(this.current()), signal)
+  async *watch(signal: AbortSignal): AsyncGenerator<PreferenceChange> {
+    // Read and listening in the same turn, once the stream is read: no change falls between.
+    yield* follow(this.readers, new PreferenceReader(this.current()), signal)
   }
 }
 

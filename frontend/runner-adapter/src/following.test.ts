@@ -92,6 +92,56 @@ describe("following another device", () => {
       app.stop()
     })
 
+    it("keeps a change under way over another's of the same key, which the runner has before it", async () => {
+      let answer: () => void = () => {}
+      const app = scripted({ shown: [], follows: true })
+      const heard: Record<string, string | null>[] = []
+      app.backend.preferences!.subscribe((values, first) => {
+        if (!first) heard.push({ ...values })
+      })
+      app.preferenceChanges.push({ values: {}, revision: 0, writer: null })
+      await settled()
+      // The runner answers this one's change only when the test says.
+      app.answerPreference(() => new Promise<number>((resolve) => (answer = () => resolve(2))))
+      app.backend.preferences!.set("appearance", '"noon"')
+      app.preferenceChanges.push({
+        values: { appearance: '"dusk"', "chat-view": "true" },
+        revision: 1,
+        writer: "other",
+      })
+      await settled()
+      expect(heard).toEqual([{ "chat-view": "true" }])
+      answer()
+      await settled()
+      app.preferenceChanges.push({ values: { appearance: '"dawn"' }, revision: 3, writer: "other" })
+      await settled()
+      expect(heard.at(-1)).toEqual({ appearance: '"dawn"' })
+      app.stop()
+    })
+
+    it("sends again a change the runner couldn't take, once it says anything", async () => {
+      const app = scripted({ shown: [], follows: true })
+      const heard: Record<string, string | null>[] = []
+      app.backend.preferences!.subscribe((values, first) => {
+        if (!first) heard.push({ ...values })
+      })
+      app.preferenceChanges.push({ values: { appearance: '"dusk"' }, revision: 1, writer: null })
+      await settled()
+      app.answerPreference(() => Promise.reject(new Error("DISCONNECTED")))
+      app.backend.preferences!.set("appearance", '"noon"')
+      await settled()
+      app.answerPreference(async () => 2)
+      // Back after a reconnection, the runner tells everything again, its value stale.
+      app.preferenceChanges.push({ values: { appearance: '"dusk"' }, revision: 1, writer: null })
+      await settled()
+      expect(app.of("preference").map((input) => (input as unknown[])[1])).toEqual([
+        '"noon"',
+        '"noon"',
+      ])
+      expect(heard).toEqual([])
+      app.stop()
+    })
+
     it("offers none where the runner keeps none", () => {
       const app = scripted({ shown: [] })
       expect(app.backend.preferences).toBeUndefined()

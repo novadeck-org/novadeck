@@ -72,30 +72,32 @@ describe("preferences that follow the person", () => {
       )
     })
 
-    it("gives a runner that has none this device's, but never its own per-device ones", () => {
+    it("gives a runner that has none only what this device's person chose, never a default", () => {
       const desktop = device({ chatView: true, fontSize: 18 }, {})
-      expect(desktop.sent.map(([key]) => key).toSorted()).toEqual(
-        ["agent-avatars", "appearance", "chat-view", "enabled-views", "onboarding-tour"].toSorted(),
-      )
-      expect(desktop.sent).toContainEqual(["chat-view", "true"])
+      expect(desktop.sent).toEqual([["chat-view", "true"]])
+    })
+
+    it("gives nothing from a new device that connects first, so it resets no one's choices", () => {
+      expect(device({}, {}).sent).toEqual([])
+    })
+
+    it("shows a value it can't read as its default, and never sends that back", () => {
+      const older = device({}, { appearance: '{"theme":"from-a-newer-build","scheme":"dark"}' })
+      expect(older.preferences().appearance.scheme).toBe("dark")
+      expect(older.sent).toEqual([])
     })
   })
 
   context("once connected", () => {
     it("sends a change of a person's preference, and none of a device's", () => {
-      const desktop = device(
-        {},
-        {
-          "chat-view": "false",
-          "agent-avatars": "false",
-          "onboarding-tour": "false",
-          "enabled-views": '["focus","grid","canvas"]',
-          appearance: JSON.stringify(preferencesFrom({}).appearance),
-        },
-      )
-      desktop.sent.length = 0
+      const desktop = device({}, { "chat-view": "false" })
       desktop.update({ ...desktop.preferences(), chatView: true, fontSize: 20, notifyNeeds: false })
-      expect(desktop.sent).toEqual([["chat-view", "true"]])
+      // Back to the default: the person's choice is forgotten, as no choice.
+      desktop.update({ ...desktop.preferences(), chatView: false })
+      expect(desktop.sent).toEqual([
+        ["chat-view", "true"],
+        ["chat-view", null],
+      ])
     })
 
     it("follows another device's change of a preference, and the Agent Chat offer once answered", () => {

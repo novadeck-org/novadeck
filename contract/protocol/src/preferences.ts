@@ -9,7 +9,7 @@ import { z } from "zod"
 export const maxPreferences = 64
 export const maxPreferenceLength = 16_384
 
-/** A preference's name, as "appearance" or "sidebar.order". */
+/** A preference's name, as "appearance" or "sidebar-order". */
 export const preferenceKey = z.string().regex(/^[a-z][a-z0-9.-]{0,63}$/)
 
 /** A preference's value as the UI wrote it: JSON text, which the runner doesn't read. */

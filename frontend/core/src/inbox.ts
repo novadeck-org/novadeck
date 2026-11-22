@@ -365,7 +365,8 @@ export const withSnoozes = <I extends Inbox>(
     for (const listener of listeners) listener()
   }
   follow?.((next) => {
-    if (next.join("\n") !== snoozed.join("\n")) snoozeTo(next.slice(-maxSnoozes))
+    const kept = next.slice(-maxSnoozes)
+    if (kept.join("\n") !== snoozed.join("\n")) snoozeTo(kept)
   })
   const getSnapshot = (): InboxState => {
     const now = inbox.state.getSnapshot()

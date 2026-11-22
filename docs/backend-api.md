@@ -615,7 +615,7 @@ before, and that copy is also where the app reads the person's first, so a start
   keeps on its own (`projects.arrange`).
 
 Each preference is text (the UI's JSON) under a key (`[a-z][a-z0-9.-]*`, at most 64 characters),
-at most 64 keys and 16 KiB each. The runner keeps it as written, under `person:<key>` in its
+at most 64 keys and 16,384 characters each. The runner keeps it as written, under `person:<key>` in its
 settings, without reading it; the UI reads it as it reads a saved preference, so what an older or
 newer build wrote reads as its default where it can't be read. `set` keeps one key, or forgets
 it for `null`: the last change wins, key by key, so two devices changing different things never
@@ -624,10 +624,16 @@ change raises and the `writer` (a client's own token) whose change it was, which
 skips; a reader slower than the changes gets each key once, as it is when it reads it.
 
 As a device first connects to a runner that keeps them, it takes each preference the runner has,
-and gives it each it has saved that the runner lacks: the first device after an update gives the
-person's preferences, the next takes them, and none is reset. A mark of something seen once is
-given only once seen, so seen anywhere is seen. Against a runner without `preferences.*` the app
-keeps them on the device, as before; an app from before them keeps its own and never asks.
+and gives it each the person chose there that the runner lacks; a default is no choice, and is
+never given. So the first device after an update gives the person's preferences, the next takes
+them, and a new device that connects first resets nothing. A mark of something seen once is given
+only once seen, so seen anywhere is seen. A value a device takes from another, or from another of
+its windows, it shows but never sends back: one an older build can't read shows as its default
+there, and stays the newer build's on the runner. Another client's change of a key this device is
+changing meanwhile waits behind it, and a change the runner couldn't take, as while the link was
+down, is sent again once it answers and stands over what it says. Against a runner without
+`preferences.*` the app keeps them on the device, as before; an app from before them keeps its own
+and never asks.
 
 ### Desktop app
 
