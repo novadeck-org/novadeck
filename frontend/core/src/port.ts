@@ -158,9 +158,23 @@ export type BackendAction = Extract<
       | "item/remove"
       | "window/upsert"
       | "window/remove"
-      // Another client's change to a session they share.
+      // Another client's change to a session they share, and to the projects and sessions.
       | "session/shared"
+      | "session/arrived"
+      | "session/gone"
+      | "project/gone"
+      | "sessions/arranged"
+      | "project/renamed"
+      // A project another client made, read from the runner.
+      | "project/sync"
   }
+>
+
+// What another client removed, which the page lays in itself: it moves the person on, and
+// tells them, when it was what they were on.
+export type RemovedElsewhere = Extract<
+  BackendAction,
+  { type: "session/gone" } | { type: "project/gone" }
 >
 
 // An agent in terminal `from` asked for a new terminal beside it: in `directory`, running
@@ -441,9 +455,18 @@ export type BackendFields = {
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox/entries`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
+  // Optional. Hears how the projects are arranged as another client arranges them (their ids
+  // in order, and the pinned ones), and again as this one's own comes back; returns the stop.
+  // Absent where the backend can't tell.
+  readonly arranged?: (
+    listener: (arrangement: {
+      readonly order: readonly string[]
+      readonly pinned: readonly string[]
+    }) => void,
+  ) => () => void
   // Optional. Keeps how the person arranged the switcher: the projects' ids in their order,
   // and the pinned ones. The seed carries it back at the next load (`ProjectSeed.pinned`,
-  // and the seed's order); no other client hears of it meanwhile. Resolves once kept, and
+  // and the seed's order), and other clients hear of it (`arranged`). Resolves once kept, and
   // rejects if it couldn't be. Absent where the backend keeps none: the arrangement then
   // lasts the session.
   readonly arrange?: (arrangement: {

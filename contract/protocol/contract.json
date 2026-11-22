@@ -201,6 +201,38 @@
       },
       "output": {"x-optional":true}
     },
+    "projects.watch": {
+      "since": 3,
+      "input": {"x-optional":true},
+      "yields": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {"type":"string","const":"projects"},
+              "projects": {
+                "maxItems": 10000,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type":"string","format":"uuid"},
+                    "name": {"type":"string","minLength":1,"maxLength":200},
+                    "cwd": {"type":"string","minLength":1,"maxLength":4096},
+                    "pinned": {"type":"boolean"}
+                  },
+                  "required": ["id","name","cwd","pinned"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["type","projects"],
+            "additionalProperties": false
+          }
+        ],
+        "x-open": {"since":3,"unknown":"drop"}
+      }
+    },
     "projects.folder": {
       "input": {
         "type": "object",
@@ -516,13 +548,24 @@
           {
             "type": "object",
             "properties": {
+              "type": {"type":"string","const":"arranged"},
+              "projectId": {"type":"string","format":"uuid"},
+              "order": {"maxItems":10000,"type":"array","items":{"type":"string","format":"uuid"}}
+            },
+            "required": ["type","projectId","order"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
               "type": {"type":"string","const":"removed"},
               "sessionId": {"type":"string","format":"uuid"}
             },
             "required": ["type","sessionId"],
             "additionalProperties": false
           }
-        ]
+        ],
+        "x-open": {"since":3,"unknown":"drop"}
       }
     },
     "terminals.list": {

@@ -48,6 +48,8 @@ const sharedWindow = async ({
       : (null as string | null),
     revision: stored ? 5 : 0,
     name: "initial",
+    // The project went on the runner, as another client removed it.
+    gone: false,
   }
   const held = () => ({
     id: "initial",
@@ -82,7 +84,10 @@ const sharedWindow = async ({
           })
         }),
       watch: () => feed.iterator,
-      list: async () => [held()],
+      list: async () => {
+        if (server.gone) throw new WireError("NOT_FOUND", "Project not found")
+        return [held()]
+      },
       save: async () => {},
     },
   } as unknown as Pick<Runner, "sessions" | "supports">
@@ -92,6 +97,7 @@ const sharedWindow = async ({
     latest: () => workspace,
     dispatch: (actions) => commit(actions as WorkspaceAction[]),
     track: (work) => work,
+    arrive: () => {},
   })
   const saves = createSessionSaves({
     save: sharing.save,
@@ -163,6 +169,11 @@ const sharedWindow = async ({
     opens,
     // The runner's feed ends with `error`, as once the runner closed.
     feedEnds: (error: unknown) => feed.fail(error),
+    // The feed opens again with the runner's revisions, as after the link came back.
+    reopens: async (revisions: Record<string, number>) => {
+      feed.push({ type: "revisions", revisions })
+      await new Promise((done) => setTimeout(done, 0))
+    },
     moves,
     sends,
     theirs,
@@ -352,6 +363,21 @@ describe("a session shared while changes cross", () => {
       const window = await sharedWindow()
       window.feedEnds(new WireError("DISCONNECTED", "The connection is closed."))
       await new Promise((done) => setTimeout(done, 0))
+      expect(reported).not.toHaveBeenCalled()
+      window.stop()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("catches up past a project another client removed while the link was down", async () => {
+    const reported = vi.fn<(error: unknown) => void>()
+    vi.stubGlobal("reportError", reported)
+    try {
+      const window = await sharedWindow()
+      window.server.gone = true
+      // Its session is no longer among the runner's: every project is read again.
+      await window.reopens({})
       expect(reported).not.toHaveBeenCalled()
       window.stop()
     } finally {

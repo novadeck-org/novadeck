@@ -716,6 +716,39 @@ describe("keeping the project arrangement", () => {
     await vi.waitFor(() => expect(localStorage.getItem(projectArrangementStorageKey)).toBeNull())
   })
 
+  // How another client arranged the projects, as the runner tells it.
+  const hearing = () => {
+    let hear: (arrangement: ProjectArrangement) => void = () => {}
+    const arranged = (listener: (arrangement: ProjectArrangement) => void) => {
+      hear = listener
+      return () => {}
+    }
+    return { arranged, hear: (arrangement: ProjectArrangement) => hear(arrangement) }
+  }
+
+  it("takes how another client arranged the projects, and never sends it back", () => {
+    const ui = createUiStore(initial())
+    const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(async () => {})
+    const { arranged, hear } = hearing()
+    keepProjectArrangement(ui, arrange, arranged)
+    hear(stored)
+    expect(ui.getSnapshot().projectArrangement).toEqual(stored)
+    expect(arrange).not.toHaveBeenCalled()
+  })
+
+  it("keeps the person's own while it's on its way, whatever comes meanwhile", () => {
+    const ui = createUiStore(initial())
+    const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(
+      () => new Promise(() => {}),
+    )
+    const { arranged, hear } = hearing()
+    keepProjectArrangement(ui, arrange, arranged)
+    const mine = { order: ["a", "b"], pinned: ["a"] }
+    ui.update((state) => ({ ...state, projectArrangement: mine }))
+    hear(stored)
+    expect(ui.getSnapshot().projectArrangement).toEqual(mine)
+  })
+
   it("keeps it in storage when the backend could not take it", async () => {
     localStorage.setItem(projectArrangementStorageKey, JSON.stringify(stored))
     const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(async () => {

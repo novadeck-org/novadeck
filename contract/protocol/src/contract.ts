@@ -59,6 +59,7 @@ import {
   clientState,
   folderListing,
   project,
+  projectsChange,
   sessionChange,
   sessionPatch,
   workspaceSession,
@@ -158,6 +159,9 @@ export const contract = {
     // agents' messages; its folder stays. A project the runner doesn't have, as one
     // removed already, is NOT_FOUND.
     remove: procedure.input(z.strictObject({ projectId: id })).output(z.void()),
+    // The projects as they change, as `projectsChange` says, for a client sharing them with
+    // others.
+    watch: procedure.meta({ since: 3 }).input(z.void()).output(eventIterator(projectsChange)),
     // One folder of the project's directory as it is now, named by its path from the
     // project's root with `/` between names ("" for the root). The entries are sorted,
     // folders first; git's own `.git` is never among them. A project the runner doesn't

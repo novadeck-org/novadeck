@@ -9,7 +9,8 @@ export type FeedStore = {
 
 /**
  * Every session's changes, for the clients that share them (`sessions.watch`): first each
- * session's revision, then each session as it changes, and each one gone. A reader slower than
+ * session's revision, then each session as it changes, each project's order of them once
+ * arranged, and each one gone. A reader slower than
  * the changes gets each session once, as it is when it reads it, in the order they first
  * changed: a client lays its own unsent changes over whatever it reads, so a change folded
  * into a later one is never lost to it.
@@ -35,6 +36,12 @@ export class SessionFeed {
       base: by?.base ?? null,
     }
     for (const reader of this.readers) reader.changed(sessionId, change)
+  }
+
+  /** Tells every reader the project's sessions in their order, once arranged. */
+  arranged(projectId: string, order: readonly string[]): void {
+    for (const reader of this.readers)
+      reader.changed(`project:${projectId}`, { type: "arranged", projectId, order: [...order] })
   }
 
   removed(sessionId: string): void {

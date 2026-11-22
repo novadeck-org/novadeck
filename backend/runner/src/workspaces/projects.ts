@@ -4,6 +4,8 @@ import type { CompanionItems } from "../companions/items.js"
 import { DomainError } from "../errors.js"
 import type { Terminals } from "../terminals/index.js"
 import type { Worktrees } from "../worktrees/worktrees.js"
+import { ProjectFeed } from "./project-feed.js"
+import { SessionFeed } from "./session-feed.js"
 import type { WorkspaceStore } from "./store.js"
 
 /**
@@ -19,13 +21,19 @@ export class Projects {
   private readonly removingSessions = new Map<string, Promise<void>>()
   /** Each project's terminals being created, and each session's. */
   private readonly creating = new Map<string, Set<Promise<unknown>>>()
+  /** The projects and sessions as they change, for the clients that share them. */
+  readonly projectFeed: ProjectFeed
+  readonly sessionFeed: SessionFeed
 
   constructor(
     private readonly store: WorkspaceStore,
     private readonly terminals: Terminals,
     private readonly items: CompanionItems,
     private readonly worktrees?: Pick<Worktrees, "removeProject">,
-  ) {}
+  ) {
+    this.projectFeed = new ProjectFeed(() => this.list())
+    this.sessionFeed = new SessionFeed(store)
+  }
 
   /** Every project, in order, but those being removed, which are as good as gone. */
   list(): Project[] {
@@ -39,6 +47,7 @@ export class Projects {
       order.filter((id) => !going(id)),
       pinned.filter((id) => !going(id)),
     )
+    this.projectFeed.changed()
   }
 
   /** The project's sessions in the person's order, but those being removed. */
@@ -51,6 +60,12 @@ export class Projects {
     this.store.arrangeSessions(
       projectId,
       order.filter((id) => !this.removingSessions.has(id)),
+    )
+    const arranged = this.sessions(projectId)
+    for (const { id } of arranged) this.sessionFeed.changed(id)
+    this.sessionFeed.arranged(
+      projectId,
+      arranged.map(({ id }) => id),
     )
   }
 
@@ -102,8 +117,14 @@ export class Projects {
     const removing = this.removing.get(projectId)
     if (removing) return removing
     this.store.project(projectId)
-    const removal = this.removal(projectId).finally(() => this.removing.delete(projectId))
+    const removal = this.removal(projectId).finally(() => {
+      this.removing.delete(projectId)
+      // Gone, or kept once its removal failed: either way the list moved again.
+      this.projectFeed.changed()
+    })
     this.removing.set(projectId, removal)
+    // As good as gone from the list at once.
+    this.projectFeed.changed()
     return removal
   }
 
@@ -118,6 +139,7 @@ export class Projects {
     try {
       this.items.sessionsRemoved(sessions)
       this.store.removeProject(projectId)
+      for (const sessionId of sessions) this.sessionFeed.removed(sessionId)
     } catch (error) {
       // It stays, so terminals may start in it again.
       this.terminals.projectKept(sessions)
@@ -150,6 +172,7 @@ export class Projects {
     try {
       this.items.sessionsRemoved([sessionId])
       this.store.removeSession(sessionId)
+      this.sessionFeed.removed(sessionId)
     } catch (error) {
       // It stays, so terminals may start in it again.
       this.terminals.projectKept([sessionId])

@@ -10,8 +10,9 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
-import { TourNeedsAgent } from "@novadeck/core/port"
+import { TourNeedsAgent, type TourRun } from "@novadeck/core/port"
 import { sameArgv } from "@novadeck/core/roster"
+import { projectFromSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { createTerminalRegistry } from "@novadeck/core/terminals/registry"
@@ -41,6 +42,7 @@ import {
   type TerminalRequest,
   type TerminalRequestAnswer,
   type TerminalSummary,
+  type WorkspaceSession as RunnerSession,
 } from "@novadeck/protocol"
 import {
   hasCode,
@@ -65,6 +67,7 @@ import { answerLook, type Looks } from "./companions/looks"
 import { createRunnerFiles } from "./files"
 import { createRunnerHistory } from "./history"
 import { listProject } from "./sessions/listing"
+import { followProjects, type ProjectArrangement } from "./sessions/projects-feed"
 import { createSessionSaves } from "./sessions/saves"
 import {
   cleanlyExited,
@@ -132,9 +135,11 @@ const settleLimitMs = 3_000
 export const runnerTour = (
   tour: Runner["tour"],
   track: <T>(work: Promise<T>) => Promise<T>,
+  // Wraps each prepare, which removes the tours before on the runner itself.
+  preparing: (work: Promise<TourRun>) => Promise<TourRun> = (work) => work,
 ): NonNullable<Backend["tour"]> => ({
   prepare: (agent) =>
-    track(tour.prepare(agent)).catch((error: unknown) => {
+    preparing(track(tour.prepare(agent))).catch((error: unknown) => {
       throw hasCode(error, "MODELS_UNLISTED") ? new TourNeedsAgent(error.message, agent) : error
     }),
   brief: (terminalId) => track(tour.brief(terminalId)),
@@ -824,6 +829,8 @@ export const runnerBackend = (
   }
   // Sessions the person deleted, whose terminals the runner closes as it removes them.
   const removedSessions = new Set<string>()
+  // Terminals the runner reported gone, as another window closed them, until their close here.
+  const endedThere = new Set<string>()
   // Removes the session on the runner once it has it, as a project's removal does. One
   // already gone, as removed from another window, is left as it is, and so is a project's
   // last session, which the runner keeps (the workspace never removes it).
@@ -1620,8 +1627,11 @@ export const runnerBackend = (
       if (entries.get(key.terminalId) === entry) entries.delete(key.terminalId)
       // A removed project's terminals are closed by the runner, as it removes the project.
       // A deleted session's are too, as it removes the session.
+      // One the runner reported gone was closed there.
+      const ended = endedThere.delete(key.terminalId)
       if (
         !reading &&
+        !ended &&
         !removedProjects.has(key.projectId) &&
         !removedSessions.has(key.workspaceSessionId)
       )
@@ -1669,12 +1679,54 @@ export const runnerBackend = (
   )
   // Sessions shared with the runner's other clients: this one's changes as patches, theirs as
   // they arrive (sessions/sharing.ts).
+  // How what another client made opens here, where it has no view of its own: as this
+  // window's open session is shown.
+  const seedDefaults = () => {
+    const project = latest?.projects.find(({ id }) => id === latest?.activeProjectId)
+    const shown = project?.history.find(({ id }) => id === project.activeSessionId)?.state
+    return {
+      view: shown?.view ?? ("grid" as const),
+      windowedView: shown?.windowedView ?? ("grid" as const),
+      now: now(),
+    }
+  }
+  // A session another client made in a project this window holds: listed here, unopened, as
+  // the runner has it, and never created again; its terminals the runner already told of
+  // join it, as those of a session this window knew do.
+  const arrive = (session: RunnerSession): void => {
+    const project = latest?.projects.find(({ id }) => id === session.projectId)
+    if (!project || removedSessions.has(session.id)) return
+    if (project.history.some(({ id }) => id === session.id)) return
+    asked.add(session.id)
+    sessions.set(session.id, created)
+    const listed: RunnerListing = [
+      {
+        project: { id: project.id, name: project.name, cwd: project.directory, pinned: false },
+        sessions: [{ session, terminals: [] }],
+      },
+    ]
+    const seeded = runnerSeed(listed, quickExitMs).projects[0]
+    const made = seeded && projectFromSeed(seeded, seedDefaults()).history[0]
+    if (!made) return
+    dispatch([{ type: "session/arrived", projectId: project.id, session: made }])
+    queueMicrotask(() => {
+      for (const summary of runnerSummaries.values())
+        if (summary.sessionId === session.id) adopt(summary)
+    })
+  }
+  // Who hears how the runner has the projects arranged, as another client arranges them.
+  const arrangedListeners = new Set<(arrangement: ProjectArrangement) => void>()
+  // Tour runs being prepared from this window, and the projects feed while it's followed.
+  let tourPreparing = 0
+  let liveProjects: ReturnType<typeof followProjects> | undefined
   const sharing = createSessionSharing({
     runner,
     saves: () => saves,
     latest: () => latest,
     dispatch: (actions) => dispatch(actions),
     track,
+    arrive,
+    now,
   })
   // Every changed session is sent after a quiet spell, or at once on pagehide.
   const saves = createSessionSaves({
@@ -1730,6 +1782,12 @@ export const runnerBackend = (
         : [],
     )
     for (const sessionId of deleted) removedSessions.add(sessionId)
+    // What another client removed is gone on the runner already, its terminals closed there:
+    // nothing of it is closed or removed again from here.
+    for (const action of actions) {
+      if (action.type === "project/gone") removedProjects.add(action.projectId)
+      if (action.type === "session/gone") removedSessions.add(action.workspaceSessionId)
+    }
     registry.reconcile(workspace, actions)
     reading = false
     for (const projectId of removed) void removeOnRunner(projectId)
@@ -1885,8 +1943,10 @@ export const runnerBackend = (
       if (change.type === "removed") {
         closedPending.delete(change.terminalId)
         runnerSummaries.delete(change.terminalId)
-        // Closed, as by another window: it is gone from its session here too.
+        // Closed, as by another window: it is gone from its session here too, and its shell, gone
+        // on the runner already, isn't ended again from here.
         const entry = entries.get(change.terminalId)
+        if (entry && !entry.closed) endedThere.add(change.terminalId)
         if (entry && !entry.closed)
           dispatch([
             { type: "terminal/close", target: target(entry.key), terminalId: change.terminalId },
@@ -2087,6 +2147,22 @@ export const runnerBackend = (
     works.readOnce()
     inbox.follow()
     sharing.follow()
+    liveProjects = followProjects({
+      runner,
+      latest: () => latest,
+      dispatch,
+      now,
+      holding: () => tourPreparing > 0,
+      read: async (projectId) => {
+        const read = await syncProject(projectId)
+        return read && projectFromSeed(read, seedDefaults())
+      },
+      removedHere: (projectId) => removedProjects.has(projectId),
+      arranged: (arrangement) => {
+        for (const listener of arrangedListeners) listener(arrangement)
+      },
+      listed: listing.map(({ project }) => project.id),
+    })
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
@@ -2112,6 +2188,8 @@ export const runnerBackend = (
       history.stop()
       works.stop()
       sharing.stop()
+      liveProjects?.stop()
+      liveProjects = undefined
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -2217,6 +2295,10 @@ export const runnerBackend = (
     },
     // After the projects the person just added exist on the runner, or the arrangement
     // would name ones it doesn't have yet.
+    arranged: (listener) => {
+      arrangedListeners.add(listener)
+      return () => void arrangedListeners.delete(listener)
+    },
     arrange: (arrangement) =>
       track(
         Promise.allSettled(projects.values()).then(async () => {
@@ -2266,7 +2348,23 @@ export const runnerBackend = (
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,
     ...runnerSwitches(runner, options, track),
-    ...(runner.tour && { tour: runnerTour(runner.tour, track) }),
+    ...(runner.tour && {
+      // The tours it removes are this window's to remove, as it opens the new one: the projects
+      // feed holds what goes meanwhile, and lets go only of what the run didn't remove.
+      tour: runnerTour(runner.tour, track, async (work) => {
+        tourPreparing += 1
+        let removed: readonly string[] = []
+        try {
+          const run = await work
+          removed = run.removed
+          return run
+        } finally {
+          tourPreparing -= 1
+          for (const projectId of removed) removedProjects.add(projectId)
+          liveProjects?.released()
+        }
+      }),
+    }),
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
     ...(options.showScale ? { showScale: options.showScale } : {}),

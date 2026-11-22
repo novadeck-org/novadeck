@@ -210,8 +210,8 @@ before the removal is done rejects it with `CLOSING` and keeps the session.
 ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order` (one
 `order` doesn't name isn't pinned).
 Unknown ids are ignored, projects `order` leaves out follow in the order they were added
-(with no pin), and a project being removed is left out. Other clients see the change when
-they next list the projects.
+(with no pin), and a project being removed is left out. Other clients hear of it on
+`projects.watch()`.
 `projects.folder({ projectId, folder })` lists one folder of the project's directory,
 `folder` being its path from the project's root with `/` between names (`""` for the
 root). Entries come sorted, folders first, then by name ignoring case and a leading dot
@@ -254,11 +254,17 @@ and `base` is the revision it made the patch on; the runner passes both on, and
 `visitedAt` is kept where given. `sessions.watch()` starts with `{ type: "revisions",
 revisions }`, every session's revision by id, and then reports each write as `{ type:
 "changed", session, writer, base }` (the session whole; `writer` and `base` are null for
-every write but a change, a creation included), latest only where a reader falls behind, and each removal as
-`{ type: "removed", sessionId }`. A client re-lists a project whose session the snapshot
-says is newer than what it holds, so nothing written between its listing and its watch is
-missed. Both are `since: 3`: a client asks `runner.supports` first, and saves whole without
-a feed where the runner has neither.
+every write but a change, a creation included), latest only where a reader falls behind,
+each project's sessions in their order once arranged as `{ type: "arranged", projectId, order }`,
+and each removal as `{ type: "removed", sessionId }`, those of a removed project among them. A
+client re-lists a project whose session the snapshot says is newer than what it holds, and
+every project when the snapshot names a session it doesn't hold or leaves out one it knew,
+so nothing written between its listing and its watch is missed. `projects.watch()` gives
+the projects as `projects.list` does, `{ type: "projects", projects }`, first and again after
+each project is made, renamed, arranged or removed, the latest list only where a reader falls
+behind. Both changes are open unions: a client drops a kind it doesn't know. All three
+procedures are `since: 3`: a client asks `runner.supports` first, and saves whole without a
+feed where the runner has none.
 
 The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a
 time: a terminal's canvas geometry, its hidden mark, its Grid span or its companion bar,
@@ -276,6 +282,15 @@ back. Where the person looks, the view, the windowed view and the terminal in fr
 each device's own: kept in the page's storage by session, read first on load (the shared
 state's, as builds before saved it, where a device has none), and sent only when the person
 changes it there, so one client's selection never moves another's.
+
+What another client does to the projects and sessions shows in each client live too, laid in
+as the person's own would be and never sent back (`sessions/projects-feed.ts` and
+`sharing.ts`): a session it made joins its project's list unopened, with the terminals
+already running in it; a project it made is read and joins the switcher; a session or project
+it removed goes, the open one handing over as the person's own removal would, with a toast
+saying what went and what shows now when it was the one on screen; and its renames and
+arrangements, of a project's sessions or of the projects and their pins, are taken as they
+come, unless the person's own arrangement is still on its way.
 
 `runner.terminals.watch()` follows every terminal on the runner, across sessions:
 

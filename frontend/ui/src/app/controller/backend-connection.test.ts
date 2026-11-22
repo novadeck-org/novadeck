@@ -151,4 +151,26 @@ describe("backend connection", () => {
       expect(stop).not.toThrow()
     })
   })
+
+  it("hands what another client removed to the page's own handling, the rest to the store", () => {
+    const store = createWorkspaceStore(workspace())
+    let sink: BackendSink | undefined
+    const backend: Pick<Backend, "start"> = {
+      start: (given) => {
+        sink = given
+        return () => {}
+      },
+    }
+    const removed: unknown[] = []
+    connectBackend(backend, store, refuse, (actions) => removed.push(...actions))
+    const gone = {
+      type: "session/gone",
+      projectId: "project",
+      workspaceSessionId: "initial",
+      now: 1,
+    } as const
+    sink!.dispatch([gone, { type: "terminal/close", target, terminalId: "01" }])
+    expect(removed).toEqual([gone])
+    expect(statuses(store.getSnapshot())).toHaveLength(1)
+  })
 })

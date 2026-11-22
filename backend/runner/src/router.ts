@@ -34,7 +34,6 @@ import type { Voice } from "./voice/service.js"
 import type { Works } from "./works/works.js"
 import { listFolder } from "./workspaces/folder.js"
 import type { Projects } from "./workspaces/projects.js"
-import { SessionFeed } from "./workspaces/session-feed.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 import type { MainCheckouts } from "./worktrees/main-checkout.js"
 
@@ -190,16 +189,22 @@ export const createRouter = (options: {
   // The save of each plan under way, which the next waits for.
   const saving = new Map<string, Promise<void>>()
   const api = implement(served).$context<SessionContext>()
-  // The sessions' changes, for clients that share them.
-  const sessionFeed = new SessionFeed(store)
+  // The projects' and sessions' changes, for clients that share them.
+  const { projectFeed, sessionFeed } = projects
 
   return api.router({
     projects: {
       list: api.projects.list.handler(() => projects.list()),
-      create: api.projects.create.handler(({ input }) =>
-        store.createProject({ ...input, cwd: input.cwd ?? homedir() }),
-      ),
-      rename: api.projects.rename.handler(({ input }) => store.renameProject(input)),
+      create: api.projects.create.handler(async ({ input }) => {
+        const made = await store.createProject({ ...input, cwd: input.cwd ?? homedir() })
+        projectFeed.changed()
+        return made
+      }),
+      rename: api.projects.rename.handler(({ input }) => {
+        const renamed = store.renameProject(input)
+        projectFeed.changed()
+        return renamed
+      }),
       arrange: api.projects.arrange.handler(({ input }) =>
         projects.arrange(input.order, input.pinned),
       ),
@@ -208,6 +213,9 @@ export const createRouter = (options: {
         projects.ensureNotRemoving(input.projectId)
         return listFolder(store.project(input.projectId).cwd, input.folder)
       }),
+      watch: api.projects.watch.handler(({ signal }) =>
+        projectFeed.watch(signal ?? new AbortController().signal),
+      ),
       checkout: api.projects.checkout.handler(({ input }) =>
         checkouts.read(store.project(input.projectId).cwd),
       ),
@@ -230,11 +238,9 @@ export const createRouter = (options: {
       }),
       arrange: api.sessions.arrange.handler(({ input }) => {
         projects.arrangeSessions(input.projectId, input.order)
-        for (const { id } of store.sessions(input.projectId)) sessionFeed.changed(id)
       }),
       remove: api.sessions.remove.handler(async ({ input }) => {
         await projects.removeSession(input.sessionId)
-        sessionFeed.removed(input.sessionId)
       }),
       save: api.sessions.save.handler(({ input }) => {
         // Shells exiting during shutdown would otherwise overwrite the last state saved

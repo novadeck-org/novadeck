@@ -367,6 +367,71 @@ describe("workspace metadata API", () => {
     await changes.return?.(undefined)
   })
 
+  it("tells every client of the projects and sessions another makes, arranges and removes", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const a = await app.connect()
+    const b = await app.connect()
+    const { project, session } = await app.setup(a.client)
+    const projects = await b.client.projects.watch()
+    const listed = async () => {
+      const { value } = await projects.next()
+      return (value as { projects: { id: string; pinned: boolean }[] }).projects.map(
+        ({ id, pinned }) => [id, pinned],
+      )
+    }
+    expect(await listed()).toEqual([[project.id, false]])
+    const sessions = await b.client.sessions.watch()
+    expect((await sessions.next()).value).toMatchObject({ type: "revisions" })
+    // The next change of each kind, past those it isn't.
+    const next = async (type: string) => {
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop -- Changes are read in order.
+        const { value } = await sessions.next()
+        if ((value as { type: string }).type === type) return value
+      }
+    }
+
+    const other = await a.client.projects.create({
+      id: randomUUID(),
+      name: "Other",
+      cwd: app.directory,
+    })
+    expect(await listed()).toEqual([
+      [project.id, false],
+      [other.id, false],
+    ])
+    await a.client.projects.arrange({ order: [other.id, project.id], pinned: [other.id] })
+    expect(await listed()).toEqual([
+      [other.id, true],
+      [project.id, false],
+    ])
+
+    const second = await a.client.sessions.create({
+      id: randomUUID(),
+      projectId: project.id,
+      name: "Second",
+    })
+    expect(await next("changed")).toMatchObject({ session: { id: second.id } })
+    await a.client.sessions.arrange({ projectId: project.id, order: [session.id, second.id] })
+    expect(await next("arranged")).toEqual({
+      type: "arranged",
+      projectId: project.id,
+      order: [session.id, second.id],
+    })
+
+    // A project removed takes its sessions with it, and each client hears of each.
+    await a.client.projects.remove({ projectId: project.id })
+    const gone = [await next("removed"), await next("removed")]
+    expect(gone.map((each) => (each as { sessionId: string }).sessionId).toSorted()).toEqual(
+      [session.id, second.id].toSorted(),
+    )
+    expect(await listed()).toEqual([[other.id, true]])
+    await projects.return?.(undefined)
+    await sessions.return?.(undefined)
+  })
+
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
     const app = await fixture(resources)
     const { client } = await app.connect()

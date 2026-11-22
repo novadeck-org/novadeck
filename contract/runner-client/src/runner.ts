@@ -41,6 +41,7 @@ import {
   type RunnerSettings,
   type RunnerSettingsState,
   type SessionChange,
+  type ProjectsChange,
   type SessionPatch,
   type TourPrepared,
   type SliceChange,
@@ -149,6 +150,13 @@ export type Runner = {
      * one already removed, and with `CLOSING` when the runner shuts down first.
      */
     remove(input: { readonly projectId: string }): Promise<void>
+    /**
+     * The projects as they change, the whole list in the person's order with each one's pin,
+     * first and after each change, as `ProjectsChange` says. Opened again after each
+     * reconnection, starting with the list again. A runner from before revision 3 has none
+     * (`supports("projects.watch")`).
+     */
+    watch(): AsyncIterableIterator<ProjectsChange, undefined>
     /**
      * Keeps the person's arrangement of the projects: `order` by id, first to last, and the
      * ones `pinned`, at most nine, the first in `order` (one `order` doesn't name isn't
@@ -917,6 +925,8 @@ export const connectRunner = async (
       create: (input) => call((client) => client.projects.create(input)),
       rename: (input) => call((client) => client.projects.rename(input)),
       remove: (input) => call((client) => client.projects.remove(input)),
+      watch: () =>
+        followSession(connection, (client, signal) => client.projects.watch(undefined, { signal })),
       arrange: (input) =>
         call((client) =>
           client.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),

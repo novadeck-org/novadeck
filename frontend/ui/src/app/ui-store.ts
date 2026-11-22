@@ -33,6 +33,14 @@ import { currentContext, currentState } from "./selectors"
 
 // Presentation state the workspace model does not own. One store per App; it
 // starts over on reload apart from the slices persisted below.
+// What Novadeck tells the person of something done elsewhere: `said` what happened, and
+// `subject` where that leaves them.
+export type ToldNotice = {
+  readonly id: string
+  readonly said: string
+  readonly subject: string
+}
+
 export type UiState = {
   // The route the app renders, mirrored from the URL, which stays authoritative.
   readonly location: UiLocation
@@ -61,6 +69,9 @@ export type UiState = {
   readonly moveAsk: MoveAsk | null
   // The last move, for its toast; never persisted.
   readonly moved: MoveNotice | null
+  // What Novadeck last told the person of something done elsewhere, as the session or project
+  // they were on being removed in another window, for its toast; never persisted.
+  readonly told: ToldNotice | null
   // The agent whose switch Preferences should bring into view when it opens, until it has.
   readonly agentFocus: AgentName | null
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
@@ -195,6 +206,7 @@ export const initialUi = ({
   moving: null,
   moveAsk: null,
   moved: null,
+  told: null,
   agentFocus: null,
   crashLoopDismissed: false,
   addonOffer: extraWindow ? "none" : null,
@@ -303,24 +315,51 @@ const importing = new WeakSet<UiStore>()
 // backend answers is sent as it is, in order; opening a client sends nothing. An arrangement
 // an earlier client left in storage is sent once first (the store was seeded from it) and
 // forgotten once the backend has it or any arrangement since; a failed send leaves it for
-// the next load.
+// the next load. How another client arranged the projects (`arranged`) is taken as it comes,
+// and never sent back, unless the person's own is still on its way, which comes back after.
 export const keepProjectArrangement = (
   ui: UiStore,
   arrange: NonNullable<Backend["arrange"]>,
+  arranged?: Backend["arranged"],
 ): (() => void) => {
+  let sending = 0
+  const send = (arrangement: ProjectArrangement): void => {
+    sending += 1
+    arrange(arrangement)
+      .then(forgetStoredProjectArrangement, () => {})
+      .finally(() => (sending -= 1))
+  }
   const stored = importing.has(ui) ? undefined : readStoredProjectArrangement()
   if (stored) {
     importing.add(ui)
-    arrange(stored).then(forgetStoredProjectArrangement, () => {})
+    send(stored)
   }
   let sent = ui.getSnapshot().projectArrangement
-  return ui.subscribe(() => {
+  const stop = ui.subscribe(() => {
     const next = ui.getSnapshot().projectArrangement
     if (next === sent) return
     sent = next
-    arrange(next).then(forgetStoredProjectArrangement, () => {})
+    send(next)
   })
+  const stopArranged = arranged?.((there) => {
+    if (sending > 0 || readStoredProjectArrangement() !== undefined) return
+    const here = ui.getSnapshot().projectArrangement
+    if (sameArrangement(here, there)) return
+    const taken: ProjectArrangement = { order: [...there.order], pinned: [...there.pinned] }
+    sent = taken
+    ui.update((state) => ({ ...state, projectArrangement: taken }))
+  })
+  return () => {
+    stop()
+    stopArranged?.()
+  }
 }
+
+const sameArrangement = (
+  a: { readonly order: readonly string[]; readonly pinned: readonly string[] },
+  b: { readonly order: readonly string[]; readonly pinned: readonly string[] },
+): boolean =>
+  a.order.join("\n") === b.order.join("\n") && a.pinned.join("\n") === b.pinned.join("\n")
 
 // Closes the switcher once a dialog opens or the session changes under it, and lets go of
 // the rows of terminals that close while it shows, so none it offers is gone.
