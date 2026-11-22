@@ -241,6 +241,42 @@ report `null` until the first save. A state holds at most `maxClientStateLength`
 `CLOSING`, so shells ending on the way out cannot overwrite the last state; it
 saves nothing of its terminals either, after one last save while they still run.
 
+Several clients can show one session, and from revision 3 they share its state without
+losing each other's changes. Every write to a session (a save, a change, a rename, an
+arrangement) raises its `revision`, which sessions list (absent from a runner from before
+it). `sessions.change({ sessionId, writer, base, patch, visitedAt? })` changes the state in
+part: `patch` is `{ set: [{ path, value }], unset: [path] }`, a path being object keys into the
+state's JSON, which the runner applies to the state as it holds it then (taking each `unset`
+out, then putting each `set` value in whole, making objects on the way), without reading
+what it means; it answers `{ revision }`, and refuses with `CONFLICT` a state that isn't a
+JSON object, or one that would grow past `maxClientStateLength`. `writer` names the client,
+and `base` is the revision it made the patch on; the runner passes both on, and
+`visitedAt` is kept where given. `sessions.watch()` starts with `{ type: "revisions",
+revisions }`, every session's revision by id, and then reports each write as `{ type:
+"changed", session, writer, base }` (the session whole; `writer` and `base` are null for
+every write but a change, a creation included), latest only where a reader falls behind, and each removal as
+`{ type: "removed", sessionId }`. A client re-lists a project whose session the snapshot
+says is newer than what it holds, so nothing written between its listing and its watch is
+missed. Both are `since: 3`: a client asks `runner.supports` first, and saves whole without
+a feed where the runner has neither.
+
+The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a
+time: a terminal's canvas geometry, its hidden mark, its Grid span or its companion bar,
+each whole, and anything else whole (the order, or a field a newer build added). It sends
+what changed since the state it last knew the runner held, and lays what it hasn't sent,
+or sent and hasn't seen back yet, over each change that arrives, so two clients that change
+different records both keep their change, two that change one keep the later whole, and a
+client's own change coming back changes nothing. What arrives is laid in as a load puts a
+saved state back together (`sharedState` in `@novadeck/core`), but only here: what names a
+terminal, window or item this client doesn't know yet is left out of what it shows, never
+taken out on the runner, and laid in once the client knows it. A client's own changes are
+what differs from the state as it last laid it in, loaded it or sent it; one that never had
+it takes what arrives whole. Another client's rename shows the same way, and isn't written
+back. Where the person looks, the view, the windowed view and the terminal in front, is
+each device's own: kept in the page's storage by session, read first on load (the shared
+state's, as builds before saved it, where a device has none), and sent only when the person
+changes it there, so one client's selection never moves another's.
+
 `runner.terminals.watch()` follows every terminal on the runner, across sessions:
 
 ```ts

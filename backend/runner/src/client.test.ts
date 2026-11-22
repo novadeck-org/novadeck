@@ -393,6 +393,7 @@ describe("runner client workspace", () => {
       name: "A",
       state: null,
       visitedAt: null,
+      revision: 0,
     })
     await expect(
       runner.sessions.create({ id: ids.session, projectId: project.id, name: "B" }),
@@ -406,7 +407,7 @@ describe("runner client workspace", () => {
       }),
     ).resolves.toBeUndefined()
     await expect(runner.sessions.list({ projectId: project.id })).resolves.toEqual([
-      { ...created, state: '{"layout":"split"}', visitedAt: 5 },
+      { ...created, state: '{"layout":"split"}', visitedAt: 5, revision: 1 },
     ])
     await expect(
       runner.sessions.save({ sessionId: crypto.randomUUID(), state: "{}", visitedAt: null }),

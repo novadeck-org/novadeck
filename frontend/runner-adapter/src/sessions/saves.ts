@@ -7,11 +7,23 @@ import { reportCaught } from "../streams"
 import { encodeSession } from "./state"
 
 // What a save holds: the state and the visit are sent together, and a visit alone is a change.
-export type SavedState = { readonly state: string; readonly visitedAt: number | null }
+// `revision` is the runner's for that state, where it keeps them (from revision 3 of the
+// contract), so a newer one another client wrote replaces this.
+export type SavedState = {
+  readonly state: string
+  readonly visitedAt: number | null
+  readonly revision?: number | undefined
+}
 
 export type SessionSavesOptions = {
-  // Sends one session's state and last visit to the runner.
-  readonly save: (sessionId: string, state: string, visitedAt: number | null) => Promise<void>
+  // Sends one session's state and last visit to the runner, as a change to `previous` (what it
+  // last held) where it can; resolves the revision it holds them at, where it keeps one.
+  readonly save: (
+    sessionId: string,
+    state: string,
+    visitedAt: number | null,
+    previous: SavedState | undefined,
+  ) => Promise<number | undefined>
   // Resolves whether the session exists on the runner; undefined for one it never heard of.
   readonly ready: (sessionId: string) => Promise<boolean> | undefined
   // The workspace as last committed.
@@ -40,9 +52,14 @@ export type SessionSaves = {
   readonly schedule: () => void
   // Sends what changed now.
   readonly flush: () => void
-  // Notes what the runner holds for sessions this window read again, so what it read is not
-  // sent back.
+  // Notes what the runner holds for sessions this window read again, or another client wrote,
+  // so what it read is not sent back.
   readonly held: (entries: Iterable<readonly [string, SavedState]>) => void
+  // What the runner holds of the session, as this window last knew it.
+  readonly savedOf: (sessionId: string) => SavedState | undefined
+  // Sends the session's state with the next spell, as after another client's change, which
+  // its own unsent changes now lay over.
+  readonly touch: (sessionId: string) => void
   // Sends what changed now and resolves once every save sent so far has been answered,
   // as before a window closes or the app quits.
   readonly settle: () => Promise<void>
@@ -80,6 +97,12 @@ export const createSessionSaves = ({
   let baseline = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const sending = new Set<Promise<void>>()
+  // By session: how often what the runner holds was noted (`held`), how many saves were sent,
+  // and which of them landed last, so an answer only says what was sent where nothing newer
+  // was held or sent and answered since.
+  const heldTimes = new Map<string, number>()
+  const sends = new Map<string, number>()
+  const landed = new Map<string, number>()
   const flush = (): void => {
     clearTimeout(timer)
     timer = undefined
@@ -95,6 +118,9 @@ export const createSessionSaves = ({
       // with the state the runner last kept.
       const next = fitsRunner(state, maxClientStateLength) ? state : last?.state
       if (next === undefined || (last?.state === next && last.visitedAt === visitedAt)) continue
+      const send = (sends.get(id) ?? 0) + 1
+      sends.set(id, send)
+      const times = heldTimes.get(id) ?? 0
       const sent = track(
         exists.then(async (ok) => {
           // Its session isn't on the runner yet: sent with the next change or reconnection,
@@ -104,8 +130,13 @@ export const createSessionSaves = ({
             return
           }
           try {
-            await save(id, next, visitedAt)
-            saved.set(id, { state: next, visitedAt })
+            const revision = await save(id, next, visitedAt, last)
+            // Unless what it holds was read again, or another client's change held, on the way,
+            // which is newer and holds this save; or a later save landed first.
+            if ((heldTimes.get(id) ?? 0) === times && send > (landed.get(id) ?? 0)) {
+              saved.set(id, { state: next, visitedAt, revision })
+              landed.set(id, send)
+            }
           } catch (error) {
             if (halted()) return
             // Unreachable: try again after the next change or reconnection.
@@ -139,7 +170,17 @@ export const createSessionSaves = ({
       schedule()
     },
     held: (entries) => {
-      for (const [id, state] of entries) saved.set(id, state)
+      for (const [id, state] of entries) {
+        saved.set(id, state)
+        heldTimes.set(id, (heldTimes.get(id) ?? 0) + 1)
+      }
+    },
+    savedOf: (sessionId) => saved.get(sessionId),
+    touch: (sessionId) => {
+      // As a change noted: only a session this window may save.
+      if (!allowed(sessionId)) return
+      dirty.add(sessionId)
+      schedule()
     },
     schedule,
     flush,

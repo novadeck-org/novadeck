@@ -34,10 +34,11 @@ const open = (
   const visits: (number | null)[] = []
   let latest: Workspace | undefined
   const saves = createSessionSaves({
-    save: (sessionId, _state, visitedAt) => {
+    save: async (sessionId, _state, visitedAt) => {
       sent.push(sessionId)
       visits.push(visitedAt)
-      return answer()
+      await answer()
+      return undefined
     },
     ready: () => ready(),
     latest: () => latest,

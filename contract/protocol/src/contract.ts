@@ -59,6 +59,8 @@ import {
   clientState,
   folderListing,
   project,
+  sessionChange,
+  sessionPatch,
   workspaceSession,
 } from "./projects.js"
 import { runnerSettings, runnerSettingsState } from "./settings.js"
@@ -199,6 +201,26 @@ export const contract = {
         z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number().nullable() }),
       )
       .output(z.void()),
+    // Changes the session's client state by `patch`, applied to the JSON the runner holds
+    // without reading what it means, and when the person last visited it, where given;
+    // resolves its new revision. `writer` names the client instance (any short token) and
+    // `base` the revision its patch was made on, which `watch` passes on. A patch that leaves
+    // no JSON object, or a state past `maxClientStateLength`, is CONFLICT and changes nothing.
+    change: procedure
+      .meta({ since: 3 })
+      .input(
+        z.strictObject({
+          sessionId: id,
+          writer: z.string().min(1).max(64),
+          base: z.number().int().nonnegative(),
+          patch: sessionPatch,
+          visitedAt: z.number().nullable().optional(),
+        }),
+      )
+      .output(z.strictObject({ revision: z.number().int().nonnegative() })),
+    // Every session's changes, as `sessionChange` says, for a client sharing them with others.
+    // Ends with the connection.
+    watch: procedure.meta({ since: 3 }).input(z.void()).output(eventIterator(sessionChange)),
   },
   terminals: {
     // Every terminal of the session, running or saved to restore, oldest first.

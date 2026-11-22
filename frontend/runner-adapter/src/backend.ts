@@ -77,6 +77,7 @@ import {
   terminalRuns,
   type RunnerListing,
 } from "./sessions/seed"
+import { createSessionSharing } from "./sessions/sharing"
 import { consume, reportCaught } from "./streams"
 import { runnerSwitches } from "./switches"
 import {
@@ -103,6 +104,7 @@ export const pause = (ms: number): Promise<void> =>
 export type RunnerApi = Pick<
   Runner,
   | "watch"
+  | "supports"
   | "projects"
   | "sessions"
   | "terminals"
@@ -1653,9 +1655,30 @@ export const runnerBackend = (
   }
   // The project whose sessions this window may save, null for any (see `limitSaves`).
   let saveScope: string | null = null
+  const listedStates = listing.flatMap(({ sessions: listed }) =>
+    listed.flatMap(({ session }) =>
+      session.state === null
+        ? []
+        : [
+            [
+              session.id,
+              { state: session.state, visitedAt: session.visitedAt, revision: session.revision },
+            ] as const,
+          ],
+    ),
+  )
+  // Sessions shared with the runner's other clients: this one's changes as patches, theirs as
+  // they arrive (sessions/sharing.ts).
+  const sharing = createSessionSharing({
+    runner,
+    saves: () => saves,
+    latest: () => latest,
+    dispatch: (actions) => dispatch(actions),
+    track,
+  })
   // Every changed session is sent after a quiet spell, or at once on pagehide.
   const saves = createSessionSaves({
-    save: (sessionId, state, visitedAt) => runner.sessions.save({ sessionId, state, visitedAt }),
+    save: sharing.save,
     ready: sessionById,
     latest: () => latest,
     track,
@@ -1666,14 +1689,10 @@ export const runnerBackend = (
       saveScope === null ||
       latest?.projects.find((project) => project.history.some((each) => each.id === sessionId))
         ?.id === saveScope,
-    saved: listing.flatMap(({ sessions: listed }) =>
-      listed.flatMap(({ session }) =>
-        session.state === null
-          ? []
-          : [[session.id, { state: session.state, visitedAt: session.visitedAt }] as const],
-      ),
-    ),
+    saved: listedStates,
   })
+  // What the runner held of every session as this window loaded.
+  sharing.listed(listing.flatMap(({ sessions: listed }) => listed.map(({ session }) => session)))
   const { flush } = saves
   // Whether the first commit, which renders the page, has happened.
   let initialized = false
@@ -1725,6 +1744,10 @@ export const runnerBackend = (
       else void track(arrangeOnRunner(project))
     }
     saves.note(workspace)
+    sharing.seen(
+      initial,
+      actions.flatMap((action) => (action.type === "project/sync" ? [action.project.id] : [])),
+    )
     // What the person did to items and windows, renames of windows among it.
     items.commit(actions)
     for (const action of actions) {
@@ -1763,13 +1786,7 @@ export const runnerBackend = (
       asked.add(session.id)
       sessions.set(session.id, created)
     }
-    saves.held(
-      entry.sessions.flatMap(({ session }) =>
-        session.state === null
-          ? []
-          : [[session.id, { state: session.state, visitedAt: session.visitedAt }] as const],
-      ),
-    )
+    sharing.listed(entry.sessions.map(({ session }) => session))
     return runnerSeed(one, quickExitMs).projects[0]
   }
 
@@ -2069,6 +2086,7 @@ export const runnerBackend = (
     history.follow()
     works.readOnce()
     inbox.follow()
+    sharing.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
@@ -2093,6 +2111,7 @@ export const runnerBackend = (
       murmur.stop()
       history.stop()
       works.stop()
+      sharing.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true

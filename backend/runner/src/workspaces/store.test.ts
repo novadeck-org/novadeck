@@ -260,7 +260,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(22)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(23)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -294,6 +294,7 @@ describe("workspace metadata", () => {
       name: "Chosen",
       state: null,
       visitedAt: null,
+      revision: 0,
     })
     await expect(
       workspace.createProject({ id: projectId, name: "Again", cwd }),
@@ -325,7 +326,7 @@ describe("workspace metadata", () => {
     ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
     original.close()
     const reopened = store(path)
-    const saved = { ...session, state: '{"layout":2}', visitedAt: 20 }
+    const saved = { ...session, state: '{"layout":2}', visitedAt: 20, revision: 2 }
     expect(reopened.session(session.id)).toEqual(saved)
     expect(reopened.sessions(project.id)).toEqual([saved])
   })
@@ -496,13 +497,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 23",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 24",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(23)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(24)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -554,7 +555,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(22)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(23)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -1947,8 +1948,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 22,
-        digest: "737303c3e7fe71b9d3b3beb2937b4564939196ec7dd0a8670a82f753ae504e22",
+        version: 23,
+        digest: "6967207aeb6e92964c5983f020c45f8d9785e361eaafadddc901d7f3ebd28484",
       })
     } finally {
       database.close()
@@ -2195,6 +2196,89 @@ main...feature', 'changes', '/p',
       }
     })
     expect(carried).toEqual(created)
+  })
+
+  it("gives each session a revision in the step from 22, keeping its state and visit", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/22.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 22;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name, client_state, visited_at)
+        VALUES (1, 's', 'p', 'S', '{"version":2,"state":{"order":["t"]}}', 7);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.session("s")).toEqual({
+      id: "s",
+      projectId: "p",
+      name: "S",
+      state: '{"version":2,"state":{"order":["t"]}}',
+      visitedAt: 7,
+      revision: 0,
+    })
+    // Each change raises it from there.
+    migrated.renameSession({ sessionId: "s", name: "Renamed" })
+    expect(migrated.revisions()).toEqual({ s: 1 })
+    migrated.close()
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("raises a session's revision with every change, and changes its state in part", async ({
+    directory,
+    store: open,
+  }) => {
+    const store = open()
+    const project = await store.createProject({
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "P",
+      cwd: directory(),
+    })
+    const session = store.createSession({
+      id: "22222222-2222-4222-8222-222222222222",
+      projectId: project.id,
+      name: "S",
+    })
+    expect(
+      store.saveSession({
+        sessionId: session.id,
+        state: '{"state":{"order":["a"]}}',
+        visitedAt: 1,
+      }),
+    ).toBe(1)
+    const revision = store.changeSession({
+      sessionId: session.id,
+      patch: { unset: [], set: [{ path: ["state", "bars", "a"], value: { open: true } }] },
+      visitedAt: undefined,
+      maxLength: 1000,
+    })
+    expect(revision).toBe(2)
+    expect(store.session(session.id)).toMatchObject({
+      state: '{"state":{"order":["a"],"bars":{"a":{"open":true}}}}',
+      visitedAt: 1,
+      revision: 2,
+    })
+    // A patch it can't apply changes nothing.
+    expect(() =>
+      store.changeSession({
+        sessionId: session.id,
+        patch: { unset: [], set: [{ path: ["state", "order", "x"], value: 1 }] },
+        visitedAt: 5,
+        maxLength: 1000,
+      }),
+    ).toThrow("holds no object")
+    expect(store.session(session.id)).toMatchObject({ visitedAt: 1, revision: 2 })
   })
 
   it("lets items be 3D models in the step from 21, keeping the items, folders and order", ({

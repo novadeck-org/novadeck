@@ -1,6 +1,6 @@
-import { isOnBar, type Item } from "./items"
-import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./items/companion-bar"
+import type { Item } from "./items"
 import { removeFromLayout } from "./layout/workspace-layout"
+import { savedIds, withItems } from "./restore"
 import { addTerminal, addWindow, isWindow } from "./roster"
 import {
   createTerminalState,
@@ -95,37 +95,6 @@ const appendTile = (state: WorkspaceState, tile: Tile): WorkspaceState => ({
 // The session's items, and each terminal's bar: as saved, less what's gone, with what the
 // save didn't know after, oldest first. An item whose terminal or window isn't known is
 // kept, on no bar, until it is.
-const withItems = (
-  state: WorkspaceState,
-  held: readonly Item[],
-  saved: WorkspaceState["bars"],
-): WorkspaceState => {
-  const bars = Object.fromEntries(
-    state.roster.terminals.flatMap((terminal): [string, Bar][] => {
-      const own = held
-        .filter((item) => isOnBar(item, terminal.id))
-        .toSorted((a, b) => a.shownAt - b.shownAt)
-      const ids = new Set<BarKey>(own.map((item) => item.id))
-      const kept = settle(
-        saved[terminal.id] ?? emptyBar,
-        (key) => key === messagesKey || ids.has(key),
-      )
-      const bar = own.reduce((next, item) => arrive(next, item.id), kept)
-      return bar === emptyBar ? [] : [[terminal.id, bar]]
-    }),
-  )
-  return { ...state, items: held, bars }
-}
-
-// Every terminal a saved view kept something of, in any view.
-const savedIds = (layout: WorkspaceState["layout"], order: readonly string[]): Set<string> =>
-  new Set([
-    ...order,
-    ...Object.keys(layout.canvas.geometry),
-    ...Object.keys(layout.hidden),
-    ...Object.keys(layout.spans),
-  ])
-
 const restoredState = (
   { order, bars = {}, ...restored }: RestoredView,
   terminals: readonly TerminalMetadata[],

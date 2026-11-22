@@ -158,6 +158,8 @@ export type BackendAction = Extract<
       | "item/remove"
       | "window/upsert"
       | "window/remove"
+      // Another client's change to a session they share.
+      | "session/shared"
   }
 >
 

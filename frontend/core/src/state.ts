@@ -28,6 +28,7 @@ import {
   withBar,
 } from "./items/transitions"
 import { emptyLayout, pruneCanvasLayout, spanTerminal } from "./layout/workspace-layout"
+import { sharedState, type SharedView } from "./restore"
 import {
   addTerminal,
   createRoster,
@@ -117,6 +118,16 @@ export type WorkspaceAction =
     }
   // The person renames a session.
   | { type: "session/rename"; projectId: string; workspaceSessionId: string; name: string }
+  // Another client's change to a session: its shared view (its order, layout and bars), laid
+  // in as a load lays a saved one (`sharedState`), and its name. Never sent to the runner,
+  // which already holds it.
+  | {
+      type: "session/shared"
+      projectId: string
+      workspaceSessionId: string
+      shared?: SharedView
+      name?: string
+    }
   // The person moves a session to a place in its project's list, as a drag drops it.
   | { type: "session/move"; projectId: string; workspaceSessionId: string; index: number }
   // The person deletes a session, closing its terminals. A project's last one stays: a
@@ -523,6 +534,25 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ),
         }
       })
+    case "session/shared":
+      return updateProject(workspace, action.projectId, (project) =>
+        project.history.some((session) => session.id === action.workspaceSessionId)
+          ? {
+              ...project,
+              history: project.history.map((session) =>
+                session.id === action.workspaceSessionId
+                  ? {
+                      ...session,
+                      ...(action.name !== undefined && { name: action.name }),
+                      state: action.shared
+                        ? sharedState(session.state, action.shared)
+                        : session.state,
+                    }
+                  : session,
+              ),
+            }
+          : project,
+      )
     case "session/rename": {
       const name = action.name.trim()
       if (!name) return workspace

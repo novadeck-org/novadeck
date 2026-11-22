@@ -40,6 +40,8 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type SessionChange,
+  type SessionPatch,
   type TourPrepared,
   type SliceChange,
   type TerminalChange,
@@ -211,6 +213,25 @@ export type Runner = {
       readonly state: string
       readonly visitedAt: number | null
     }): Promise<void>
+    /**
+     * Changes the session's `state` by `patch`, applied to its JSON as the runner holds it,
+     * and `visitedAt` where given; resolves its new revision. `writer` names this client and
+     * `base` the revision the patch was made on, which `watch` passes on. A runner from before
+     * revision 3 has neither (`supports("sessions.change")`).
+     */
+    change(input: {
+      readonly sessionId: string
+      readonly writer: string
+      readonly base: number
+      readonly patch: SessionPatch
+      readonly visitedAt?: number | null
+    }): Promise<{ revision: number }>
+    /**
+     * Every session's changes, as `SessionChange` says: each revision first, then each
+     * session as it changes. Opened again after each reconnection, starting with the
+     * revisions again.
+     */
+    watch(): AsyncIterableIterator<SessionChange, undefined>
   }
   readonly terminals: {
     list(input: { readonly sessionId: string }): Promise<TerminalSummary[]>
@@ -914,6 +935,18 @@ export const connectRunner = async (
         ),
       remove: (input) => call((client) => client.sessions.remove(input)),
       save: (input) => call((client) => client.sessions.save(input)),
+      change: (input) =>
+        call((client) =>
+          client.sessions.change({
+            sessionId: input.sessionId,
+            writer: input.writer,
+            base: input.base,
+            patch: { set: [...input.patch.set], unset: [...input.patch.unset] },
+            ...(input.visitedAt !== undefined && { visitedAt: input.visitedAt }),
+          }),
+        ),
+      watch: () =>
+        followSession(connection, (client, signal) => client.sessions.watch(undefined, { signal })),
     },
     terminals: {
       list: (input) => call((client) => client.terminals.list(input)),

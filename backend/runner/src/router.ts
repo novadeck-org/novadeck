@@ -8,6 +8,7 @@ import {
   type WorkChange,
   type WorkMade,
   type ItemContent,
+  maxClientStateLength,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
 import { dropUnknownKeys, type SessionContext } from "@novadeck/wire/server"
@@ -33,6 +34,7 @@ import type { Voice } from "./voice/service.js"
 import type { Works } from "./works/works.js"
 import { listFolder } from "./workspaces/folder.js"
 import type { Projects } from "./workspaces/projects.js"
+import { SessionFeed } from "./workspaces/session-feed.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 import type { MainCheckouts } from "./worktrees/main-checkout.js"
 
@@ -188,6 +190,8 @@ export const createRouter = (options: {
   // The save of each plan under way, which the next waits for.
   const saving = new Map<string, Promise<void>>()
   const api = implement(served).$context<SessionContext>()
+  // The sessions' changes, for clients that share them.
+  const sessionFeed = new SessionFeed(store)
 
   return api.router({
     projects: {
@@ -215,19 +219,44 @@ export const createRouter = (options: {
       list: api.sessions.list.handler(({ input }) => projects.sessions(input.projectId)),
       create: api.sessions.create.handler(({ input }) => {
         projects.ensureNotRemoving(input.projectId)
-        return store.createSession(input)
+        const made = store.createSession(input)
+        sessionFeed.changed(made.id)
+        return made
       }),
-      rename: api.sessions.rename.handler(({ input }) => store.renameSession(input)),
-      arrange: api.sessions.arrange.handler(({ input }) =>
-        projects.arrangeSessions(input.projectId, input.order),
-      ),
-      remove: api.sessions.remove.handler(({ input }) => projects.removeSession(input.sessionId)),
+      rename: api.sessions.rename.handler(({ input }) => {
+        const renamed = store.renameSession(input)
+        sessionFeed.changed(renamed.id)
+        return renamed
+      }),
+      arrange: api.sessions.arrange.handler(({ input }) => {
+        projects.arrangeSessions(input.projectId, input.order)
+        for (const { id } of store.sessions(input.projectId)) sessionFeed.changed(id)
+      }),
+      remove: api.sessions.remove.handler(async ({ input }) => {
+        await projects.removeSession(input.sessionId)
+        sessionFeed.removed(input.sessionId)
+      }),
       save: api.sessions.save.handler(({ input }) => {
         // Shells exiting during shutdown would otherwise overwrite the last state saved
         // before it with one where nothing runs.
         if (options.closing()) throw new DomainError("CLOSING")
         store.saveSession(input)
+        sessionFeed.changed(input.sessionId)
       }),
+      change: api.sessions.change.handler(({ input }) => {
+        if (options.closing()) throw new DomainError("CLOSING")
+        const revision = store.changeSession({
+          sessionId: input.sessionId,
+          patch: input.patch,
+          visitedAt: input.visitedAt,
+          maxLength: maxClientStateLength,
+        })
+        sessionFeed.changed(input.sessionId, { writer: input.writer, base: input.base })
+        return { revision }
+      }),
+      watch: api.sessions.watch.handler(({ signal }) =>
+        sessionFeed.watch(signal ?? new AbortController().signal),
+      ),
     },
     terminals: {
       list: api.terminals.list.handler(({ input }) => {

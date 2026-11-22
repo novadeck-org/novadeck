@@ -308,7 +308,8 @@ describe("workspace metadata API", () => {
       { ...project, name: "Renamed project" },
     ])
     await expect(connection.client.sessions.list({ projectId: project.id })).resolves.toEqual([
-      { ...session, name: "Renamed session", state: '{"panes":[]}' },
+      // The rename and the save each raised its revision.
+      { ...session, name: "Renamed session", state: '{"panes":[]}', revision: 2 },
     ])
     await expect(connection.client.terminals.list({ sessionId: session.id })).resolves.toEqual([])
   })
@@ -325,6 +326,45 @@ describe("workspace metadata API", () => {
     await expect(
       client.projects.rename({ projectId: project.id, name: "", colour: "teal" } as never),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" })
+  })
+
+  it("shares a session's state between two clients, each seeing the other's change", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const a = await app.connect()
+    const b = await app.connect()
+    const { session } = await app.setup(a.client)
+    const changes = await b.client.sessions.watch()
+    const first = await changes.next()
+    expect(first.value).toMatchObject({ type: "revisions" })
+    const { revision } = await a.client.sessions.change({
+      sessionId: session.id,
+      writer: "a",
+      base: 0,
+      patch: { unset: [], set: [{ path: ["state", "order"], value: ["t1"] }] },
+    })
+    expect(revision).toBe(1)
+    expect((await changes.next()).value).toMatchObject({
+      type: "changed",
+      session: { id: session.id, revision: 1, state: '{"state":{"order":["t1"]}}' },
+      writer: "a",
+      base: 0,
+    })
+    // B's own change, made on what A wrote, keeps A's.
+    await b.client.sessions.change({
+      sessionId: session.id,
+      writer: "b",
+      base: 1,
+      patch: { unset: [], set: [{ path: ["state", "bars", "t1"], value: { open: true } }] },
+    })
+    await expect(a.client.sessions.list({ projectId: session.projectId })).resolves.toEqual([
+      expect.objectContaining({
+        revision: 2,
+        state: '{"state":{"order":["t1"],"bars":{"t1":{"open":true}}}}',
+      }),
+    ])
+    await changes.return?.(undefined)
   })
 
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {

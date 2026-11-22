@@ -13,6 +13,7 @@ import type {
 import { itemOf, windowOf } from "../companions/content"
 import { defaultQuickExitMs, restartable, terminalActivity } from "../terminals/activity"
 import { decodeSession } from "./state"
+import { withDeviceView } from "./views"
 
 // What a session's terminals' companions hold: the items agents showed and the person
 // attached, and the windows undocked from them.
@@ -118,7 +119,8 @@ const sessionSeed = (
   quickExitMs: number,
   companions: ListedCompanions = { items: [], windows: [] },
 ): Visited => {
-  const saved = decodeSession(session.state)
+  // Where this device looks in it, where it kept that, over what the shared state says.
+  const saved = withDeviceView(session.id, decodeSession(session.state))
   const terminals = summaries.flatMap((summary) => {
     const terminal = runnerTerminal(summary, quickExitMs)
     return terminal ? [terminal] : []

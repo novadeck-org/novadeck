@@ -18,6 +18,7 @@ import {
   unsafeInLine,
   type AgentName,
   type Project,
+  type SessionPatch,
   type WorkspaceSession,
 } from "@novadeck/protocol"
 
@@ -48,6 +49,7 @@ import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
 import type { WorktreeRecord, WorktreeRecords } from "../worktrees/records.js"
 import type { ClosedRecord, ClosedRecords, ListedClosed } from "./closed.js"
+import { patched } from "./patch.js"
 import { Settings } from "./settings.js"
 
 const log = logs.for("store")
@@ -95,7 +97,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 20: an item may be a PDF (`kind` takes 'pdf').
 // 21: an item may be a folder (`kind` takes 'folder').
 // 22: an item may be a 3D model (`kind` takes 'model').
-const schemaVersion = 22
+// 23: a session keeps a revision, raised by every write, so clients that share it can tell a
+//     newer state from what they hold.
+const schemaVersion = 23
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -117,7 +121,10 @@ const schema = `
     visited_at REAL,
     -- Its place among its project's sessions; null until the person arranges them, after
     -- the ranked ones, in the order they were created.
-    rank INTEGER
+    rank INTEGER,
+    -- Raised by every change to it (its state, name or place), so the clients that share it
+    -- can tell a newer one from what they hold.
+    revision INTEGER NOT NULL DEFAULT 0
   ) STRICT;
   CREATE INDEX sessions_project ON sessions(project_id);
   -- Every terminal, until it is closed, and what restores it after its shell is gone:
@@ -1274,6 +1281,8 @@ const migrations: Readonly<Record<number, Step>> = {
       compare_base, compare_head FROM companion_items_21;
     DROP TABLE companion_items_21;
   `,
+  // Each session's revision, for clients that share it: every one starts at 0.
+  22: `ALTER TABLE sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;`,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -2073,7 +2082,8 @@ export class WorkspaceStore
   sessions(projectId: string): WorkspaceSession[] {
     this.project(projectId)
     return this.queries.all`
-      SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt
+      SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt,
+        revision
       FROM sessions WHERE project_id = ${projectId} ORDER BY rank IS NULL, rank, position
     ` as WorkspaceSession[]
   }
@@ -2091,7 +2101,8 @@ export class WorkspaceStore
     const placed = [...ranked, ...had.filter((id) => !left.has(id))]
     this.transaction(() => {
       placed.forEach((id, rank) => {
-        void this.queries.run`UPDATE sessions SET rank = ${rank} WHERE id = ${id}`
+        void this.queries
+          .run`UPDATE sessions SET rank = ${rank}, revision = revision + 1 WHERE id = ${id}`
       })
     })
   }
@@ -2125,7 +2136,7 @@ export class WorkspaceStore
    */
   createSession(input: { id: string; projectId: string; name: string }): WorkspaceSession {
     this.project(input.projectId)
-    const session = { ...input, state: null, visitedAt: null }
+    const session = { ...input, state: null, visitedAt: null, revision: 0 }
     if (this.queries.get`SELECT 1 FROM sessions WHERE id = ${session.id}`) {
       throw new DomainError("CONFLICT", "Session id is already taken")
     }
@@ -2136,21 +2147,62 @@ export class WorkspaceStore
 
   renameSession(input: { sessionId: string; name: string }): WorkspaceSession {
     this.session(input.sessionId)
-    void this.queries.run`UPDATE sessions SET name = ${input.name} WHERE id = ${input.sessionId}`
+    void this.queries.run`
+      UPDATE sessions SET name = ${input.name}, revision = revision + 1
+      WHERE id = ${input.sessionId}`
     return this.session(input.sessionId)
   }
 
-  /** Replaces the session's client state, without interpreting it, and when it was visited. */
-  saveSession(input: { sessionId: string; state: string; visitedAt: number | null }): void {
+  /**
+   * Replaces the session's client state, without interpreting it, and when it was visited;
+   * resolves its new revision.
+   */
+  saveSession(input: { sessionId: string; state: string; visitedAt: number | null }): number {
     this.session(input.sessionId)
     void this.queries.run`
-      UPDATE sessions SET client_state = ${input.state}, visited_at = ${input.visitedAt}
+      UPDATE sessions SET client_state = ${input.state}, visited_at = ${input.visitedAt},
+        revision = revision + 1
       WHERE id = ${input.sessionId}`
+    return this.session(input.sessionId).revision ?? 0
+  }
+
+  /**
+   * Changes the session's client state by `patch` (sessions/patch.ts), applied to the JSON it
+   * holds without reading what it means, and when it was visited; resolves its new revision.
+   * A patch that leaves no JSON object, or one past `maxLength`, is a `CONFLICT` and changes
+   * nothing.
+   */
+  changeSession(input: {
+    sessionId: string
+    patch: SessionPatch
+    visitedAt: number | null | undefined
+    maxLength: number
+  }): number {
+    return this.transaction(() => {
+      const { state, visitedAt } = this.session(input.sessionId)
+      const next = patched(state, input.patch, input.maxLength)
+      void this.queries.run`
+        UPDATE sessions SET client_state = ${next},
+          visited_at = ${input.visitedAt === undefined ? visitedAt : input.visitedAt},
+          revision = revision + 1
+        WHERE id = ${input.sessionId}`
+      return this.session(input.sessionId).revision ?? 0
+    })
+  }
+
+  /** Each session's revision, by id. */
+  revisions(): Record<string, number> {
+    const rows = this.queries.all`SELECT id, revision FROM sessions` as {
+      id: string
+      revision: number
+    }[]
+    return Object.fromEntries(rows.map(({ id, revision }) => [id, revision]))
   }
 
   session(sessionId: string): WorkspaceSession {
     const session = this.queries.get`
-      SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt
+      SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt,
+        revision
       FROM sessions WHERE id = ${sessionId}
     ` as WorkspaceSession | undefined
     if (!session) throw new DomainError("NOT_FOUND", "Session not found")

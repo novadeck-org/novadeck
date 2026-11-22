@@ -207,6 +207,9 @@ export {
   type FolderListing,
   maxClientStateLength,
   type Project,
+  sessionPatch,
+  type SessionChange,
+  type SessionPatch,
   type WorkspaceSession,
 } from "./projects.js"
 export {

@@ -174,6 +174,8 @@ export const scriptedRunner = ({
       arrange: api.sessions.arrange.handler(() => {}),
       remove: api.sessions.remove.handler(unplayed("sessions.remove")),
       save: api.sessions.save.handler(() => {}),
+      change: api.sessions.change.handler(() => ({ revision: 1 })),
+      watch: api.sessions.watch.handler(idle),
     },
     terminals: {
       list: api.terminals.list.handler(() => [...summaries.values()]),

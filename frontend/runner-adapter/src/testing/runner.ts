@@ -130,6 +130,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
   }
   return {
     watch: () => runner.watch(),
+    supports: (path) => runner.supports(path),
     projects: {
       list: () => runner.projects.list(),
       create: (input) => note(`create project ${input.id}`, () => runner.projects.create(input)),
@@ -154,6 +155,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       remove: (input) =>
         note(`remove session ${input.sessionId}`, () => runner.sessions.remove(input)),
       save: (input) => note(`save ${input.sessionId}`, () => runner.sessions.save(input)),
+      change: (input) => note(`change ${input.sessionId}`, () => runner.sessions.change(input)),
+      watch: () => runner.sessions.watch(),
     },
     terminals: {
       list: (input) => runner.terminals.list(input),
