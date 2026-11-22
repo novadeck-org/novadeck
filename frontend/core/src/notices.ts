@@ -5,6 +5,7 @@ export {
   noticeOneLine,
   noticePrefix,
   noticeSeen,
+  noticesSeen,
   readNotice,
   splitHookText,
   type ReadNotice,

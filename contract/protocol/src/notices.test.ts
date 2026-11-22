@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { noticeBody, noticeOneLine, noticeSeen, readNotice, splitHookText } from "./notices.js"
+import {
+  noticeBody,
+  noticeOneLine,
+  noticeSeen,
+  noticesSeen,
+  readNotice,
+  splitHookText,
+} from "./notices.js"
 
 const worktrees = [
   "Novadeck · Worktrees",
@@ -99,6 +106,19 @@ describe("noticeSeen", () => {
     expect(of("Inbox")).toBe("You notice an ask leave the Inbox.")
     expect(of("Resources")).toBe("You notice shared resources are busy.")
     expect(of("Show")).toBe("You notice problems in something shown.")
+    expect(of("Shipping")).toBe("You notice your answer reach the agent.")
+    expect(of("Messages")).toBe("You notice a message still on its way.")
+    expect(of("Describe")).toBe("You notice the terminal wants a title.")
+  })
+
+  it("says what a standing notice is about, and an event's line for a kind with none of its own", () => {
+    const standing = (kind: string): string =>
+      noticeSeen(`Novadeck · ${kind}\nHow it works.`, { standing: true })
+    expect(standing("Show")).toBe("You notice the bar beside the terminal.")
+    expect(standing("Inbox")).toBe("You notice the Inbox keeps a copy.")
+    expect(standing("Describe")).toBe("You notice the terminal wants a title.")
+    expect(standing("Worktrees")).toBe("You notice worktrees are on.")
+    expect(standing("Team")).toBe("You notice the team shift.")
   })
 
   it("maps the kinds earlier builds wrote to their family", () => {
@@ -111,11 +131,34 @@ describe("noticeSeen", () => {
     expect(of("Run")).toBe(of("Terminals"))
   })
 
-  it("says something for an unknown kind, no header or the legacy prefix", () => {
+  it("says something for an unknown kind or the legacy prefix, and a task for a brief with no header", () => {
     expect(of("Weather")).toBe("You notice something.")
-    expect(noticeSeen("It rained.")).toBe("You notice something.")
     expect(noticeSeen("Novadeck: automatic notice, not from the user: It rained.")).toBe(
       "You notice something.",
     )
+    expect(noticeSeen("This is the artist's brief for Novadeck's tour.")).toBe(
+      "You notice Novadeck hand over a task.",
+    )
+  })
+})
+
+describe("noticesSeen", () => {
+  const event = (kind: string) => ({ text: `Novadeck · ${kind}\nIt happened.` })
+  const standing = (kind: string) => ({ text: `Novadeck · ${kind}\nHow it works.`, standing: true })
+
+  it("joins the lines of notices delivered together, each once", () => {
+    expect(noticesSeen([event("Team"), event("Resources"), event("Team")])).toBe(
+      "You notice the team shift. · You notice shared resources are busy.",
+    )
+  })
+
+  it("says several standing notices as Novadeck setting the agent up, where the first was", () => {
+    expect(noticesSeen([standing("Show"), standing("Inbox"), standing("Describe")])).toBe(
+      "You notice Novadeck set the agent up.",
+    )
+    expect(noticesSeen([event("Restart"), standing("Show"), standing("Inbox")])).toBe(
+      "You notice Novadeck restarted. · You notice Novadeck set the agent up.",
+    )
+    expect(noticesSeen([standing("Worktrees")])).toBe("You notice worktrees are on.")
   })
 })

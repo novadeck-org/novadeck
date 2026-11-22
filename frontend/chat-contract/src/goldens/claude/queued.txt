@@ -1,6 +1,6 @@
 # absorbed
 user: First quick
 tools: searched tools [search] · select:SendMessage → empty
-notice: <text>
+notice: You notice something. | <text>
 user: Second quick
 assistant: Did first. Did second.

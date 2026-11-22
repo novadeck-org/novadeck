@@ -764,8 +764,9 @@
 /* One of Novadeck's own notices: a quiet bell line, as the doorbell's own line is (`.chat-ring >
    .chat-note`) but in the muted ink and the regular weight, Novadeck's mark in the gutter where a
    prompt's mark sits, a dashed rule to the edge, and its time where it shows one. An event
-   notice's line is its family's; opened, the notice itself is under it, each `→` action on its
-   line. A standing notice's line is its facts, which open in place; a click on it closes it. */
+   notice's line is its family's, a standing one's its subject, and notices delivered together share
+   one line; opened, the notices themselves are under it, each `→` action on its line, each under
+   its kind where there are several. */
 .chat-notice {
   position: relative;
   margin-top: calc(var(--_lh) * 0.4);
@@ -823,25 +824,23 @@
 .chat-notice-said .markdown-mention {
   opacity: 0.75;
 }
-.chat-notice-said[data-open] {
-  overflow: visible;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  user-select: text;
-}
-.chat-notice-key:has(> [data-open]) {
-  align-items: flex-start;
-  overflow: visible;
-}
-.chat-notice-key:has(> [data-open]) > .chat-notice-rule {
-  display: none;
-}
 .chat-notice-body {
   margin: calc(var(--_lh) / 6) 0 0;
   color: var(--_muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
+}
+.chat-notice-body > p {
+  margin: 0;
+}
+.chat-notice-body > p + p {
+  margin-top: calc(var(--_lh) / 3);
+}
+/* A notice's kind heads its words where several are open together. */
+.chat-notice-kind {
+  display: block;
+  color: var(--_ink);
 }
 @media (hover: hover) {
   .chat-notice-key:hover {

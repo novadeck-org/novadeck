@@ -9,7 +9,8 @@
  *     → <what to do, one line per action>
  *
  * `readNotice` strips the header and splits the facts from the `→` actions. What the person
- * sees of an event notice (one a doorbell ring brought) is `noticeSeen`'s line, never its facts.
+ * sees of a notice is `noticeSeen`'s line (`noticesSeen`'s, for several delivered together), never
+ * its facts.
  */
 
 /** What starts every notice's first line, up to its kind. */
@@ -78,6 +79,9 @@ const seen: Readonly<Record<string, string>> = {
   Inbox: "You notice an ask leave the Inbox.",
   Resources: "You notice shared resources are busy.",
   Show: "You notice problems in something shown.",
+  Shipping: "You notice your answer reach the agent.",
+  Messages: "You notice a message still on its way.",
+  Describe: "You notice the terminal wants a title.",
 }
 const seenOldKinds: Readonly<Record<string, string>> = {
   "Host load": "Resources",
@@ -88,13 +92,49 @@ const seenOldKinds: Readonly<Record<string, string>> = {
   Close: "Terminals",
   Run: "Terminals",
 }
+// What the person is told of a standing notice, one that rode on the prompt's hook to say how a
+// part of Novadeck works here, by its kind: what it is about, not what happened.
+const seenStanding: Readonly<Record<string, string>> = {
+  Describe: "You notice the terminal wants a title.",
+  Inbox: "You notice the Inbox keeps a copy.",
+  Show: "You notice the bar beside the terminal.",
+  Worktrees: "You notice worktrees are on.",
+}
 const seenUnknown = "You notice something."
+// A message from Novadeck with no header is a brief it hands the agent, such as the tour's task.
+const seenBrief = "You notice Novadeck hand over a task."
+// Several standing notices at once, as a session's first prompt carries them.
+const seenSetUp = "You notice Novadeck set the agent up."
 
-/** The one line the person sees of an event notice: its family's, "You notice something." for no known kind. */
-export const noticeSeen = (text: string): string => {
+/**
+ * The one line the person is told of a notice: its family's, for an event; for a `standing` one
+ * (it rode on the prompt's hook), what it is about. A brief from Novadeck, with no header, says it
+ * handed over a task.
+ */
+export const noticeSeen = (text: string, { standing = false } = {}): string => {
   const { kind } = readNotice(text)
-  if (kind === null) return seenUnknown
-  return seen[seenOldKinds[kind] ?? kind] ?? seenUnknown
+  if (kind === null) return text.trimStart().startsWith(legacyPrefix) ? seenUnknown : seenBrief
+  const family = seenOldKinds[kind] ?? kind
+  return (standing ? seenStanding[family] : undefined) ?? seen[family] ?? seenUnknown
+}
+
+/**
+ * The one line the person is told of notices delivered together (a ring's, or a prompt's hook's):
+ * each one's line once, in order, joined by ` · `, and where more than one is standing, those
+ * as Novadeck setting the agent up.
+ */
+export const noticesSeen = (
+  notices: readonly { readonly text: string; readonly standing?: boolean }[],
+): string => {
+  const standing = notices.filter((notice) => notice.standing === true)
+  const lines = notices.flatMap((notice) =>
+    notice.standing === true && standing.length > 1
+      ? notice === standing[0]
+        ? [seenSetUp]
+        : []
+      : [noticeSeen(notice.text, { standing: notice.standing === true })],
+  )
+  return [...new Set(lines)].join(" · ")
 }
 
 const headerLine = /^(?:Novadeck · |Novadeck: automatic notice, not from the user: )/m

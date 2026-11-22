@@ -163,8 +163,8 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     )
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
-  // One of Novadeck's own notices, as it opens: its line (an event's family line, a standing one's
-  // words), then what opened under it, the header off, each action behind its arrow.
+  // Novadeck's own notices delivered together, as their line opens: the line (`noticesSeen`), then
+  // what opened under it, the headers off, each action behind its arrow.
   if (block.matches(".chat-notice")) {
     const key = block.querySelector<HTMLElement>(".chat-notice-key")!
     if (key.getAttribute("aria-expanded") === "false") click(key)
