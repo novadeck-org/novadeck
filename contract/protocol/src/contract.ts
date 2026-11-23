@@ -609,6 +609,14 @@ export const contract = {
     answer: procedure
       .input(z.strictObject({ terminalId: id, request: agentRef, answer: requestAnswer }))
       .output(z.void()),
+    // Takes back a permit of the shipping gate that stands for the terminal's agent (its
+    // `agents.detail` `permits` id), as the person asked: it ends at once, with every target it
+    // covered, and the agent is told. Resolves whether one stood; a terminal it doesn't have
+    // is NOT_FOUND.
+    takeBack: procedure
+      .meta({ since: 10 })
+      .input(z.strictObject({ terminalId: id, permit: z.string().min(1).max(64) }))
+      .output(z.strictObject({ ended: z.boolean() })),
     // Writes a request's raw dialog (one the runner could not read, `agents.detail`'s
     // `dialog.type` "raw") to a file the person can attach to a bug report or drop into a
     // harness's test fixtures: the screen as it is now, the request's kind, tool and input,

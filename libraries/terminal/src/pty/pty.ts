@@ -4,8 +4,15 @@ import { spawn as nodePtySpawn } from "node-pty"
 
 import { listedApart, type ApartProcess } from "./apart.js"
 import { boosting, type Activity } from "./boost.js"
-import { agentProcesses, endFollowed, type Listing } from "./descendants.js"
+import {
+  agentProcesses,
+  endFollowed,
+  processKey,
+  type Followed,
+  type Listing,
+} from "./descendants.js"
 import { terminalForeground } from "./foreground.js"
+import { endLeftovers, leftovers, readScope, runStart, ticksNow } from "./leftovers.js"
 import type { Priority } from "./priority.js"
 import type { ExitCause, Scopes } from "./scopes.js"
 import { anyRunning, relayMs, taskkillTree, type Member } from "./trees.js"
@@ -83,6 +90,17 @@ export type ProcessTrees = {
 export type EndBudget = {
   run(usual: number): number
   graceEnds(began: number): number
+  /** When all ending must be done by, as a quit's own bound; none outside a quit. */
+  by?(): number
+}
+
+/**
+ * What ending what agents left in a terminal's scope reads (see `Pty.endLeft`): the processes,
+ * and what the agents' harnesses run apart from the terminal, which is left with all under it.
+ */
+export type LeftOptions = {
+  readonly listing: Listing
+  readonly apart?: readonly ApartProcess[]
 }
 
 export type EndOptions = {
@@ -109,6 +127,12 @@ export type EndOptions = {
         readonly apart?: readonly ApartProcess[]
       }
     | undefined
+  /**
+   * On Linux, where an agent ran in the terminal (`Pty.agentStarted`), what it left in the
+   * terminal's scope is ended too (see `Pty.endLeft`): as the hangup goes out, what has left the
+   * shell's tree, and once the shell and what the follow waits on have ended, what is left.
+   */
+  readonly left?: LeftOptions | undefined
 }
 
 export type Pty = {
@@ -129,6 +153,28 @@ export type Pty = {
   resume(): void
   /** Ends its program and what `EndOptions` say it started: the whole kill sequence. */
   end(options: EndOptions): Promise<void>
+  /**
+   * An agent runs in it now, by its pid where known: what starts in the terminal's scope from
+   * then until `agentEnded` is the agent's, to end with the terminal (`endLeft`). On Linux with
+   * a scope; elsewhere it records nothing. Told again while the run is open, it adds nothing.
+   */
+  agentStarted(agent: number | undefined): void
+  /** The agent's session there has ended: what starts from now is no agent's. */
+  agentEnded(): void
+  /** Whether an agent has run in it, so `endLeft` may find something. */
+  readonly agentRan: boolean
+  /**
+   * What agents left in the terminal's scope (see `leftovers`): what they started there,
+   * detached or not, that no longer lies under the running shell. Undefined where the scope
+   * or the processes can't be read.
+   */
+  leftovers(left: LeftOptions): Promise<readonly Followed[] | undefined>
+  /**
+   * Ends what agents left in the terminal's scope, as a close does once its shell has exited:
+   * SIGTERM, then SIGKILL half a second on, or by `by()` (see `endLeftovers`). Nothing where no
+   * agent ran there, or off Linux.
+   */
+  endLeft(left: LeftOptions, by?: () => number): Promise<void>
 }
 
 /** A signal number's name, such as `SIGKILL`; Windows has no signals. */
@@ -223,7 +269,7 @@ const endTreeNow = async (pid: number, trees: ProcessTrees): Promise<void> => {
 // by itself: the tree read before the close, and what its members started since, as an
 // agent's hook run as it closes, or left running as they ended, read again from each by
 // its start.
-const endLeft = async (
+const endTreeLeft = async (
   tree: readonly Member[],
   trees: ProcessTrees,
   budget: EndBudget,
@@ -362,6 +408,8 @@ export const spawnPty = (
   // terminal whose input failed.
   child.onExit(({ exitCode, signal }) => {
     gone = true
+    // A scope its program was moved into as it died stays empty, and active, for ever.
+    void scope?.exited()
     const ended = { code: signal ? null : (exitCode ?? null), signal: signalName(signal, platform) }
     // Why it ended is looked up only where nothing here ended it.
     const cause = ending ? undefined : scope?.cause(ended.signal)
@@ -371,6 +419,31 @@ export const spawnPty = (
   exitListeners.add(() => resolveExit?.())
   // An exit taken as one, where the program's own may never be reported.
   const takenAsEnded = () => report({ code: null, signal: null })
+
+  // Agents' runs in the terminal, kept where its scope can say what they left (Linux).
+  const runs: { since: number; until?: number }[] = []
+  const tracksRuns = platform === "linux" && scope !== undefined
+  // What agents left in the scope now; `skip` leaves out what a follow still waits on.
+  const findLeft =
+    (left: LeftOptions, skip?: ReadonlySet<string>) =>
+    async (): Promise<readonly Followed[] | undefined> => {
+      if (!scope || runs.length === 0) return undefined
+      const read = await readScope(left.listing, () => scope.members())
+      if (!read) return undefined
+      return leftovers({
+        rows: read.rows,
+        members: read.members,
+        runs,
+        // The running shell's tree is the hangup's and the follow's, not this.
+        shell: gone ? undefined : pty.pid,
+        apart: listedApart(read.rows, left.apart ?? [], platform),
+        ...(skip && { skip }),
+      })
+    }
+  const endLeft = async (left: LeftOptions, by?: () => number): Promise<void> => {
+    if (runs.length === 0) return
+    await endLeftovers(findLeft(left), by)
+  }
 
   const pty: Pty = {
     get pid() {
@@ -404,10 +477,22 @@ export const spawnPty = (
     resume: () => {
       if (!gone) child.resume()
     },
-    end: async ({ graceMs, treeGraceMs, trees, budget = usualBudget(treeGraceMs), follow }) => {
+    end: async ({
+      graceMs,
+      treeGraceMs,
+      trees,
+      budget = usualBudget(treeGraceMs),
+      follow,
+      left,
+    }) => {
       ending = true
+      const by = () => budget.by?.() ?? Number.POSITIVE_INFINITY
       // Gone, its exit waiting for its cause: no signal for its pid, which may be another's.
-      if (gone) return exit
+      if (gone) {
+        await exit
+        if (left) await endLeft(left, by)
+        return
+      }
       const began = Date.now()
       // The second signal bounds ending even for programs that ignore SIGHUP.
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -481,15 +566,53 @@ export const spawnPty = (
           exit.then(() => {
             if (group !== undefined) resumeGroupRepeatedly(group)
           }),
-          tree && endLeft(tree, trees, budget),
+          tree && endTreeLeft(tree, trees, budget),
           following &&
             followed &&
             endFollowed(followed, () => budget.graceEnds(began), following.listing),
+          // What an agent left outside the shell's tree has no hangup coming, nor anything to
+          // wait for: ended at once, but for what the follow gives its grace.
+          left &&
+            runs.length > 0 &&
+            endLeftovers(findLeft(left, new Set((followed ?? []).map(processKey))), by),
         ])
+        // What is left once the shell has gone: what was under it, as a `nohup` of the
+        // agent's, and what started meanwhile, as a hook's as the agent ended.
+        if (left) await endLeft(left, by)
       } finally {
         if (timer) clearTimeout(timer)
       }
     },
+    agentStarted: (agent) => {
+      if (!tracksRuns) return
+      let run = runs.at(-1)
+      if (!run || run.until !== undefined) {
+        const now = ticksNow()
+        if (now === undefined) return
+        run = { since: now }
+        runs.push(run)
+      }
+      // From the agent's own start where the listing shows it, as it may have started its
+      // helpers before it bound; the time it bound stands only where it can't be read.
+      if (agent === undefined || !options.listing) return
+      const open = run
+      void options
+        .listing()
+        .then((rows) => {
+          const start = rows && runStart(rows, agent)
+          if (start !== undefined && open.until === undefined) open.since = start
+        })
+        .catch(() => {})
+    },
+    agentEnded: () => {
+      const run = runs.at(-1)
+      if (run && run.until === undefined) run.until = Math.max(run.since, ticksNow() ?? run.since)
+    },
+    get agentRan() {
+      return runs.length > 0
+    },
+    leftovers: (left) => (runs.length === 0 ? Promise.resolve([]) : findLeft(left)()),
+    endLeft,
   }
   return pty
 }

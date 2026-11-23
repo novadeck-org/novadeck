@@ -987,11 +987,44 @@ see them change.
   terminal (`Harness.apart`) is left running with all under it, though the agent started it:
   Claude Code's background service, which ← at its prompt starts and the person's other
   sessions share, keeps the conversation going in the background, which Claude Code ends
-  itself (`harnesses/claude/src/daemon.ts`). Otherwise it is not a process-tree kill
-  guarantee: daemonized jobs and descendants that ignore hangup may continue, as with
-  an ordinary terminal emulator, and so may a daemon an agent left in a group of its
-  own. Use an OS service/cgroup or a future supervisor if all descendant cleanup is
-  required.
+  itself (`harnesses/claude/src/daemon.ts`).
+- On Linux with the user's systemd, a close or a shutdown also ends what an agent left in
+  the terminal's scope (`libraries/terminal/src/pty/leftovers.ts`): a program started
+  detached (`(cmd &)`, `nohup`, `setsid`, `disown`, a daemon that forked twice) leaves the
+  shell's tree, so the walk above can't reach it, but it stays in the scope of the terminal
+  it was started in. The runner tells the pty when an agent binds and when its session ends
+  (`agentStarted`, `agentEnded`), and every tree of the scope whose root started in such a
+  run is the agent's, with all under it: what has left the shell's tree gets SIGTERM as the
+  hangup goes out, and what is left once the shell has exited, as a `nohup` the shell held,
+  gets it then; SIGKILL follows half a second on, or by the shutdown's own bound, to what had
+  SIGTERM, each by pid only right after a listing shows that pid to be the process found. A
+  run's start is the agent's own process's, which is its shell's where it took the shell's
+  place (`exec claude`), and its end when its session ends, in the clock /proc counts starts
+  by, which runs on through suspend. Spared, with all
+  under each: what the person started there before the agent or after its session ended,
+  what `Harness.apart` names (Claude Code's background service sits in the scope of the
+  terminal that started it, and is read from the terminal's latest sessions even with no
+  agent bound), and anything that has left the scope, as a program started with
+  `systemd-run --user` or by D-Bus activation. A terminal whose shell exited by itself ends them as
+  it closes or as the runner shuts down, and a restarted one ends its earlier runs' too. A
+  plain terminal, where no agent ran, keeps today's behaviour. A shared build daemon an
+  agent started (Gradle's, Bazel's server, sccache, a turbo or nx daemon) is one of them: a
+  build in another terminal using it at that moment fails once, and the next starts a new
+  one; an ssh `ControlMaster` an agent's `git fetch` started with `ControlPersist` ends too,
+  and with it the person's ssh sessions in other terminals that share it. An app the agent opens for the person is not: `xdg-open` and `gio open` start it in
+  the caller's cgroup (measured with GLib 2.90 on GNOME), so a browser whose first window an
+  agent opened would close with that terminal, tabs and all, and Novadeck's shims for them
+  (`open/xdg-open`, `open/gio`, and `BROWSER`, below) start it in a scope of its own instead.
+  An app an agent starts any other way stays in the terminal's scope and ends with it: by its
+  own binary (`code`, `firefox`), through a launcher without a shim, as npm's `open` package
+  with its own bundled `xdg-open` (`vite --open`), or through the person's own `BROWSER`.
+  Hibernation keeps an agent with such a program awake (`detached`),
+  and the update's restart check counts it as work a restart would end.
+- Otherwise, and on macOS, Windows and Linux without the user's systemd, it is not a
+  process-tree kill guarantee: daemonized jobs and descendants that ignore hangup may
+  continue, as with an ordinary terminal emulator, and so may a daemon an agent left in a
+  group of its own. On Windows a job object per terminal (as the relay's own,
+  `backend/relay/src/job.rs`) would give the scope's list of members.
 
 ## Shell integration and restoring terminals
 
@@ -1020,6 +1053,16 @@ changed. Only connecting an agent (below) installs anything elsewhere:
 - `bin/agy` (`agy.cmd`), which shells get first on `PATH` while Antigravity is connected: it passes
   the person's allow rules with Novadeck's own tools added, which the relay (`novadeck-relay allow`)
   writes to `allow/<terminal id>.json`, a folder the runner empties as it starts.
+- On Linux, `open/xdg-open` and `open/gio`, each written only where its program is on the
+  runner's `PATH`, in a folder that shells get first on `PATH` whenever the terminal has a
+  scope of its own (`NOVADECK_OPEN` names it), with `BROWSER` naming the `xdg-open` one where
+  the person names no browser of their own and an `xdg-open` is there. Each runs the next
+  program of its name on `PATH`, `gio` only for `open` and `launch`, through `systemd-run
+  --user --scope --collect`, so what it opens gets a scope of its own and outlives the
+  terminal, which ends what an agent left in its own (see "Closing" above). Its words, output
+  and exit status are the program's. Where the user's systemd doesn't answer, as inside
+  Codex's sandbox, the program runs as it would without the shim. Startup files that set
+  `PATH` whole, dropping the folder, leave the shims out.
 - On Windows, where cmd's AutoRun prints: `agy-cmd/cmd.exe`, Novadeck's `cmd.exe` pass-through
   (`novadeck-cmd.exe`, built with the relay and checked byte for byte against the shipped one),
   which `agy.cmd` puts first on `PATH` for Antigravity alone, so its `cmd /c` hooks run the real cmd
@@ -1932,6 +1975,16 @@ one from an earlier runner.
   newest 50 files stay. Errors: `NOT_FOUND`, the terminal has no such request; `CONFLICT`, its
   dialog is not raw, or the terminal is gone. The client's
   `agents.saveDialog(terminalId, request)` is that call.
+
+- `agents.takeBack({ terminalId, permit })` (since revision 10) is the person's Take back on a
+  permit of the shipping gate that stands for the terminal's agent: `permit` is an id from
+  `agents.detail`'s `permits`, whose entries say what it covers (`title`), the person's own
+  matched words (`quote`, null where they allowed it on the gate's card), when it was given and
+  until when it stands (`givenAt`, `until`) and when it was first used (`usedAt`). It ends at
+  once with every target it covered, the agent is told in a Novadeck notice, and the call
+  resolves with `{ ended }`, false where none stood by that id. `permits` is absent while the
+  gate is off and where none stand. Errors: `NOT_FOUND`, the terminal isn't open. A UI asks
+  `runner.supports("agents.takeBack")` first.
 
 - `agents.interrupt({ terminalId, setAside? })` presses Escape in the terminal's agent, which stops
   its turn in every harness, after up to 5 s where Claude Code's queued messages are still

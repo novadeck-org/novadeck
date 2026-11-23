@@ -7,6 +7,7 @@ import {
   type ChatRecords,
   type ChatItem,
   type ChatPrompt,
+  type ChatPermit,
   type ChatRequest,
   conflictFailure,
   InDoubt,
@@ -39,6 +40,8 @@ import {
 } from "@novadeck/protocol"
 import { hasCode } from "@novadeck/runner-client"
 import { readTolerantly } from "@novadeck/wire"
+
+import { permitsOf, samePermits, takeBackOf } from "./permits"
 
 // The runner's conversations: each terminal's agent as `agents.detail` follows it, and
 // the root agent's transcript as `agents.transcript` streams it. Reading a terminal
@@ -100,6 +103,8 @@ export type ConversationStreams = {
   readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
   readonly saveDialog: (terminalId: string, request: string) => Promise<{ readonly path: string }>
+  // Takes a shipping permit back; absent where the runner has no such call.
+  readonly takeBack?: (terminalId: string, permit: string) => Promise<{ readonly ended: boolean }>
 }
 
 export type RunnerConversations = Conversations & {
@@ -226,6 +231,8 @@ export const requestOf = (
   askedAt: request.askedAt,
   ...(request.detached && { detached: true as const }),
 })
+
+const none: readonly ChatPermit[] = []
 
 const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] =>
   detail.requests.map((request) => requestOf(request, root))
@@ -634,6 +641,8 @@ const read = (
     const requests = requestsOf(snapshot, root)
     const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
     const box = snapshot.box ?? null
+    // Where the runner can't take them back, no permit shows.
+    const standing = streams.takeBack ? permitsOf(snapshot) : none
     // Whether a turn of this session was seen, as its hooks and records tell.
     if (changed) working = null
     watchTurn(snapshot.activity)
@@ -645,6 +654,7 @@ const read = (
         current.session === session &&
         current.turned === turned &&
         sameBox(current.box, box) &&
+        samePermits(current.permits, standing) &&
         sameRequests(current.requests, requests) &&
         samePrompts(current.prompts, prompts)
       if (same) return current
@@ -658,6 +668,7 @@ const read = (
         doorbell: current.doorbell,
         box: sameBox(current.box, box) ? current.box : box,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
+        permits: samePermits(current.permits, standing) ? current.permits : standing,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
           ? { loaded: false, records: { state: "reading" as const }, items: [] }
@@ -949,6 +960,10 @@ export const createRunnerConversations = (
           throw refusal(error)
         },
       ),
+    ...(streams.takeBack && {
+      takeBack: ({ terminalId }: TerminalKey, permit: string) =>
+        takeBackOf(streams.takeBack!, track)(terminalId, permit),
+    }),
     saveDialog: ({ terminalId }, request) =>
       track(streams.saveDialog(terminalId, request)).then(
         ({ path }) => path,

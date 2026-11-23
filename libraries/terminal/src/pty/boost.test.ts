@@ -19,7 +19,7 @@ const parts = (extra: Partial<BoostParts> = {}) => {
   const raised: number[] = []
   const lowered: number[] = []
   const all: BoostParts = {
-    scope: { cause: () => undefined, weigh: (weight) => void weights.push(weight) as never },
+    scope: { weigh: (weight) => void weights.push(weight) as never },
     priority: { raise: (pid) => void raised.push(pid), lower: (pid) => void lowered.push(pid) },
     platform: "linux",
     shell: () => 10,

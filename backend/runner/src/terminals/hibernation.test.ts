@@ -5,6 +5,7 @@ import { describe, expect, it } from "../test.js"
 import {
   Hibernation,
   mayHibernate,
+  readTree,
   vetoOf,
   windowsTree,
   type Facts,
@@ -121,6 +122,8 @@ describe("when an agent may be stopped to rest", () => {
     ["unbaselined", { processes: { tree: quiet().processes!.tree, baseline: undefined } }],
     ["stray", { processes: processes({ below: new Set(["20:1", "99:5"]) }) }],
     ["beside", { processes: processes({ beside: true }) }],
+    // A server it started detached, which the rest's end would end and no resume restarts.
+    ["detached", { processes: processes({ detached: true }) }],
   ]
 
   for (const [veto, change] of vetoes)
@@ -345,3 +348,46 @@ describe("stopping an agent that looked idle", () => {
     expect(calls).toEqual(["save", "end"])
   })
 })
+
+describe.skipIf(process.platform === "win32")(
+  "what an agent left detached, as hibernation reads it",
+  () => {
+    // A shell 10 whose agent 20 holds its foreground, as one listing shows them.
+    const rows = [
+      { pid: 10, parent: 1, group: 10, foreground: 20, started: "100", zombie: false },
+      { pid: 20, parent: 10, group: 20, foreground: 20, started: "200", zombie: false },
+    ]
+    const recordWith = (
+      leftovers: () => Promise<readonly { pid: number; started: string }[] | undefined>,
+    ) =>
+      ({
+        terminal: { pty: { pid: 10, agentRan: true, leftovers } },
+        bound: { binding: { agent: "codex", sessionId: "s1", instance: "20" } },
+        agents: {},
+      }) as unknown as Parameters<typeof readTree>[0]
+
+    it("is told where the terminal's scope holds what its agent left", async () => {
+      const tree = await readTree(
+        recordWith(() => Promise.resolve([{ pid: 30, started: "300" }])),
+        undefined,
+        () => Promise.resolve(rows),
+        () => false,
+      )
+      expect(tree).toMatchObject({ placed: true, foreground: true, beside: false, detached: true })
+    })
+
+    it("isn't, where nothing is left or the scope can't be read, which the rest couldn't end either", async () => {
+      const trees = await Promise.all(
+        [[], undefined].map((found) =>
+          readTree(
+            recordWith(() => Promise.resolve(found)),
+            undefined,
+            () => Promise.resolve(rows),
+            () => false,
+          ),
+        ),
+      )
+      expect(trees.map((tree) => tree?.detached)).toEqual([false, false])
+    })
+  },
+)

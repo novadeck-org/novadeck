@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, realpathSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -438,6 +438,16 @@ describe("Antigravity's answers", () => {
     auto!.done()
   })
 
+  it("uses a standing permit once its confirmation was answered, keeping only its retry window", async () => {
+    const shipping = service()
+    permitted(shipping, pushKey, false)
+    await hooked(shipping, push)
+    const auto = await shipping.autoAnswer("t", "agy", dialog(push, push))
+    expect(shipping.permits.covering("t", pushKey)?.usedAt).toBeNull()
+    auto!.done()
+    expect(shipping.permits.covering("t", pushKey)?.usedAt).toEqual(expect.any(Number))
+  })
+
   it("covers Antigravity only where its PreToolUse hook is registered", () => {
     expect(service().covers("agy")).toBe(true)
     setAgyPreToolUse(false)
@@ -489,5 +499,230 @@ describe("the record of permits", () => {
     } finally {
       useLogger(before)
     }
+  })
+})
+
+describe("a standing permit", () => {
+  it("stands past ten minutes once the person allowed it, and the agent is told how long", () => {
+    vi.useFakeTimers()
+    try {
+      const told: string[] = []
+      const shipping = new Shipping({
+        enabled: () => true,
+        owned: { ofTerminal: () => [], all: () => [] },
+        notify: (_terminalId, text) => told.push(text) > 0,
+      })
+      const card = shipping.cards.ask(
+        "t",
+        ["pr-merge:r/app#5"],
+        false,
+        "Merge PR #5 into main?",
+        "",
+      ).card
+      shipping.answered(card, true)
+      vi.advanceTimersByTime(3 * 60 * 60_000)
+      expect(shipping.permits.covering("t", "pr-merge:r/app#5")).toMatchObject({
+        group: card.id,
+        title: "Merge PR #5 into main",
+      })
+      expect(told[0]).toContain("The permit stands for 12 hours, until its first use")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ends once its PR merged or closed, as GitHub says, and stays while gh can't say", async () => {
+    const states = new Map<string, boolean | undefined>([
+      ["5", false],
+      ["6", true],
+      ["feat/x", undefined],
+    ])
+    const asked: string[] = []
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+      prOpen: async (repoName, pr) => {
+        asked.push(`${repoName} ${pr}`)
+        return states.get(pr)
+      },
+    })
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, { group: "a" })
+    shipping.permits.give("t", "pr-merge:r/app@feat/a", false, quote, { group: "a" })
+    shipping.permits.give("t", "pr-merge:r/app#6", false, quote, { group: "b" })
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, { group: "c" })
+    shipping.permits.give("t", "push:r/app:origin/main", false, quote, { group: "d" })
+    await shipping.sweep(["t"])
+    expect(shipping.permits.of("t").map(({ key }) => key)).toEqual([
+      "pr-merge:r/app#6",
+      "pr-merge:r/app@feat/x",
+      "push:r/app:origin/main",
+    ])
+    // A push isn't a PR: it isn't asked about.
+    expect(asked).toEqual(["r/app 5", "r/app 6", "r/app feat/x"])
+  })
+})
+
+describe("what the person sees stand, and takes back", () => {
+  const joined = () => {
+    const told: string[] = []
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: (_terminalId, text) => told.push(text) > 0,
+    })
+    const changed: string[] = []
+    const records = new Map([["t", { summary: { id: "t" }, bound: undefined }]]) as never
+    shipping.attach(records, (record: { summary: { id: string } }) =>
+      changed.push(record.summary.id),
+    )
+    return { shipping, told, changed }
+  }
+
+  it("shows one entry for each declaration or card, with the person's own words, never the agent's", () => {
+    const { shipping, changed } = joined()
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    const given = { group: "g", title: "Merge PR #5 into main" }
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, given)
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, given)
+    shipping.permits.give(
+      "t",
+      "land:r/app:main",
+      false,
+      { type: "answer", card: "c" },
+      {
+        group: "c",
+        title: "Land work on main",
+      },
+    )
+    const { permits } = shipping.held("t")
+    expect(permits).toEqual([
+      expect.objectContaining({
+        id: "g",
+        title: "Merge PR #5 into main",
+        quote: "merge stuff",
+        usedAt: null,
+      }),
+      expect.objectContaining({ id: "c", title: "Land work on main", quote: null }),
+    ])
+    expect(permits[0]!.until - permits[0]!.givenAt).toBe(12 * 60 * 60_000)
+    // Each change republishes the terminal's detail.
+    expect(changed).toEqual(["t", "t", "t"])
+  })
+
+  it("takes a permit back whole, tells the agent, and says so; a terminal it doesn't know is no terminal", () => {
+    const { shipping, told } = joined()
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, {
+      group: "g",
+      title: "Merge PR #5 into main",
+    })
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, {
+      group: "g",
+      title: "Merge PR #5 into main",
+    })
+    expect(shipping.takeBack("t", "g")).toBe(true)
+    expect(shipping.permits.covering("t", "pr-merge:r/app@feat/x")).toBeUndefined()
+    expect(shipping.held("t").permits).toEqual([])
+    expect(told[0]).toContain(
+      "The user took back the permit: Merge PR #5 into main. No permit covers it now.",
+    )
+    expect(shipping.takeBack("t", "g")).toBe(false)
+    expect(shipping.takeBack("gone", "g")).toBeUndefined()
+  })
+})
+
+describe("the gate while off", () => {
+  it("holds nothing for the detail, so the agent's detail is as it was", () => {
+    let on = true
+    const shipping = new Shipping({
+      enabled: () => on,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    shipping.permits.give("t", "land:r/app:main", false, { type: "quote", quote: "land it" })
+    shipping.cards.ask("t", ["push:r/app:origin/main"], false, "Push to origin/main?", "")
+    expect(shipping.held("t").permits).toHaveLength(1)
+    on = false
+    expect(shipping.held("t")).toEqual({ cards: [], permits: [] })
+  })
+})
+
+describe("switching the gate off", () => {
+  it("ends every permit and card, and tells each terminal, so none comes back when it's on again", () => {
+    let on = true
+    const shipping = new Shipping({
+      enabled: () => on,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    const changed: string[] = []
+    const records = new Map([["t", { summary: { id: "t" }, bound: undefined }]]) as never
+    shipping.attach(records, (record: { summary: { id: string } }) =>
+      changed.push(record.summary.id),
+    )
+    shipping.permits.give("t", "land:r/app:main", false, { type: "quote", quote: "land it" })
+    shipping.cards.ask("t", ["push:r/app:origin/main"], false, "Push to origin/main?", "")
+    changed.length = 0
+    shipping.switched()
+    expect(shipping.permits.of("t")).toHaveLength(1)
+    on = false
+    shipping.switched()
+    on = true
+    expect(shipping.permits.of("t")).toEqual([])
+    expect(shipping.cards.of("t")).toEqual([])
+    expect(changed).toContain("t")
+  })
+})
+
+describe("the person's allow rules", () => {
+  // A session bound in the person's checkout, whose agent works in a worktree of it: its
+  // harness reads the project's rules where it started, and so does the gate.
+  const inWorktree = (agent: "claude" | "codex") => {
+    const home = join(dir, "home")
+    const worktree = join(dir, "wt")
+    sh(repo, "worktree", "add", "-q", "-b", "feat/x", worktree)
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+      ruleFiles: { env: {}, home },
+    })
+    const record = {
+      summary: { cwd: worktree },
+      bound: { binding: { agent, sessionId: "s", instance: null } },
+      agents: { [agent]: { sessionId: "s", seq: 1, cwd: repo } },
+    }
+    shipping.attach(new Map([["t", record as never]]), () => {})
+    const push = { event: "PreToolUse", command: "git push origin main", cwd: worktree } as const
+    return { shipping, worktree, push }
+  }
+  const write = (file: string, text: string) => {
+    mkdirSync(join(file, ".."), { recursive: true })
+    writeFileSync(file, text)
+  }
+  const claudeRule = JSON.stringify({ permissions: { allow: ["Bash(git push:*)"] } })
+
+  it("reads Claude Code's project rules where its session started, not where a command runs", async () => {
+    const { shipping, worktree, push } = inWorktree("claude")
+    // The person's rule in their checkout, which a worktree doesn't have: it counts there.
+    write(join(repo, ".claude", "settings.local.json"), claudeRule)
+    expect(await shipping.answer("t", "claude", push)).toBeUndefined()
+    // One only in the folder the command runs in counts for nothing, as for Claude Code.
+    rmSync(join(repo, ".claude"), { recursive: true })
+    write(join(worktree, ".claude", "settings.local.json"), claudeRule)
+    const denied = await shipping.answer("t", "claude", push)
+    expect(JSON.parse(denied!.stdout).hookSpecificOutput.permissionDecision).toBe("deny")
+  })
+
+  it("reads Codex's project rules where its session started, beside its home's", async () => {
+    const { shipping, push } = inWorktree("codex")
+    expect(await shipping.answer("t", "codex", push)).toBeDefined()
+    write(
+      join(repo, ".codex", "rules", "push.rules"),
+      'prefix_rule(pattern=["git", "push"], decision="allow")\n',
+    )
+    expect(await shipping.answer("t", "codex", push)).toBeUndefined()
   })
 })

@@ -246,6 +246,52 @@ describe("finding a ring's row", () => {
     expect(doorbell.drawn()).toBe(1)
   })
 
+  it("wraps a ring's words over the rows its wrapped tag takes, not one row cut short", async () => {
+    const words =
+      "why didn't I get asks in my Inbox for those, and what stopped it working that way?"
+    const long = `<novadeck-reply>Re your ask "Two PRs wait on your Allow": ${words}</novadeck-reply><end ring="n7Q2xk"/>`
+    const { doorbell, write } = open(40, {
+      rings: new Map([["n7Q2xk", { parts: [{ kind: "person", text: words }] }]]),
+      deliveries: [],
+    })
+    // Claude Code's own wrap: its prompt mark, then the rows after indented under the words.
+    const rows = long.match(/.{1,38}/g)!
+    await write(`❯ ${rows.join("\r\n  ")}\r\nout\r\n`)
+    doorbell.arm()
+    const says = doorbell.audit()[0]!.pieces.map((piece) => piece.says.trimEnd())
+    expect(says).toHaveLength(rows.length)
+    // Every word said, the first row cut nowhere, wrapped under the words after "you: ".
+    expect(says[0]).toMatch(/^you: why/)
+    expect(says[0]).not.toContain("…")
+    expect(says.slice(1).every((row) => row === "" || row.startsWith("     "))).toBe(true)
+    expect(
+      says
+        .join(" ")
+        .replace(/^you: /, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    ).toBe(words)
+  })
+
+  it("says a ring of more messages than its tag's rows on one row, as a ring row does", async () => {
+    const many: RingPart[] = ["a", "b", "c"].map((handle) => ({
+      kind: "agent",
+      handle,
+      hue: 1,
+      text: "Start on the parser tests",
+    }))
+    const { doorbell, write } = open(40, {
+      rings: new Map([["n7Q2xk", { parts: many }]]),
+      deliveries: [],
+    })
+    await write(`${tag}\r\nout\r\n`)
+    doorbell.arm()
+    const says = doorbell.audit()[0]!.pieces.map((piece) => piece.says.trimEnd())
+    expect(says).toHaveLength(2)
+    expect(says[0]).toMatch(/^@a: .*\+\d more$/)
+    expect(says[1]).toBe("")
+  })
+
   it("draws a tag a harness hard-wrapped with its spaces dropped and an indent on the rows after", async () => {
     const { doorbell, write } = open(100)
     await write('<novadeck-doorbell from="newtz\r\n  hushz" ring="n7Q2xk"/>\r\nout\r\n')

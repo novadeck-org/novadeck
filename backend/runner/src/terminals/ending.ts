@@ -1,3 +1,6 @@
+import type { AgentName } from "@novadeck/protocol"
+import type { ApartProcess } from "@novadeck/terminal/pty"
+
 import { harnesses } from "../harnesses/registry.js"
 import type { Record } from "./record.js"
 
@@ -30,22 +33,43 @@ export const agentProcess = (record: Pick<Record, "bound"> | undefined): number 
 }
 
 /**
+ * What the harnesses of a terminal's agents run apart from it (`Harness.apart`), found by
+ * each session's own transcript: the bound session's, and with none bound, each harness's
+ * latest session there. A harness's service started from this terminal sits in its scope,
+ * though its agent has ended, and the person's other sessions still use it, so what an agent
+ * left there is ended around it (see the pty's `endLeft`).
+ */
+export const apartOf = async (
+  record: Pick<Record, "bound" | "agents"> | undefined,
+): Promise<readonly ApartProcess[]> => {
+  if (!record) return []
+  const binding = record.bound?.binding
+  const sessions = binding
+    ? [{ agent: binding.agent, sessionId: binding.sessionId }]
+    : Object.entries(record.agents).flatMap(([agent, report]) =>
+        report ? [{ agent: agent as AgentName, sessionId: report.sessionId }] : [],
+      )
+  const found = await Promise.all(
+    sessions.map(async ({ agent, sessionId }) => {
+      const apart = harnesses[agent].apart
+      const report = record.agents[agent]
+      if (!apart) return []
+      const transcript = report?.sessionId === sessionId ? report.transcript : undefined
+      return apart({ transcript }).catch(() => [])
+    }),
+  )
+  return found.flat()
+}
+
+/**
  * What the terminal host follows as terminal `id` closes, by its record in `records`: its
- * agent (`agentProcess`), and what that agent's harness runs apart from the terminal, which
- * the close leaves (`Harness.apart`), found by the session's own transcript. Taken as the
- * close begins, so the binding it goes by is the one the closed terminal had.
+ * agent (`agentProcess`), and what its agents' harnesses run apart from the terminal, which
+ * the close leaves (`apartOf`). Taken as the close begins, so the binding it goes by is the one
+ * the closed terminal had.
  */
 export const closing = (records: {
   get(id: string): Pick<Record, "bound" | "agents"> | undefined
 }) => ({
   follows: (id: string) => agentProcess(records.get(id)),
-  apart: async (id: string) => {
-    const record = records.get(id)
-    const binding = record?.bound?.binding
-    const apart = binding && harnesses[binding.agent].apart
-    if (!binding || !apart) return []
-    const report = record.agents[binding.agent]
-    const transcript = report?.sessionId === binding.sessionId ? report.transcript : undefined
-    return apart({ transcript })
-  },
+  apart: (id: string) => apartOf(records.get(id)),
 })

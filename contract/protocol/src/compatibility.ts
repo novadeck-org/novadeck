@@ -29,7 +29,9 @@ export const compatibility: Compatibility = {
   //    `preferences.*`).
   // 8: a terminal's control moves between clients (`terminals.take`, `terminals.controls`).
   // 9: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
-  revision: 9,
+  // 10: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
+  //     `agents.takeBack`).
+  revision: 10,
   oldestClient: 3,
   oldestRunner: 2,
 }

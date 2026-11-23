@@ -61,6 +61,7 @@ import { createRunnerConversations } from "./agents/conversations"
 import { runnerFeedback } from "./agents/feedback"
 import { createRunnerInbox } from "./agents/inbox"
 import { createRunnerMessages } from "./agents/messages"
+import { takeBackCall } from "./agents/permits"
 import { createRunnerCompanions } from "./companions/content"
 import { createRunnerItems } from "./companions/items"
 import { answerLook, type Looks } from "./companions/looks"
@@ -1482,6 +1483,10 @@ export const runnerBackend = (
     },
     track,
   )
+  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
+  // Whether the runner has the call, as one from before it has none: the shipping gate's
+  // standing permits are neither shown nor taken back there.
+  const takeBack = takeBackCall(runner)
   const conversations = createRunnerConversations(
     {
       detail: (terminalId) => runner.agents.detail(terminalId),
@@ -1497,6 +1502,7 @@ export const runnerBackend = (
       clearBox: (terminalId, seen) => runner.agents.clearBox(terminalId, seen),
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
       saveDialog: (terminalId, request) => runner.agents.saveDialog(terminalId, request),
+      ...(takeBack && { takeBack }),
     },
     track,
     messages.state,
@@ -1508,6 +1514,7 @@ export const runnerBackend = (
     {
       inbox: runner.inbox,
       detail: (terminalId) => runner.agents.detail(terminalId),
+      ...(takeBack && switches.shippingGate && { takeBack, gate: switches.shippingGate.enabled }),
       answer: (key, request, answer) => conversations.answer(key, request, answer),
       send: (key, text, sending) => conversations.send(key, text, sending),
       interrupt: async (key) => (await conversations.interrupt(key)).words,
@@ -1539,6 +1546,16 @@ export const runnerBackend = (
       if (request) inbox.answered(requestId, request, answer)
       return conversations.answer(key, requestId, answer)
     },
+    // A permit the chat takes back resolves its Inbox entry as taken back, not as lapsed.
+    ...(conversations.takeBack && {
+      takeBack: (key, permit) => {
+        inbox.takenBack(key.terminalId, permit)
+        return conversations.takeBack!(key, permit).catch((error: unknown) => {
+          inbox.takenBack(key.terminalId, permit, true)
+          throw error
+        })
+      },
+    }),
   }
   // The person's order of the Inbox's entries and their snoozes: shown at once, kept by the
   // runner (`fitted`).
@@ -1709,7 +1726,6 @@ export const runnerBackend = (
   // the runner tells (`settings.watch`, `preferences.watch`).
   const has = (path: "settings.watch" | "preferences.get"): boolean =>
     typeof (runner as Partial<typeof runner>).supports === "function" && runner.supports(path)
-  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
   let settingsStream: AsyncIterableIterator<unknown> | undefined
   const followSettings = (): void => {
     if (settingsStream || !has("settings.watch")) return

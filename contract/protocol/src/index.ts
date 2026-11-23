@@ -37,6 +37,8 @@ export {
   promptFailure,
   promptResult,
   type AgentDetail,
+  standingPermit,
+  type StandingPermit,
   type PromptReceipt,
   type PromptResult,
   type AgentIntegration,

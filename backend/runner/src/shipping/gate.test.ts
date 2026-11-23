@@ -221,3 +221,26 @@ describe("the shipping gate", () => {
     expect(out?.decision).toMatchObject({ behavior: "deny" })
   })
 })
+
+describe("a standing permit's first use, in each harness", () => {
+  const quote = { type: "quote", quote: "merge stuff" } as const
+  const used = (permits: Permits) => permits.covering("t", "pr-merge:r/app#5")?.usedAt
+
+  it("starts its retry window once Claude Code's allow is delivered, never before", async () => {
+    const { permits, gate, input } = setup()
+    permits.give("t", "pr-merge:r/app#5", false, quote)
+    await deliver(gate, input("gh pr merge 5"), false)
+    expect(used(permits)).toBeNull()
+    await deliver(gate, input("gh pr merge 5"))
+    expect(used(permits)).toEqual(expect.any(Number))
+  })
+
+  it("starts it at Codex's escalation that runs, not at the deny that asks for it", async () => {
+    const { permits, gate, input } = setup()
+    permits.give("t", "pr-merge:r/app#5", false, quote)
+    await deliver(gate, input("gh pr merge 5", { agent: "codex" }))
+    expect(used(permits)).toBeNull()
+    await deliver(gate, input("gh pr merge 5", { agent: "codex", event: "PermissionRequest" }))
+    expect(used(permits)).toEqual(expect.any(Number))
+  })
+})

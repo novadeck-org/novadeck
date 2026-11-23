@@ -15,6 +15,7 @@ import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { Detail } from "@novadeck/requests/Detail"
 import type { DialogDraft } from "@novadeck/requests/drafts"
 import { answerWordsLimit, Menu, type MenuHandle, type MenuItem } from "@novadeck/requests/Menu"
+import { PermitFacts } from "@novadeck/requests/PermitFacts"
 import {
   clickToDialog,
   RequestCard,
@@ -226,6 +227,8 @@ const titleOf = (entry: OwnEntry): string => {
       return "Can't get your message"
     case "update":
       return "Has an update"
+    case "permit":
+      return "Allowed"
   }
 }
 
@@ -360,6 +363,8 @@ const Thing = ({ entry, now }: { readonly entry: OwnEntry; readonly now: number 
       return <TroubleThing entry={entry} trouble={entry.trouble} now={now} />
     case "update":
       return <Prose text={entry.update.body} />
+    case "permit":
+      return <PermitFacts permit={entry.permit} now={now} />
   }
 }
 

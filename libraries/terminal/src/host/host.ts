@@ -148,6 +148,10 @@ type Entry = {
   restarting: boolean
 }
 
+// Each run's pty an agent ran in: the earlier runs' before a restart, and the current one.
+const agentRuns = (terminal: HostedTerminal) =>
+  [...terminal.earlier, terminal.pty].filter((pty) => pty.agentRan)
+
 export const createTerminalHost = (options: TerminalHostOptions): TerminalHost => {
   const listing = options.listing ?? processListing(options.pty?.platform)
   // A close outside a quit lists with a longer bound (`closeListMs`).
@@ -203,6 +207,11 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
    * time: each relay or taskkill run within what is left of it, and what its program left
    * running ends by shutdown's shorter grace.
    */
+  // As a quit bounds it: by shutdown's own end, else none.
+  const by = () => shutdownBy ?? Number.POSITIVE_INFINITY
+  const apartOf = (id: string) =>
+    (options.apart?.(id) ?? Promise.resolve([])).catch((): readonly ApartProcess[] => [])
+
   const end = async ({ id, terminal }: Entry) => {
     const agent = options.follows?.(id)
     const budget: EndBudget = {
@@ -214,9 +223,11 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
               began + kill.treeGraceMs,
               shutdownBy - kill.shutdownTreesMs + kill.shutdownTreeGraceMs,
             ),
+      by,
     }
-    const kept =
-      agent === undefined ? [] : await (options.apart?.(id) ?? Promise.resolve([])).catch(() => [])
+    const ran = agentRuns(terminal).length > 0
+    const kept = agent === undefined && !ran ? [] : await apartOf(id)
+    const left = ran ? { listing: list, apart: kept } : undefined
     await Promise.all([
       terminal.pty.end({
         graceMs: kill.graceMs,
@@ -224,9 +235,22 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
         trees: options.trees,
         budget,
         follow: agent === undefined ? undefined : { agent, listing: list, apart: kept },
+        left,
       }),
+      ...terminal.earlier.map((pty) => left && pty.endLeft(left, by)),
       terminal.exited,
     ])
+  }
+
+  /**
+   * Ends what agents left in the scopes of a terminal whose shell has exited by itself, as it
+   * closes or the host shuts down (see the pty's `endLeft`).
+   */
+  const endLeftBehind = async ({ id, terminal }: Entry): Promise<void> => {
+    const ptys = agentRuns(terminal)
+    if (ptys.length === 0) return
+    const left = { listing: list, apart: await apartOf(id) }
+    await Promise.all(ptys.map((pty) => pty.endLeft(left, by)))
   }
 
   // Keeps terminal `id` from going, exited or closed, until the returned function is called;
@@ -246,7 +270,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
 
   const terminate = (entry: Entry): Promise<void> => {
     if (entry.closing) return entry.closing
-    if (entry.terminal.exit !== null) return entry.terminal.exited
+    if (entry.terminal.exit !== null) return entry.terminal.exited.then(() => endLeftBehind(entry))
     entry.ending = true
     const ended = () => {
       entry.ending = false

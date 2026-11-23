@@ -1,5 +1,5 @@
 {
-  "revision": 9,
+  "revision": 10,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -1043,6 +1043,7 @@
                 {"type":"null"}
               ]
             },
+            "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
             "sleeping": {"type":"boolean"},
             "restingAgent": {
               "anyOf": [
@@ -1564,6 +1565,7 @@
               {"type":"null"}
             ]
           },
+          "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
           "sleeping": {"type":"boolean"},
           "restingAgent": {
             "anyOf": [
@@ -2317,6 +2319,7 @@
                       {"type":"null"}
                     ]
                   },
+                  "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
                   "sleeping": {"type":"boolean"},
                   "restingAgent": {
                     "anyOf": [
@@ -3131,6 +3134,7 @@
               {"type":"null"}
             ]
           },
+          "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
           "sleeping": {"type":"boolean"},
           "restingAgent": {
             "anyOf": [
@@ -3785,6 +3789,23 @@
               },
               {"type":"null"}
             ]
+          },
+          "permits": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type":"string","minLength":1,"maxLength":64},
+                "title": {"type":"string","minLength":1,"maxLength":1024},
+                "quote": {"anyOf":[{"type":"string","maxLength":300},{"type":"null"}]},
+                "givenAt": {"type":"number"},
+                "until": {"type":"number"},
+                "usedAt": {"type":["number","null"]}
+              },
+              "required": ["id","title","quote","givenAt","until","usedAt"],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -4485,6 +4506,24 @@
         "additionalProperties": false
       },
       "output": {"x-optional":true}
+    },
+    "agents.takeBack": {
+      "since": 10,
+      "input": {
+        "type": "object",
+        "properties": {
+          "terminalId": {"type":"string","format":"uuid"},
+          "permit": {"type":"string","minLength":1,"maxLength":64}
+        },
+        "required": ["terminalId","permit"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {"ended":{"type":"boolean"}},
+        "required": ["ended"],
+        "additionalProperties": false
+      }
     },
     "agents.saveDialog": {
       "input": {

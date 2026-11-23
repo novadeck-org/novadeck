@@ -6917,3 +6917,92 @@ describe("a prompt queued behind a running turn", () => {
     expect(prompt("A", claude).stdout).toContain("The news.")
   })
 })
+
+describe("the person's words the shipping gate takes", () => {
+  // A root prompt whose hook names its words, as each harness's decoder tells them.
+  const typed = (bound: Binding, prompt: string): ActivityEvent => ({
+    type: "turn-started",
+    ...fact(bound),
+    startedAt: asHeard,
+    cause: "prompt",
+    prompt,
+  })
+  const promptHook = (bound: Binding) =>
+    bound.agent === "agy" ? "PreInvocation" : "UserPromptSubmit"
+  const submit = (
+    setup: ReturnType<typeof create>,
+    terminalId: string,
+    bound: Binding,
+    words: string,
+  ) => {
+    setup.messaging.keys(terminalId, ["content", "enter"], false)
+    setup.clock.now += 50
+    setup.ask(terminalId, bound, promptHook(bound), [typed(bound, words)])
+  }
+
+  for (const agent of ["claude", "codex"] as const)
+    it(`takes ${agent}'s prompt typed into a turn Novadeck continued, not the turn's first`, () => {
+      const setup = create()
+      const { messaging, send, stop } = setup
+      const [id, bound, peer, handle] =
+        agent === "claude"
+          ? (["A", setup.claude, "B", "moth"] as const)
+          : (["B", setup.codex, "A", "fox"] as const)
+      submit(setup, id, bound, "fix the bug please")
+      expect(messaging.personSaid(id)).toBe("fix the bug please")
+      // A lead's message continues the turn's Stop; the person types while it runs.
+      sent(send(peer, handle, "hello"))
+      const continued = stop(id, bound)
+      expect(continued.leaseId).toEqual(expect.any(String))
+      messaging.acknowledge(id, continued.leaseId!)
+      setup.clock.now += 3_000
+      submit(setup, id, bound, "feel free to merge it")
+      expect(messaging.personSaid(id)).toBe("feel free to merge it")
+      // The turn is still the one its first prompt started.
+      expect(messaging.personPrompt(id)).toBe("fix the bug please")
+    })
+
+  for (const agent of ["claude", "codex"] as const)
+    it(`takes ${agent}'s prompt typed while a turn runs, its hook firing as it is queued or steered`, () => {
+      const setup = create()
+      const [id, bound] =
+        agent === "claude" ? (["A", setup.claude] as const) : (["B", setup.codex] as const)
+      submit(setup, id, bound, "fix the bug please")
+      setup.clock.now += 5_000
+      submit(setup, id, bound, "merge it when green")
+      expect(setup.messaging.personSaid(id)).toBe("merge it when green")
+    })
+
+  it("takes Antigravity's prompt queued during a turn, which runs once the turn ends", () => {
+    const setup = create()
+    const { messaging, ask, follow } = setup
+    messaging.register("C", here, "owl", null)
+    const agy = binding("agy", "s-agy", "5")
+    follow("C", agy)
+    submit(setup, "C", agy, "fix the bug please")
+    setup.clock.now += 5_000
+    // Typed while the turn runs: Antigravity holds it, and submits it after its Stop.
+    messaging.keys("C", ["content", "enter"], false)
+    setup.clock.now += 2_000
+    ask("C", agy, "Stop", [stopped(agy)])
+    setup.clock.now += 50
+    ask("C", agy, "PreInvocation", [typed(agy, "merge it when green")])
+    expect(messaging.personSaid("C")).toBe("merge it when green")
+  })
+
+  it("takes the words once, and never a doorbell's, the harness's or a prompt with no Enter of theirs", () => {
+    const setup = create()
+    const { messaging, ask, claude } = setup
+    submit(setup, "A", claude, "fix the bug please")
+    expect(messaging.personSaid("A")).toBe("fix the bug please")
+    expect(messaging.personSaid("A")).toBeUndefined()
+    setup.clock.now += 5_000
+    // No Enter of the person's came: the agent's own prompt.
+    ask("A", claude, "UserPromptSubmit", [typed(claude, "merge it now")])
+    expect(messaging.personSaid("A")).toBeUndefined()
+    ask("A", claude, "UserPromptSubmit", [
+      { ...started(claude), cause: "doorbell", nonce: "n1" } as ActivityEvent,
+    ])
+    expect(messaging.personSaid("A")).toBeUndefined()
+  })
+})

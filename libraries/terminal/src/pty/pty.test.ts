@@ -312,6 +312,8 @@ describe("a pty's terminal in use", () => {
         contain: () => ({
           cause: () => undefined,
           weigh: async (weight) => void weights.push(weight),
+          members: () => Promise.resolve(undefined),
+          exited: () => Promise.resolve(),
         }),
       },
     })

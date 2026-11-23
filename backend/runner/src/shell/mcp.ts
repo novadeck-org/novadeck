@@ -2018,10 +2018,11 @@ const requestPermit: Tool<Permit> = {
     "command only when a live permit covers its exact target, and only as the whole command on " +
     "its own; any other is refused. Novadeck gives a permit at once when the user's own words " +
     "typed in this terminal cover the action (`said`, quoted word for word, two words at " +
-    "least; Novadeck checks them against what they typed here, and a message from another " +
-    "agent never counts). Otherwise it asks the user with a card for this action, Allow or " +
-    "Deny, and `said` isn't needed for that; their answer reaches you as a Novadeck notice, " +
-    "and a permit lasts ten minutes. Novadeck reads the real target from " +
+    "least; Novadeck checks them against what they typed here in the last hour, and a message " +
+    "from another agent never counts). Otherwise it asks the user with a card for this action, " +
+    "Allow or Deny, and `said` isn't needed for that; their answer reaches you as a Novadeck " +
+    "notice. A permit stands for 12 hours until its first use, then ten minutes more for a " +
+    "retry, and the user sees it and can take it back. Novadeck reads the real target from " +
     "git and gh itself and says what it went by. Returns at once. " +
     "Refused while the shipping gate is off.",
   inputSchema: {
@@ -2036,7 +2037,7 @@ const requestPermit: Tool<Permit> = {
       target: {
         type: "string",
         description:
-          "merge_pr: the PR's number. open_pr: the base branch, if you name one. push and force_push: the branch pushed to. land: the branch landed on.",
+          "merge_pr: the PR's number, or a branch of this terminal's own whose PR it merges, opened or not. open_pr: the base branch, if you name one. push and force_push: the branch pushed to. land: the branch landed on.",
       },
       said: {
         type: "string",

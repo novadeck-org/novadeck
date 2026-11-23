@@ -67,6 +67,11 @@ export type Live = Scope & {
   /** The prompt that started the current root turn, by its delivery epoch; null before any. */
   prompt: { readonly epoch: number; readonly text: string } | null
   /**
+   * The words of the person's last root prompt, the one just heard, whether it started a turn
+   * or came into one Novadeck continued, until `takeSaid` takes them for the shipping gate.
+   */
+  said: string | null
+  /**
    * The person's prompt whose asks are yet to be withdrawn with their notice: when they
    * submitted it, and the delivery epoch of the turn it started, which alone may pay it.
    */
@@ -141,6 +146,7 @@ export const started = (
   lapsed: false,
   prompt: null,
   automatic: [],
+  said: null,
   withdrawing: null,
   keyedAt: 0,
   waits: null,

@@ -250,14 +250,42 @@ describe("How a resolved entry ended", () => {
       "dismissed",
       "ended",
       "gone",
+      "lapsed",
       "read",
       "released",
       "replied",
       "stopped",
+      "takenBack",
       "terminal",
       "worked",
     ])
     expect(endedWords.terminal).toBe("Answered in the terminal")
+  })
+})
+
+describe("A shipping permit", () => {
+  const permit: InboxEntry = {
+    ...base,
+    stopped: false,
+    kind: "permit",
+    permit: {
+      id: "p1",
+      title: "Merge PR #1190 into main",
+      quote: null,
+      givenAt: 1,
+      until: 2,
+      usedAt: null,
+    },
+  }
+
+  it("is named by what it covers, and says how it ended", () => {
+    expect(subjectOf(permit)).toBe("Merge PR #1190 into main")
+    expect(endedLine({ ...permit, settled: { how: "takenBack", at: 1 } })).toBe(
+      "You took back @moth's permit.",
+    )
+    expect(endedLine({ ...permit, settled: { how: "lapsed", at: 1 } })).toBe(
+      "@moth's permit no longer stands.",
+    )
   })
 })
 

@@ -373,6 +373,7 @@ describe("Answering an entry", () => {
       forget: vi.fn<InboxActions["forget"]>(),
       send: vi.fn<InboxActions["send"]>(() => Promise.resolve()),
       interrupt: vi.fn<InboxActions["interrupt"]>(() => Promise.resolve()),
+      takeBack: vi.fn<InboxActions["takeBack"]>(() => Promise.resolve()),
       terminal: vi.fn<InboxActions["terminal"]>(() => terminal),
     }) satisfies InboxActions
   const chosen = { type: "choice", dialog: "d1", option: "yes" } as const
@@ -396,6 +397,49 @@ describe("Answering an entry", () => {
 
       expect(done.request).toHaveBeenCalledWith(key, request, chosen)
       expect(tracker.view([request]).answering).toEqual({ [request.id]: true })
+    })
+  })
+
+  context("a shipping permit", () => {
+    const permit: InboxEntry = {
+      id: "permit:01:p1",
+      source,
+      at: 1,
+      stopped: false,
+      seen: false,
+      kind: "permit",
+      permit: {
+        id: "p1",
+        title: "Merge PR #1190 into main",
+        quote: null,
+        givenAt: 1,
+        until: 99,
+        usedAt: null,
+      },
+    }
+
+    it("is taken back by its own id, showing answering until it goes", async () => {
+      const { tracker } = setup()
+      const done = actions()
+      answerEntry(tracker, permit, { kind: "permit", action: "take-back" }, done)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(done.takeBack).toHaveBeenCalledWith(key, "p1")
+      expect(tracker.view([permit]).answering).toEqual({ [permit.id]: true })
+      expect(tracker.view([]).answering).toEqual({})
+    })
+
+    it("fails with why where the call is refused, never as if it had taken", async () => {
+      const { tracker } = setup()
+      const done = actions()
+      done.takeBack.mockRejectedValueOnce(new Error("It had already ended."))
+      answerEntry(tracker, permit, { kind: "permit", action: "take-back" }, done)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(tracker.view([permit])).toMatchObject({
+        answering: {},
+        failed: { [permit.id]: "It had already ended." },
+      })
     })
   })
 

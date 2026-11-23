@@ -123,6 +123,9 @@ export type AgentStatus = {
   // Its `done` report still stands: nothing the person prompted or a message delivered to it
   // came after. Looking at the terminal does not end it, so its done mark stays until then.
   readonly reported?: true
+  // How many of the shipping gate's permits stand for it, where any does: the Inbox follows its
+  // detail, which lists them, only then.
+  readonly permits?: number
   // What holds it for the person before Novadeck can reach it: one of its own screens, as a
   // folder-trust screen (`startup`); its sign-in screen, or its prompt saying it isn't signed
   // in (`sign-in`); Novadeck's hooks not on for it, untrusted or off in the person's settings

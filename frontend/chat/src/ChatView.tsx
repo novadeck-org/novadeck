@@ -125,6 +125,7 @@ const ChatBody = ({
   onAnswerInTerminal,
   onSaveDialog,
   onOpenLogs,
+  onTakeBack,
   onWordsLost,
   focusInput,
   onInputFocused,
@@ -203,6 +204,8 @@ const ChatBody = ({
   // folder it went to.
   readonly onSaveDialog?: ((request: string) => Promise<string>) | undefined
   readonly onOpenLogs?: (() => void) | undefined
+  // Where the backend can: takes back a permit of the shipping gate that stands for the agent.
+  readonly onTakeBack?: ((permit: string) => Promise<void>) | undefined
   // Words that were to follow an answer and didn't reach the agent, for the person's box.
   readonly onWordsLost: (words: string) => void
   readonly focusInput: boolean
@@ -226,6 +229,7 @@ const ChatBody = ({
     screen,
     items,
     requests,
+    permits,
     prompts,
     slice,
     box,
@@ -872,6 +876,8 @@ const ChatBody = ({
         <Requests
           handle={requestsHandle}
           requests={asked}
+          permits={permits}
+          onTakeBack={onTakeBack}
           slice={slice}
           agent={name}
           harness={harness}

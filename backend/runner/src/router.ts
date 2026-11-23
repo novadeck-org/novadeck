@@ -25,6 +25,7 @@ import type { History } from "./history.js"
 import { logs } from "./log.js"
 import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
+import type { Shipping } from "./shipping/service.js"
 import type { ActiveTerminals } from "./terminals/active.js"
 import type { ClientWindows } from "./terminals/client-windows.js"
 import type { Terminals } from "./terminals/index.js"
@@ -186,6 +187,8 @@ export const createRouter = (options: {
   settingsSaved?: () => void
   /** The shipping gate was switched on or off by a settings change. */
   shippingSwitched?: () => void
+  /** The shipping gate, whose standing permits the person takes back; without it, none stand. */
+  shipping?: Pick<Shipping, "takeBack">
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
   tour?: Tour
   /** The person's preferences; without it, kept in `store`'s settings. */
@@ -398,6 +401,12 @@ export const createRouter = (options: {
         terminals.answer(input, context.session.id),
       ),
       saveDialog: api.agents.saveDialog.handler(({ input }) => terminals.saveDialog(input)),
+      takeBack: api.agents.takeBack.handler(({ input, context }) => {
+        if (!options.shipping) return { ended: false }
+        const ended = options.shipping.takeBack(input.terminalId, input.permit, context.session.id)
+        if (ended === undefined) throw new DomainError("NOT_FOUND", "That terminal isn't open.")
+        return { ended }
+      }),
       interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: api.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)

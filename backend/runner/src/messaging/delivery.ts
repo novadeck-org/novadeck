@@ -200,6 +200,22 @@ export const firing = (
     : { at: firedAt + firedClockMs, windowMs: submitWindowMs + firedClockMs }
 
 /**
+ * Whether a root prompt is the person's own submission, as `transition` judges it: their bare
+ * Enter shortly before its hook fired, or the prompt they queued during the turn that just
+ * ended; never mid-ring, nor a turn the harness, a call or the doorbell started. It is judged
+ * so whether it starts a turn or comes into one Novadeck continued.
+ */
+export const personSubmits = (
+  delivery: Delivery,
+  event: Extract<DeliveryEvent, { type: "prompt" }>,
+  slackMs: number,
+): boolean => {
+  if (event.by !== "prompt" || delivery.state === "ringing") return false
+  const fired = firing({ at: event.startedAt, firedAt: event.firedAt }, slackMs)
+  return pendingEnter(delivery, fired.at, fired.windowMs) !== undefined || delivery.box.queued
+}
+
+/**
  * What changes a terminal's delivery:
  * - `bound`: a session binds, or its harness announced a new one, `ready` when it
  *   announced it as its own input prompt came up, past its startup screens;
@@ -607,10 +623,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
       // never theirs. Any doubt leaves a draft. Mid-ring the box holds the doorbell's line
       // too: no prompt empties it but its own.
       const fired = firing({ at: event.startedAt, firedAt: event.firedAt }, slackMs)
-      const person =
-        event.by === "prompt" &&
-        delivery.state !== "ringing" &&
-        (pendingEnter(delivery, fired.at, fired.windowMs) !== undefined || box.queued)
+      const person = personSubmits(delivery, event, slackMs)
       // Its hook can arrive after the next prompt's Enter. That later submission
       // belongs to another turn, queued while this one was already running.
       const later = event.by === "prompt" && box.enteredAt !== null && box.enteredAt > fired.at

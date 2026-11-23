@@ -148,6 +148,9 @@ const endedHow = (entry: InboxEntry, { workspace, messages }: HistoryFacts): Set
     case "trouble":
       if (entry.trouble.type !== "waits") return "worked"
       return delivered(messages, entry) ? "delivered" : "gone"
+    // The person's taking back is noted; any other end is the permit's own.
+    case "permit":
+      return "lapsed"
     default:
       return "ended"
   }
@@ -249,7 +252,10 @@ export const fitted = (entries: readonly InboxEntry[]): InboxEntry[] => {
 // The entries the app derives itself, which the runner can't tell the end of (its own entries,
 // asks, tells and done reports, it lists resolved itself).
 const derived = (entry: InboxEntry): boolean =>
-  entry.kind === "request" || entry.kind === "held" || entry.kind === "trouble"
+  entry.kind === "request" ||
+  entry.kind === "held" ||
+  entry.kind === "trouble" ||
+  entry.kind === "permit"
 
 export const createInboxHistory = ({
   saved = [],

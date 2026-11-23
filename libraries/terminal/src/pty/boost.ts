@@ -25,7 +25,7 @@ export type Boost = {
 }
 
 export type BoostParts = {
-  readonly scope: Scope | undefined
+  readonly scope: Pick<Scope, "weigh"> | undefined
   readonly priority: Priority | undefined
   readonly platform: NodeJS.Platform
   /** The shell's pid, once known. */

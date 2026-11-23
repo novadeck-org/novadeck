@@ -126,6 +126,8 @@ export const subjectOf = (entry: InboxEntry): string => {
       return troubleSubject(entry.trouble, entry.source)
     case "update":
       return entry.update.subject
+    case "permit":
+      return entry.permit.title
   }
 }
 
@@ -181,6 +183,8 @@ export const labelOf = (entry: InboxEntry): string => {
       return "Novadeck noticed"
     case "update":
       return entry.update.type === "done" ? "Done" : "Heads-up"
+    case "permit":
+      return "Allowed to ship"
   }
 }
 
@@ -199,6 +203,8 @@ export const endedWords: Readonly<Record<SettledHow, string>> = {
   worked: "Worked on",
   delivered: "Delivered",
   read: "Read",
+  takenBack: "Taken back",
+  lapsed: "Ended",
   gone: "Closed",
   ended: "Session ended",
   away: "Ended while Novadeck was closed",
@@ -230,6 +236,10 @@ export const endedLine = (entry: InboxEntry): string | null => {
       return `${who} got its messages.`
     case "read":
       return "Read."
+    case "takenBack":
+      return `You took back ${who}'s permit.`
+    case "lapsed":
+      return `${who}'s permit no longer stands.`
     case "gone":
       return entry.kind === "trouble"
         ? "The messages no longer wait: they were stopped or withdrawn."
