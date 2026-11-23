@@ -798,48 +798,42 @@ App:
   The tour's terminal runs a scripted agent (`frontend/demo/src/tour/player.ts`): after a few
   hundred ms it binds, works and names its terminal "Game lead" (as its own describe);
   Antigravity starts working only once the UI rang `brief`. Then the story
-  (`frontend/demo/src/tour/story.ts`, as a runner would report it; its files, model, page and
-  cover are made in `tour/content.ts`, loaded only as a story plays, so the website's bundle
-  doesn't carry them): the tour's folder is a small browser game set in a neon city at night, as the runner's seed has
-  it (an unlit grey skyline, `src/city.js`; the lead's `accent` and `background` light it up; the demo's
-  canned configs are night colours, and its cover a lit skyline).
-  The lead opens two teammates (terminals with `ledBy` = the lead, on the lead's own harness):
-  "Sculptor" and "Score fixer". A few seconds later it asks to run the game's server
+  (`frontend/demo/src/tour/story.ts`, as a runner would report it; its files, model and page
+  are made in `tour/content.ts`, loaded only as a story plays, so the website's bundle doesn't
+  carry them): the tour's folder is a blank start for a browser game, as the runner's seed has
+  it. The lead asks its sheet in the Inbox, "What game shall we make?", one ask of two questions,
+  "The world" (Fantasy / Sci-fi / Modern) and "The kind" (RPG / Shooter / Strategy), own words
+  allowed. Once answered it opens two teammates (terminals with `ledBy` = the lead, on the lead's
+  own harness), "Modeller" and "Builder"; a few seconds later it asks to run the game's server
   (`backend.approvals.pending` holds a `run` approval from the lead: the app's approval dialog,
   "Run command"; the plain demo has an approvals store of its own for it, and the debug demo
   routes it to the panel's, so `Tour.prepare`'s `page` can be true on both); once allowed, the
   lead opens a "Game server" terminal (`openedBy` = the lead, no lead of its own) and shows the
-  game's `page` item on its own bar. The Sculptor opens its worktree `hero`, shows a `model`
-  item (`hero.gltf`, a tiny glTF whose buffer is a data address, drawn by the 3D pane) and asks
-  the Inbox "Who is your game's hero?" (A rocket / A robot / A cat; own words allowed); once
-  answered it tells the lead "The hero is ...", writes `model/hero.gltf` (the open pane hears a
-  new stamp: a rocket, robot or cat sculpted, and a rocket for words that name neither) and
-  tells the lead "Hero sculpted."; the lead opens `game` and sets `src/config.js`, and its page
-  item loads afresh. The Score fixer opens `fix-score`, changes `src/score.js` and `README.md`,
-  shows a `changes` item (with its diffs, read by `companions.changeFile`) and tells the lead
-  "Score fixed.". Each agent's writes are works (the Worktrees panel) and a feed in the Files
-  panel (cursors, pulses, chips), by the writer's handle. When the UI adds a terminal in the
-  tour's project with the lead's command and calls `Tour.artist` for it, the demo plays an
-  agent there on no team (`tour/artist.ts`): once rung it names itself "Cover artist", asks the
-  lead "I'm drawing the cover for your game. What is it called, and who is its hero?", the lead
-  answers once it knows the hero, and the artist opens `cover`, adds `art/cover.svg`, shows an
-  `image` item and tells the lead. `Tour.keep` resolves. The Files panel lists the game's files
-  (`vendor/` ignored; the tour's feed is added only where the tour is offered, so no other demo shows a Files button: `?channel=experimental`, and the debug panel's demo, which now has a Files panel in its plain and welcome variants too), and `works.preview` of `src/score.js` and `src/config.js` shows the
-  agents' hunks merged. The Worktrees panel and the Files overlay show in the tour's project
+  game's `page` item on its own bar. The Modeller opens its worktree `models`, writes
+  `models/hero.gltf` and shows it as a `model` item (a tiny glTF whose buffer is a data address,
+  drawn by the 3D pane: a rocket for a Sci-fi world, a robot for Modern, a cat for anything
+  else), and tells the lead "Hero modelled.". The Builder opens its worktree, changes
+  `src/main.js`, shows a `changes` item (with its diffs, read by `companions.changeFile`) and
+  tells the lead "Game built."; the lead's page item loads afresh. Each agent's writes are works
+  (the Worktrees panel) and a feed in the Files panel (cursors, pulses, chips), by the writer's
+  handle. `Tour.keep` resolves. The Files panel lists the game's files (`vendor/` ignored; the
+  tour's feed is added only where the tour is offered, so no other demo shows a Files button:
+  `?channel=experimental`, and the debug panel's demo, which has a Files panel in its plain and
+  welcome variants too). The Worktrees panel and the Files overlay show in the tour's project
   even with Agent worktrees off (`useWorktreesShown`, `isTourFolder`: `tour`, `tour-2`, ...), and
   only there.
-  The panel's actions: "Tour story: answer the hero ask (A rocket)" / "(own words)" answer the
-  Sculptor's ask as the person would; "Tour story: the lead's team stays quiet until nudged" has
-  the next lead wait for `Tour.nudge` before opening its team, "the sculptor stays quiet until
-  nudged" leaves the next Sculptor idle at its prompt (no model, no ask) until a nudge, and "the
-  artist stays quiet until nudged" does the same for the artist once its brief was rung; "Tour
-  story: no page (as on a computer without Node or Python)" makes the next `Tour.prepare` answer
-  `page: false` (no server, no page, the steps for them left out); "Tour story: the artist never
-  starts" leaves the artist's terminal with no agent in it, so its steps drop after the tour's wait
-  and the last step says "Three agents. One game. Go play."; "Tour story: keeping fails" makes
-  the next `Tour.keep` reject, for the closing card's error line and Try again; "Tour agent: exits
-  to its shell" ends the lead's program with its shell back (`agentRan`, an idle shell), for the
-  coach "It didn't start."; "Tour agent: stop"
+  The panel's actions: "Tour story: answer the sheet (Fantasy, RPG)" / "(Sci-fi, Shooter)" /
+  "(own words)" answer the lead's sheet as the person would; "Tour story: the lead's sheet waits
+  until nudged" has the next lead name itself, then wait for `Tour.nudge` before it asks its sheet
+  and opens its team; "Tour story: the modeller stays quiet until nudged" leaves the next
+  Modeller idle at its prompt (no model) until a nudge; "Tour story: the modeller asks about the
+  hero's colour" has the next Modeller, once it showed its model, ask "What colour should the
+  hero be?" and wait for the answer before it reports, and "Tour story: answer the modeller's
+  question (Red)" answers it; "Tour story: no page (as on a computer without Node or Python)"
+  makes the next `Tour.prepare` answer `page: false` (no server, no page, the steps for them left
+  out); "Tour story: keeping fails" makes the next `Tour.keep` reject, for the closing card's
+  error line and Try again; "Tour agent: exits to its shell" ends the lead's program with its
+  shell back (`agentRan`, an idle shell), for the coach "It didn't start."; "Tour agent: stop"
   exits the lead's process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust"
   / "sign-in" / "hooks" hold the next one at that startup screen until "Answer the startup
   screen"; "Tour agent: quiet until nudged" has the next one sit idle at its prompt, no turn
@@ -848,52 +842,41 @@ App:
   answer before it goes on, and the tour's coach points at its terminal meanwhile. Addresses:
   `&tourScreen=startup|sign-in|hooks` (`&tourScreenMs=<n>` answers the screen after n ms),
   `&tourAgent=quiet|permission`, `&tourStory=off` (stop after the lead names itself),
-  `&tourTeam=quiet`, `&tourSculptor=quiet`, `&tourArtist=quiet|never`, `&tourAgent=shell`, `&tourPage=none`,
-  `&tourKeep=fails`, `&tourPatienceMs=<n>` (the UI's wait before nudging).
+  `&tourTeam=quiet`, `&tourModeller=quiet`, `&tourMate=asks` (the Modeller's question),
+  `&tourAgent=shell`, `&tourPage=none`, `&tourKeep=fails`, `&tourPatienceMs=<n>` (the UI's wait
+  before nudging).
   As the agents go, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
-  plays four acts in Canvas, the first and the last opened by a wipe (an ink sheet with the
-  act's name), and its stage (`Stage.tsx`, in its own print look, `print.css`) marks the page's
-  own elements, `data-tour-look` where to look (a magenta line) and `data-tour-click` what to
-  press (a slowly breathing yellow one), each drawn by a mark a little way out from the element
-  (where what clips it leaves room), over all it holds, and, a second after a mark shows,
-  letters one caption box beside them in space no window takes. A step that holds once done
-  (`holdMs`: 3 s for the first, the team's and the artist's, 5 s for the page, the shape, the
-  Files panel, the model and the diff, 4 s for the cover, 6 s for the talk, 25 s for the game, 8 s
-  for the model where there is no page) holds that long from when its caption box is shown, which
-  the stage tells the driver (`onCaption`, the reducer's `caption` event), so a slow machine or a
-  long camera move never costs the line its time. A caption that hasn't shown `captionWaitMs`
-  (8 s) after the step was done on screen is given up on: the hold counts from then, and a
-  caption that shows later doesn't move it, so a step lasts at most 8 s plus its hold after it
-  was done. After a reload the hold starts again, from the caption's next showing. Its thirteen
-  steps, the lines in Nyx's voice from the skits (clipped and cocky, each still saying only what
-  the app does):
-  "That's your agent. It runs this job." (the lead describes itself); "Look. It hired its own
-  help." (both teammates there and named); "It wants to run the game. Fine. Say yes." (the
-  approval's Run command is marked, and the step waits on the person); "The game. Live. Lights
-  are out." (the lead's page tab); "Your hero. A ball and a box. …Seriously." (the Sculptor's
-  model tab, before the ask); "Your call. Who's the hero?" (the Inbox: the asking row, then the
-  sheet's answers, until it is answered); "Every blink? An agent. Writing." (the Files panel);
-  "…There it is. Go on, spin it." (the Sculptor's model tab); "What it changed. Line by line."
-  (the Score fixer's changes tab); "New one. Not on the team." (the driver opens the artist's
-  terminal, once, with the lead's command, and rings `Tour.artist` with retries once its agent
-  shows); "It found the lead by itself. You didn't lift a finger." (the artist's Messages tab);
-  "A cover. For your game. …Not bad." (its image tab); and "Four agents. One game. Go play." (the lead's page, a while, then the closing card:
-  "It's yours now."). The UI calls `Tour.keep` itself, once, as the story ends; the card's
-  Keep building only goes back to the lead in Focus, and a refused keep shows "Novadeck couldn't
-  keep the project: ..." with Try again. A run whose lead's command was declined (the approval
-  gone for 8 s with no terminal and no page) drops the run and page steps and ends on the model,
-  and one whose artist's terminal is closed, ended or never shows an agent within the wait, or
-  whose brief the backend refused for good (the UI's tries spent), drops
-  the artist's three steps and ends on "Three agents. One game. Go play.". A backend without `Tour.artist` has no artist
-  steps, and a run with `page: false` leaves out the run and page steps and ends on the model
-  ("Four agents. One game. Yours."). While a startup screen holds, the coach says "It wants an
-  answer first." with that screen's words under it, "It didn't start." (an agent's program ended, its shell back), or "It's asking your permission." while an
-  agent of the story has an Unblock row waiting in the Inbox (any harness's own dialog, or a
-  held message). End tour sits in the footer; while another project is on screen, a small bar
-  stands in for it. A run kept in session storage by a version with other steps is dropped, not
-  followed. The specs (`tour.spec.tsx`, `tour-driver.spec.tsx`, `tour-story.spec.tsx`, with
-  `support/tour.tsx`) read the caption from the page itself, as the approval's modal hides the
-  rest from role queries.
+  plays the story in Canvas, and its stage (`Stage.tsx`, in its own print look, `print.css`)
+  marks the page's own elements, `data-tour-look` where to look (a magenta line) and
+  `data-tour-click` what to press (a slowly breathing yellow one), each drawn by a mark a little
+  way out from the element, and, a second after a mark shows, letters one caption box beside
+  them in space no window takes. A step that holds once done (`holdMs`: 3 s for the first and
+  the team's, 5 s for the page, the model, the Files panel and the diff, 25 s for the game, 8 s
+  for the model where there is no page) holds that long from when its caption box is shown
+  (`onCaption`, the reducer's `caption` event); a caption that hasn't shown `captionWaitMs`
+  (8 s) after the step was done on screen is given up on, and the hold counts from then. Its
+  steps (`frontend/tour/src/steps.ts`), in Nyx's voice: "That's your agent. It runs this job."
+  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the lead's sheet in the
+  Inbox, until it is answered); "Look. It hired its own help." (`team`, both teammates there and
+  named); "It wants to run the game. Fine. Say yes." (`run`, the approval's Run command is
+  marked, and the step waits on the person); "The game. Live. It fills in as they write."
+  (`page`, the lead's page tab); "A model. From scratch. Go on, spin it." (`shape`, the
+  Modeller's model tab); "Every blink? An agent. Writing." (`files`, the Files panel); "What it
+  wrote. Line by line." (`diff`, the Builder's changes tab); and "Three agents. Your game. Go
+  play." (`play`, the lead's page, a while, then the closing card: "It's yours now."). A
+  teammate's own question to the person is no step: while one waits in the Inbox the coach says
+  "A teammate has a question for you." and points at it until it is answered or dismissed. The
+  UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
+  to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
+  Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run
+  and page steps and ends on the model ("Three agents. Your game. Yours."). While a startup
+  screen holds, the coach says "It wants an answer first." with that screen's words under it,
+  "It didn't start." (an agent's program ended, its shell back), or "It's asking your
+  permission." while an agent of the story has an Unblock row waiting in the Inbox. End tour
+  sits in the footer; while another project is on screen, a small bar stands in for it. A run
+  kept in session storage by a version with other steps is dropped, not followed. The specs
+  (`tour.spec.tsx`, `tour-driver.spec.tsx`, `tour-story.spec.tsx`, with `support/tour.tsx`) read
+  the caption from the page itself, as the approval's modal hides the rest from role queries.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
