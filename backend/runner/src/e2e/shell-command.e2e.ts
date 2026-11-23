@@ -1,3 +1,6 @@
+import { writeFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
@@ -37,12 +40,17 @@ const seconds = 5
 const longer = 8
 // Antigravity runs a command in cmd on Windows, which has no `sleep`; node is on every
 // sandbox's PATH, and a command without `>` or `&` reads the same in cmd, PowerShell and sh.
+// It runs a script in the project, so the command has no quotes: opencode (Bun) passes a `"`
+// inside a command to cmd as `\"`, which cmd keeps, so `node -e "setTimeout(...)"` evaluates a
+// string and ends at once (opencode's own: the same command typed into its shell mode by hand
+// does so too).
+const script = "sleep.cjs"
+const sleeper = (project: string) =>
+  writeFileSync(join(project, script), "setTimeout(() => {}, Number(process.argv[2]) * 1000)\n")
 const sleeping = (long: number) =>
-  process.platform === "win32"
-    ? `node -e "setTimeout(function(){},${long * 1000})"`
-    : `sleep ${long}`
+  process.platform === "win32" ? `node ${script} ${long}` : `sleep ${long}`
 const command = sleeping(seconds)
-const needleOf = (long: string) => (process.platform === "win32" ? "setTimeout" : long)
+const needleOf = (long: string) => (process.platform === "win32" ? script : long)
 const needle = needleOf(command)
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -58,6 +66,7 @@ for (const setup of setups) {
         e2e: run,
       }) => {
         run.model.use((call) => (asked(call, "Say hi") ? { text: "Hi there." } : undefined))
+        sleeper(run.sandbox.project)
         const t = await start(run, setup)
         if (bound) {
           await t.submit("Say hi")
@@ -130,6 +139,7 @@ for (const setup of setups) {
           await held.opened
           return { text: "Held." }
         })
+        sleeper(run.sandbox.project)
         const t = await start(run, setup)
         const raw = (data: string) => run.deck.terminals.write({ terminalId: t.id, data }, "e2e")
         await t.submit("Hold on")

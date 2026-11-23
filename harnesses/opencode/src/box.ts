@@ -26,7 +26,20 @@ import {
  * their right end, so the box is read upwards from its edge and stops at a menu row.
  */
 
-const edge = /^ *╹▀+ *$/
+const edge = /^ *╹▀+(?: |$)/
+
+/**
+ * The rows cut at the box's right end, where its edge ends: on a wide screen a session draws its
+ * sidebar (its context, MCP servers, LSPs and folder) right of the box and the history, on the
+ * same rows (CI's Windows runners, 2026-11-23, 1.19.6, at 170x30: `┃` then the folder at column
+ * 131 on the box's bare row).
+ */
+const clipped = (rows: readonly string[]): readonly string[] => {
+  const at = rows.findLastIndex((row) => edge.test(row))
+  if (at < 0) return rows
+  const end = rows[at]!.lastIndexOf("▀") + 1
+  return rows.map((row) => row.slice(0, end))
+}
 
 /** The gutter, and the two spaces before the text of a row of the box. */
 const gutter = "┃"
@@ -59,7 +72,8 @@ type Frame = {
 }
 
 /** Where the box is on `rows`, from its edge upwards; undefined where there is none or the rows aren't a box's. */
-const frameOf = (rows: readonly string[]): Frame | undefined => {
+const frameOf = (drawn: readonly string[]): Frame | undefined => {
+  const rows = clipped(drawn)
   const at = rows.findLastIndex((row) => edge.test(row))
   if (at < 4) return undefined
   const column = rows[at]!.indexOf("╹")
@@ -81,11 +95,12 @@ const frameOf = (rows: readonly string[]): Frame | undefined => {
  */
 export const shellFooter = (rows: readonly string[]): boolean => {
   const found = frameOf(rows)
-  return found !== undefined && /^┃\s+Shell$/.test(rows[found.footer]!.trim())
+  return found !== undefined && /^┃\s+Shell$/.test(clipped(rows)[found.footer]!.trim())
 }
 
 /** The text of the box's rows, one line each, or undefined where a row isn't one of the box's. */
-const linesOf = (lit: readonly string[], found: Frame): string[] | undefined => {
+const linesOf = (drawn: readonly string[], found: Frame): string[] | undefined => {
+  const lit = clipped(drawn)
   const lines: string[] = []
   for (let at = found.first; at <= found.last; at += 1) {
     const row = lit[at] ?? ""
@@ -258,7 +273,7 @@ export const box: BoxProfile = {
     expands: true,
     starts: true,
     footer: shellFooter,
-    command: (command) => shellCommandOf(command),
+    command: (command, platform, env) => shellCommandOf(command, platform, env),
     // A Backspace in the empty box leaves the mode; a command goes with Ctrl-C first.
     leave: (held) => (isEmpty(held) ? "\x7f" : `\x03${pause}\x7f`),
     midTurn: "drops",
@@ -284,7 +299,7 @@ export const box: BoxProfile = {
     const first = text.split("\n")[0]!.trim().slice(0, 30)
     if (first === "") return true
     const prompts = (drawn: ScreenText | undefined) => {
-      const rows = drawn?.rows ?? []
+      const rows = clipped(drawn?.rows ?? [])
       const found = drawn ? frameOf(rows) : undefined
       const above = found ? rows.slice(0, found.top) : rows
       const sent = above.flatMap((row, at) => (/^ *┃  \S/.test(row) ? [at] : []))
@@ -304,7 +319,7 @@ export const box: BoxProfile = {
   // Its status row says a turn runs (`■■⬝⬝  esc interrupt`), or runs and is armed.
   working: (screen) =>
     screen.rows.some((row) => /^ *[■⬝]+ +esc (?:again to )?interrupt\b/.test(row)),
-  queued: (screen) => screen.rows.some((row) => /^ *┃\s+QUEUED\s*$/.test(row)),
+  queued: (screen) => clipped(screen.rows).some((row) => /^ *┃\s+QUEUED\s*$/.test(row)),
   // Counted as it counts, on the text trimmed and its breaks normalised, `a\nb\n` is two lines
   // and shows whole. A person may turn the summary off (the palette's saved toggle, or
   // `experimental.disable_paste_summary`): the text then shows whole, and a tall one only as its

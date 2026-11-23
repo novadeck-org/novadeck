@@ -651,6 +651,7 @@ export class Terminals {
     this.typing = new Typing(
       {
         platform: this.options.platform,
+        env: this.options.env,
         doorbell: options.doorbell,
         prompts: options.prompts,
         interrupts: {

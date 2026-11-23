@@ -67,6 +67,29 @@ describe("opencode's empty box", () => {
     expect(box.queued(padded("queued"))).toBe(true)
   })
 
+  // On a wide screen a session draws its sidebar right of the box, on the box's own rows (CI's
+  // Windows runners, 2026-11-23, 1.19.6, 170x30: `┃` and the folder at column 131 on its bare row).
+  it("reads the box of a session beside its sidebar as without one", () => {
+    const sidebar = ["Context", "1,043 tokens", "MCP", "• novadeck Connected", "/C:\\Users\\a\\b"]
+    const wide = (name: string): ScreenText => {
+      const shown = screen(name)
+      const beside = (rows: readonly string[]) =>
+        rows.map((row, at) => `${row.padEnd(shown.columns)}   ${sidebar[at % sidebar.length]}`)
+      return {
+        ...shown,
+        columns: shown.columns + 30,
+        rows: beside(shown.rows),
+        bright: beside(shown.bright),
+      }
+    }
+    for (const name of ["sessEmpty", "sessDraft", "typed3", "sessBangCmd", "busy", "queued"]) {
+      expect(box.read(wide(name)), name).toEqual(box.read(screen(name)))
+      expect(shellFooter(wide(name).rows), name).toBe(shellFooter(screen(name).rows))
+    }
+    expect(box.read(wide("sessBangCmd"))?.mode).toBe("shell")
+    expect(box.queued(wide("queued"))).toBe(true)
+  })
+
   it("does not take a draft that says the placeholder's words for one, with the cursor after them", () => {
     const empty = screen("homeEmpty")
     const first = box.read(empty)!.first

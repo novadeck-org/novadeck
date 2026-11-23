@@ -1080,7 +1080,14 @@ for (const setup of setups) {
         "its box in its shell mode",
       )
       t1.press("ls -la")
-      await t1.until("ls -la")
+      // Its box, not the screen: opencode's shell mode shows an example command in its empty
+      // box, and one of them is `Run a command… "ls -la"`.
+      await t1.poll(async () => {
+        const screen = await t1.screenText()
+        return screen && harnesses[setup.agent].box.read(screen)?.text === "ls -la"
+          ? true
+          : undefined
+      }, "its box to hold the command")
       expect(await taken()).toBe("!ls -la")
       await empty()
       expect(await put("!ls -la")).toBe(true)

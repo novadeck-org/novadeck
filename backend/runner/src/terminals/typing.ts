@@ -37,7 +37,7 @@ import { Answers, waitsOnPerson, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
 import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
-import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
+import { agentWorking, doorbellHost, profileOf, shellIn } from "./doorbell-host.js"
 import { GivenBack } from "./given-back.js"
 import { splitImages } from "./image-marks.js"
 import { imagePaste } from "./image-paste.js"
@@ -171,6 +171,11 @@ export type TypingOptions = {
   readonly answers?: (AnswersOptions & DialogsOptions) | undefined
   /** How prompts' receipts are followed; the slack defaults from the platform. */
   readonly receipts?: Partial<ReceiptsOptions> | undefined
+  /**
+   * The environment shells start from, where an agent's shell mode finds its shell (opencode's
+   * PATH picks it): a command for it is written for that shell, not the runner's.
+   */
+  readonly env?: NodeJS.ProcessEnv | undefined
 }
 
 export type TypingHost = {
@@ -246,11 +251,14 @@ export class Typing {
   private readonly queueLooks = new Map<string, number>()
   /** Which terminals' agents hold Novadeck's MCP tools, which the doorbell may wait for. */
   private readonly tools: McpTools
+  /** The environment shells start from (`TypingOptions.env`). */
+  private readonly env: NodeJS.ProcessEnv | undefined
 
   constructor(
     options: TypingOptions,
     readonly host: TypingHost,
   ) {
+    this.env = options.env
     const messaging = host.messaging()
     this.inputs = new InputQueue({
       hold: (terminalId, budget) => this.holdInput(terminalId, budget),
@@ -807,7 +815,7 @@ export class Typing {
             undefined,
             "no-agent",
           )
-        return profile
+        return shellIn(profile, this.env)
       },
       bound: (terminalId) => {
         const record = this.host.live(terminalId)

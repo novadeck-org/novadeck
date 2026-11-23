@@ -159,9 +159,14 @@ export type BoxProfile = {
     /**
      * The command to give the shell mode for `command` as written, where its shell runs
      * one otherwise than sh (cmd on Windows); as written where omitted, and
-     * undefined for one that can't run there as written means.
+     * undefined for one that can't run there as written means. `env` is the environment the
+     * agent's shells start from, whose PATH may pick the shell (the runner's own where omitted).
      */
-    readonly command?: (command: string, platform?: NodeJS.Platform) => string | undefined
+    readonly command?: (
+      command: string,
+      platform?: NodeJS.Platform,
+      env?: NodeJS.ProcessEnv,
+    ) => string | undefined
     /**
      * The keys that leave its shell mode, emptying the box, whether or not a turn runs, with
      * the cursor on the box's last row. Omitted where no such keys are known.
