@@ -259,7 +259,11 @@ describe("opencode's shell command", () => {
     expect(shellCommandOf("  echo hi > f ", "linux")).toBe("echo hi > f")
     const many = shellCommandOf("echo a\necho b", "linux", {})!
     expect(many).not.toContain("\n")
-    expect(shellCommandOf("echo a\necho b", "win32", {})).toBe(
+    expect(
+      shellCommandOf("echo a\necho b", "win32", { PATH: "C:\\ps" }, (path) =>
+        path.endsWith("powershell.exe"),
+      ),
+    ).toBe(
       `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from("echo a\necho b").toString("base64")}')))`,
     )
   })
@@ -270,19 +274,39 @@ describe("opencode's shell command", () => {
     const ps = `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))`
     const there = () => true
     const gone = () => false
-    // Windows: PowerShell where $SHELL names none, or one that isn't there; Git Bash where it is.
-    expect(shellKindOf("win32", {})).toBe("powershell")
-    expect(shellKindOf("win32", { SHELL: "C:\\Git\\bin\\bash.exe" }, gone)).toBe("powershell")
+    // Windows: $SHELL where it is there; else PowerShell on the PATH, then Git Bash beside git,
+    // then cmd.
+    const psFolder = "C:\\ps"
+    const withPs = { PATH: `C:\\bin;${psFolder}` }
+    const only =
+      (...paths: string[]) =>
+      (path: string) =>
+        paths.includes(path)
+    expect(shellKindOf("win32", withPs, only(`${psFolder}\\powershell.exe`))).toBe("powershell")
+    expect(shellKindOf("win32", withPs, only(`${psFolder}\\pwsh.exe`))).toBe("powershell")
+    expect(shellKindOf("win32", { PATH: "C:\\bin" }, gone)).toBe("cmd")
+    expect(
+      shellKindOf(
+        "win32",
+        { PATH: "C:\\Git\\cmd" },
+        only("C:\\Git\\cmd\\git.exe", "C:\\Git\\bin\\bash.exe"),
+      ),
+    ).toBe("sh")
+    expect(shellKindOf("win32", { SHELL: "C:\\Git\\bin\\bash.exe" }, gone)).toBe("cmd")
     expect(shellKindOf("win32", { SHELL: "C:\\Git\\bin\\bash.exe" }, there)).toBe("sh")
-    expect(shellKindOf("win32", { SHELL: "pwsh" })).toBe("powershell")
-    expect(shellKindOf("win32", { SHELL: "cmd" })).toBe("other")
+    expect(
+      shellKindOf("win32", { SHELL: "pwsh", PATH: psFolder }, only(`${psFolder}\\pwsh.exe`)),
+    ).toBe("powershell")
     // Elsewhere: sh and its kin, or a fish or nu that takes neither form.
     expect(shellKindOf("linux", {})).toBe("sh")
     expect(shellKindOf("linux", { SHELL: "/bin/zsh" }, there)).toBe("sh")
     expect(shellKindOf("linux", { SHELL: "/usr/bin/fish" }, there)).toBe("other")
     expect(shellKindOf("linux", { SHELL: "/usr/bin/fish" }, gone)).toBe("sh")
     expect(shellCommandOf("echo a\necho b", "linux", { SHELL: "/bin/bash" })).toBe(sh)
-    expect(shellCommandOf("echo a\necho b", "win32", {})).toBe(ps)
+    expect(shellCommandOf("echo a\necho b", "win32", { PATH: "" })).toBe("echo a & echo b")
+    expect(
+      shellCommandOf("echo a\necho b", "win32", { PATH: psFolder }, only(`${psFolder}\\pwsh.exe`)),
+    ).toBe(ps)
     expect(shellCommandOf("echo a\necho b", "linux", { SHELL: "nu" })).toBeUndefined()
     // One line goes as it is, whatever the shell.
     expect(shellCommandOf("echo a", "linux", { SHELL: "nu" })).toBe("echo a")
