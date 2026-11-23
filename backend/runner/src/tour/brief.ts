@@ -90,26 +90,24 @@ const manners = (agent: AgentName): string =>
 
 // What a teammate's task says of its team, the picks and the models, which the lead fills in:
 // each [[name]] is a value the lead writes in before it sends the task.
-const picks = (lead: string): string => `${lead} leads you. This repo is a blank start for a
-small browser game (README.md). The person picked a [[world]] [[kind]] game. Its characters,
-enemies and units are glTF models in models/: [[one]].gltf (the player), [[two]].gltf (an
-enemy) and [[three]].gltf.`
+const picks = (lead: string): string => `${lead} leads you. This repo is a blank browser game
+(README.md). The person picked a [[world]] [[kind]] game. Its characters, enemies and units are
+glTF models in models/: [[one]].gltf (the player), [[two]].gltf (an enemy) and [[three]].gltf.`
 
 // The tools a teammate is told to load.
-const tools = `Your tools include Novadeck's \`describe\`, \`open_worktree\`, \`show\`, \`ask\` and
-\`send\`: if they're deferred, load them first.`
+const tools = `If Novadeck's tools (\`describe\`, \`open_worktree\`, \`show\`, \`ask\`, \`send\`) are
+deferred, load them first.`
 
 // A teammate's one question to the person, then the wait for the answer.
 const question = (
   about: string,
-): string => `Call \`ask\` once, its subject one short question about ${about} that
-   is the person's to decide (you choose it), a one-line body, and shape
-   {"type":"options","options":[{"label":"..."},{"label":"..."}],"recommend":null} with two or
-   three answers. End your turn with one sentence: the answer arrives by itself as a message.`
+): string => `Call \`ask\` once: one short question about ${about}, yours to
+   choose, as subject, a one-line body, shape {"type":"options","options":[{"label":"..."},
+   {"label":"..."}]} with two or three answers. End your turn with one
+   sentence: the answer comes as a message.`
 
 // What a teammate does with the person's answer.
-const answer = `The answer names their pick or holds their own words; if they dismissed
-   it, decide yourself. A message with no words isn't the answer.`
+const answer = "The answer is their pick or their own words; dismissed, you decide."
 
 /**
  * The modeller's task, the message its lead sends it: the game's three models, in a worktree of
@@ -120,10 +118,10 @@ export const modellerTask = (
   lead: string,
   agent: AgentName,
 ): string => `You are Modeller, a teammate in Novadeck's tour. ${picks(lead)} You make them;
-Builder writes the game that loads them by those names. ${tools} ${manners(agent)}
+Builder writes the game. ${tools} ${manners(agent)}
 1. Call \`describe\` with title "Modeller" and summary "Makes the game's 3D models".
 2. Call \`open_worktree\` with branch "${branches.modeller}". Its result names the worktree's folder.
-   Work only there, by absolute path, never in the copy in your own folder.
+   Work only there, by absolute path, never in your own folder.
 3. Read ${modelsGuide} there: it says how to make a model.
 4. Make models/[[one]].gltf there as it says. Then call
    \`show\` with \`file\` {"path": "<that file's absolute path>"} and \`open\` true.
@@ -145,7 +143,7 @@ export const builderTask = (
 makes them; until one exists, the placeholder shows in its place. ${tools} ${manners(agent)}
 1. Call \`describe\` with title "Builder" and summary "Writes the game".
 2. Call \`open_worktree\` with branch "${branches.builder}". Its result names the worktree's folder.
-   Work only there, by absolute path, never in the copy in your own folder.
+   Work only there, by absolute path, never in your own folder.
 3. Read README.md, ${gameEntry} and src/models.js there.
 4. Write the game in src/ there, from ${gameEntry}, in one go: small and playable, its goal
    and controls on screen, a way to win or lose. Load the three models with src/models.js
@@ -186,9 +184,9 @@ export const keptLine = `Novadeck's tour is over, and this project is now the pe
 
 // The lead's steps for the dev server, where this computer can run one.
 const servingSteps = ({ command, url }: Serving): string => `
-6. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". The person
-   is asked to approve it. Then say in one sentence that the team is at work and the game
-   starts once they approve the command, and end your turn.
+6. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". Then say
+   in one sentence that the team is at work and the game starts once the person approves it,
+   and end your turn.
 7. When Novadeck tells you the person approved it, call \`show\` with \`page\`
    {"url": "${url}"} and \`open\` true, and end your turn. If they declined, carry on without it.`
 
@@ -207,13 +205,11 @@ const sheet = JSON.stringify({
       header: "The world",
       question: "Where is your game set?",
       options: worlds.map((label) => ({ label })),
-      recommend: null,
     },
     {
       header: "The kind",
       question: "What kind of game is it?",
       options: kinds.map((label) => ({ label })),
-      recommend: null,
     },
   ],
 })
@@ -224,28 +220,27 @@ export const tourBrief = ({
   serving,
   lead,
 }: LeadFacts): string => `${tourBriefMark} The person just started the tour to see how Novadeck
-works with agents. This is your task now: you lead a small team that builds the browser game
-the person chooses, in a sandbox repo Novadeck made for the tour: a blank start (README.md).
+works with agents. Your task now: lead a small team that builds the browser game the person
+chooses, in a sandbox repo Novadeck made for the tour: a blank start (README.md).
 
 ## Rules
 
-- ${shellRule(mate.agent)} Install nothing, never run git, and never read anything in vendor/.
+- ${shellRule(mate.agent)} Install nothing, run no git, never read vendor/.
 - Be quick: the person is watching. Say only the sentences the steps ask for.
 - Novadeck's tools (\`describe\`, \`ask\`, \`open_agent\`, \`open_terminal\`, \`show\`, \`send\`)
   need no permission of yours; if they're deferred, load all six in one go before step 1.
 - Write no code and make no model: your teammates do. Never answer their questions to the
   person. Call \`show\` only where a step says to. Never use the person's name: say "you".
-- Do the steps in order, none skipped or added. Never poll or wait in a loop: messages arrive
-  by themselves, and each wakes you.
+- Do the steps in order, none skipped or added. Never poll or wait in a loop: messages wake you.
 
 ## Steps
 
 1. Call \`describe\` with the title "Game lead" and the summary "Leads the team building your game".
-2. Call \`ask\` with subject "Which game shall we build?", body "Pick a world and a kind of
-   game, or write your own. A small team of agents builds it while you watch." and shape
+2. Call \`ask\` with subject "Which game shall we build?", body "Pick a world and a kind, or
+   write your own: a small team of agents builds it." and shape
    ${sheet}
-   Then say in one sentence that you are their own agent and your team builds the game they
-   pick, and end your turn.
+   Then say in one sentence that you're their own agent and your team builds what they pick,
+   and end your turn.
 3. The answer arrives as a message: the world and the kind picked, or the person's own words.
    If they dismissed it, take ${defaultPicks.world} and ${defaultPicks.kind}. A message with no words isn't the answer.
    Pick three lowercase one-word names for the game's models, fitting the picks: the player,
@@ -256,7 +251,8 @@ the person chooses, in a sandbox repo Novadeck made for the tour: a blank start 
 
 ${indent(modellerTask(lead, mate.agent))}
 
-5. Call \`open_agent\` again with ${openArguments(mate)}, and this text, replaced the same way:
+5. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` this text, replaced
+   the same way:
 
 ${indent(builderTask(lead, mate.agent))}
 ${serving ? servingSteps(serving) : noServingSteps}
@@ -266,14 +262,13 @@ ${serving ? servingSteps(serving) : noServingSteps}
 After that, whenever a message arrives, do what fits it, then end your turn:
 
 - A teammate asks you something: answer it with \`send\` to its handle, in one sentence.
-- A teammate's word that it is done: say one short sentence at most. Once both are done, say
-  in one sentence that the game is ready to play on the page.
+- A teammate is done: one short sentence at most; once both are, say the game is ready to play.
 `
 
 const indent = (text: string): string =>
   text
     .split("\n")
-    .map((line) => `   > ${line}`)
+    .map((line) => `> ${line}`)
     .join("\n")
 
 /**
