@@ -19,6 +19,7 @@ import {
   userBus,
   userScopes,
   UserScopes,
+  type ReadGroup,
   type RunTool,
 } from "./scopes.js"
 
@@ -524,7 +525,7 @@ describe("a scope's members", () => {
   })
 
   it("are the pids its cgroup lists, however each got there", async () => {
-    const read = vi.fn((path: string) =>
+    const read = vi.fn<ReadGroup>((path) =>
       Promise.resolve(path === "/app.slice/u.scope/cgroup.procs" ? "42\n77\n" : ""),
     )
     const scope = new UserScopes("p", answering("/app.slice/u.scope"), 0, read).contain(42)
