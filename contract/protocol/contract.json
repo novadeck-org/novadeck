@@ -1,5 +1,5 @@
 {
-  "revision": 7,
+  "revision": 8,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -7676,7 +7676,7 @@
       "output": {"x-optional":true}
     },
     "inbox.answerQuestions": {
-      "since": 7,
+      "since": 8,
       "input": {
         "type": "object",
         "properties": {

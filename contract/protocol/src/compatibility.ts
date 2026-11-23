@@ -27,7 +27,8 @@ export const compatibility: Compatibility = {
   // 6: each device has its own credential, revoked on its own (`devices.*`).
   // 7: the person's settings follow them from device to device, live (`settings.watch`,
   //    `preferences.*`).
-  revision: 7,
+  // 8: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
+  revision: 8,
   oldestClient: 3,
   oldestRunner: 2,
 }
