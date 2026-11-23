@@ -46,6 +46,7 @@ import {
   maxWroteFolders,
   wroteFolder,
 } from "./companions.js"
+import { device, deviceId, deviceName, mintedDevice } from "./devices.js"
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
@@ -103,6 +104,9 @@ export const errors = {
   TERMINAL_EXITED: { status: 409 },
   CONTROL_IN_USE: { status: 409 },
   CONTROL_REQUIRED: { status: 403 },
+  // The connection's credential doesn't let it do this, as a device minting another: only the
+  // owner's does. Unlike UNAUTHORIZED, the connection goes on.
+  FORBIDDEN: { status: 403 },
   ALREADY_ATTACHED: { status: 409 },
   SNAPSHOT_TOO_LARGE: { status: 413 },
   UPLOAD_TOO_LARGE: { status: 413 },
@@ -586,7 +590,7 @@ export const contract = {
     // covered, and the agent is told. Resolves whether one stood; a terminal it doesn't have
     // is NOT_FOUND.
     takeBack: procedure
-      .meta({ since: 6 })
+      .meta({ since: 7 })
       .input(z.strictObject({ terminalId: id, permit: z.string().min(1).max(64) }))
       .output(z.strictObject({ ended: z.boolean() })),
     // Writes a request's raw dialog (one the runner could not read, `agents.detail`'s
@@ -1026,6 +1030,27 @@ export const contract = {
     get: procedure.input(z.void()).output(runnerSettingsState),
     // Changes the settings given; the others stay.
     set: procedure.input(runnerSettings.partial()).output(z.void()),
+  },
+  // Devices with credentials of their own (docs/backend-api.md, "Devices"). A connection
+  // proved by the owner's token, or the desktop app's own, is the owner's; one proved by a
+  // device's credential is that device's.
+  devices: {
+    // Gives a new device its own credential, which its handshake's token then is: answered
+    // once, as the runner keeps only its hash. The owner's only (FORBIDDEN to a device);
+    // `maxDevices` not revoked at once, a CONFLICT.
+    mint: procedure
+      .meta({ since: 6 })
+      .input(z.strictObject({ name: deviceName }))
+      .output(mintedDevice),
+    // The devices not revoked, oldest first.
+    list: procedure.meta({ since: 6 }).input(z.void()).output(z.array(device)),
+    // Revokes a device's credential: its sessions end at once, and its next handshake is
+    // UNAUTHORIZED with `{ reason: "revoked" }`. The owner may revoke any device, a device
+    // only itself (FORBIDDEN otherwise); one not listed is NOT_FOUND.
+    revoke: procedure
+      .meta({ since: 6 })
+      .input(z.strictObject({ id: deviceId }))
+      .output(z.void()),
   },
   // Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's.
   tour: {

@@ -897,7 +897,7 @@ App:
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
   finds it; `WORKSPACE_TOO_NEW` is what an older Novadeck shows once a newer one has used
-  the workspace.
+  the workspace, and `UNAUTHORIZED/revoked` what a device whose credential was revoked shows.
 - **Runner:** lock the terminals with Reconnecting for 5 s; show them Runner offline until
   you toggle it back; or count four crashes, which opens the dialog, puts Restart terminals
   in the footer and fails the selected terminal's session's terminals (Try again or Restart

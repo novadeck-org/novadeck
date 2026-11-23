@@ -17,6 +17,7 @@ import { implement, ORPCError } from "@orpc/server"
 import { savePlan } from "./companions/content.js"
 import type { CompanionItems } from "./companions/items.js"
 import { planSaveFolders } from "./companions/plan-folders.js"
+import type { Devices } from "./devices/devices.js"
 import { DomainError } from "./errors.js"
 import type { Forges } from "./forges/service.js"
 import type { Harnesses } from "./harnesses/service.js"
@@ -136,6 +137,17 @@ const noTour: Pick<Tour, "prepare" | "brief" | "nudge" | "artist" | "keep"> = {
   keep: () => Promise.reject(new DomainError("CONFLICT", "No tour is offered.")),
 }
 
+// What a router without devices answers: none, and none can be added.
+const noDevices: Pick<Devices, "mint" | "list" | "revoke"> = {
+  mint: () => {
+    throw new DomainError("CONFLICT", "This runner keeps no devices.")
+  },
+  list: () => [],
+  revoke: () => {
+    throw new DomainError("NOT_FOUND", "The runner has no such device.")
+  },
+}
+
 /**
  * The runner's procedures. Its sessions serve them (`createSessions`): only to authenticated
  * sessions, and mapping their failures with `apiError`.
@@ -176,6 +188,8 @@ export const createRouter = (options: {
   shipping?: Pick<Shipping, "takeBack">
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
   tour?: Tour
+  /** The devices with credentials of their own; without it there are none, and none can be added. */
+  devices?: Devices
 }) => {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
   const history = options.history ?? noHistory
@@ -183,6 +197,7 @@ export const createRouter = (options: {
   const checkouts = options.checkouts ?? noCheckouts
   const forges = options.forges ?? noForges
   const tour: Pick<Tour, "prepare" | "brief" | "nudge" | "artist" | "keep"> = options.tour ?? noTour
+  const devices: Pick<Devices, "mint" | "list" | "revoke"> = options.devices ?? noDevices
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -547,6 +562,15 @@ export const createRouter = (options: {
         if (input.shippingGate !== undefined) options.shippingSwitched?.()
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
       }),
+    },
+    devices: {
+      mint: api.devices.mint.handler(({ input, context }) =>
+        devices.mint(input.name, context.session),
+      ),
+      list: api.devices.list.handler(() => devices.list()),
+      revoke: api.devices.revoke.handler(({ input, context }) =>
+        devices.revoke(input.id, context.session),
+      ),
     },
     tour: {
       prepare: api.tour.prepare.handler(({ input }) => tour.prepare(input.agent)),

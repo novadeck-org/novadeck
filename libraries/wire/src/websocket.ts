@@ -6,15 +6,18 @@ import { RPCHandler } from "@orpc/server/ws"
 import { WebSocket, WebSocketServer } from "ws"
 
 import { positive } from "./limits.js"
-import type { Sessions } from "./sessions.js"
+import type { Sessions, Verdict } from "./sessions.js"
 
 export type WebSocketOptions = {
   /** Where clients connect; any other path is refused. */
   readonly path: string
   /** The secret clients prove in their handshake, from 32 to 512 characters. */
   readonly token?: string
-  /** Checks the handshake's token in place of `token`, for other authentication. */
-  readonly verify?: (token: string | undefined) => boolean
+  /**
+   * Checks the handshake's token in place of `token`, for other authentication, as a server
+   * whose devices have credentials of their own (`Verdict`).
+   */
+  readonly verify?: (token: string | undefined) => Verdict
   /** Browser origins allowed to connect; clients that send no origin, such as Node's, may too. */
   readonly origins: readonly string[]
   /** Sockets open at once, authenticated or not. */
@@ -37,7 +40,11 @@ const refuse = (socket: Duplex, status: number, message: string): void => {
   socket.end(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
 }
 
-const tokenCheck = (token: string | undefined): ((token: string | undefined) => boolean) => {
+/**
+ * Whether a handshake's token is `token`, a secret of 32 to 512 characters, compared in
+ * constant time; for a `verify` that takes other credentials beside it.
+ */
+export const tokenCheck = (token: string | undefined): ((token: string | undefined) => boolean) => {
   if (token === undefined) throw new Error("A WebSocket server needs a token or verify")
   if (token.length < 32 || token.length > 512) {
     throw new Error("The token must contain between 32 and 512 characters")

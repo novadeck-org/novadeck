@@ -24,9 +24,10 @@ export const compatibility: Compatibility = {
   // 4: sessions keep a revision, and clients share them (`sessions.change`, `sessions.watch`).
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
-  // 6: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
+  // 6: each device has its own credential, revoked on its own (`devices.*`).
+  // 7: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
   //    `agents.takeBack`).
-  revision: 6,
+  revision: 7,
   oldestClient: 3,
   oldestRunner: 2,
 }

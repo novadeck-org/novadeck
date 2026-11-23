@@ -760,6 +760,10 @@ export type BackendConnection = {
   readonly createBackend: CreateBackend
   // Ends the link once the app unmounts. Safe to call more than once.
   readonly close: () => void
+  // Optional. Tells `listener`, once, that the link ended for good after it connected, for a
+  // reason the person must act on, as this device being signed out of the runner; the gate
+  // then boots again, and the splash says why. Returns what stops listening.
+  readonly ended?: (listener: (failure: ConnectFailure) => void) => () => void
 }
 
 // Connects before the app first renders. Rejects with an Error carrying a
@@ -784,6 +788,9 @@ export type ConnectFailure = {
   readonly update?: "app" | "runner"
   // Reloading the page mends it: a page older than its runner loads the newer one.
   readonly reload?: boolean
+  // An unauthorized device was signed out of the runner (its credential revoked), rather
+  // than never let in.
+  readonly revoked?: boolean
 }
 
 // The restored session's terminals being attached: `done` once they all are, have
