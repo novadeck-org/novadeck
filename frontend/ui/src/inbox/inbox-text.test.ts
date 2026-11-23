@@ -121,6 +121,26 @@ describe("An Inbox entry's subject", () => {
     expect(subjectOf(permission("WebFetch", "example.com"))).toBe("Use WebFetch on `example.com`?")
   })
 
+  it("asks the shipping gate's card's own question, not the tool that raised it", () => {
+    const card = permission("request_permit", "Push to origin/feature?")
+    if (card.kind !== "request") throw new Error("a request")
+    const held: InboxEntry = {
+      ...card,
+      request: {
+        ...card.request,
+        detached: true,
+        dialog: {
+          type: "choices",
+          id: "permit-c1",
+          title: "Push to origin/feature?",
+          detail: "Remote: origin",
+          options: [],
+        },
+      },
+    }
+    expect(subjectOf(held)).toBe("Push to origin/feature?")
+  })
+
   it("says how many more questions a call asks behind the first", () => {
     expect(subjectOf(asking(null, 1))).toBe("Question 1?")
     expect(subjectOf(asking(null, 3))).toBe("Question 1? (+2 more)")

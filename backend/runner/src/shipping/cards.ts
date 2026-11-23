@@ -18,13 +18,47 @@ export type Card = {
   /** What Novadeck went by, in lines. */
   readonly detail: string
   readonly askedAt: number
+  /** The agent session that asked: a card stands for that session only, as a permit does. */
+  readonly sessionId: string | null
+}
+
+export type CardsOptions = {
+  /**
+   * The agent session bound in a terminal now: a card another session asked, as before a
+   * `/clear` or another agent started there, or with no agent left, is closed. Without it,
+   * sessions aren't told.
+   */
+  readonly session?: (terminalId: string) => string | undefined
 }
 
 export class Cards {
   private readonly open = new Map<string, Card>()
   private readonly listeners = new Set<(terminalId: string) => void>()
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly now: () => number = Date.now,
+    private readonly options: CardsOptions = {},
+  ) {}
+
+  // Whether a card still stands: for the session bound now.
+  private stands(card: Card): boolean {
+    if (!this.options.session) return true
+    return (this.options.session(card.terminalId) ?? null) === card.sessionId
+  }
+
+  /**
+   * Closes the terminal's cards another session asked, telling `watch` once the caller's own
+   * work is done (a read may come while a terminal's summary is being drawn).
+   */
+  private sweep(terminalId: string): void {
+    let ended = false
+    for (const [id, card] of this.open)
+      if (card.terminalId === terminalId && !this.stands(card)) {
+        this.open.delete(id)
+        ended = true
+      }
+    if (ended) queueMicrotask(() => this.changed(terminalId))
+  }
 
   /** Calls `listener` with the terminal whose open cards changed. */
   watch(listener: (terminalId: string) => void): void {
@@ -37,12 +71,12 @@ export class Cards {
 
   /** The terminal's open cards, oldest first. */
   of(terminalId: string): readonly Card[] {
+    this.sweep(terminalId)
     return [...this.open.values()].filter((card) => card.terminalId === terminalId)
   }
 
   find(terminalId: string, id: string): Card | undefined {
-    const card = this.open.get(id)
-    return card?.terminalId === terminalId ? card : undefined
+    return this.of(terminalId).find((card) => card.id === id)
   }
 
   /** The card for this terminal and target, if one is open. */
@@ -68,6 +102,7 @@ export class Cards {
       title,
       detail,
       askedAt: this.now(),
+      sessionId: this.options.session?.(terminalId) ?? null,
     }
     this.open.set(card.id, card)
     this.changed(terminalId)

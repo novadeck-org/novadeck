@@ -781,4 +781,32 @@ describe("the shipping gate in a terminal's summary", () => {
     shipping.closed("t1")
     expect(waiting()).toBe(0)
   })
+
+  // A card asks for the agent session that called `request_permit`: after a `/clear`, or with
+  // another agent there, its Allow would give a session a permit it never asked for.
+  it("closes a card once the session that asked it is no longer bound there", async () => {
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    const { bindings: ends } = bindings(undefined, (id) => shipping.held(id))
+    const shown = record()
+    shipping.attach(new Map([["t1", shown]]), (each) => ends.publishGate(each))
+    const waiting = () => shown.summary.activity?.attention.pending ?? 0
+
+    const { card } = shipping.cards.ask("t1", ["land:r/app:main"], false, "Land work on main?", "")
+    expect(waiting()).toBe(1)
+    shown.bound = { ...shown.bound!, binding: { ...shown.bound!.binding, sessionId: "s2" } }
+    ends.publishAgent(shown, false)
+    await Promise.resolve()
+    expect(waiting()).toBe(0)
+    expect(shipping.cards.find("t1", card.id)).toBeUndefined()
+
+    // An agent that left takes its card with it.
+    shipping.cards.ask("t1", ["land:r/app:main"], false, "Land work on main?", "")
+    expect(shipping.held("t1").cards).toHaveLength(1)
+    shown.bound = null
+    expect(shipping.held("t1").cards).toHaveLength(0)
+  })
 })

@@ -176,12 +176,13 @@ export const pendingMs = 30_000
 const askedSlackMs = 200
 
 export class Shipping {
-  // A permit stands for the agent session it was given in, as the quote ring does.
-  readonly permits = new Permits(Date.now, {
-    session: (terminalId) => this.records.get(terminalId)?.bound?.binding.sessionId,
-  })
+  // A permit stands for the agent session it was given in, as the quote ring does, and a card
+  // for the session that asked.
+  private readonly session = (terminalId: string): string | undefined =>
+    this.records.get(terminalId)?.bound?.binding.sessionId
+  readonly permits = new Permits(Date.now, { session: this.session })
   readonly quotes = new Quotes()
-  readonly cards = new Cards()
+  readonly cards = new Cards(Date.now, { session: this.session })
   private readonly gate: Gate
   // Answers handed to a hook whose effect waits for its acknowledgement, by lease.
   private readonly leases = new Map<

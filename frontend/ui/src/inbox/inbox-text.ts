@@ -88,6 +88,10 @@ const moreQuestions = (dialog: ChatDialog | null): string =>
 const requestSubject = (request: ChatRequest): string => {
   if (request.kind === "question")
     return `${request.subject ?? firstQuestion(request.dialog) ?? "A question for you"}${moreQuestions(request.dialog)}`
+  // A request Novadeck holds on the agent's behalf, as the shipping gate's card, asks its own
+  // question in plain words: "Merge PR #1170 into main?".
+  if (request.detached && request.dialog?.type === "choices" && request.dialog.title)
+    return request.dialog.title
   const action = actionOf(request)
   const subject = request.subject
   if (action === "plan") return "Approve the plan?"
