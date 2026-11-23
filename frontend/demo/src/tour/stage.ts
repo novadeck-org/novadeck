@@ -1,5 +1,4 @@
 import type { FilesState } from "@novadeck/core/files"
-import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxAnswer } from "@novadeck/core/inbox"
 import { itemIdOf, type Item, type ItemContent } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
@@ -8,7 +7,7 @@ import type { Workspace } from "@novadeck/core/types"
 
 import type { DemoInbox } from "../inbox"
 import type { DemoMessages } from "../messages"
-import type { DemoTour, TourMate, TourShow, TourStage } from "../tour"
+import type { DemoTour, TourShow, TourStage } from "../tour"
 import type { DemoWorks } from "../works"
 import { terminalOf } from "../workspace"
 import type { Hero } from "./content"
@@ -110,9 +109,6 @@ export const createStage = (env: StageEnv): TourStage => {
     env.tell(id)
     return id
   }
-  // The artist's question to the lead, and the lead's answer back.
-  const askListeners = new Set<(artist: TourMate & { harness: AgentName }) => void>()
-  const answerListeners = new Map<string, Set<(hero: Hero) => void>>()
   const stage: TourStage = {
     workspace: () => env.latest(),
     newTerminal: (request) => env.newTerminal(request),
@@ -168,23 +164,6 @@ export const createStage = (env: StageEnv): TourStage => {
     },
     chose: (next) => {
       env.setHero(next)
-    },
-    leadHandle: () => {
-      const key = env.lead()
-      return key ? terminalOf(env.latest(), key)?.handle : undefined
-    },
-    askedLead: (artist) => askListeners.forEach((each) => each(artist)),
-    onArtistAsk: (listener) => {
-      askListeners.add(listener)
-      return () => void askListeners.delete(listener)
-    },
-    artistAnswered: (artist, told) =>
-      answerListeners.get(artist.key.terminalId)?.forEach((each) => each(told)),
-    onArtistAnswered: (key, listener) => {
-      const each = answerListeners.get(key.terminalId) ?? new Set()
-      each.add(listener)
-      answerListeners.set(key.terminalId, each)
-      return () => void each.delete(listener)
     },
   }
   return stage

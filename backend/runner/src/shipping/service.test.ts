@@ -870,6 +870,43 @@ describe("a standing permit", () => {
     }
   })
 
+  it("tells a Codex agent that can't escalate so, instead of to escalate", () => {
+    const told: string[] = []
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: (_terminalId, text) => told.push(text) > 0,
+    })
+    shipping.attach(
+      new Map([
+        [
+          "t",
+          {
+            summary: { cwd: "/w" },
+            bound: { binding: { agent: "codex", sessionId: "s" } },
+            agents: {},
+          },
+        ],
+      ]) as never,
+      () => {},
+    )
+    const allow = () =>
+      shipping.answered(
+        shipping.cards.ask("t", [`land:r/app:main${told.length}`], false, "Land work on main?", "")
+          .card,
+        true,
+      )
+    allow()
+    expect(told[0]).toContain("asking for escalation")
+    ;(shipping as unknown as { turns: Map<string, unknown> }).turns.set("t", {
+      approval: "never",
+      sandbox: "workspace-write",
+    })
+    allow()
+    expect(told[1]).not.toContain("asking for escalation")
+    expect(told[1]).toContain("can't escalate")
+  })
+
   it("ends once its PR merged or closed, as GitHub says, and stays while gh can't say", async () => {
     const states = new Map<string, boolean | undefined>([
       ["5", false],
@@ -969,6 +1006,29 @@ describe("what the person sees stand, and takes back", () => {
     )
     expect(shipping.takeBack("t", "g")).toBe(false)
     expect(shipping.takeBack("gone", "g")).toBeUndefined()
+  })
+
+  it("keeps a Deny and a Take back declined until the person types, then lets their words ask again", async () => {
+    const { shipping } = joined()
+    const card = shipping.cards.ask("t", ["land:r/app:main"], false, "Land work on main?", "").card
+    shipping.answered(card, false)
+    expect(shipping.declines.declined("t", "land:r/app:main")).toBe(true)
+    // A prompt submitted before the Deny, reported after it, doesn't lift it.
+    shipping.quotes.record("t", "s", "land it", false, Date.now() - 1000)
+    expect(shipping.declines.declined("t", "land:r/app:main")).toBe(true)
+    shipping.quotes.record("t", "s", "go ahead and land it", false, Date.now() + 5)
+    expect(shipping.declines.declined("t", "land:r/app:main")).toBe(false)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    // A permit taken back declines every target it covered.
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, { group: "g" })
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, { group: "g" })
+    shipping.takeBack("t", "g")
+    expect(shipping.declines.declined("t", "pr-merge:r/app#5")).toBe(true)
+    expect(shipping.declines.declined("t", "pr-merge:r/app@feat/x")).toBe(true)
+    // It ends with the terminal's close.
+    shipping.closed("t")
+    expect(shipping.declines.declined("t", "pr-merge:r/app#5")).toBe(false)
   })
 })
 

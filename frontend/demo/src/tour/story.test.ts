@@ -1,4 +1,3 @@
-import { itemIdOf } from "@novadeck/core/items"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -8,20 +7,21 @@ import { demoTurns } from "../agents/turns"
 import { plainDemo } from "../index"
 import { demoTourFolder, isDemoTour, type DemoTour } from "../tour"
 import { demoRun } from "../tour-runs"
-import { coverSvg, heroOf, modelOf, tourEntries } from "./content"
+import { heroOf, modelOf, tourEntries } from "./content"
 import {
-  artistName,
+  builderName,
   chosenHero,
-  coverAsk,
-  fixerName,
-  heroAsk,
-  heroSculpted,
-  heroSubject,
-  heroTold,
-  pickHero,
-  scoreFixed,
-  sculptorName,
+  chosenOption,
+  gameBuilt,
+  heroColourSubject,
+  heroColours,
+  modelled,
+  modellerName,
+  pickOption,
+  pickSheet,
   serverName,
+  sheetAsk,
+  sheetSubject,
   teammateCommand,
   tourStoryMs,
 } from "./story"
@@ -33,45 +33,55 @@ describe("the story's pieces", () => {
     expect(teammateCommand("claude")).toBe("claude --model haiku")
   })
 
-  it("asks as the runner's ask does: a rocket, a robot or a cat, none recommended", () => {
-    const terminal = { id: "t", name: sculptorName, handle: "fox" } as TerminalMetadata
-    const entry = heroAsk(key, terminal, "claude", "Tour", 5)
+  it("asks the sheet as the runner's ask does: two questions of three options each", () => {
+    const terminal = { id: "t", name: "Game lead", handle: "fox" } as TerminalMetadata
+    const entry = sheetAsk(key, terminal, "claude", "Tour", 5)
     expect(entry).toMatchObject({
       kind: "ask",
       stopped: false,
       source: { terminalId: "t", handle: "fox", agent: "claude", projectName: "Tour" },
-      ask: { subject: heroSubject, shape: { type: "options", recommend: null } },
+      ask: { subject: sheetSubject, shape: { type: "questions" } },
     })
-    if (entry.kind !== "ask" || entry.ask.shape.type !== "options") throw new Error("not options")
-    expect(entry.ask.shape.options.map(({ label }) => label)).toEqual([
-      "A rocket",
-      "A robot",
-      "A cat",
+    if (entry.kind !== "ask" || entry.ask.shape.type !== "questions") throw new Error("no sheet")
+    expect(
+      entry.ask.shape.questions.map(({ question, options }) => [
+        question,
+        options.map(({ label }) => label),
+      ]),
+    ).toEqual([
+      ["The world", ["Fantasy", "Sci-fi", "Modern"]],
+      ["The kind", ["RPG", "Shooter", "Strategy"]],
     ])
   })
 
-  it("takes the option picked, else the person's own words, else a rocket", () => {
-    expect(chosenHero(pickHero(1))).toMatchObject({ name: "a robot", shape: "robot" })
-    expect(chosenHero(pickHero(2))).toMatchObject({ name: "a cat", shape: "cat" })
-    expect(chosenHero(pickHero("a tiny dragon"))).toMatchObject({
-      name: "a tiny dragon",
+  it("takes the options picked, else the person's own words, else the first options", () => {
+    expect(chosenHero(pickSheet(1, 2))).toMatchObject({
+      world: "Sci-fi",
+      kind: "Strategy",
       shape: "rocket",
+      title: "Sci-fi Strategy",
     })
-    expect(chosenHero(pickHero("my cat Pixel"))).toMatchObject({ shape: "cat" })
-    expect(chosenHero(pickHero(7))).toMatchObject({ name: "a rocket" })
-    expect(chosenHero(undefined)).toMatchObject({ name: "a rocket" })
-    expect(heroTold(heroOf("A robot"))).toBe("The hero is a robot.")
+    expect(chosenHero(pickSheet(2, 0))).toMatchObject({ shape: "robot" })
+    expect(chosenHero(pickSheet("Pirates", "Racing"))).toMatchObject({
+      title: "Pirates Racing",
+      shape: "cat",
+    })
+    expect(chosenHero(pickSheet(7, ""))).toMatchObject({ world: "Fantasy", kind: "RPG" })
+    expect(chosenHero(undefined)).toMatchObject({ world: "Fantasy", kind: "RPG" })
+    expect(chosenOption(pickOption(1), heroColours)).toBe("Blue")
+    expect(chosenOption(pickOption("teal"), heroColours)).toBe("teal")
+    expect(chosenOption(undefined, heroColours)).toBe("Red")
   })
 
   it("makes a start model and a different sculpted one, each a small glTF the pane can draw", () => {
     const parsed = (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes))
     const start = modelOf(undefined, "1")
-    const rocket = modelOf(heroOf("A rocket"), "2")
+    const rocket = modelOf(heroOf("Sci-fi", "RPG"), "2")
     for (const model of [
       start,
       rocket,
-      modelOf(heroOf("A robot"), "2"),
-      modelOf(heroOf("A cat"), "2"),
+      modelOf(heroOf("Modern", "RPG"), "2"),
+      modelOf(heroOf("Fantasy", "RPG"), "2"),
     ]) {
       expect(model.bytes.length).toBeLessThan(2500)
       const gltf = parsed(model.bytes)
@@ -87,9 +97,9 @@ describe("the story's pieces", () => {
     expect(rocket.content).toMatchObject({ state: "ready", stamp: "2" })
   })
 
-  it("draws a cover that stays under the brief's 1500 characters", () => {
-    expect(coverSvg(heroOf("A cat")).length).toBeLessThan(1500)
-    expect(tourEntries).toContain("src/score.js")
+  it("lists the new seed", () => {
+    expect(tourEntries).toContain("src/main.js")
+    expect(tourEntries).toContain("models/placeholder.gltf")
   })
 })
 
@@ -166,40 +176,85 @@ const messagesOf = (backend: Demo["backend"]) => {
   return [...distinct.values()]
 }
 
-// Long enough for the lead to bind, work, describe itself, open its team, and the team to name
-// itself, ask and fix.
-const teamUp = 300 + 400 + 300 + 300 + 300 + 300 * 4 + 400 * 3 + 600 + tourStoryMs.serve
+// Long enough for the lead to bind, work, describe itself and ask its sheet.
+const asking = 300 + 400 + 300 + 300 + 400
+
+// Long enough, from the sheet's answer, for the lead to open its team, and the team to name
+// itself, work and report.
+const teamUp = 300 + 300 + 300 * 4 + 400 * 3 + 600 + tourStoryMs.serve
+
+const sheetOf = (backend: Demo["backend"]) =>
+  backend.inbox!.state.getSnapshot().items.filter((entry) => entry.kind === "ask")
 
 describe("the story in the demo", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it("opens two named teammates, which the lead leads, and a score fixer that fixes the score", async () => {
-    const { backend, at, lead, terminals, items, works } = await open()
+  it("asks its sheet from the lead's terminal, and waits for as long as the person takes", async () => {
+    const { backend, at, lead, terminals } = await open()
+    await at(asking)
+    const entries = sheetOf(backend)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      source: { terminalId: lead },
+      stopped: false,
+      ask: { subject: sheetSubject, shape: { type: "questions" } },
+    })
+    await at(60_000)
+    expect(terminals().filter((each) => each.ledBy === lead)).toEqual([])
+    expect(sheetOf(backend).filter((entry) => !entry.settled)).toHaveLength(1)
+  })
+
+  it("opens a modeller and a builder, which the lead leads, once the sheet is answered", async () => {
+    const { backend, tour, at, lead, project: id, terminals, items, works } = await open()
+    await at(asking)
+    tour.answerSheet({ world: 1, kind: 1 })
     await at(teamUp)
     const mates = terminals().filter((each) => each.ledBy === lead)
-    expect(mates.map((each) => each.name).toSorted()).toEqual([fixerName, sculptorName])
+    expect(mates.map((each) => each.name).toSorted()).toEqual([builderName, modellerName])
     for (const mate of mates) expect(mate.titleSource?.kind).toBe("agent")
-    const fixer = mates.find((each) => each.name === fixerName)!
-    const work = works().find((each) => each.branch === "fix-score")!
-    expect(work.terminalId).toBe(fixer.id)
-    expect(work.files.map((file) => file.path).toSorted()).toEqual(["README.md", "src/score.js"])
+    const modeller = mates.find((each) => each.name === modellerName)!
+    const builder = mates.find((each) => each.name === builderName)!
+    expect(works().find((work) => work.terminalId === modeller.id)?.files).toEqual([
+      expect.objectContaining({ path: "models/hero.gltf", status: "added" }),
+    ])
+    expect(works().find((work) => work.terminalId === builder.id)?.files).toEqual([
+      expect.objectContaining({ path: "src/main.js" }),
+    ])
+    expect(items().find((item) => item.kind === "model")).toMatchObject({
+      holder: { terminalId: modeller.id },
+      name: "hero.gltf",
+    })
     expect(items().find((item) => item.kind === "changes")).toMatchObject({
-      holder: { terminalId: fixer.id },
+      holder: { terminalId: builder.id },
       by: "agent",
       openAsked: true,
     })
-    expect(messagesOf(backend).map(({ text }) => text)).toContain(scoreFixed)
+    const said = messagesOf(backend).map(({ text }) => text)
+    expect(said).toEqual(expect.arrayContaining([modelled, gameBuilt]))
     // Its writes are in the Files feed, under its handle.
     const feed = backend.files!.state.getSnapshot()
     const touched = Object.values(feed.projects).flatMap((project) =>
-      Object.entries(project.changes).filter(([path]) => path === "src/score.js"),
+      Object.entries(project.changes).filter(([path]) => path === "src/main.js"),
     )
-    expect(touched[0]?.[1].touched).toHaveProperty(fixer.handle!)
+    expect(touched[0]?.[1].touched).toHaveProperty(builder.handle!)
+    // The merged preview of src/main.js names the game for the picks.
+    const preview = await backend.works!.preview(id, "src/main.js")
+    expect(preview.works).toHaveLength(1)
+  })
+
+  it("takes the first options where the sheet is dismissed", async () => {
+    const { backend, at, lead, terminals } = await open()
+    await at(asking)
+    backend.inbox!.dismiss?.(sheetOf(backend)[0]!.id)
+    await at(1000)
+    expect(terminals().some((each) => each.ledBy === lead)).toBe(true)
   })
 
   it("asks to run the game's server; allowed, it opens a terminal of its own and shows the page", async () => {
-    const { backend, at, lead, terminals, items, approvals } = await open()
+    const { backend, tour, at, lead, terminals, items, approvals } = await open()
+    await at(asking)
+    tour.answerSheet()
     await at(teamUp)
     expect(approvals()).toHaveLength(1)
     expect(approvals()[0]).toMatchObject({
@@ -222,6 +277,8 @@ describe("the story in the demo", () => {
 
   it("goes on without a page where the person says no, and where there is none", async () => {
     const declined = await open()
+    await declined.at(asking)
+    declined.tour.answerSheet()
     await declined.at(teamUp)
     declined.backend.approvals!.answer(declined.approvals()[0]!.requestId, false)
     await declined.at(1000)
@@ -248,99 +305,37 @@ describe("the story in the demo", () => {
     await expect(tour.prepare("claude")).resolves.toMatchObject({ page: true })
   })
 
-  it("shows its model, asks who the hero is, and sculpts it once answered", async () => {
-    const { backend, tour, at, lead, terminals, items, works, approvals } = await open()
+  it("has the modeller ask its own question, and wait for the person's answer before it reports", async () => {
+    const { backend, tour, at, lead, terminals } = await open((each) => each.goMateAsks())
+    await at(asking)
+    tour.answerSheet()
     await at(teamUp)
-    const sculptor = terminals().find((each) => each.name === sculptorName)!
-    const model = items().find((item) => item.kind === "model")!
-    expect(model).toMatchObject({ holder: { terminalId: sculptor.id }, name: "hero.gltf" })
-    const entries = backend.inbox!.state.getSnapshot().items.filter((entry) => entry.kind === "ask")
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({ source: { terminalId: sculptor.id }, stopped: false })
-    // Nothing is sculpted, and the lead names nothing, while the person takes their time.
+    const modeller = terminals().find((each) => each.name === modellerName)!
+    const asks = () => sheetOf(backend).filter((entry) => !entry.settled)
+    expect(asks()).toHaveLength(1)
+    expect(asks()[0]).toMatchObject({
+      source: { terminalId: modeller.id },
+      ask: { subject: heroColourSubject, shape: { type: "options" } },
+    })
     await at(60_000)
-    expect(works().some((work) => work.branch === "hero")).toBe(true)
-    expect(works().find((work) => work.branch === "hero")?.files).toEqual([])
-    expect(works().some((work) => work.branch === "game")).toBe(false)
-    const content: unknown[] = []
-    backend.companions!.follow(
-      { projectId: "p", workspaceSessionId: "s" },
-      itemIdOf(String(model.id)),
-      { reveal: undefined },
-      (each) => content.push(each),
-    )
-    expect(content[0]).toMatchObject({ content: { kind: "model", format: "gltf" }, stamp: "1" })
-    void approvals
-
-    tour.answerHero(1)
+    expect(messagesOf(backend).some(({ text }) => text.startsWith(modelled))).toBe(false)
+    tour.answerMate(1)
     await at(3000)
-    expect(
-      backend
-        .inbox!.state.getSnapshot()
-        .items.filter((entry) => entry.kind === "ask" && !entry.settled),
-    ).toHaveLength(0)
-    const said = messagesOf(backend).map(({ text }) => text)
-    expect(said).toEqual(expect.arrayContaining([heroTold(heroOf("A robot")), heroSculpted]))
-    const hero = works().find((work) => work.branch === "hero")!
-    expect(hero.files.map((file) => file.path)).toEqual(["model/hero.gltf"])
-    expect(works().find((work) => work.branch === "game")).toMatchObject({
-      terminalId: lead,
-      files: [expect.objectContaining({ path: "src/config.js" })],
-    })
-    // The open pane hears the model sculpted anew.
-    expect(content.at(-1)).toMatchObject({ stamp: "2" })
-    // The merged preview of src/config.js names the game for the hero.
-    const preview = await backend.works!.preview("p", "src/config.js")
-    void preview
+    expect(asks()).toHaveLength(0)
+    expect(messagesOf(backend).map(({ text }) => text)).toContain(`${modelled} Its colour is Blue.`)
+    void lead
   })
 
-  it("takes the person's own words as the hero", async () => {
-    const { backend, tour, at } = await open()
+  it("keeps the modeller quiet until nudged, and stops with the agent", async () => {
+    const { tour, at, lead, terminals } = await open((each) => each.goQuietModeller())
+    await at(asking)
+    tour.answerSheet()
     await at(teamUp)
-    tour.answerHero("a dragon named Ash")
-    await at(3000)
-    expect(messagesOf(backend).map(({ text }) => text)).toContain("The hero is a dragon named Ash.")
-  })
-
-  it("starts an agent on no team in a new terminal, which draws the cover once the lead answers", async () => {
-    const { backend, tour, at, lead, add, terminals, items, works } = await open()
-    await at(teamUp)
-    tour.answerHero(0)
-    await at(4000)
-    const id = await add(demoRun("claude").command)
-    await at(1000)
-    // At its prompt, until the tour rings its brief.
-    expect(terminals().find((each) => each.id === id)?.name).not.toBe(artistName)
-    await tour.artist!(id)
-    await at(9000)
-    const artist = terminals().find((each) => each.id === id)!
-    expect(artist).toMatchObject({ name: artistName })
-    expect(artist.ledBy).toBeUndefined()
-    const talk = messagesOf(backend)
-    const leadHandle = terminals().find((each) => each.id === lead)!.handle
-    expect(talk.find((m) => m.text === coverAsk)).toMatchObject({
-      from: { terminalId: id },
-      to: { terminalId: lead },
-    })
-    expect(talk.find((m) => m.to.kind === "agent" && m.to.terminalId === id)).toBeTruthy()
-    expect(leadHandle).toBeTruthy()
-    expect(works().find((work) => work.branch === "cover")).toMatchObject({
-      terminalId: id,
-      files: [expect.objectContaining({ path: "art/cover.svg", status: "added" })],
-    })
-    expect(items().find((item) => item.kind === "image")).toMatchObject({
-      holder: { terminalId: id },
-    })
-  })
-
-  it("keeps the sculptor quiet until nudged, the lead's team quiet until nudged, and stops with the agent", async () => {
-    const { tour, at, lead, terminals } = await open((each) => each.goQuietSculptor())
-    await at(teamUp)
-    const sculptor = terminals().find((each) => each.ledBy === lead && each.name !== fixerName)!
-    expect(sculptor.name).not.toBe(sculptorName)
+    const modeller = terminals().find((each) => each.ledBy === lead && each.name !== builderName)!
+    expect(modeller.name).not.toBe(modellerName)
     await tour.nudge!(lead)
     await at(2000)
-    expect(terminals().find((each) => each.id === sculptor.id)?.name).toBe(sculptorName)
+    expect(terminals().find((each) => each.id === modeller.id)?.name).toBe(modellerName)
     tour.stop()
     expect(terminals().find((each) => each.id === lead)?.state).toBe("exited")
   })
@@ -350,22 +345,10 @@ describe("the story in the demo", () => {
     await at(teamUp)
     expect(terminals().filter((each) => each.ledBy === lead)).toEqual([])
     await tour.nudge!(lead)
+    await at(asking)
+    tour.answerSheet()
     await at(1000)
     expect(terminals().some((each) => each.ledBy === lead)).toBe(true)
-  })
-
-  it("keeps the artist quiet until nudged", async () => {
-    const { tour, at, add, terminals } = await open((each) => each.goQuietArtist())
-    await at(teamUp)
-    tour.answerHero(0)
-    await at(4000)
-    const id = await add(demoRun("claude").command)
-    await tour.artist!(id)
-    await at(4000)
-    expect(terminals().find((each) => each.id === id)?.name).not.toBe(artistName)
-    await tour.nudge!(id)
-    await at(2000)
-    expect(terminals().find((each) => each.id === id)?.name).toBe(artistName)
   })
 
   it("leaves the lead's program ended, its shell back, where it exits to its shell", async () => {
@@ -376,19 +359,6 @@ describe("the story in the demo", () => {
       state: "idle",
       agentRan: true,
     })
-  })
-
-  it("starts no artist's agent where it never starts", async () => {
-    const { tour, at, add, terminals } = await open((each) => each.goArtistNever())
-    await at(teamUp)
-    tour.answerHero(0)
-    await at(4000)
-    const id = await add(demoRun("claude").command)
-    await tour.artist!(id)
-    await at(6000)
-    const artist = terminals().find((each) => each.id === id)!
-    expect(artist.state === "running" && artist.agent).toBeFalsy()
-    expect(artist.name).not.toBe(artistName)
   })
 
   it("lists the tour's repo in its Files panel, and no other project's", async () => {

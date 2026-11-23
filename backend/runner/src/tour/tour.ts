@@ -6,7 +6,6 @@ import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
 import type { OpenPolicy } from "../terminals/options.js"
 import {
-  artistBrief,
   briefFiles,
   keptLine,
   nudgeLine,
@@ -27,7 +26,7 @@ import {
   tourFolderCount,
 } from "./folder.js"
 import { tourChoice, tourLaunch, tourWrites, type TourLaunch } from "./launch.js"
-import { commitSandbox, laySandbox, releaseSandbox, requireGit } from "./repo.js"
+import { bringHome, commitSandbox, laySandbox, releaseSandbox, requireGit } from "./repo.js"
 import { seedFiles, type TourAssets } from "./seed.js"
 import { findServing, freePort, versionOf } from "./serving.js"
 
@@ -70,8 +69,6 @@ type Run = {
   readonly directory: string
   /** The terminal the lead's brief was rung to. */
   lead?: string
-  /** The terminal the artist's brief was rung to. */
-  artist?: string
 }
 
 /**
@@ -187,30 +184,18 @@ export class Tour {
   }
 
   /**
-   * Rings the artist's brief (`artistBrief`) to the agent in `terminalId`, which the client
-   * started in the tour's folder with the run's launch line and which is on no team, as `brief`
-   * rings the lead's. Refused as `brief` is, and as a `CONFLICT` where the run has no lead yet
-   * (the artist asks the lead what the game is), where the terminal is the lead or has one, or
-   * where the run's artist is another terminal. Asked again for its artist it rings nothing: the
-   * claim is made only once the ring is, so a terminal whose agent hasn't shown can be asked
-   * again.
+   * The tour has no artist any more (its story has a modeller and a builder, both the lead's):
+   * always a `CONFLICT`, for a client that still asks.
    */
-  artist(terminalId: string): void {
-    const { run } = this
-    if (!run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
-    if (run.lead === undefined) throw new DomainError("CONFLICT", "The tour's lead hasn't started.")
-    if (run.artist === terminalId) return
-    if (run.artist !== undefined)
-      throw new DomainError("CONFLICT", "The tour's artist has started already.")
-    if (terminalId === run.lead || this.host.leadOf(terminalId) !== undefined)
-      throw new DomainError("CONFLICT", "The terminal is the lead or a teammate already.")
-    this.ring(terminalId, artistBrief(run.agent))
-    run.artist = terminalId
+  artist(_terminalId: string): void {
+    throw new DomainError("CONFLICT", "The tour has no artist.")
   }
 
   /**
    * The person keeps the project, which the client asks once the tour's story has ended, and
-   * again if the person presses its button. The run's folder stops being the tour's
+   * again if the person presses its button. The team's work comes home first (`bringHome`: the
+   * folder holds what the dev server last served, committed on main, and the worktrees are moved
+   * to that commit). The run's folder stops being the tour's
    * (`releaseSandbox`: the project's own note back in `AGENTS.md`, git told of no rules laid over
    * it; `keepTourFolder`: its settings and marker gone), its lead is told the tour is over (best
    * effort: it may be gone or not listening, and only a lead the run knows is told), and the run
@@ -224,7 +209,10 @@ export class Tour {
     const folders = run ? [run.directory] : this.openFolders()
     for (const folder of folders) {
       if (!hasMarker(folder)) continue
+      // While the tour's files are still kept out of git, so the commit takes none of them.
       // eslint-disable-next-line no-await-in-loop -- One folder at a time, as one is ever open.
+      await bringHome(folder)
+      // eslint-disable-next-line no-await-in-loop -- As above.
       await releaseSandbox(folder, projectNote)
       // eslint-disable-next-line no-await-in-loop -- As above.
       await keepTourFolder(folder)
@@ -262,8 +250,8 @@ export class Tour {
 
   /**
    * What an `open_agent` of `terminalId` is subject to: only the run's lead opens agents in the
-   * tour's folder, with the tour's write flags; every other terminal there, its teammates and
-   * the artist, is refused. A teammate the lead opens in the folder on its own harness with no
+   * tour's folder, with the tour's write flags; every other terminal there, its teammates, is
+   * refused. A teammate the lead opens in the folder on its own harness with no
    * model named starts on the run's teammate model, as the brief asks, never the person's default. A
    * terminal elsewhere, and one the runner doesn't have, are left to the call's own checks.
    */

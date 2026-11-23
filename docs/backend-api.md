@@ -2369,10 +2369,13 @@ one from an earlier runner.
   them from device to device.
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
-  (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep, set in a neon city at night
-  (an unlit grey skyline drawn by `src/city.js` from `config.background` and `config.accent`, which
-  the lead sets to night and neon colours): Phaser runs it and three.js draws its hero from a 3D model (`model/hero.gltf`, built of four
-  ready shapes in `model/shapes.bin`). Its files are the seed in `backend/runner/assets/tour/seed/`
+  (`backend/runner/src/tour/`). The tour's project is a blank start for a browser game the
+  person chooses and can keep: plain JavaScript modules with no build step (`index.html`, the
+  game in `src/` from `src/main.js`, `src/models.js` to load a model by name, falling back to the
+  placeholder until it exists), three.js and Phaser to draw with, and every character, enemy and
+  unit a glTF model in `models/` built of four ready shapes in `models/shapes.bin`
+  (`models/README.md` says how; the page shows `models/placeholder.gltf` turning until the game
+  replaces it). Its files are the seed in `backend/runner/assets/tour/seed/`
   (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written; a
   `__pycache__/` folder, `*.pyc`, `.DS_Store` and `Thumbs.db` in it are skipped), and
   the two libraries are written beside them as files under `vendor/` (`phaser.min.js` with its
@@ -2428,32 +2431,37 @@ one from an earlier runner.
   of 127.0.0.1 (bound to port 0, read, closed); with none, `page` is false and the lead's script
   has no serving steps.
   `command` starts the agent there on its cheapest model (Claude Code's `haiku`, Codex's newest
-  `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, each at its lowest
-  effort), taking edits in the folder without asking for this launch only
+  `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, opencode's own free
+  `opencode/*-free`, each at its lowest effort; opencode with none of its free models listed is
+  `MODELS_UNLISTED`), taking edits in the folder without asking for this launch only
   (`--permission-mode acceptEdits`, Codex's `--sandbox workspace-write --ask-for-approval
-  on-request`, `--mode accept-edits`), with no prompt on it, and nothing written to the agent's
+  on-request`, `--mode accept-edits`, opencode's `--agent build`), with no prompt on it, and nothing written to the agent's
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
-  and, in that same turn (it greets the person only once all of it is started, as a sentence
-  in between ends a cheap model's turn), open two teammates with `open_agent` on the lead's own harness and its cheapest
-  model, at its lowest effort as above, each with its task as the message (the Sculptor shows
-  `model/hero.gltf`, asks the person "Who is your game's hero?", tells the lead the answer and
-  reshapes the model in a worktree on `hero`; the Score fixer fixes `src/score.js` and the
-  README's "Known bug" in a worktree on `fix-score` and shows its changes), and, where `page` is
+  and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
+  Sci-fi, Modern) and "The kind" (RPG, Shooter, Strategy), own words allowed (dismissed, it takes
+  Fantasy and RPG). With the answer it names the game's three models (the player, an enemy, one
+  more) and, in that one turn (a sentence in between ends a cheap model's turn), opens two
+  teammates with `open_agent` on the lead's own harness and its cheapest model, at its lowest
+  effort as above, each with its task as the message, the picks and the names written in for the
+  task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
+  three models in a worktree on `models`, shows the first as soon as it exists, asks the person
+  one thing about their look, then makes the other two; the Builder writes the game in `src/` in
+  a worktree on `game`, loading the models by name, shows its changes, asks the person one thing
+  it should get next and makes that change; each tells the lead when done), and, where `page` is
   true, `open_terminal` the dev server's command (`node dev.mjs <port>`, say, which the person
-  approves in the app's usual dialog) and `show` its page; later the lead opens a worktree on
-  `game` and sets `src/config.js` once the Sculptor names the hero, and answers an agent that
-  isn't its teammate (the artist) about the game. What each agent is told of the shell follows
-  its harness (`shellRule`, in the lead's script, both tasks, the artist's brief and the
-  folder's note): Claude Code and Antigravity, which read and write files with tools of their
-  own, run no shell command; Codex, which reads files only through its shell, uses it to read
+  approves in the app's usual dialog) and `show` its page. No agent runs git. The texts are tuned
+  on Codex (its `*-luna`, low effort) alone; the other harnesses run them untuned. What each
+  agent is told of the shell follows its harness (`shellRule`, in the lead's script, both tasks
+  and the folder's note): Claude Code, Antigravity and opencode, which read and write files with
+  tools of their own, run no shell command; Codex, which reads files only through its shell, uses it to read
   files and for nothing else (probed 2026-11-22, 0.171.0: told to run none, its agents couldn't
   read the files they were to change). A
   teammate the lead opens in the folder starts with the same write flags as the lead, for that
   launch only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
   command line carries them right after the model). Only the run's lead opens agents in the
-  tour's folder: every other terminal there, a teammate or the artist, has its `open_agent`
+  tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
   refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team.
   `removed` names the projects it removed. A second run while one is being readied is a
   `CONFLICT`, as is an agent Novadeck isn't connected to. An agent whose cheapest model can't be
@@ -2467,25 +2475,25 @@ one from an earlier runner.
 - `tour.brief({ terminalId })` rings the lead's script (composed of the run last readied) to the
   agent in the terminal, as Novadeck's notice, for every harness: the doorbell delivers it once
   the agent's prompt shows and its MCP tools are listed. It records the terminal as the run's
-  lead. Its delivery's note frames it as the agent's task (the one notice that is, with the
-  artist's), and its text keeps its quotes and angle brackets (escaped as every message's is),
+  lead. Its delivery's note frames it as the agent's task (the one notice that is), and its text keeps its quotes and angle brackets (escaped as every message's is),
   whole: it is under the 8 KB a delivery prints. A terminal whose agent hasn't shown yet, or
   that isn't in the tour's folder, is a `CONFLICT`, as is a runner that has readied no run; the
   client asks once it has bound.
-- `tour.artist({ terminalId })` rings the artist's brief to the agent in the terminal, as
-  Novadeck's notice, as `tour.brief` rings the lead's. The artist is an agent on no team that
-  the client starts in a new terminal of the tour's project with the run's `command`; its brief
-  (framed as a task, under 8 KB) has it describe itself as "Cover artist", find the lead with
-  `agents`, ask it what the game is, open a worktree on `cover` once answered, draw
-  `art/cover.svg`, `show` it and tell the lead. Refused as `tour.brief` is, and as a `CONFLICT`
-  where the run has no lead yet, the terminal is the lead or has a lead, or the run's artist is
-  another terminal. The terminal counts as the run's artist only once the ring went through, so a
-  terminal whose agent hasn't shown can be asked again; asked again after that it rings nothing.
-  `tour.nudge` works for it as for the lead.
+- `tour.artist({ terminalId })` is always a `CONFLICT` ("The tour has no artist."): the story
+  has no artist any more, and the procedure stays for a client that still asks.
 - `tour.keep()` is the person keeping the project. The client calls it by itself when the tour's
   story ends (the closing card shows), so a finished tour is never wiped by the next one, and
-  again if the person presses the card's button: it is idempotent. For the run's folder it writes
-  the project's note back to `AGENTS.md` and clears its `skip-worktree` bit (`releaseSandbox`),
+  again if the person presses the card's button: it is idempotent. For the run's folder it first
+  brings the team's work home (`bringHome`, `tour/repo.ts`), with no agent running git: each
+  other worktree's files that it changed since it parted from the folder (as the dev server
+  counts them: differing from that commit, or untracked and not ignored) are laid over the
+  folder, the newest copy of each where several changed one (the folder's own among them where
+  it changed it too), as the dev server picks what to serve; a file a worktree removed stays.
+  Where that changes anything, it is committed on `main` as "The team's game" by "Novadeck tour"
+  (as the first commit is, while the tour's files are still kept out of it), and each worktree
+  is then moved to that commit (`reset --hard`), so it holds nothing main doesn't and its work
+  reads as merged in the Worktrees panel. So the folder holds the game the page last showed, and
+  "Keep building" starts from it. Then it writes the project's note back to `AGENTS.md` and clears its `skip-worktree` bit (`releaseSandbox`),
   takes the tour's two lines out of `.git/info/exclude` (so a `.claude/settings.json` the person
   adds later isn't ignored), removes the tour's `.claude/settings.json` (and `.claude` if then
   empty) and, last, the marker (`keepTourFolder`; the marker going last means a failure midway can

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { Permits, permitMs, Quotes, quotedIn, ringMs, standingMs } from "./permits.js"
+import { Declines, Permits, permitMs, Quotes, quotedIn, ringMs, standingMs } from "./permits.js"
 
 describe("permits", () => {
   it("cover one terminal's target, standing for twelve hours unused", () => {
@@ -197,5 +197,104 @@ describe("the quote ring", () => {
     quotes.record("a", "s1", "ship it now")
     quotes.record("a", "s2", "after clear")
     expect(quotes.prompts("a")).toEqual(["after clear"])
+  })
+})
+
+describe("a reply to an ask", () => {
+  it("is taken whole at any length, word for word with case and punctuation aside", () => {
+    const quotes = new Quotes()
+    quotes.record("t", "s", "Yes.", true)
+    quotes.record("t", "s", "sure", false)
+    expect(quotes.said("t", "yes")).toBe("Yes.")
+    expect(quotes.said("t", "YES!")).toBe("Yes.")
+    // A one-word prompt that answered no ask needs two words.
+    expect(quotes.said("t", "sure")).toBeUndefined()
+    // Part of a longer reply is a quote of two words or more, never one.
+    quotes.record("t", "s", "yes, merge it", true)
+    expect(quotes.said("t", "yes")).toBe("Yes.")
+    expect(quotes.said("t", "merge it")).toBe("merge it")
+    quotes.record("t", "s", "do it now", true)
+    expect(quotes.said("t", "do")).toBeUndefined()
+  })
+})
+
+describe("declines", () => {
+  it("hold a key declined until the person types in that terminal, and bar the words before it", () => {
+    let now = 100
+    const quotes = new Quotes(() => now)
+    const declines = new Declines(quotes)
+    quotes.record("t", "s", "merge it please")
+    now += 10
+    declines.decline("t", ["k"])
+    expect(declines.declined("t", "k")).toBe(true)
+    expect(declines.declined("t", "other")).toBe(false)
+    expect(declines.declined("u", "k")).toBe(false)
+    // A prompt in another terminal doesn't lift it.
+    now += 10
+    quotes.record("u", "s", "hello there")
+    expect(declines.declined("t", "k")).toBe(true)
+    now += 10
+    quotes.record("t", "s", "hello again")
+    expect(declines.declined("t", "k")).toBe(false)
+    expect(quotes.said("t", "merge it", declines.since("t", ["k"]))).toBeUndefined()
+    expect(quotes.said("t", "hello again", declines.since("t", ["k"]))).toBe("hello again")
+    expect(declines.since("t", ["other"])).toBe(Number.NEGATIVE_INFINITY)
+  })
+
+  it("lift on the same words typed again, never mistaking them for the earlier prompt", () => {
+    let now = 0
+    const quotes = new Quotes(() => now)
+    const declines = new Declines(quotes, () => "s1")
+    quotes.record("t", "s1", "yes", false, now, 1)
+    now += 10
+    declines.decline("t", ["k"])
+    expect(declines.declined("t", "k")).toBe(true)
+    // "yes" again, in reply to a new ask: another turn, another prompt.
+    now += 10
+    quotes.record("t", "s1", "yes", true, now, 2)
+    expect(declines.declined("t", "k")).toBe(false)
+    expect(quotes.said("t", "yes", declines.since("t", ["k"]))).toBe("yes")
+    // The old prompt wasn't made a reply, nor moved to the new time.
+    expect(quotes.said("t", "yes", Number.NEGATIVE_INFINITY)).toBe("yes")
+    // The same turn reported twice (a hook and a transcript) is still one prompt.
+    quotes.record("t", "s1", "yes", true, now, 2)
+    expect(quotes.prompts("t")).toEqual(["yes", "yes"])
+  })
+
+  it("count a prompt by when it was submitted, however late it was reported", () => {
+    let now = 100
+    const quotes = new Quotes(() => now)
+    const declines = new Declines(quotes)
+    // Queued before the Deny, reported after it (Codex, Antigravity): not typed since.
+    now = 200
+    declines.decline("t", ["k"])
+    now = 210
+    quotes.record("t", "s", "go ahead and merge it", false, 150, 5)
+    expect(declines.declined("t", "k")).toBe(true)
+    expect(quotes.said("t", "merge it", declines.since("t", ["k"]))).toBeUndefined()
+    // Submitted after the Deny, reported later still: it lifts it, and can be quoted.
+    now = 400
+    quotes.record("t", "s", "now merge it", false, 300, 6)
+    expect(declines.declined("t", "k")).toBe(false)
+    expect(quotes.said("t", "merge it", declines.since("t", ["k"]))).toBe("merge it")
+  })
+
+  it("end with the agent session, the terminal's close and the gate switched off", () => {
+    let session: string | undefined = "a"
+    const quotes = new Quotes()
+    const declines = new Declines(quotes, () => session)
+    declines.decline("t", ["k"])
+    declines.decline("u", ["k"])
+    declines.decline("v", ["k"])
+    expect(declines.declined("t", "k")).toBe(true)
+    session = "b"
+    expect(declines.declined("t", "k")).toBe(false)
+    session = "a"
+    expect(declines.declined("t", "k")).toBe(false)
+    session = undefined
+    declines.forget("u")
+    expect(declines.declined("u", "k")).toBe(false)
+    declines.clear()
+    expect(declines.declined("v", "k")).toBe(false)
   })
 })

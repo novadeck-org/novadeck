@@ -37,9 +37,9 @@ export const TourClosingCard = ({
         <h3 className="tour-caption-line tour-closing-line">It's yours now.</h3>
       </div>
       <p className="tour-caption-note">
-        The game stays in this project, and the next tour starts a fresh one. Tell your agent what
-        to build next. It runs on the cheap model the tour picked: switch models in its terminal for
-        bigger work.
+        The team's game is committed in this project, and the next tour starts a fresh one. Tell
+        your agent what to build next. It runs on the cheap model the tour picked: switch models in
+        its terminal for bigger work.
       </p>
       {keepError !== null && (
         <p role="alert" className="tour-caption-note">

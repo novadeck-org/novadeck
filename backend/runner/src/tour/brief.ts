@@ -1,7 +1,7 @@
 import type { Effort } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
-import { tourArtistMark, tourBriefMark } from "../messaging/messages.js"
+import { tourBriefMark } from "../messaging/messages.js"
 
 /**
  * What the tour's agents are told. The tour folder's own instruction files, which every harness
@@ -10,38 +10,36 @@ import { tourArtistMark, tourBriefMark } from "../messaging/messages.js"
  * and a cheap model follows a script it loads over the message that is its task. The lead's
  * script (`tourBrief`) is sent to it by the doorbell, as Novadeck's first notice to it, for
  * every harness (`Tour.brief`); its two teammates' tasks are the messages it sends them
- * (`sculptorTask`, `fixerTask`, inside the lead's script); the artist, an agent on no team
- * that the tour starts beside them, is rung `artistBrief` by the runner (`Tour.artist`).
+ * (`modellerTask`, `builderTask`, inside the lead's script), with the person's picks and the
+ * models' names written in by the lead.
  *
- * The story they play, in the seed project (`seed.ts`): a small browser game whose hero is a 3D
- * model. The lead opens a sculptor and a score fixer, and asks to run the game's dev server,
- * whose page it shows. The sculptor shows the model, asks the person who the hero is, tells the
- * lead, and sculpts it; the lead names the game after it. The fixer fixes the score and shows
- * its changes. The artist finds the lead by itself, asks what the game is, and draws its cover.
- * Each writes in a worktree of its own, and the dev server lays them all over the page.
+ * The story they play, in the seed project (`seed.ts`), a blank start for a browser game: the
+ * lead asks the person which game to make (a world and a kind), then opens a modeller and a
+ * builder and asks to run the game's dev server, whose page it shows. The modeller makes the
+ * game's three models (glTF, in `models/`) and shows them; the builder writes the game in `src/`
+ * to load them by name and shows its changes. Each puts one question of its own to the person.
+ * Each writes in a worktree of its own, and the dev server lays them all over the page; once
+ * the person keeps the project, the runner brings the work home (`bringHome`).
+ *
+ * Tuned on Codex (Luna, low effort) alone, on the owner's word: the other harnesses run the same
+ * texts untuned.
  */
 
 /** What the tour rings its agent where it has gone quiet at a step (`tour.nudge`). */
 export const nudgeLine =
   "Novadeck's tour is waiting on you: look at what you've done so far and carry on from the next step of the tour brief Novadeck sent you. Don't redo a step."
 
-/** The seed's files the agents' tasks name. Changing one is changing the task that names it. */
-export const heroFile = "model/hero.gltf"
-export const heroGuide = "model/README.md"
-export const scoreFile = "src/score.js"
-export const configFile = "src/config.js"
-export const coverFile = "art/cover.svg"
+/** The seed's places the agents' tasks name. Changing one is changing the task that names it. */
+export const modelsGuide = "models/README.md"
+export const gameEntry = "src/main.js"
 
-/** The branches the agents' worktrees are on, by who opens each. */
-export const branches = {
-  lead: "game",
-  sculptor: "hero",
-  fixer: "fix-score",
-  artist: "cover",
-} as const
+/** The branches the teammates' worktrees are on. */
+export const branches = { modeller: "models", builder: "game" } as const
 
-/** The hero where the person dismissed the sculptor's question. */
-export const defaultHero = "a rocket"
+/** What the lead's sheet offers, and what it takes where the person dismissed it. */
+export const worlds = ["Fantasy", "Sci-fi", "Modern"] as const
+export const kinds = ["RPG", "Shooter", "Strategy"] as const
+export const defaultPicks = { world: "Fantasy", kind: "RPG" } as const
 
 /** A teammate the lead opens: the agent, and the model and effort it runs on. */
 export type Teammate = {
@@ -88,85 +86,74 @@ export const shellRule = (agent: AgentName): string =>
 
 // What every agent's task says of how to work.
 const manners = (agent: AgentName): string =>
-  `${shellRule(agent)} Never call \`open_agent\`, and never read anything in vendor/. Never use the person's name. Be quick: do each step at once, with no prose before a tool call.`
+  `${shellRule(agent)} Never call \`open_agent\` or run git, never read vendor/, never use the person's name. Do each step at once, with no prose before a tool call.`
+
+// What a teammate's task says of its team, the picks and the models, which the lead fills in:
+// each [[name]] is a value the lead writes in before it sends the task.
+const picks = (lead: string): string => `${lead} leads you. This repo is a blank browser game
+(README.md). The person picked a [[world]] [[kind]] game. Its characters, enemies and units are
+glTF models in models/: [[one]].gltf (the player), [[two]].gltf (an enemy) and [[three]].gltf.`
+
+// The tools a teammate is told to load.
+const tools = `If Novadeck's tools (\`describe\`, \`open_worktree\`, \`show\`, \`ask\`, \`send\`) are
+deferred, load them first.`
+
+// A teammate's one question to the person, then the wait for the answer.
+const question = (
+  about: string,
+): string => `Call \`ask\` once: one short question about ${about}, yours to
+   choose, as subject, a one-line body, shape {"type":"options","options":[{"label":"..."},
+   {"label":"..."}]} with two or three answers. End your turn with one
+   sentence: the answer comes as a message.`
+
+// What a teammate does with the person's answer.
+const answer = "The answer is their pick or their own words; dismissed, you decide."
 
 /**
- * The sculptor's task, the message its lead sends it: it shows the hero's model, asks the
- * person who the hero is, tells the lead, and sculpts it in a worktree of its own. `lead` is
- * the lead's handle, the one address `send` takes (never a terminal id).
+ * The modeller's task, the message its lead sends it: the game's three models, in a worktree of
+ * its own, the first shown as soon as it exists, with one question to the person about them.
+ * `lead` is the lead's handle, the one address `send` takes (never a terminal id).
  */
-export const sculptorTask = (
+export const modellerTask = (
   lead: string,
   agent: AgentName,
-): string => `You are Sculptor, a teammate in Novadeck's tour. ${lead} leads you. This repo is a small
-browser game whose hero is a 3D model, ${heroFile}: for now a ball and a box.
-Your tools include Novadeck's \`describe\`, \`open_worktree\`, \`show\`, \`ask\` and \`send\`: if they're
-deferred, load them first. ${manners(agent)}
-1. Call \`describe\` with title "Sculptor" and summary "Sculpts the game's hero".
-2. Call \`open_worktree\` with branch "${branches.sculptor}". Its result names the worktree's folder. Work
-   only there, by absolute path, never in the copy in your own folder.
-3. Call \`show\` with \`file\` {"path": "<that folder>/${heroFile}"} and \`open\` true.
-4. Call \`ask\` with subject "Who is your game's hero?", body "I'll sculpt it in 3D out of simple
-   shapes. Pick one, or type anything you like." and shape
-   {"type":"options","options":[{"label":"A rocket"},{"label":"A robot"},{"label":"A cat"}],"recommend":null}.
-5. End your turn with one short sentence. Don't wait in a loop: the answer arrives by itself as
-   a message.
-6. When the answer arrives, it names the option the person picked, or holds their own words:
-   that is the hero. If you are told the person dismissed the question, the hero is
-   ${defaultHero}. A message with no words in it isn't their answer: wait for the one that is.
-   Call \`send\` with \`to\` "${lead}" (its handle, never an id) and \`text\` "The hero is <the hero>."
-7. Read ${heroGuide} in your worktree, then sculpt the hero as it says, in ${heroFile} in
-   your worktree.
-8. Call \`send\` with \`to\` "${lead}" and \`text\` "Hero sculpted."
-9. Say in one short sentence at most that it is done, and stop.
-Only the person's answer moves you on to step 6.`
+): string => `You are Modeller, a teammate in Novadeck's tour. ${picks(lead)} You make them;
+Builder writes the game. ${tools} ${manners(agent)}
+1. Call \`describe\` with title "Modeller" and summary "Makes the game's 3D models".
+2. Call \`open_worktree\` with branch "${branches.modeller}". Its result names the worktree's folder.
+   Work only there, by absolute path, never in your own folder.
+3. Read ${modelsGuide} there: it says how to make a model.
+4. Make models/[[one]].gltf there as it says. Then call
+   \`show\` with \`file\` {"path": "<that file's absolute path>"} and \`open\` true.
+5. ${question("the look of the game's characters")}
+6. ${answer} Make models/[[two]].gltf and
+   models/[[three]].gltf, following it, and \`show\` each as in step 4.
+7. Call \`send\` with \`to\` "${lead}" (its handle, never an id) and \`text\` "Models done."
+8. Say in one short sentence at most that it is done, and stop.`
 
-/** The fixer's task, the message its lead sends it: the score bug, in a worktree of its own. */
-export const fixerTask = (
+/**
+ * The builder's task, the message its lead sends it: the game, in `src/` of a worktree of its
+ * own, loading the modeller's models by name, its changes shown, then one question to the
+ * person and that change made.
+ */
+export const builderTask = (
   lead: string,
   agent: AgentName,
-): string => `You are Score fixer, a teammate in Novadeck's tour. ${lead} leads you. This repo is a small
-browser game with one bug: its score never goes up (README.md, "Known bug"). Your tools include
-Novadeck's \`describe\`, \`open_worktree\`, \`show\` and \`send\`: if they're deferred, load them
-first. ${manners(agent)}
-1. Call \`describe\` with title "Score fixer" and summary "Fixes the game's score".
-2. Call \`open_worktree\` with branch "${branches.fixer}". Its result names the worktree's folder.
-   Work only there, by absolute path, never in the copy in your own folder.
-3. In ${scoreFile} in your worktree, make \`add\` return the new score:
-   \`export const add = (score, sinceLast) => score + points(sinceLast)\`. Change nothing else.
-4. In README.md in your worktree, remove the "Known bug" section, its heading and all.
+): string => `You are Builder, a teammate in Novadeck's tour. ${picks(lead)} Modeller
+makes them; until one exists, the placeholder shows in its place. ${tools} ${manners(agent)}
+1. Call \`describe\` with title "Builder" and summary "Writes the game".
+2. Call \`open_worktree\` with branch "${branches.builder}". Its result names the worktree's folder.
+   Work only there, by absolute path, never in your own folder.
+3. Read README.md, ${gameEntry} and src/models.js there.
+4. Write the game in src/ there, from ${gameEntry}, in one go: small and playable, its goal
+   and controls on screen, a way to win or lose. Load the three models with src/models.js
+   (\`loadModel("[[one]]")\` in 3D, \`modelPicture("[[one]]")\` in 2D). Under 400 lines.
+   Change nothing in models/, index.html or vendor/.
 5. Call \`show\` with \`changes\` {"path": "<your worktree's folder>"} and \`open\` true.
-6. Call \`send\` with \`to\` "${lead}" (its handle, never an id) and \`text\` "Score fixed."
-7. Say in one short sentence at most that it is done, and stop.`
-
-/**
- * The artist's brief, rung to an agent the tour starts on no team: its task is the game's
- * cover, and it knows neither the game nor who leads it, so it finds the lead among the
- * project's agents and asks. Nothing in it names the lead: `agents` does.
- */
-export const artistBrief = (agent: AgentName): string =>
-  `${tourArtistMark} The person started you in Novadeck's tour, on your own: you are on no team. This
-repo is a small browser game that other agents are building right now. Your task is its cover,
-the picture behind its start screen. You don't know yet what the game is about: whoever leads
-its team does. Your tools include Novadeck's \`describe\`, \`agents\`, \`send\`, \`open_worktree\`
-and \`show\`: if they're deferred, load them first. ${manners(agent)}
-1. Call \`describe\` with title "Cover artist" and summary "Draws the game's cover".
-2. Call \`agents\`. Find the terminal that leads the game's team, and call \`send\` with \`to\` its
-   handle (never an id) and \`text\` "I'm drawing the cover for your game. What is it called, and
-   who is its hero?" Then end your turn with one short sentence. Don't wait in a loop: the answer
-   arrives by itself as a message.
-3. When the lead answers, call \`open_worktree\` with branch "${branches.artist}". Its result names the
-   worktree's folder. Work only there, by absolute path.
-4. Write ${coverFile} in your worktree: the backdrop for that game, with no text and no
-   hero in it (the game draws its hero and its name over it). An SVG with viewBox "0 0 960 540":
-   the neon city at night where that hero lives. A dark gradient for the sky that fills it,
-   then ten to twenty simple shapes (rects for towers, small bright rects, circles and lines for
-   windows, signs and rain) in two or three neon colours, most of them near the edges, the
-   middle left calm. Under 1500 characters.
-5. Call \`show\` with \`file\` {"path": "<that file's absolute path>"} and \`open\` true.
-6. Call \`send\` with \`to\` the lead's handle and \`text\` "The cover is done: ${coverFile} in my worktree."
-7. Say in one short sentence at most that it is done, and stop.
-Only the lead's answer moves you on to step 3.`
+6. ${question("what the game should get next")}
+7. ${answer} Make that change in src/ there, and \`show\` the changes again.
+8. Call \`send\` with \`to\` "${lead}" (its handle, never an id) and \`text\` "Game done."
+9. Say in one short sentence at most that it is done, and stop.`
 
 /**
  * The folder's own instructions, which every harness loads: the sandbox's rules and no role or
@@ -174,10 +161,10 @@ Only the lead's answer moves you on to step 3.`
  */
 export const sandboxNote = (agent: AgentName): string => `# Novadeck tour sandbox
 
-Novadeck made this repo for its tour: a small browser game (README.md). Work only in this repo
-and in its worktrees under ~/.novadeck/worktrees: don't read or change anything outside them,
-don't install anything, and never read anything in vendor/ (two large libraries).
-${shellRule(agent)} If you were given a task, do only that task.
+Novadeck made this repo for its tour: a blank start for a small browser game (README.md). Work
+only in this repo and in its worktrees under ~/.novadeck/worktrees: don't read or change
+anything outside them, don't install anything, never run git, and never read anything in
+vendor/ (two large libraries). ${shellRule(agent)} If you were given a task, do only that task.
 `
 
 /**
@@ -186,36 +173,46 @@ ${shellRule(agent)} If you were given a task, do only that task.
  */
 export const projectNote = `# Your game
 
-A small browser game, set in a neon city at night, that Novadeck's tour started: see README.md
-for what is where and how to run it. Phaser runs the game and three.js draws its hero, a 3D
-model (model/README.md says how to reshape it). Both libraries are files in vendor/, which is
-large: don't read it.
-
-The tour's agents each worked in a git worktree of their own, on the branches ${Object.values(branches).join(", ")}:
-none of that is merged into main yet. The dev server (dev.mjs, dev.py) lays every worktree's
-changed files over this folder, so the page shows all of it. Merge the branches when the person
-asks for it.
+A small browser game that Novadeck's tour built: see README.md for what is where and how to run
+it. Every character, enemy and unit is a glTF model in models/ (${modelsGuide} says how to make
+one), and the game is in src/. three.js and Phaser are files in vendor/, which is large: don't
+read it.
 `
 
 /** What the lead is rung once the tour is over and the project is the person's: the tour's rules no longer hold. */
-export const keptLine = `Novadeck's tour is over, and this project is now the person's to build on. The tour brief's rules and steps no longer apply: from now on work as you normally would, on whatever the person asks. The tour's work is on the branches ${Object.values(branches).join(", ")}, each in its own worktree and none merged into main yet; the dev server shows them all laid over the folder.`
+export const keptLine = `Novadeck's tour is over, and this project is now the person's to build on. The tour brief's rules and steps no longer apply: from now on work as you normally would, on whatever the person asks. Novadeck committed the team's work on main in this folder ("The team's game"), and its worktrees hold nothing more.`
 
 // The lead's steps for the dev server, where this computer can run one.
 const servingSteps = ({ command, url }: Serving): string => `
-4. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". The person
-   is asked to approve it. Only now greet the person, in two short sentences: you are their
-   own agent and your team is at work making this game theirs; the game starts once they
-   approve the command. Then end your turn.
-5. When Novadeck tells you the person approved it, call \`show\` with \`page\`
+6. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". Then say
+   in one sentence that the team is at work and the game starts once the person approves it,
+   and end your turn.
+7. When Novadeck tells you the person approved it, call \`show\` with \`page\`
    {"url": "${url}"} and \`open\` true, and end your turn. If they declined, carry on without it.`
 
 const noServingSteps = `
-4. Only now greet the person, in one sentence: you are their own agent, and your team is at
-   work making this game theirs. Then end your turn.`
+6. Say in one sentence that the team is at work, and end your turn.`
 
-// The call the lead's first turn runs to: said by name, as the tasks it quotes number their own steps.
-const firstTurnEnds = (serving: Serving | null): string =>
+// The call the lead's second turn runs to: said by name, as the tasks it quotes number their own steps.
+const secondTurnEnds = (serving: Serving | null): string =>
   serving ? "`open_terminal`" : "the second `open_agent`"
+
+// The lead's sheet: the world and the kind, as `ask`'s questions shape.
+const sheet = JSON.stringify({
+  type: "questions",
+  questions: [
+    {
+      header: "The world",
+      question: "Where is your game set?",
+      options: worlds.map((label) => ({ label })),
+    },
+    {
+      header: "The kind",
+      question: "What kind of game is it?",
+      options: kinds.map((label) => ({ label })),
+    },
+  ],
+})
 
 /** The lead's script for a run, with its teammates' model. */
 export const tourBrief = ({
@@ -223,59 +220,55 @@ export const tourBrief = ({
   serving,
   lead,
 }: LeadFacts): string => `${tourBriefMark} The person just started the tour to see how Novadeck
-works with agents. This is your task now: you lead the agents in a sandbox repo Novadeck made
-for the tour. It holds a small browser game (README.md), set in a neon city at night, whose
-hero is a 3D model, for now a ball and a box. Your team makes the game the person's own.
+works with agents. Your task now: lead a small team that builds the browser game the person
+chooses, in a sandbox repo Novadeck made for the tour: a blank start (README.md).
 
 ## Rules
 
-- ${shellRule(mate.agent)} Install nothing, and never read anything in vendor/.
-- Be quick: the person is watching. Say nothing beyond the sentences the steps ask for; don't
-  explain, plan or confirm in prose.
-- Novadeck's tools (\`describe\`, \`open_agent\`, \`open_terminal\`, \`open_worktree\`, \`show\`,
-  \`send\`) need no permission of yours to call; if they're deferred, load all six in one go
-  before step 1.
-- Never answer a teammate's question to the person yourself: the person chooses.
-- Call \`show\` only where a step says to: the pane beside you is the person's.
-- Never use the person's name, even if you know it: say "you".
-- Do the steps in order. Don't skip one and don't add one. Your first turn runs from
-  \`describe\` to ${firstTurnEnds(serving)}: write no sentence and don't end your turn
-  before you have called it, as a teammate you opened needs nothing more from you. Never poll
-  or wait in a loop: messages arrive by themselves, and each wakes you.
+- ${shellRule(mate.agent)} Install nothing, run no git, never read vendor/.
+- Be quick: the person is watching. Say only the sentences the steps ask for.
+- Novadeck's tools (\`describe\`, \`ask\`, \`open_agent\`, \`open_terminal\`, \`show\`, \`send\`)
+  need no permission of yours; if they're deferred, load all six in one go before step 1.
+- Write no code and make no model: your teammates do. Never answer their questions to the
+  person. Call \`show\` only where a step says to. Never use the person's name: say "you".
+- Do the steps in order, none skipped or added. Never poll or wait in a loop: messages wake you.
 
 ## Steps
 
-1. Call \`describe\` with the title "Game lead" and the summary "Leads the team building the game".
-2. Call \`open_agent\` with ${openArguments(mate)}, and as \`message\` exactly this text:
+1. Call \`describe\` with the title "Game lead" and the summary "Leads the team building your game".
+2. Call \`ask\` with subject "Which game shall we build?", body "Pick a world and a kind, or
+   write your own: a small team of agents builds it." and shape
+   ${sheet}
+   Then say in one sentence that you're their own agent and your team builds what they pick,
+   and end your turn.
+3. The answer arrives as a message: the world and the kind picked, or the person's own words.
+   If they dismissed it, take ${defaultPicks.world} and ${defaultPicks.kind}. A message with no words isn't the answer.
+   Pick three lowercase one-word names for the game's models, fitting the picks: the player,
+   an enemy, and one thing more (a unit, a building or an item), as knight, goblin, chest.
+   From here your turn runs to ${secondTurnEnds(serving)}: no sentence, no end of turn before it.
+4. Call \`open_agent\` with ${openArguments(mate)}, and as \`message\` this text, each [[name]]
+   replaced: [[world]] and [[kind]] by the picks, [[one]], [[two]], [[three]] by the names:
 
-${indent(sculptorTask(lead, mate.agent))}
+${indent(modellerTask(lead, mate.agent))}
 
-3. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` exactly this text:
+5. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` this text, replaced
+   the same way:
 
-${indent(fixerTask(lead, mate.agent))}
+${indent(builderTask(lead, mate.agent))}
 ${serving ? servingSteps(serving) : noServingSteps}
 
 ## Messages
 
 After that, whenever a message arrives, do what fits it, then end your turn:
 
-- Your sculptor tells you who the hero is: call \`open_worktree\` with branch "${branches.lead}", then
-  in ${configFile} in that worktree, by its absolute path (never the copy in your own
-  folder), set \`title\` (a short name for a game with that hero in a neon city at night, two
-  or three words), \`hero\` (who it is), \`pickup\` (one emoji that hero would grab in that
-  city), \`background\` (the night sky: one very dark colour) and \`accent\` (the city's neon:
-  one bright, saturated colour that fits the hero), both as #rrggbb. Change nothing else.
-- An agent that isn't your teammate asks about the game: answer it with \`send\` to its handle:
-  the game's title, who its hero is, that it is set in a neon city at night, and that its
-  picture belongs in ${coverFile}. If your
-  sculptor hasn't told you the hero yet, answer once it has.
-- Anything else, as a teammate's word that it is done: say one short sentence at most.
+- A teammate asks you something: answer it with \`send\` to its handle, in one sentence.
+- A teammate is done: one short sentence at most; once both are, say the game is ready to play.
 `
 
 const indent = (text: string): string =>
   text
     .split("\n")
-    .map((line) => `   > ${line}`)
+    .map((line) => `> ${line}`)
     .join("\n")
 
 /**

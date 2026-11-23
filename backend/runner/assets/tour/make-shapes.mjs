@@ -1,7 +1,7 @@
-// Regenerates seed/model/shapes.bin: a unit box, sphere, cone and cylinder (each 1 wide,
-// centred), with normals, which seed/model/hero.gltf's accessors point into. Run it as
+// Regenerates seed/models/shapes.bin: a unit box, sphere, cone and cylinder (each 1 wide,
+// centred), with normals, which seed/models/placeholder.gltf's accessors point into. Run it as
 // `node make-shapes.mjs` and keep its printed layout true to the accessors in the seed's
-// model/README.md and hero.gltf. It lives beside the seed, not in it: the tour never writes it.
+// models/README.md and placeholder.gltf. It lives beside the seed, not in it: the tour never writes it.
 import { writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 const shapes = []
@@ -132,7 +132,7 @@ for (const [, { p, n, i }] of shapes) {
   add(new Uint16Array(i), 34963, "SCALAR", 5123, {})
 }
 writeFileSync(
-  fileURLToPath(new URL("seed/model/shapes.bin", import.meta.url)),
+  fileURLToPath(new URL("seed/models/shapes.bin", import.meta.url)),
   Buffer.concat(chunks),
 )
 console.log("bytes", offset)

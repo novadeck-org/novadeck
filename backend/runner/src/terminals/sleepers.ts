@@ -18,6 +18,7 @@ import type { Record } from "./record.js"
 import { wakeRefusal, type Claims } from "./resumes.js"
 import type { ListedTerminal } from "./saved-terminals.js"
 import type { Saves } from "./saving.js"
+import { StoreTurns } from "./store-turns.js"
 import { savedSummaryOf, type AgentSummary } from "./summary.js"
 
 /**
@@ -82,6 +83,8 @@ export type Sleeper = PeerRecord & { readonly summary: AgentSummary }
  * which of them are being woken, and what a wake asks of the terminal it starts.
  */
 export class Sleepers {
+  /** The turns of Novadeck's own stops and wakes of an agent that shares its store. */
+  readonly turns = new StoreTurns()
   /** The terminals whose wake is wanted: their `create` is expected, so they are not asleep. */
   private readonly wakes = new Set<string>()
   /** Wakes being judged, so each is asked once; settles with why it was refused, if it was. */
