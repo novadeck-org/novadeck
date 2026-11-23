@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -23,6 +24,43 @@ describe("the folders an e2e launch adds", () => {
     // A relative folder is the launch's own, within its folder.
     expect(addedOutside(["--add-dir=sub"], root)).toEqual([])
   })
+
+  // Antigravity's Windows shim gives its hooks' folder by its short name, with its drive letter
+  // in lower case, as cmd reads it unquoted and Antigravity sorts it last.
+  it.runIf(process.platform === "win32")(
+    "takes a folder named by its short name, or its drive in another case, as the one it names",
+    () => {
+      const sandbox = mkdtempSync(join(tmpdir(), "added folders "))
+      // A path by its short name, as cmd gives it.
+      const shortOf = (path: string): string =>
+        spawnSync(
+          process.env.COMSPEC ?? "cmd.exe",
+          ["/d", "/s", "/c", `"for %I in ("${path}") do @echo %~sI"`],
+          { encoding: "utf8", windowsVerbatimArguments: true },
+        ).stdout.trim()
+      try {
+        const folder = join(sandbox, "data shell", "agy-hooks")
+        mkdirSync(folder, { recursive: true })
+        const short = shortOf(folder)
+        const lower = (path: string) => path.replace(/^[A-Z]:/, (drive) => drive.toLowerCase())
+        for (const given of [short, lower(short), lower(folder)])
+          expect(addedOutside([`--add-dir=${given}`], sandbox), given).toEqual([])
+        expect(
+          addedOutside([`--add-dir=${lower(short)}`], join(sandbox, "data shell", "x")),
+        ).toHaveLength(1)
+        // A sandbox named by its short name, as a temporary folder may be, holds a folder in it
+        // that isn't there yet, given by its long name.
+        expect(addedOutside([`--add-dir=${join(sandbox, "not yet")}`], shortOf(sandbox))).toEqual(
+          [],
+        )
+        expect(addedOutside([`--add-dir=${join(shortOf(sandbox), "not yet")}`], sandbox)).toEqual(
+          [],
+        )
+      } finally {
+        rmSync(sandbox, { recursive: true, force: true })
+      }
+    },
+  )
 
   it("reads Claude Code's --settings, a file's or a JSON text's", () => {
     const folder = mkdtempSync(join(tmpdir(), "added-folders-"))

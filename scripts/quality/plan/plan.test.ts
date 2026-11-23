@@ -339,7 +339,9 @@ describe("the packages a system's test job runs", () => {
         "--dry=json",
         ...filters(testedFolders(undefined, workspace)),
       ],
-      { cwd: root, encoding: "utf8" },
+      // turbo's dry run lists every task of every package: past execFileSync's 1 MiB default
+      // once the workspace passed some forty packages (spawnSync ENOBUFS).
+      { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
     )
     const chosen = new Set((JSON.parse(out) as { packages: string[] }).packages)
     const names = (list: readonly Package[]) => list.map(({ manifest }) => manifest.name as string)

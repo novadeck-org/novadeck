@@ -1692,14 +1692,25 @@ only gates them (`backend/runner/src/shipping/`).
   or ref move (merge, pull, fetch into a branch, rebase, cherry-pick, reset, `branch -f`/`-m`/`-c`,
   `update-ref`, `checkout -B`, `switch -C`) whose target is not the agent's own branch: the branch
   checked out in a worktree its terminal owns in this repository (matched by its git common
-  dir), pushed to the same name, and not any worktree's home. Tags, `--all`, `--mirror`,
-  deletes, refspec globs, `gh release create` and mutating `gh api` calls (any non-GET
-  `-X`/`--method`, attached or spaced, or a field or input) can't be read and are refused. The reader
+  dir), pushed to the same name, and not any worktree's home. What the gate doesn't model it
+  leaves alone, so the harness decides: tag pushes, `--all`, `--mirror`, `--tags`,
+  `--follow-tags`, `--delete`, `--prune`, refspec globs, remote deletes, non-branch refs, an option
+  a git verb's table lacks, `gh release create` and writing `gh api` calls; and `gh pr merge
+  --disable-auto`, which ships nothing. Two things stay denied: a `gh pr create` or `gh pr merge`
+  it can't read (Antigravity's allow rules would run them unasked), and an unmodelled part that
+  comes with a guarded target (`git push --tags origin HEAD:release`: push them separately).
+  `gh pr merge --auto` and `--admin` have targets of their own (`pr-auto`, `pr-admin`; the latter
+  single use): an auto permit also covers the plain merge of that PR, a plain merge's never
+  covers `--auto`, and `--admin` with `--auto` is refused as gh refuses it. The repository of a
+  `gh pr` command is the one gh acts on, resolved with no network: `-R`, `GH_REPO` or a PR's
+  URL, else the `remote.<name>.gh-resolved` of the clone, else its only remote, else the command
+  is denied with "name the repository with -R" (`request_permit`'s `repo` names it); a push's is
+  its remote's own. The reader
   (`reader.ts`, on the shell reader `words.ts`) reads the raw command, never the pruned report.
 - **Exact allows only.** A command is allowed only when every segment is a shipping action a
   live permit covers, plus `cd X` or `git -C X`. A tail (`&& …`, `;`, a pipe, `&`), an expansion,
   a wrapper (`bash -c`, `eval`, `env`), `git -c …`, env prefixes, `--receive-pack`/`--exec`, a
-  custom merge strategy and `gh pr merge --admin` are refused, with the reason in the deny.
+  custom merge strategy are refused, with the reason in the deny.
   So is a redirect into a file (only `2>&1`, `>/dev/null`, `2>/dev/null` and input pass), and any
   flag a `gh pr` verb's table doesn't list: each verb has its own (`-r` is `--rebase` in `merge`,
   `--reviewer` in `create`), attached values (`-Rowner/repo`, `-Bmain`, `--base=x`) are read, and a
@@ -1747,7 +1758,9 @@ only gates them (`backend/runner/src/shipping/`).
   passes (nothing of the person's is written), allow or deny. Codex: PreToolUse widened to the
   shell tools, and PermissionRequest. A Codex permitted command in a restricted sandbox is denied
   once with "run it again asking for escalation; Novadeck approves it", remembered five minutes,
-  and the PermissionRequest allows the escalation. An answer's effects (a single-use permit
+  and the PermissionRequest allows the escalation; where its approval policy is `never` it can't
+  escalate, so the gate stays silent (the sandbox decides) and tells the agent once per session,
+  in a Novadeck notice. An answer's effects (a single-use permit
   used, the escalation remembered) happen only once the relay acknowledges it printed the answer
   (a lease, as messages have), and an answer not ready by the hook's own deadline is no answer,
   so the harness decides. A Codex command's `workdir` is the folder it runs in; a payload with no
@@ -1764,8 +1777,9 @@ only gates them (`backend/runner/src/shipping/`).
   push with no dialog; the first probe's "ask shows the dialog" used glob rules, which never
   match). So the hook answers `{"decision":"deny","reason":…}` for a command no permit covers (the
   same text as the others'), and is silent for any other. Three parts handle a permitted command:
-  - **Rules for two commands.** While the gate is on (and not where cmd prints, nor for a launch
-    with `--dangerously-skip-permissions`) the shim passes `command(gh pr create)` and
+  - **Rules for two commands.** While the gate is on (where cmd prints, only with the folder of the
+    PreToolUse hook the shim adds; never for a launch with `--dangerously-skip-permissions`) the
+    shim passes `command(gh pr create)` and
     `command(gh pr merge)` (`shippingRules`, `harnesses/agy/src/shim.ts`) with the person's own
     allow list in its per-launch `--settings`. The reader always reads these as shipping, so the
     hook's deny (unpermitted, or a tail: "run it on its own") or silence (permitted) decides every
@@ -1806,9 +1820,12 @@ only gates them (`backend/runner/src/shipping/`).
     `ask` (the dialog waits for the person) except for the two rule shapes. Only a `run_command`
     hook takes the 4 s ask limit. The person's own `command(...)` allow rules (read from
     `~/.gemini/antigravity-cli/settings.json`, never written) leave a command to them. Where
-    Windows' cmd prints before hooks no PreToolUse is registered, no rule is written, and the gate
-    doesn't cover Antigravity there (no refusal, no `request_permit`, no approval text); the person
-    gets its own dialog, as before the gate.
+    Windows' cmd prints before hooks, the plugin registers no PreToolUse, and Novadeck's terminals
+    get it from the shim instead ("Antigravity on a machine whose cmd AutoRun prints" below), so
+    the gate covers Antigravity there as anywhere. Only where that can't be put in place (no
+    pass-through, or no folder for the hook) is no rule written, and the gate doesn't cover it (no
+    refusal, no `request_permit`, no approval text); the person gets its own dialog, as before the
+    gate.
 - **opencode** (`harnesses/opencode/src/plugin-source.ts`, `shipping/service.ts`). It runs no hook
   commands: Novadeck's plugin reports a `bash` call (`tool.execute.before`, reported as PreToolUse
   with `tool_name` `bash`, `call_id` and `tool_input.command`/`workdir`) and, while the gate is on
@@ -1986,17 +2003,38 @@ pass-through passes any other command on unchanged, AutoRun included).
   Novadeck terminal whose `NOVADECK_SHIMS` names `agy`. It finds the real `agy` on PATH only.
   Where the pass-through is missing or differs, the shim leaves PATH alone and only passes
   `--add-dir` and the allow rules (see harness-adapters.md, "Shims and the worktrees folder").
-- **What stays.** The plugin is global, so under `cmdPrints` its PreToolUse hook stays
-  unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
-  person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are
-  registered and, in Novadeck's terminals, run through the pass-through, so messages arrive.
-  Without PreToolUse Novadeck learns of no call before it runs, so there: an `ask_question`
-  never reaches the Inbox, a confirmation can't be answered from the chat (its dialog is
-  matched to the call PreToolUse named), a Stop lists no job or timer, and the loop guard sees
-  no calls, so it counts every turn as work.
-  Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
-  The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
-  a printing AutoRun.
+- **PreToolUse, per launch.** The plugin is global, so under `cmdPrints` its PreToolUse hook
+  stays unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through
+  the person's own `cmd`, where the AutoRun's output breaks the answer and would let a tool run
+  unasked. Its other hooks are registered and, in Novadeck's terminals, run through the
+  pass-through, so messages arrive. PreToolUse reaches Novadeck's terminals alone another way:
+  with the pass-through in place, `installShellFiles` writes it, the same handler the plugin
+  registers elsewhere (`launchHooks`, `harnesses/agy/src/plugin.ts`), as a workspace's
+  `.agents/hooks.json` in `<shell dir>\agy-hooks`, a folder holding nothing else
+  (`Machine.hooksFolder`, by its short name), and the shim adds that folder to the session with
+  `--add-dir`. Antigravity loads a workspace's hooks beside its plugins' and runs them through the
+  same `cmd`, so the pass-through gives this one `/d` too. `--settings`, which the shim already
+  passes, takes no hooks (`unknown setting "hooks"`), and no other per-launch route was found
+  (probed 2026-11-23, 1.5.13, `e2e/probes/agy-settings-hooks.e2e.ts`). Two things follow from the
+  folder being a workspace:
+  - Antigravity orders workspaces by path, case and all, and names the first as the "Command
+    Working Directory" it tells the model, where a `run_command` without a `Cwd` runs. So the
+    shim adds the folder with its drive letter in lower case (`c:\…`) and starts Antigravity in
+    its own folder with the drive letter in upper case (through the drive's root: a `cd` to the
+    same folder keeps its case; `setlocal` gives the terminal its folder back), which sorts the
+    terminal's folder first. The decoder leaves the added folder out of `workspacePaths`, as it
+    does the worktrees folder (harness-adapters.md, "Shims and the worktrees folder").
+  - The agent may write in it, as in any workspace; the next start writes the hook again.
+    Then the gate covers Antigravity (`agyPreToolUse`) and the shim passes its rules. Where the
+    pass-through or the folder is missing, neither is, as before: without PreToolUse Novadeck
+    learns of no call before it runs, so there an `ask_question` never reaches the Inbox, a
+    confirmation can't be answered from the chat (its dialog is matched to the call PreToolUse
+    named), a Stop lists no job or timer, and the loop guard sees no calls, so it counts every turn
+    as work. Where cmd was too slow to tell (`shell.cmd-slow`), all of this is the same, as the
+    pass-through skips a slow AutoRun as it does a printing one.
+    Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
+    The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
+    a printing AutoRun, and checks their PreToolUse went through the pass-through.
 
 ### A turn the runner's stop cut short
 

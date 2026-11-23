@@ -3,6 +3,9 @@ import { vi } from "vitest"
 
 import { harnesses } from "../../harnesses/registry.js"
 import type { Answer } from "../../messaging/hook-answers.js"
+import { Cards } from "../../shipping/cards.js"
+import { declare, type DeclareDeps } from "../../shipping/declare.js"
+import { Declines, Permits, Quotes } from "../../shipping/permits.js"
 import { describe, expect, it } from "../../test.js"
 import { RootFolder } from "../../worktrees/root-folder.js"
 import {
@@ -531,11 +534,11 @@ describe("what the shipping gate takes as the person's words", () => {
     } as HarnessEvent,
   ]
   const setup = (typed: string | undefined, over: object = {}, enabled = true) => {
-    const rings: [string, string, string][] = []
+    const rings: [string, string, string, boolean, number | undefined, number | undefined][] = []
     const reports = new Reports({
       shipping: () => ({
         enabled: () => enabled,
-        quotes: { record: (...ring: [string, string, string]) => rings.push(ring) },
+        quotes: { record: (...ring: (typeof rings)[number]) => rings.push(ring) },
       }),
       messaging: () => ({ personSaid: () => typed }),
       records: () => new Map([["T", { bound: { binding: { sessionId: "root" } } }]]),
@@ -553,7 +556,21 @@ describe("what the shipping gate takes as the person's words", () => {
   it("is a root turn the person began, with their own words", () => {
     const { reports, record, rings } = setup("merge it please")
     reports.quoted(record, events())
-    expect(rings).toEqual([["T", "root", "merge it please"]])
+    expect(rings).toEqual([["T", "root", "merge it please", false, undefined, 1]])
+    // A prompt that answered one of the agent's open asks is a reply.
+    reports.quoted(record, events("root", "prompt"), {
+      submittedAt: 0,
+      fixed: false,
+      answers: () => true,
+    })
+    // It is kept with when the person submitted it, not when it was reported.
+    expect(rings.at(-1)).toEqual(["T", "root", "merge it please", true, 0, 1])
+  })
+
+  it("is never an Inbox button's fixed line, an option label and not the person's words", () => {
+    const { reports, record, rings } = setup("continue")
+    reports.quoted(record, events(), { submittedAt: 0, fixed: true, answers: () => false })
+    expect(rings).toEqual([])
   })
 
   it("is never a doorbell's or a delivery's turn, which the delivery doesn't call the person's", () => {
@@ -584,7 +601,7 @@ describe("what the shipping gate takes as the person's words", () => {
   it("takes an Inbox reply from the person's own record of it, never from an option label", () => {
     const { reports, rings } = setup(undefined)
     reports.quotedReply("T", "yes, merge it now")
-    expect(rings).toEqual([["T", "root", "yes, merge it now"]])
+    expect(rings).toEqual([["T", "root", "yes, merge it now", true]])
     // A choice with no words of their own says nothing: its label is the agent's.
     reports.quotedReply("T", "")
     expect(rings).toHaveLength(1)
@@ -592,5 +609,61 @@ describe("what the shipping gate takes as the person's words", () => {
     const off = setup(undefined, {}, false)
     off.reports.quotedReply("T", "merge it now")
     expect(off.rings).toEqual([])
+  })
+
+  it("takes the person's typed reply to an ask whole, so request_permit's `said` gives the permit", async () => {
+    const quotes = new Quotes()
+    const permits = new Permits()
+    const reports = new Reports({
+      shipping: () => ({ enabled: () => true, quotes }),
+      messaging: () => ({ personSaid: () => "Yes." }),
+      records: () => new Map([["T", { bound: { binding: { sessionId: "root" } } }]]),
+    } as unknown as ReportsHost)
+    const record = {
+      summary: { id: "T" },
+      root: { agent: "claude", sessionId: "root", instance: "1", source: "status-line" },
+      work: undefined,
+      openerCommand: null,
+    } as unknown as Record
+    // The agent asked "Push to release?"; the person's prompt answers it, as delivery reads it.
+    reports.quoted(record, events(), { submittedAt: Date.now(), fixed: false, answers: () => true })
+    const deps: DeclareDeps = {
+      lookups: () => ({
+        branch: async () => "feat/x",
+        upstream: async () => undefined,
+        repo: async () => "r/app",
+        ghRepo: async () => "r/app",
+        remoteRepo: async () => "r/app",
+        tag: async () => false,
+        own: async () => false,
+      }),
+      permits,
+      quotes,
+      declines: new Declines(quotes),
+      cards: new Cards(),
+      pull: async () => undefined,
+      valid: async () => true,
+      defaultBranch: async () => "main",
+      agentOf: () => "claude",
+    }
+    const answer = await declare(deps, "T", "/w", {
+      action: "push",
+      target: "release",
+      said: "yes",
+    })
+    expect(answer).toMatchObject({ ok: true, state: "permitted" })
+    expect(permits.covering("T", "push:r/app:origin/release")?.source).toEqual({
+      type: "quote",
+      quote: "Yes.",
+    })
+    // The same word typed with no ask open needs two words.
+    const bare = new Quotes()
+    const alone = new Reports({
+      shipping: () => ({ enabled: () => true, quotes: bare }),
+      messaging: () => ({ personSaid: () => "yes" }),
+      records: () => new Map([["T", { bound: { binding: { sessionId: "root" } } }]]),
+    } as unknown as ReportsHost)
+    alone.quoted(record, events(), { submittedAt: Date.now(), fixed: false, answers: () => false })
+    expect(bare.said("T", "yes")).toBeUndefined()
   })
 })

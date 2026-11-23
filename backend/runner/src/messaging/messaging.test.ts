@@ -3548,13 +3548,15 @@ describe("the person's prompt, told to the asks", () => {
     const withdraw = vi.fn<Person["withdraw"]>()
     const prompted = vi.fn<Person["prompted"]>()
     const dismissed = vi.fn<Person["dismissed"]>(() => undefined)
+    const submitted = vi.fn<NonNullable<Person["submitted"]>>()
     return {
       counts,
       withdrawable,
       withdraw,
       prompted,
       dismissed,
-      person: { counts, withdrawable, withdraw, prompted, dismissed } satisfies Person,
+      submitted,
+      person: { counts, withdrawable, withdraw, prompted, dismissed, submitted } satisfies Person,
     }
   }
   type Run = ReturnType<typeof create> & {
@@ -3637,6 +3639,26 @@ describe("the person's prompt, told to the asks", () => {
       expect(told.withdraw).toHaveBeenCalledTimes(1)
       nextHook(run, told)
       expect(told.withdrawable).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "tells whether $name's prompt answered an open ask, for the shipping gate's reply mark",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const answers = who()
+      await start(run, "prompt", answers.person)
+      // The question is handed over, and asked only when the caller wants it.
+      const asked = answers.withdrawable.mock.calls.length
+      expect(answers.submitted.mock.lastCall?.[0]).toMatchObject({ fixed: false })
+      expect(answers.submitted.mock.lastCall?.[0]?.answers()).toBe(true)
+      expect(answers.withdrawable).toHaveBeenCalledTimes(asked + 1)
+      const other = setup(agent)
+      other.messaging.keys(other.terminal, ["enter"], false)
+      const none = who()
+      await start(other, "prompt", { ...none.person, withdrawable: () => undefined })
+      expect(none.submitted.mock.lastCall?.[0]?.answers()).toBe(false)
     },
   )
 
@@ -3896,6 +3918,9 @@ describe("the person's prompt, told to the asks", () => {
       run.messaging.automatic(run.terminal, "let's talk it over")
       expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
       expect(told.withdrawable).not.toHaveBeenCalled()
+      // The gate is told it was a fixed line, which is never the person's words, nor a reply.
+      expect(told.submitted.mock.lastCall?.[0]).toMatchObject({ fixed: true })
+      expect(told.submitted.mock.lastCall?.[0]?.answers()).toBe(false)
       run.stop(run.terminal, run.bound)
       // The mark was spent by that turn: the same words, typed now, are the person's.
       run.messaging.keys(run.terminal, ["enter"], false)

@@ -1,5 +1,6 @@
 import { join } from "node:path"
 
+import { launchHooks } from "@novadeck/harness-agy/plugin"
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 import { manifest } from "@novadeck/harness-core/plugin"
@@ -62,6 +63,13 @@ export type ShellPaths = ShellScriptPaths & {
    */
   readonly agyCmdDir: string
   readonly agyCmd: string
+  /**
+   * The folder holding Antigravity's PreToolUse hook alone, as a workspace's `.agents/hooks.json`
+   * (Windows), which its shim adds to sessions in Novadeck's terminals where cmd's AutoRun prints
+   * and its global plugin registers none (`Machine.hooksFolder`). Anything there is the agent's to
+   * write, so it holds nothing else.
+   */
+  readonly agyHooks: string
   /** What an agent's commands load to capture their output (Linux and macOS; see capture.ts). */
   readonly capture: CapturePaths
   /**
@@ -87,6 +95,7 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   relayConfig: join(directory, "relay.json"),
   agyCmdDir: join(directory, "agy-cmd"),
   agyCmd: join(directory, "agy-cmd", "cmd.exe"),
+  agyHooks: join(directory, "agy-hooks"),
   capture: capturePaths(directory),
   pwshDir: join(directory, "pwsh"),
 })
@@ -328,6 +337,10 @@ export const shellFiles = (
         // plugin's copy, which starts the MCP server through cmd and this launcher.
         file(paths.mcp, cmdLauncher(paths, "mcp", "MCP server launcher")),
         ...bin,
+        // Antigravity's PreToolUse, where only its shim can give it, in Novadeck's terminals.
+        ...(machine.cmdShimDir !== undefined && machine.hooksFolder !== undefined
+          ? [file(join(paths.agyHooks, launchHooks.path), launchHooks.content(platform))]
+          : []),
       ]
     : [
         ...common,

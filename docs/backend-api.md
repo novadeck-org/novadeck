@@ -1066,7 +1066,9 @@ changed. Only connecting an agent (below) installs anything elsewhere:
 - On Windows, where cmd's AutoRun prints: `agy-cmd/cmd.exe`, Novadeck's `cmd.exe` pass-through
   (`novadeck-cmd.exe`, built with the relay and checked byte for byte against the shipped one),
   which `agy.cmd` puts first on `PATH` for Antigravity alone, so its `cmd /c` hooks run the real cmd
-  with `/d` and the AutoRun's output stays out of their answers. See
+  with `/d` and the AutoRun's output stays out of their answers; and with it
+  `agy-hooks/.agents/hooks.json`, Antigravity's PreToolUse hook, which its global plugin leaves out
+  there and `agy.cmd` adds to sessions in Novadeck's terminals as a workspace (`--add-dir`). See
   [agent messaging](agent-messaging.md).
 - `hook` (`hook.cmd`), a launcher that starts Novadeck's relay (`novadeck-relay`, a
   small native program copied in beside it; see `backend/relay`), so the hook needs

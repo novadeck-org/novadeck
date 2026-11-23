@@ -36,6 +36,20 @@ export type Person = {
   readonly dismissed: (agent: AgentName, sessionId: string) => string | undefined
   /** Notes that the person's own prompt started a root turn at `at`, whether it counts or not. */
   readonly prompted: (at: number) => void
+  /**
+   * Tells how the person's prompt just noted was submitted, for the shipping gate's ring of what
+   * they typed: when, whether it was an Inbox button's fixed line (an option label, never their
+   * words), and, asked only if the caller wants it, whether it answers one of the session's open
+   * asks (the asks `withdrawable` finds), which the gate takes whole as a reply.
+   */
+  readonly submitted?: (turn: Submission) => void
+}
+
+/** How the person's prompt was submitted (see `Person.submitted`). */
+export type Submission = {
+  readonly submittedAt: number
+  readonly fixed: boolean
+  readonly answers: () => boolean
 }
 
 /** The asks a prompt of the person takes out of the Inbox, and the notice of it (`withdrawn`). */
@@ -124,12 +138,17 @@ export class Withdrawals {
     const text = prompt?.epoch === delivery.epoch ? prompt.text : undefined
     // A turn of Inbox lines alone spends their marks and withdraws nothing; the person's own
     // words spend none, and wait for the lines still to come.
-    if (text !== undefined && this.spendAutomatic(live, text)) return
+    const fixed = text !== undefined && this.spendAutomatic(live, text)
     // A queued prompt's time unknown: nothing says which asks it came after.
-    if (before.queuedAt === null) return
+    const unknown = before.queuedAt === null
     const submittedAt = Math.min(start.startedAt, before.queuedAt ?? start.startedAt)
-    if (person.counts({ submittedAt, prompt: text }))
-      live.withdrawing = { submittedAt, epoch: delivery.epoch }
+    const counted = !fixed && !unknown && person.counts({ submittedAt, prompt: text })
+    person.submitted?.({
+      submittedAt,
+      fixed,
+      answers: () => counted && person.withdrawable(submittedAt) !== undefined,
+    })
+    if (counted) live.withdrawing = { submittedAt, epoch: delivery.epoch }
   }
 
   /**

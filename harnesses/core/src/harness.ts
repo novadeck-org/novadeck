@@ -666,6 +666,12 @@ export type Machine = {
    */
   readonly cmdShimDir?: string
   /**
+   * Set beside `cmdShimDir`: a folder of Novadeck's own (a path cmd reads unquoted) holding the
+   * hooks a global plugin can't register where cmd prints, as Antigravity's PreToolUse, which
+   * its shim adds to the session (`--add-dir`), so they run in Novadeck's terminals alone.
+   */
+  readonly hooksFolder?: string
+  /**
    * Where agents' worktrees live (`~/.novadeck/worktrees`). A shim gives it to its harness
    * while the folder exists, as `--add-dir` or, for Claude Code, in the settings it passes, so
    * the harness may write there under the person's own permission mode.

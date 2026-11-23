@@ -58,6 +58,24 @@ const handler = (platform: NodeJS.Platform, event: string) => ({
   timeout: hookSeconds(platform),
 })
 
+// Its hook before every tool, a matcher group as tool events take.
+const preToolUse = (platform: NodeJS.Platform) => ({
+  PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
+})
+
+/**
+ * Where the plugin registers no PreToolUse (Windows, where cmd prints: see `files`), the hook
+ * Novadeck's terminals get per launch instead: a folder of Novadeck's own holding this file at
+ * `.agents/hooks.json`, which the shim adds to the session with `--add-dir` (`makeCmdShim`).
+ * Antigravity loads a workspace's `.agents/hooks.json` as it loads a plugin's, beside it, and runs
+ * it through the same `cmd`, which the shim has be Novadeck's pass-through there; `--settings`
+ * takes no hooks ("unknown setting", probed 2026-11-23, 1.5.13, e2e/probes/agy-settings-hooks).
+ */
+export const launchHooks = {
+  path: join(".agents", "hooks.json"),
+  content: (platform: NodeJS.Platform): string => json({ novadeck: preToolUse(platform) }),
+}
+
 /** Whether Antigravity holds an installed copy of Novadeck's plugin. */
 export const connected: Harness["connected"] = (install) =>
   access(join(installedPlugin(install), "plugin.json")).then(
@@ -91,9 +109,11 @@ export const disconnect: Harness["disconnect"] = [
  * once (never held: a waiting hook hides a confirmation's dialog), so the person's own
  * policy still decides every call; it reports ask_question, which shows a dialog no
  * status line tells, and the call a confirmation is about. Where cmd prints something
- * of its own first (`Machine.cmdPrints`), no answer can be read as JSON, and every tool
- * would run unasked, so PreToolUse goes unregistered: Antigravity's own policy asks, as
- * it does without Novadeck (probed 2026-10-11, 1.2.14, ahead of an "ask" too).
+ * of its own first (`Machine.cmdPrints`), no answer can be read as JSON outside Novadeck's
+ * terminals, and every tool would run unasked there, so the plugin, which is global, registers
+ * no PreToolUse: Antigravity's own policy asks, as it does without Novadeck (probed
+ * 2026-10-11, 1.2.14, ahead of an "ask" too). Novadeck's terminals get it from the shim
+ * instead (`launchHooks`).
  */
 export const files: Harness["files"] = (platform, launchers, machine = {}) => [
   { path: "plugin.json", content: json({ name: pluginId }) },
@@ -113,9 +133,7 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
         // that write files (one writes artifacts, which names a plan), the one that asks
         // the person, and the two that may outlive their turn, whose PostToolUse ends the
         // job or the wake-up a Stop lists (see `pending` in call-memory.ts).
-        ...(!(platform === "win32" && machine.cmdPrints) && {
-          PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
-        }),
+        ...(!(platform === "win32" && machine.cmdPrints) && preToolUse(platform)),
         PostToolUse: [...writers, "ask_question", ...outliving].map((matcher) => ({
           matcher,
           hooks: [handler(platform, "PostToolUse")],
