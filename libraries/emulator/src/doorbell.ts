@@ -230,7 +230,15 @@ export type Doorbell = {
   /** What each drawn entry covers now: the cells under it as the buffer holds them. */
   readonly audit: () => {
     key: string
-    pieces: { row: number; x: number; width: number; text: string; sig: string }[]
+    pieces: {
+      row: number
+      x: number
+      width: number
+      text: string
+      sig: string
+      /** What the drawing says over the row, its pad as blanks. */
+      says: string
+    }[]
   }[]
   readonly stats: DoorbellStats
   readonly dispose: () => void
@@ -615,12 +623,18 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     const buf = buffer()
     const base = buf.baseY + buf.cursorY
     const left = hit.rows[0]!.x
-    const pads = hit.rows.map((row) => (hit.kind === "block" ? Math.max(0, left - row.x) : 0))
+    const pads = hit.rows.map((row) => Math.max(0, left - row.x))
     const widest = Math.min(...hit.rows.map((row, index) => row.width - pads[index]!))
+    // A ring's tag a narrow terminal wrapped takes several rows, which its messages wrap over as a
+    // block's do (with no rules to say), rather than one row cut short over rows left blank. Rows
+    // fewer than its messages say them on one row, as a ring row does.
+    const wraps = hit.rows.length > 1 && hit.parts.length <= hit.rows.length
     const lines =
       hit.kind === "block"
         ? layoutBlock(hit.parts, widest, hit.rows.length, { extra: hit.more })
-        : [layoutRing(hit.parts, hit.rows[0]!.width, hit.more)]
+        : wraps
+          ? layoutBlock(hit.parts, widest, hit.rows.length, { rules: false, extra: hit.more })
+          : [layoutRing(hit.parts, hit.rows[0]!.width, hit.more)]
     const pieces: Piece[] = []
     hit.rows.forEach((row, index) => {
       const marker = terminal.registerMarker(row.y - base)
@@ -877,6 +891,9 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
               .getLine(piece.marker.line)
               ?.translateToString(false, piece.x, piece.x + piece.width) ?? "",
           sig: piece.sig,
+          says: piece.runs
+            ? " ".repeat(piece.pad) + piece.runs.map((run) => run.text).join("")
+            : "",
         })),
       })),
     stats,
