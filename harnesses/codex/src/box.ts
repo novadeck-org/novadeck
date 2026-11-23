@@ -192,7 +192,7 @@ export const box: BoxProfile = {
   textWidth: (columns) => columns - 3,
   // Its root's pane, or its sidebar's, is narrower than the screen while both show.
   columns: (screen) => paneOf(screen).screen.columns,
-  stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
+  stands: (text) => /\[(?:Pasted Content \d+|Image\s+#\d+|image\b)/.test(text),
   // A pasted image file's path alone becomes `[Image #N]` in its box, ahead of the words (probed
   // 2026-11-08, 0.165.0, e2e/probes/image-box.e2e.ts); Ctrl-U empties the box.
   images: placeholderImages(read),

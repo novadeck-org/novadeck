@@ -143,6 +143,8 @@ describe("taking what Claude Code has queued", () => {
 
   it("says an image in the box stands for more than its text", () => {
     expect(box.stands("[Image #1] look at this")).toBe(true)
+    // One the box wrapped after the words is the person's image all the same.
+    expect(box.stands("why some stretch farther? [Image\n  #1]")).toBe(true)
     expect(box.stands("look at this")).toBe(false)
   })
 

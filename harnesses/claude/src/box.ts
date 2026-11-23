@@ -327,7 +327,7 @@ export const box: BoxProfile = {
   // On 80 and 120 columns a word reaches 76 and 116, and one too long for a row fills the rest
   // of the row it starts on, to the same column (fixtures/leftover.probe.json).
   textWidth: (columns) => columns - 4,
-  stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
+  stands: (text) => /\[(?:Pasted text #\d+|Image\s+#\d+)/.test(text),
   // A pasted image file's path alone becomes `[Image #N]` in its box, ahead of the words (probed
   // 2026-11-08, 2.1.316, e2e/probes/image-box.e2e.ts); Ctrl-U empties the box.
   images: placeholderImages(read),

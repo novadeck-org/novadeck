@@ -44,6 +44,12 @@ describe("settledBy", () => {
     expect(settledBy(waiting(text), "first\nthird")).toEqual([])
   })
 
+  it("settles a prompt whose own words break a placeholder's look across lines", () => {
+    // A record isn't wrapped: `[Image` and `#1]` on two lines are the person's words.
+    const prompt = [{ ref: "r", lines: ["see [Image", "#1] ok"], images: 1 }]
+    expect(settledBy(prompt, "[Image #2] see [Image\n#1] ok")).toEqual(["r"])
+  })
+
   it("settles two sends an Antigravity item joined by a line break, in order", () => {
     expect(settledBy(waiting("one", "two"), "one\ntwo")).toEqual(["r0", "r1"])
   })
