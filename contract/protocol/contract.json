@@ -1,5 +1,5 @@
 {
-  "revision": 6,
+  "revision": 7,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -8551,7 +8551,7 @@
       "output": {"x-optional":true}
     },
     "settings.watch": {
-      "since": 3,
+      "since": 7,
       "input": {"x-optional":true},
       "yields": {
         "type": "object",
@@ -8599,7 +8599,7 @@
       }
     },
     "preferences.get": {
-      "since": 3,
+      "since": 7,
       "input": {"x-optional":true},
       "output": {
         "type": "object",
@@ -8619,7 +8619,7 @@
       }
     },
     "preferences.set": {
-      "since": 3,
+      "since": 7,
       "input": {
         "type": "object",
         "properties": {
@@ -8638,7 +8638,7 @@
       }
     },
     "preferences.watch": {
-      "since": 3,
+      "since": 7,
       "input": {"x-optional":true},
       "yields": {
         "type": "object",

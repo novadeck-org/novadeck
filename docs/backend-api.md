@@ -2266,13 +2266,13 @@ one from an earlier runner.
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
-  second for it). `settings.watch()` (revision 3) yields the settings as `get` reports them,
+  second for it). `settings.watch()` (revision 7) yields the settings as `get` reports them,
   then again each time any client changes them, so every device the person uses follows: the
   app shows each switch, the Inbox's order and its snoozes as another device left them, but a
   change of its own still under way stands until the runner answers it.
 
 - `preferences.get()`, `preferences.set({ key, value, writer })` and `preferences.watch()`
-  (revision 3; see [Preferences](#preferences)) keep the person's own preferences, which follow
+  (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
   them from device to device.
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
