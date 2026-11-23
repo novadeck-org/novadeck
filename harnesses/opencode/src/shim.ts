@@ -288,12 +288,16 @@ if "%novadeck_arg:~0,1%"=="-" goto option
 if defined novadeck_seen goto option
 for %%c in (${commands.join(" ")}) do if "%novadeck_arg%"=="%%c" goto run
 set "novadeck_seen=1"
+rem Unquoted: each word keeps its own quotes, as the line cmd ran the shim with had them. Quoted,
+rem a value's own quotes would end the set's, and an angle bracket in it would be a redirection:
+rem the doorbell's launch prompt, a tag in quotes, left opencode without Novadeck's plugin on
+rem Windows (seen on CI, 2026-11-23).
 :option
-set "novadeck_args=%novadeck_args% %1"
+set novadeck_args=%novadeck_args% %1
 shift
 goto command
 :value
-set "novadeck_args=%novadeck_args% %1 %2"
+set novadeck_args=%novadeck_args% %1 %2
 shift
 shift
 goto command

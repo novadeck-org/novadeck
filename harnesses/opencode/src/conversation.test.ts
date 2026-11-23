@@ -64,7 +64,7 @@ describe("whether an opencode session still exists", () => {
     expect(await conversation(install(env), alive)).toBe("gone")
     expect(databasePath(install({ OPENCODE_DB: ":memory:" }))).toBeUndefined()
     expect(databasePath(install({ OPENCODE_DB: "x.db", XDG_DATA_HOME: "/d" }))).toBe(
-      "/d/opencode/x.db",
+      join("/d", "opencode", "x.db"),
     )
   })
 
