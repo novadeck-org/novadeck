@@ -96,7 +96,8 @@ export type TourSignals = {
   // Whether a teammate's work changes a file of the models, and whether one's changes the game.
   readonly changed: { readonly models: boolean; readonly game: boolean }
   // The items agents showed, by role: the id of the lead's page, the modeller's model and the
-  // builder's changes, each null until it is on that agent's bar.
+  // builder's changes, each null until it is on that agent's bar (the builder's once its work
+  // changes the game, as it is cast).
   readonly shown: {
     readonly page: ItemId | null
     readonly model: ItemId | null
@@ -311,15 +312,14 @@ export const tourSignals = (
       const mates = new Set(teammates.map(({ id }) => id))
       const items = project.history.flatMap(({ state }) => state.items)
       // The modeller is the teammate that showed a model or whose work changes the models; the
-      // builder another, by the changes it showed or its work on the game.
+      // builder another, whose work changes the game. Not by a `changes` item: every teammate has
+      // one on its bar as soon as its worktree opens, long before it has written anything.
       const modeller = teammates.find(
         ({ id }) =>
           shownOn(items, id, "model") !== null || changesIn(sources.works, id, modelsFolder),
       )?.id
       const builder = teammates.find(
-        ({ id }) =>
-          id !== modeller &&
-          (shownOn(items, id, "changes") !== null || changesIn(sources.works, id, gameFolder)),
+        ({ id }) => id !== modeller && changesIn(sources.works, id, gameFolder),
       )?.id
       const lead = terminalId
       const leads = new Set([lead])

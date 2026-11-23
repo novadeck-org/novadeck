@@ -357,7 +357,7 @@ describe("The tour's signals of the game story", () => {
     expect(by({}, shown).modeller).toBe("02")
   })
 
-  it("find the builder as another teammate, by its work on the game or its changes shown", () => {
+  it("find the builder as another teammate, by its work on the game, never by its changes alone", () => {
     const models = work("02", "models/hero.gltf")
     const roles = (parts: Parameters<typeof tourSignals>[2]) =>
       tourSignals(teamWorkspace(), "01", parts).roles
@@ -370,8 +370,17 @@ describe("The tour's signals of the game story", () => {
     expect(
       roles({ works: [work("02", "models/hero.gltf", "src/main.js")] }).builder,
     ).toBeUndefined()
-    const shown = withItems(teamWorkspace(), itemFixture("diff", "03", { kind: "changes" }))
-    expect(tourSignals(shown, "01").roles.builder).toBe("03")
+    // Every teammate's worktree shows its changes as it opens: that casts no one.
+    const shown = withItems(
+      teamWorkspace(),
+      itemFixture("diff", "03", { kind: "changes" }),
+      itemFixture("other", "02", { kind: "changes" }),
+    )
+    expect(tourSignals(shown, "01").roles.builder).toBeUndefined()
+    expect(tourSignals(shown, "01").shown.changes).toBeNull()
+    const built = tourSignals(shown, "01", { works: [work("03", "src/main.js")] })
+    expect(built.roles.builder).toBe("03")
+    expect(built.shown.changes).toBe("diff")
   })
 
   it("say which folders were changed, whichever teammate's work did", () => {
@@ -403,7 +412,8 @@ describe("The tour's signals of the game story", () => {
       // A model on the lead's bar is no one's.
       itemFixture("elsewhere", "01", { kind: "model" }),
     )
-    expect(tourSignals(workspace, "01").shown).toEqual({
+    const works = [work("03", "src/main.js")]
+    expect(tourSignals(workspace, "01", { works }).shown).toEqual({
       page: null,
       model: "model",
       changes: "diff",
@@ -429,7 +439,7 @@ describe("The tour's signals of the game story", () => {
         "01": { order: ["messages"], hidden: [], stack: ["messages"], open: true },
       },
     })
-    const open = tourSignals(workspace, "01").open
+    const open = tourSignals(workspace, "01", { works: [work("03", "src/main.js")] }).open
     expect(open).toMatchObject({ modeller: "model", lead: "messages", builder: null })
   })
 })

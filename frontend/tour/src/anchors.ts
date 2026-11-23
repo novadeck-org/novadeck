@@ -57,8 +57,9 @@ const paneOf = (
  * terminal's window (`lead`, `modeller`, `builder`) or, with `-pane`, its companion pane;
  * `terminal` the one the coach names (the lead's where it names none); `team` the windows of the
  * lead's teammates, not the terminals it opened for the game's server; `approve` the approval
- * dialog's button to allow; `asking-row` the Inbox row of the question waiting (a teammate's, or the lead's sheet); `answers` the
- * answers of the request sheet open now; `files` the Files panel.
+ * dialog's button to allow; `asking-row` the Inbox row of the question waiting (a teammate's,
+ * or the lead's sheet); `answers` the answers of the request sheet open now, on the page it
+ * shows; `files` the Files panel.
  */
 export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElement[] => {
   const { roles, terminalId, team, askingRow, open, tab } = where
@@ -85,8 +86,17 @@ export const targetElements = (target: TourTarget, where: TargetsOf): HTMLElemen
       return askingRow
         ? first(document, `[data-tour="inbox-card"][data-inbox-row="${CSS.escape(askingRow)}"]`)
         : []
-    case "answers":
-      return first(document, '[role="dialog"] [role="group"]:has(button)')
+    case "answers": {
+      // A sheet of several questions shows one page at a time: its answers there, else (a
+      // question of one page) its group of answers.
+      const paged = first(
+        document,
+        '[role="dialog"] [data-page][data-shown] :is([role="radiogroup"], [role="group"])',
+      )
+      return paged.length > 0
+        ? paged
+        : first(document, '[role="dialog"] [role="group"]:has(button)')
+    }
     case "files":
       return first(document, "#files-panel")
   }
