@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, realpathSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -489,5 +489,56 @@ describe("the record of permits", () => {
     } finally {
       useLogger(before)
     }
+  })
+})
+
+describe("the person's allow rules", () => {
+  // A session bound in the person's checkout, whose agent works in a worktree of it: its
+  // harness reads the project's rules where it started, and so does the gate.
+  const inWorktree = (agent: "claude" | "codex") => {
+    const home = join(dir, "home")
+    const worktree = join(dir, "wt")
+    sh(repo, "worktree", "add", "-q", "-b", "feat/x", worktree)
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+      ruleFiles: { env: {}, home },
+    })
+    const record = {
+      summary: { cwd: worktree },
+      bound: { binding: { agent, sessionId: "s", instance: null } },
+      agents: { [agent]: { sessionId: "s", seq: 1, cwd: repo } },
+    }
+    shipping.attach(new Map([["t", record as never]]), () => {})
+    const push = { event: "PreToolUse", command: "git push origin main", cwd: worktree } as const
+    return { shipping, worktree, push }
+  }
+  const write = (file: string, text: string) => {
+    mkdirSync(join(file, ".."), { recursive: true })
+    writeFileSync(file, text)
+  }
+  const claudeRule = JSON.stringify({ permissions: { allow: ["Bash(git push:*)"] } })
+
+  it("reads Claude Code's project rules where its session started, not where a command runs", async () => {
+    const { shipping, worktree, push } = inWorktree("claude")
+    // The person's rule in their checkout, which a worktree doesn't have: it counts there.
+    write(join(repo, ".claude", "settings.local.json"), claudeRule)
+    expect(await shipping.answer("t", "claude", push)).toBeUndefined()
+    // One only in the folder the command runs in counts for nothing, as for Claude Code.
+    rmSync(join(repo, ".claude"), { recursive: true })
+    write(join(worktree, ".claude", "settings.local.json"), claudeRule)
+    const denied = await shipping.answer("t", "claude", push)
+    expect(JSON.parse(denied!.stdout).hookSpecificOutput.permissionDecision).toBe("deny")
+  })
+
+  it("reads Codex's project rules where its session started, beside its home's", async () => {
+    const { shipping, push } = inWorktree("codex")
+    expect(await shipping.answer("t", "codex", push)).toBeDefined()
+    write(
+      join(repo, ".codex", "rules", "push.rules"),
+      'prefix_rule(pattern=["git", "push"], decision="allow")\n',
+    )
+    expect(await shipping.answer("t", "codex", push)).toBeUndefined()
   })
 })

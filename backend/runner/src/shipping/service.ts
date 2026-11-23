@@ -36,6 +36,8 @@ export type ShippingHost = {
   readonly owned: Owned
   /** Tells the agent in a terminal something, as a Novadeck notice; whether it was queued. */
   readonly notify: (terminalId: string, text: string) => boolean
+  /** Where the person's rule files are: the runner's own environment and home unless given. */
+  readonly ruleFiles?: { readonly env: NodeJS.ProcessEnv; readonly home: string }
 }
 
 // The tail of a rollout read for its latest turn context: a turn starts well within it.
@@ -157,8 +159,15 @@ export class Shipping {
     this.gate = new Gate({
       lookups: (terminalId) => gitLookups(terminalId, host.owned),
       permits: this.permits,
-      rules: (agent, cwd) =>
-        agent === "claude" ? claudeRules(cwd) : agent === "codex" ? codexRules() : agyRules(),
+      rules: (agent, terminalId, cwd) => {
+        const folder = this.sessionFolder(terminalId, agent) ?? cwd
+        const { env, home } = host.ruleFiles ?? {}
+        return agent === "claude"
+          ? claudeRules(folder, env, home)
+          : agent === "codex"
+            ? codexRules(folder, env, home)
+            : agyRules(home)
+      },
       turn: turnOf,
     })
     // Every permit is on record: who, what, where, on whose word, and when.
@@ -251,13 +260,13 @@ export class Shipping {
     )
   }
 
-  private records: ReadonlyMap<string, Pick<Record, "summary" | "bound">> = new Map()
+  private records: ReadonlyMap<string, Pick<Record, "summary" | "bound" | "agents">> = new Map()
 
   /**
    * Joins the runner's terminals: the folder each shell is in and the agent it runs, which the
    * gate reads, and what to publish when a terminal's open cards change.
    */
-  attach<R extends Pick<Record, "summary" | "bound">>(
+  attach<R extends Pick<Record, "summary" | "bound" | "agents">>(
     records: ReadonlyMap<string, R>,
     changed: (record: R) => void,
   ): void {
@@ -270,6 +279,16 @@ export class Shipping {
 
   private cwd(terminalId: string): string | undefined {
     return this.records.get(terminalId)?.summary.cwd
+  }
+
+  /**
+   * The folder the session `agent` holds in a terminal started in, where its harness reads its
+   * project's files: where it bound, which stays its folder whatever a later command `cd`s to.
+   */
+  private sessionFolder(terminalId: string, agent: AgentName): string | undefined {
+    const record = this.records.get(terminalId)
+    if (record?.bound?.binding.agent !== agent) return undefined
+    return record.agents[agent]?.cwd
   }
 
   private agentOf(terminalId: string): "claude" | "codex" | "agy" | undefined {
