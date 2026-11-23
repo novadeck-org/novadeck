@@ -57,6 +57,14 @@ export class ClientWindows {
     return best
   }
 
+  /**
+   * The client says which terminal its person uses, null for none, as a window does that loses
+   * their focus. Only a terminal counts as use: the window left is not the one used last.
+   */
+  active(client: string, terminalId: string | null): void {
+    if (terminalId !== null) this.touch(client)
+  }
+
   /** The client has gone. */
   release(client: string): void {
     this.clients.delete(client)

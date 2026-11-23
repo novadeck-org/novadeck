@@ -176,6 +176,8 @@ export type Deck = {
   readonly seen: ReturnType<typeof wire>["seen"]
   /** The runner's tour, as `tour.prepare` and `tour.brief` answer. */
   readonly tour: ReturnType<typeof wire>["tour"]
+  /** The windows the runner knows, as the router reports them (`showing`, `active`). */
+  readonly clients: ReturnType<typeof wire>["clients"]
   /** The id the deck's window controls its terminals by. */
   readonly owner: string
   /** The project's works, as `works.preview` reads them. */
@@ -630,6 +632,8 @@ type Runner = {
   readonly seen: ReturnType<typeof wire>["seen"]
   /** The terminals a window uses, which run at the app's priority; see `inUse`. */
   readonly activity: ReturnType<typeof wire>["activity"]
+  /** Which project each window shows and which was used last, as `terminals.showing` and `active` tell it. */
+  readonly clients: ReturnType<typeof wire>["clients"]
   /** Aborts as the runner closes, ending every watch of it. */
   readonly closing: AbortController
 }
@@ -710,6 +714,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       worktrees,
       seen,
       activity,
+      clients,
     } = wire({
       database: join(options.data, "workspace.sqlite"),
       uploads: join(options.data, "uploads"),
@@ -755,6 +760,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       worktrees,
       seen,
       activity,
+      clients,
       closing: new AbortController(),
     }
   }
@@ -1085,6 +1091,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   return {
     get terminals() {
       return runner.terminals
+    },
+    get clients() {
+      return runner.clients
     },
     get seen() {
       return runner.seen

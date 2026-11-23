@@ -205,3 +205,16 @@ describe("a client's use", () => {
     expect(clients.lastUsed(["a", "b"])).toBe("b")
   })
 })
+
+describe("a client saying which terminal it uses", () => {
+  it("counts only a terminal as use: none, as a window losing focus says, is not", () => {
+    const clients = windows()
+    clients.report("a", "p1")
+    clients.report("b", "p1")
+    clients.active("a", "t1")
+    clients.active("b", null)
+    expect(clients.lastUsed(["a", "b"])).toBe("a")
+    clients.active("b", "t1")
+    expect(clients.lastUsed(["a", "b"])).toBe("b")
+  })
+})
