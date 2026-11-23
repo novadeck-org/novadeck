@@ -4,6 +4,7 @@ import {
   runningSeats,
   sameSeats,
 } from "@novadeck/core/agents/account-usage"
+import { watchPerson } from "@novadeck/core/person"
 import type { TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { nextWaitingChange } from "@novadeck/core/terminals/waiting"
@@ -22,7 +23,11 @@ import {
 import { FeedbackButton } from "../feedback/FeedbackButton"
 import { FooterHelp } from "../shell/FooterHelp"
 import { nothingToCheck, restartCheck, riskKey } from "../shell/restart-check"
-import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
+import {
+  readSubscriptionOrder,
+  subscriptionOrder,
+  writeSubscriptionOrder,
+} from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter } from "../shell/WorkspaceFooter"
 import { programIcon } from "../terminals/processes/profiles"
@@ -198,7 +203,15 @@ export const FooterSection = memo((): React.JSX.Element => {
   useRenderAt(waitingChange)
   const seats = useWorkspaceState(runningSeats, sameSeats)
   // The order the person left the subscriptions in, kept for their next visit.
+  // The person's, so it follows another device's change (core's person.ts).
   const [order, setOrder] = useState(readSubscriptionOrder)
+  useEffect(
+    () =>
+      watchPerson((key) => {
+        if (key === subscriptionOrder.key) setOrder(readSubscriptionOrder())
+      }),
+    [],
+  )
   // The time windows are measured against, moved on as the soonest one resets, so it
   // drops out then though no agent reports anything new.
   const [now, setNow] = useState(Date.now)

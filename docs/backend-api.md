@@ -650,6 +650,45 @@ other change to the protocol. Agents' relays never use these credentials: they r
 runner over its local socket, each with its terminal's own token
 ([Relay protocol](#relay-protocol)).
 
+### Preferences
+
+Some of what a person chooses is theirs on every device, and some is the device's own. The
+runner keeps the person's (`preferences.*`); each device keeps its own in its local storage, as
+before, and that copy is also where the app reads the person's first, so a start paints at once.
+
+- **The person's:** the theme and its light or dark choice (`system` follows each screen as it
+  always did), which views are on, Agent Chat, agents' avatars, the onboarding tour switch, the
+  order of the rail's panels and of the footer's subscriptions, and what they've seen once: the
+  Help and feedback chips' words, the phone page's zoom hint, the Agent Chat offer.
+- **The device's:** text size, font and ligatures, the app's scale, notifications, sounds and
+  their volume, the screen reader setting, project windows, the sidebar's width and whether it
+  is collapsed, the view and terminal in front in each session, folds, and what concerns this
+  install (update chips, a portable copy's card).
+- **Still the device's for now:** which agents' messages were read (`novadeck.messages-seen`),
+  which needs merging rather than the last change; and the projects' order, which the runner
+  keeps on its own (`projects.arrange`).
+
+Each preference is text (the UI's JSON) under a key (`[a-z][a-z0-9.-]*`, at most 64 characters),
+at most 64 keys and 16,384 characters each. The runner keeps it as written, under `person:<key>` in its
+settings, without reading it; the UI reads it as it reads a saved preference, so what an older or
+newer build wrote reads as its default where it can't be read. `set` keeps one key, or forgets
+it for `null`: the last change wins, key by key, so two devices changing different things never
+undo each other. `watch` yields every preference, then each change, with the revision every
+change raises and the `writer` (a client's own token) whose change it was, which that client
+skips; a reader slower than the changes gets each key once, as it is when it reads it.
+
+As a device first connects to a runner that keeps them, it takes each preference the runner has,
+and gives it each the person chose there that the runner lacks; a default is no choice, and is
+never given. So the first device after an update gives the person's preferences, the next takes
+them, and a new device that connects first resets nothing. A mark of something seen once is given
+only once seen, so seen anywhere is seen. A value a device takes from another, or from another of
+its windows, it shows but never sends back: one an older build can't read shows as its default
+there, and stays the newer build's on the runner. Another client's change of a key this device is
+changing meanwhile waits behind it, and a change the runner couldn't take, as while the link was
+down, is sent again once it answers and stands over what it says. Against a runner without
+`preferences.*` the app keeps them on the device, as before; an app from before them keeps its own
+and never asks.
+
 ### Desktop app
 
 The Electron host runs the runner in a utility process, so shells live outside the
@@ -2232,7 +2271,14 @@ one from an earlier runner.
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
-  second for it).
+  second for it). `settings.watch()` (revision 7) yields the settings as `get` reports them,
+  then again each time any client changes them, so every device the person uses follows: the
+  app shows each switch, the Inbox's order and its snoozes as another device left them, but a
+  change of its own still under way stands until the runner answers it.
+
+- `preferences.get()`, `preferences.set({ key, value, writer })` and `preferences.watch()`
+  (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
+  them from device to device.
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
   (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep, set in a neon city at night

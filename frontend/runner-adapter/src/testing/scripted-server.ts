@@ -396,6 +396,12 @@ export const scriptedRunner = ({
         worktrees: false,
       })),
       set: api.settings.set.handler(() => {}),
+      watch: api.settings.watch.handler(idle),
+    },
+    preferences: {
+      get: api.preferences.get.handler(() => ({ values: {}, revision: 0, writer: null })),
+      set: api.preferences.set.handler(unplayed("preferences.set")),
+      watch: api.preferences.watch.handler(idle),
     },
   })
   // What the app typed into the terminals.

@@ -54,6 +54,7 @@ import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
 import { askAnswer, inboxEntry, questionsAnswer } from "./inbox.js"
 import { terminalMessages, terminalRings, threadId } from "./messages.js"
+import { preferenceChange, preferenceKey, preferenceValue } from "./preferences.js"
 import {
   checkoutState,
   checkoutUpdate,
@@ -1027,6 +1028,31 @@ export const contract = {
     get: procedure.input(z.void()).output(runnerSettingsState),
     // Changes the settings given; the others stay.
     set: procedure.input(runnerSettings.partial()).output(z.void()),
+    // The settings as they are now, then again each time a client changes them, so every
+    // device the person uses follows. Ends with the connection.
+    watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(runnerSettingsState)),
+  },
+  // The person's own preferences, which follow them from device to device (see
+  // `preferenceChange`; docs/backend-api.md, "Preferences").
+  preferences: {
+    // Every preference kept, and the revision they are at (`writer` null).
+    get: procedure.meta({ since: 7 }).input(z.void()).output(preferenceChange),
+    // Keeps `value` as the preference `key`, or forgets it for null, as `writer` (a client
+    // instance's own short token, which `watch` passes on) changed it; resolves the new
+    // revision. Last write wins, key by key. A key past `maxPreferences` is a CONFLICT.
+    set: procedure
+      .meta({ since: 7 })
+      .input(
+        z.strictObject({
+          key: preferenceKey,
+          value: preferenceValue.nullable(),
+          writer: z.string().min(1).max(64),
+        }),
+      )
+      .output(z.strictObject({ revision: z.number().int().nonnegative() })),
+    // Every preference first, then each change: a reader slower than the changes gets each
+    // key once, as it is when it reads it. Ends with the connection.
+    watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(preferenceChange)),
   },
   // Devices with credentials of their own (docs/backend-api.md, "Devices"). A connection
   // proved by the owner's token, or the desktop app's own, is the owner's; one proved by a
