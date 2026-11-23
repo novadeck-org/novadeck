@@ -24,9 +24,8 @@ export type Card = {
 
 export type CardsOptions = {
   /**
-   * The agent session bound in a terminal now: a card another session asked, as before a
-   * `/clear` or another agent started there, or with no agent left, is closed. Without it,
-   * sessions aren't told.
+   * The agent session bound in a terminal now, if any: a card another session asked, as before
+   * a `/clear` or another agent started there, is closed. Without it, sessions aren't told.
    */
   readonly session?: (terminalId: string) => string | undefined
 }
@@ -40,10 +39,12 @@ export class Cards {
     private readonly options: CardsOptions = {},
   ) {}
 
-  // Whether a card still stands: for the session bound now.
+  // Whether a card still stands: no other session is bound in its terminal. With none bound, as
+  // while its agent is suspended (Ctrl+Z) or its harness disconnects, it waits for the session
+  // to come back; another one ends it.
   private stands(card: Card): boolean {
-    if (!this.options.session) return true
-    return (this.options.session(card.terminalId) ?? null) === card.sessionId
+    const now = this.options.session?.(card.terminalId)
+    return now === undefined || now === card.sessionId
   }
 
   /**

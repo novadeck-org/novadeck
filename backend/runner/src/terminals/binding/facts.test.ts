@@ -785,10 +785,15 @@ describe("the shipping gate in a terminal's summary", () => {
     expect(waiting()).toBe(0)
     expect(shipping.cards.find("t1", card.id)).toBeUndefined()
 
-    // An agent that left takes its card with it.
+    // Suspended (Ctrl+Z) or disconnected, no session is bound: the card waits for it to come
+    // back, hidden as the summary shows no agent, and another session ends it.
     shipping.cards.ask("t1", ["land:r/app:main"], false, "Land work on main?", "")
-    expect(shipping.cardsOf("t1")).toHaveLength(1)
+    const bound = shown.bound!
     shown.bound = null
+    expect(shipping.cardsOf("t1")).toHaveLength(1)
+    shown.bound = bound
+    expect(shipping.cardsOf("t1")).toHaveLength(1)
+    shown.bound = { ...bound, binding: { ...bound.binding, sessionId: "s3" } }
     expect(shipping.cardsOf("t1")).toHaveLength(0)
   })
 
