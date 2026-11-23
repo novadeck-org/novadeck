@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readFileSync, realpathSync } from "node:fs"
 import { isAbsolute, relative } from "node:path"
 
 import { rootsGiven } from "@novadeck/harness-codex/roots"
@@ -7,12 +7,22 @@ import type { Harness } from "@novadeck/harness-core/harness"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 
+// A path as the file system names it, where it is there: on Windows its long names in place of
+// the short ones (`RUNNER~1`) a shim gives cmd, as Antigravity's does its hooks' folder.
+const named = (path: string): string => {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return path
+  }
+}
+
 // Whether `folder` is a whole path outside `root`, which a sandboxed launch never needs; a
 // relative one is the launch's own, within its folder.
 const outside = (folder: string, root: string): boolean => {
   if (!isAbsolute(folder)) return false
   // Another drive on Windows has no relative path, only its own.
-  const within = relative(root, folder)
+  const within = relative(named(root), named(folder))
   return isAbsolute(within) || within.split(/[\\/]/)[0] === ".."
 }
 
