@@ -1753,7 +1753,11 @@ only gates them (`backend/runner/src/shipping/`).
   so the harness decides. A Codex command's `workdir` is the folder it runs in; a payload with no
   whole folder gets no opinion. The hook stays silent in Claude's bypass mode,
   in Codex's `never` with `danger-full-access`, and where the person's own allow rule covers
-  every segment (read from Claude's settings files and Codex's rules, never written).
+  every segment (read from Claude's settings files and Codex's rules, never written). Their
+  project files are read as those harnesses read them: in the folder the session started in
+  and each one up to its repository's top, never in the folder a command runs in, as an agent
+  working in its worktree does (that folder stands in only while no session of the harness is
+  bound in the terminal).
 - **Antigravity** (`shipping/auto.ts`, `shipping/shapes.ts`, the relay's `hook.rs`). Its hook can
   deny but not allow, and a hook's `ask` is silence against an allow rule (probed 1.5.14: with an
   exact `command(git push)` rule, in accept-edits, a bare `ask` and one with a reason both ran the
