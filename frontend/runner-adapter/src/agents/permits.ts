@@ -38,9 +38,7 @@ export const takeBackOf =
     )
 
 // The runner client's `agents.takeBack`, where the runner has the procedure (`supports`; a client
-// that can't say has none) and the client lists it among its `agents` calls. Until the client
-// does, the call is read off the object by name; a client without it gives none, and no permit
-// shows.
+// that can't say, as a test's stand-in, has none). Without it no permit shows.
 type TakesBack = {
   readonly supports?: (path: "agents.takeBack") => boolean
   readonly agents: {

@@ -271,7 +271,8 @@ export const createRunnerInbox = (
   }
 
   // Details stay open for the terminals whose agent has a request waiting, and a while
-  // after; with the shipping gate on, for every running agent, whose permits only its detail says.
+  // after; with the shipping gate on, for those whose summary says permits stand there, which
+  // only the detail lists.
   const follow = (workspace: Workspace): void => {
     const waiting = new Set<string>()
     const permitting = !!streams.takeBack && streams.gate?.getSnapshot() === true
@@ -281,7 +282,7 @@ export const createRunnerInbox = (
           if (
             terminal.state === "running" &&
             terminal.agent &&
-            (terminal.agent.attention || permitting)
+            (terminal.agent.attention || (permitting && !!terminal.agent.permits))
           )
             waiting.add(terminal.id)
     for (const id of waiting) {

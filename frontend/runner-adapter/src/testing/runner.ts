@@ -213,6 +213,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`saveDialog ${terminalId} ${request}`, () =>
           runner.agents.saveDialog(terminalId, request),
         ),
+      takeBack: (terminalId, permit) =>
+        note(`takeBack ${terminalId} ${permit}`, () => runner.agents.takeBack(terminalId, permit)),
       set: (agent, connected) =>
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },

@@ -921,7 +921,8 @@ const told = (id = "told-1"): InboxEntry =>
   entry({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
 
 describe("The shipping gate's standing permits", () => {
-  const resting = () => workspaceOf(agentTerminal(1))
+  // A resting agent whose summary says a permit stands there: only its detail lists them.
+  const resting = () => workspaceOf(agentTerminal(1, { working: false, permits: 1 }))
   const standing = (...ids: string[]): AgentDetail => ({
     ...detailOf(),
     permits: ids.map((id) => ({
@@ -935,6 +936,18 @@ describe("The shipping gate's standing permits", () => {
   })
   const take = () => vi.fn<NonNullable<InboxStreams["takeBack"]>>(async () => ({ ended: true }))
   const gated = (open = true) => createStore(open)
+
+  it("follows no resting agent's detail where its summary says no permit stands", async () => {
+    const { details } = setup(
+      workspaceOf(agentTerminal(1)),
+      {},
+      noMessages,
+      {},
+      { takeBack: take(), gate: gated() },
+    )
+    await settle()
+    expect(details).toHaveLength(0)
+  })
 
   it("follows a resting agent's detail while the gate is on, and lists each permit", async () => {
     const takeBack = take()
