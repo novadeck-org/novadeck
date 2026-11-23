@@ -88,7 +88,7 @@ describe("the tour's repo", () => {
       await resetTourFolder(folder, {
         ".gitignore": "vendor/\n",
         "AGENTS.md": "note\n",
-        "model/shapes.bin": "bytes",
+        "models/shapes.bin": "bytes",
         "vendor/lib.js": "big",
         "src/main.js": "game\n",
       })
@@ -100,7 +100,7 @@ describe("the tour's repo", () => {
         .trim()
         .split("\n")
       expect(files.toSorted()).toEqual(
-        [".gitignore", "AGENTS.md", "model/shapes.bin", "src/main.js"].toSorted(),
+        [".gitignore", "AGENTS.md", "models/shapes.bin", "src/main.js"].toSorted(),
       )
     },
   )

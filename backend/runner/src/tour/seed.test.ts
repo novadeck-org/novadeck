@@ -17,10 +17,12 @@ describe("the seed project's files", () => {
         "dev.mjs",
         "dev.py",
         "index.html",
-        "model/hero.gltf",
-        "model/shapes.bin",
-        "src/city.js",
-        "src/score.js",
+        "models/README.md",
+        "models/placeholder.gltf",
+        "models/shapes.bin",
+        "src/main.js",
+        "src/models.js",
+        "src/style.css",
         "vendor/phaser/phaser.min.js",
         "vendor/phaser/LICENSE.md",
         "vendor/three/build/three.module.js",
@@ -33,7 +35,7 @@ describe("the seed project's files", () => {
     )
     // The seed's `.gitignore` is what keeps the libraries out of the sandbox's repo.
     expect(Buffer.from(files[".gitignore"]!).toString()).toContain("vendor/")
-    expect(files["model/shapes.bin"]!.byteLength).toBeGreaterThan(1000)
+    expect(files["models/shapes.bin"]!.byteLength).toBeGreaterThan(1000)
     // Not the tool that regenerates the shapes, which sits beside the seed.
     expect(files["make-shapes.mjs"]).toBeUndefined()
   })
