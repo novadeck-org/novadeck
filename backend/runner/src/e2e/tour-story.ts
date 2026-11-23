@@ -1,22 +1,14 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 
 import { samePath } from "@novadeck/harness-core/paths"
 import type { AgentName, Approval } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
-import { tourArtistMark, tourBriefMark } from "../messaging/messages.js"
-import {
-  branches,
-  configFile,
-  coverFile,
-  heroFile,
-  keptLine,
-  projectNote,
-  scoreFile,
-} from "../tour/brief.js"
+import { tourBriefMark } from "../messaging/messages.js"
+import { branches, gameEntry, keptLine, kinds, projectNote, worlds } from "../tour/brief.js"
 import { tourMarker } from "../tour/folder.js"
 import { tourWrites } from "../tour/launch.js"
 import { worktreesRoot } from "../worktrees/root.js"
@@ -35,18 +27,18 @@ import {
   through,
 } from "./scenarios.js"
 
-// Novadeck's tour story (backend/runner/src/tour/brief.ts): the lead opens a sculptor and a
-// score fixer with `open_agent`, asks to run the game's dev server (the person approves) and
-// shows its page; the sculptor shows the hero's model and asks the person who the hero is,
-// tells the lead, and sculpts it in a worktree; the lead names the game in a worktree of its
-// own; the fixer fixes the score in one and shows its changes; and the artist, which the tour
-// starts on no team, finds the lead with `agents`, asks it what the game is, and draws the
-// cover in a worktree, which it shows. The fake model plays all four, each by the brief it was
-// given: what a step says (a title, a branch, the words to send) is read out of the brief's
-// text, so a brief that changes in a way the story can't follow breaks the test. It has no
-// tool call for writing a file in every harness, so its rules make each edit themselves, in
-// the worktree its agent opened, where the agent's model would write it. A conversation's role
-// is told by what it was briefed with, so one script serves the four terminals.
+// Novadeck's tour story (backend/runner/src/tour/brief.ts): the lead asks the person which game
+// to make (a world and a kind, one sheet of two questions), then opens a modeller and a builder
+// with `open_agent`, their tasks with the picks and three models' names written in, asks to run
+// the game's dev server (the person approves) and shows its page. The modeller makes the first
+// model in a worktree, shows it, asks the person one thing, then makes the other two; the builder
+// writes the game in a worktree, shows its changes, asks one thing, and makes that change. Once
+// the person keeps the project, the runner commits their work on main. The fake model plays all
+// three, each by the brief it was given: what a step says (a title, a branch, the words to send)
+// is read out of the brief's text, so a brief that changes in a way the story can't follow breaks
+// the test. It has no tool call for writing a file in every harness, so its rules make each edit
+// themselves, in the worktree its agent opened, where the agent's model would write it. A
+// conversation's role is told by what it was briefed with, so one script serves the three.
 
 /** The tour's folder, as the sandbox's home holds it. */
 export const folder = join(".novadeck", "tour")
@@ -82,7 +74,7 @@ export const seedTour = async (run: E2E, agents: readonly AgentName[]): Promise<
 
 /**
  * Starts the agent of a prepared tour as the client does: it is rung its brief (`ring`, which
- * is `tour.brief` or `tour.artist`) once its prompt shows, and the ring is retried until the
+ * is `tour.brief`) once its prompt shows, and the ring is retried until the
  * runner takes it, as the client retries on a CONFLICT.
  */
 export const begin = async (
@@ -118,7 +110,7 @@ export type Opening = {
 export const openings = (brief: string): Opening[] =>
   [
     ...brief.matchAll(
-      /Call `open_agent`(?: again)? with agent "(\w+)", model "([^"]+)"(?:, effort "(\w+)")?, and as `message` exactly this text:\n\n((?: {3}> ?.*\n?)+)/g,
+      /Call `open_agent`(?: again)? with agent "(\w+)", model "([^"]+)"(?:, effort "(\w+)")?, and as `message` this text[^\n]*(?:\n[^\n>]+)*:\n\n((?:> ?.*\n?)+)/g,
     ),
   ].map(([, agent, model, effort, quoted]) => ({
     agent: agent as AgentName,
@@ -126,7 +118,7 @@ export const openings = (brief: string): Opening[] =>
     ...(effort !== undefined && { effort }),
     message: quoted!
       .split("\n")
-      .map((line) => line.replace(/^ {3}> ?/, ""))
+      .map((line) => line.replace(/^> ?/, ""))
       .join("\n")
       .trim(),
   }))
@@ -157,7 +149,8 @@ const fromAgents = (call: Call) => received(call).filter((one) => one.from !== "
 const noticeIn = (call: Call, mark: string): string | undefined =>
   received(call).find((one) => one.from === "novadeck" && one.text.startsWith(mark))?.text
 
-type Role = "artist" | "fixer" | "lead" | "sculptor"
+type Mate = "builder" | "modeller"
+type Role = Mate | "lead"
 
 /** What a conversation was briefed with: its role, its task and, for a teammate, its lead. */
 type Briefing = {
@@ -179,18 +172,15 @@ const known = (call: Call): string => {
   return rung ?? users[0] ?? ""
 }
 
-const taskOf: Readonly<Record<"fixer" | "sculptor", string>> = {
-  sculptor: "You are Sculptor, a teammate in Novadeck's tour.",
-  fixer: "You are Score fixer, a teammate in Novadeck's tour.",
+const taskOf: Readonly<Record<Mate, string>> = {
+  modeller: "You are Modeller, a teammate in Novadeck's tour.",
+  builder: "You are Builder, a teammate in Novadeck's tour.",
 }
 
-/**
- * Who a call is for, and what it was briefed with: a teammate by the task it holds as its
- * lead's message, the artist by Novadeck's brief to it, or else the lead.
- */
+/** Who a call is for, and what it was briefed with: a teammate by the task it holds as its lead's message, or else the lead. */
 const briefing = (call: Call, kept: Map<string, Briefing>): Briefing => {
   const key = known(call)
-  for (const role of ["sculptor", "fixer"] as const) {
+  for (const role of ["modeller", "builder"] as const) {
     const task = fromAgents(call).find((one) => one.text.includes(taskOf[role]))
     // A copy of the task with no sender (as Antigravity quotes it back in a tool's error) never
     // takes the place of the lead it was first seen from. The lead is named in the task: its
@@ -198,8 +188,6 @@ const briefing = (call: Call, kept: Map<string, Briefing>): Briefing => {
     if (task && (task.from || !kept.has(key)))
       kept.set(key, { role, task: task.text, lead: /(@[\w-]+) leads you/.exec(task.text)?.[1] })
   }
-  const brief = noticeIn(call, tourArtistMark)
-  if (brief && !kept.has(key)) kept.set(key, { role: "artist", task: brief })
   return kept.get(key) ?? { role: "lead" }
 }
 
@@ -211,6 +199,36 @@ const answerIn = (words: string): string =>
   /<reply>([\s\S]*?)<\/reply>/.exec(words)?.[1]?.trim() ||
   /<quoted-option>([\s\S]*?)<\/quoted-option>/.exec(words)?.[1]?.trim() ||
   ""
+
+// The person's answers to an ask of several questions, one per question in its order.
+const answersIn = (words: string): string[] =>
+  words
+    .split(/Your question \d+/)
+    .slice(1)
+    .map((part) => answerIn(part))
+
+/** The names the fake lead gives the game's three models. */
+export const modelNames = ["hero", "foe", "chest"] as const
+
+// A task with the lead's values written in for its [[name]]s.
+const filled = (task: string, world: string, kind: string): string =>
+  task
+    .replaceAll("[[world]]", world)
+    .replaceAll("[[kind]]", kind)
+    .replaceAll("[[one]]", modelNames[0])
+    .replaceAll("[[two]]", modelNames[1])
+    .replaceAll("[[three]]", modelNames[2])
+
+// The game the builder writes, loading the three models by name, with what the person asked for.
+const gameOf = (world: string, kind: string, next?: string): string =>
+  `// A ${world} ${kind} game.
+import * as THREE from "three"
+import { loadModel } from "./models.js"
+
+const [hero, foe, chest] = await Promise.all(${JSON.stringify(modelNames)}.map(loadModel))
+const scene = new THREE.Scene()
+scene.add(hero, foe, chest)
+${next === undefined ? "" : `// Next, as asked: ${next}\n`}`
 
 // ---- The files the agents write, as their models would. ----
 
@@ -225,7 +243,7 @@ const colours: Readonly<Record<string, readonly [number, number, number]>> = {
   yellow: [1, 0.85, 0.2],
 }
 
-// The four ready shapes of model/README.md, by the numbers of their primitives.
+// The four ready shapes of models/README.md, by the numbers of their primitives.
 const primitives = {
   box: { POSITION: 0, NORMAL: 1, indices: 2 },
   sphere: { POSITION: 3, NORMAL: 4, indices: 5 },
@@ -269,11 +287,11 @@ const robot: readonly Part[] = [
 
 const list = (items: readonly string[]): string => `[\n    ${items.join(",\n    ")}\n  ]`
 
-// A hero's glTF as model/README.md has it written: the lines above `"materials"` as the seed
+// A model's glTF as models/README.md has it written: the lines above `"materials"` as the seed
 // has them, then the materials, the meshes, the nodes and the scene.
 const sculpted = (seed: string, parts: readonly Part[]): string => {
   const head = seed.slice(0, seed.indexOf('"materials"'))
-  if (head === "") throw new Error(`${heroFile} has no "materials" to replace from`)
+  if (head === "") throw new Error(`The placeholder has no "materials" to replace from`)
   const used = [...new Set(parts.map((part) => part.colour))]
   const pairs = [...new Set(parts.map((part) => `${part.colour} ${part.shape}`))]
   const materials = used.map(
@@ -292,48 +310,14 @@ const sculpted = (seed: string, parts: readonly Part[]): string => {
   return `${head}"materials": ${list(materials)},\n  "meshes": ${list(meshes)},\n  "nodes": ${list(nodes)},\n  "scenes": [{"nodes":[${parts.map((_, index) => index).join(",")}]}]\n}\n`
 }
 
-// The config the lead sets for a hero: a short name, one emoji and two colours.
-const configured = (hero: string): Record<"title" | "hero" | "pickup", string> => {
-  const noun = hero.replace(/^(a|an|the) /i, "").split(" ")[0] ?? "Hero"
-  return {
-    title: `${noun[0]!.toUpperCase()}${noun.slice(1)} Dash`,
-    hero,
-    pickup: /robot/i.test(hero) ? "🔋" : "🐟",
-  }
-}
-
-const setting = (source: string, key: string, value: string): string => {
-  const line = new RegExp(`(\\b${key}: )"[^"]*"`)
-  if (!line.test(source)) throw new Error(`${configFile} has no ${key} to set`)
-  return source.replace(line, (_, before: string) => `${before}${JSON.stringify(value)}`)
-}
-
-// A cover for a game: a dark gradient and a few shapes near the edges, with no text.
-const cover = (title: string): string =>
-  `<!-- Cover of ${title} -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
-  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1d3a"/><stop offset="1" stop-color="#274a7a"/></linearGradient></defs>
-  <rect width="960" height="540" fill="url(#sky)"/>
-  <circle cx="90" cy="80" r="40" fill="#f5f0d0"/>
-  <polygon points="0,540 120,380 240,540" fill="#e8f1ff"/>
-  <polygon points="720,540 840,360 960,540" fill="#e8f1ff"/>
-  <circle cx="860" cy="90" r="6" fill="#fff"/>
-  <circle cx="780" cy="50" r="4" fill="#fff"/>
-  <circle cx="40" cy="300" r="5" fill="#fff"/>
-  <rect x="0" y="500" width="960" height="40" fill="#cfe3ff"/>
-</svg>
-`
-
 /** What the story's rules learned from the conversations, for the test to check. */
 export type Learned = {
   /** The lead's brief as Novadeck's notice delivered it. */
   readonly script: () => string
   /** The tasks the teammates were sent, as they held them. */
-  readonly tasks: () => Readonly<Partial<Record<"fixer" | "sculptor", string>>>
-  /** What `agents` answered the artist. */
-  readonly listing: () => string | undefined
-  /** The hero the sculptor was told, as it sent it to the lead. */
-  readonly hero: () => string | undefined
+  readonly tasks: () => Readonly<Partial<Record<Mate, string>>>
+  /** The world and the kind the lead read in the person's answer. */
+  readonly picks: () => readonly [world: string, kind: string] | undefined
 }
 
 // A conversation's plan: steps to take one at a time, each as the agent's tool call or, for a
@@ -347,14 +331,6 @@ const ends =
   (words: string): Step =>
   () =>
     text(words)
-
-// A step that writes a file as the agent's model would, and says nothing: the next goes on.
-const writes =
-  (file: () => string, change: (before: string) => string): Step =>
-  () => {
-    writeFileSync(file(), change(readFileSync(file(), "utf8")))
-    return undefined
-  }
 
 // Whether the call is the agent's to answer: after its own tool's result, or with news.
 const goes = (call: Call, news: boolean): boolean => news || result(call) !== undefined
@@ -380,16 +356,10 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
   // The lead's brief, kept from the first call that carries it: a harness may drop an old
   // delivery from the calls after.
   let script: string | undefined
-  const tasks: Partial<Record<"fixer" | "sculptor", string>> = {}
-  let listing: string | undefined
-  let hero: string | undefined
+  const tasks: Partial<Record<Mate, string>> = {}
+  let picks: readonly [string, string] | undefined
   const kept = new Map<string, Briefing>()
-  const minds: Record<Role, Mind> = {
-    lead: mind(),
-    sculptor: mind(),
-    fixer: mind(),
-    artist: mind(),
-  }
+  const minds: Record<Role, Mind> = { lead: mind(), modeller: mind(), builder: mind() }
   const named = (call: Call, name: string): string | undefined =>
     [call, ...run.model.calls].map((one) => tool(one, name)).find(Boolean)
   const using =
@@ -408,7 +378,7 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
     if (!row) throw new Error(`No worktree on ${branch}`)
     return row.path
   }
-  // The steps every teammate and the artist begin with, as their briefs have them.
+  // The steps every teammate begins with, as its task has them.
   const describing = (brief: string): Step =>
     using("describe", () => {
       const [title, summary] = read(
@@ -419,24 +389,29 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
       return { title, summary }
     })
   const opening = (brief: string): Step =>
-    using("open_worktree", () => ({
-      branch: read(brief, /call `open_worktree` with branch "([^"]+)"/i, "open_worktree")[0],
-    }))
+    using("open_worktree", () => ({ branch: branchOf(brief) }))
   const showing = (brief: string, file: () => string): Step =>
     using("show", () => {
-      const [kind] = read(brief, /Call `show` with `(file|changes)` \{"path"/, "show")
+      const [kind] = read(brief, /call `show` with `(file|changes)` \{"path"/i, "show")
       return { [kind!]: { path: file() }, open: true }
     })
-  const telling = (
-    brief: string,
-    to: () => string,
-    said: RegExp,
-    replace?: [string, string],
-  ): Step =>
-    using("send", () => {
-      const [words] = read(brief, said, "send's text")
-      return { to: to(), text: replace ? words!.replace(...replace) : words }
-    })
+  const telling = (brief: string, to: () => string, said: RegExp): Step =>
+    using("send", () => ({ to: to(), text: read(brief, said, "send's text")[0] }))
+  // A teammate's one question: its words are its own, the shape as its task has it.
+  const asking = (subject: string, labels: readonly string[]): Step =>
+    using("ask", () => ({
+      subject,
+      body: "Pick one, or write your own.",
+      shape: { type: "options", options: labels.map((label) => ({ label })) },
+    }))
+  // The person's answer to a teammate's question, once: what it says, or undefined.
+  const heard = (call: Call, one: Mind): string | undefined => {
+    if (one.seen.has("answered")) return undefined
+    const answer = deliveries(call).find((each) => each.from === "you")
+    const words = answer && answerIn(answer.text)
+    if (words) one.seen.add("answered")
+    return words || undefined
+  }
 
   const rules: Rule[] = [
     // The lead, by the brief's steps and what it is told after.
@@ -450,34 +425,17 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
         if (!asked(one, "brief for Novadeck") || script === undefined) return undefined
         lead.begun = news = true
         const brief = script
-        const [first, second] = openings(brief)
-        if (!first || !second) throw new Error("The lead's brief has no two open_agent calls")
-        const open = (mate: Opening, words?: string): Step =>
-          using(
-            "open_agent",
-            () => ({
-              agent: mate.agent,
-              model: mate.model,
-              ...(mate.effort !== undefined && { effort: mate.effort }),
-              message: mate.message,
-            }),
-            words,
-          )
         lead.queue.push(
           describing(brief),
-          open(first),
-          open(second),
-          using("open_terminal", () => {
-            const [command, title] = read(
+          using("ask", () => {
+            const [subject, body, shape] = read(
               brief,
-              /Call `open_terminal` with `command` "([^"]+)" and `title` "([^"]+)"/,
-              "open_terminal",
-            ) as [string, string]
-            return { command, title }
+              /Call `ask` with subject "([^"]+)", body "([^"]+)" and shape (\{.*?\}) Then say/,
+              "ask",
+            ) as [string, string, string]
+            return { subject, body, shape: JSON.parse(shape) as unknown }
           }),
-          ends(
-            "I'm your own agent, and my team is at work making this game yours. It starts once you approve the command.",
-          ),
+          ends("I'm your own agent, and my team builds the game you pick."),
         )
       } else if (fresh(one)) {
         for (const message of deliveries(one)) {
@@ -486,172 +444,134 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
           lead.seen.add(id)
           news = true
           const brief = script!
-          if (message.from === "novadeck" && /approved running/.test(message.text)) {
+          if (message.from === "you" && picks === undefined) {
+            const [world = "", kind = ""] = answersIn(message.text)
+            picks = [world, kind]
+            const [first, second] = openings(brief)
+            if (!first || !second) throw new Error("The lead's brief has no two open_agent calls")
+            const open = (mate: Opening): Step =>
+              using("open_agent", () => ({
+                agent: mate.agent,
+                model: mate.model,
+                ...(mate.effort !== undefined && { effort: mate.effort }),
+                message: filled(mate.message, world, kind),
+              }))
+            lead.queue.push(
+              open(first),
+              open(second),
+              using("open_terminal", () => {
+                const [command, title] = read(
+                  brief,
+                  /Call `open_terminal` with `command` "([^"]+)" and `title` "([^"]+)"/,
+                  "open_terminal",
+                ) as [string, string]
+                return { command, title }
+              }),
+              ends("The team is at work: the game starts once you approve the command."),
+            )
+          } else if (message.from === "novadeck" && /approved running/.test(message.text)) {
             const [url] = read(brief, /`page` \{"url": "([^"]+)"\}/, "show page")
             lead.queue.push(using("show", () => ({ page: { url }, open: true })))
-          } else if (message.text.startsWith("The hero is")) {
-            hero = message.text
-            const branch = branchOf(read(brief, /(Your sculptor tells you[\s\S]*)/, "messages")[0]!)
-            const config = (): string => join(worktree(branch), configFile)
-            lead.queue.push(
-              using("open_worktree", () => ({ branch })),
-              writes(config, (before) => {
-                const made = configured(message.text.replace(/^The hero is |\.$/g, ""))
-                return setting(
-                  setting(setting(before, "title", made.title), "hero", made.hero),
-                  "pickup",
-                  made.pickup,
-                )
-              }),
-              ends("The game is named."),
-            )
-          } else if (message.from !== "novadeck" && /what is it called/i.test(message.text)) {
-            // Answered once the sculptor has told it who the hero is, as the brief says.
-            lead.queue.push((from) => {
-              const told = hero?.replace(/^The hero is |\.$/g, "")
-              const made = configured(told ?? "")
-              const answer = using("send", () => ({
-                to: `@${message.from}`,
-                text: `The game is called ${made.title}. Its hero is ${told}. Draw its picture in ${coverFile}.`,
-              }))
-              return told === undefined ? text("Waiting for my sculptor first.") : answer(from)
-            })
           }
         }
       }
       return goes(one, news) ? proceed(lead, one, "Noted.") : undefined
     }),
-    // The sculptor: shows the model, asks the person, tells the lead the hero, sculpts it.
+    // The modeller: makes the first model and shows it, asks the person, makes the other two.
     own((one) => {
       const { role, task, lead: leader } = briefing(one, kept)
-      if (role !== "sculptor" || !task) return undefined
-      tasks.sculptor ??= task
-      const sculptor = minds.sculptor
+      if (role !== "modeller" || !task) return undefined
+      tasks.modeller ??= task
+      const modeller = minds.modeller
+      const model = (name: string): string =>
+        join(worktree(branchOf(task)), "models", `${name}.gltf`)
+      const make =
+        (name: string, parts: readonly Part[]): Step =>
+        () => {
+          const placeholder = readFileSync(
+            join(worktree(branchOf(task)), "models", "placeholder.gltf"),
+            "utf8",
+          )
+          writeFileSync(model(name), sculpted(placeholder, parts))
+          return undefined
+        }
       let news = false
-      if (!sculptor.begun) {
+      if (!modeller.begun) {
         if (!fresh(one) || one.turns.some((turn) => turn.role === "assistant")) return undefined
-        sculptor.begun = news = true
-        const file = (): string => join(worktree(branchOf(task)), heroFile)
-        sculptor.queue.push(
+        modeller.begun = news = true
+        const [first] = read(task, /Make models\/([\w-]+)\.gltf there/, "the first model")
+        modeller.queue.push(
           describing(task),
           opening(task),
-          showing(task, file),
-          using("ask", () => {
-            const [subject, body, shape] = read(
-              task,
-              /Call `ask` with subject "([^"]+)", body "([^"]+)" and shape (\{.*?\})\.\s+5\./,
-              "ask",
-            ) as [string, string, string]
-            return { subject, body, shape: JSON.parse(shape) as unknown }
-          }),
-          ends("Asked you who the hero is."),
+          make(first!, robot),
+          showing(task, () => model(first!)),
+          asking("What should the characters look like?", ["Robots", "Penguins"]),
+          ends("Asked you how the characters look."),
         )
       } else if (fresh(one)) {
-        const answer = deliveries(one).find((each) => each.from === "you")
-        const words = answer && answerIn(answer.text)
-        if (words && !sculptor.seen.has("answered")) {
-          sculptor.seen.add("answered")
+        const words = heard(one, modeller)
+        if (words) {
           news = true
-          const to = (): string => leader ?? ""
-          const file = (): string => join(worktree(branchOf(task)), heroFile)
-          sculptor.queue.push(
-            telling(task, to, /`text` "(The hero is <the hero>\.)"/, ["<the hero>", words]),
-            writes(file, (before) => sculpted(before, /robot/i.test(words) ? robot : penguin)),
-            telling(task, to, /`text` "(Hero sculpted\.)"/),
-            ends("Hero sculpted."),
+          const parts = /penguin/i.test(words) ? penguin : robot
+          const [second, third] = read(
+            task,
+            /Make models\/([\w-]+)\.gltf and models\/([\w-]+)\.gltf/,
+            "the other models",
+          ) as [string, string]
+          modeller.queue.push(
+            make(second, parts),
+            showing(task, () => model(second)),
+            make(third, parts),
+            showing(task, () => model(third)),
+            telling(task, () => leader ?? "", /`text` "(Models done\.)"/),
+            ends("Models done."),
           )
         }
       }
-      return goes(one, news) ? proceed(sculptor, one, "Done.") : undefined
+      return goes(one, news) ? proceed(modeller, one, "Done.") : undefined
     }),
-    // The score fixer: fixes the score, the README, shows its changes.
+    // The builder: writes the game and shows its changes, asks the person, makes that change.
     own((one) => {
       const { role, task, lead: leader } = briefing(one, kept)
-      if (role !== "fixer" || !task) return undefined
-      tasks.fixer ??= task
-      const fixer = minds.fixer
+      if (role !== "builder" || !task) return undefined
+      tasks.builder ??= task
+      const builder = minds.builder
+      const where = (): string => worktree(branchOf(task))
+      const [world, kind] = read(task, /The person picked a (.+?) (\S+) game\./, "the picks") as [
+        string,
+        string,
+      ]
+      const write =
+        (next?: string): Step =>
+        () => {
+          writeFileSync(join(where(), gameEntry), gameOf(world, kind, next))
+          return undefined
+        }
       let news = false
-      if (!fixer.begun) {
+      if (!builder.begun) {
         if (!fresh(one) || one.turns.some((turn) => turn.role === "assistant")) return undefined
-        fixer.begun = news = true
-        const where = (): string => worktree(branchOf(task))
-        fixer.queue.push(
+        builder.begun = news = true
+        builder.queue.push(
           describing(task),
           opening(task),
-          writes(
-            () => join(where(), scoreFile),
-            (before) => {
-              const [line] = read(task, /make `add` return the new score: `([^`]+)`/, "the fix")
-              return before.replace(/export const add =[\s\S]*$/, `${line}\n`)
-            },
-          ),
-          writes(
-            () => join(where(), "README.md"),
-            (before) => before.replace(/\n## Known bug[\s\S]*$/, "\n").trimEnd() + "\n",
-          ),
+          write(),
           showing(task, where),
-          telling(task, () => leader ?? "", /`text` "(Score fixed\.)"/),
-          ends("Score fixed."),
-        )
-        news = true
-      }
-      return goes(one, news) ? proceed(fixer, one, "Done.") : undefined
-    }),
-    // The artist: finds the lead with `agents`, asks it, draws the cover by its answer.
-    own((one) => {
-      const { role, task } = briefing(one, kept)
-      if (role !== "artist" || !task) return undefined
-      const artist = minds.artist
-      let news = false
-      if (!artist.begun) {
-        if (!asked(one, "brief for Novadeck")) return undefined
-        artist.begun = news = true
-        // The lead's handle as `agents` lists it: the line that names its title.
-        const lead = (from: Call): string => {
-          listing = result(from)
-          const handle = /@(\w+)[^\n]*Game lead|Game lead[^\n]*?@(\w+)/.exec(listing ?? "")
-          const name = handle?.[1] ?? handle?.[2]
-          if (!name)
-            throw new Error(`The artist can't find the lead in what agents lists:\n${listing}`)
-          return `@${name}`
-        }
-        artist.queue.push(
-          describing(task),
-          using("agents", () => ({})),
-          (from) => {
-            const to = lead(from)
-            const [words] = read(task, /`text` "(I'm drawing[^"]*)"/, "the question")
-            artist.seen.add(to)
-            return using("send", () => ({ to, text: words }))(from)
-          },
-          ends("Asked the lead what the game is."),
+          asking("What should the game get next?", ["More enemies", "A score"]),
+          ends("Asked you what comes next."),
         )
       } else if (fresh(one)) {
-        const answer = deliveries(one).find(
-          (each) => each.from !== "novadeck" && each.from !== "you",
-        )
-        if (answer && !artist.seen.has("answered")) {
-          artist.seen.add("answered")
+        const words = heard(one, builder)
+        if (words) {
           news = true
-          const title = /called (.+?)\. Its hero/.exec(answer.text)?.[1] ?? ""
-          const file = (): string => join(worktree(branchOf(task)), coverFile)
-          artist.queue.push(
-            opening(task),
-            () => {
-              mkdirSyncFor(file())
-              writeFileSync(file(), cover(title))
-              return undefined
-            },
-            showing(task, file),
-            using("send", () => ({
-              to: [...artist.seen].find((each) => each.startsWith("@")) ?? "",
-              text: read(task, /`text` "(The cover is done: [^"]*)"/, "the report")[0],
-            })),
-            ends("The cover is done."),
+          builder.queue.push(
+            write(words),
+            showing(task, where),
+            telling(task, () => leader ?? "", /`text` "(Game done\.)"/),
+            ends("Game done."),
           )
         }
       }
-      return goes(one, news) ? proceed(artist, one, "Done.") : undefined
+      return goes(one, news) ? proceed(builder, one, "Done.") : undefined
     }),
   ]
   return {
@@ -661,14 +581,8 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
       return script
     },
     tasks: () => tasks,
-    listing: () => listing,
-    hero: () => hero,
+    picks: () => picks,
   }
-}
-
-// A folder for a file the model writes, which its tool would make.
-const mkdirSyncFor = (file: string): void => {
-  mkdirSync(dirname(file), { recursive: true })
 }
 
 /** Checks that `terminal` works in the tour's folder, `directory`, as the runner knows it. */
@@ -679,18 +593,17 @@ const inTour = (terminal: DeckTerminal, directory: string): void => {
   )
 }
 
-/** What the person says to the sculptor's question: their own words, or the option they pick. */
+/** What the person says of the world in the lead's sheet: their own words, or the option they pick. */
 export type Answer = { readonly words: string } | { readonly option: number }
 
 const git = (cwd: string, ...args: string[]): string =>
   execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" }).trim()
 
 /**
- * Runs the story with `setup`'s agent as the lead, the sculptor, the fixer and the artist, as
- * the person drives it, and checks what each did (see the scenarios in tour-story.e2e.ts).
- * With `worktreesFolder`, the folder of agents' worktrees is there before the lead starts, as
- * on every computer Novadeck has run agents on, and each harness's shim passes it on as
- * `--add-dir`.
+ * Runs the story with `setup`'s agent as the lead, the modeller and the builder, as the person
+ * drives it, and checks what each did (see the scenarios in tour-story.e2e.ts). With
+ * `worktreesFolder`, the folder of agents' worktrees is there before the lead starts, as on
+ * every computer Novadeck has run agents on, and each harness's shim passes it on as `--add-dir`.
  */
 export const tell = async (
   run: E2E,
@@ -708,7 +621,6 @@ export const tell = async (
   expect(prepared.command).not.toContain("Novadeck tour")
   // Node is here, so the lead can run the game's dev server.
   expect(prepared.page).toBe(true)
-  const seed = await readFile(join(prepared.directory, heroFile), "utf8")
 
   const story = storyRules(run)
   run.model.use(...story.rules)
@@ -725,13 +637,38 @@ export const tell = async (
     }
   })()
   try {
-    await play(run, setup, answer, prepared, story, requests, asks, seed)
+    await play(run, setup, answer, prepared, story, requests, asks)
   } finally {
     watching.abort()
   }
 }
 
 type Prepared = Awaited<ReturnType<E2E["deck"]["tour"]["prepare"]>>
+
+// The ask a terminal put in the Inbox, once it is there.
+const askOf = (run: E2E, terminal: DeckTerminal) =>
+  terminal.poll(
+    () =>
+      run.deck.terminals
+        .inboxEntries()
+        .find(
+          (each) => each.content.kind === "ask" && each.terminalId === terminal.id && !each.settled,
+        ),
+    "its ask in the Inbox",
+    90_000,
+  )
+
+// The person answers a teammate's question with its first option, and the teammate hears it.
+const answerFirst = async (run: E2E, terminal: DeckTerminal): Promise<void> => {
+  const ask = await askOf(run, terminal)
+  expect(ask.content).toMatchObject({ kind: "ask", ask: { shape: { type: "options" } } })
+  const before = run.model.mark()
+  run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "" })
+  await run.model.waitFor(
+    (call) => !call.side && deliveries(call).some((each) => each.from === "you"),
+    { after: before, timeoutMs: 90_000 },
+  )
+}
 
 const play = async (
   run: E2E,
@@ -741,29 +678,58 @@ const play = async (
   story: ReturnType<typeof storyRules>,
   requests: ReturnType<E2E["deck"]["answerRequests"]>,
   asks: ReturnType<typeof arrivals<Extract<Approval, { type: "request" }>>>,
-  seed: string,
 ): Promise<void> => {
   const directory = prepared.directory
-  // 1. The lead: the prepared command, rung its brief.
+  const seed = await readFile(join(directory, gameEntry), "utf8")
+  // 1. The lead: the prepared command, rung its brief. It asks the person which game, in one
+  // sheet of two questions, and opens nobody before the answer.
   const lead = await run.deck.openAt(directory, prepared.command)
   await begin(lead, setup, (id) => run.deck.tour.brief(id))
-  // 2. It opens the sculptor and the fixer, on the brief's model and effort.
-  const sculptor = await requests.next(90_000)
-  const fixer = await requests.next(90_000)
+  const sheet = await askOf(run, lead)
+  expect(sheet.content).toMatchObject({
+    kind: "ask",
+    ask: {
+      subject: "Which game shall we build?",
+      shape: {
+        type: "questions",
+        questions: [
+          { header: "The world", options: worlds.map((label) => ({ label })) },
+          { header: "The kind", options: kinds.map((label) => ({ label })) },
+        ],
+      },
+    },
+  })
   const instructions = story.script()
   expect(instructions).toContain("browser game")
   expect(instructions).not.toContain("Ada")
+  await expect(requests.next(1_500)).rejects.toThrow()
+  const world = "words" in answer ? answer.words : worlds[answer.option]!
+  run.deck.terminals.answerAsk(sheet.id, {
+    type: "questions",
+    answers: [
+      "words" in answer
+        ? { options: [], text: answer.words }
+        : { options: [answer.option], text: "" },
+      { options: [0], text: "" },
+    ],
+  })
+
+  // 2. It opens the modeller and the builder, on the brief's model and effort, each with its
+  // task as the brief quotes it, the picks and the models' names written in.
+  const modeller = await requests.next(90_000)
+  const builder = await requests.next(90_000)
+  expect(story.picks()).toEqual([world, kinds[0]])
   const [first, second] = openings(instructions)
   expect(first).toBeDefined()
   expect(second).toBeDefined()
-  for (const mate of [sculptor, fixer]) {
+  for (const mate of [modeller, builder]) {
     expect(run.deck.store.terminal(mate.id)?.ledBy).toBe(lead.id)
     inTour(mate, directory)
   }
   // Their command lines only on Linux, as the runner reads no foreground process's argv on
   // Windows or macOS.
   if (process.platform === "linux")
-    for (const mate of [sculptor, fixer]) {
+    for (const mate of [modeller, builder]) {
       const wanted = flags(first!.agent, first!)
       // eslint-disable-next-line no-await-in-loop -- Two terminals, one after the other.
       const argv = await poll(
@@ -776,16 +742,19 @@ const play = async (
       )
       expect(argv).toContain(tourWrites[first!.agent].join(" "))
     }
-  // Each got exactly the task the brief quotes, as its lead's message.
   await poll(
-    () => (story.tasks().sculptor && story.tasks().fixer ? true : undefined),
+    () => (story.tasks().modeller && story.tasks().builder ? true : undefined),
     "both teammates to read their tasks",
     90_000,
   )
-  expect(story.tasks().sculptor).toBe(first!.message)
-  expect(story.tasks().fixer).toBe(second!.message)
+  for (const task of [story.tasks().modeller!, story.tasks().builder!]) {
+    expect(task).not.toContain("[[")
+    expect(task).toContain(`The person picked a ${world} ${kinds[0]} game.`)
+  }
+  expect(story.tasks().modeller).toBe(filled(first!.message, world, kinds[0]))
+  expect(story.tasks().builder).toBe(filled(second!.message, world, kinds[0]))
 
-  // 2b. It asks to run the game's dev server: the person is asked, and nothing opens first.
+  // 3. It asks to run the game's dev server: the person is asked, and approves.
   const approval = await asks.next(90_000)
   expect(approval).toMatchObject({
     from: lead.id,
@@ -796,7 +765,6 @@ const play = async (
     },
   })
   expect(samePath(approval.action.type === "run" ? approval.action.cwd : "", directory)).toBe(true)
-  await expect(requests.next(1_500)).rejects.toThrow()
   run.deck.terminals.answerApproval(
     { requestId: approval.requestId, approved: true },
     run.deck.owner,
@@ -814,204 +782,89 @@ const play = async (
   expect(page).toMatchObject({ kind: "page", by: "agent", from: { terminalId: lead.id } })
   expect(JSON.stringify(page)).toContain(url)
 
-  // 3. The sculptor describes itself, works in a worktree on `hero`, shows its model, asks.
-  await sculptor.poll(
-    () => (sculptor.summary().title === "Sculptor" ? true : undefined),
+  // 4. The modeller: describes itself, works in a worktree, shows its first model, asks the
+  // person, then makes the other two and tells the lead.
+  await modeller.poll(
+    () => (modeller.summary().title === "Modeller" ? true : undefined),
     "its title",
     90_000,
   )
-  expect(sculptor.summary()).toMatchObject({
-    titleSource: { kind: "agent", by: sculptor.handle },
+  expect(modeller.summary()).toMatchObject({
+    titleSource: { kind: "agent", by: modeller.handle },
     agent: setup.agent,
     ledBy: lead.id,
   })
-  const hero = await sculptor.poll(
-    () => run.deck.worktrees.all().find((each) => each.branch === branches.sculptor),
+  const models = await modeller.poll(
+    () => run.deck.worktrees.all().find((each) => each.branch === branches.modeller),
     "its worktree",
     90_000,
   )
-  expect(hero.terminalId).toBe(sculptor.id)
-  const model = await sculptor.poll(
-    () => run.deck.items.bar(sculptor.id).find((each) => each.kind === "model"),
+  expect(models.terminalId).toBe(modeller.id)
+  const shown = await modeller.poll(
+    () => run.deck.items.bar(modeller.id).find((each) => each.kind === "model"),
     "its model shown",
     90_000,
   )
-  expect(model).toMatchObject({ by: "agent", from: { terminalId: sculptor.id } })
-  expect(model.name).toBe("hero.gltf")
-  const ask = await sculptor.poll(
-    () =>
-      run.deck.terminals
-        .inboxEntries()
-        .find((each) => each.content.kind === "ask" && each.terminalId === sculptor.id),
-    "its ask in the Inbox",
-    90_000,
-  )
-  expect(ask.content).toMatchObject({
-    kind: "ask",
-    ask: {
-      subject: "Who is your game's hero?",
-      shape: {
-        type: "options",
-        options: [{ label: "A rocket" }, { label: "A robot" }, { label: "A cat" }],
-      },
-    },
-  })
-  // The person answers in the Inbox: their own words, or the option they pick.
-  const before = run.model.mark()
-  const words = "words" in answer ? answer.words : "A robot"
-  run.deck.terminals.answerAsk(
-    ask.id,
-    "words" in answer
-      ? { type: "reply", option: null, text: answer.words }
-      : { type: "reply", option: answer.option, text: "" },
-  )
-  const heard = await run.model.waitFor(
-    (call) => !call.side && deliveries(call).some((each) => each.from === "you"),
-    { after: before, timeoutMs: 90_000 },
-  )
-  expect(deliveries(heard).find((each) => each.from === "you")?.text).toContain(words)
-  // It tells the lead, sculpts the hero in its worktree, and tells the lead it is done.
-  await sculptor.reached(holds(sculptor.handle, lead.handle, "delivered"), { timeoutMs: 90_000 })
+  expect(shown).toMatchObject({ by: "agent", from: { terminalId: modeller.id } })
+  expect(shown.name).toBe(`${modelNames[0]}.gltf`)
+  await answerFirst(run, modeller)
   await poll(
     () =>
-      messages(lead).some((each) => each.from === sculptor.handle && each.text === "Hero sculpted.")
+      messages(lead).some((each) => each.from === modeller.handle && each.text === "Models done.")
         ? true
         : undefined,
-    "Hero sculpted. to reach the lead",
+    "Models done. to reach the lead",
     90_000,
   )
-  expect(
-    messages(lead)
-      .filter((each) => each.from === sculptor.handle)
-      .map((each) => each.text),
-  ).toEqual([`The hero is ${words}.`, "Hero sculpted."])
-  const sculptedHero = await readFile(join(hero.path, heroFile), "utf8")
-  expect(sculptedHero).not.toBe(seed)
-  const parsed = JSON.parse(sculptedHero) as { nodes: unknown[]; meshes: unknown[] }
-  expect(parsed.nodes.length).toBeGreaterThanOrEqual(6)
-  expect(sculptedHero.slice(0, sculptedHero.indexOf('"materials"'))).toBe(
-    seed.slice(0, seed.indexOf('"materials"')),
-  )
-  // The lead opens a worktree on `game` and sets src/config.js there.
-  const game = await lead.poll(
-    () => run.deck.worktrees.all().find((each) => each.branch === branches.lead),
-    "its worktree",
-    90_000,
-  )
-  expect(game.terminalId).toBe(lead.id)
-  const config = await poll(
-    async () => {
-      // The worktree's folder may not be made yet when its row is there.
-      const made = await readFile(join(game.path, configFile), "utf8").catch(() => "Untitled Game")
-      return made.includes("Untitled Game") ? undefined : made
-    },
-    `${configFile} set in the lead's worktree`,
-    90_000,
-  )
-  expect(config).toContain(`hero: ${JSON.stringify(words)}`)
+  const made: Record<string, string> = {}
+  for (const name of modelNames) {
+    // eslint-disable-next-line no-await-in-loop -- Three small files.
+    made[name] = await readFile(join(models.path, "models", `${name}.gltf`), "utf8")
+    const parsed = JSON.parse(made[name]) as { nodes: unknown[] }
+    expect(parsed.nodes.length).toBeGreaterThanOrEqual(6)
+  }
 
-  // 4. The fixer: describes itself, fixes the score in a worktree, shows its changes.
-  await fixer.poll(
-    () => (fixer.summary().title === "Score fixer" ? true : undefined),
+  // 5. The builder: describes itself, writes the game in a worktree, shows its changes, asks
+  // the person, makes that change and tells the lead.
+  await builder.poll(
+    () => (builder.summary().title === "Builder" ? true : undefined),
     "its title",
     90_000,
   )
-  const fix = await fixer.poll(
-    () => run.deck.worktrees.all().find((each) => each.branch === branches.fixer),
+  const game = await builder.poll(
+    () => run.deck.worktrees.all().find((each) => each.branch === branches.builder),
     "its worktree",
     90_000,
   )
-  expect(fix.terminalId).toBe(fixer.id)
-  const changes = await fixer.poll(
-    () => run.deck.items.bar(fixer.id).find((each) => each.kind === "changes"),
+  expect(game.terminalId).toBe(builder.id)
+  const changes = await builder.poll(
+    () => run.deck.items.bar(builder.id).find((each) => each.kind === "changes"),
     "its changes shown",
     90_000,
   )
-  expect(changes).toMatchObject({ by: "agent", from: { terminalId: fixer.id } })
-  await fixer.reached(holds(fixer.handle, lead.handle, "delivered"), { timeoutMs: 90_000 })
+  expect(changes).toMatchObject({ by: "agent", from: { terminalId: builder.id } })
+  await answerFirst(run, builder)
+  await builder.reached(holds(builder.handle, lead.handle, "delivered"), { timeoutMs: 90_000 })
   expect(
     messages(lead)
-      .filter((each) => each.from === fixer.handle)
+      .filter((each) => each.from === builder.handle)
       .map((each) => each.text),
-  ).toEqual(["Score fixed."])
-  expect(await readFile(join(fix.path, scoreFile), "utf8")).toContain(
-    "export const add = (score, sinceLast) => score + points(sinceLast)",
-  )
-  expect(await readFile(join(fix.path, "README.md"), "utf8")).not.toContain("Known bug")
-
-  // 5. The artist: the person opens a terminal in the folder with the same command, and the
-  // tour rings it its brief. It is on no team.
-  const artist = await run.deck.openBeside(lead, directory, prepared.command)
-  await begin(artist, setup, (id) => run.deck.tour.artist(id))
-  // Asked again for its artist, the runner rings nothing more and refuses nothing.
-  run.deck.tour.artist(artist.id)
-  await artist.poll(
-    () => (artist.summary().title === "Cover artist" ? true : undefined),
-    "its title",
-    90_000,
-  )
-  expect(artist.summary()).toMatchObject({
-    titleSource: { kind: "agent", by: artist.handle },
-    agent: setup.agent,
-  })
-  expect(run.deck.store.terminal(artist.id)?.ledBy ?? null).toBeNull()
-  inTour(artist, directory)
-  // It found the lead among `agents`' answer, and asked it what the game is.
-  await poll(() => story.listing(), "what agents answered the artist", 90_000)
-  expect(story.listing()).toContain(lead.handle)
-  await lead.reached(holds(artist.handle, lead.handle, "delivered"), { timeoutMs: 90_000 })
-  // The lead answers it with `send`, by the hero it was told.
-  await artist.reached(holds(lead.handle, artist.handle, "delivered"), { timeoutMs: 90_000 })
-  const title = /called (.+?)\. Its hero/.exec(
-    messages(artist).find((each) => each.from === lead.handle)?.text ?? "",
-  )?.[1]
-  expect(title).toMatch(/Dash$/)
-  expect(messages(artist).find((each) => each.from === lead.handle)?.text).toContain(
-    `Its hero is ${words}.`,
-  )
-  // It draws the cover in a worktree on `cover`, shows it, and tells the lead.
-  const art = await artist.poll(
-    () => run.deck.worktrees.all().find((each) => each.branch === branches.artist),
-    "its worktree",
-    90_000,
-  )
-  expect(art.terminalId).toBe(artist.id)
-  const picture = await artist.poll(
-    () => run.deck.items.bar(artist.id).find((each) => each.kind === "image"),
-    "its cover shown",
-    90_000,
-  )
-  expect(picture).toMatchObject({ by: "agent", from: { terminalId: artist.id } })
-  await poll(
-    () =>
-      messages(lead).some(
-        (each) => each.from === artist.handle && each.text.startsWith("The cover is done"),
-      )
-        ? true
-        : undefined,
-    "The cover is done to reach the lead",
-    90_000,
-  )
-  // The cover is the answer's: the lead's title, in the file's own comment.
-  const svg = await readFile(join(art.path, coverFile), "utf8")
-  expect(svg).toContain(`Cover of ${title}`)
-  expect(svg).toContain("<svg")
+  ).toEqual(["Game done."])
+  const code = await readFile(join(game.path, gameEntry), "utf8")
+  expect(code).toContain(`A ${world} ${kinds[0]} game.`)
+  expect(code).toContain("Next, as asked: More enemies")
   await through(lead, ["settled"])
 
-  // 6. The end state: four works, each with its files; the tour folder's own checkout as it
+  // 6. The end state: two works, each with its files; the tour folder's own checkout as it
   // was; and the open policy, which lets only the lead open agents there.
   const branchesNow = run.deck.worktrees.all().map((each) => each.branch)
   expect(branchesNow.toSorted()).toEqual(Object.values(branches).toSorted())
   expect(git(directory, "status", "--porcelain")).toBe("")
-  expect(await readFile(join(directory, heroFile), "utf8")).toBe(seed)
-  expect(await readFile(join(directory, scoreFile), "utf8")).toContain(
-    "score + points(sinceLast)\n  return score",
-  )
-  await expect(readdir(join(directory, "art"))).rejects.toThrow()
+  expect(await readFile(join(directory, gameEntry), "utf8")).toBe(seed)
   const policy = (terminal: DeckTerminal) => run.deck.tour.openPolicy(terminal.id)
   expect(policy(lead).refusal).toBeUndefined()
   expect(policy(lead).flags).toBeDefined()
-  for (const other of [sculptor, fixer, artist])
+  for (const other of [modeller, builder])
     expect(policy(other).refusal, `${other.handle}'s open_agent is refused`).toMatch(
       /Only the lead of Novadeck's tour/,
     )
@@ -1028,14 +881,13 @@ const play = async (
       30_000,
     )
   expect((await served("/")).status).toBe(200)
-  expect(await (await served("/model/hero.gltf")).text()).toBe(sculptedHero)
-  expect(await (await served("/src/score.js")).text()).toBe(
-    await readFile(join(fix.path, scoreFile), "utf8"),
-  )
-  expect(await (await served("/src/config.js")).text()).toBe(config)
-  expect(await (await served("/art/cover.svg")).text()).toBe(svg)
+  for (const name of modelNames)
+    // eslint-disable-next-line no-await-in-loop -- Three small files.
+    expect(await (await served(`/models/${name}.gltf`)).text()).toBe(made[name])
+  expect(await (await served(`/${gameEntry}`)).text()).toBe(code)
 
-  // 7. The person keeps the project: the folder is theirs, and the next run uses another.
+  // 7. The person keeps the project: the team's work comes home, committed on main, and the
+  // folder is theirs; the next run uses another.
   const kept = await readdir(directory)
   expect(kept).toContain(tourMarker)
   await run.deck.tour.keep()
@@ -1043,14 +895,26 @@ const play = async (
   expect(afterwards).not.toContain(tourMarker)
   expect(afterwards).not.toContain(".claude")
   expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(projectNote)
+  expect(await readFile(join(directory, gameEntry), "utf8")).toBe(code)
+  for (const name of modelNames)
+    // eslint-disable-next-line no-await-in-loop -- Three small files.
+    expect(await readFile(join(directory, "models", `${name}.gltf`), "utf8")).toBe(made[name])
+  expect(git(directory, "log", "-1", "--format=%s")).toBe("The team's game")
   // Git holds the project as the person keeps it: nothing of the tour's rules is changed,
   // skipped or tracked, so a worktree made from here carries none of them.
   expect(git(directory, "status", "--porcelain")).toBe("")
   expect(git(directory, "ls-files", "-v", "AGENTS.md")).toMatch(/^H /)
   expect(git(directory, "ls-files")).not.toContain(".claude/")
+  // Each worktree holds that commit and nothing more.
+  const main = git(directory, "rev-parse", "HEAD")
+  for (const worktree of [models.path, game.path]) {
+    expect(git(worktree, "rev-parse", "HEAD")).toBe(main)
+    expect(git(worktree, "status", "--porcelain")).toBe("")
+  }
   // Asked again, as the client does at the story's end and again on the button: nothing changes.
   await run.deck.tour.keep()
   expect(git(directory, "status", "--porcelain")).toBe("")
+  expect(git(directory, "rev-parse", "HEAD")).toBe(main)
   // The lead is told the tour is over.
   await run.model.waitFor(
     (call) => !call.side && deliveries(call).some((each) => each.text.includes(keptLine)),
@@ -1063,5 +927,5 @@ const play = async (
   expect(next.removed).toEqual([])
   expect(snapshot()).toBe(left)
   expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(projectNote)
-  expect(await readFile(join(directory, heroFile), "utf8")).toBe(seed)
+  expect(await readFile(join(directory, gameEntry), "utf8")).toBe(code)
 }

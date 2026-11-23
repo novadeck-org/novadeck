@@ -89,7 +89,7 @@ const commitAll = async (
 const listing = { cap: 4 * 1024 * 1024, ms: 30_000 }
 
 // The paths of a git listing of NUL-ended names.
-const names = (run: Run): string[] => (run.ok ? run.out.split("\0").filter(Boolean) : [])
+const listed = (run: Run): string[] => (run.ok ? run.out.split("\0").filter(Boolean) : [])
 
 // The other worktrees of the folder's repository, by top folder, those still on the disk.
 const worktreesOf = async (folder: string): Promise<string[]> => {
@@ -107,8 +107,8 @@ const worktreesOf = async (folder: string): Promise<string[]> => {
 // those that differ from that commit, and those git doesn't track and doesn't ignore.
 const changedSince = async (folder: string, base: string): Promise<Set<string>> =>
   new Set([
-    ...names(await git(folder, ["diff", "--name-only", "-z", base], listing)),
-    ...names(await git(folder, ["ls-files", "--others", "--exclude-standard", "-z"], listing)),
+    ...listed(await git(folder, ["diff", "--name-only", "-z", base], listing)),
+    ...listed(await git(folder, ["ls-files", "--others", "--exclude-standard", "-z"], listing)),
   ])
 
 // When the file at `path` last changed, or undefined where there is no file.
