@@ -163,6 +163,27 @@ impl Drop for Handle {
     }
 }
 
+/// Process `pid`, still running, opened with `access`, and only where `started` names its
+/// start or is None, never a later process given its pid; the error says which it isn't.
+/// Its handle closes once the closure `with` is done with it.
+pub fn with_running<T>(
+    pid: u32,
+    access: u32,
+    started: Option<u64>,
+    with: impl FnOnce(std::os::windows::io::RawHandle) -> Result<T, String>,
+) -> Result<T, String> {
+    let handle = Handle::open(pid, access | QUERY_LIMITED_INFORMATION)
+        .ok_or_else(|| "it has ended, or Windows won't open it".to_owned())?;
+    let mut code = 0;
+    if unsafe { GetExitCodeProcess(handle.0, &mut code) } == 0 || code != STILL_ACTIVE {
+        return Err("it has ended".to_owned());
+    }
+    if started.is_some() && handle.started() != started {
+        return Err("its pid names another process".to_owned());
+    }
+    with(handle.0)
+}
+
 /// When process `pid` started, in milliseconds since the Unix epoch; None where it is gone
 /// or Windows won't say, as for another user's.
 pub fn started(pid: u32) -> Option<u64> {
@@ -365,6 +386,30 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
         let _ = writeln!(stdout, "{}", json!({ "root": named, "processes": members }));
     }
     true
+}
+
+/// Each of `pids` still running, as `tree` prints a member: its pid, its start, its program's
+/// file name and its recorded parent; one that has ended, or that Windows won't open, is left
+/// out. None where Windows refused the snapshot.
+pub fn describe(pids: &[u32]) -> Option<Vec<Value>> {
+    let processes = snapshot();
+    if processes.is_empty() {
+        return None;
+    }
+    let files: HashMap<u32, String> = processes
+        .iter()
+        .map(|(pid, process)| (*pid, process.file.clone()))
+        .collect();
+    let parents: HashMap<u32, u32> = processes
+        .into_iter()
+        .map(|(pid, process)| (pid, process.parent))
+        .collect();
+    Some(
+        pids.iter()
+            .filter_map(|pid| started(*pid).map(|started| Member { pid: *pid, started }))
+            .map(|member| member_json(&member, &files, &parents))
+            .collect(),
+    )
 }
 
 /// `novadeck-relay end <pid>:<started-ms>...`: ends each process still running that

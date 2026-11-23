@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { promisify } from "node:util"
 
 import { readLock } from "@novadeck/harness-claude/daemon"
-import { userScopes } from "@novadeck/terminal/pty"
+import { anyRunning, userScopes } from "@novadeck/terminal/pty"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { AgentSetup } from "./agents/agent.js"
@@ -332,6 +332,213 @@ for (const setup of setups) {
         await new Promise((resolve) => setTimeout(resolve, 1_000))
         // The same process, still running, which the fixture then ends as a logout would.
         expect(startOf(lock.pid)).toBe(lock.start)
+      })
+  })
+}
+
+// On Windows a terminal's job object holds what a program started there, however it started it:
+// through a launcher that exits at once, as `start /b`, `Start-Process` or a detached child of a
+// short-lived process, it has left the shell's tree, whose walk can't reach it, but stays in the
+// job (libraries/terminal/src/pty/jobs.ts).
+const windowsVariants = ["detached", "start", "startProcess"] as const
+
+/**
+ * What the agent runs on Windows, as `node detach.mjs <word> [<name>...]`: each named server, by
+ * a launcher that exits at once, then a word once all are up. Node runs in every harness's
+ * shell, and takes no shell's quoting.
+ */
+const windowsScript = `
+import { spawn } from "node:child_process"
+import { existsSync, readFileSync } from "node:fs"
+const [word, ...names] = process.argv.slice(2)
+const node = process.execPath
+const apart = (name) =>
+  "require('child_process').spawn(process.execPath, ['detached-server.mjs', '" + name + "', '" + word + "'], { detached: true, stdio: 'ignore' }).unref()"
+const launchers = {
+  start: ["cmd.exe", ['/d /s /c "start "" /b "' + node + '" detached-server.mjs start ' + word + '"'], true],
+  startProcess: [
+    "powershell.exe",
+    ["-NoProfile", "-Command", "Start-Process -WindowStyle Hidden -FilePath '" + node + "' -ArgumentList 'detached-server.mjs','startProcess','" + word + "'"],
+  ],
+  detached: [node, ["-e", apart("detached")]],
+  person: [node, ["-e", apart("person")]],
+}
+const told = () => (existsSync("detached.pids") ? readFileSync("detached.pids", "utf8").trim().split("\\n").length : 0)
+const before = told()
+for (const name of names) {
+  const [file, args, verbatim] = launchers[name]
+  spawn(file, args, { stdio: "ignore", windowsHide: true, windowsVerbatimArguments: verbatim === true })
+}
+const up = setInterval(() => {
+  if (told() < before + names.length) return
+  clearInterval(up)
+  console.log("launched")
+}, 50)
+`
+
+/** This test's servers on Windows, by name and pid, as each told it. */
+const toldServers = (run: E2E): readonly (readonly [string, number])[] => {
+  const pids = join(run.sandbox.project, "detached.pids")
+  if (!existsSync(pids)) return []
+  return readFileSync(pids, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      const [name, pid] = line.split(" ")
+      return [name!, Number(pid)] as const
+    })
+}
+
+/** Which of this test's servers still run on Windows, by name. */
+const windowsLeft = (run: E2E): readonly string[] =>
+  toldServers(run)
+    .filter(([, pid]) => anyRunning([{ pid, startedAt: 0 }]))
+    .map(([name]) => name)
+    .toSorted()
+
+/** Ends what of this test's servers still runs on Windows, as a failed test leaves them. */
+const endWindowsServers = (run: E2E): void => {
+  for (const [, pid] of toldServers(run))
+    try {
+      process.kill(pid)
+    } catch {
+      // Gone.
+    }
+}
+
+// The scripted model on Windows: a first turn binds every harness, then the agent runs `line`.
+const scriptedWindows = (run: E2E, setup: AgentSetup, line: string) => {
+  const { shell } = setup
+  run.model.use(
+    replies("Say ok", "Okay then."),
+    own((call) => (asked(call, "Run the detach script") ? shell!.run(call, line) : undefined)),
+    own((call) => (result(call) !== undefined ? { text: "Done." } : undefined)),
+  )
+  writeFileSync(join(run.sandbox.project, "detach.mjs"), windowsScript)
+  writeFileSync(join(run.sandbox.project, "detached-server.mjs"), server)
+  rmSync(join(run.sandbox.project, "detached.pids"), { force: true })
+}
+
+/** A terminal opened with `command`, its agent ready for a prompt. */
+const opened = async (run: E2E, setup: AgentSetup, command: string): Promise<DeckTerminal> => {
+  const terminal = await run.deck.open(command)
+  await terminal.reached("ready", { timeoutMs: 60_000 })
+  await prompted(terminal, setup)
+  return terminal
+}
+
+for (const setup of setups) {
+  describe.skipIf(!supported || process.platform !== "win32")(`${setup.name} (Windows)`, () => {
+    const it = e2e(setup)
+    const opens: readonly (string | undefined)[] =
+      setup.agent === "codex" ? [undefined, unsandboxed] : [undefined]
+    const itsCommand = setup.agent === "codex" ? unsandboxed : setup.agent
+
+    // Antigravity ends what its command started, detached or not, about a second after the
+    // command ends (measured on 1.5.13), so on Windows none of it is left for a close or a quit.
+    if (setup.agent === "agy")
+      gated(it, lacking(setup, "shell"))(
+        "has nothing its agent started detached left to end, as Antigravity ends it with the command",
+        async ({ e2e: run, onTestFinished }) => {
+          onTestFinished(() => endWindowsServers(run))
+          const word = randomUUID()
+          scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
+          const terminal = await start(run, setup)
+          await turn(terminal, "Say ok", "Okay then.")
+          await launch(run, setup, terminal, windowsVariants.length)
+          await expect.poll(() => windowsLeft(run), { timeout: 5_000 }).toEqual([])
+        },
+      )
+
+    for (const command of setup.agent === "agy" ? [] : opens)
+      for (const end of ["close", "quit"] as const)
+        gated(it, lacking(setup, "shell"))(
+          `ends what its agent started detached as ${end === "quit" ? "Novadeck quits" : "its terminal closes"}${command ? ", its sandbox off" : ""}`,
+          async ({ e2e: run, onTestFinished }) => {
+            onTestFinished(() => endWindowsServers(run))
+            const word = randomUUID()
+            scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
+            const terminal = command ? await opened(run, setup, command) : await start(run, setup)
+            await turn(terminal, "Say ok", "Okay then.")
+            await launch(run, setup, terminal, windowsVariants.length)
+            expect(windowsLeft(run)).toEqual(windowsVariants.toSorted())
+
+            const began = performance.now()
+            await run.model.ending(() =>
+              end === "quit"
+                ? run.deck.terminals.shutdown()
+                : run.deck.terminals.close({ terminalId: terminal.id }),
+            )
+            if (end === "quit") expect(performance.now() - began).toBeLessThan(quitMs)
+            await expect.poll(() => windowsLeft(run), { timeout: 2_000 }).toEqual([])
+            await run.deck.restart()
+          },
+        )
+
+    gated(it, lacking(setup, "shell"))(
+      "leaves what the person starts in its terminal once the agent has left, ending the agent's",
+      async ({ e2e: run, onTestFinished }) => {
+        onTestFinished(() => endWindowsServers(run))
+        const word = randomUUID()
+        scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
+        const terminal = await opened(run, setup, itsCommand)
+        await turn(terminal, "Say ok", "Okay then.")
+        await launch(run, setup, terminal, windowsVariants.length)
+        const agent = agentOf(run, terminal)
+        expect(agent).toBeDefined()
+        // The agent dies without a word, as one killed or crashed.
+        process.kill(agent!)
+        await terminal.poll(
+          () => (agentOf(run, terminal) === undefined ? true : undefined),
+          "the agent's session to end",
+          30_000,
+        )
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        // Codex (its sandbox off too) ends what its commands left as it dies, and Antigravity has
+        // already; Claude Code and opencode don't.
+        const survivors =
+          setup.agent === "claude" || setup.agent === "opencode" ? windowsVariants.toSorted() : []
+        expect(windowsLeft(run)).toEqual(survivors)
+        await terminal.submit(`node detach.mjs ${word} person`)
+        await expect
+          .poll(() => windowsLeft(run), { timeout: 10_000 })
+          .toEqual([...survivors, "person"].toSorted())
+
+        await run.deck.terminals.close({ terminalId: terminal.id })
+        await expect.poll(() => windowsLeft(run), { timeout: 2_000 }).toEqual(["person"])
+        // The person's own, which the leftover check would rightly count.
+        endWindowsServers(run)
+      },
+    )
+
+    // Claude Code starts its background service through WMI on Windows: in no terminal's job,
+    // so a close leaves it.
+    if (setup.agent === "claude")
+      it("leaves Claude Code's background service as the terminal that started it closes", async ({
+        e2e: run,
+      }) => {
+        run.model.use(replies("Warm up", "Warmed up."))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Warm up", "Warmed up.")
+        terminal.press("\x1b[D")
+        await terminal.until("describe a task")
+        const home = harnesses.claude.home({
+          env: run.sandbox.env,
+          home: run.sandbox.home,
+          platform: process.platform,
+          plugin: "",
+        })
+        const lock = await terminal.poll(
+          async () => (await readLock(home)) ?? undefined,
+          "the background service's lock",
+          30_000,
+        )
+        const service = [{ pid: lock.pid, startedAt: 0 }]
+        expect(anyRunning(service)).toBe(true)
+        await run.deck.terminals.close({ terminalId: terminal.id })
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
+        expect(anyRunning(service)).toBe(true)
       })
   })
 }

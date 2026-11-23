@@ -179,7 +179,23 @@ unsafe extern "system" {
     fn GetExitCodeProcess(process: *mut c_void, code: *mut u32) -> i32;
     fn CloseHandle(handle: *mut c_void) -> i32;
     fn GetLastError() -> u32;
+    fn AssignProcessToJobObject(job: *mut c_void, process: *mut c_void) -> i32;
+    fn QueryInformationJobObject(
+        job: *mut c_void,
+        class: i32,
+        info: *mut c_void,
+        size: u32,
+        returned: *mut u32,
+    ) -> i32;
 }
+
+/// JobObjectBasicProcessIdList, for QueryInformationJobObject.
+const PROCESS_IDS: i32 = 3;
+/// ERROR_MORE_DATA: the list didn't fit the room given.
+const MORE_DATA: u32 = 234;
+/// What AssignProcessToJobObject needs of a process: PROCESS_SET_QUOTA and PROCESS_TERMINATE.
+#[allow(dead_code)]
+pub const ASSIGNABLE: u32 = 0x0100 | 0x0001;
 
 /// Held while a program's streams are made and it is created (see `Job::start`).
 static STARTING: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -521,6 +537,73 @@ impl Job {
         Ok((process, job))
     }
 
+    /// A new job with `limits` and nothing in it yet, for processes put in it later
+    /// (`assign`).
+    pub fn empty(limits: u32) -> Result<Job, String> {
+        let handle = unsafe { CreateJobObjectW(std::ptr::null_mut(), std::ptr::null()) };
+        if handle.is_null() {
+            return Err(failed("CreateJobObjectW"));
+        }
+        let job = Job { handle, limits };
+        if !job.limit(limits) {
+            return Err(failed("SetInformationJobObject"));
+        }
+        Ok(job)
+    }
+
+    /// Puts `process`, opened with `ASSIGNABLE`, in the job, and with it whatever it starts
+    /// from now on; what it started before stays where it is. The error says why Windows
+    /// refused.
+    pub fn assign(&self, process: RawHandle) -> Result<(), String> {
+        if unsafe { AssignProcessToJobObject(self.handle, process) } == 0 {
+            return Err(failed("AssignProcessToJobObject"));
+        }
+        Ok(())
+    }
+
+    /// The pids of every process in the job now, those of jobs nested in it too; None where
+    /// Windows won't say.
+    pub fn pids(&self) -> Option<Vec<u32>> {
+        // JOBOBJECT_BASIC_PROCESS_ID_LIST: the count of processes in the job, the count
+        // listed, then a pid in each pointer-sized slot. Asked again with room for all where
+        // more started between the two asks.
+        let mut room = 64usize;
+        for _ in 0..4 {
+            // Eight-byte units, aligned for the pointer-sized slots, which start at byte 8.
+            let mut list = vec![0u64; 1 + room];
+            let size = (list.len() * size_of::<u64>()) as u32;
+            let read = unsafe {
+                QueryInformationJobObject(
+                    self.handle,
+                    PROCESS_IDS,
+                    list.as_mut_ptr().cast(),
+                    size,
+                    std::ptr::null_mut(),
+                )
+            };
+            let start = list.as_ptr().cast::<u8>();
+            let (assigned, listed) = unsafe {
+                (
+                    start.cast::<u32>().read() as usize,
+                    start.add(4).cast::<u32>().read() as usize,
+                )
+            };
+            if read != 0 {
+                let slots = unsafe { start.add(8).cast::<usize>() };
+                return Some(
+                    (0..listed.min(room))
+                        .map(|at| unsafe { slots.add(at).read() } as u32)
+                        .collect(),
+                );
+            }
+            if unsafe { GetLastError() } != MORE_DATA {
+                return None;
+            }
+            room = assigned.max(room) * 2;
+        }
+        None
+    }
+
     /// Sets the job's limits to `flags`; false where Windows refuses.
     fn limit(&self, flags: u32) -> bool {
         let limits = ExtendedLimits {
@@ -690,6 +773,28 @@ mod tests {
         .unwrap();
         job.end();
         assert_eq!(program.wait().unwrap(), 1);
+    }
+
+    #[test]
+    fn a_process_put_in_a_job_takes_what_it_starts_with_it_and_the_job_lists_them() {
+        let job = Job::empty(BREAKAWAY_OK).unwrap();
+        // cmd waits a moment, then leaves a ping running as it exits, as `start /b` does.
+        let mut shell = std::process::Command::new(cmd())
+            .args([
+                "/d",
+                "/c",
+                "ping -n 2 127.0.0.1 >nul & start /b ping -n 30 127.0.0.1 >nul",
+            ])
+            .spawn()
+            .unwrap();
+        assert_eq!(job.pids().unwrap(), Vec::<u32>::new());
+        job.assign(shell.as_raw_handle()).unwrap();
+        assert!(job.pids().unwrap().contains(&shell.id()));
+        shell.wait().unwrap();
+        // The ping, whose parent has ended, is still the job's.
+        let left = job.pids().unwrap();
+        assert_eq!(left.len(), 1, "{left:?}");
+        job.end();
     }
 
     #[test]

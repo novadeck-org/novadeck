@@ -1020,11 +1020,42 @@ see them change.
   with its own bundled `xdg-open` (`vite --open`), or through the person's own `BROWSER`.
   Hibernation keeps an agent with such a program awake (`detached`),
   and the update's restart check counts it as work a restart would end.
-- Otherwise, and on macOS, Windows and Linux without the user's systemd, it is not a
+- On Windows the same is done with a job object per terminal in place of the scope
+  (`libraries/terminal/src/pty/jobs.ts`, `backend/relay/src/jobs.rs`). Windows keeps a
+  process's recorded parent once that parent has ended, and the tree read above walks only
+  from the shell, so a program started through a launcher that exits (`start /b`,
+  `Start-Process`, a detached child of a short-lived process) leaves it; but a process
+  stays in the job it was started in. The runner's own relay holds each terminal's job
+  (`novadeck-relay jobs`, below) for as long as the runner runs, and the shell goes into it
+  as soon as node-pty names its pid, which it does as it creates the shell, a moment after
+  `spawn` returns: what the shell starts before then stays out, so its startup command
+  waits for the file the runner makes once that has settled (`scopeFile`; cmd through
+  `novadeck-relay held`). The agent's runs, what counts as one of its trees and what is
+  spared are as on Linux, with starts in Windows' creation times (milliseconds since the
+  Unix epoch, read against the wall clock) and a parent counted only where it started no
+  later than its child, as a later process may hold an ended parent's pid. What is found is
+  ended at once, by pid and start, as Windows has no signal to ask first. A job only holds:
+  it is made without `KILL_ON_JOB_CLOSE`, so the relay's exit ends nothing, and a terminal's
+  job is let go once it closes, leaving what was spared running. It allows no breakaway: Git
+  Bash's runtime starts every program with `CREATE_BREAKAWAY_FROM_JOB` where its job allows
+  it, so everything Claude Code's Bash tool runs would leave the job; a program that asks to
+  break away without looking first is refused, and doesn't start in a Novadeck terminal. One
+  started by a service, as through WMI or the Task Scheduler, is never in it: Claude Code
+  starts its background service through WMI, so it is never one of a Windows terminal's
+  leftovers. An app an agent opens is started by its caller, inside the job, however it opens
+  it (`start`, `Start-Process`, npm's `open`, `BROWSER`; measured on Windows 10 21H2), and
+  Windows has no shim for that as Linux's `xdg-open`: where a browser is running, it only
+  hands the URL to it and exits, and the tab is the running browser's, but a browser an agent
+  starts from nothing ends with its terminal, tabs and all. `explorer.exe <file>` hands it to
+  the running explorer, outside. Under Antigravity, what a command started ends about a
+  second after the command does, detached or not, so nothing of it is left for a close;
+  under Codex it ends with the agent itself when it dies (measured: none of it outlives a
+  killed one, its sandbox off too); under Claude Code and opencode it runs on until the
+  terminal closes.
+- Otherwise, and on macOS and Linux without the user's systemd, it is not a
   process-tree kill guarantee: daemonized jobs and descendants that ignore hangup may
   continue, as with an ordinary terminal emulator, and so may a daemon an agent left in a
-  group of its own. On Windows a job object per terminal (as the relay's own,
-  `backend/relay/src/job.rs`) would give the scope's list of members.
+  group of its own.
 
 ## Shell integration and restoring terminals
 
@@ -1191,6 +1222,14 @@ or taskkill for:
   recorded parent.
 - `novadeck-relay end <pid>:<startedAt>...` ends each of those processes still running
   that started then, and no other given its pid since.
+- `novadeck-relay jobs` runs as long as the runner keeps its input open and holds the
+  terminals' job objects, answering a JSON line, `{"n":<n>,...}`, for each line asked,
+  `<n> <ask>`: `hold <terminal> <pid>[:<startedAt>]` puts that process in a new job for the
+  terminal (`held`), `members <terminal>` lists the job's processes as `tree` does
+  (`processes`, null for none), `release <terminal>` lets the job go, and
+  `end <pid>:<startedAt>...` ends processes as `end` does. Its exit ends nothing.
+- `novadeck-relay held <file>` waits up to about a quarter of a second for `file`, then
+  removes it: a cmd terminal's startup command runs after it, so it starts inside its job.
 
 `works.watch` reports a work per tracked worktree, keyed by its root (`{ root, terminalId | null,
 projectId, working, branch, base, firstSeenAt, merged, added, removed, files, conflicts, … }`; `removed`

@@ -14,6 +14,8 @@ mod hook;
 mod idle;
 #[cfg(windows)]
 mod job;
+#[cfg(windows)]
+mod jobs;
 mod mcp;
 #[cfg(windows)]
 mod processes;
@@ -51,7 +53,9 @@ const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-versio
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
-       novadeck-relay end <pid>:<started-ms>...      (Windows)";
+       novadeck-relay end <pid>:<started-ms>...      (Windows)
+       novadeck-relay jobs                           (Windows)
+       novadeck-relay held <file>";
 
 /// The leading `--name value` options, and the arguments after them. Every option takes a
 /// value, so one this relay doesn't know, from a newer runner's launcher, is passed over
@@ -140,8 +144,34 @@ fn main() -> ExitCode {
             }
             None => usage(),
         },
+        #[cfg(windows)]
+        Some((mode, [])) if mode == "jobs" => {
+            jobs::run();
+            ExitCode::SUCCESS
+        }
+        Some((mode, [file])) if mode == "held" => {
+            held(Path::new(file), HELD_TRIES);
+            ExitCode::SUCCESS
+        }
         _ => usage(),
     }
+}
+
+/// How many times `held` looks for its file, 5 ms apart: about a quarter of a second, as a
+/// Linux shell waits for its scope.
+const HELD_TRIES: u32 = 40;
+
+/// `novadeck-relay held <file>`: waits for `file`, which the runner makes once a shell's job
+/// has settled, then removes it, so a cmd's startup command runs inside the job; after `tries`
+/// looks it goes on all the same. cmd has no wait of its own short of a second.
+fn held(file: &Path, tries: u32) {
+    for _ in 0..tries {
+        if file.exists() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let _ = std::fs::remove_file(file);
 }
 
 /// Prints to stderr, where a failed write must not end the relay: `eprintln!` panics on
@@ -196,6 +226,20 @@ mod tests {
 
     fn args(each: &[&str]) -> Vec<String> {
         each.iter().map(|one| (*one).to_owned()).collect()
+    }
+
+    #[test]
+    fn held_waits_for_its_file_and_removes_it_or_goes_on_without_it() {
+        let file = std::env::temp_dir().join(format!("novadeck-held-{}", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let started = std::time::Instant::now();
+        held(&file, 4);
+        assert!(started.elapsed() >= std::time::Duration::from_millis(15));
+        std::fs::write(&file, "").unwrap();
+        let started = std::time::Instant::now();
+        held(&file, 400);
+        assert!(started.elapsed() < std::time::Duration::from_millis(500));
+        assert!(!file.exists());
     }
 
     #[test]

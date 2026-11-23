@@ -39,23 +39,55 @@ describe("a shell's launch", () => {
 
   it("puts `pathFirst` first on PATH, under the name the environment uses", () => {
     expect(launch("bash", { env: { PATH: "/usr/bin" }, pathFirst: "/data/bin" }).env).toMatchObject(
-      { PATH: `/data/bin${delimiter}/usr/bin`, ACME_BIN: "/data/bin" },
+      {
+        PATH: `/data/bin${delimiter}/usr/bin`,
+        ACME_BIN: "/data/bin",
+      },
     )
-    const windows = launch("dash", { env: { Path: "C:\\bin" }, pathFirst: "C:\\data\\bin" }).env
+    const windows = launch("dash", {
+      env: { Path: "C:\\bin" },
+      pathFirst: "C:\\data\\bin",
+    }).env
     expect(windows.Path).toBe(`C:\\data\\bin${delimiter}C:\\bin`)
     expect(windows).not.toHaveProperty("PATH")
     expect(launch("bash", { env: {}, pathFirst: "/data/bin" }).env.PATH).toBe("/data/bin")
-    expect(launch("bash", { env: { PATH: "/usr/bin" } }).env).toEqual({ PATH: "/usr/bin" })
+    expect(launch("bash", { env: { PATH: "/usr/bin" } }).env).toEqual({
+      PATH: "/usr/bin",
+    })
   })
 
-  it("holds a startup command for a scope in the shells that wait for one", () => {
+  it("holds a startup command for a Linux scope in the shells that read their cgroup", () => {
     const startup = { command: "make", file: "/data/resume/1" }
-    for (const shell of ["bash", "zsh", "fish"])
-      expect(launch(shell, { env: {}, startup, scoped: true }).env.ACME_SCOPE).toBe("1")
+    const linux = {
+      env: {},
+      startup,
+      scoped: true,
+      platform: "linux",
+    } as const
+    for (const shell of ["bash", "zsh", "fish"]) {
+      expect(launch(shell, linux).env.ACME_SCOPE).toBe("1")
+      expect(launch(shell, linux)).not.toHaveProperty("scopeFile")
+    }
     // Nothing to hold, nothing on its way, or a shell that doesn't wait.
     expect(launch("bash", { env: {}, scoped: true }).env).not.toHaveProperty("ACME_SCOPE")
     expect(launch("bash", { env: {}, startup }).env).not.toHaveProperty("ACME_SCOPE")
-    expect(launch("pwsh", { env: {}, startup, scoped: true }).env).not.toHaveProperty("ACME_SCOPE")
+  })
+
+  it("holds a startup command for a Windows job until the file made once it has settled", () => {
+    const startup = { command: "make", file: "C:\\data\\resume\\1" }
+    const windows = {
+      env: {},
+      startup,
+      scoped: true,
+      platform: "win32",
+    } as const
+    for (const shell of ["bash", "pwsh.exe", "powershell.exe"]) {
+      const held = launch(shell, windows)
+      expect(held.scopeFile).toBe("C:\\data\\resume\\1.held")
+      expect(held.env.ACME_SCOPE).toBe(held.scopeFile)
+    }
+    // Nothing on its way: nothing to wait for.
+    expect(launch("pwsh.exe", { ...windows, scoped: false })).not.toHaveProperty("scopeFile")
   })
 
   it("names the startup command's file, for every shell but cmd", () => {
@@ -63,9 +95,15 @@ describe("a shell's launch", () => {
     for (const shell of ["bash", "zsh", "fish", "pwsh"]) {
       const { env, resumes, resumeFile } = launch(shell, { env: {}, startup })
       expect(env.ACME_RESUME).toBe("/data/resume/1")
-      expect({ resumes, resumeFile }).toEqual({ resumes: true, resumeFile: "/data/resume/1" })
+      expect({ resumes, resumeFile }).toEqual({
+        resumes: true,
+        resumeFile: "/data/resume/1",
+      })
     }
-    expect(launch("bash", { env: {} })).toMatchObject({ resumes: false, resumeFile: undefined })
+    expect(launch("bash", { env: {} })).toMatchObject({
+      resumes: false,
+      resumeFile: undefined,
+    })
   })
 
   it("starts other shells as they are", () => {
@@ -91,11 +129,34 @@ describe("cmd", () => {
   })
 
   it("gets the startup command as one command line, inner quotes and all", () => {
-    const startup = { command: 'git commit -m "fix it" && make', file: "C:\\data\\resume\\x" }
+    const startup = {
+      command: 'git commit -m "fix it" && make',
+      file: "C:\\data\\resume\\x",
+    }
     const cmd = launch("C:\\Windows\\System32\\cmd.exe", { env: {}, startup })
     expect(cmd.args).toBe('/s /k "git commit -m "fix it" && make"')
     expect(cmd.resumes).toBe(true)
     expect(cmd.env).not.toHaveProperty("ACME_RESUME")
+    expect(cmd).not.toHaveProperty("scopeFile")
+  })
+
+  it("holds the startup command for its job with the waiter, which has the file to wait for", () => {
+    const startup = { command: "claude", file: "C:\\data\\resume\\x" }
+    const waiter = "C:\\data\\novadeck-relay.exe"
+    const windows = {
+      env: {},
+      startup,
+      scoped: true,
+      platform: "win32",
+    } as const
+    const cmd = launch("cmd.exe", { ...windows, waiter })
+    expect(cmd.args).toBe(`/s /k ""${waiter}" held "C:\\data\\resume\\x.held" & claude"`)
+    expect(cmd.scopeFile).toBe("C:\\data\\resume\\x.held")
+    // Without a waiter it runs at once, and nothing waits for the file.
+    expect(launch("cmd.exe", windows)).toMatchObject({
+      args: '/s /k "claude"',
+    })
+    expect(launch("cmd.exe", windows)).not.toHaveProperty("scopeFile")
   })
 
   it("is started with nothing else without one", () => {

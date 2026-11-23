@@ -34,6 +34,7 @@ export const shellLaunch = (
     readonly startup?: { readonly command: string; readonly file: string } | undefined
     readonly scoped?: boolean | undefined
   } = {},
+  platform: NodeJS.Platform = process.platform,
 ): ShellLaunch =>
   // Connected agents' hooks name the launcher through NOVADECK_HOOK; see `hookCommand`.
   // On Linux and macOS their MCP server starts from NOVADECK_MCP, so it is this
@@ -51,11 +52,16 @@ export const shellLaunch = (
     env: {
       ...env,
       NOVADECK_HOOK: paths.launcher,
-      ...(paths.mcpLauncher !== undefined && { NOVADECK_MCP: paths.mcpLauncher }),
+      ...(paths.mcpLauncher !== undefined && {
+        NOVADECK_MCP: paths.mcpLauncher,
+      }),
       ...(shims.length > 0 && { NOVADECK_SHIMS: shims.join(" ") }),
-      ...(scoped === true && opening(paths.open, env)),
+      ...(scoped === true && platform === "linux" && opening(paths.open, env)),
     },
     pathFirst: shims.length > 0 ? paths.bin : undefined,
     startup,
     scoped,
+    // On Windows cmd waits for its job through the relay, which waits for the scope's file.
+    ...(platform === "win32" && { waiter: paths.relay }),
+    platform,
   })

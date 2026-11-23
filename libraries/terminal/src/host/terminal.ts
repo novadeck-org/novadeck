@@ -97,6 +97,8 @@ export type RunSpec = {
   readonly env: NodeJS.ProcessEnv
   readonly cols: number
   readonly rows: number
+  /** On Windows, the file made once its shell's job has settled (see `spawnPty`). */
+  readonly scopeFile?: string | undefined
 }
 
 export type TerminalOptions = {
@@ -342,7 +344,12 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     input: string[] | null
     deferred?: boolean
     notBefore?: number
-    size: { cols: number; rows: number; owner: string; attachment: Subscription | undefined } | null
+    size: {
+      cols: number
+      rows: number
+      owner: string
+      attachment: Subscription | undefined
+    } | null
   } | null = null
   let exit: Exit | null = null
   let exiting = false

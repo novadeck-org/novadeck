@@ -21,7 +21,9 @@ import { shellScriptPaths, shellScripts } from "./scripts.js"
 const header = (comment: string, what: string) => `${comment} Acme ${what}.`
 
 const onPath = (shell: string) =>
-  spawnSync("sh", ["-c", `command -v ${shell}`], { encoding: "utf8" }).stdout?.trim()
+  spawnSync("sh", ["-c", `command -v ${shell}`], {
+    encoding: "utf8",
+  }).stdout?.trim()
 
 // One bash for the check and the run, which gets only the launch's PATH.
 const bash = onPath("bash")
@@ -45,7 +47,7 @@ describe("the shells' files", () => {
     }
   })
 
-  it("wait for a scope before a startup command in bash, zsh and fish, and clear the word of it", () => {
+  it("wait for a scope before a startup command, and clear the word of it", () => {
     const scripts = shellScriptPaths("/data", "acme")
     const files = shellScripts(scripts, header)
     const named = (path: string) => files.find((file) => file.path === path)!.content
@@ -57,7 +59,11 @@ describe("the shells' files", () => {
       // Before the command is read, so removing its file while it waits still cancels it.
       expect(content.indexOf("while ")).toBeLessThan(content.indexOf("rm -f --"))
     }
-    expect(named(scripts.powershell)).not.toContain("ACME_SCOPE")
+    // PowerShell runs only on Windows, where it waits for the file its job's settling makes.
+    const powershell = named(scripts.powershell)
+    expect(powershell).toMatch(/Remove-Item Env:ACME_SCOPE/)
+    expect(powershell).toMatch(/Test-Path -LiteralPath \$__acmeScope/)
+    expect(powershell.indexOf("ACME_SCOPE")).toBeLessThan(powershell.indexOf("Get-Content"))
   })
 
   it("refuse a prefix that isn't a plain lowercase name", () => {
@@ -74,7 +80,9 @@ describe("the shells' files", () => {
 
 // The Linux job that runs these tests installs fish and sets this, so they can't skip there.
 const fishRequired = process.env.NOVADECK_REQUIRE_FISH === "1"
-const fish = spawnSync("sh", ["-c", "command -v fish"], { encoding: "utf8" }).stdout?.trim()
+const fish = spawnSync("sh", ["-c", "command -v fish"], {
+  encoding: "utf8",
+}).stdout?.trim()
 
 describe.skipIf(process.platform === "win32" || (!fish && !fishRequired))("fish's file", () => {
   it("runs the startup command with bracketed paste off, and goes on as a shell", async () => {
@@ -88,12 +96,18 @@ describe.skipIf(process.platform === "win32" || (!fish && !fishRequired))("fish'
       mkdirSync(dirname(file.path), { recursive: true })
       writeFileSync(file.path, file.content, { mode: file.mode })
     }
-    const startup = { command: 'echo "started "(math 40 + 2)', file: join(root, "startup") }
+    const startup = {
+      command: 'echo "started "(math 40 + 2)',
+      file: join(root, "startup"),
+    }
     writeFileSync(startup.file, startup.command)
     const launch = shellLaunch({
       shell: "fish",
       scripts,
-      env: { HOME: home, PATH: "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin" },
+      env: {
+        HOME: home,
+        PATH: "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+      },
       startup,
     })
 
@@ -155,7 +169,10 @@ describe.skipIf(process.platform === "win32" || !bash)("bash's file", () => {
       mkdirSync(dirname(file.path), { recursive: true })
       writeFileSync(file.path, file.content, { mode: file.mode })
     }
-    const startup = { command: 'echo "started $((40 + 2))"', file: join(root, "startup") }
+    const startup = {
+      command: 'echo "started $((40 + 2))"',
+      file: join(root, "startup"),
+    }
     writeFileSync(startup.file, startup.command)
 
     const launch = shellLaunch({
@@ -215,7 +232,11 @@ describe.skipIf(process.platform !== "linux")("a scope that doesn't come", () =>
       const launch = shellLaunch({
         shell: name,
         scripts,
-        env: { HOME: home, PATH: `${dirname(path!)}:/usr/bin:/bin`, TERM: "xterm-256color" },
+        env: {
+          HOME: home,
+          PATH: `${dirname(path!)}:/usr/bin:/bin`,
+          TERM: "xterm-256color",
+        },
         startup,
         scoped: true,
       })

@@ -145,7 +145,8 @@ down: the app's own processes, and anything a shell started in the few milliseco
 before its move. A startup command, as an agent opened in a terminal is, waits for the
 move, about a quarter of a second at most on a calm machine, then runs either way; what
 the person's own startup files start doesn't wait. Without a user bus (no systemd, a container, WSL without systemd),
-shells run in the app's scope as before. macOS and Windows have no scopes (see the priority below).
+shells run in the app's scope as before. macOS has no scopes, and Windows has a job object per
+terminal instead, which holds what the terminal starts but limits nothing (see the priority below).
 
 A program started detached stays in the scope of the terminal it was started in, though it
 has left the shell's tree, so a close or a quit ends what an agent left there (see "Closing"
@@ -157,6 +158,14 @@ bus nothing changes, and such a program outlives its terminal as before. Once a 
 program has exited, a scope it left empty is stopped: one whose program died as systemd moved
 it in otherwise stays active, with no process in it, for ever, as systemd collects a scope only
 once its cgroup empties (measured: 8 of 60 such moves; 272 empty scopes after 16 hours).
+
+On Windows a terminal's job object, held by the runner's relay, plays the scope's part: a
+program started there stays in it however it was started, so a close or a quit ends what an
+agent left there detached (`start /b`, `Start-Process`, a detached child) by the same rules.
+A startup command waits for the shell to be in its job, as on Linux. An app an agent opens is
+in the job too: a browser that was already running only takes the new tab, but one the agent
+starts from nothing ends with the terminal, as Windows has no shim for that as Linux's
+`xdg-open`.
 
 A terminal's scope also asks for `CPUWeight=10` (`terminalCpuWeight`), a tenth of the
 app's scope's default 100. Inside the desktop's `app.slice` every thread otherwise weighs

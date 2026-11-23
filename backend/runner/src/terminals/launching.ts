@@ -20,7 +20,10 @@ import { failed } from "./failures.js"
 import type { Started } from "./record.js"
 
 /** The runner's shell integration, once its files are written and reports are heard. */
-export type Integration = { readonly paths: InstalledShell; readonly reports: Reports }
+export type Integration = {
+  readonly paths: InstalledShell
+  readonly reports: Reports
+}
 
 type Size = { cols: number; rows: number }
 
@@ -65,7 +68,10 @@ export const withFolders = (
       added.push(folder)
     }
   if (added.length === 0) return env
-  return { ...env, [key]: [env[key], ...added].filter(Boolean).join(separator) }
+  return {
+    ...env,
+    [key]: [env[key], ...added].filter(Boolean).join(separator),
+  }
 }
 
 export type LauncherOptions = {
@@ -142,7 +148,10 @@ export class Launcher {
   async shellIntegration(): Promise<(Integration & { shims: readonly AgentName[] }) | undefined> {
     const integration = await this.integration
     if (!integration) return undefined
-    return { ...integration, shims: await this.options.shims().catch(() => []) }
+    return {
+      ...integration,
+      shims: await this.options.shims().catch(() => []),
+    }
   }
 
   /** Whether a terminal created now could start a command; see `launch`. */
@@ -269,7 +278,10 @@ export class Launcher {
     // The shell reads the command from a file only it and the runner can read.
     if (launched.resumeFile)
       try {
-        writeFileSync(launched.resumeFile, startup!.command, { mode: 0o600, flag: "wx" })
+        writeFileSync(launched.resumeFile, startup!.command, {
+          mode: 0o600,
+          flag: "wx",
+        })
       } catch {
         launched = launch(false)
       }
@@ -289,7 +301,17 @@ export class Launcher {
       ...(capture !== undefined && { [captureVariable]: capture }),
     }
     return {
-      spec: { file: shell, args: this.options.shellArgs ?? launched.args, cwd, env, cols, rows },
+      spec: {
+        file: shell,
+        args: this.options.shellArgs ?? launched.args,
+        cwd,
+        env,
+        cols,
+        rows,
+        ...(launched.scopeFile !== undefined && {
+          scopeFile: launched.scopeFile,
+        }),
+      },
       started: {
         token,
         resumes: launched.resumes,

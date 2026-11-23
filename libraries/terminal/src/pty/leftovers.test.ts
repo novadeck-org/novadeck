@@ -3,7 +3,15 @@ import { spawn } from "node:child_process"
 import { describe as context, describe, expect, it, onTestFinished } from "vitest"
 
 import { processListing, type Listed } from "./descendants.js"
-import { endLeftovers, leftovers, readScope, runStart, ticksNow } from "./leftovers.js"
+import {
+  endLeftovers,
+  leftovers,
+  listedScope,
+  readScope,
+  runClock,
+  runStart,
+  ticksNow,
+} from "./leftovers.js"
 
 // A process as a listing shows it, started at `started` clock ticks.
 const row = (
@@ -36,7 +44,12 @@ describe("what an agent left in its terminal's scope", () => {
         row(31, 30, 950), // that server's worker, started after the agent left
         row(40, 2000, 700), // one adopted by a subreaper outside the scope
       ]
-      const found = leftovers({ rows, members: [10, 20, 30, 31, 40], runs, shell: 10 })
+      const found = leftovers({
+        rows,
+        members: [10, 20, 30, 31, 40],
+        runs,
+        shell: 10,
+      })
       expect(pids(found)).toEqual([30, 31, 40])
     })
 
@@ -100,7 +113,12 @@ describe("what an agent left in its terminal's scope", () => {
 
   it("never names one apart by its pid alone", () => {
     const rows = [row(70, 1, 600)]
-    const found = leftovers({ rows, members: [70], runs, apart: [{ pid: 70, started: "601" }] })
+    const found = leftovers({
+      rows,
+      members: [70],
+      runs,
+      apart: [{ pid: 70, started: "601" }],
+    })
     expect(pids(found)).toEqual([70])
   })
 
@@ -114,6 +132,18 @@ describe("what an agent left in its terminal's scope", () => {
     const rows = [row(30, 1, 600), row(31, 1, 600, { zombie: true }), row(1, 0, 0)]
     expect(leftovers({ rows, members: [30, 31, 1], runs: [] })).toEqual([])
     expect(pids(leftovers({ rows, members: [30, 31, 1], runs }))).toEqual([30])
+  })
+
+  it("takes no parent that started after its child, whose recorded parent's pid it took", () => {
+    // Windows keeps 30's parent, 25, after 25 ended; 25 is now a later process, in the scope.
+    const rows = [shell, row(25, 10, 800), row(30, 25, 600), row(31, 30, 650)]
+    const found = leftovers({
+      rows,
+      members: [10, 25, 30, 31],
+      runs,
+      shell: 10,
+    })
+    expect(pids(found)).toEqual([30, 31])
   })
 
   it("is nothing for a start that isn't Linux's clock ticks", () => {
@@ -160,7 +190,25 @@ describe("now, in clock ticks", () => {
   })
 })
 
+describe("now, in a platform's clock for a process's start", () => {
+  it("is Windows' wall clock in milliseconds, as its creation times count", () => {
+    const before = Date.now()
+    expect(runClock("win32")).toBeGreaterThanOrEqual(before)
+    expect(runClock("darwin")).toBeUndefined()
+  })
+})
+
 describe("reading a scope", () => {
+  it("lists one that lists its own, as a Windows job, with its members", async () => {
+    const rows = [row(30, 1, 600), row(31, 30, 650)]
+    expect(await listedScope(() => Promise.resolve(rows))).toEqual({
+      rows,
+      members: [30, 31],
+    })
+    expect(await listedScope(() => Promise.resolve([]))).toBeUndefined()
+    expect(await listedScope(() => Promise.resolve(undefined))).toBeUndefined()
+  })
+
   it("is nothing where its members or the processes can't be read, or it is empty", async () => {
     const rows = [row(1, 0, 0)]
     expect(
@@ -213,6 +261,30 @@ const ended = (child: ReturnType<typeof spawn>) =>
   new Promise<NodeJS.Signals | null>((resolve) =>
     child.once("exit", (_code, signal) => resolve(signal)),
   )
+
+describe("ending what an agent left where its scope ends a process itself", () => {
+  it("ends what it finds at once, by its pid and start, with no signal", async () => {
+    const asked: string[][] = []
+    const found = [{ pid: 30, started: "600" }]
+    const done = await endLeftovers(
+      () => Promise.resolve(found),
+      undefined,
+      async (ones) => void asked.push(ones.map(({ pid, started }) => `${pid}:${started}`)),
+    )
+    expect(done).toEqual(found)
+    expect(asked).toEqual([["30:600"]])
+  })
+
+  it("ends nothing where it finds nothing", async () => {
+    let asked = false
+    const end = async () => {
+      asked = true
+    }
+    expect(await endLeftovers(() => Promise.resolve(undefined), undefined, end)).toEqual([])
+    expect(await endLeftovers(() => Promise.resolve([]), undefined, end)).toEqual([])
+    expect(asked).toBe(false)
+  })
+})
 
 describe.skipIf(process.platform === "win32")("ending what an agent left", () => {
   it("asks with SIGTERM, then forces what ignores it half a second on", async () => {

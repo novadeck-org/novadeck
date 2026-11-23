@@ -52,7 +52,7 @@ export type Tree = {
   /**
    * An agent left something running in the terminal's scope outside the shell's tree, as a
    * server it started detached (`nohup`, `setsid`): the terminal's end would end it (see the
-   * pty's `endLeft`). Linux only; none where it can't be told.
+   * pty's `endLeft`). On Linux and Windows; none where it can't be told.
    */
   readonly detached?: boolean
 }
@@ -223,6 +223,15 @@ export const windowsTree = (
 }
 
 /**
+ * What an agent left in its terminal's scope, by `listing`, or by the scope's own where it
+ * lists its own, as a Windows job does; none where no agent ran there.
+ */
+const leftBy = async (record: Record, listing: Listing) => {
+  const { pty } = record.terminal
+  return pty.agentRan ? await pty.leftovers({ listing, apart: await apartOf(record) }) : []
+}
+
+/**
  * The processes under a bound agent and beside it, from the system, as hibernation and the
  * restart check both judge what the agent started: its tools and servers below it, the shell's
  * jobs beside it. `list` is the process listing, which a caller reading many terminals shares.
@@ -246,9 +255,16 @@ export const readTree = async (
   if (shell === undefined || agent === undefined) return undefined
   if (process.platform === "win32") {
     if (!trees) return undefined
-    const [all, own] = await Promise.all([trees.read(shell), trees.read(agent)])
+    const [all, own, left] = await Promise.all([
+      trees.read(shell),
+      trees.read(agent),
+      leftBy(record, () => Promise.resolve(undefined)),
+    ])
     if (!all || !own) return undefined
-    return windowsTree(all, own, shell, agent)
+    return {
+      ...windowsTree(all, own, shell, agent),
+      detached: (left?.length ?? 0) > 0,
+    }
   }
   const rows = await list()
   if (!rows) return undefined
@@ -265,10 +281,7 @@ export const readTree = async (
   const beside = await jobs(shell, found.chain)
   // What an agent left in the scope, by the same listing; where it can't be read, the rest
   // can't end it either.
-  const { pty } = record.terminal
-  const left = pty.agentRan
-    ? await pty.leftovers({ listing: () => Promise.resolve(rows), apart: await apartOf(record) })
-    : []
+  const left = await leftBy(record, () => Promise.resolve(rows))
   return {
     placed: true,
     foreground: found.foreground,
@@ -311,7 +324,11 @@ export type HibernationHost = {
 }
 
 /** What one look at a terminal learned beyond its record: its processes, and its box. */
-type Seen = { readonly tree?: Tree; readonly empty?: boolean; readonly resting?: boolean }
+type Seen = {
+  readonly tree?: Tree
+  readonly empty?: boolean
+  readonly resting?: boolean
+}
 
 export type HibernationOptions = {
   /** How often idle agents are looked at, in milliseconds. */
@@ -501,7 +518,9 @@ export class Hibernation {
       record.summary = { ...record.summary, lastProgram: before }
       record.changed = changed
     }
-    log.info("terminals.hibernate", "Stopping an idle agent", { data: { id, agent } })
+    log.info("terminals.hibernate", "Stopping an idle agent", {
+      data: { id, agent },
+    })
     const ending = this.stopping(record, seen, back)
     this.ending.set(id, ending)
     await ending

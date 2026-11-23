@@ -16,7 +16,11 @@ export type ShellScriptPaths = {
   readonly powershell: string
 }
 
-export type ShellFile = { readonly path: string; readonly content: string; readonly mode: number }
+export type ShellFile = {
+  readonly path: string
+  readonly content: string
+  readonly mode: number
+}
 
 export const checked = (prefix: string): string => {
   if (!/^[a-z][a-z0-9]*$/.test(prefix))
@@ -76,12 +80,19 @@ __${p}_resume() {
   unset ${v}_RESUME ${v}_SCOPE
   # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
   # shell: what it starts before it gets there stays behind. So the command waits for
-  # that, forty tries, about a quarter of a second, and runs either way.
+  # that, forty tries, about a quarter of a second, and runs either way. "1" is a Linux
+  # scope, which the shell reads its cgroup for; otherwise it names a file the runner makes
+  # once the shell's Windows job has settled.
   command -v sleep >/dev/null 2>&1 || __${p}_tries=0
   while [ -n "$__${p}_scope" ] && [ -f "$__${p}_file" ] && (( __${p}_tries-- > 0 )); do
-    [[ $(</proc/$$/cgroup) == *-term$$.scope* ]] && break
+    if [ "$__${p}_scope" = 1 ]; then
+      [[ $(</proc/$$/cgroup) == *-term$$.scope* ]] && break
+    elif [ -e "$__${p}_scope" ]; then
+      break
+    fi
     command sleep 0.005 || :
   done 2>/dev/null
+  [ "$__${p}_scope" = 1 ] || [ -z "$__${p}_scope" ] || command rm -f -- "$__${p}_scope" 2>/dev/null
   if [ -f "$__${p}_file" ]; then
     __${p}_command=$(<"$__${p}_file")
     command rm -f -- "$__${p}_file"
@@ -158,12 +169,19 @@ __${p}_resume() {
   unset ${v}_RESUME ${v}_SCOPE
   # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
   # shell: what it starts before it gets there stays behind. So the command waits for
-  # that, forty tries, about a quarter of a second, and runs either way.
+  # that, forty tries, about a quarter of a second, and runs either way. "1" is a Linux
+  # scope, which the shell reads its cgroup for; otherwise it names a file the runner makes
+  # once the shell's Windows job has settled.
   command -v sleep >/dev/null 2>&1 || __${p}_tries=0
   while [[ -n "$__${p}_scope" && -f "$__${p}_file" ]] && (( __${p}_tries-- > 0 )); do
-    [[ "$(</proc/$$/cgroup)" == *-term$$.scope* ]] && break
+    if [[ "$__${p}_scope" == 1 ]]; then
+      [[ "$(</proc/$$/cgroup)" == *-term$$.scope* ]] && break
+    elif [[ -e "$__${p}_scope" ]]; then
+      break
+    fi
     command sleep 0.005 || :
   done 2>/dev/null
+  [[ "$__${p}_scope" == 1 || -z "$__${p}_scope" ]] || command rm -f -- "$__${p}_scope" 2>/dev/null
   if [[ -f "$__${p}_file" ]]; then
     __${p}_command=$(<"$__${p}_file")
     command rm -f -- "$__${p}_file"
@@ -204,14 +222,23 @@ function __${p}_resume --on-event fish_prompt
     set -e ${v}_SCOPE
     # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
     # shell: what it starts before it gets there stays behind. So the command waits for
-    # that, forty tries, about a quarter of a second, and runs either way.
+    # that, forty tries, about a quarter of a second, and runs either way. "1" is a Linux
+    # scope, which the shell reads its cgroup for; otherwise it names a file the runner
+    # makes once the shell's Windows job has settled.
     set -l __${p}_tries 40
     command -q sleep; or set __${p}_tries 0
     while test -n "$__${p}_scope"; and test -f $__${p}_file; and test $__${p}_tries -gt 0
-        string match -q -- "*-term$fish_pid.scope*" (string collect < /proc/$fish_pid/cgroup); and break
+        if test "$__${p}_scope" = 1
+            string match -q -- "*-term$fish_pid.scope*" (string collect < /proc/$fish_pid/cgroup); and break
+        else if test -e "$__${p}_scope"
+            break
+        end
         command sleep 0.005
         set __${p}_tries (math $__${p}_tries - 1)
     end 2>/dev/null
+    if test -n "$__${p}_scope"; and test "$__${p}_scope" != 1
+        command rm -f -- $__${p}_scope 2>/dev/null
+    end
     if test -f $__${p}_file
         set -l __${p}_command (string collect < $__${p}_file)
         command rm -f -- $__${p}_file
@@ -249,6 +276,18 @@ function global:prompt {
 if ($env:${v}_RESUME) {
   $__${p}Resume = $env:${v}_RESUME
   Remove-Item Env:${v}_RESUME
+  # ${v}_SCOPE names a file the runner makes once this shell's job has settled: what the
+  # shell starts before it is in its job stays out. So the command waits for that, forty
+  # tries, about a quarter of a second, and runs either way.
+  if ($env:${v}_SCOPE) {
+    $__${p}Scope = $env:${v}_SCOPE
+    Remove-Item Env:${v}_SCOPE
+    for ($__${p}Tries = 40; $__${p}Tries -gt 0 -and -not (Test-Path -LiteralPath $__${p}Scope); $__${p}Tries--) {
+      Start-Sleep -Milliseconds 5
+    }
+    Remove-Item -LiteralPath $__${p}Scope -ErrorAction SilentlyContinue
+    Remove-Variable __${p}Scope, __${p}Tries -ErrorAction SilentlyContinue
+  }
   if (Test-Path -LiteralPath $__${p}Resume) {
     $__${p}Command = Get-Content -LiteralPath $__${p}Resume -Raw
     Remove-Item -LiteralPath $__${p}Resume

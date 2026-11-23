@@ -101,7 +101,10 @@ resolve it.
     Told when an agent runs there (`agentStarted`, `agentEnded`), a pty ends what the agent left
     in its scope as `end` runs (`left`), or by `endLeft` once its shell has exited: each tree of
     the scope whose root started during an agent's run, but for what `apart` names
-    (`leftovers`).
+    (`leftovers`). `windowsJobs(relay)` gives Windows the same through a job object per
+    terminal, which the relay's `jobs` mode holds: the shell goes into it once node-pty names
+    its pid, and `scopeFile` is made once that has settled; the job lists its own processes
+    (`listed`) and ends them by pid and start (`end`).
   - `sampleForeground(child, last)` names the program in a terminal's foreground, cheaply
     enough to sample, from `/proc` on Linux and `ps` on macOS (Windows can't tell).
     `terminalForeground`, `processGroup`, `foregroundProcess`, `foregroundRuns`, `openFiles`,
@@ -123,8 +126,9 @@ resolve it.
     `__acme_prompt`), and the comment each file opens with.
   - `shellLaunch` gives a shell the arguments and environment that load them (cmd reports
     through its `PROMPT` and takes the command with `/k`), with a folder put first and a
-    startup command, which with `scoped` bash, zsh and fish hold for their scope (see
-    `userScopes`); `startsCommands` says which shells run one. `shQuote` and `cmdQuote` quote
+    startup command, which with `scoped` bash, zsh and fish hold for their scope on Linux
+    (see `userScopes`), and every shell on Windows for its job (`scopeFile`; cmd through a
+    `waiter`, see `windowsJobs`); `startsCommands` says which shells run one. `shQuote` and `cmdQuote` quote
     a value as one word of sh and cmd.
   - `refreshPath` merges the folders the Windows registry's PATH has now into an environment,
     read through the relay where it's given one, else through PowerShell, cached and backed off
