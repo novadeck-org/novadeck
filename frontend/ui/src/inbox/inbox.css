@@ -294,11 +294,14 @@
   color: var(--inbox-draft-fg, var(--color-danger-fg));
 }
 
+/* It keeps its size beside the title: the title's count gives up its room first (see
+   `.sidebar-panel-count`), so neither is drawn over the other. */
 .inbox-held {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 9px;
+  padding: 2px 7px;
   border: var(--border-width) solid
     var(--inbox-held-border-color, color-mix(in srgb, var(--color-strong) 30%, transparent));
   border-radius: 999px;
