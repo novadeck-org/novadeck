@@ -8,6 +8,9 @@ export type PendingInstall = {
   readonly agent: AgentName
   readonly terminalId: string
   readonly ran: boolean
+  // Once it is installed and connected, the agent isn't started for the person to sign in: they
+  // asked for it for something else (the tour's), which needs no sign-in.
+  readonly quiet?: true
 }
 
 // What a pending install's terminal is, as the workspace shows it; undefined once it is gone.
@@ -69,8 +72,9 @@ const storageKey = "novadeck.installs"
 
 const isPending = (value: unknown): value is PendingInstall => {
   if (typeof value !== "object" || value === null) return false
-  const { agent, terminalId, ran } = value as Record<string, unknown>
+  const { agent, terminalId, ran, quiet } = value as Record<string, unknown>
   return (
+    (quiet === undefined || quiet === true) &&
     typeof agent === "string" &&
     harnesses.some(({ id }) => id === agent) &&
     typeof terminalId === "string" &&

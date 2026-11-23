@@ -609,7 +609,7 @@ export const createRouter = (options: {
       ),
     },
     tour: {
-      prepare: api.tour.prepare.handler(({ input }) => tour.prepare(input.agent)),
+      prepare: api.tour.prepare.handler(() => tour.prepare()),
       brief: api.tour.brief.handler(({ input }) => tour.brief(input.terminalId)),
       nudge: api.tour.nudge.handler(({ input }) => tour.nudge(input.terminalId)),
       artist: api.tour.artist.handler(({ input }) => tour.artist(input.terminalId)),

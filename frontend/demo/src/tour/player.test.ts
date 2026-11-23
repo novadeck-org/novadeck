@@ -16,6 +16,7 @@ describe("the tour agent's pieces", () => {
     expect(tourHarness(demoRun("claude").command)).toBe("claude")
     expect(tourHarness(demoRun("codex").command)).toBe("codex")
     expect(tourHarness(demoRun("agy").command)).toBe("agy")
+    expect(tourHarness(demoRun("opencode").command)).toBe("opencode")
     expect(tourHarness("zsh")).toBeUndefined()
   })
 

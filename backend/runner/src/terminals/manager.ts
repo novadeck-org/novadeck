@@ -333,6 +333,7 @@ export class Terminals {
       install: options.install ?? (() => Promise.resolve(undefined)),
       models: options.models ?? (() => Promise.resolve([])),
       openPolicy: options.openPolicy ?? (() => ({})),
+      launchEnv: options.launchEnv ?? (() => undefined),
       hooksTrusted: options.hooksTrusted,
       items: options.items,
       platform: options.platform ?? process.platform,

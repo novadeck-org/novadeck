@@ -470,6 +470,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     models: (agent) => agents.models(agent),
     // The tour's teammates may not open agents, and its lead's open in the teammates' folder.
     openPolicy: (terminalId) => tour.openPolicy(terminalId),
+    // The tour's agents' provider, for the shells that start in its folder.
+    launchEnv: (cwd) => tour.launchEnv(cwd),
     transcripts: store.settings.runner().transcripts,
     // Read each time idle agents are looked at, so a change in Preferences counts at once.
     hibernateAfterMinutes: () => store.settings.runner().hibernateAfterMinutes,
@@ -506,7 +508,6 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Where the game's server command is looked for: the person's terminal's PATH.
     environment: () => agents.environment(),
     connected: (agent) => agents.connected(agent),
-    models: (agent) => agents.models(agent),
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),

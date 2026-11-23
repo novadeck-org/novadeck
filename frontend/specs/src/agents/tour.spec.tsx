@@ -25,14 +25,14 @@ const expectTourOpen = async (): Promise<void> => {
   await expectSelected(terminalTabNames()[0]!)
 }
 
-// Offers the tour from the footer's Help menu; with `connect`, Claude Code is connected first,
+// Offers the tour from the footer's Help menu; with `connect`, opencode is connected first,
 // in Preferences' Agents (the demo starts with none).
 const offerFromHelp = async ({ connect = true } = {}): Promise<void> => {
   if (connect) {
     await openPreferencesOn("Agents")
-    const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
-    await claude.click()
-    await expect.element(claude).toHaveAttribute("aria-checked", "true")
+    const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
+    await opencode.click()
+    await expect.element(opencode).toHaveAttribute("aria-checked", "true")
     await closePreferences()
   }
   await takeTourFromHelp()
@@ -88,13 +88,16 @@ describe("The tour", () => {
       await openWorkspace(offered)
       await offerFromHelp()
       await consentSays(
-        "Your own agent leads a small team that builds a little browser game you choose.",
+        "opencode agents lead a small team that builds a little browser game you choose.",
       )
       await consentSays(
         "You answer a question or two, approve one command, and play the game at the end.",
       )
       await consentSays(
-        "Runs three Claude Code agents on its cheapest model, on your own account, for about 5 minutes.",
+        "Runs three opencode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+      )
+      await consentSays(
+        "What the agents read and write goes to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
       )
       await consentSays(
         "Works in a sandbox repo under ~/.novadeck, made fresh each time. A game you finish is yours to keep.",
@@ -103,24 +106,17 @@ describe("The tour", () => {
       await expect.element(start()).toHaveFocus()
     })
 
-    it("offers a choice of agent only where more than one can run it", async () => {
+    it("offers no choice of agent, whichever others are connected", async () => {
       await openWorkspace(offered)
-      await offerFromHelp()
-      await consentSays("Runs three Claude Code agents")
-      const picker = consent().getByRole("radiogroup", { name: "Agent for the tour" })
-      expect(picker.query()).toBeNull()
-      await consent().getByRole("button", { name: "Not now" }).click()
-      await expect.element(consent()).not.toBeInTheDocument()
       await openPreferencesOn("Agents")
       const codex = preferencesDialog().getByRole("switch", { name: "Codex" })
       await codex.click()
       await expect.element(codex).toHaveAttribute("aria-checked", "true")
       await closePreferences()
-      await takeTourFromHelp()
-      await expect.element(picker).toBeVisible()
-      await expect.element(picker.getByRole("radio", { name: "Claude Code" })).toBeVisible()
-      await expect.element(picker.getByRole("radio", { name: "Codex" })).toBeVisible()
-      expect(picker.getByRole("radio", { name: "Antigravity" }).query()).toBeNull()
+      await offerFromHelp()
+      await consentSays("Runs three opencode agents")
+      expect(consent().getByRole("radiogroup").query()).toBeNull()
+      expect(consent().getByRole("radio").query()).toBeNull()
     })
 
     it("opens the Tour project with its agent starting on its cheapest model", async () => {
@@ -142,13 +138,27 @@ describe("The tour", () => {
       expect(terminalTabNames()).toEqual(before)
     })
 
-    it("says to connect an agent first where none is", async () => {
+    it("offers to connect opencode right there where Novadeck isn't connected to it, and starts once it is", async () => {
       await openWorkspace(offered)
       await offerFromHelp({ connect: false })
-      await consentSays("Install and connect Claude Code, Codex or Antigravity")
-      expect(start().query()).toBeNull()
-      await consent().getByRole("button", { name: "Close" }).click()
-      await expect.element(consent()).not.toBeInTheDocument()
+      await consentSays("Connect adds Novadeck's small plugin to opencode")
+      await consent().getByRole("button", { name: "Connect opencode" }).click()
+      await expect.poll(() => consent().query()?.textContent ?? "").not.toContain("Connect adds")
+      await start().click()
+      await expectTourOpen()
+    })
+
+    it("offers to install opencode right there where it isn't installed, and starts once it is installed and connected", async () => {
+      await openWorkspace(`${offered}&opencode=missing`)
+      await offerFromHelp({ connect: false })
+      await consentSays("Install adds opencode to this computer")
+      await consentSays("curl -fsSL https://opencode.ai/install | bash")
+      await consent().getByRole("button", { name: "Install opencode" }).click()
+      await expect
+        .poll(() => consent().query()?.textContent ?? "", { timeout: 15_000 })
+        .not.toContain("Install adds")
+      await start().click()
+      await expectTourOpen()
     })
 
     it("says why it couldn't start, staying open to try again", async () => {
@@ -174,14 +184,13 @@ describe("The tour", () => {
     })
   })
 
-  it("offers to start an agent that hasn't listed its models yet", async () => {
-    await openWorkspace(`${offered}&tourStart=unlisted`)
+  it("shows the tour's service's own sentence where it has no free run to give, staying open", async () => {
+    await openWorkspace(`${offered}&tourStart=tickets`)
     await offerFromHelp()
     await start().click()
-    await consentSays("hasn't listed its models here yet")
-    await consent().getByRole("button", { name: "Start Claude Code" }).click()
-    await expect.element(consent()).not.toBeInTheDocument()
-    await expectSelected("claude")
+    await consentSays("You've taken today's free tours.")
+    await start().click()
+    await expectTourOpen()
   })
 })
 

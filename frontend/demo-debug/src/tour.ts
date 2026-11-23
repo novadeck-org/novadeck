@@ -22,9 +22,9 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
         run: () => tour.failNext(),
       },
       {
-        label: "Next start: models unlisted",
-        hint: "The next Start the tour says the agent hasn't listed its models yet (Codex before it signs in), with a Start button that opens it in a terminal",
-        run: () => tour.failNext("unlisted"),
+        label: "Next start: no free run left",
+        hint: "The next Start the tour shows the service's own sentence that today's free tours are used up; the consent stays open",
+        run: () => tour.failNext("tickets"),
       },
       ...(["startup", "sign-in", "hooks"] as const).map((screen) => ({
         label: `Tour agent: hold at ${screens[screen].label}`,

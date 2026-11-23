@@ -1,4 +1,3 @@
-import type { Model } from "@novadeck/harness-core/harness"
 import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -25,10 +24,19 @@ import {
   tourFolder,
   tourFolderCount,
 } from "./folder.js"
-import { tourChoice, tourLaunch, tourWrites, type TourLaunch } from "./launch.js"
+import {
+  tourAgent,
+  tourConfig,
+  tourEffort,
+  tourLaunch,
+  tourModel,
+  tourWrites,
+  type TourLaunch,
+} from "./launch.js"
 import { bringHome, commitSandbox, laySandbox, releaseSandbox, requireGit } from "./repo.js"
 import { seedFiles, type TourAssets } from "./seed.js"
 import { findServing, freePort, versionOf } from "./serving.js"
+import { fetchTicket, tourEndpoint } from "./ticket.js"
 
 /** What the tour needs of the runner. */
 export type TourHost = {
@@ -45,7 +53,11 @@ export type TourHost = {
    */
   readonly environment?: () => NodeJS.ProcessEnv
   readonly connected: (agent: AgentName) => Promise<boolean>
-  readonly models: (agent: AgentName) => Promise<readonly Model[]>
+  /**
+   * A ticket for one run, which the tour's agents' provider takes as its key (`fetchTicket`, from
+   * the service at `tourEndpoint()`); a refusal is a `DomainError` in words for the person.
+   */
+  readonly ticket?: () => Promise<string>
   readonly projects: {
     readonly list: () => readonly Project[]
     readonly remove: (projectId: string) => Promise<void>
@@ -64,9 +76,10 @@ export type TourHost = {
 
 // What the run last readied is, once it starts: its folder, its agent's launch, and its terminals.
 type Run = {
-  readonly agent: AgentName
   readonly launch: TourLaunch
   readonly directory: string
+  /** What the run's terminals in its folder start with: the provider and model of its agents. */
+  readonly env: NodeJS.ProcessEnv
   /** The terminal the lead's brief was rung to. */
   lead?: string
 }
@@ -86,53 +99,47 @@ export class Tour {
   constructor(private readonly host: TourHost) {}
 
   /**
-   * Readies a run of the tour with `agent`: picks its folder (`chooseTourFolder`: the first of
+   * Readies a run of the tour, always on opencode, GPT-6 Luna at medium effort, paid for by
+   * Novadeck (`launch.ts`): picks its folder (`chooseTourFolder`: the first of
    * `tour`, `tour-2`, ... that is missing, empty or the tour's own, passing over any the person
-   * kept), removes any project open there, closing its terminals, so nothing runs there; then
+   * kept), gets a ticket from the tour's service (`host.ticket`: the agents' provider key, and
+   * the one thing that can refuse for a reason of Novadeck's, in the service's own words),
+   * removes any project open there, closing its terminals, so nothing runs there; then
    * empties the folder and writes the seed project there (`seedFiles`) with the brief's files;
-   * then builds the agent's launch line, on its cheapest model. The brief never names the
-   * person; it names the one teammate the lead opens, on `agent`'s own harness and cheapest
-   * model, so the whole tour runs the one agent the person picked. It also says how the game's
+   * then builds the agent's launch line. The brief never names the person; it names the one
+   * teammate the lead opens, on the same agent and model. It also says how the game's
    * dev server is run here (`findServing`), if it can be. The folder is a git repo of its own
-   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). An agent Novadeck
-   * isn't connected to is a `CONFLICT`, as its tools would be missing; so are seed files that
-   * can't be read, no folder to use, and a run asked for while another is being readied. One
-   * whose cheapest model can't be told is `MODELS_UNLISTED`: Codex lists its models only once
-   * it has started signed in (probed 2026-11-15, 0.169.0: a start not signed in writes no
-   * models_cache.json). Nothing changes for any of them.
+   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). opencode not being
+   * connected to Novadeck is a `CONFLICT`, as its tools would be missing; so are a ticket
+   * refused (a person's tickets for the day used, or the free runs off), seed files that
+   * can't be read, no folder to use, and a run asked for while another is being readied.
+   * Nothing changes for any of them, and a ticket is asked for only once none of the others
+   * can refuse.
    */
-  prepare(agent: AgentName): Promise<TourPrepared> {
+  prepare(): Promise<TourPrepared> {
     if (this.preparing)
       return Promise.reject(new DomainError("CONFLICT", "The tour is already starting."))
-    const preparing = this.ready(agent).finally(() => {
+    const preparing = this.ready().finally(() => {
       this.preparing = undefined
     })
     this.preparing = preparing
     return preparing
   }
 
-  private async ready(agent: AgentName): Promise<TourPrepared> {
-    if (!(await this.host.connected(agent)))
+  private async ready(): Promise<TourPrepared> {
+    if (!(await this.host.connected(tourAgent)))
       throw new DomainError(
         "CONFLICT",
-        `Novadeck isn't connected to ${agentLabel(agent)}, so the tour can't start with it.`,
+        `Novadeck isn't connected to ${agentLabel(tourAgent)}, so the tour can't start.`,
       )
     // Git first of all: the sandbox is a repo, and nothing is removed for a tour that can't be.
     await requireGit()
-    // Its cheapest model first, before anything is removed: the person agreed to that one.
-    const models = await this.host.models(agent).catch((): readonly Model[] => [])
-    if (tourChoice(agent, models).model === undefined)
-      throw new DomainError(
-        "MODELS_UNLISTED",
-        // opencode lists the models its providers give: with some listed and none of its own free
-        // ones, signing in is no help (a person's `enabled_providers` may leave the free ones out).
-        agent === "opencode" && models.length > 0
-          ? `opencode lists models here, but none of its own free ones (opencode/…-free), which the tour runs on so that it spends nothing of yours. Let opencode use its own provider, then take the tour.`
-          : `${agentLabel(agent)} hasn't listed its models here yet, so the tour can't pick its cheapest. Start ${agentLabel(agent)} and sign in, then take the tour.`,
-      )
-    // The files and the folder too, the last that can refuse, before anything is removed.
+    // The files and the folder too, the last local checks that can refuse.
     const seed = await seedFiles(this.host.assets)
     const directory = await chooseTourFolder(this.host.home)
+    // The ticket, before anything is removed or started: a refusal leaves the person's tour
+    // project as it was.
+    const ticket = await (this.host.ticket ?? (() => fetchTicket(tourEndpoint())))()
     const serving = await (
       this.host.serving ?? (() => findServing(versionOf, freePort, this.host.environment?.()))
     )()
@@ -152,19 +159,34 @@ export class Tour {
           }),
       ),
     )
-    const mate = teammate(agent, models)!
+    const mate: Teammate = { agent: tourAgent, model: tourModel, effort: tourEffort }
     // What is committed is the project as the person keeps it: its own note, no tour settings.
     // The tour's rules are laid over it after, where git doesn't see them (`laySandbox`).
-    const { "CLAUDE.md": claude = "", ...rules } = briefFiles(agent)
+    const { "CLAUDE.md": claude = "", ...rules } = briefFiles(tourAgent)
     await resetTourFolder(directory, { ...seed, "AGENTS.md": projectNote, "CLAUDE.md": claude })
     await commitSandbox(directory)
     await laySandbox(directory, rules)
     // Before any agent starts: a process that began without the folder can't write in it.
     this.host.worktreesFolder()
     this.facts = { mate, serving }
-    const launch = tourLaunch(agent, { models })
-    this.run = { agent, launch, directory }
+    const launch = tourLaunch()
+    this.run = {
+      launch,
+      directory,
+      env: { NOVADECK_OPENCODE_CONFIG: tourConfig(tourEndpoint(), ticket) },
+    }
     return { ...launch, directory, removed, page: serving !== null }
+  }
+
+  /**
+   * What a new terminal starting in `cwd` gets in its environment on top of the person's: for one
+   * in the run's folder, the provider and model of the tour's agents (`tourConfig`), so the
+   * lead and every teammate it opens run on the ticket whatever the command line says, and
+   * their ticket is in no line of any screen or history. None elsewhere, and none once the
+   * person keeps the project (`keep`).
+   */
+  launchEnv(cwd: string): NodeJS.ProcessEnv | undefined {
+    return this.run && this.inTour(cwd) ? this.run.env : undefined
   }
 
   /**
@@ -251,9 +273,10 @@ export class Tour {
   /**
    * What an `open_agent` of `terminalId` is subject to: only the run's lead opens agents in the
    * tour's folder, with the tour's write flags; every other terminal there, its teammates, is
-   * refused. A teammate the lead opens in the folder on its own harness with no
-   * model named starts on the run's teammate model, as the brief asks, never the person's default. A
-   * terminal elsewhere, and one the runner doesn't have, are left to the call's own checks.
+   * refused. An opencode teammate the lead opens in the folder starts on the run's own model and
+   * effort whatever the call names, never judged against the person's models, as the provider
+   * the tour pays for isn't theirs (`pinned`); its provider comes with its shell (`launchEnv`).
+   * A terminal elsewhere, and one the runner doesn't have, are left to the call's own checks.
    */
   openPolicy(terminalId: string): OpenPolicy {
     let cwd: string
@@ -267,12 +290,11 @@ export class Tour {
     // only where they start in it: one it opens elsewhere gets none.
     return terminalId === this.run?.lead
       ? {
-          flags: (agent, at) => (this.inTour(at) ? tourWrites[agent] : []),
-          choice: (agent, at) => {
-            const mate = this.facts?.mate
-            if (mate?.agent !== agent || !this.inTour(at)) return undefined
-            return { model: mate.model, ...(mate.effort !== undefined && { effort: mate.effort }) }
-          },
+          flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
+          pinned: (agent, at) =>
+            agent === tourAgent && this.inTour(at)
+              ? { model: tourModel, effort: tourEffort }
+              : undefined,
         }
       : {
           refusal:
@@ -306,10 +328,4 @@ export class Tour {
     if (!this.host.notice(terminalId, line))
       throw new DomainError("CONFLICT", "The terminal's agent hasn't started yet.")
   }
-}
-
-// The agent as a teammate on its cheapest model, or none where that can't be told.
-const teammate = (agent: AgentName, models: readonly Model[]): Teammate | undefined => {
-  const { model, effort } = tourChoice(agent, models)
-  return model === undefined ? undefined : { agent, model, ...(effort !== undefined && { effort }) }
 }

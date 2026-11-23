@@ -57,7 +57,12 @@ export const sameTerminals = (
 export const useInstalls = (
   agents: Backend["agents"],
 ): {
-  readonly install: (agent: AgentName, command: string) => void
+  // `quiet`: once installed and connected, don't start the agent for the person to sign in.
+  readonly install: (
+    agent: AgentName,
+    command: string,
+    options?: { readonly quiet?: boolean },
+  ) => void
   // The agents whose installer runs now, until each one's end has been dealt with.
   readonly installing: ReadonlySet<AgentName>
 } => {
@@ -81,9 +86,12 @@ export const useInstalls = (
   const settling = useSyncExternalStore(connecting.subscribe, connecting.getSnapshot)
 
   const start = useCallback(
-    (agent: AgentName, command: string) => {
+    (agent: AgentName, command: string, options?: { readonly quiet?: boolean }) => {
       const terminalId = commands.add({ title: `Install ${agentLabels[agent]}`, command })
-      installs.update((current) => [...current, { agent, terminalId, ran: false }])
+      installs.update((current) => [
+        ...current,
+        { agent, terminalId, ran: false, ...(options?.quiet && { quiet: true as const }) },
+      ])
     },
     [commands, installs],
   )
@@ -107,7 +115,7 @@ export const useInstalls = (
       connecting.update((agentsNow) => new Set(agentsNow).add(install.agent))
       void connectInstalled(agents, install.agent)
         .then((outcome) => {
-          if (outcome !== "ready") return
+          if (outcome !== "ready" || install.quiet) return
           startInstalled(commands, install, terminal.directory)
         })
         .finally(() => {

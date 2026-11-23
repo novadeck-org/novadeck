@@ -79,6 +79,8 @@ export type LauncherOptions = {
   readonly shellArgs: readonly string[] | undefined
   /** The environment shells start from, with the runner's own variables taken out. */
   readonly env: NodeJS.ProcessEnv
+  /** What a shell starting in `cwd` gets on top of it, for that shell alone. */
+  readonly launchEnv: (cwd: string) => NodeJS.ProcessEnv | undefined
   /** Whether each new shell's PATH is read anew (see `refreshPath`). */
   readonly freshPath: boolean
   /** The runner's own relay, which on Windows reads the registry's PATH. */
@@ -293,6 +295,7 @@ export class Launcher {
     const capture = integration ? prepareCaptureFolder(id) : undefined
     const env: NodeJS.ProcessEnv = {
       ...launched.env,
+      ...this.options.launchEnv(cwd),
       NOVADECK_TERMINAL_ID: id,
       ...(integration && {
         NOVADECK_REPORT: integration.reports.endpoint,

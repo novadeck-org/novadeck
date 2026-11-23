@@ -286,22 +286,11 @@ export type TourRun = {
   readonly page: boolean
 }
 
-// Why a run of the tour can't start where the agent has to start first, as Codex does before
-// it has listed its models: the sentence to show, and the agent to start.
-export class TourNeedsAgent extends Error {
-  constructor(
-    message: string,
-    readonly agent: AgentName,
-  ) {
-    super(message)
-    this.name = "TourNeedsAgent"
-  }
-}
-
 export type Tour = {
-  // Readies a run with the agent; rejects, with a sentence to show, where it can't start:
-  // with a `TourNeedsAgent` where the agent has to start first.
-  readonly prepare: (agent: AgentName) => Promise<TourRun>
+  // Readies a run, on opencode and a model of Novadeck's alone; rejects, with a sentence to
+  // show, where it can't start (opencode not connected, no free run to give, a folder of the
+  // person's own in the way).
+  readonly prepare: () => Promise<TourRun>
   // Rings the tour's start line to the agent in the terminal, once it shows there.
   readonly brief: (terminalId: string) => Promise<void>
   // Optional. Rings the tour's agent in the terminal a nudge to carry on with its brief, as
@@ -440,7 +429,7 @@ export type BackendFields = {
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
   }
-  // Optional. Novadeck's tour: a live run of the person's own agent, on its cheapest model, in
+  // Optional. Novadeck's tour: a live run of opencode, on a model Novadeck pays for, in
   // a folder of the backend's own, which the UI opens as a project of its own. Absent where the
   // backend has none.
   readonly tour?: Tour

@@ -31,11 +31,11 @@ export type OpenPolicy = {
   /** The flags for the agent opened in `cwd`, the folder the call resolved. */
   readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
   /**
-   * The model, and its effort, a new agent the call names neither for starts on in `cwd`, the
-   * folder the call asks for (the tour's teammates' cheapest model): the person's own default
-   * when none. A resume keeps its session's own.
+   * The model and effort a new agent starts on in `cwd`, the folder the call asks for, whatever
+   * the call names (the tour's agents all run on the one model Novadeck pays for): taken as
+   * given, never judged against the person's own models. A resume keeps its session's own.
    */
-  readonly choice?: (
+  readonly pinned?: (
     agent: AgentName,
     cwd: string,
   ) => { readonly model: string; readonly effort?: Effort } | undefined
@@ -46,6 +46,11 @@ export type TerminalOptions = {
   shellArgs?: readonly string[]
   /** Variables shells get on top of `baseEnv`. */
   env?: NodeJS.ProcessEnv
+  /**
+   * Variables a shell starting in `cwd` gets on top of `env`, for that shell alone (the tour's
+   * agents' provider, in the tour's folder); read as each shell starts, restarts included.
+   */
+  launchEnv?: (cwd: string) => NodeJS.ProcessEnv | undefined
   /** The environment shells start from: the runner's own when omitted. */
   baseEnv?: NodeJS.ProcessEnv
   /**

@@ -116,6 +116,8 @@ describe("the installs under way, kept for a reload", () => {
     const installs: PendingInstall[] = [
       { agent: "claude", terminalId: "03", ran: true },
       { agent: "agy", terminalId: "04", ran: false },
+      // One asked for by the tour: nothing is started for the person to sign in once it ends.
+      { agent: "opencode", terminalId: "05", ran: false, quiet: true },
     ]
     writeInstalls(installs)
     expect(readInstalls()).toEqual(installs)

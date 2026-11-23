@@ -20,6 +20,7 @@ const launcher = (path: string) =>
       shell: "/bin/sh",
       shellArgs: undefined,
       env: { PATH: path },
+      launchEnv: () => undefined,
       freshPath: false,
       relay: "",
       shims: () => Promise.resolve([]),

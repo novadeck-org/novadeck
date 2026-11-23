@@ -106,7 +106,7 @@ describe("the open call", () => {
       openPolicy: () => ({
         ...(barred !== undefined && { refusal: barred }),
         ...(flagged !== undefined && { flags: () => flagged! }),
-        ...(given !== undefined && { choice: () => given }),
+        ...(given !== undefined && { pinned: () => given }),
       }),
       claims: () => claims,
       launcher: () => ({
@@ -299,28 +299,19 @@ describe("the open call", () => {
     )
   })
 
-  it("starts an agent the call names no model for on the one the runner's policy gives", async () => {
+  it("starts an agent on the one the runner's policy pins", async () => {
     const run = setup()
     run.give({ model: "opus", effort: "low" })
     await run.open({ agent: "claude" })
     expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
   })
 
-  it("still refuses an effort with no model, whatever the runner's policy gives", async () => {
+  it("starts an opencode agent on the policy's model, though the person's models don't list it", async () => {
     const run = setup()
-    run.give({ model: "opus", effort: "low" })
-    expect(await run.open({ agent: "claude", effort: "max" })).toEqual({
-      ok: false,
-      reason: "Give a model with effort: Claude Code's efforts depend on the model.",
-    })
-  })
-
-  it("starts an opencode agent the call names no model for on the policy's, by its own flag", async () => {
-    const run = setup()
-    run.give({ model: "opencode/e2e-free" })
+    run.give({ model: "openrouter/not-listed" })
     const answer = await run.open({ agent: "opencode" })
     expect(answer).toMatchObject({ ok: true })
-    expect(run.asked[0]!.command).toBe("opencode --model opencode/e2e-free")
+    expect(run.asked[0]!.command).toBe("opencode --model openrouter/not-listed")
   })
 
   it("starts on the runner's policy model with no effort where it gives none", async () => {
@@ -330,11 +321,11 @@ describe("the open call", () => {
     expect(run.asked[0]!.command).toBe("claude --model opus")
   })
 
-  it("keeps the model the call names over the one the runner's policy gives", async () => {
+  it("starts on the policy's model whatever the call names", async () => {
     const run = setup()
     run.give({ model: "haiku" })
     await run.open({ agent: "claude", model: "opus", effort: "max" })
-    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
+    expect(run.asked[0]!.command).toBe("claude --model haiku")
   })
 
   it("starts an agent with a brief as its prompt's doorbell, and leads it by default", async () => {

@@ -637,7 +637,7 @@ export const tell = async (
 ): Promise<void> => {
   await seedTour(run, [setup.agent])
   if (worktreesFolder) await mkdir(worktreesRoot(run.sandbox.home), { recursive: true })
-  const prepared = await run.deck.tour.prepare(setup.agent)
+  const prepared = await run.deck.tour.prepare()
   // The folder's own instruction files hold no script: it reaches the lead as a notice.
   for (const name of ["AGENTS.md", "CLAUDE.md"])
     // eslint-disable-next-line no-await-in-loop -- Two small files.
@@ -793,7 +793,7 @@ const play = async (
         `${mate.handle} to start on ${wanted} (now ${mate.summary().process?.argv?.join(" ")})`,
         45_000,
       )
-      expect(argv).toContain(tourWrites[first!.agent].join(" "))
+      expect(argv).toContain(tourWrites.join(" "))
     }
   await poll(
     () => (story.tasks().modeller && story.tasks().builder ? true : undefined),
@@ -947,7 +947,7 @@ const play = async (
   )
   const snapshot = (): string => git(directory, "status", "--porcelain", "--ignored")
   const left = snapshot()
-  const next = await run.deck.tour.prepare(setup.agent)
+  const next = await run.deck.tour.prepare()
   expect(next.directory).toBe(join(run.sandbox.home, ".novadeck", "tour-2"))
   expect(next.removed).toEqual([])
   expect(snapshot()).toBe(left)

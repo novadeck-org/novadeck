@@ -131,8 +131,9 @@ export const errors = {
   WORDS_NOT_SENT: { status: 409 },
   DIALOG_CHANGED: { status: 409 },
   VOICE_UNAVAILABLE: { status: 409, data: voiceUnavailable },
-  // The agent hasn't listed its models here yet, so its cheapest can't be told (`tour.prepare`):
-  // Codex lists them once it has started signed in. Nothing changed.
+  // The agent hasn't listed its models here yet, so its cheapest can't be told: what
+  // `tour.prepare` answered until revision 12, when the tour came to run on one model of
+  // Novadeck's. No runner raises it now; a UI shows its message like any other refusal.
   MODELS_UNLISTED: { status: 409 },
   VOICE_FAILED: { status: 500 },
 }
@@ -1108,12 +1109,15 @@ export const contract = {
   },
   // Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's.
   tour: {
-    // Readies a run with the agent: removes the projects open at the tour's folder, closing
-    // their terminals, empties the folder and writes the agent's brief there, and answers
-    // how to start it (`tourPrepared`). An agent Novadeck isn't connected to, a folder there
-    // that isn't Novadeck's, or a run already being readied is a CONFLICT; an agent whose
-    // cheapest model can't be told yet is MODELS_UNLISTED. Either changes nothing.
-    prepare: procedure.input(z.strictObject({ agent: agentName })).output(tourPrepared),
+    // Readies a run, always on opencode with GPT-6 Luna at medium effort, paid for by Novadeck
+    // (revision 12; before it the run took the person's own agent, named in `agent`, which is
+    // now ignored, so an older UI still works against a newer runner): gets a ticket from the
+    // tour's service, removes the projects open at the tour's folder, closing their terminals,
+    // empties the folder and writes the agent's brief there, and answers how to start it
+    // (`tourPrepared`). opencode not connected, a ticket the service refuses (its words are the
+    // error's message), a folder there that isn't Novadeck's, or a run already being readied is
+    // a CONFLICT. Any changes nothing.
+    prepare: procedure.input(z.strictObject({ agent: agentName.optional() })).output(tourPrepared),
     // Rings the tour's start line to the agent in the terminal, where its launch line took
     // none (`brief: "doorbell"`): the doorbell delivers it once the agent's prompt shows. One
     // whose agent hasn't shown in the terminal yet, or that isn't in the tour's folder, is a CONFLICT.

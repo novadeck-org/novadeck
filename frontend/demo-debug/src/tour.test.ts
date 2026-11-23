@@ -7,7 +7,7 @@ import { describe, expect, it } from "./test"
 import { tourGroups } from "./tour"
 
 const connected: readonly AgentConnection[] = [
-  { agent: "claude", available: true, connected: true, busy: false },
+  { agent: "opencode", available: true, connected: true, busy: false },
 ]
 
 const tourOf = () => demoTour(createStore(connected), () => undefined)
@@ -25,24 +25,30 @@ describe("the tour group", () => {
   it("fails only the next start, as a folder of the person's own does", async () => {
     const tour = tourOf()
     runner(tour)("Fail next start")
-    await expect(tour.prepare("claude")).rejects.toThrow(demoTourRefusal)
-    await expect(tour.prepare("claude")).resolves.toMatchObject({
+    await expect(tour.prepare()).rejects.toThrow(demoTourRefusal)
+    await expect(tour.prepare()).resolves.toMatchObject({
       directory: "~/.novadeck/tour",
-      brief: "launch",
-      model: "haiku",
+      brief: "doorbell",
+      model: "openrouter/openai/gpt-6-luna",
       page: true,
     })
   })
 
-  it("refuses an agent that isn't connected, and leaves Antigravity's line to the doorbell", async () => {
+  it("refuses where opencode isn't connected, whatever else is", async () => {
     const tour = demoTour(
       createStore<readonly AgentConnection[]>([
-        { agent: "agy", available: true, connected: true, busy: false },
+        { agent: "claude", available: true, connected: true, busy: false },
       ]),
       () => undefined,
     )
-    await expect(tour.prepare("claude")).rejects.toThrow()
-    await expect(tour.prepare("agy")).resolves.toMatchObject({ brief: "doorbell" })
+    await expect(tour.prepare()).rejects.toThrow("opencode")
+  })
+
+  it("fails the next start as the tour's service with no free run left does, with its sentence", async () => {
+    const tour = tourOf()
+    runner(tour)("Next start: no free run left")
+    await expect(tour.prepare()).rejects.toThrow("free tours")
+    await expect(tour.prepare()).resolves.toMatchObject({ directory: "~/.novadeck/tour" })
   })
 
   it("holds the next tour agent at a screen, answers it, and has it go quiet", () => {
@@ -71,9 +77,9 @@ describe("the tour group", () => {
 describe("the tour the debug panel shares with the demo", () => {
   it("runs the agents the panel connects, once it follows them", async () => {
     const tour = demoTour(createStore<readonly AgentConnection[]>([]), () => undefined)
-    await expect(tour.prepare("claude")).rejects.toThrow()
+    await expect(tour.prepare()).rejects.toThrow()
     tour.follow(createStore(connected), () => undefined)
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ model: "haiku" })
+    await expect(tour.prepare()).resolves.toMatchObject({ model: "openrouter/openai/gpt-6-luna" })
   })
 
   it("drives the story: answers the sheet and the modeller's question, quiets the team and the modeller", () => {
@@ -119,9 +125,9 @@ describe("the tour the debug panel shares with the demo", () => {
     const tour = tourOf()
     const run = runner(tour)
     run("Tour story: no page (as on a computer without Node or Python)")
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ page: false })
+    await expect(tour.prepare()).resolves.toMatchObject({ page: false })
     tour.take()
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ page: true })
+    await expect(tour.prepare()).resolves.toMatchObject({ page: true })
     run("Tour story: keeping fails")
     await expect(tour.keep!()).rejects.toThrow()
     await expect(tour.keep!()).resolves.toBeUndefined()

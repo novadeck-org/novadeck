@@ -10,7 +10,7 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
-import { TourNeedsAgent, type TourRun } from "@novadeck/core/port"
+import type { TourRun } from "@novadeck/core/port"
 import { sameArgv } from "@novadeck/core/roster"
 import { projectFromSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
@@ -140,10 +140,7 @@ export const runnerTour = (
   // Wraps each prepare, which removes the tours before on the runner itself.
   preparing: (work: Promise<TourRun>) => Promise<TourRun> = (work) => work,
 ): NonNullable<Backend["tour"]> => ({
-  prepare: (agent) =>
-    preparing(track(tour.prepare(agent))).catch((error: unknown) => {
-      throw hasCode(error, "MODELS_UNLISTED") ? new TourNeedsAgent(error.message, agent) : error
-    }),
+  prepare: () => preparing(track(tour.prepare())),
   brief: (terminalId) => track(tour.brief(terminalId)),
   nudge: (terminalId) => track(tour.nudge(terminalId)),
   artist: (terminalId) => track(tour.artist(terminalId)),

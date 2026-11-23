@@ -1,101 +1,86 @@
-import type { Install, Model } from "@novadeck/harness-core/harness"
-import type { AgentName } from "@novadeck/protocol"
-
-import { harnesses } from "../harnesses/registry.js"
 import { commandWords } from "../terminals/commands.js"
 import { describe, expect, it } from "../test.js"
-import { tourChoice, tourLaunch } from "./launch.js"
+import { tourConfig, tourLaunch } from "./launch.js"
+import { fetchTicket, tourEndpoint } from "./ticket.js"
 
-// Where a harness lives, for the model lists the tour picks from: Novadeck's own lists ignore it.
-const install: Install = { env: {}, home: "/home/x", platform: "linux", plugin: "/plugins" }
+const answering = (status: number, body: unknown): typeof fetch =>
+  (() =>
+    Promise.resolve(
+      new Response(typeof body === "string" ? body : JSON.stringify(body), { status }),
+    )) as typeof fetch
 
-const codexModels: readonly Model[] = [
-  { id: "gpt-6.1-sol", efforts: ["low", "medium", "high"] },
-  { id: "gpt-6-luna", efforts: ["low", "medium"] },
-  { id: "gpt-5.6-luna", efforts: ["low"] },
-]
-
-const launchOf = async (agent: AgentName, models?: readonly Model[]) =>
-  tourLaunch(agent, { models: models ?? (await harnesses[agent].launch.models(install)) })
-
-describe("the tour's model", () => {
-  it("is Claude Code's haiku at low effort", async () => {
-    expect(tourChoice("claude", await harnesses.claude.launch.models(install))).toEqual({
-      model: "haiku",
-      effort: "low",
-    })
+describe("the tour's launch line", () => {
+  it("starts opencode on GPT-6 Luna at medium, in its build agent, with no prompt", () => {
+    const launch = tourLaunch()
+    expect(launch).toMatchObject({ brief: "doorbell", model: "openrouter/openai/gpt-6-luna" })
+    expect(commandWords(launch.command, "linux")).toEqual([
+      "opencode",
+      "--model",
+      "openrouter/openai/gpt-6-luna",
+      "--variant",
+      "medium",
+      "--agent",
+      "build",
+    ])
   })
 
-  it("is Antigravity's flash at low, the one effort that model takes", async () => {
-    expect(tourChoice("agy", await harnesses.agy.launch.models(install))).toEqual({
-      model: "gemini-3.8-flash-low",
-      effort: "low",
-    })
-  })
-
-  it("is Codex's newest luna at its lowest effort", () => {
-    expect(tourChoice("codex", codexModels)).toEqual({ model: "gpt-6-luna", effort: "low" })
-  })
-
-  it("is the last model Codex lists where none is a luna", () => {
-    const models = codexModels.filter(({ id }) => !id.endsWith("-luna"))
-    expect(tourChoice("codex", [...models, { id: "gpt-5-old", efforts: [] }])).toEqual({
-      model: "gpt-5-old",
-    })
-  })
-
-  it("is none where Codex lists nothing, so it starts on its own", () => {
-    expect(tourChoice("codex", [])).toEqual({})
+  it("reads the same in Windows' shells", () => {
+    expect(commandWords(tourLaunch().command, "win32").at(-1)).toBe("build")
   })
 })
 
-describe("the tour's launch line", () => {
-  it("starts Claude Code on haiku, taking edits, with no prompt, its brief left to the doorbell", async () => {
-    const launch = await launchOf("claude")
-    expect(launch).toMatchObject({ brief: "doorbell", model: "haiku" })
-    expect(commandWords(launch.command, "linux")).toEqual([
-      "claude",
-      "--model",
-      "haiku",
-      "--effort",
-      "low",
-      "--permission-mode",
-      "acceptEdits",
-    ])
+describe("the tour's opencode configuration", () => {
+  it("names the provider's address and the ticket, the model for titles too, and the effort as the agents' variant", () => {
+    const config = JSON.parse(tourConfig("https://novadeck.dev/tour/v1", "T-1"))
+    expect(config.provider.openrouter.options).toEqual({
+      baseURL: "https://novadeck.dev/tour/v1",
+      apiKey: "T-1",
+    })
+    expect(config).toMatchObject({
+      model: "openrouter/openai/gpt-6-luna",
+      small_model: "openrouter/openai/gpt-6-luna",
+      enabled_providers: ["openrouter"],
+      disabled_providers: [],
+    })
+    expect(config.agent.build).toEqual({ model: "openrouter/openai/gpt-6-luna", variant: "medium" })
+  })
+})
+
+describe("the tour's ticket", () => {
+  it("is read from the service's answer", async () => {
+    await expect(
+      fetchTicket("http://x/tour/v1", answering(200, { ticket: "abc_DEF-1", expiresAt: "t" })),
+    ).resolves.toBe("abc_DEF-1")
   })
 
-  it("starts Codex in its workspace-write sandbox, with no prompt, its brief left to the doorbell", async () => {
-    const launch = await launchOf("codex", codexModels)
-    expect(launch).toMatchObject({ brief: "doorbell", model: "gpt-6-luna" })
-    expect(commandWords(launch.command, "linux")).toEqual([
-      "codex",
-      "--model",
-      "gpt-6-luna",
-      "-c",
-      "model_reasoning_effort=low",
-      "--sandbox",
-      "workspace-write",
-      "--ask-for-approval",
-      "on-request",
-    ])
+  it("asks at /tickets of the endpoint, which the environment may name", async () => {
+    const urls: string[] = []
+    const request = ((url: string) => (
+      urls.push(url),
+      Promise.resolve(new Response('{"ticket":"t"}'))
+    )) as unknown as typeof fetch
+    await fetchTicket(
+      tourEndpoint({ NOVADECK_TOUR_ENDPOINT: "http://127.0.0.1:9/tour/v1/" }),
+      request,
+    )
+    expect(urls).toEqual(["http://127.0.0.1:9/tour/v1/tickets"])
+    expect(tourEndpoint({})).toBe("https://novadeck.dev/tour/v1")
   })
 
-  it("starts Antigravity plain, taking edits, its brief left to the doorbell", async () => {
-    const launch = await launchOf("agy")
-    expect(launch).toMatchObject({ brief: "doorbell", model: "gemini-3.8-flash-low" })
-    expect(commandWords(launch.command, "linux")).toEqual([
-      "agy",
-      "--model",
-      "gemini-3.8-flash-low",
-      "--effort",
-      "low",
-      "--mode",
-      "accept-edits",
-    ])
+  it.each([429, 503])("passes on the service's own sentence for a %i", async (status) => {
+    await expect(
+      fetchTicket("http://x", answering(status, { error: "No free runs today." })),
+    ).rejects.toMatchObject({ code: "CONFLICT", message: "No free runs today." })
   })
 
-  it("reads the same in Windows' shells", async () => {
-    const launch = await launchOf("claude")
-    expect(commandWords(launch.command, "win32").at(-1)).toBe("acceptEdits")
+  it("says it couldn't reach the service where it didn't answer, or answered nonsense", async () => {
+    const down = (() => Promise.reject(new Error("offline"))) as unknown as typeof fetch
+    await expect(fetchTicket("http://x", down)).rejects.toThrow("couldn't reach")
+    await expect(
+      fetchTicket("http://x", answering(200, { ticket: "bad ticket!" })),
+    ).rejects.toThrow("couldn't reach")
+    await expect(fetchTicket("http://x", answering(500, "<html>"))).rejects.toThrow(
+      "couldn't reach",
+    )
   })
 })

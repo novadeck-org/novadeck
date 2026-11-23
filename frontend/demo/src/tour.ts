@@ -123,8 +123,8 @@ export type TourStage = {
 
 export type DemoTour = Tour & {
   // Makes the next start fail, as the debug panel or a spec's `&tourStart=fails` asks: as a
-  // folder of the person's own does, or (`unlisted`) as Codex not signed in yet does.
-  readonly failNext: (how?: "folder" | "unlisted") => void
+  // folder of the person's own does, or (`tickets`) as the tour's service with no free run left does.
+  readonly failNext: (how?: "folder" | "tickets") => void
   // The terminals whose agent was rung the start line, oldest first.
   readonly briefed: Store<readonly string[]>
   // The terminals whose agent was nudged, oldest first.
@@ -203,7 +203,7 @@ export const demoTour = (
 ): DemoTour => {
   let agents = initialAgents
   let workspace = initialWorkspace
-  let failing: "folder" | "unlisted" | undefined
+  let failing: "folder" | "tickets" | undefined
   let keepFails = false
   const briefed = createStore<readonly string[]>([])
   const nudged = createStore<readonly string[]>([])
@@ -296,17 +296,25 @@ export const demoTour = (
     answered: (listener) => {
       return hear((event) => event === "answer" && listener())
     },
-    prepare: async (agent) => {
+    prepare: async () => {
       const fails = failing
       failing = undefined
       const { demoRun, demoRefusal } = await loadRuns()
-      if (fails) throw demoRefusal(fails, agent)
-      const connected = agents.getSnapshot().some((each) => each.agent === agent && each.connected)
-      if (!connected) throw new Error("Novadeck isn't connected to it, so the tour can't start.")
+      if (fails) throw demoRefusal(fails)
+      const connected = agents
+        .getSnapshot()
+        .some((each) => each.agent === "opencode" && each.connected)
+      if (!connected)
+        throw new Error("Novadeck isn't connected to opencode, so the tour can't start.")
       const removed = (workspace()?.projects ?? [])
         .filter((project) => project.directory === demoTourFolder)
         .map((project) => project.id)
-      return { ...demoRun(agent), directory: demoTourFolder, removed, page: plan.noPage !== true }
+      return {
+        ...demoRun("opencode"),
+        directory: demoTourFolder,
+        removed,
+        page: plan.noPage !== true,
+      }
     },
     brief: (terminalId) => {
       briefed.update((ids) => [...ids, terminalId])
@@ -329,7 +337,9 @@ export const demoTour = (
 // The harness a tour terminal's command starts, which names its agent.
 export const tourHarness = (command: string): AgentName | undefined => {
   const program = command.trim().split(/\s+/)[0]
-  return program === "claude" || program === "codex" || program === "agy" ? program : undefined
+  return program === "claude" || program === "codex" || program === "agy" || program === "opencode"
+    ? program
+    : undefined
 }
 
 // The demo's approval dialog for the tour where the backend has none of its own: the lead's

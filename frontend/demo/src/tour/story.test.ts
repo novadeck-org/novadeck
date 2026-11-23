@@ -121,7 +121,7 @@ const open = async (setup?: (tour: DemoTour) => void) => {
   backend.commit(store.getSnapshot(), [])
   backend.start!({ dispatch: (actions) => store.transact(actions as never), open: () => {} })
   setup?.(tour)
-  await tour.prepare("claude").catch(() => undefined)
+  await tour.prepare().catch(() => undefined)
   const project = store.getSnapshot().projects[0]!
   const target = { projectId: project.id, workspaceSessionId: project.history[0]!.id }
   const add = async (command?: string) => {
@@ -309,16 +309,16 @@ describe("the story in the demo", () => {
     if (!isDemoTour(tour)) throw new Error("no demo tour")
     tour.follow(
       {
-        getSnapshot: () => [{ agent: "claude", available: true, connected: true, busy: false }],
+        getSnapshot: () => [{ agent: "opencode", available: true, connected: true, busy: false }],
         subscribe: () => () => {},
       },
       () => undefined,
     )
     tour.goNoPage()
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ page: false })
+    await expect(tour.prepare()).resolves.toMatchObject({ page: false })
     // The lead's player takes the plan as it starts; the run after has its page again.
     tour.take()
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ page: true })
+    await expect(tour.prepare()).resolves.toMatchObject({ page: true })
   })
 
   it("has the modeller ask its own question, and wait for the person's answer before it reports", async () => {

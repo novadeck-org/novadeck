@@ -1,13 +1,11 @@
-import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { TourNeedsAgent, type TourRun } from "@novadeck/core/port"
-
-const agentName = (agent: AgentName): string =>
-  harnesses.find(({ id }) => id === agent)?.name ?? agent
+import type { AgentName } from "@novadeck/core/harnesses"
+import type { TourRun } from "@novadeck/core/port"
 
 const startLine = "Start the Novadeck tour: follow AGENTS.md in this folder."
 
-// The launch lines the runner builds for each harness (backend/runner/src/tour/launch.ts),
-// on each one's cheapest model.
+// The launch lines of each harness's scripted agent, which the demo's other states still play
+// (a terminal that starts one); the tour's own run is opencode's alone (`demoTourRun`), as the
+// runner's is (backend/runner/src/tour/launch.ts).
 const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed" | "page">>> = {
   claude: {
     command: `claude --model haiku --effort low --permission-mode acceptEdits "${startLine}"`,
@@ -25,9 +23,9 @@ const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed"
     model: "gemini-3.8-flash-low",
   },
   opencode: {
-    command: "opencode --model opencode/deepseek-v4.1-flash-free --agent build",
+    command: "opencode --model openrouter/openai/gpt-6-luna --variant medium --agent build",
     brief: "doorbell",
-    model: "opencode/deepseek-v4.1-flash-free",
+    model: "openrouter/openai/gpt-6-luna",
   },
 }
 
@@ -39,11 +37,9 @@ export const demoRun = (agent: AgentName): Omit<TourRun, "directory" | "removed"
 export const demoTourRefusal =
   "~/.novadeck/tour holds files Novadeck didn't put there, so the tour leaves it as it is. Move or remove that folder to take the tour."
 
-// The refusal a failing start gives: the folder's, or the agent's that hasn't listed its models.
-export const demoRefusal = (how: "folder" | "unlisted", agent: AgentName): Error =>
+// The refusal a failing start gives: the folder's, or the tour's service having no free run to give
+// (its own sentence, which the runner passes on as it is).
+export const demoRefusal = (how: "folder" | "tickets"): Error =>
   how === "folder"
     ? new Error(demoTourRefusal)
-    : new TourNeedsAgent(
-        `${agentName(agent)} hasn't listed its models here yet, so the tour can't pick its cheapest. Start ${agentName(agent)} and sign in, then take the tour.`,
-        agent,
-      )
+    : new Error("You've taken today's free tours. Try again tomorrow.")
