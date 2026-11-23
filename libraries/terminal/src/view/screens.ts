@@ -475,9 +475,10 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     container.addEventListener("wheel", onWheel, { capture: true, passive: true })
     const deliver = (data: string): void => {
       // Arrow keys the emulator makes of the wheel, in a terminal this client doesn't control,
-      // are scrolling: they never ask for the keyboard.
+      // are scrolling: they never ask for the keyboard. Where this client controls, `control` is
+      // absent, and the wheel's mouse reports and arrow keys go to the program.
       if (
-        state.getSnapshot().control !== null &&
+        (state.getSnapshot().control ?? null) !== null &&
         data.startsWith("\u001b") &&
         Date.now() - wheeled < wheelKeysMs
       )
