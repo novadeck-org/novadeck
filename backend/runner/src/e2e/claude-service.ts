@@ -89,6 +89,41 @@ const commandLine = async (pid: number): Promise<string> => {
 const named = (row: Pick<Listed, "pid" | "command">) => `${row.command ?? "?"} (${row.pid})`
 
 /**
+ * The pids of the Claude Code services among `census`'s processes (`claude.exe daemon run`),
+ * which on Windows names only the sandbox's own: one runs there with no lock in the sandbox's
+ * home to name it (seen on CI's Windows Server, Claude Code 2.1.329), so it is found by its
+ * command line instead.
+ */
+export const services = (census: readonly string[]): readonly number[] =>
+  census.flatMap((line) => {
+    const found = /^claude\.exe \((\d+)[,)]/.exec(line)
+    return found && / as .*claude\.exe"? daemon run /.test(line) ? [Number(found[1])] : []
+  })
+
+/**
+ * Ends each of `pids` that still runs, with what it started, as `endClaudeService` ends the
+ * lock's: each by the tree read from it, so only the process found; names what it ended.
+ */
+export const endServices = async (
+  pids: readonly number[],
+  trees: {
+    read(root: number | Member, timeoutMs?: number): Promise<readonly Member[] | undefined>
+    end(members: readonly Member[], timeoutMs?: number): Promise<void>
+  },
+): Promise<string[]> => {
+  const ended: string[] = []
+  for (const pid of pids) {
+    // eslint-disable-next-line no-await-in-loop -- One at a time, as few as there are.
+    const tree = await trees.read(pid)
+    if (tree?.[0]?.pid !== pid) continue
+    // eslint-disable-next-line no-await-in-loop -- One at a time, as few as there are.
+    await trees.end(tree)
+    ended.push(...tree.map((member) => `${member.name ?? "?"} (${member.pid})`))
+  }
+  return ended
+}
+
+/**
  * Ends the background service whose lock is in the Claude Code home `home`, as a logout
  * would, with its background sessions; names what it ended. Nothing where the lock can't be
  * read or no running process is the one it names.
@@ -101,23 +136,13 @@ export const endClaudeService = async (
   },
 ): Promise<string[]> => {
   const lock = await readLock(home)
-  if (!lock) {
-    if (process.platform === "win32")
-      console.info(`Claude Code's background service has no lock to name it in ${home}`)
-    return []
-  }
+  if (!lock) return []
   if (process.platform === "win32") {
     const started = lock.startFt === undefined ? undefined : filetimeMs(lock.startFt)
     const tree = started === undefined ? undefined : await trees.read(lock.pid)
     const root = tree?.find((member) => member.pid === lock.pid)
     // Only the very process the lock names, to the millisecond, with what it started.
-    if (!tree || root?.startedAt !== started) {
-      // Said, as a service it can't name is left for the leftover check to report.
-      console.info(
-        `Claude Code's background service isn't the lock's: the lock names ${lock.pid} started ${lock.startFt ?? "?"} (${started ?? "?"} ms), ${tree ? `which started ${root?.startedAt ?? "never"}, with ${tree.map((member) => `${member.name ?? "?"} (${member.pid})`).join(", ")}` : "whose tree can't be read"}`,
-      )
-      return []
-    }
+    if (!tree || root?.startedAt !== started) return []
     await trees.end(tree)
     return tree.map((member) => `${member.name ?? "?"} (${member.pid})`)
   }

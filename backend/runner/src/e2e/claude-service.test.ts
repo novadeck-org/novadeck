@@ -5,7 +5,14 @@ import { join } from "node:path"
 import type { Member } from "@novadeck/terminal/pty"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { endClaudeService, filetimeMs, isSession, settled } from "./claude-service.js"
+import {
+  endClaudeService,
+  endServices,
+  filetimeMs,
+  isSession,
+  services,
+  settled,
+} from "./claude-service.js"
 
 const relay = () => ({
   read: vi.fn<(root: number | Member) => Promise<readonly Member[] | undefined>>(),
@@ -13,6 +20,32 @@ const relay = () => ({
 })
 
 describe("the sandbox's Claude Code background service", () => {
+  it("is found by its command line on Windows where no lock names it", () => {
+    const exe = String.raw`D:\cache\claude-2.1.329\bin\claude.exe`
+    expect(
+      services([
+        `claude.exe (7732, parent 4948) at ${exe} as ${exe} daemon run --origin transient --spawned-by "{}"`,
+        `claude.exe (7733) at ${exe} as "C:\\Program Files\\claude.exe" daemon run --origin service`,
+        `claude.exe (7734, parent 7732) at ${exe} as ${exe} --bg-spare x`,
+        `node.exe (7735) at node.exe as node daemon run`,
+      ]),
+    ).toEqual([7732, 7733])
+  })
+
+  it("ends each service found with what it started, and only the process found", async () => {
+    const trees = relay()
+    trees.read.mockImplementation(async (root) =>
+      root === 7
+        ? [
+            { pid: 7, startedAt: 1, name: "claude.exe" },
+            { pid: 8, startedAt: 2, name: "claude.exe" },
+          ]
+        : [{ pid: 99, startedAt: 1, name: "other.exe" }],
+    )
+    expect(await endServices([7, 9], trees)).toEqual(["claude.exe (7)", "claude.exe (8)"])
+    expect(trees.end).toHaveBeenCalledTimes(1)
+  })
+
   it("takes only its background sessions by their command lines", () => {
     expect(isSession("claude bg-pty-host --bg-pty-host /tmp/cc/spare/a.pty.sock 200 50 -- x")).toBe(
       true,
