@@ -895,7 +895,9 @@ App:
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
 - **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
-  zoom buttons into the header (drawn in the page as stand-ins): the header is 52px, its mark gives
+  zoom buttons into the page (drawn in the page as stand-ins): the rail and the sidebar run to the
+  window's top, their top 52px a strip of the title bar the buttons sit on, and the header heads
+  the terminals' column alone; with the sidebar closed the header runs the width, its mark gives
   way to them and its start keeps clear of them, and in Zen they hide and come back while the
   pointer is in the top-left corner, the Focus window's header moving aside for them, and in Grid
   and Canvas a plate in the dock's look holding them. "macOS, full screen" boots with them gone to

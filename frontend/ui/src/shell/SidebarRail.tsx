@@ -183,7 +183,7 @@ export const SidebarRail = ({
       }}
     >
       <ToggleGroup
-        className="sidebar-tools z-30 w-11 shrink-0 flex-col items-center gap-1 px-1.5 py-3"
+        className="sidebar-tools z-30 w-11 shrink-0 flex-col items-center gap-1 px-1.5 pt-[var(--rail-top,0.75rem)] pb-3"
         aria-label="Sidebar actions"
         aria-hidden={Boolean(zen)}
         orientation="vertical"

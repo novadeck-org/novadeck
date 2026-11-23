@@ -103,8 +103,85 @@
   -webkit-app-region: no-drag;
 }
 :root[data-window-controls="start"] .header-workspace {
-  /* With the header's own 1rem, as far from the controls as a macOS toolbar's first item. */
-  padding-inline-start: var(--window-controls-inset, 70px);
+  /* The room the header's start keeps for the controls (WorkspaceHeader.tsx), before its own
+     1rem, as far from them as a macOS toolbar's first item. */
+  --header-controls: var(--window-controls-inset, 70px);
+}
+/* On macOS the rail and the sidebar run to the window's top, as a Mac app's sidebar does
+   (`data-titlebar` on the workspace's body, App.tsx): their top, as tall as the header, is a
+   strip of the title bar that the window's buttons sit on, and the header heads the terminals'
+   column alone. With the sidebar open, the rail and the sidebar are one surface, with no edge
+   between them, as an edge stopping under the buttons would start from nothing and one
+   running to the top would cross them; the panels' own divider parts them from the terminals
+   to the top. Closed, the rail's strip takes the header's ground and edge, so the header
+   reads as running the window's width, the rail's edge meeting it in a corner, and its start
+   keeps clear of the buttons that reach past the rail (2.75rem, its `w-11`). */
+.workspace-body[data-titlebar] {
+  --_titlebar: var(--app-header-height, 52px);
+}
+.workspace-body[data-titlebar] > .sidebar-tools {
+  --rail-top: calc(var(--_titlebar) + 0.75rem);
+  border-right-color: transparent;
+  background-origin: border-box;
+}
+.workspace-body[data-titlebar][data-sidebar="closed"] > .sidebar-tools {
+  background-image:
+    linear-gradient(var(--_border-color), var(--_border-color)), var(--region-rail-image, none);
+  background-repeat: no-repeat, repeat;
+  background-position:
+    right bottom,
+    0 0;
+  background-size:
+    var(--border-width) calc(100% - var(--_titlebar)),
+    auto;
+}
+.workspace-body[data-titlebar][data-sidebar="closed"] > .rail-titlebar {
+  border-bottom: var(--border-width) solid var(--region-header-border-color, var(--color-line));
+  background-color: var(--region-header-bg, var(--color-paper));
+  background-image: var(--region-header-image, none);
+}
+/* The sidebar's panels fill it, so its strip is the pane's, on the sidebar's ground. */
+.workspace-body[data-titlebar] .sidebar-content {
+  position: relative;
+  padding-top: var(--_titlebar);
+}
+.sidebar-titlebar {
+  background-color: var(--region-sidebar-bg, var(--color-shell));
+  background-image: var(--region-sidebar-image, none);
+}
+.rail-titlebar,
+.sidebar-titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  height: var(--_titlebar, 52px);
+  -webkit-app-region: drag;
+}
+.rail-titlebar {
+  width: 2.75rem;
+}
+.sidebar-titlebar {
+  right: 0;
+}
+/* The sidebar's divider runs through the title bar's strips, and resizes the sidebar there
+   rather than moving the window (Allotment's sash, whose class it names). */
+.workspace-body[data-titlebar] .workspace-panels [class*="sash-module_sash"] {
+  -webkit-app-region: no-drag;
+}
+/* Closed, the panels' divider (Allotment's, at z-index 5) runs beside the rail to the top; the
+   header lies over it there, so only the rail's edge, meeting the header's, parts them. */
+.workspace-body[data-titlebar][data-sidebar="closed"] .workspace-column > .app-header {
+  position: relative;
+  z-index: 6;
+}
+:root[data-window-controls="start"] .workspace-body[data-titlebar] .header-workspace {
+  --header-controls: 0px;
+}
+:root[data-window-controls="start"]
+  .workspace-body[data-titlebar][data-sidebar="closed"]
+  .header-workspace {
+  --header-controls: max(0px, calc(var(--window-controls-inset, 70px) - 2.75rem));
 }
 /* While another window has the system's focus, the header quietens with the window's own
    controls, as a title bar does; what asks for the person (a project's dot) keeps its colour. */

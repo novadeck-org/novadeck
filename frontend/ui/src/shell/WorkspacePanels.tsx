@@ -29,6 +29,7 @@ export const WorkspacePanels = ({
   mobileLabel,
   mobileWide = false,
   mobileFinalFocusEl,
+  titlebar = false,
   children,
 }: {
   sidebar: ReactNode
@@ -40,6 +41,9 @@ export const WorkspacePanels = ({
   // The drawer takes the whole width, as the Inbox's list does on a phone.
   mobileWide?: boolean
   mobileFinalFocusEl: () => HTMLElement | null
+  // The sidebar runs to the window's top, its top a strip of the window's title bar that
+  // macOS's buttons sit on.
+  titlebar?: boolean
   children: ReactNode
 }): React.JSX.Element => {
   const desktop = useDesktop()
@@ -113,6 +117,7 @@ export const WorkspacePanels = ({
             aria-hidden={collapsed}
             inert={collapsed}
           >
+            {titlebar && <div className="sidebar-titlebar" aria-hidden="true" />}
             {sidebar}
           </div>
         </Allotment.Pane>
