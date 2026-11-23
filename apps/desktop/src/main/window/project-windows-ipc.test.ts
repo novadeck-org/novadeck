@@ -26,7 +26,7 @@ const registered = (own: boolean) => {
       show: (window, id, known) => void calls.push(["show", window, id, known]),
       use: (on) => void calls.push(["use", on]),
       open: (window, id) => void calls.push(["open", window, id]),
-      swap: async (window, id) => {
+      swap: (window, id) => {
         calls.push(["swap", window, id])
         return "swapped"
       },

@@ -88,6 +88,43 @@ describe("main", () => {
     expect(out).toContain(`Leaves peers of v1.1.0 (revision ${contract.revision}) behind:`)
   })
 
+  // A pull request's base: merged, the next release ships it, and no release holds it yet.
+  describe("with a base no release holds yet", () => {
+    // v1.0.0 has no projects.rename; the base added it, and the change takes it away again.
+    const released = without("projects.rename", { revision: contract.revision })
+    const based = JSON.stringify({ ...contract, revision: contract.revision + 1 })
+    const after = without("projects.rename", { revision: contract.revision + 2 })
+    const given = (base: string, current: string): Sources => ({
+      releases: () => Promise.resolve(["v1.0.0"]),
+      released: (ref) => Promise.resolve(ref === "base" ? base : released),
+      current: () => Promise.resolve(current),
+    })
+
+    it("fails a change the releases take that leaves the base's UIs behind", async () => {
+      // The releases alone take it: the release never had what it took away.
+      expect((await check([], given(based, after))).code).toBe(0)
+      const { code, out } = await check(["--peer", "base"], given(based, after))
+      expect(code).toBe(1)
+      expect(out).toContain("Contract compared with v1.0.0")
+      expect(out).toContain(`Contract compared with base, at revision ${contract.revision + 1}.`)
+      expect(out).toContain("projects.rename: is gone, which an older UI may still call")
+      expect(out).toContain(`raise oldestClient to ${contract.revision + 2}`)
+    })
+
+    it("fails a change to the base's contract that keeps the base's revision", async () => {
+      const kept = without("projects.rename", { revision: contract.revision + 1 })
+      const { code, out } = await check(["--peer", "base"], given(based, kept))
+      expect(code).toBe(1)
+      expect(out).toContain(`raise it to ${contract.revision + 2}`)
+    })
+
+    it("compares once where the base holds the newest release's contract", async () => {
+      const { code, out } = await check(["--peer", "base"], given(released, after))
+      expect(code).toBe(0)
+      expect(out).toContain("base holds v1.0.0's contract: nothing more to compare.")
+    })
+  })
+
   it("passes, saying so, before any release has a contract", async () => {
     expect(await check([], sources(undefined, written))).toEqual({
       code: 0,
@@ -96,7 +133,15 @@ describe("main", () => {
   })
 
   it("refuses arguments it doesn't know", async () => {
-    await expect(check(["--bsae", "v1"], sources(written, written))).rejects.toThrow("Usage")
+    for (const args of [
+      ["--bsae", "v1"],
+      ["--peer"],
+      ["--peer", ""],
+      ["--peer", "--base"],
+      ["--peer", "a", "--peer", "b"],
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One refusal at a time.
+      await expect(check(args, sources(written, written))).rejects.toThrow("Usage")
   })
 
   describe("over git", () => {

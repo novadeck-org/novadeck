@@ -33,16 +33,12 @@ export const flagGraceMs = 3_000
 // shows, and whether the person has project windows on, are told to the app as they change.
 // Returns the stop.
 export const watchProjectWindows = (
-  backend: Pick<Backend, "projectWindows" | "showingProject" | "limitSaves" | "settleSaves">,
+  backend: Pick<Backend, "projectWindows" | "showingProject">,
   workspace: Store<Workspace>,
   ui: UiStore,
 ): (() => void) => {
   const { projectWindows: windows } = backend
   if (!windows) return () => {}
-  // Another window about to read the project this one shows has it send what it changed first.
-  const stopFlush = windows.onFlush(async () => {
-    await backend.settleSaves?.()
-  })
   const stopState = windows.onState((state) =>
     ui.update((current) =>
       current.windows.voice === state.voice &&
@@ -55,8 +51,8 @@ export const watchProjectWindows = (
   let shown: string | undefined
   let known = ""
   // With project windows on, the runner is told which project this window shows, so what an
-  // agent asks of the person reaches the window that shows its project, and this window saves
-  // only that project's sessions, the others' copies here being stale until it shows them.
+  // agent asks of the person reaches the window that shows its project. Every window saves what
+  // it changes in any project: the runner merges the windows' changes and feeds them to each.
   let scoped: string | null = null
   const showProject = (): void => {
     const snapshot = workspace.getSnapshot()
@@ -71,7 +67,6 @@ export const watchProjectWindows = (
     if (scope === scoped) return
     scoped = scope
     backend.showingProject?.(scope, ui.getSnapshot().windows.elsewhere.length > 0)
-    backend.limitSaves?.(scope)
   }
   // Whether the Experimental switch has had time to be read: it comes from the app a moment
   // after the page starts, and a window that opens with the feature on must not tell the app it
@@ -98,7 +93,6 @@ export const watchProjectWindows = (
   return () => {
     clearTimeout(settling)
     stopState()
-    stopFlush()
     stopWorkspace()
     stopUi()
   }

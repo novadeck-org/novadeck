@@ -58,8 +58,6 @@ export const createDemoProjectWindows = ({
       set({ ...state, elsewhere: shown === null ? left : [...left, shown] })
       return "swapped"
     },
-    // No other window to ask: nothing to flush.
-    onFlush: () => () => {},
     handOff: (target) => {
       handed.push(target)
     },

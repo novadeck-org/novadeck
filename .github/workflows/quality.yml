@@ -319,8 +319,10 @@ jobs:
 
   # The contract against the newest release's (scripts/compatibility, docs/backend-api.md
   # "Versions"): a change that leaves a UI or runner of that release behind moves that side's
-  # edge of the window, so the handshake refuses that peer, or fails here. The whole history,
-  # for the release tags; the shared steps above check out two commits.
+  # edge of the window, so the handshake refuses that peer, or fails here. Against the base's
+  # too, as the next release ships it: between a merge and its release, a change that fits the
+  # releases but not the base would pass here and stop the release once merged. The whole
+  # history, for the release tags; the shared steps above check out two commits.
   contract:
     name: Contract
     runs-on: ubuntu-latest
@@ -334,8 +336,13 @@ jobs:
       - name: Set Up
         uses: ./.github/actions/setup
 
-      - name: Compare Contract With Newest Release
-        run: node scripts/compatibility/main.ts
+      # The base as this checkout holds it: the pull request's, or the merge group's parent.
+      - name: Compare Contract With Newest Release And Base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          base="$(git merge-base HEAD "$BASE_SHA")"
+          node scripts/compatibility/main.ts --peer "$base"
 
   # The pull request's app packaged for all three systems once every check passes, unless
   # it's a draft or its change can't affect the app (Package's Scope job decides). Not

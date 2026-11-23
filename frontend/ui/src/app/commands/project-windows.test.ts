@@ -13,7 +13,6 @@ import { afterEach, vi } from "vitest"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import type { CommandContext } from "./context"
-import { swapFlushMs } from "./project-windows"
 
 afterEach(() => void vi.useRealTimers())
 
@@ -56,7 +55,6 @@ const recorded = (swapped: () => Promise<ProjectWindowSwap> = async () => "swapp
       asked.push(["swap", id])
       return swapped()
     },
-    onFlush: () => () => {},
     handOff: (target) => void asked.push(["handOff", target]),
     onNavigate: () => () => {},
     extra: false,
@@ -69,17 +67,13 @@ const opened = (
   elsewhere: string[],
   on = true,
   syncProject?: CommandContext["syncProject"],
-  more: {
-    swapped?: () => Promise<ProjectWindowSwap>
-    settleSaves?: CommandContext["settleSaves"]
-  } = {},
+  more: { swapped?: () => Promise<ProjectWindowSwap> } = {},
 ) => {
   const { windows, asked } = recorded(more.swapped)
   const app = openCommands({
     workspace: twoProjects(),
     windows,
     ...(syncProject && { syncProject }),
-    ...(more.settleSaves && { settleSaves: more.settleSaves }),
   })
   app.ui.update((state) => ({
     ...state,
@@ -98,8 +92,8 @@ describe("project windows", () => {
     it("swaps the two windows' projects: the app is told, and this window shows the pick", async () => {
       const { app, asked } = opened(["other"])
       app.commands.switchProject(project(app, "other"))
-      await vi.waitFor(() => expect(asked).toEqual([["swap", "other"]]))
-      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
+      await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
+      expect(asked).toEqual([["swap", "other"]])
     })
 
     it("only switches for a project no other window shows", () => {
@@ -240,7 +234,7 @@ describe("project windows", () => {
       ],
     })
 
-    it("sends its own saves, then swaps, and reads the project only once the swap has answered", async () => {
+    it("swaps at once, and reads the project only once the swap has answered", async () => {
       const order: string[] = []
       let answer!: (result: ProjectWindowSwap) => void
       const { app } = opened(
@@ -255,31 +249,18 @@ describe("project windows", () => {
             order.push("swap")
             return new Promise((resolve) => (answer = resolve))
           },
-          settleSaves: async () => void order.push("settle"),
         },
       )
       app.commands.switchProject(project(app, "other"))
-      await vi.waitFor(() => expect(order).toEqual(["settle", "swap"]))
-      // The other window is still sending its edits: nothing read, nothing switched.
+      await vi.waitFor(() => expect(order).toEqual(["swap"]))
+      // The app hasn't answered: nothing read, nothing switched.
       expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
       answer("swapped")
       await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
-      expect(order).toEqual(["settle", "swap", "read other"])
+      expect(order).toEqual(["swap", "read other"])
       expect(
         project(app, "other").history[0]!.state.roster.terminals.map((each) => each.id),
       ).toEqual(["09"])
-    })
-
-    it("gives up waiting for its own saves after a while, so a stuck save holds no pick up", async () => {
-      vi.useFakeTimers()
-      const { app, asked } = opened(["other"], true, async () => reread(), {
-        settleSaves: () => new Promise(() => {}),
-      })
-      app.commands.switchProject(project(app, "other"))
-      await vi.advanceTimersByTimeAsync(swapFlushMs - 1)
-      expect(asked).toEqual([])
-      await vi.advanceTimersByTimeAsync(2)
-      expect(asked).toEqual([["swap", "other"]])
     })
 
     it("stays where it is when the app brought the other window forward instead", async () => {

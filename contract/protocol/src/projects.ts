@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { directory, id, name } from "./fields.js"
+import { openUnion } from "./open.js"
 
 /**
  * The longest saved session state, in characters. Over WebSocket, the whole
@@ -89,24 +90,49 @@ export const sessionPatch = z.strictObject({
  * What `sessions.watch` tells a client: first each session's revision, by id, to read again
  * those it holds older; then each session as it changes (`writer`, `base`: who changed it
  * and from which revision, where a `sessions.change` did; a session changed again before it
- * was read comes once, as it is now), and each one gone.
+ * was read comes once, as it is now), and each one gone, those of a project removed among
+ * them. A client from revision 5 drops a kind it doesn't know.
  */
-export const sessionChange = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("revisions"),
-    revisions: z.record(id, z.number().int().nonnegative()),
-  }),
-  z.strictObject({
-    type: z.literal("changed"),
-    session: workspaceSession,
-    writer: z.string().max(64).nullable(),
-    base: z.number().int().nonnegative().nullable(),
-  }),
-  z.strictObject({ type: z.literal("removed"), sessionId: id }),
-])
+export const sessionChange = openUnion(
+  "type",
+  [
+    z.strictObject({
+      type: z.literal("revisions"),
+      revisions: z.record(id, z.number().int().nonnegative()),
+    }),
+    z.strictObject({
+      type: z.literal("changed"),
+      session: workspaceSession,
+      writer: z.string().max(64).nullable(),
+      base: z.number().int().nonnegative().nullable(),
+    }),
+    z.strictObject({ type: z.literal("removed"), sessionId: id }),
+  ],
+  { since: 5, unknown: "drop" },
+)
+
+/**
+ * What `projects.watch` tells a client: the projects as `projects.list` gives them, in the
+ * person's order with each one's pin, first and again after each project is made, renamed,
+ * arranged or removed; and a project's sessions in their order, once arranged. A reader slower
+ * than the changes gets the latest of each only. A client drops a kind it doesn't know.
+ */
+export const projectsChange = openUnion(
+  "type",
+  [
+    z.strictObject({ type: z.literal("projects"), projects: z.array(project).max(10_000) }),
+    z.strictObject({
+      type: z.literal("arranged"),
+      projectId: id,
+      order: z.array(id).max(10_000),
+    }),
+  ],
+  { since: 5, unknown: "drop" },
+)
 
 export type Project = z.infer<typeof project>
 export type SessionPatch = z.infer<typeof sessionPatch>
 export type SessionChange = z.infer<typeof sessionChange>
+export type ProjectsChange = z.infer<typeof projectsChange>
 export type FolderListing = z.infer<typeof folderListing>
 export type WorkspaceSession = z.infer<typeof workspaceSession>
