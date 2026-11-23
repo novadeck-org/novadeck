@@ -8,10 +8,13 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 
 const loader = new GLTFLoader()
 
-// models/<name>.gltf as a three.js object, standing on the ground (y = 0), centred on x and z.
-// Call it once per kind and .clone() the result for more of the same.
+// models/<name>.gltf as a three.js object, standing on the ground (y = 0), centred on x and z;
+// the placeholder where that model isn't made yet (the page reloads once it is). Call it once
+// per kind and .clone() the result for more of the same.
 export const loadModel = async (name) => {
-  const { scene: model } = await loader.loadAsync(`models/${name}.gltf`)
+  const { scene: model } = await loader
+    .loadAsync(`models/${name}.gltf`)
+    .catch(() => loader.loadAsync("models/placeholder.gltf"))
   const box = new THREE.Box3().setFromObject(model)
   const centre = box.getCenter(new THREE.Vector3())
   model.position.set(-centre.x, -box.min.y, -centre.z)
