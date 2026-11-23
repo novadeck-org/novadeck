@@ -11,7 +11,7 @@ import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
-import { unansweredCalls, type Call } from "../shell/reports.js"
+import { openCallMs, unansweredCalls, type Call } from "../shell/reports.js"
 import type { Shipping } from "../shipping/service.js"
 import { list } from "../text.js"
 import { WorktreeCalls, type WorktreeCallsHost } from "../worktrees/calls.js"
@@ -85,6 +85,10 @@ const unopened = {
   gone: "Novadeck's window went away while opening the terminal; it may still open, so check before asking again.",
   late: "Novadeck didn't confirm the new terminal in time; it may still open, so check before asking again.",
 }
+
+// How long before an open call's own limit (`openCallMs`) the runner stops waiting for its
+// terminal, to answer in time.
+const answerMarginMs = 2_000
 
 // What an agent asked to start with a task hears when no terminal was made for it in time.
 const untasked =
@@ -212,6 +216,9 @@ export class Calls {
    * more.
    */
   async open(call: Call): Promise<OpenAnswer> {
+    // A terminal being made past the window's deadline is waited for only while this call can
+    // still answer: a task never goes after the agent heard nothing opened.
+    const until = Date.now() + openCallMs - answerMarginMs
     const record = callerOf(this.host.records(), call)
     if (!record) return unansweredCalls.open
     const read = readOpenRequest(call.request)
@@ -416,6 +423,7 @@ export class Calls {
       // Taken up as soon as the runner makes it, before the client confirms it: the agent
       // there may submit its start prompt, which asks for its task, before that.
       adopt,
+      until,
     )
     // A client that confirmed a terminal the runner never told of, as a stand-in may.
     if (asked.type === "answered" && "terminalId" in asked.answer) adopt(asked.answer.terminalId)

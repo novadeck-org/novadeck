@@ -3465,7 +3465,7 @@ nothing when exactly one page is on the bar. The rules:
    1.5 s capture). The worst case for one look is about 14 s. The runner waits 20 s
    (`lookMs`), so a look queued behind a quick one fits, while one behind a worst-case look
    may run out, and is then refused as too slow; the MCP call itself is given 24 s
-   (`ReportsOptions.lookMs`), not the 8 s other calls get. Claude Code's MCP tool timeout is
+   (`ReportsOptions.lookMs`), as an open call is (`openMs`), not the 8 s other calls get. Claude Code's MCP tool timeout is
    far longer than that by default (counted in hours) and Codex's `tool_timeout_sec`
    defaults to 60 s; Novadeck sets neither. A real Claude Code, Codex and Antigravity each
    took a look held for 19 s and passed its picture on (probed once with the e2e deck

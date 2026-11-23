@@ -224,11 +224,11 @@ export type Asked =
   | { readonly type: "nobody" | "gone" | "late" }
 
 /**
- * How much longer than its deadline a request waits for the terminal the client is creating
- * for it, as a slow shell start on Windows can outlast the deadline: once made, it is answered
- * as made, so its opener never starts an agent it doesn't know of.
+ * How much longer than its deadline a request waits by default for the terminal the client is
+ * creating for it, as a slow shell start on Windows can outlast the deadline: once made, it is
+ * answered as made, so its opener never starts an agent it doesn't know of.
  */
-export const creatingMs = 30_000
+export const creatingMs = 15_000
 
 /** How many answers that came after their request settled are let pass without an error. */
 const settledKept = 64
@@ -258,7 +258,10 @@ export class OpenRequests {
       creating: boolean
       /** The terminal made for it, before the client confirmed it. */
       made: string | undefined
-      /** Whether its deadline passed while a terminal was being created for it. */
+      /**
+       * Whether it is answered as soon as its terminal's creation ends: its deadline passed,
+       * or its client went away, while a terminal was being created for it.
+       */
       overdue: boolean
       /** Tells the asker the terminal made for it, as soon as it is made. */
       readonly onMade: ((terminalId: string) => void) | undefined
@@ -286,13 +289,15 @@ export class OpenRequests {
    * `opener`, with the title it asked for, waits for the terminal the client creates for it,
    * and `made` hears of that terminal as soon as the runner has made it, before the client
    * confirms it. Past `ms`, a request whose terminal is made is answered as made; one whose
-   * terminal is being made waits for it, up to `creatingMs` more; any other is late.
+   * terminal is being made waits for it until `until` (a time), by default `creatingMs` more,
+   * and is late after that, its terminal no longer told of; any other is late.
    */
   request(
     request: Omit<TerminalRequest, "requestId">,
     ms: number,
     opener: Opener,
     made?: (terminalId: string) => void,
+    until?: number,
   ): Promise<Asked> {
     const follower = this.followers.newest(this.windows()?.choosing(request.sessionId))
     if (!follower) return Promise.resolve({ type: "nobody" })
@@ -303,7 +308,8 @@ export class OpenRequests {
         if (waiting?.made !== undefined) return settle({ type: "made", terminalId: waiting.made })
         if (!waiting?.creating) return settle({ type: "late" })
         waiting.overdue = true
-        timer = setTimeout(() => settle({ type: "late" }), creatingMs)
+        const left = until === undefined ? creatingMs : until - Date.now()
+        timer = setTimeout(() => settle({ type: "late" }), Math.max(0, left))
       }, ms)
       const settle = (asked: Asked) => {
         clearTimeout(timer)
@@ -413,13 +419,13 @@ export class OpenRequests {
   /** Requests sent to `owner`, unless it still follows on another stream. */
   private abandon(owner: string): void {
     if (this.followers.follows(owner)) return
-    // One whose terminal the runner already made opened all the same.
+    // One whose terminal the runner already made opened all the same; one it is making is
+    // answered once that ends, within its deadline.
     for (const waiting of this.pending.values())
-      if (waiting.owner === owner)
-        waiting.settle(
-          waiting.made === undefined
-            ? { type: "gone" }
-            : { type: "made", terminalId: waiting.made },
-        )
+      if (waiting.owner !== owner) continue
+      else if (waiting.made !== undefined)
+        waiting.settle({ type: "made", terminalId: waiting.made })
+      else if (waiting.creating) waiting.overdue = true
+      else waiting.settle({ type: "gone" })
   }
 }

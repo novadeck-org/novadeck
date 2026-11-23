@@ -894,8 +894,9 @@ with every safety check again at that time:
   as soon as `terminals.create` makes it for the request, before the client confirms it
   (which waits for its shell to start, slow on some Windows machines): `open_agent`'s task
   waits there from then, before the agent's start prompt asks for it, and a terminal made
-  but confirmed past the deadline (or being made as it passes, up to 30 seconds more) is
-  answered as opened, its late confirmation no error. With no terminal made in time, the
+  but confirmed past the deadline (or being made as it passes, while the call can still
+  answer: an open call gets 24 s, as a look does) is answered as opened, its late
+  confirmation no error. With no terminal made in time, the
   agent hears that its task wasn't sent. The command runs once
   through the same file the shell integration resumes agents from, so it leaves no
   history entry; a shell without the integration, or with configured arguments, can't

@@ -1002,6 +1002,7 @@ export class Terminals {
       this.saves.save(record, false)
       this.saves.start()
       plan?.started(record, started.resumes, opened !== null, shown)
+      if (opener) this.opens.created(input.requestId, record.summary.id)
       return summaryOf(record)
     } catch (error) {
       // A wake that failed before any shell stays asleep, its messages gone.
@@ -1009,7 +1010,7 @@ export class Terminals {
         this.sleepers.failedStart(input.id, error instanceof Error ? error.message : "start failed")
       throw error
     } finally {
-      if (opener) this.opens.created(input.requestId, this.records.has(input.id) ? input.id : null)
+      if (opener) this.opens.created(input.requestId, null)
       place.done()
       created()
       this.pendingOwners.complete(ownerId, pending)

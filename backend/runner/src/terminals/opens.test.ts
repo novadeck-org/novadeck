@@ -305,6 +305,38 @@ describe("requests on their way to the client", () => {
     opens.finish()
   })
 
+  it("wait for a terminal being made when the client goes away, and no longer than the asker can answer", async () => {
+    const opens = new OpenRequests()
+    const opener = { by: "id-moth", handle: "moth", leads: false }
+    // The client goes away while the runner makes its terminal: answered once it is made.
+    let stream = opens.follow("client")
+    let first = stream.next()
+    const left = opens.request(request, 1_000, opener)
+    let { value } = await first
+    opens.opener(value!.requestId, "client", request.sessionId)
+    opens.release("client")
+    opens.created(value!.requestId, "t5")
+    await expect(left).resolves.toEqual({ type: "made", terminalId: "t5" })
+    // Past the time its asker can answer by, a terminal still being made is late, and the
+    // asker never hears of it after.
+    stream = opens.follow("client")
+    first = stream.next()
+    const made: string[] = []
+    const slow = opens.request(
+      request,
+      10,
+      opener,
+      (terminalId) => void made.push(terminalId),
+      Date.now() + 20,
+    )
+    ;({ value } = await first)
+    opens.opener(value!.requestId, "client", request.sessionId)
+    await expect(slow).resolves.toEqual({ type: "late" })
+    opens.created(value!.requestId, "t6")
+    expect(made).toEqual([])
+    opens.finish()
+  })
+
   it("go unanswered when the client takes too long, or goes away", async () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")
