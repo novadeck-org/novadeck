@@ -444,16 +444,21 @@ const BlockView = memo(
             data-thinking={block.thinking || undefined}
             aria-label={block.thinking ? `${agent}, summary` : agent}
           >
-            <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
-            {block.truncated && <Shortened />}
-            {block.thinking && (
+            {block.thinking ? (
               // The agent's update as its terminal shows it, which tags it "summary" after the
-              // words, dim: its thinking, not its reply.
-              <span className="chat-summary-tag" aria-hidden>
-                {" "}
-                · summary
-              </span>
+              // words, dim: its thinking, not its reply. The words run inline to keep the tag on
+              // their last line, so this block holds them to the measure an inline one can't.
+              <div className="chat-said">
+                <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
+                <span className="chat-summary-tag" aria-hidden>
+                  {" "}
+                  · summary
+                </span>
+              </div>
+            ) : (
+              <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
             )}
+            {block.truncated && <Shortened />}
             {worked !== null ? (
               <Fact>worked {span(worked)}</Fact>
             ) : (

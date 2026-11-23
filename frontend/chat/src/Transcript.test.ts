@@ -75,6 +75,10 @@ describe("the scrollback", () => {
     expect(tag?.textContent?.trim()).toBe("· summary")
     expect(tag?.closest(".chat-fact")).toBeNull()
     expect(tag?.previousElementSibling?.classList.contains("markdown")).toBe(true)
+    // Words and tag sit in one block, the message's child the measure caps, since the words run
+    // inline and an inline box takes no max-width.
+    expect(tag?.parentElement?.classList.contains("chat-said")).toBe(true)
+    expect(tag?.parentElement?.parentElement).toBe(update)
     expect(update?.querySelector(".chat-fact")).toBeNull()
     expect(reply?.getAttribute("aria-label")).toBe("Claude")
     expect(reply?.hasAttribute("data-thinking")).toBe(false)

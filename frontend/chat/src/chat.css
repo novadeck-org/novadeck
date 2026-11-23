@@ -432,11 +432,12 @@
   content: none;
 }
 /* The agent's update (its thinking, as its terminal shows it) ends in a dim "· summary" tag, in the
-   text's own line where it ends in a paragraph; after a list or a code block it takes a line. */
-.chat-message[data-thinking] > .markdown {
+   text's own line where it ends in a paragraph; after a list or a code block it takes a line.
+   `.chat-said` holds both and is the block the measure caps: inline words alone would run the row. */
+.chat-message[data-thinking] > .chat-said > .markdown {
   display: inline;
 }
-.chat-message[data-thinking] > .markdown > p:last-child {
+.chat-message[data-thinking] > .chat-said > .markdown > p:last-child {
   display: inline;
 }
 .chat-summary-tag {
