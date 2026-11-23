@@ -326,6 +326,62 @@ const groupsOf = (parts: readonly RingPart[]): RingPart[][] => {
 }
 
 /**
+ * The parts in full over rows of `width` cells, as a drawing opened on a click shows them: each
+ * message wrapped under its sender over all the rows it needs, notices that follow one another
+ * one badge with a row per line, then how many messages the ring held beyond them. At most `most`
+ * rows, shared as a block's are where the parts need more.
+ */
+export const layoutFull = (
+  parts: readonly RingPart[],
+  width: number,
+  options: { readonly extra?: number; readonly most?: number } = {},
+): Run[][] => {
+  const extra = options.extra ?? 0
+  const out: Run[][] = []
+  for (const group of groupsOf(parts)) {
+    const [part] = group
+    if (part!.kind !== "notice") {
+      out.push(...wrappedRows(part!, width, Infinity))
+      continue
+    }
+    const lines = [...new Set(group.map((each) => flatten(each.text)))]
+    if (width <= badgeWidth + 1) {
+      out.push(layoutRing(group, width))
+      continue
+    }
+    lines.forEach((line, index) =>
+      out.push([
+        index === 0
+          ? { text: badgeText, tone: ink, badge: true }
+          : { text: " ".repeat(badgeWidth), tone: dim },
+        { text: " ", tone: dim },
+        { text: cut(line, width - badgeWidth - 1), tone: dim, italic: true },
+      ]),
+    )
+  }
+  if (extra > 0) out.push([{ text: cut(`+${extra} more`, width), tone: dim }])
+  const most = options.most ?? Infinity
+  if (out.length <= most) return out
+  return layoutBlock(parts, width, Math.max(most, 1), { rules: false, extra })
+}
+
+// The words a drawing shows: its runs' text, without its blanks, separators, cuts and counts.
+const wordsOf = (lines: readonly (readonly Run[])[]): number =>
+  lines
+    .flat()
+    .filter((run) => !run.badge)
+    .map((run) => run.text)
+    .join("")
+    .replace(/\+\d+ more|[\s·…]/g, "").length
+
+/** Whether `lines` show fewer of the parts' words than `layoutFull` does at `width`. */
+export const hidesWords = (
+  lines: readonly (readonly Run[])[],
+  parts: readonly RingPart[],
+  width: number,
+): boolean => parts.length > 0 && wordsOf(lines) < wordsOf(layoutFull(parts, width))
+
+/**
  * Whether a block of `rows` rows gives each of the parts a row of its own, with a row for the
  * "+N more" of `extra` messages beyond them: a ring's tag wrapped over that many rows says its
  * messages there, wrapped, rather than on one row.

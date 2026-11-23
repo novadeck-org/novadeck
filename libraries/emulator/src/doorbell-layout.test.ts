@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   blockFits,
+  hidesWords,
   layoutBlock,
+  layoutFull,
   layoutRing,
   shares,
   type RingPart,
@@ -262,5 +264,59 @@ describe("a delivery block's layout", () => {
       `        ${"x".repeat(32)}`,
       `        ${"x".repeat(4)}`,
     ])
+  })
+})
+
+describe("a drawing opened in full", () => {
+  it("wraps each message under its sender over every row it needs, none cut", () => {
+    const long = "word ".repeat(30).trim()
+    const rows = layoutFull([agent("newtz", long), agent("hushz", "Done")], 40)
+    expect(rows.every((runs) => width(runs) <= 40)).toBe(true)
+    expect(rows.map(text).join(" ")).not.toContain("…")
+    expect(text(rows[0]!)).toMatch(/^@newtz: word/)
+    expect(text(rows.at(-1)!)).toBe("@hushz: Done")
+    expect(
+      rows
+        .slice(0, -1)
+        .map(text)
+        .join(" ")
+        .replace(/^@newtz: /, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    ).toBe(long)
+  })
+
+  it("gives notices that follow one another one badge and a row per line, then the count", () => {
+    const rows = layoutFull(
+      [notice("You notice a worktree."), notice("You notice CI is busy."), agent("newtz", "Hi")],
+      60,
+      { extra: 2 },
+    )
+    expect(rows.map((runs) => text(runs).trimEnd())).toEqual([
+      " novadeck  You notice a worktree.",
+      "           You notice CI is busy.",
+      "@newtz: Hi",
+      "+2 more",
+    ])
+  })
+
+  it("shares its rows as a block does where the screen has fewer than it needs", () => {
+    const parts = [agent("newtz", "word ".repeat(40)), agent("hushz", "word ".repeat(40))]
+    const rows = layoutFull(parts, 30, { most: 4 })
+    expect(rows).toHaveLength(4)
+    expect(text(rows[0]!)).toMatch(/^@newtz/)
+    expect(rows.map(text).some((row) => row.startsWith("@hushz"))).toBe(true)
+  })
+
+  it("is worth opening only where the drawing doesn't show all the words", () => {
+    const short = [agent("newtz", "Start on the parser tests")]
+    expect(hidesWords([layoutRing(short, 80)], short, 80)).toBe(false)
+    const two = [agent("newtz", "Start on it"), agent("hushz", "Done")]
+    expect(hidesWords([layoutRing(two, 80)], two, 80)).toBe(false)
+    const long = [agent("newtz", "word ".repeat(30))]
+    expect(hidesWords([layoutRing(long, 60)], long, 60)).toBe(true)
+    const many = ["a", "b", "c", "d"].map((handle) => agent(handle, "Start on the parser tests"))
+    expect(hidesWords([layoutRing(many, 80)], many, 80)).toBe(true)
+    expect(hidesWords([layoutRing([], 80)], [], 80)).toBe(false)
   })
 })

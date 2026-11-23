@@ -615,3 +615,57 @@ describe("a turn-end delivery block", () => {
     expect(doorbell.drawn()).toBe(1)
   })
 })
+
+describe("opening a drawing on a click", () => {
+  const long: readonly RingPart[] = [
+    {
+      kind: "agent",
+      handle: "newtz",
+      hue: 1,
+      text: `Start on the parser tests: ${"word ".repeat(30).trim()}`,
+    },
+    { kind: "agent", handle: "hushz", hue: 4, text: "Done with the lexer" },
+  ]
+  const told = (ringParts: readonly RingPart[]): DoorbellContent => ({
+    rings: new Map([["n7Q2xk", { parts: ringParts }]]),
+    deliveries: [],
+  })
+
+  it("opens a ring row that cuts its words to them in full, and a second click closes it", async () => {
+    const { doorbell, write } = open(60, told(long))
+    await write(`earlier\r\n> ${tag}\r\nout\r\n`)
+    doorbell.arm()
+    expect(doorbell.audit()[0]!.opens).toBe(true)
+    expect(doorbell.openAt(1, 10)).toBe(true)
+    const lines = doorbell.opened()!.map((line) => line.trimEnd())
+    expect(lines.length).toBeGreaterThan(2)
+    expect(lines[0]).toMatch(/^@newtz: Start on the parser tests: word/)
+    expect(lines.at(-1)).toBe("@hushz: Done with the lexer")
+    expect(lines.join(" ")).not.toContain("…")
+    doorbell.openAt(1, 10)
+    expect(doorbell.opened()).toBeUndefined()
+  })
+
+  it("opens nothing where the row says it all, or off the drawing's cells", async () => {
+    const { doorbell, write } = open(100)
+    await write(`earlier\r\n> ${tag}\r\nout\r\n`)
+    doorbell.arm()
+    expect(doorbell.audit()[0]!.opens).toBe(false)
+    expect(doorbell.openAt(1, 10)).toBe(false)
+    expect(doorbell.openAt(2, 0)).toBe(false)
+    expect(doorbell.opened()).toBeUndefined()
+  })
+
+  it("closes once a key is typed or its drawing is dropped", async () => {
+    const { terminal, doorbell, write } = open(60, told(long))
+    await write(`> ${tag}\r\nout\r\n`)
+    doorbell.arm()
+    doorbell.openAt(0, 10)
+    terminal.textarea!.dispatchEvent(new KeyboardEvent("keydown", { key: "a", keyCode: 65 }))
+    expect(doorbell.opened()).toBeUndefined()
+    doorbell.openAt(0, 10)
+    expect(doorbell.opened()).toBeDefined()
+    doorbell.setContent(rings())
+    expect(doorbell.opened()).toBeUndefined()
+  })
+})

@@ -2841,6 +2841,14 @@ that row (never another row). The harness's own screen is untouched, and copying
   by the raw `<novadeck-messages>`; the view draws a row per message, then a dim `rules for the
   agent`, then blank, over the block's rows. Antigravity prints no such block, so there is none to
   draw there (its model still gets the delivery).
+- **Opened in full on a click.** A drawing whose rows don't show all its words (a message cut with
+  `…`, or ones counted in `+N more`) takes a pointer cursor, and a plain click on it opens it in
+  place: every part in full over as many rows as it needs, each message wrapped under its sender,
+  notices one badge with a row per line, then the count beyond the 8 parts, framed, from its first
+  row down (up from the screen's foot when fewer rows are below, at most the screen's height). It
+  covers the rows below it until a click anywhere, a key typed or its drawing being dropped closes
+  it; it takes its own clicks, so none reaches the program under it. A drag that selects and a double
+  click stay the terminal's. The runner's cut at 240 characters still holds.
 
 ### Message states
 
