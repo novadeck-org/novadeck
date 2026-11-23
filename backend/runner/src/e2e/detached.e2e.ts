@@ -376,6 +376,12 @@ const up = setInterval(() => {
 }, 50)
 `
 
+/**
+ * A word for one Windows test's servers, short enough that the person's line, after a long
+ * temporary folder's prompt, stays on one row for the terminal to show it typed.
+ */
+const shortWord = (): string => randomUUID().slice(0, 8)
+
 /** This test's servers on Windows, by name and pid, as each told it. */
 const toldServers = (run: E2E): readonly (readonly [string, number])[] => {
   const pids = join(run.sandbox.project, "detached.pids")
@@ -442,7 +448,7 @@ for (const setup of setups) {
         "has nothing its agent started detached left to end, as Antigravity ends it with the command",
         async ({ e2e: run, onTestFinished }) => {
           onTestFinished(() => endWindowsServers(run))
-          const word = randomUUID()
+          const word = shortWord()
           scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
           const terminal = await start(run, setup)
           await turn(terminal, "Say ok", "Okay then.")
@@ -457,7 +463,7 @@ for (const setup of setups) {
           `ends what its agent started detached as ${end === "quit" ? "Novadeck quits" : "its terminal closes"}${command ? ", its sandbox off" : ""}`,
           async ({ e2e: run, onTestFinished }) => {
             onTestFinished(() => endWindowsServers(run))
-            const word = randomUUID()
+            const word = shortWord()
             scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
             const terminal = command ? await opened(run, setup, command) : await start(run, setup)
             await turn(terminal, "Say ok", "Okay then.")
@@ -480,7 +486,7 @@ for (const setup of setups) {
       "leaves what the person starts in its terminal once the agent has left, ending the agent's",
       async ({ e2e: run, onTestFinished }) => {
         onTestFinished(() => endWindowsServers(run))
-        const word = randomUUID()
+        const word = shortWord()
         scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
         const terminal = await opened(run, setup, itsCommand)
         await turn(terminal, "Say ok", "Okay then.")

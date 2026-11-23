@@ -68,8 +68,16 @@ const agent = `
 import { spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 const commands = JSON.parse(readFileSync("variants.json", "utf8"))
-for (const [file, args] of commands)
-  spawn(file, args, { stdio: "ignore", windowsHide: true, windowsVerbatimArguments: file === "cmd.exe" })
+for (const [file, args] of commands) {
+  // A launcher that fails says why, as the test shows the screen when it gives up waiting.
+  const launcher = spawn(file, args, { stdio: ["ignore", "ignore", "pipe"], windowsHide: true, windowsVerbatimArguments: file === "cmd.exe" })
+  let said = ""
+  launcher.stderr.on("data", (data) => (said += data))
+  launcher.on("error", (error) => console.log("LAUNCHER " + file + " failed: " + error.message))
+  launcher.on("exit", (code) => {
+    if (code !== 0) console.log("LAUNCHER " + file + " exited " + code + ": " + said)
+  })
+}
 const up = setInterval(() => {
   const told = existsSync("pids.txt") ? readFileSync("pids.txt", "utf8").trim().split("\\n") : []
   if (told.length < commands.length) return
@@ -136,6 +144,8 @@ const terminal = async () => {
   })
   await eventually(() => existsSync(scopeFile), "the shell's job to settle")
   await eventually(() => pty.drawn, "the shell to draw")
+  // Its prompt, `$G`: what is typed before cmd reads its input is lost, as on a cold machine.
+  await eventually(() => /^>/m.test(screen), "the shell's prompt")
   const run = (line: string) => pty.write(`${line}\r`)
   const said = async (pattern: RegExp): Promise<RegExpExecArray> => {
     await eventually(() => pattern.test(screen), `${pattern} in: ${screen}`)
