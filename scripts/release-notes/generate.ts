@@ -1,6 +1,6 @@
 import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
 import { checkOutput } from "./check.ts"
-import { parseCommits, type RawCommit } from "./commits.ts"
+import { parseCommit, parseCommits, type RawCommit } from "./commits.ts"
 import { checkoutExperimental, holdBack, parseExperimental } from "./experimental.ts"
 import { commitItem, type Item } from "./items.ts"
 import { parseOutput, type Answer } from "./model.ts"
@@ -80,9 +80,11 @@ const forEveryone = async (
   )
   return {
     kept,
-    held: held.map(({ raw, feature }) => {
+    // Only what the notes would have told: a held test or refactor is no news.
+    held: held.flatMap(({ raw, feature }) => {
+      if (!parseCommit(raw)) return []
       const pr = /\(#(\d+)\)$/.exec(raw.subject.trim())?.[1]
-      return `${pr ? `#${pr}` : raw.sha.slice(0, 9)} (${feature})`
+      return [`${pr ? `#${pr}` : raw.sha.slice(0, 9)} (${feature})`]
     }),
   }
 }

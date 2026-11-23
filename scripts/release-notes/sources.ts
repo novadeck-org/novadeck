@@ -140,10 +140,8 @@ export const makeGitSources = (cwd?: string): Sources => ({
       const { stdout } = await run(
         "git",
         ["show", `${await refOf(tag, cwd)}:${experimentalPath}`],
-        {
-          cwd,
-          maxBuffer: 1024 * 1024,
-        },
+        // English messages, which the missing file is told by below.
+        { cwd, maxBuffer: 1024 * 1024, env: { ...process.env, LC_ALL: "C" } },
       )
       return stdout
     } catch (error) {

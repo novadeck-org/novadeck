@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { type RawCommit } from "./commits.ts"
+import { type RawCommit, whatOf } from "./commits.ts"
 import {
   checkoutExperimental,
   heldFeature,
@@ -34,8 +34,10 @@ describe("the features still behind Preferences > Experimental", () => {
     const ids = [...rows!.groups!["rows"]!.matchAll(/^ {6}id: "(?<id>[a-z-]+)",$/gm)].map(
       (found) => found.groups!["id"]!,
     )
-    // The forges have a section of their own under the rows.
-    if (preferences.includes(`<Section title="Forge integrations"`)) ids.push("forges")
+    // The forges have a section of their own under the rows, in the Experimental tab's panel.
+    const panel = /<TabPanel value="experimental"[\s\S]*?<\/TabPanel>/.exec(preferences)
+    expect(panel).not.toBeNull()
+    if (panel![0].includes(`<Section title="Forge integrations"`)) ids.push("forges")
     expect([...checkoutExperimental().keys()].toSorted()).toEqual(ids.toSorted())
   })
 
@@ -58,6 +60,8 @@ describe("a commit held back as Experimental", () => {
     expect(heldFeature(raw("feat(source): lay work over files (#4)", body), listed)).toBe(
       "agent-worktrees",
     )
+    // The model never reads the line: once the feature leaves, it would only say to drop it.
+    expect(whatOf(body)).toBe("The Files panel lays agents' work over the files.")
     // A feature no longer listed has left Experimental: its commits are for everyone.
     expect(
       heldFeature(raw("feat(windows): two windows (#5)", "Experimental: project-windows"), listed),
@@ -106,7 +110,8 @@ describe("notes over a range with Experimental work", () => {
     const sources = fakeSources({
       tags,
       stable: "v0.0.148",
-      commits: { "v0.0.148..v0.0.152": [commit(181), tour] },
+      // A held test is no news, so the summary doesn't name it.
+      commits: { "v0.0.148..v0.0.152": [commit(181), tour, raw("test(tour): a spec (#902)")] },
       bodies: { "v0.0.152": releaseBody },
       experimental: list({ "onboarding-tour": ["tour"] }),
     })

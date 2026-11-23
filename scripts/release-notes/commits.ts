@@ -73,6 +73,9 @@ const sectionOf = (body: string, heading: string, max: number, references = true
   const plain = (found?.groups?.text ?? "")
     .replaceAll("\r", "")
     .replace(/<!--[\s\S]*?-->/g, "")
+    // An `Experimental: <id>` line is for the generator's hold (experimental.ts), and once the
+    // feature has left, it would only tell the model to leave the change out.
+    .replace(/^Experimental:.*$/gim, "")
     .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "")
   for (const line of plain.split("\n")) {
     if (!line.trim()) {

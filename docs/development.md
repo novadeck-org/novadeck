@@ -1964,7 +1964,8 @@ each Experimental row by its id, with the commit scopes that are only about it (
 it equal to the tab's rows). A commit in one of those scopes, or whose pull request body has a
 line `Experimental: <id>` (for a change to the feature under another scope), is left out of
 the notes while the release's tag lists its feature; the run's summary names what it left
-out. The pull request that takes a feature out of Experimental is a `feat`, removes its
+out. A change under a listed scope that people without the feature see too, such as the Files
+panel's "main is N behind" line with its Update button, takes another scope (`files`). The pull request that takes a feature out of Experimental is a `feat`, removes its
 entry, and says in its What what the feature does: the next notes tell it as new, with every
 change to it since the last stable release, and the ones before that stable release are known
 only from that pull request.
