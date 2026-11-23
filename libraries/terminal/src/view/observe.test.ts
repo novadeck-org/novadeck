@@ -109,19 +109,6 @@ describe("a screen of a terminal this client only observes", () => {
     expect(stream.written).toEqual([])
   })
 
-  it("delivers the wheel's mouse reports and arrow keys once this client controls", async () => {
-    const stream = streamOf([snapshot("$ ")])
-    const screens = screensOf(optionsOf({ attach: async () => stream.attached }))
-    const opened = openedTerminals()
-    const { hold, element } = shown(screens, "a")
-    await vi.waitFor(() => expect(hold.state.getSnapshot().live).toBe(true))
-    expect(hold.state.getSnapshot().control ?? null).toBeNull()
-    element.firstElementChild!.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 }))
-    opened[0]!.input("\u001b[<65;10;5M")
-    opened[0]!.input("\u001bOB")
-    await vi.waitFor(() => expect(stream.written).toEqual(["\u001b[<65;10;5M", "\u001bOB"]))
-  })
-
   it("tells whether it observes, and takes control for dictation with the idle limit", async () => {
     const stream = observed()
     const asked: unknown[] = []
@@ -150,5 +137,20 @@ describe("a screen of a terminal this client only observes", () => {
     await vi.waitFor(() => expect(hold.state.getSnapshot().control).toBe("observing"))
     await expect(screens.take("a", { ifIdleMs: 2000 })).rejects.toThrow("CONTROL_BUSY")
     expect(hold.state.getSnapshot().control).toBe("busy")
+  })
+})
+
+describe("a screen of a terminal this client controls", () => {
+  it("delivers the wheel's mouse reports and arrow keys once this client controls", async () => {
+    const stream = streamOf([snapshot("$ ")])
+    const screens = screensOf(optionsOf({ attach: async () => stream.attached }))
+    const opened = openedTerminals()
+    const { hold, element } = shown(screens, "a")
+    await vi.waitFor(() => expect(hold.state.getSnapshot().live).toBe(true))
+    expect(hold.state.getSnapshot().control ?? null).toBeNull()
+    element.firstElementChild!.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 }))
+    opened[0]!.input("\u001b[<65;10;5M")
+    opened[0]!.input("\u001bOB")
+    await vi.waitFor(() => expect(stream.written).toEqual(["\u001b[<65;10;5M", "\u001bOB"]))
   })
 })
