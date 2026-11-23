@@ -22,15 +22,20 @@ import { covered, type AllowRule } from "./rules.js"
 export type Decision = {
   readonly stdout: string
   readonly commit?: () => void
+  /** Antigravity's hook stays silent because a permit covers the command: its confirmation follows. */
+  readonly permitted?: true
 }
 
 export type GateInput = {
-  readonly agent: "claude" | "codex"
+  readonly agent: "claude" | "codex" | "agy"
   readonly event: "PreToolUse" | "PermissionRequest"
   readonly terminalId: string
   readonly command: string
   readonly cwd: string
-  /** Claude Code's permission mode, as its hook says. */
+  /**
+   * Claude Code's permission mode, as its hook says. Antigravity's hook names none: its is the
+   * mode its status line last said, else the launch's (`--mode`), as the runner reads them.
+   */
   readonly mode?: string
   /** Codex's rollout, which says what the turn's sandbox and approval policy are. */
   readonly transcript?: string
@@ -46,7 +51,7 @@ export type GateDeps = {
   readonly lookups: (terminalId: string) => Lookups
   readonly permits: Permits
   /** The person's allow rules for `agent` in `cwd`. */
-  readonly rules: (agent: "claude" | "codex", cwd: string) => Promise<readonly AllowRule[]>
+  readonly rules: (agent: "claude" | "codex" | "agy", cwd: string) => Promise<readonly AllowRule[]>
   /** The turn Codex's rollout last started; undefined when it can't be read. */
   readonly turn: (transcript: string | undefined) => Promise<Turn | undefined>
   readonly now?: () => number
@@ -62,6 +67,15 @@ export const escalationMs = 5 * 60_000
 /** Whether a Codex turn is in bypass: no approvals and nothing to escalate from. */
 const bypass = (turn: Turn | undefined): boolean =>
   turn?.approval === "never" && turn.sandbox === "danger-full-access"
+
+/**
+ * The mode `Shipping.agyMode` gives for Antigravity in an explicit bypass: its launch's
+ * `--dangerously-skip-permissions`, or a status line mode that means skip. Every other mode
+ * (default, `auto`, `accept-edits`, `plan`, one nobody told) is gated: `auto` still prompts before
+ * irreversible actions, as Claude Code's auto mode does, and a deny is safe where agy's own
+ * dialog decides what a permit covers.
+ */
+export const agyBypassMode = "bypass"
 
 const restricted = (turn: Turn | undefined): boolean =>
   turn?.sandbox === "workspace-write" || turn?.sandbox === "read-only"
@@ -120,6 +134,26 @@ export const printed = (
         },
   )}\n`
 
+/** What Antigravity's hook prints to refuse a tool, as its PreToolUse answers read it (probed 1.5.14). */
+export const printedAgy = (reason: string): string =>
+  `${JSON.stringify({ decision: "deny", reason })}\n`
+
+/** A command's shipping, read, with the permits that cover it, once every action has one. */
+export type Covered = {
+  readonly permits: readonly Permit[]
+  readonly actions: readonly Action[]
+  /** Ends what the command's run uses up: single-use permits, and the merge permits it voids. */
+  readonly used: () => void
+  /**
+   * Takes the single-use permits now, before the command is let run, so no other answer can
+   * use them too; `restore` gives them back where it wasn't (never a standing permit, nor one a
+   * revoke ended meanwhile), and `voided` ends the merge permits the command voids, once it was.
+   */
+  readonly take: () => void
+  readonly restore: () => void
+  readonly voided: () => void
+}
+
 export class Gate {
   // Commands a Codex agent was asked to escalate, by terminal and command, and until when.
   private readonly escalated = new Map<string, number>()
@@ -130,7 +164,7 @@ export class Gate {
     return (this.deps.now ?? Date.now)()
   }
 
-  private remember(input: GateInput): string {
+  private remember(input: Pick<GateInput, "terminalId" | "command">): string {
     const hash = createHash("sha256").update(input.command).digest("hex")
     return `${input.terminalId}\n${hash}`
   }
@@ -142,20 +176,21 @@ export class Gate {
   async decide(input: GateInput): Promise<Decision | undefined> {
     // Claude Code's bypass mode, where it asks nothing: Novadeck adds no gate.
     if (input.agent === "claude" && input.mode === "bypassPermissions") return undefined
+    // Antigravity told to skip every permission: nothing to replace.
+    if (input.agent === "agy" && input.mode === agyBypassMode) return undefined
     const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
     if (reading.kind === "none") return undefined
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
     if (bypass(turn)) return undefined
     // Where the person's own rule allows the command, the harness had no gate there either.
     if (covered(await this.deps.rules(input.agent, input.cwd), input.command)) return undefined
+    const refuse = (reason: string): Decision => ({
+      stdout: input.agent === "agy" ? printedAgy(reason) : printed(input.event, "deny", reason),
+    })
     if (reading.refusal !== undefined)
-      return {
-        stdout: printed(
-          input.event,
-          "deny",
-          `Novadeck: this command can't be allowed, because ${reading.refusal}. Run each shipping command on its own, spelled out.`,
-        ),
-      }
+      return refuse(
+        `Novadeck: this command can't be allowed, because ${reading.refusal}. Run each shipping command on its own, spelled out.`,
+      )
     const permits: Permit[] = []
     const missing: string[] = []
     for (const action of reading.actions) {
@@ -163,12 +198,52 @@ export class Gate {
       if (permit) permits.push(permit)
       else missing.push(action.key)
     }
-    if (missing.length > 0) return { stdout: printed(input.event, "deny", declare(missing)) }
+    if (missing.length > 0) return refuse(declare(missing))
+    // Antigravity's hook has no allow: it stays silent, its own confirmation shows, and the
+    // runner answers that one (`Shipping.autoAnswer`) only for this very command.
+    if (input.agent === "agy") return { stdout: "", permitted: true }
     return this.allowed(input, permits, reading.actions, turn)
   }
 
+  /**
+   * The permits that cover `command` whole, where the reader reads it as shipping and every
+   * action it ships has one, and nothing in it is refused: undefined otherwise, however close.
+   * It is the same reading, with the same exactness, that allows a command for Claude Code.
+   */
+  async covered(terminalId: string, command: string, cwd: string): Promise<Covered | undefined> {
+    const reading = await readCommand(command, cwd, this.deps.lookups(terminalId))
+    if (reading.kind === "none" || reading.refusal !== undefined) return undefined
+    if (reading.actions.length === 0) return undefined
+    const permits: Permit[] = []
+    for (const action of reading.actions) {
+      const permit = this.deps.permits.covering(terminalId, action.key)
+      if (!permit) return undefined
+      permits.push(permit)
+    }
+    let restores: (() => void)[] = []
+    const voided = () => {
+      for (const action of reading.actions)
+        for (const key of action.voids ?? []) this.deps.permits.revoke(key)
+    }
+    return {
+      permits,
+      actions: reading.actions,
+      used: () => {
+        for (const permit of permits) this.deps.permits.used(permit)
+        voided()
+      },
+      take: () => {
+        restores = permits.flatMap((permit) => this.deps.permits.take(permit) ?? [])
+      },
+      restore: () => {
+        for (const restore of restores) restore()
+      },
+      voided,
+    }
+  }
+
   private allowed(
-    input: GateInput,
+    input: Pick<GateInput, "agent" | "event" | "terminalId" | "command">,
     permits: readonly Permit[],
     actions: readonly Action[],
     turn: Turn | undefined,

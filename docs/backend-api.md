@@ -89,6 +89,38 @@ an in-memory database when no path is supplied. `@novadeck/runner/http` stays fr
 of native terminal code, so the Electron main process can serve the status endpoint
 without it.
 
+### Running a standalone runner
+
+The CLI and the desktop app's runner share one lifecycle (`backend/runner/src/lifecycle.ts`);
+only where the transcript key comes from and the desktop's watch on its main process differ.
+
+- **Data folder.** Everything the runner keeps lives beside `NOVADECK_DATABASE`
+  (`~/.local/share/novadeck/` by default): `workspace.sqlite`, `shell/`, `uploads/`,
+  `dialogs/`, `voice/`, `murmur/` and `transcript.key`. Keep the folder on a volume that
+  outlives the container or host.
+- **Transcript key.** Saved transcripts are sealed with a 32-byte key kept as base64 in
+  `transcript.key` beside the database, or in the file `NOVADECK_TRANSCRIPT_KEY_FILE` names
+  (standard or URL-safe, padded or not).
+  The runner makes it at 0600 where it is missing. A file that holds no key, or can't be
+  read, is never replaced: transcripts are then not kept, and the log says why. A key file
+  other users can read is still used, with a warning. The key keeps transcripts out of the
+  database file alone and away from the machine's other users. It does not protect them from
+  root, the runner's own user, or a copy of the whole folder. To keep the key encrypted at
+  rest, make one (`openssl rand -base64 32`) and point the setting at a systemd credential
+  (`LoadCredentialEncrypted=transcript.key:…` with
+  `NOVADECK_TRANSCRIPT_KEY_FILE=%d/transcript.key`) or a Docker secret
+  (`/run/secrets/transcript.key`). A lost key loses the saved transcripts, nothing else.
+  The desktop app keeps its key behind the system's keychain instead.
+- **Stopping.** SIGTERM, SIGINT and SIGHUP (on Windows Ctrl+C, Ctrl+Break and the console
+  closing; Windows has no SIGTERM, and a forced end can't be caught) save every terminal's
+  restore state at once, then end the shells and exit, as quitting the desktop app does.
+  Terminals and agents come back on the next start. Ending takes at most 8 s, inside
+  Docker's default 10 s; a second signal a second or more after the first exits at once. Node ends on a hangup
+  even under `nohup`; run it under systemd, Docker or tmux to outlive a closed terminal.
+  Under systemd use `KillMode=mixed`, so only the runner hears the stop and its shells end
+  after it has saved, and keep `TimeoutStopSec` above 8 s. In Docker, run it with `--init` (or tini) and the
+  exec form, so `docker stop` reaches it and an init reaps what agents leave behind.
+
 For a VPS, terminate TLS at a trusted reverse proxy and forward WebSocket upgrades.
 Agents run beside the runner on the server, and their relays reach it over a private
 local socket, so a UI elsewhere needs nothing more than the WebSocket.
@@ -210,8 +242,8 @@ before the removal is done rejects it with `CLOSING` and keeps the session.
 ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order` (one
 `order` doesn't name isn't pinned).
 Unknown ids are ignored, projects `order` leaves out follow in the order they were added
-(with no pin), and a project being removed is left out. Other clients see the change when
-they next list the projects.
+(with no pin), and a project being removed is left out. Other clients hear of it on
+`projects.watch()`.
 `projects.folder({ projectId, folder })` lists one folder of the project's directory,
 `folder` being its path from the project's root with `/` between names (`""` for the
 root). Entries come sorted, folders first, then by name ignoring case and a leading dot
@@ -241,7 +273,7 @@ report `null` until the first save. A state holds at most `maxClientStateLength`
 `CLOSING`, so shells ending on the way out cannot overwrite the last state; it
 saves nothing of its terminals either, after one last save while they still run.
 
-Several clients can show one session, and from revision 3 they share its state without
+Several clients can show one session, and from revision 4 they share its state without
 losing each other's changes. Every write to a session (a save, a change, a rename, an
 arrangement) raises its `revision`, which sessions list (absent from a runner from before
 it). `sessions.change({ sessionId, writer, base, patch, visitedAt? })` changes the state in
@@ -254,11 +286,19 @@ and `base` is the revision it made the patch on; the runner passes both on, and
 `visitedAt` is kept where given. `sessions.watch()` starts with `{ type: "revisions",
 revisions }`, every session's revision by id, and then reports each write as `{ type:
 "changed", session, writer, base }` (the session whole; `writer` and `base` are null for
-every write but a change, a creation included), latest only where a reader falls behind, and each removal as
-`{ type: "removed", sessionId }`. A client re-lists a project whose session the snapshot
-says is newer than what it holds, so nothing written between its listing and its watch is
-missed. Both are `since: 3`: a client asks `runner.supports` first, and saves whole without
-a feed where the runner has neither.
+every write but a change, a creation included), latest only where a reader falls behind,
+and each removal as `{ type: "removed", sessionId }`, those of a removed project among them. A
+client re-lists a project whose session the snapshot says is newer than what it holds, and
+every project when the snapshot names a session it doesn't hold or leaves out one it knew,
+so nothing written between its listing and its watch is missed. `projects.watch()` gives
+the projects as `projects.list` does, `{ type: "projects", projects }`, first and again after
+each project is made, renamed, arranged or removed, and each project's sessions in their
+order once arranged, `{ type: "arranged", projectId, order }`; the latest of each only where a
+reader falls behind. The session order goes there because UIs of revision 4 read
+`sessions.watch` as it was then, knowing no other kind. Both changes are open unions from
+revision 5: a client drops a kind it doesn't know. The two session procedures are `since: 4`
+and `projects.watch` is `since: 5`: a client asks `runner.supports` first, and saves whole
+without a feed where the runner has none.
 
 The UI (`frontend/runner-adapter/src/sessions`) changes and merges a state a record at a
 time: a terminal's canvas geometry, its hidden mark, its Grid span or its companion bar,
@@ -276,6 +316,15 @@ back. Where the person looks, the view, the windowed view and the terminal in fr
 each device's own: kept in the page's storage by session, read first on load (the shared
 state's, as builds before saved it, where a device has none), and sent only when the person
 changes it there, so one client's selection never moves another's.
+
+What another client does to the projects and sessions shows in each client live too, laid in
+as the person's own would be and never sent back (`sessions/projects-feed.ts` and
+`sharing.ts`): a session it made joins its project's list unopened, with the terminals
+already running in it; a project it made is read and joins the switcher; a session or project
+it removed goes, the open one handing over as the person's own removal would, with a toast
+saying what went and what shows now when it was the one on screen; and its renames and
+arrangements, of a project's sessions or of the projects and their pins, are taken as they
+come, unless the person's own arrangement is still on its way.
 
 `runner.terminals.watch()` follows every terminal on the runner, across sessions:
 
@@ -574,7 +623,7 @@ user's); what tells them apart is who may add and revoke devices.
   **`devices.list()`**, to any connection, gives the devices not revoked, oldest first, each with `createdAt`,
   `lastSeenAt` (its last handshake or session end) and whether it is `connected` now.
   **`devices.revoke({ id })`**: the owner may revoke any device, a device only itself.
-  All three are new in revision 3 (`since: 3`).
+  All three are new in revision 6 (`since: 6`).
 - **Revoking** ends the device's sessions at once: their calls are refused, and their sockets
   close a moment later (`revokeGraceMs`), so a device that revoked itself is answered first. The client's reconnection is refused `UNAUTHORIZED` with `{ reason: "revoked" }`, as
   is every later handshake that proves the revoked credential, since its row stays; one that
@@ -707,7 +756,8 @@ window, and are refused at the handshake once one isn't: never later, with a cal
 to decode or validate. Each build carries three numbers (`compatibility` in
 `contract/protocol/src/compatibility.ts`):
 
-- `revision`, the contract it speaks, raised once in each release whose contract changed;
+- `revision`, the contract it speaks, which a change to the contract raises past both the newest
+  release's and its pull request's base's (a release may be cut after any merge);
 - `oldestClient`, the oldest UI a runner of this build serves;
 - `oldestRunner`, the oldest runner a UI of this build works with.
 
@@ -803,7 +853,10 @@ writes it again), and a pull request shows a contract change as a change to it.
 `node scripts/compatibility/main.ts` compares it with the newest release's, and with each older
 release's still in the window, one per revision (Quality's Contract job, and the release
 workflow before it publishes): what passes against one release needn't against an older one,
-as an optional field gone and back with another type passes each step. It fails when the
+as an optional field gone and back with another type passes each step. Quality's job also
+judges it against the pull request's base (`--peer`) as against the newest release: a merged
+contract change no release holds yet still ships with the next, so a change that fits the
+releases but leaves the base's peers behind fails there, not at the release. It fails when the
 contract changed and `revision` didn't rise past the newest release's, when a change leaves
 the UIs or runners of a release in the window behind and that side's edge didn't move past
 its revision, or when an edge falls back. It

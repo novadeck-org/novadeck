@@ -47,6 +47,30 @@ const deliver = async (
 const decision = (line: string | undefined) =>
   line === undefined ? undefined : (JSON.parse(line).hookSpecificOutput as Record<string, unknown>)
 
+describe("the shipping gate for Antigravity", () => {
+  const agy = (command: string, mode?: string) => ({
+    agent: "agy" as const,
+    event: "PreToolUse" as const,
+    terminalId: "t",
+    command,
+    cwd: "/main",
+    ...(mode !== undefined && { mode }),
+  })
+
+  it("marks a permitted command, which its own confirmation follows, and a covered one it leaves to the person's rule as nothing", async () => {
+    const permitted = setup()
+    permitted.permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge it" })
+    expect(await permitted.gate.decide(agy("gh pr merge 5"))).toEqual({
+      stdout: "",
+      permitted: true,
+    })
+    // The person's own rule covers it: no dialog follows, so nothing is to be noted.
+    const ruled = setup(undefined, [claudeRule("Bash(gh pr merge:*)")])
+    ruled.permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge it" })
+    expect(await ruled.gate.decide(agy("gh pr merge 5"))).toBeUndefined()
+  })
+})
+
 describe("the shipping gate", () => {
   it("says nothing about commands that ship nothing", async () => {
     const { gate, input } = setup()

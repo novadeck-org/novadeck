@@ -122,7 +122,6 @@ const createServices = (
     history: backend.history,
     windows: backend.projectWindows,
     syncProject: backend.syncProject,
-    settleSaves: backend.settleSaves,
     itemStore,
     canvas,
     effects: domEffects,
@@ -161,7 +160,13 @@ export const WorkspaceProvider = ({
     createServices(createBackend, location, navigationType),
   )
   useEffect(
-    () => connectBackend(services.backend, services.workspace, services.commands.openRequested),
+    () =>
+      connectBackend(
+        services.backend,
+        services.workspace,
+        services.commands.openRequested,
+        services.commands.removedElsewhere,
+      ),
     [services],
   )
   useEffect(() => services.itemStore?.connect(), [services])
@@ -198,8 +203,8 @@ export const WorkspaceProvider = ({
   useEffect(() => trackRecent(services.workspace, services.ui), [services])
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
   useEffect(() => {
-    const { arrange } = services.backend
-    return arrange ? keepProjectArrangement(services.ui, arrange) : undefined
+    const { arrange, arranged } = services.backend
+    return arrange ? keepProjectArrangement(services.ui, arrange, arranged) : undefined
   }, [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])

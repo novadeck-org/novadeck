@@ -24,6 +24,8 @@ export type Permit = {
 /** The permits of every terminal, each for one target, kept ten minutes. */
 export class Permits {
   private readonly held = new Map<string, Permit>()
+  // Counts what ended permits other than their use: a revoke, a terminal's close.
+  private epoch = 0
   private readonly listeners = new Set<(permit: Permit) => void>()
 
   constructor(private readonly now: () => number = Date.now) {}
@@ -56,13 +58,32 @@ export class Permits {
     if (permit.singleUse) this.held.delete(this.id(permit.terminalId, permit.key))
   }
 
+  /**
+   * Takes a single-use permit now (a standing one is left, and gives nothing back): the returned
+   * `restore` puts it back only if nothing ended permits since, as a revoke or a terminal's close
+   * does, so what `revoke` ended never comes back.
+   */
+  take(permit: Permit): (() => void) | undefined {
+    if (!permit.singleUse) return undefined
+    const id = this.id(permit.terminalId, permit.key)
+    if (this.held.get(id) !== permit) return undefined
+    this.held.delete(id)
+    const epoch = this.epoch
+    return () => {
+      if (this.epoch === epoch && permit.until > this.now() && !this.held.has(id))
+        this.held.set(id, permit)
+    }
+  }
+
   /** Ends every terminal's permit for `key`: the target it was given for has changed. */
   revoke(key: string): void {
+    this.epoch += 1
     for (const [id, permit] of this.held) if (permit.key === key) this.held.delete(id)
   }
 
   /** Ends every permit of a terminal, as it closes. */
   forget(terminalId: string): void {
+    this.epoch += 1
     for (const [id, permit] of this.held) if (permit.terminalId === terminalId) this.held.delete(id)
   }
 

@@ -350,6 +350,7 @@ export const TourStage = ({
   act,
   askingRow,
   away,
+  onCaption,
   onEnd,
   onBack,
 }: {
@@ -365,6 +366,8 @@ export const TourStage = ({
   readonly askingRow: string | null
   // The tour's project isn't the one on screen.
   readonly away: boolean
+  // Told, with its line, when the step's caption box shows: the step's hold counts from then.
+  readonly onCaption: (line: string) => void
   readonly onEnd: () => void
   readonly onBack: () => void
 }): React.JSX.Element => {
@@ -401,6 +404,7 @@ export const TourStage = ({
           area={area}
           tilt={act % 2 === 0 ? "right" : "left"}
           clear={clear}
+          onShown={onCaption}
         />
       )}
       {/* What the person hears: one region for the whole run, its act and words. */}
@@ -461,6 +465,7 @@ const CaptionBox = ({
   area,
   tilt,
   clear,
+  onShown,
 }: {
   readonly coach: Coach
   readonly scene: Scene
@@ -469,6 +474,7 @@ const CaptionBox = ({
   readonly tilt: "left" | "right"
   // What else it keeps clear of beside the windows.
   readonly clear: readonly Box[]
+  readonly onShown: (line: string) => void
 }): React.JSX.Element => {
   const box = useRef<HTMLElement>(null)
   // Shown a moment after what the step marks first shows on the page (a moment after it comes,
@@ -484,6 +490,10 @@ const CaptionBox = ({
     const timer = setTimeout(() => setShown(true), captionDelayMs)
     return () => clearTimeout(timer)
   }, [pointedOnce, shown])
+  // Said once it shows, for the step's hold to count from.
+  useEffect(() => {
+    if (shown) onShown(coach.line)
+  }, [shown, onShown, coach.line])
   const [place, setPlace] = useState<{ readonly left: number; readonly top: number } | null>(null)
   useLayoutEffect(() => {
     const element = box.current

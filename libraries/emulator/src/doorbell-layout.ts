@@ -167,10 +167,101 @@ export const layoutRing = (parts: readonly RingPart[], width: number, extra = 0)
   return out
 }
 
+// The least a wrapped message's rows after the first keep for its words beside the hanging
+// indent: narrower, they start at the row's edge instead.
+const leastWrap = 20
+
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+
+// The text of a message as rows of at most `width` cells, broken between words where it can,
+// and inside a word wider than a row between its characters as drawn (a flag, an emoji with
+// its variation selector), never within one.
+const wrapText = (text: string, width: number): string[] => {
+  const out: string[] = []
+  let row = ""
+  for (const word of text.split(" ")) {
+    const joined = row === "" ? word : `${row} ${word}`
+    if (cells(joined) <= width) {
+      row = joined
+      continue
+    }
+    if (row !== "") out.push(row)
+    row = ""
+    // A word wider than a row is broken where the row ends.
+    let rest = word
+    while (cells(rest) > width) {
+      let piece = ""
+      for (const { segment } of graphemes.segment(rest)) {
+        if (cells(piece + segment) > width) break
+        piece += segment
+      }
+      // A character wider than the row itself: what is left is cut to it.
+      if (piece === "") return [...out, cut(rest, width)]
+      out.push(piece)
+      rest = rest.slice(piece.length)
+    }
+    row = rest
+  }
+  if (row !== "") out.push(row)
+  return out
+}
+
+// A message over at most `rows` rows of `width` cells: its head, then its words, each row after
+// the first under where they started; the last row it has ends in "…" where words are left.
+const wrappedRows = (
+  part: Exclude<RingPart, { kind: "notice" }>,
+  width: number,
+  rows: number,
+): Run[][] => {
+  const [head, colon] = unitRuns({ kind: "message", part }, Infinity)
+  const lead = cells(head!.text) + cells(colon!.text)
+  // A row too narrow for any words beside the sender is cut as a ring row is.
+  if (width - lead < 1) return [layoutRing([part], width)]
+  const indent = width - lead >= leastWrap ? lead : 0
+  const body = flatten(part.text)
+  const first = width - lead
+  // A first word too wide for the room beside the sender starts on the next row, unless it
+  // is wider than that row too and the room beside the sender is a fair share of a row.
+  const firstWord = cells(body.split(" ")[0] ?? "")
+  const below = firstWord > first && (firstWord <= width - indent || first < leastWrap)
+  const firstRow = below ? "" : (wrapText(body, first)[0] ?? "")
+  const after = body.slice(firstRow.length).trimStart()
+  const all = [firstRow, ...(after ? wrapText(after, width - indent) : [])]
+  const short = all.length > rows
+  const texts = short ? all.slice(0, rows) : all
+  if (short) {
+    // The last row it has takes what it can of the rest, the "…" saying words are left.
+    const shown = cut(
+      [texts[rows - 1]!, ...all.slice(rows)].filter(Boolean).join(" "),
+      rows === 1 ? first : width - indent,
+    )
+    texts[rows - 1] = shown.endsWith(ellipsis) ? shown.slice(0, -1) : shown
+  }
+  return texts.map((text, index) => {
+    const cutAt = short && index === texts.length - 1
+    return [
+      ...(index === 0
+        ? [head!, colon!]
+        : indent > 0
+          ? [{ text: " ".repeat(indent), tone: dim }]
+          : []),
+      ...(text ? [{ text, tone: ink }] : []),
+      ...(cutAt ? [{ text: ellipsis, tone: dim }] : []),
+    ]
+  })
+}
+
+// How many rows a part takes when given all it needs.
+const rowsWanted = (part: RingPart, width: number): number =>
+  part.kind === "notice" ? 1 : wrappedRows(part, width, Infinity).length
+
 /**
- * The rows of a delivery block drawn over `rows` rows of `width` cells: a row per message
- * (as a ring row says one), then a dim "rules for the agent" where the delivery has rules,
- * the rest left blank. Short of rows, the last one says how many more there are.
+ * The rows of a delivery block drawn over `rows` rows of `width` cells, which the harness's
+ * own text of the delivery takes and the overlay can't give back: each message over the rows
+ * it needs, its words wrapped under its sender, the rows shared equally where they are fewer
+ * (a short message handing what it doesn't need to the longer ones); then a dim "rules for the
+ * agent" where the delivery has rules, the rest left blank. With fewer rows than messages, a
+ * row per message (as a ring row says one), the last row saying how many more there are.
  */
 export const layoutBlock = (
   parts: readonly RingPart[],
@@ -179,10 +270,31 @@ export const layoutBlock = (
   options: { readonly rules?: boolean; readonly extra?: number } = {},
 ): Run[][] => {
   const rules = options.rules !== false
-  const lines: Run[][] = parts.map((part) => layoutRing([part], width))
+  const tail: Run[][] = []
   if ((options.extra ?? 0) > 0)
-    lines.push([{ text: cut(`+${options.extra} more`, width), tone: dim }])
-  if (rules) lines.push([{ text: cut("rules for the agent", width), tone: dim }])
+    tail.push([{ text: cut(`+${options.extra} more`, width), tone: dim }])
+  if (rules) tail.push([{ text: cut("rules for the agent", width), tone: dim }])
+  const room = rows - tail.length
+  if (parts.length > 0 && room >= parts.length) {
+    const wanted = parts.map((part) => rowsWanted(part, width))
+    const given = shares(wanted, room)
+    // Equal shares round down: the rows left over go, one each, to the messages still cut.
+    let left = room - given.reduce((sum, each) => sum + each, 0)
+    for (let index = 0; index < given.length && left > 0; index += 1)
+      if (given[index]! < wanted[index]!) {
+        given[index] = given[index]! + 1
+        left -= 1
+      }
+    return [
+      ...parts.flatMap((part, index) =>
+        part.kind === "notice"
+          ? [layoutRing([part], width)]
+          : wrappedRows(part, width, Math.max(given[index]!, 1)),
+      ),
+      ...tail,
+    ]
+  }
+  const lines: Run[][] = [...parts.map((part) => layoutRing([part], width)), ...tail]
   if (lines.length <= rows) return lines
   const keep = Math.max(rows - 1, 0)
   const hidden = lines.length - keep

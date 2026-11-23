@@ -130,6 +130,22 @@ export type WorkspaceAction =
     }
   // The person moves a session to a place in its project's list, as a drag drops it.
   | { type: "session/move"; projectId: string; workspaceSessionId: string; index: number }
+  // What another client did to the projects and sessions, laid in here as the person's own
+  // would be, and never sent to the runner, which holds it already: a session it made, which
+  // joins its project's list unopened; a session or project it removed, gone here as when the
+  // person removes one (the last stays; the open one hands over to the one visited last); its
+  // order of a project's sessions; and a project's new name.
+  | { type: "session/arrived"; projectId: string; session: WorkspaceSession }
+  | {
+      type: "session/gone"
+      projectId: string
+      workspaceSessionId: string
+      now: number
+      enabledViews?: ViewMode[]
+    }
+  | { type: "project/gone"; projectId: string; now: number; enabledViews?: ViewMode[] }
+  | { type: "sessions/arranged"; projectId: string; order: readonly string[] }
+  | { type: "project/renamed"; projectId: string; name: string }
   // The person deletes a session, closing its terminals. A project's last one stays: a
   // project always has a session. Deleting the open one opens the one visited last.
   | {
@@ -534,6 +550,44 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ),
         }
       })
+    case "session/arrived":
+      return workspaceReducer(workspace, {
+        type: "session/add",
+        projectId: action.projectId,
+        session: action.session,
+        activate: false,
+      })
+    case "session/gone":
+      return workspaceReducer(workspace, { ...action, type: "session/remove" })
+    case "project/gone":
+      return workspaceReducer(workspace, { ...action, type: "project/remove" })
+    case "sessions/arranged":
+      return updateProject(workspace, action.projectId, (project) => {
+        // Those the order names take its order, in the places they held; one it doesn't name,
+        // as one this client made that the runner doesn't have yet, keeps its place.
+        const named = new Set(action.order)
+        const next = action.order
+          .map((id) => project.history.find((session) => session.id === id))
+          .filter((session) => session !== undefined)
+        let taken = 0
+        const history = project.history.map((session) =>
+          named.has(session.id) ? next[taken++]! : session,
+        )
+        return history.every((session, index) => session === project.history[index])
+          ? project
+          : { ...project, history }
+      })
+    case "project/renamed":
+      return workspace.projects.some(
+        (project) => project.id === action.projectId && project.name !== action.name,
+      )
+        ? {
+            ...workspace,
+            projects: workspace.projects.map((project) =>
+              project.id === action.projectId ? { ...project, name: action.name } : project,
+            ),
+          }
+        : workspace
     case "session/shared":
       return updateProject(workspace, action.projectId, (project) =>
         project.history.some((session) => session.id === action.workspaceSessionId)

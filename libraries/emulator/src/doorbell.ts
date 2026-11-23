@@ -796,7 +796,10 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     for (const entry of entries.values()) remove(entry)
   }
 
-  const armed = (): boolean => now() < armedUntil || now() < hotUntil || forceScan
+  // An agent's TUI on the alternate screen (Claude Code's fullscreen mode) scrolls its own history:
+  // any write may bring back the row of a ring long gone from the screen, so every write looks.
+  const ownScroll = (): boolean => buffer().type === "alternate" && options.alternate?.() === true
+  const armed = (): boolean => now() < armedUntil || now() < hotUntil || forceScan || ownScroll()
 
   const subscriptions: IDisposable[] = [
     terminal.onWriteParsed(() => {

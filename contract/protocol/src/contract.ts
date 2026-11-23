@@ -61,6 +61,7 @@ import {
   clientState,
   folderListing,
   project,
+  projectsChange,
   sessionChange,
   sessionPatch,
   workspaceSession,
@@ -163,6 +164,9 @@ export const contract = {
     // agents' messages; its folder stays. A project the runner doesn't have, as one
     // removed already, is NOT_FOUND.
     remove: procedure.input(z.strictObject({ projectId: id })).output(z.void()),
+    // The projects as they change, as `projectsChange` says, for a client sharing them with
+    // others.
+    watch: procedure.meta({ since: 5 }).input(z.void()).output(eventIterator(projectsChange)),
     // One folder of the project's directory as it is now, named by its path from the
     // project's root with `/` between names ("" for the root). The entries are sorted,
     // folders first; git's own `.git` is never among them. A project the runner doesn't
@@ -212,7 +216,7 @@ export const contract = {
     // `base` the revision its patch was made on, which `watch` passes on. A patch that leaves
     // no JSON object, or a state past `maxClientStateLength`, is CONFLICT and changes nothing.
     change: procedure
-      .meta({ since: 3 })
+      .meta({ since: 4 })
       .input(
         z.strictObject({
           sessionId: id,
@@ -225,7 +229,7 @@ export const contract = {
       .output(z.strictObject({ revision: z.number().int().nonnegative() })),
     // Every session's changes, as `sessionChange` says, for a client sharing them with others.
     // Ends with the connection.
-    watch: procedure.meta({ since: 3 }).input(z.void()).output(eventIterator(sessionChange)),
+    watch: procedure.meta({ since: 4 }).input(z.void()).output(eventIterator(sessionChange)),
   },
   terminals: {
     // Every terminal of the session, running or saved to restore, oldest first.
@@ -1053,16 +1057,16 @@ export const contract = {
     // once, as the runner keeps only its hash. The owner's only (FORBIDDEN to a device);
     // `maxDevices` not revoked at once, a CONFLICT.
     mint: procedure
-      .meta({ since: 3 })
+      .meta({ since: 6 })
       .input(z.strictObject({ name: deviceName }))
       .output(mintedDevice),
     // The devices not revoked, oldest first.
-    list: procedure.meta({ since: 3 }).input(z.void()).output(z.array(device)),
+    list: procedure.meta({ since: 6 }).input(z.void()).output(z.array(device)),
     // Revokes a device's credential: its sessions end at once, and its next handshake is
     // UNAUTHORIZED with `{ reason: "revoked" }`. The owner may revoke any device, a device
     // only itself (FORBIDDEN otherwise); one not listed is NOT_FOUND.
     revoke: procedure
-      .meta({ since: 3 })
+      .meta({ since: 6 })
       .input(z.strictObject({ id: deviceId }))
       .output(z.void()),
   },

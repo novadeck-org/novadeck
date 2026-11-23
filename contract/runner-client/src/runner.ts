@@ -44,6 +44,7 @@ import {
   type RunnerSettingsState,
   type PreferenceChange,
   type SessionChange,
+  type ProjectsChange,
   type SessionPatch,
   type TourPrepared,
   type SliceChange,
@@ -153,6 +154,14 @@ export type Runner = {
      */
     remove(input: { readonly projectId: string }): Promise<void>
     /**
+     * The projects as they change, the whole list in the person's order with each one's pin,
+     * first and after each change, and a project's sessions in their order once arranged, as
+     * `ProjectsChange` says. Opened again after each
+     * reconnection, starting with the list again. A runner from before revision 5 has none
+     * (`supports("projects.watch")`).
+     */
+    watch(): AsyncIterableIterator<ProjectsChange, undefined>
+    /**
      * Keeps the person's arrangement of the projects: `order` by id, first to last, and the
      * ones `pinned`, at most nine, the first in `order` (one `order` doesn't name isn't
      * pinned). Unknown ids are ignored, and projects `order` leaves out follow, in the order
@@ -220,7 +229,7 @@ export type Runner = {
      * Changes the session's `state` by `patch`, applied to its JSON as the runner holds it,
      * and `visitedAt` where given; resolves its new revision. `writer` names this client and
      * `base` the revision the patch was made on, which `watch` passes on. A runner from before
-     * revision 3 has neither (`supports("sessions.change")`).
+     * revision 4 has neither (`supports("sessions.change")`).
      */
     change(input: {
       readonly sessionId: string
@@ -949,6 +958,8 @@ export const connectRunner = async (
       create: (input) => call((client) => client.projects.create(input)),
       rename: (input) => call((client) => client.projects.rename(input)),
       remove: (input) => call((client) => client.projects.remove(input)),
+      watch: () =>
+        followSession(connection, (client, signal) => client.projects.watch(undefined, { signal })),
       arrange: (input) =>
         call((client) =>
           client.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),

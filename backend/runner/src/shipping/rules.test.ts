@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { claudeRule, codexRulesOf, covered } from "./rules.js"
+import { agyRule, claudeRule, codexRulesOf, covered } from "./rules.js"
 
 describe("the person's allow rules", () => {
   it("read Claude Code's Bash specifiers", () => {
@@ -12,6 +12,16 @@ describe("the person's allow rules", () => {
     expect(rule("Bash(gh pr merge 12)")("gh pr merge 13", [])).toBe(false)
     expect(rule("Bash")("anything", [])).toBe(true)
     expect(claudeRule("Read(./x)")).toBeUndefined()
+  })
+
+  it("read Antigravity's command rules as the words a command begins with", () => {
+    const rule = agyRule("command(git push)")!
+    expect(rule("", ["git", "push", "origin"])).toBe(true)
+    expect(rule("", ["git", "push-something"])).toBe(false)
+    expect(rule("", ["git", "status"])).toBe(false)
+    // A glob never matched in Antigravity, and other entries say nothing of a command.
+    expect(agyRule("command(git push*)")).toBeUndefined()
+    expect(agyRule("mcp(novadeck_novadeck/*)")).toBeUndefined()
   })
 
   it("read Codex's prefix rules that allow", () => {

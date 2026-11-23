@@ -209,6 +209,7 @@ export {
   type Project,
   sessionPatch,
   type SessionChange,
+  type ProjectsChange,
   type SessionPatch,
   type WorkspaceSession,
 } from "./projects.js"

@@ -147,13 +147,6 @@ export type DesktopBridge = {
    */
   onProjectWindowNavigate?(listener: (target: ProjectWindowTarget) => void): () => void
   /**
-   * Calls `listener` when the app asks this window to send what it changed in the project it
-   * shows (its saves) to the runner, as another window is about to read it: the app waits for
-   * the listener's promise, a short while at most. Returns a function that stops listening.
-   * Absent from apps that came before it.
-   */
-  onProjectWindowFlush?(listener: () => Promise<void>): () => void
-  /**
    * Calls `listener` with whether a screen reader or other assistive technology is running,
    * as the system tells Chromium: at once with the current state, and again on each change.
    * Returns a function that stops listening. Absent from apps that came before it.

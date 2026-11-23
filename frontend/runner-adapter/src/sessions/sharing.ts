@@ -13,7 +13,7 @@ import { deviceView, keepDeviceView, viewKeys, viewOf, type DeviceView } from ".
 // A session's state shared with the other clients of its runner: what this one changes goes as
 // a patch a record at a time (patch.ts), and what another changes arrives on the runner's feed
 // (`sessions.watch`), with this client's own changes not yet in it laid over it, so neither
-// loses the other's. A runner from before revision 3 of the contract has neither: saves replace
+// loses the other's. A runner from before revision 4 of the contract has neither: saves replace
 // the state, as before, and nothing arrives.
 //
 // For each session this keeps what the runner was last seen to hold (`confirmed`: from a
@@ -109,6 +109,9 @@ export type SessionSharing = {
   // a session again once a terminal or window its shared state names, which this client
   // didn't know, is known here.
   readonly seen: (initial: boolean, synced: readonly string[]) => void
+  // A project's sessions as another client arranged them, which the projects' feed tells
+  // (projects-feed.ts): laid in, unless they're in that order here.
+  readonly arranged: (projectId: string, order: readonly string[]) => void
   // Follows the runner's feed, where it has one, until `stop`.
   readonly follow: () => void
   readonly stop: () => void
@@ -120,6 +123,10 @@ export const createSessionSharing = (options: {
   readonly latest: () => Workspace | undefined
   readonly dispatch: (actions: readonly BackendAction[]) => void
   readonly track: <T>(work: Promise<T>) => Promise<T>
+  // Lists here, unopened, a session another client made in a project this one holds; whether
+  // it did (not for one this client removed itself, or holds already).
+  readonly arrive: (session: WorkspaceSession) => boolean
+  readonly now?: () => number
 }): SessionSharing => {
   const { runner } = options
   // Whether the runner has the procedure; a client of one that can't say has none of these.
@@ -138,6 +145,20 @@ export const createSessionSharing = (options: {
   // Sessions listed, by the revision they were read at, to lay in once what was read is in
   // place here.
   const fresh = new Map<string, number>()
+  // Sessions another client made, on their way into this one's list.
+  const arriving = new Set<string>()
+  // Each session as the runner last told of it, by the feed or a listing, until it's gone:
+  // what a project read taken before it was made leaves out is laid in again from this.
+  const remembered = new Map<string, WorkspaceSession>()
+  // Lists a session another client made, unless it's here already.
+  const arriveHere = (session: WorkspaceSession): void => {
+    if (session.revision === undefined || located(options.latest(), session.id)) return
+    arriving.add(session.id)
+    fresh.set(session.id, session.revision)
+    if (options.arrive(session)) return
+    arriving.delete(session.id)
+    fresh.delete(session.id)
+  }
   let stream: AsyncIterableIterator<SessionChange, undefined> | undefined
 
   // What this client's patches it doesn't show yet make of `state`.
@@ -304,8 +325,16 @@ export const createSessionSharing = (options: {
   const arrived = (session: WorkspaceSession): void => {
     if (session.revision === undefined) return
     const next = { state: session.state, visitedAt: session.visitedAt, revision: session.revision }
-    if (!confirm(session.id, next)) return
+    const newer = confirm(session.id, next)
+    if (newer || !remembered.has(session.id)) remembered.set(session.id, session)
     const here = located(options.latest(), session.id)
+    // Made by another client in a project this one holds: listed here, laid in as read.
+    if (!here) {
+      const project = options.latest()?.projects.some(({ id }) => id === session.projectId)
+      if (project && !arriving.has(session.id)) arriveHere(session)
+      return
+    }
+    if (!newer) return
     // Its name as the runner holds it now, shown here and never sent back.
     if (here && here.session.name !== session.name)
       options.dispatch([
@@ -320,26 +349,80 @@ export const createSessionSharing = (options: {
   }
 
   const forgotten = (sessionId: string): void => {
+    remembered.delete(sessionId)
     confirmed.delete(sessionId)
     sent.delete(sessionId)
     looked.delete(sessionId)
     unknown.delete(sessionId)
     fresh.delete(sessionId)
+    arriving.delete(sessionId)
+  }
+
+  // Removed by another client: gone here too, never sent back. One this client removed itself
+  // is gone here already.
+  const removed = (sessionId: string): void => {
+    const here = located(options.latest(), sessionId)
+    forgotten(sessionId)
+    if (here)
+      options.dispatch([
+        {
+          type: "session/gone",
+          projectId: here.projectId,
+          workspaceSessionId: sessionId,
+          now: (options.now ?? Date.now)(),
+        },
+      ])
+  }
+
+  // A project's sessions as another client arranged them, unless they're in that order here.
+  const arranged = (projectId: string, order: readonly string[]): void => {
+    const project = options.latest()?.projects.find(({ id }) => id === projectId)
+    if (!project) return
+    const here = project.history.map(({ id }) => id)
+    const both = order.filter((id) => here.includes(id))
+    if (both.join("\n") === here.filter((id) => both.includes(id)).join("\n")) return
+    options.dispatch([{ type: "sessions/arranged", projectId, order: [...order] }])
   }
 
   // Sessions the runner holds newer than this client knows, as the feed opens: read again.
+  // Sessions another client made or removed meanwhile are among them: a snapshot naming a session
+  // this client doesn't hold, or leaving out one it knew on the runner, has every project read.
   const caughtUp = async (revisions: Readonly<Record<string, number>>): Promise<void> => {
+    const workspace = options.latest()
+    const held = new Set(
+      workspace?.projects.flatMap(({ history }) => history.map(({ id }) => id)) ?? [],
+    )
+    const moved =
+      Object.keys(revisions).some((id) => !held.has(id)) ||
+      [...held].some((id) => confirmed.has(id) && revisions[id] === undefined)
     const projects = new Set<string>()
-    for (const project of options.latest()?.projects ?? [])
+    for (const project of workspace?.projects ?? [])
       for (const session of project.history) {
         const now = revisions[session.id]
-        if (now !== undefined && now > (confirmed.get(session.id)?.revision ?? -1))
+        if (moved || (now !== undefined && now > (confirmed.get(session.id)?.revision ?? -1)))
           projects.add(project.id)
       }
-    for (const projectId of projects)
-      // eslint-disable-next-line no-await-in-loop -- One project read at a time.
-      for (const session of await options.track(runner.sessions.list({ projectId })))
-        arrived(session)
+    for (const projectId of projects) {
+      // Gone meanwhile, here or on the runner (the projects' feed says so): nothing to read.
+      if (!options.latest()?.projects.some(({ id }) => id === projectId)) continue
+      let listed: readonly WorkspaceSession[]
+      try {
+        // eslint-disable-next-line no-await-in-loop -- One project read at a time.
+        listed = await options.track(runner.sessions.list({ projectId }))
+      } catch (error) {
+        if (hasCode(error, "NOT_FOUND")) continue
+        throw error
+      }
+      for (const session of listed) arrived(session)
+      const there = new Set(listed.map(({ id }) => id))
+      const project = options.latest()?.projects.find(({ id }) => id === projectId)
+      for (const session of project?.history ?? [])
+        if (confirmed.has(session.id) && !there.has(session.id)) removed(session.id)
+      arranged(
+        projectId,
+        listed.map(({ id }) => id),
+      )
+    }
   }
 
   // Lays in, after the commit under way, what `seen` found (with the revision it was read at,
@@ -372,6 +455,7 @@ export const createSessionSharing = (options: {
         if (revision !== undefined) {
           confirm(id, { state, visitedAt, revision })
           fresh.set(id, revision)
+          remembered.set(id, session)
         }
         // What's read is what this client shows now: nothing of it is its own change.
         if (state !== null) states.push([id, { state, visitedAt, revision }])
@@ -383,8 +467,10 @@ export const createSessionSharing = (options: {
       const found = new Map<string, number | undefined>()
       for (const [sessionId, revision] of fresh) {
         const here = located(workspace, sessionId)
-        if (!here || (!initial && !synced.includes(here.projectId))) continue
+        if (!here || (!initial && !synced.includes(here.projectId) && !arriving.has(sessionId)))
+          continue
         fresh.delete(sessionId)
+        arriving.delete(sessionId)
         found.set(sessionId, revision)
       }
       for (const [sessionId, absent] of unknown) {
@@ -397,7 +483,16 @@ export const createSessionSharing = (options: {
           found.set(sessionId, undefined)
       }
       later(found)
+      // A project put back as read may leave out a session made since the read was taken, its
+      // feed already heard: laid in again, once this commit is done.
+      const missing = [...remembered.values()].filter(({ id, projectId }) => {
+        if (!synced.includes(projectId)) return false
+        const project = workspace?.projects.find((each) => each.id === projectId)
+        return project !== undefined && !project.history.some((session) => session.id === id)
+      })
+      if (missing.length) queueMicrotask(() => missing.forEach(arriveHere))
     },
+    arranged,
     follow: () => {
       if (stream || !has("sessions.watch")) return
       const changes = runner.sessions.watch()
@@ -412,7 +507,7 @@ export const createSessionSharing = (options: {
             if (!hasCode(error, "DISCONNECTED", "CLOSING")) reportCaught(error)
           })
         else if (change.type === "changed") arrived(change.session)
-        else forgotten(change.sessionId)
+        else removed(change.sessionId)
       })
     },
     stop: () => {
