@@ -77,8 +77,8 @@ export const overflow = (box: Box, by: Point, bounds: Box): Point => ({
 const past = (low: number, high: number, min: number, max: number): number =>
   low < min ? low - min : high > max ? high - max : 0
 
-// An element, or what finds it as a drag starts.
-type Bound = Element | null | (() => Element | null)
+// An element, or what finds it as a drag starts, from the element dragged.
+type Bound = Element | null | ((dragged: Element | null) => Element | null)
 
 export type PullOutOptions = {
   // The list the dragged element is held to.
@@ -90,8 +90,8 @@ export type PullOutOptions = {
   readonly onPull?: (pull: Pick<Pull, "tension" | "free">) => void
 }
 
-const resolve = (bound: Bound | undefined): Element | null =>
-  typeof bound === "function" ? bound() : (bound ?? null)
+const resolve = (bound: Bound | undefined, dragged: Element | null): Element | null =>
+  typeof bound === "function" ? bound(dragged) : (bound ?? null)
 
 const boxOf = (element: Element): Box => element.getBoundingClientRect()
 
@@ -193,10 +193,10 @@ export class PullOut extends Modifier<DragDropManager<any, any>, PullOutOptions>
   }
 
   private begin(start: Box, grab: Point, source: unknown, options: PullOutOptions) {
-    const list = resolve(options.element)
+    const element = (source as { element?: Element } | null)?.element ?? null
+    const list = resolve(options.element, element)
     if (!list) return undefined
-    const within = resolve(options.within)
-    const element = (source as { element?: Element } | null)?.element
+    const within = resolve(options.within, element)
     this.drag = {
       start,
       grab: { x: grab.x, y: grab.y },

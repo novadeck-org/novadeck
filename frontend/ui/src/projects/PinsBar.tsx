@@ -1,20 +1,17 @@
 import {
   Accessibility,
   Cursor,
-  type DragDropManager,
   Feedback,
   PointerActivationConstraints,
   PointerSensor,
 } from "@dnd-kit/dom"
-import { RestrictToWindow } from "@dnd-kit/dom/modifiers"
-import { DragDropProvider, useDragDropManager } from "@dnd-kit/react"
+import { RestrictToElement } from "@dnd-kit/dom/modifiers"
+import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { pinnedProjectShortcut } from "../interaction/shortcuts"
-import { usePinDrop, type Point } from "./pin-drop"
-import { usePinHandoff } from "./pin-handoff"
 import { ease, slide } from "./pin-motion"
 import { pinsThatFit } from "./pins-fit"
 import { statusText, type ProjectStatus } from "./project-status"
@@ -34,14 +31,12 @@ const sensors = [
   }),
 ]
 const cursor = Cursor.configure({ cursor: "grabbing" })
-const modifiers = [RestrictToWindow.configure({})]
-// How far above or below the bar a dragged pin goes before letting it go unpins it.
-const leeway = 24
-// Well above or below the bar's strip, where letting a dragged pin go unpins it.
-const offBar = (strip: HTMLElement | null, point: Point): boolean => {
-  const box = strip?.getBoundingClientRect()
-  return box !== undefined && (point.y < box.top - leeway || point.y > box.bottom + leeway)
-}
+// A dragged pin stays in the bar's row, which it only reorders.
+const modifiers = [
+  RestrictToElement.configure({
+    element: (operation) => operation.source?.element?.closest(".pins-bar-row") ?? null,
+  }),
+]
 
 // The pinned projects, as a bar under the header, in the person's order: each pin is its
 // number (its shortcut's digit), its name and a mark of what its project's terminals show,
@@ -54,12 +49,8 @@ const offBar = (strip: HTMLElement | null, point: Point): boolean => {
 // the ones that don't fit are hidden and inert.
 // Pins drag along the bar into any order, and Alt with the left and right arrows moves the
 // focused pin one place; `onMove` (to a place among the pins) and `onStep` tell the
-// arrangement, which is the caller's. A pin dragged well off the bar shows it will go, and
-// let go there it is unpinned (`onUnpin`); stepped, it never leaves the bar, as it can't
-// pass the last pin shown.
-// A project dragged out of the switcher's list (`usePinDrop`) comes in pinned, and the bar
-// drags its pin on from the pointer as it would any pin's; an empty bar opens for such a
-// drag, ready for the first, and says so until the drag is let go.
+// arrangement, which is the caller's. A pin never leaves the bar, dragged or stepped (it
+// can't pass the last pin shown); it unpins from the switcher's pin button.
 export const PinsBar = ({
   pins,
   current,
@@ -68,7 +59,6 @@ export const PinsBar = ({
   onSelect,
   onMove,
   onStep,
-  onUnpin,
   onShown,
 }: {
   pins: readonly Pin[]
@@ -81,21 +71,12 @@ export const PinsBar = ({
   onSelect: (id: string) => void
   onMove: (id: string, index: number) => void
   onStep: (id: string, by: -1 | 1) => void
-  onUnpin: (id: string) => void
   onShown: (ids: readonly string[]) => void
 }): React.JSX.Element => {
-  const { channel, drag, handoff } = usePinDrop()
-  // A drag from the switcher's list that the bar can take.
-  const dropping = drag?.accepts === true
-  // The last pins stay while the bar slides out, but not in a bar opened for a drop.
+  // The last pins stay while the bar slides out.
   const [items, setItems] = useState(pins)
-  if ((pins.length > 0 || dropping) && pins !== items) setItems(pins)
-  const open = (pins.length > 0 || dropping) && !hidden
-  // The drag from the switcher's list brings a project the bar hasn't pinned: the bar says
-  // where to drop it until the drag is let go, the list long closed by then.
-  const bringing = handoff
-    ? !handoff.wasPinned
-    : drag?.accepts === true && !pins.some(({ id }) => id === drag.id)
+  if (pins.length > 0 && pins !== items) setItems(pins)
+  const open = pins.length > 0 && !hidden
 
   // A page that loads with pins shows the bar as it is; only later changes slide.
   const [animated, setAnimated] = useState(false)
@@ -116,16 +97,9 @@ export const PinsBar = ({
   // focus is asked for again.
   const [drags, setDrags] = useState(0)
   const [dragging, setDragging] = useState(false)
-  // The dragged pin is off the bar, where letting it go unpins it.
-  const [leaving, setLeaving] = useState(false)
-  const off = useRef(false)
   const [count, setCount] = useState(items.length)
-  // The words saying where to drop have room after the last pin shown, as in an empty bar.
-  const [roomy, setRoomy] = useState(true)
-  const dropHint = useRef<HTMLSpanElement | null>(null)
   // As the bar slides out the pins stay as they were shown, so they slide away in view.
   const shown = Math.min(count, items.length)
-  const strip = useRef<HTMLDivElement | null>(null)
 
   // Measures before paint, and again as the bar or a pin changes size.
   useLayoutEffect(() => {
@@ -140,71 +114,14 @@ export const PinsBar = ({
       const widths = buttons.map((button) => button.offsetWidth)
       const fit = pinsThatFit(available, widths, parseFloat(style.columnGap) || 0)
       setCount(fit)
-      room()
-    }
-    // Whether the words saying where to drop clear every pin that shows where it sits, the
-    // slot a dragged pin holds included but not the pin itself, which follows the pointer.
-    // A drag moves pins among each other without resizing any, so they are checked again
-    // as it does.
-    const room = (): void => {
-      const limit = element.clientWidth - (dropHint.current?.offsetWidth ?? 0)
-      // dnd-kit's placeholder holds the slot, unseen by its own rule; the pins hidden for
-      // want of room are hidden by their own style.
-      const seen = [...element.querySelectorAll<HTMLElement>(".pin")].filter(
-        (pin) =>
-          pin.hasAttribute("data-dnd-placeholder") ||
-          (pin.dataset.dragging !== "true" && pin.style.visibility !== "hidden"),
-      )
-      setRoomy(seen.every((pin) => pin.offsetLeft + pin.offsetWidth <= limit))
     }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     for (const pin of element.querySelectorAll(".pin")) observer.observe(pin)
-    const moves = new MutationObserver(room)
-    moves.observe(element, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["inert", "style"],
-    })
-    return () => {
-      observer.disconnect()
-      moves.disconnect()
-    }
+    return () => observer.disconnect()
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A drag's end remounts the pins, which are then observed again.
   }, [items, drags])
-
-  // Where a point along the bar lands among the pins shown, the dragged project's own pin
-  // aside, for a drag handed over from the switcher's list: before the first pin whose
-  // middle is past it, or after the last.
-  useLayoutEffect(() => {
-    if (!channel) return
-    channel.setLocate((point, id) => {
-      const others = [...(row.current?.querySelectorAll<HTMLElement>(".pin:not([inert])") ?? [])]
-        .filter((pin) => pin.dataset.pin !== id)
-        .map((pin) => pin.getBoundingClientRect())
-      const found = others.findIndex((pin) => point.x < pin.left + pin.width / 2)
-      return found < 0 ? others.length : found
-    })
-    return () => channel.setLocate(null)
-  }, [channel])
-
-  // A drag handed over from the switcher's list, which the bar drags on as its pin.
-  const { arriving, takeManager, end } = usePinHandoff(
-    handoff,
-    handoff !== null && items.some(({ id }) => id === handoff.id),
-    row,
-    () => channel?.settle(true),
-  )
-  // Off the bar, a dragged pin shows it will go, but a project pinned before it was handed
-  // over stays pinned wherever it is let go.
-  const unpinning = leaving && !handoff?.wasPinned
-  // A project dragged from the switcher's list, which the bar can take, draws the eye to
-  // the bar as the drag starts, and marks it for as long as the drag lasts, the more so
-  // while its pin is over the bar.
-  const receiving = dropping || handoff !== null
-  const over = handoff !== null && !leaving
 
   // Tells which show, once at first and then only when they change.
   const told = useRef<readonly string[] | null>(null)
@@ -221,12 +138,10 @@ export const PinsBar = ({
       className="pins-bar"
       data-open={open ? "true" : undefined}
       data-animated={animated ? "true" : undefined}
-      data-receiving={receiving ? "true" : undefined}
-      data-over={over ? "true" : undefined}
       inert={!open}
     >
       <div className="pins-bar-clip">
-        <div ref={strip} className="pins-bar-strip flex items-stretch pl-3.5">
+        <div className="pins-bar-strip flex items-stretch pl-3.5">
           {/* The chord before each pin's number, as a reminder; each pin names its own. */}
           <kbd className="hint self-center whitespace-nowrap" aria-hidden="true">
             {pinnedProjectShortcut(0).display.slice(0, -1).join(" ")} +
@@ -246,40 +161,18 @@ export const PinsBar = ({
                 feedback,
                 cursor,
               ]}
-              onDragStart={() => {
-                off.current = false
-                setDragging(true)
-              }}
-              onDragMove={(event) => {
-                const away = offBar(strip.current, event.to ?? event.operation.position.current)
-                if (away === off.current) return
-                off.current = away
-                setLeaving(away)
-              }}
+              onDragStart={() => setDragging(true)}
               onDragEnd={(event) => {
-                const { handedOver, releasedAt } = end()
-                if (releasedAt) off.current = offBar(strip.current, releasedAt)
-                const unpins = off.current && !event.canceled
-                off.current = false
-                setLeaving(false)
                 setDragging(false)
                 setDrags((made) => made + 1)
-                // A handed-over drag let go off the bar, or canceled, puts everything back as
-                // it was before it: the project was never placed.
-                if (handedOver) channel?.settle(unpins || event.canceled)
                 const { source } = event.operation
                 if (!isSortable(source)) return
                 const id = String(source.id)
-                if (unpins) {
-                  if (!handedOver) onUnpin(id)
-                  return
-                }
                 setFocusRequest({ id })
                 if (event.canceled || source.initialIndex === source.index) return
                 onMove(id, Math.min(source.index, pins.length - 1))
               }}
             >
-              <ManagerOf onManager={takeManager} />
               {items.map((project, index) => (
                 <PinButton
                   key={project.id}
@@ -290,8 +183,6 @@ export const PinsBar = ({
                   current={project.id === current}
                   status={statuses[project.id]}
                   dragging={dragging}
-                  leaving={unpinning}
-                  arriving={project.id === arriving}
                   focusRequest={focusRequest}
                   onFocused={() => setFocusRequest(null)}
                   onSelect={() => onSelect(project.id)}
@@ -302,32 +193,11 @@ export const PinsBar = ({
                 />
               ))}
             </DragDropProvider>
-            {/* Always there to be measured, it shows only where it fits after the pins. */}
-            <span
-              ref={dropHint}
-              className="pins-bar-drop-hint text-label"
-              data-shown={
-                receiving && bringing && (items.length === 0 || roomy) ? "true" : undefined
-              }
-            >
-              Drop here to pin
-            </span>
           </div>
         </div>
       </div>
     </div>
   )
-}
-
-// Hands the bar its drag manager, which a drag handed over from the switcher's list runs.
-const ManagerOf = ({
-  onManager,
-}: {
-  onManager: (manager: DragDropManager | null) => void
-}): null => {
-  const manager = useDragDropManager()
-  useLayoutEffect(() => onManager(manager), [manager, onManager])
-  return null
 }
 
 const PinButton = ({
@@ -338,8 +208,6 @@ const PinButton = ({
   current,
   status,
   dragging,
-  leaving,
-  arriving,
   focusRequest,
   onFocused,
   onSelect,
@@ -356,10 +224,6 @@ const PinButton = ({
   status: ProjectStatus | undefined
   // Some pin is being dragged, which leaves no tooltip open.
   dragging: boolean
-  // The pin being dragged is off the bar, and would be unpinned there.
-  leaving: boolean
-  // Handed over from the switcher, it isn't under the pointer yet.
-  arriving: boolean
   // Asks the pin with this id to take the focus, as after a keyboard move or a drag.
   focusRequest: { id: string } | null
   // Told once the pin has taken the focus it was asked for.
@@ -381,8 +245,7 @@ const PinButton = ({
     button.current?.focus()
     onFocused()
   }, [focusRequest, project.id, onFocused])
-  // A pin being dragged shows, though it has no room in the bar, as one just handed over.
-  const shows = fits || isDragSource
+  const shows = fits
   const shortcut = pinnedProjectShortcut(index)
   const inAnotherWindow = useProjectWindows()?.elsewhere.has(project.id) === true
   return (
@@ -411,8 +274,6 @@ const PinButton = ({
           aria-description={status && statusText[status]}
           data-project-status={status}
           data-dragging={isDragSource ? "true" : undefined}
-          data-leaving={isDragSource && leaving ? "true" : undefined}
-          data-arriving={arriving ? "true" : undefined}
           onClick={() => {
             if (!current) onSelect()
           }}

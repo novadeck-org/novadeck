@@ -20,7 +20,6 @@ import type {
 
 import {
   moveProject as arrangeMove,
-  pinAt,
   stepProject as arrangeStep,
   togglePin,
   type ProjectArrangement,
@@ -102,10 +101,6 @@ export type WorkspaceCommands = ShellCommands &
     readonly stepProject: (id: string, by: -1 | 1) => void
     // Pins a project, or unpins it if pinned; no more than the limit can be pinned.
     readonly toggleProjectPin: (id: string) => void
-    // Pins a project at this place among the pinned ones, or moves it there if pinned.
-    readonly pinProjectAt: (id: string, index: number) => void
-    // Puts back an arrangement read before, as a canceled drag does.
-    readonly restoreProjectArrangement: (arrangement: ProjectArrangement) => void
     // Selects a terminal and brings it into view, optionally fitting Canvas around it.
     readonly select: (id: string, fit?: boolean) => void
     readonly setSelected: (terminal: string) => void
@@ -429,7 +424,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...createFileCommands(ctx, { markCreated, pulse }),
     ...createMoveCommands(ctx, {
       peek: shell.peek,
-      showTerminals: shell.showTerminals,
       // Bound once the commands are made: going to a moved terminal is revealing it.
       revealTerminal: (terminalId, projectId) => self.revealTerminal(terminalId, projectId),
     }),
@@ -599,9 +593,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       arrange((projects, current) => arrangeMove(projects, current, id, index)),
     stepProject: (id, by) => arrange((projects, current) => arrangeStep(projects, current, id, by)),
     toggleProjectPin: (id) => arrange((projects, current) => togglePin(projects, current, id)),
-    pinProjectAt: (id, index) =>
-      arrange((projects, current) => pinAt(projects, current, id, index)),
-    restoreProjectArrangement: (arrangement) => arrange(() => arrangement),
     acceptChatOffer: () => self.updatePreferences({ ...preferences(), chatView: true }),
     declineChatOffer: () => answerChatOffer(ui),
     holdChatOffer: () => holdChatOffer(ui),

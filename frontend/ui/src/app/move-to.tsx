@@ -2,11 +2,10 @@ import { descendantsOf } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile, WorkspaceSession } from "@novadeck/core/types"
-import { createContext, useContext, useMemo, useRef, type ReactNode } from "react"
+import { createContext, useContext, useMemo, type ReactNode } from "react"
 
 import type { SessionsMove } from "../sidebar/SessionsPanel"
-import { moveSessions, type MoveTarget } from "../terminals/move-state"
-import type { TabsAway } from "../terminals/TerminalTabs"
+import { moveSessions } from "../terminals/move-state"
 import type { MoveTo } from "../terminals/window-menu"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { currentContext, currentState, currentTarget } from "./selectors"
@@ -102,7 +101,7 @@ export const useMoveTo = (tile: Tile): MoveTo | undefined => {
       more: others.length > moveMenuSessions,
       team,
       onMove: (to) => moveTerminal(id, to),
-      onPick: () => pickSession(id, "menu"),
+      onPick: () => pickSession(id),
     }
   }, [movable, sessions, here, team, id, moveTerminal, pickSession])
 }
@@ -120,101 +119,12 @@ export const useMoving = (): SessionsMove | undefined => {
   const { moveTerminal, cancelPick } = commands
   return useMemo(() => {
     if (!moving || name === undefined) return undefined
-    const { terminalId, over } = moving
+    const { terminalId } = moving
     return {
       name,
-      over: over === null ? null : "fresh" in over ? "new" : over.sessionId,
       onPick: (sessionId: string) => moveTerminal(terminalId, { sessionId }),
       onCreate: () => moveTerminal(terminalId, { fresh: true }),
       onCancel: cancelPick,
     }
   }, [moving, name, moveTerminal, cancelPick])
-}
-
-// How long a dragged tab holds over a rail button before its panel opens.
-export const springMs = 400
-
-// The rail's buttons a dragged tab opens a panel by: the Sessions panel to drop it on a
-// session, the Terminals panel to go back.
-const springs = '[id="sessions-toggle"], [id="terminals-toggle"]'
-
-// Where a terminal's tab dragged out of the list goes: held over the rail's Sessions button
-// it opens the Sessions panel, and dropped on a session, or on the new session's button, it
-// moves the terminal there. It travels anywhere in the workspace's body. Undefined where the
-// backend can't move terminals.
-export const useTabsAway = (): TabsAway | undefined => {
-  const { backend, commands, ui, workspace } = useWorkspaceServices()
-  // The rail button held over, and the timer that opens its panel.
-  const held = useRef<{ readonly button: Element; readonly cancel: () => void } | null>(null)
-  // The tab being dragged, and whether the person has pulled it out of the list. Until then it
-  // reorders the list and nothing else; it becomes a pick only once it reaches Sessions.
-  const dragged = useRef<{ readonly id: string; free: boolean } | null>(null)
-  const { pickSession, overMove, moveTerminal, cancelPick, showSessions, showTerminals } = commands
-  return useMemo(() => {
-    if (!backend.moveTerminal) return undefined
-    const letGo = (): void => {
-      held.current?.button.removeAttribute("data-move-spring")
-      held.current?.cancel()
-      held.current = null
-    }
-    const spring = (button: Element | null): void => {
-      if (button === held.current?.button) return
-      letGo()
-      if (!button) return
-      button.setAttribute("data-move-spring", "")
-      const timer = setTimeout(() => {
-        if (button.id !== "sessions-toggle") return showTerminals()
-        // The panel opens picking where the tab goes, so letting go anywhere else gives up.
-        showSessions()
-        if (dragged.current && !ui.getSnapshot().moving) pickSession(dragged.current.id, "drag")
-      }, springMs)
-      held.current = { button, cancel: () => clearTimeout(timer) }
-    }
-    return {
-      within: () => document.querySelector(".workspace-body"),
-      start: (terminalId) => {
-        dragged.current = { id: terminalId, free: false }
-      },
-      pull: ({ free }) => {
-        if (dragged.current) dragged.current.free = free
-      },
-      adrift: () => Boolean(dragged.current?.free) && !ui.getSnapshot().moving?.over,
-      move: ({ x, y }) => {
-        if (!dragged.current?.free) return
-        const hits = document.elementsFromPoint(x, y)
-        const find = (selector: string): Element | null =>
-          hits.map((hit) => hit.closest(selector)).find((each) => each !== null) ?? null
-        spring(find(springs))
-        const { location, moving } = ui.getSnapshot()
-        if (location.route.panel !== "sessions") return overMove(null)
-        if (!moving) pickSession(dragged.current.id, "drag")
-        if (find("[data-sessions-create]")) return overMove({ fresh: true })
-        const id = find("[data-workspace-session]")?.getAttribute("data-workspace-session")
-        const here = currentTarget(workspace.getSnapshot()).workspaceSessionId
-        overMove(id && id !== here ? ({ sessionId: id } satisfies MoveTarget) : null)
-      },
-      end: (terminalId, canceled) => {
-        letGo()
-        dragged.current = null
-        const { moving } = ui.getSnapshot()
-        if (moving?.via !== "drag" || moving.terminalId !== terminalId) return false
-        if (canceled || moving.over === null) {
-          cancelPick()
-          return false
-        }
-        moveTerminal(terminalId, moving.over)
-        return true
-      },
-    }
-  }, [
-    backend.moveTerminal,
-    ui,
-    workspace,
-    pickSession,
-    overMove,
-    moveTerminal,
-    cancelPick,
-    showSessions,
-    showTerminals,
-  ])
 }

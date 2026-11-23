@@ -88,7 +88,6 @@ export const WorkspaceSidebar = ({
   onCreate,
   renderTab,
   onReorder,
-  away,
 }: Props): React.JSX.Element => (
   <aside
     id="terminal-sidebar"
@@ -143,7 +142,6 @@ export const WorkspaceSidebar = ({
         ids={orderedIds}
         renderTab={renderTab}
         onReorder={onReorder}
-        away={away}
       />
     </SidebarPanel>
     {worktrees && (

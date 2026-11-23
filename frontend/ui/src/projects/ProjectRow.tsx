@@ -16,7 +16,6 @@ export const ProjectRow = ({
   status,
   pinned,
   pinBlocked,
-  away,
   removable,
   focusRequest,
   onFocused,
@@ -33,8 +32,6 @@ export const ProjectRow = ({
   pinned: boolean
   // No more projects can be pinned.
   pinBlocked: boolean
-  // Its drag went to the pins bar, which shows it now: it is unseen here.
-  away: boolean
   removable: boolean
   // Asks the row with this id to take the focus, as after a keyboard move or a drag.
   focusRequest: { id: string } | null
@@ -67,7 +64,6 @@ export const ProjectRow = ({
         className="workspace-switcher-row group relative"
         data-pinned={pinned ? "true" : undefined}
         data-dragging={isDragSource ? "true" : undefined}
-        style={away ? { visibility: "hidden" } : undefined}
       >
         <Tooltip content={project.directory} placement="right-start">
           <button

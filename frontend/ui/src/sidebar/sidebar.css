@@ -112,7 +112,7 @@
 /* A terminal on its way to another session (`.sessions-panel[data-moving]`): the
    `.session-move-strip` above the list says which, with its Cancel; each row and the new
    session's button is a place to put it (data-move-target="yes"), the open session where it
-   is now is dimmed ("here"), and the one a drag of its tab holds over is outlined ("over").
+   is now is dimmed ("here").
    A row's `.session-move-here` takes its actions' place under the pointer. */
 .session-move-strip {
   padding: 4px 4px 4px 10px;
@@ -135,10 +135,6 @@
 .sessions-panel-entry[data-move-target="here"] .sidebar-item-select {
   cursor: default;
 }
-[data-move-target="over"] {
-  border-color: var(--color-strong);
-  box-shadow: inset 0 0 0 1px var(--color-strong);
-}
 .session-move-here {
   color: var(--color-ink);
   font-size: var(--text-caption);
@@ -146,8 +142,7 @@
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
 @media (hover: hover) {
-  .sessions-panel-entry:not(:hover, :has(:focus-visible), [data-move-target="over"])
-    .session-move-here {
+  .sessions-panel-entry:not(:hover, :has(:focus-visible)) .session-move-here {
     opacity: 0;
   }
 }

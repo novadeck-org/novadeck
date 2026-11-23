@@ -8,24 +8,27 @@ import type { BarSlot } from "./bar"
 import type { BarDrag } from "./drag-session"
 import { TaskbarSlot, type SlotActions } from "./TaskbarSlot"
 import { tether } from "./tether"
-import { useBarDrag, type Dragged } from "./use-bar-drag"
+import { useBarDrag, type BarDragging, type Dragged } from "./use-bar-drag"
 
 // The messages' drag stays on their terminal's bar.
 const onBar = [tether((operation) => operation.source?.element?.closest("[data-taskbar]") ?? null)]
 
 // One slot as the bar's drag reorders it: its own box, a direct child of the bar, so the
 // drag moves the whole slot. Its icon button is the handle, which carries what dnd-kit
-// tells assistive technology, so no second button wraps the first.
+// tells assistive technology, so no second button wraps the first. Anything but the
+// messages leaves the bar once pulled free of it (`pullOut`).
 const SortableSlot = ({
   id,
   index,
   tethered,
+  pullOut,
   children,
 }: {
   id: string
   index: number
   // Held to its terminal's bar, as the messages are.
   tethered: boolean
+  pullOut: BarDragging["pullOut"]
   children: ReactNode
 }): React.JSX.Element => {
   const [element, setElement] = useState<HTMLSpanElement | null>(null)
@@ -36,7 +39,7 @@ const SortableSlot = ({
     element: element ?? undefined,
     handle,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
-    modifiers: tethered ? onBar : [],
+    modifiers: tethered ? onBar : pullOut,
   })
   return (
     <span
@@ -81,7 +84,7 @@ export const Taskbar = ({
   dropTarget: boolean
 }): React.JSX.Element => {
   const bar = useRef<HTMLDivElement | null>(null)
-  const { provider, grab, grabbed, grabbedIconRef } = useBarDrag({
+  const { provider, grab, grabbed, grabbedIconRef, pullOut } = useBarDrag({
     terminal,
     slots,
     bar,
@@ -120,6 +123,7 @@ export const Taskbar = ({
               id={slot.key}
               index={index}
               tethered={slot.members.some((member) => member.kind === "messages")}
+              pullOut={pullOut}
             >
               <TaskbarSlot
                 slot={slot}

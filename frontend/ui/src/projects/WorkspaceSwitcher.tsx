@@ -115,7 +115,6 @@ export const WorkspaceSwitcher = ({
             setOpen(false)
             setRemoving(project)
           }}
-          onDraggedOut={() => setOpen(false)}
         />
         {/* A disabled button takes no pointer, so its footer says why it's unavailable. */}
         <Tooltip content="Unavailable" disabled={Boolean(onOpenFolder)}>

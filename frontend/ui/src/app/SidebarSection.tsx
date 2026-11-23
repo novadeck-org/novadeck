@@ -25,7 +25,6 @@ import {
   sameWorks,
 } from "./files-feed"
 import { FilesSection } from "./FilesSection"
-import { useTabsAway } from "./move-to"
 import { historyShown, filesShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { SessionsSection } from "./SessionsSection"
@@ -194,7 +193,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
         : undefined,
     [historyFeed, historyRows, readHistory, backend.agents, connections, commands, projectId],
   )
-  const away = useTabsAway()
   const worksReported = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.reported)
   // Titles of every project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(
@@ -346,7 +344,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
       onCreate={() => add()}
       renderTab={renderTab}
       onReorder={reorderTiles}
-      away={away}
     />
   )
 })

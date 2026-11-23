@@ -127,7 +127,7 @@ describe("key commands", () => {
         canvas,
         moveTerminal: () => Promise.reject(new Error("unused")),
       })
-      app.commands.pickSession("01", "menu")
+      app.commands.pickSession("01")
       expect(app.ui.getSnapshot().moving).not.toBeNull()
       expect(app.keydown({ key: "Escape" })).toBe("handled")
       expect(app.ui.getSnapshot().moving).toBeNull()

@@ -216,52 +216,28 @@ describe("Moving a terminal to another session", () => {
     // moments can stall for many seconds after a drop, while the page itself is long settled.
     const present = (name: string): boolean => terminalTabNames().includes(name)
 
-    it("pulls it free, opens the Sessions panel over its button, and moves it to the row it drops on", async () => {
-      const { others } = await openWithSessions()
+    it("never: a tab held over the rail's Sessions button stays in its list", async () => {
+      await openWithSessions()
       try {
         await pinPointer("press", atTab("Dev server"))
-        // Out of the list far enough to break free, then over the rail's button.
         await pinPointer("move", away)
         await pinPointer("move", atRail())
-        // dnd-kit takes a move on the next frame, so the pointer is moved on to bring it.
         await pinPointer("move", { x: atRail().x + 2, y: atRail().y + 1 })
-        // Held over the button, the panel opens to pick where it goes.
-        await expect.element(strip("Dev server")).toBeVisible()
-        await pinPointer("move", center(pickRow(others[0]!).element()))
+        // The tab is being dragged, held to its list.
         await expect
-          .poll(() =>
-            pickRow(others[0]!)
-              .element()
-              .closest("[data-workspace-session]")
-              ?.getAttribute("data-move-target"),
-          )
-          .toBe("over")
+          .poll(() => terminalTab("Dev server").element().closest("[data-dnd-dragging]") !== null)
+          .toBe(true)
+        // Longer than a held button ever took to open its panel.
+        await new Promise((resolve) => setTimeout(resolve, 800))
+        expect(strip("Dev server").query()).toBeNull()
         await pinPointer("release")
       } finally {
         await pinPointer("release")
       }
-      await expect
-        .poll(() => /Dev server moved to/.test(document.body.textContent ?? ""))
-        .toBe(true)
-      await expect
-        .poll(() => sidebarPanel("Terminals").element().getAttribute("aria-checked"))
-        .toBe("true")
-      await expect.poll(() => present("Dev server")).toBe(false)
-    })
-
-    it("keeps the list's order when let go free over nothing", async () => {
-      await openWithSessions()
-      const before = terminalTabNames()
-      try {
-        await pinPointer("press", atTab("Tests"))
-        await pinPointer("move", away)
-        await pinPointer("release")
-      } finally {
-        await pinPointer("release")
-      }
-      await expect.poll(() => document.querySelector("[data-pull]")).toBeNull()
-      expect(terminalTabNames()).toEqual(before)
+      await expect.poll(() => document.querySelector("[data-dnd-dragging]")).toBeNull()
+      expect(present("Dev server")).toBe(true)
       expect(toast().query()).toBeNull()
+      expect(sidebarPanel("Terminals").element().getAttribute("aria-checked")).toBe("true")
     })
   })
 })

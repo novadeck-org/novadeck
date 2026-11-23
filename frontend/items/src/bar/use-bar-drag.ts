@@ -8,17 +8,21 @@ import {
 } from "@dnd-kit/dom"
 import type { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
+import { defaultPull, overflow, pull, PullOut } from "@novadeck/toolkit/drag-pull"
 import type { LucideIcon } from "lucide-react"
-import { useRef, useState, type ComponentProps, type RefObject } from "react"
+import { useMemo, useRef, useState, type ComponentProps, type RefObject } from "react"
 
 import { undocks, type BarMember, type BarSlot } from "./bar"
-import { useDragSession, type BarDrag } from "./drag-session"
+import { useDragSession, type BarDrag, type DragSession } from "./drag-session"
 import { beyond, refuseDrop } from "./tether"
 
-// Dragging a taskbar's icons: within the bar, which reorders it, and off it, onto another
-// terminal's bar or a view's free space, through the app's drag session. A card pulled out
-// of a peek turns into an icon of its own and goes the same ways. The messages stay on
-// their bar: dragged off, the pointer says they can't go.
+// Dragging a taskbar's icons: within the bar, which reorders it freely, and off it, onto
+// another terminal's bar or a view's free space, through the app's drag session. An icon
+// leaves the bar as anything pulled out of a list does (`PullOut`): past the bar's edge it
+// resists, and only once pulled far enough does it break free, which is when the drag
+// session first hears of it; let go before that, it only reorders. A card pulled out of a
+// peek turns into an icon of its own and goes the same ways. The messages stay on their
+// bar: dragged off, the pointer says they can't go.
 
 // From 6px of movement with a mouse, a quarter second's press on touch, so a click still
 // opens and a press still peeks.
@@ -86,10 +90,68 @@ export type BarDragging = {
   ) => void
   readonly grabbed: LucideIcon | null
   readonly grabbedIconRef: (element: HTMLDivElement | null) => void
+  // The modifiers of an icon that may leave the bar: held to it until pulled free.
+  readonly pullOut: ReturnType<typeof PullOut.configure>[]
 }
 
 const tethered = (members: readonly BarMember[]): boolean =>
   members.some((member) => member.kind === "messages")
+
+// An icon's pull off its bar: its modifiers, held to the bar until pulled free, which starts
+// its drag in the session where the pointer is; and what the bar's drag tells it. Until it
+// ends, it knows what the icon carries, whether it has broken free and where the pointer
+// last was.
+type BarPull = {
+  readonly modifiers: ReturnType<typeof PullOut.configure>[]
+  readonly start: (members: readonly BarMember[]) => void
+  // Where the pointer is; whether the session follows it, once the icon broke free.
+  readonly at: (x: number, y: number) => boolean
+  // Where the pointer let go, past `bar`: as a move there would, it frees an icon flung far
+  // enough in moves too quick for the drag to follow, as one that starts and ends it.
+  readonly release: (x: number, y: number, bar: DOMRect | undefined) => boolean
+  readonly end: () => void
+}
+
+const barPull = (session: DragSession, terminal: string): BarPull => {
+  let drag: {
+    readonly members: readonly BarMember[]
+    free: boolean
+    at: { x: number; y: number } | null
+  } | null = null
+  const loose = (): void => {
+    if (!drag || drag.free) return
+    drag.free = true
+    session.start({ from: terminal, ...draggedOf(drag.members) })
+    if (drag.at) session.move(drag.at.x, drag.at.y)
+  }
+  return {
+    modifiers: [
+      PullOut.configure({
+        element: (dragged) => dragged?.closest("[data-taskbar]") ?? null,
+        onPull: ({ free }) => {
+          if (free) loose()
+        },
+      }),
+    ],
+    start: (members) => {
+      drag = { members, free: false, at: null }
+    },
+    at: (x, y) => {
+      if (drag) drag.at = { x, y }
+      return drag?.free === true
+    },
+    release: (x, y, bar) => {
+      if (drag && !drag.free && bar && !tethered(drag.members)) {
+        const past = overflow({ left: x, right: x, top: y, bottom: y }, { x: 0, y: 0 }, bar)
+        if (pull(past, defaultPull).free) loose()
+      }
+      return drag?.free === true
+    },
+    end: () => {
+      drag = null
+    },
+  }
+}
 
 export const useBarDrag = ({
   terminal,
@@ -132,6 +194,12 @@ export const useBarDrag = ({
     return Boolean(members && ended && land(draggedOf(members), ended))
   }
 
+  const pulling = useMemo(() => barPull(session, terminal), [session, terminal])
+  // Follows an icon's drag: a message's at once, another's only once pulled free.
+  const followIcon = (members: readonly BarMember[], x: number, y: number): void => {
+    if (pulling.at(x, y) || tethered(members)) follow(members, x, y)
+  }
+
   const slotOf = (id: unknown): BarSlot | undefined => slots.find((slot) => slot.key === String(id))
   const provider: BarDragging["provider"] = {
     sensors,
@@ -140,10 +208,10 @@ export const useBarDrag = ({
     // after that one goes unfollowed.
     onBeforeDragStart: (event) => {
       const members = slotOf(event.operation.source?.id)?.members ?? []
-      begin(members)
+      pulling.start(members)
       // The drag keeps the pointer's moves to itself, so this listens ahead of it.
       const moved = (pointer: PointerEvent): void =>
-        follow(members, pointer.clientX, pointer.clientY)
+        followIcon(members, pointer.clientX, pointer.clientY)
       window.addEventListener("pointermove", moved, { capture: true })
       stopFollowing.current = () =>
         window.removeEventListener("pointermove", moved, { capture: true })
@@ -159,8 +227,11 @@ export const useBarDrag = ({
       const members = sortable ? slotOf(source.id)?.members : undefined
       // It lands where it's let go, which the last move followed may not have reached.
       const { nativeEvent } = event
-      if (members && nativeEvent instanceof PointerEvent)
-        follow(members, nativeEvent.clientX, nativeEvent.clientY)
+      if (members && nativeEvent instanceof PointerEvent) {
+        const { clientX: x, clientY: y } = nativeEvent
+        if (pulling.release(x, y, bar.current?.getBoundingClientRect()) || tethered(members))
+          follow(members, x, y)
+      }
       // A failed browser gesture needs the release decision, which a later screenshot
       // cannot recover. Only the behaviour tests collect this synchronous observation.
       if (import.meta.env.MODE === "test")
@@ -177,6 +248,7 @@ export const useBarDrag = ({
             },
           }),
         )
+      pulling.end()
       finish(members, event.canceled)
     },
   }
@@ -264,5 +336,11 @@ export const useBarDrag = ({
       element.style.translate = `${grabbedAt.current.x}px ${grabbedAt.current.y}px`
   }
 
-  return { provider, grab, grabbed: grabbed?.icon ?? null, grabbedIconRef }
+  return {
+    provider,
+    grab,
+    grabbed: grabbed?.icon ?? null,
+    grabbedIconRef,
+    pullOut: pulling.modifiers,
+  }
 }

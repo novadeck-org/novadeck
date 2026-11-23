@@ -4,21 +4,11 @@ import type { WorkspaceSession } from "@novadeck/core/types"
 // Where the person moves a terminal: a session of its project by id, or a new one.
 export type MoveTarget = { readonly sessionId: string } | { readonly fresh: true }
 
-// Whether two holds-over are the same place: one session, the new session's button, or none.
-export const sameOver = (a: MoveTarget | null, b: MoveTarget | null): boolean =>
-  a === b ||
-  (a !== null &&
-    b !== null &&
-    ("fresh" in a ? "fresh" in b : !("fresh" in b) && a.sessionId === b.sessionId))
-
-// The terminal on its way to another session, while the person picks where: from its menu's
-// "All sessions…", in the Sessions panel, or by dragging its tab there. `over` is what a drag
-// holds over: a session, the new session's button, or nothing yet.
+// The terminal on its way to another session, while the person picks where in the Sessions
+// panel, from its menu's "All sessions…".
 export type MovePick = {
   readonly context: string
   readonly terminalId: string
-  readonly via: "menu" | "drag"
-  readonly over: MoveTarget | null
 }
 
 // A teammate's move waiting for the person to say whether it goes alone, out of its lead's

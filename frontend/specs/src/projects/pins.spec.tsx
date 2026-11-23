@@ -3,7 +3,6 @@ import { page, userEvent } from "vitest/browser"
 
 import { settled } from "../support/canvas"
 import { expectFocusWithin, recentSwitcher } from "../support/keyboard"
-import { pinPointer } from "../support/pointer"
 import { workspaceSwitcher } from "../support/sessions"
 import { sidebarRenameField, tabAction } from "../support/terminals"
 import {
@@ -18,8 +17,6 @@ import {
 import { context, describe, expect, it } from "../test"
 
 const pinsBar = () => page.getByRole("group", { name: "Pinned projects" })
-// The words on the bar saying where to drop a project dragged from the switcher.
-const dropHint = (): HTMLElement => document.querySelector<HTMLElement>(".pins-bar-drop-hint")!
 const pin = (name: string) => pinsBar().getByRole("button", { name: new RegExp(`${name}$`) })
 // The projects a spec pins, in order, kept as an earlier client's arrangement.
 const arrange = (pinned: string[]): void =>
@@ -28,24 +25,6 @@ const switcherRow = (name: string) =>
   page
     .getByRole("dialog", { name: "Switch workspace" })
     .getByRole("button", { name: new RegExp(`^${name}`) })
-// Presses Escape once the bar is dragging the pin a project handed over, before the
-// drag is let go; gives back whether it did, as a handover that never came presses nothing.
-const escapeOnceHandedOver = (name: string): (() => boolean) => {
-  let pressed = false
-  const moved = (): void => {
-    if (!document.querySelector(`.pin[data-pin="${name}"][data-dragging="true"]`)) return
-    window.removeEventListener("pointermove", moved, true)
-    // After the bar has followed this move.
-    setTimeout(() => {
-      pressed = true
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
-    })
-  }
-  window.addEventListener("pointermove", moved, true)
-  onTestFinished(() => window.removeEventListener("pointermove", moved, true))
-  return () => pressed
-}
-
 // The switcher's projects as it lists them, while it is open.
 const switcherOrder = () =>
   [
@@ -304,10 +283,23 @@ describe("A pinned project", () => {
       expect(listed.slice(0, 3)).toEqual(["api-service", "mobile-app", "storefront"])
     })
 
-    it("unpins a pin dragged off the bar and let go there", async () => {
+    it("keeps a pin dragged off the bar and let go there pinned, in its place", async () => {
       arrange(["storefront", "api-service", "mobile-app"])
       await openWorkspace("/?demo=agents")
       const from = pin("api-service").element().getBoundingClientRect()
+      // That the pin was dragged, and that it never left the bar's row.
+      let dragged = false
+      let strayed = false
+      const moved = (): void => {
+        const held = document.querySelector('.pin[data-pin="api-service"][data-dragging="true"]')
+        if (!held) return
+        dragged = true
+        const row = held.closest(".pins-bar-row")!.getBoundingClientRect()
+        const box = held.getBoundingClientRect()
+        strayed ||= box.top < row.top - 1 || box.bottom > row.bottom + 1
+      }
+      window.addEventListener("pointermove", moved, true)
+      onTestFinished(() => window.removeEventListener("pointermove", moved, true))
       await userEvent.dragAndDrop(pin("api-service"), page.elementLocator(document.body), {
         sourcePosition: { x: from.width / 2, y: from.height / 2 },
         targetPosition: { x: from.left + from.width / 2, y: from.bottom + 160 },
@@ -315,7 +307,9 @@ describe("A pinned project", () => {
         force: true,
       })
 
-      await expect.poll(pinNames).toEqual(["1storefront", "2mobile-app"])
+      expect({ dragged, strayed }).toEqual({ dragged: true, strayed: false })
+      await expect.poll(() => document.querySelector(".pin[data-dragging]")).toBeNull()
+      expect(pinNames()).toEqual(["1storefront", "2api-service", "3mobile-app"])
     })
 
     it("only by a drag: a click still switches", async () => {
@@ -344,10 +338,9 @@ describe("A pinned project", () => {
     })
   })
 
-  context("dragged from the switcher menu", () => {
+  context("dragged out of the switcher menu", () => {
     // Drags a project's row out of the open menu and lets it go at a point on the screen:
     // by default on the bar under the header, past its pins and the menu.
-    // More steps leave more moves after the handoff, for what shows as the menu closes.
     const dragOut = async (
       name: string,
       to?: { x: number; y: number },
@@ -365,163 +358,46 @@ describe("A pinned project", () => {
       })
     }
 
-    it("pins it where it is let go, after the pins it passes", async () => {
-      arrange(["storefront", "api-service"])
+    it("pins nothing when let go beside it: the row stays in the list", async () => {
+      arrange(["storefront"])
       await openWorkspace("/?demo=agents")
       await workspaceSwitcher().click()
+      expect(switcherOrder()).toContain("mobile-app")
+      const row = await settled(() => switcherRow("mobile-app").element().getBoundingClientRect())
 
-      await dragOut("mobile-app")
+      // Beside the menu, at the row's own height: off the bar, and past the list's side.
+      await dragOut("mobile-app", { x: window.innerWidth - 40, y: row.top + row.height / 2 })
 
-      await expect.element(pin("mobile-app")).toHaveTextContent("3mobile-app")
-      // The menu closed as the drag left it, handing the bar a pin; it lists it as pinned.
-      await expect
-        .element(page.getByRole("dialog", { name: "Switch workspace" }))
-        .not.toBeInTheDocument()
-      await workspaceSwitcher().click()
-      await expect.element(switcherRow("mobile-app").getByLabelText("Pinned")).toBeInTheDocument()
-    })
-
-    it("opens an empty bar for the drag, and the project becomes the first pin", async () => {
-      await openWorkspace("/?demo=agents")
-      await expect.element(pinsBar()).not.toBeInTheDocument()
-      await workspaceSwitcher().click()
-
-      await dragOut("docs-site")
-
-      await expect.element(pin("docs-site")).toHaveTextContent("1docs-site")
-    })
-
-    it("says where to drop until the drag is let go, after the menu has closed", async () => {
-      await openWorkspace("/?demo=agents")
-      await workspaceSwitcher().click()
+      await expectStaysAbsent(pin("mobile-app"))
+      expect(pinsBar().getByRole("button").elements()).toHaveLength(1)
+      // The menu stayed open, the project in it unpinned.
       await expect
         .element(page.getByRole("dialog", { name: "Switch workspace" }))
         .toHaveAttribute("data-state", "open")
-      const from = await settled(() => switcherRow("docs-site").element().getBoundingClientRect())
-      const header = workspaceSwitcher().element().closest("header")!.getBoundingClientRect()
-      try {
-        await pinPointer("press", { x: from.left + 40, y: from.top + from.height / 2 })
-        await pinPointer("move", { x: window.innerWidth - 80, y: header.bottom + 16 })
-        // Observe the committed handoff while the pointer is still down, instead of a
-        // capture-phase sample that may precede the original drag's end and menu commit.
-        await expect
-          .poll(() => ({
-            menu:
-              page.getByRole("dialog", { name: "Switch workspace" }).query()?.dataset.state ===
-              "open",
-            dragging:
-              document.querySelector('.pin[data-pin="docs-site"][data-dragging="true"]') !== null,
-            hint: dropHint().checkVisibility({ visibilityProperty: true }),
-            target: document.querySelector('.pins-bar[data-receiving="true"]') !== null,
-          }))
-          .toEqual({ menu: false, dragging: true, hint: true, target: true })
-      } finally {
-        await pinPointer("release")
-      }
-      await expect.element(pin("docs-site")).toHaveTextContent("1docs-site")
-      await expect.poll(() => dropHint().checkVisibility({ visibilityProperty: true })).toBe(false)
-      expect(document.querySelector('.pins-bar[data-receiving="true"]')).toBeNull()
+      await expect
+        .element(switcherRow("mobile-app").getByLabelText("Pinned"))
+        .not.toBeInTheDocument()
     })
 
-    it("marks a bar with pins as a place to drop, its words after them", async () => {
-      arrange(["storefront", "api-service"])
+    it("opens no bar for the drag when nothing is pinned", async () => {
       await openWorkspace("/?demo=agents")
       await workspaceSwitcher().click()
-      let seen: {
-        readonly hint: boolean
-        readonly target: boolean
-        readonly after: boolean
-      } | null = null
-      const moved = (): void => {
-        if (!document.querySelector('.pin[data-pin="docs-site"][data-dragging="true"]')) return
-        const last = pin("api-service").element().getBoundingClientRect()
-        seen = {
-          hint: dropHint().checkVisibility({ visibilityProperty: true }),
-          target: document.querySelector('.pins-bar[data-receiving="true"]') !== null,
-          after: dropHint().getBoundingClientRect().left >= last.right,
-        }
-      }
-      window.addEventListener("pointermove", moved, true)
 
       await dragOut("docs-site")
-      window.removeEventListener("pointermove", moved, true)
 
-      expect(seen).toEqual({ hint: true, target: true, after: true })
-      await expect.element(pin("docs-site")).toHaveTextContent("3docs-site")
-      expect(document.querySelector('.pins-bar[data-receiving="true"]')).toBeNull()
+      await expectStaysAbsent(pinsBar())
     })
 
-    it("keeps its words clear of the pins in a crowded bar", async () => {
-      // Three pins in a narrow window, which the dragged one's slot fills: the words show
-      // only after the last pin shown and that slot, or not at all.
-      arrange(["storefront", "api-service", "mobile-app"])
-      await page.viewport(620, 900)
-      onTestFinished(() => page.viewport(1440, 900))
-      await openWorkspace("/?demo=agents")
-      await workspaceSwitcher().click()
-      const overlaps: string[] = []
-      let sampled = 0
-      const moved = (): void => {
-        if (!document.querySelector('.pin[data-pin="docs-site"][data-dragging="true"]')) return
-        sampled++
-        if (!dropHint().checkVisibility({ visibilityProperty: true })) return
-        const left = dropHint().getBoundingClientRect().left
-        // The pins shown, and the slot the dragged one holds, where it lands.
-        for (const shown of document.querySelectorAll<HTMLElement>(
-          ".pin[data-dnd-placeholder], .pin:not([inert]):not([data-dragging])",
-        ))
-          if (shown.getBoundingClientRect().right > left) overlaps.push(shown.dataset.pin!)
-      }
-      window.addEventListener("pointermove", moved, true)
-
-      await dragOut("docs-site")
-      window.removeEventListener("pointermove", moved, true)
-
-      expect(sampled).toBeGreaterThan(0)
-      expect(overlaps).toEqual([])
-    })
-
-    it("still reorders the list when dragged to its top, with the bar behind it", async () => {
+    it("still reorders the list when dragged to its top", async () => {
       await openWorkspace("/?demo=agents")
       await workspaceSwitcher().click()
       await expect.poll(() => switcherOrder()[0]).toBeTruthy()
       const first = switcherOrder()[0]!
-      // Where the list sits once the menu has opened in full: a point aimed at its top row
-      // from before that lies above the list, which counts as out of it and hands the drag
-      // to the bar.
       const top = await settled(() => switcherRow(first).element().getBoundingClientRect())
       await dragOut("docs-site", { x: top.left + 60, y: top.top + 6 })
 
       await expect.poll(() => switcherOrder()[0]).toBe("docs-site")
       await expectStaysAbsent(pin("docs-site"))
-    })
-
-    it("pins nothing when let go off the bar", async () => {
-      arrange(["storefront"])
-      await openWorkspace("/?demo=agents")
-      await workspaceSwitcher().click()
-      const before = switcherOrder()
-      expect(before).toContain("mobile-app")
-      await dragOut("mobile-app", { x: 700, y: 400 })
-      await expectStaysAbsent(pin("mobile-app"))
-      expect(pinsBar().getByRole("button").elements()).toHaveLength(1)
-      // Nor does it move in the list.
-      await workspaceSwitcher().click()
-      await expect.poll(switcherOrder).toEqual(before)
-    })
-
-    it("pins nothing when Escape cancels the drag on the bar", async () => {
-      arrange(["storefront"])
-      await openWorkspace("/?demo=agents")
-      await workspaceSwitcher().click()
-      const before = switcherOrder()
-      const escaped = escapeOnceHandedOver("mobile-app")
-      await dragOut("mobile-app")
-      expect(escaped()).toBe(true)
-      await expectStaysAbsent(pin("mobile-app"))
-      expect(pinsBar().getByRole("button").elements()).toHaveLength(1)
-      await workspaceSwitcher().click()
-      await expect.poll(switcherOrder).toEqual(before)
     })
   })
 

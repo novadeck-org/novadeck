@@ -2,13 +2,7 @@ import { leadChain } from "@novadeck/core/derivations"
 import { activeProject } from "@novadeck/core/state"
 import type { Workspace } from "@novadeck/core/types"
 
-import {
-  freshSessionName,
-  type MoveNotice,
-  type MovePick,
-  type MoveTarget,
-  sameOver,
-} from "../../terminals/move-state"
+import { freshSessionName, type MoveNotice, type MoveTarget } from "../../terminals/move-state"
 import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 import { newWorkspaceSession } from "./sessions"
@@ -22,12 +16,10 @@ export type MoveCommands = {
   // moves the lead at its top.
   readonly confirmMove: (scope: "alone" | "team") => void
   readonly cancelMove: () => void
-  // Shows the Sessions panel to pick where the terminal goes, from its menu or as its tab is
-  // dragged there; `overMove` is what a drag holds over. Picking a session moves it.
-  readonly pickSession: (terminalId: string, via: MovePick["via"]) => void
-  readonly overMove: (over: MoveTarget | null) => void
-  // Ends the pick: the Sessions panel goes back to the terminals for a pick from the menu or
-  // a drag, as the person's place was there.
+  // Shows the Sessions panel to pick where the terminal goes, from its menu. Picking a session
+  // moves it.
+  readonly pickSession: (terminalId: string) => void
+  // Ends the pick, leaving the sidebar as the person had it before.
   readonly cancelPick: () => void
   // Takes a move back, its handles and the lead it left included.
   readonly undoMove: (notice: MoveNotice) => void
@@ -37,7 +29,6 @@ export type MoveCommands = {
 
 type MoveDependencies = {
   readonly peek: (panel: "sessions") => (() => void) | undefined
-  readonly showTerminals: () => void
   readonly revealTerminal: (terminalId: string, projectId: string) => void
 }
 
@@ -51,7 +42,7 @@ const sessionName = (workspace: Workspace, projectId: string, id: string): strin
 
 export const createMoveCommands = (
   { workspace, ui, moveTerminal: move, effects }: CommandContext,
-  { peek, showTerminals, revealTerminal }: MoveDependencies,
+  { peek, revealTerminal }: MoveDependencies,
 ): MoveCommands => {
   const tell = (moved: MoveNotice): void => {
     ui.update((state) => ({ ...state, moved }))
@@ -59,15 +50,11 @@ export const createMoveCommands = (
   // Puts the sidebar back as it was, for a pick from a menu that showed the Sessions panel.
   let putBack: (() => void) | undefined
   const endPick = (): void => {
-    const { moving, location } = ui.getSnapshot()
-    if (!moving) return
+    if (!ui.getSnapshot().moving) return
     ui.update((state) => ({ ...state, moving: null }))
     const back = putBack
     putBack = undefined
-    // A drag started from the Terminals panel and returns there; a menu pick leaves the
-    // sidebar as the person had it.
-    if (moving.via === "menu") back?.()
-    else if (location.route.panel === "sessions") showTerminals()
+    back?.()
   }
   // Moves it now, to a session made for it first where it goes to a new one.
   const go = (terminalId: string, to: MoveTarget): void => {
@@ -154,25 +141,17 @@ export const createMoveCommands = (
       ui.update((state) => (state.moveAsk ? { ...state, moveAsk: null } : state))
       endPick()
     },
-    pickSession: (terminalId, via) => {
+    pickSession: (terminalId) => {
       const snapshot = workspace.getSnapshot()
       if (!move || !currentState(snapshot).roster.terminals.some((each) => each.id === terminalId))
         return
-      // A drag opens the panel once it holds over the rail's button; the menu at once. The
-      // panel shows first, as leaving it ends a pick.
-      if (via === "menu") {
-        if (!ui.getSnapshot().moving) putBack = peek("sessions")
-        effects.afterFrame(() => effects.focusMovePick())
-      }
+      // The panel shows first, as leaving it ends a pick.
+      if (!ui.getSnapshot().moving) putBack = peek("sessions")
+      effects.afterFrame(() => effects.focusMovePick())
       ui.update((state) => ({
         ...state,
-        moving: { context: currentContext(snapshot), terminalId, via, over: null },
+        moving: { context: currentContext(snapshot), terminalId },
       }))
-    },
-    overMove: (over) => {
-      const { moving } = ui.getSnapshot()
-      if (!moving || sameOver(moving.over, over)) return
-      ui.update((state) => (state.moving ? { ...state, moving: { ...state.moving, over } } : state))
     },
     cancelPick: endPick,
     undoMove: (notice) => {

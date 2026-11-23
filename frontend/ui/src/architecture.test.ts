@@ -126,9 +126,8 @@ const vendors: Record<string, readonly string[]> = {
   "@xyflow/react": ["layouts/canvas/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions, the rail's toggles and
-  // the project switcher's projects and its pins, which reorder as the taskbar's icons do,
-  // and the drag the switcher hands to the pins bar; Grid's tiles, which drag to reorder the
-  // tabs; and the Sessions panel's sessions.
+  // the project switcher's projects and its pins, which reorder as the taskbar's icons do;
+  // Grid's tiles, which drag to reorder the tabs; and the Sessions panel's sessions.
   "@dnd-kit": [
     "terminals/",
     "layouts/grid/Grid.tsx",
@@ -136,7 +135,6 @@ const vendors: Record<string, readonly string[]> = {
     "shell/SubscriptionUsage.tsx",
     "shell/SidebarRail.tsx",
     "projects/PinsBar.tsx",
-    "projects/pin-handoff.ts",
     "projects/ProjectList.tsx",
     "projects/ProjectRow.tsx",
     "sidebar/SessionsPanel.tsx",

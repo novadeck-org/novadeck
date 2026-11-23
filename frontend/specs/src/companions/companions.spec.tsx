@@ -979,6 +979,36 @@ describe("Undocking an item into a window of its own", () => {
     })
   })
 
+  context("when let go just past its bar, before it pulls free", () => {
+    it("resists as it leaves, and stays on its bar", async () => {
+      watchBarDrag()
+      await openShowcase()
+      await chooseView("Grid")
+      const icon = taskbarIcon("Build Studio", "Plan: A home for Studio")
+      const from = icon.element().getBoundingClientRect()
+      const bar = taskbar("Build Studio").element().getBoundingClientRect()
+      let taut = false
+      const moved = (): void => {
+        taut ||= document.querySelector('[data-taskbar] [data-pull="taut"]') !== null
+      }
+      window.addEventListener("pointermove", moved, true)
+      await userEvent.dragAndDrop(icon, page.elementLocator(document.body), {
+        sourcePosition: { x: from.width / 2, y: from.height / 2 },
+        // Above the bar, short of where it breaks free.
+        targetPosition: { x: from.left + from.width / 2, y: bar.top - 30 },
+        steps: 12,
+        force: true,
+        scroll: "none",
+      })
+      window.removeEventListener("pointermove", moved, true)
+
+      expect(taut).toBe(true)
+      await expect.poll(() => document.querySelector("[data-pull]")).toBeNull()
+      await expect.element(icon).toBeVisible()
+      await expectStaysAbsent(terminal("A home for Studio"))
+    })
+  })
+
   context("when dragged onto the Grid between its tiles", () => {
     it("opens a window there", async () => {
       watchBarDrag()

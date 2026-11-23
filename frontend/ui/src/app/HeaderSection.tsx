@@ -4,7 +4,6 @@ import type { Project } from "@novadeck/core/types"
 import { memo, useMemo, useState } from "react"
 
 import { transitionWorkspace } from "../layouts/transition"
-import { createPinDrop, PinDropContext } from "../projects/pin-drop"
 import { PinsBar } from "../projects/PinsBar"
 import { arrangeProjects } from "../projects/project-arrangement"
 import { nextStatusChange, projectAsks, projectStatuses } from "../projects/project-status"
@@ -29,7 +28,7 @@ const sameProjects = (a: readonly Project[], b: readonly Project[]): boolean =>
 // The app header wired to the workspace: projects, views, search and preferences, and
 // under it the bar of pinned projects.
 export const HeaderSection = memo((): React.JSX.Element => {
-  const { backend, commands, navigation, ui, landing } = useWorkspaceServices()
+  const { backend, commands, navigation, landing } = useWorkspaceServices()
   const {
     switchProject,
     openFolder,
@@ -37,8 +36,6 @@ export const HeaderSection = memo((): React.JSX.Element => {
     moveProject,
     stepProject,
     toggleProjectPin,
-    pinProjectAt,
-    restoreProjectArrangement,
     changeView,
     enterZen,
     setSwitcher,
@@ -95,14 +92,6 @@ export const HeaderSection = memo((): React.JSX.Element => {
     }),
     shallowEqual,
   )
-  // Carries a project dragged out of the switcher's list onto the pins bar.
-  const [pinDrop] = useState(() =>
-    createPinDrop({
-      pin: pinProjectAt,
-      current: () => ui.getSnapshot().projectArrangement,
-      restore: restoreProjectArrangement,
-    }),
-  )
   const pins = useMemo(() => arrangeProjects(projects, arrangement).pinned, [projects, arrangement])
   // Which projects other windows show, and the menu that opens one in a window of its own,
   // where the app opens project windows.
@@ -121,51 +110,48 @@ export const HeaderSection = memo((): React.JSX.Element => {
   }
   return (
     <ProjectWindowsContext value={windowsView}>
-      <PinDropContext value={pinDrop}>
-        <WorkspaceHeader
-          hidden={zen}
-          onZen={enterZen}
-          view={view}
-          enabledViews={enabledViews}
-          projects={projects}
-          project={project}
-          statuses={statuses}
-          asks={asks}
-          arrangement={arrangement}
-          onProjectMove={moveProject}
-          onProjectStep={stepProject}
-          onProjectTogglePin={toggleProjectPin}
-          onProjectSelect={select}
-          dotIgnores={shownPins}
-          onOpenFolder={backend.pickDirectory ? () => void openFolder() : undefined}
-          onProjectRemove={removeProject}
-          onViewChange={(id) => {
-            if (view === id) return
-            const direction = viewModes.indexOf(id) > viewModes.indexOf(view) ? 1 : -1
-            transitionWorkspace(() => changeView(id), direction)
-          }}
-          homeTo={homeTo}
-          onSearch={() => {
-            setSwitcher(null)
-            navigation.go({ dialog: "search" })
-          }}
-          onPreferences={() => {
-            setSwitcher(null)
-            navigation.go({ dialog: "preferences", section: null })
-          }}
-        />
-        <PinsBar
-          pins={pins}
-          current={project.id}
-          statuses={statuses}
-          hidden={zen}
-          onSelect={select}
-          onMove={moveProject}
-          onStep={stepProject}
-          onUnpin={toggleProjectPin}
-          onShown={setShownPins}
-        />
-      </PinDropContext>
+      <WorkspaceHeader
+        hidden={zen}
+        onZen={enterZen}
+        view={view}
+        enabledViews={enabledViews}
+        projects={projects}
+        project={project}
+        statuses={statuses}
+        asks={asks}
+        arrangement={arrangement}
+        onProjectMove={moveProject}
+        onProjectStep={stepProject}
+        onProjectTogglePin={toggleProjectPin}
+        onProjectSelect={select}
+        dotIgnores={shownPins}
+        onOpenFolder={backend.pickDirectory ? () => void openFolder() : undefined}
+        onProjectRemove={removeProject}
+        onViewChange={(id) => {
+          if (view === id) return
+          const direction = viewModes.indexOf(id) > viewModes.indexOf(view) ? 1 : -1
+          transitionWorkspace(() => changeView(id), direction)
+        }}
+        homeTo={homeTo}
+        onSearch={() => {
+          setSwitcher(null)
+          navigation.go({ dialog: "search" })
+        }}
+        onPreferences={() => {
+          setSwitcher(null)
+          navigation.go({ dialog: "preferences", section: null })
+        }}
+      />
+      <PinsBar
+        pins={pins}
+        current={project.id}
+        statuses={statuses}
+        hidden={zen}
+        onSelect={select}
+        onMove={moveProject}
+        onStep={stepProject}
+        onShown={setShownPins}
+      />
     </ProjectWindowsContext>
   )
 })

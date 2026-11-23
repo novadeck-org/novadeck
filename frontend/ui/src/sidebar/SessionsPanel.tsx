@@ -53,15 +53,13 @@ type SessionsPanelProps = {
   onRemove?: ((id: string) => void) | undefined
   // Whether closed terminals are kept in History, where a deleted session's come back from.
   historyKept?: boolean
-  // A terminal on its way to another session, while the person picks where: its name, what a
-  // drag of its tab holds over (a session's id, or "new" for the new session's button), and
-  // what picking a session, making a new one with it, or giving up does.
+  // A terminal on its way to another session, while the person picks where: its name, and what
+  // picking a session, making a new one with it, or giving up does.
   moving?: SessionsMove | undefined
 }
 
 export type SessionsMove = {
   readonly name: string
-  readonly over: string | null
   readonly onPick: (id: string) => void
   readonly onCreate: () => void
   readonly onCancel: () => void
@@ -189,15 +187,13 @@ const SessionRow = ({
   onCancelRename,
   onRemove,
   picking,
-  over,
 }: {
   session: WorkspaceSessionSummary
   index: number
   active: boolean
   // A terminal is on its way somewhere: the row is a place to put it, unless it's the open
-  // session, where it is now. `over` while a drag of its tab holds over the row.
+  // session, where it is now.
   picking: boolean
-  over: boolean
   editing: boolean
   removable: boolean
   renamable: boolean
@@ -241,7 +237,7 @@ const SessionRow = ({
       className={`sessions-panel-entry${active ? " active" : ""}${editing ? " editing" : ""}${isDragSource ? " dragging" : ""}`}
       role="listitem"
       data-workspace-session={session.id}
-      data-move-target={picking ? (active ? "here" : over ? "over" : "yes") : undefined}
+      data-move-target={picking ? (active ? "here" : "yes") : undefined}
       name={session.name}
       icon={icon}
       selected={active}
@@ -440,7 +436,7 @@ export const SessionsPanel = ({
           type="button"
           aria-label={moving ? `New session with ${moving.name}` : "New session"}
           data-sessions-create
-          data-move-target={moving ? (moving.over === "new" ? "over" : "yes") : undefined}
+          data-move-target={moving ? "yes" : undefined}
           onClick={moving ? moving.onCreate : onFresh}
         >
           <Plus size={14} className="shrink-0" />
@@ -482,7 +478,6 @@ export const SessionsPanel = ({
                 index={index}
                 active={session.id === activeId}
                 picking={moving !== undefined}
-                over={moving?.over === session.id}
                 editing={editing === session.id}
                 removable={removable}
                 renamable={Boolean(onRename)}

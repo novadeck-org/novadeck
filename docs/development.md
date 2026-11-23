@@ -150,7 +150,10 @@ or use Move left and Move right on its right-click.
 
 Drag any icon onto another terminal's bottom bar to move it there (Grid and Canvas,
 where both are on screen); a terminal with nothing to show grows an empty bar while an
-icon is dragged over it. It now belongs to that bar: its peek, menu and pane still say
+icon is dragged over it. Along its own bar an icon reorders freely; past the bar's edge
+it resists, stretching less the further it's pulled, and only breaks free to go elsewhere
+once pulled far enough (the toolkit's pull-out drag). Let go before then, it stays on
+its bar. It now belongs to that bar: its peek, menu and pane still say
 which terminal it came from, and an image or file stacks with the bar's own like any
 other. If that bar already holds the same file or page, the moved one replaces it. Its
 agent showing it again updates it where you put it, as it does an undocked window.

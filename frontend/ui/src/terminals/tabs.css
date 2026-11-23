@@ -707,18 +707,6 @@
   animation-delay: inherit;
 }
 
-/* A tab dragged out of its list to another session (app/move-to.tsx): dnd-kit lifts it into
-   the top layer, out of its panel's fade, but the panel's hidden visibility would still carry
-   down to it once the Sessions panel opens under it, so it keeps its own. The rail button it
-   holds over, about to open its panel, is ringed (data-move-spring). */
-.terminal-tab[data-dnd-dragging] {
-  visibility: visible;
-}
-[data-move-spring] {
-  outline: var(--border-width) solid var(--color-strong);
-  outline-offset: 1px;
-}
-
 /* A tab scrolled out of the list's sight (tab-sight.ts) rests its spinners and blinks, which
    pick up again as it scrolls back in. Last in the file, as specific as the rules that start
    them, whose `animation` would otherwise set them running again. */
