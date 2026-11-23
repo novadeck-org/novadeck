@@ -2225,6 +2225,8 @@ export const runnerBackend = (
     voice: voice.voice,
     murmur: murmur.murmur,
     typeInto: screens.typeInto,
+    observing: screens.observing,
+    takeControl: screens.take,
     activeTerminal: inUse.report,
     showingProject: (projectId, others) => {
       // A project this window stops showing is let go of at once where another window may take

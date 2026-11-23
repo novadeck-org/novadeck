@@ -108,4 +108,34 @@ describe("a screen of a terminal this client only observes", () => {
     expect(hold.state.getSnapshot().control).toBe("observing")
     expect(stream.written).toEqual([])
   })
+
+  it("tells whether it observes, and takes control for dictation with the idle limit", async () => {
+    const stream = observed()
+    const asked: unknown[] = []
+    const take = stream.attached.take!
+    stream.attached.take = async (options) => {
+      asked.push(options)
+      return take(options)
+    }
+    const screens = screensOf(optionsOf({ attach: async () => stream.attached }))
+    const { hold } = shown(screens, "a")
+    await vi.waitFor(() => expect(hold.state.getSnapshot().control).toBe("observing"))
+    expect(screens.observing("a")).toBe(true)
+    expect(screens.observing("none")).toBe(false)
+    await screens.take("a", { ifIdleMs: 2000 })
+    expect(asked).toEqual([{ ifIdleMs: 2000 }])
+    await vi.waitFor(() => expect(screens.observing("a")).toBe(false))
+  })
+
+  it("rejects the take and shows the busy strip when the controller is typing", async () => {
+    const stream = observed()
+    stream.attached.take = async () => {
+      throw new Error("CONTROL_BUSY")
+    }
+    const screens = screensOf(optionsOf({ attach: async () => stream.attached }))
+    const { hold } = shown(screens, "a")
+    await vi.waitFor(() => expect(hold.state.getSnapshot().control).toBe("observing"))
+    await expect(screens.take("a", { ifIdleMs: 2000 })).rejects.toThrow("CONTROL_BUSY")
+    expect(hold.state.getSnapshot().control).toBe("busy")
+  })
 })

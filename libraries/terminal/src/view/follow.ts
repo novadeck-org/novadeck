@@ -96,9 +96,10 @@ export type FollowedTerminal = {
   // the stream a size it had not sent before. While the stream only observes, it sends
   // nothing and draws the pty's size scaled into the frame instead.
   readonly refit: () => boolean
-  // Asks for control, as the person's button does (no idle limit). Does nothing unless the
-  // stream observes.
-  readonly take: () => void
+  // Asks for control, as the person's button does (no idle limit unless `ifIdleMs` says). Resolves
+  // at once unless the stream observes, and once control is here; rejects with the host's refusal,
+  // which the strip then shows as busy.
+  readonly take: (options?: { readonly ifIdleMs?: number }) => Promise<void>
   // Lets go of the stream while no view shows the terminal, so its output costs nothing
   // here while the screen keeps what it last drew; `unpark` attaches again, and the
   // host's fresh screen brings it up to date. A fresh shell started meanwhile waits
@@ -478,13 +479,17 @@ export const followTerminal = <K>(
       if (attachment.mode === "observe" || waiting > 0) return enqueue(attachment, data)
       void attachment.write(data).catch(() => {})
     },
-    take: () => {
+    take: async (options) => {
       const stream = attachment
       if (stream?.mode !== "observe") return
-      void stream.take?.().catch(() => {
+      try {
+        if (!stream.take) throw new Error("The host can't hand control over.")
+        await stream.take(options)
+      } catch (error) {
         busy = true
         if (attachment === stream) screen.strip?.("busy")
-      })
+        throw error
+      }
     },
     refit,
     park: () => {

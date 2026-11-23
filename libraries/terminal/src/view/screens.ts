@@ -239,6 +239,13 @@ export type TerminalScreens<K> = {
   // spaces first: outside bracketed paste xterm turns a newline into Enter, which would
   // submit what was said.
   readonly typeInto: (key: K, text: string) => boolean
+  // Whether this client only observes the terminal now, another controlling it, as its screen
+  // knows synchronously. False for a terminal with no open screen.
+  readonly observing: (key: K) => boolean
+  // Takes control of an observed terminal for typing that isn't a key, as dictation does:
+  // resolves once it is here (at once where it already is), rejects with the host's refusal,
+  // such as CONTROL_BUSY while the controller wrote within `ifIdleMs`.
+  readonly take: (key: K, options?: { readonly ifIdleMs?: number }) => Promise<void>
 }
 
 // The terminal font the owner asks for: the size, and a family that goes in front of the
@@ -744,7 +751,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
           screen.xterm.focus()
           return screen.container.contains(document.activeElement)
         },
-        take: () => screen.followed.take(),
+        take: () => void screen.followed.take().catch(() => {}),
         release: ({ unmount = false } = {}) => {
           if (released) return
           released = true
@@ -795,6 +802,16 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       const screen = entries.get(id(key))?.screen
       if (screen) screen.restart()
       else o.restart(key)
+    },
+    observing: (key) => {
+      const control = entries.get(id(key))?.screen?.state.getSnapshot().control
+      return control !== undefined && control !== null
+    },
+    take: (key, options) => {
+      const screen = entries.get(id(key))?.screen
+      return screen
+        ? screen.followed.take(options)
+        : Promise.reject(new Error("The terminal has no screen."))
     },
     typeInto: (key, text) => {
       const screen = entries.get(id(key))?.screen

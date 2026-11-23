@@ -517,6 +517,15 @@ export type BackendFields = {
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.
   readonly typeInto?: (key: TerminalKey, text: string) => boolean
+  // Optional, with `terminalControl`. Whether this window only observes the terminal, another
+  // client controlling it, which the backend knows synchronously. Absent: it never does.
+  readonly observing?: (key: TerminalKey) => boolean
+  // Optional. Takes control of an observed terminal, refused with the controller's reason (it
+  // wrote within `ifIdleMs`) by rejecting; resolves at once where this window controls it.
+  readonly takeControl?: (
+    key: TerminalKey,
+    options?: { readonly ifIdleMs?: number },
+  ) => Promise<void>
   // Optional. Hands a terminal's name back to the backend, which names it on its own
   // again: the name the person gave it goes, and the backend reports the one it takes
   // with `terminal/update`. Absent where names are only the person's.

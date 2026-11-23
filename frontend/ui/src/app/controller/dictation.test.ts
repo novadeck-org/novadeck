@@ -115,6 +115,63 @@ describe("dictated words", () => {
     expect(chatDraftOf(chat.store.getSnapshot().drafts, context, "01")).toBe("")
   })
 
+  describe("into a terminal this window only observes", () => {
+    const keyboardOf = (observes: boolean, take: () => Promise<void>) => ({
+      observing: () => observes,
+      take: vi.fn<(key: TerminalKey, options: { readonly ifIdleMs: number }) => Promise<void>>(
+        take,
+      ),
+    })
+
+    it("types as before where this window controls it, taking nothing", () => {
+      const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
+      const keyboard = keyboardOf(false, async () => {})
+      const typed = dictateInto(
+        ui(),
+        createChat(),
+        typeInto,
+        terminalOf,
+        undefined,
+        keyboard,
+      )(key, "run the tests")
+      expect(typed).toBe(true)
+      expect(keyboard.take).not.toHaveBeenCalled()
+    })
+
+    it("takes the keyboard with the 2 s idle limit, then types", async () => {
+      const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
+      const keyboard = keyboardOf(true, async () => {})
+      const typing = dictateInto(
+        ui(),
+        createChat(),
+        typeInto,
+        terminalOf,
+        undefined,
+        keyboard,
+      )(key, "run the tests")
+      // Nothing is typed before the take lands.
+      expect(typeInto).not.toHaveBeenCalled()
+      expect(await typing).toBe(true)
+      expect(keyboard.take).toHaveBeenCalledWith(key, { ifIdleMs: 2000 })
+      expect(typeInto).toHaveBeenCalledWith(key, "run the tests")
+    })
+
+    it("types nothing and says it is busy when the controller is typing", async () => {
+      const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
+      const keyboard = keyboardOf(true, () => Promise.reject(new Error("CONTROL_BUSY")))
+      const typed = await dictateInto(
+        ui(),
+        createChat(),
+        typeInto,
+        terminalOf,
+        undefined,
+        keyboard,
+      )(key, "run the tests")
+      expect(typed).toBe("busy")
+      expect(typeInto).not.toHaveBeenCalled()
+    })
+  })
+
   it("go into the chat's box after what is there, where the terminal shows its chat", () => {
     const store = ui()
     const chat = createChat()
