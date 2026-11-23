@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs"
+import { posix, win32 } from "node:path"
+
 import type { ScreenText } from "@novadeck/emulator/headless"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
@@ -156,25 +159,58 @@ const images: ProfileImages = {
   },
 }
 
+/** The kinds of shell opencode's shell mode may run a command in, as its command is written for. */
+type ShellKind = "sh" | "powershell" | "other"
+
+/**
+ * The shell opencode's shell mode runs in, as it picks one (core/src/shell.ts `preferred`, 1.19.6):
+ * `$SHELL` where it names one that is there, else on Windows pwsh, then powershell (which Windows
+ * always has), before Git Bash or cmd, and elsewhere zsh on macOS, else bash or sh. Its `cmd`,
+ * `fish` and `nu` take no command of several lines as Novadeck writes one.
+ */
+export const shellKindOf = (
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+  exists: (path: string) => boolean = existsSync,
+): ShellKind => {
+  const named = env.SHELL
+  const found =
+    named === undefined || named === ""
+      ? undefined
+      : /[\\/]/.test(named)
+        ? exists(named) || (platform === "win32" && exists(`${named}.exe`))
+          ? named
+          : undefined
+        : named
+  if (found === undefined) return platform === "win32" ? "powershell" : "sh"
+  const name = (platform === "win32" ? win32 : posix).parse(found).name.toLowerCase()
+  if (["sh", "bash", "zsh", "dash", "ksh"].includes(name)) return "sh"
+  if (name === "pwsh" || name === "powershell") return "powershell"
+  return "other"
+}
+
 /**
  * A shell command as its shell mode takes it. Its mode turns each line break of a command into a
  * literal `\n`, and a backslash may be dropped on the way (probed 2026-11-22, 1.19.6: `touch f1.txt`
  * and `touch f2.txt` on two lines made a file `f1.txtntouch`; the same lines inside `printf '%b'`
  * as `\n` did too), so a command of several lines goes as one line with no backslash in it: its
- * text in base64, which the shell decodes and evaluates, `eval "$(printf %s '<base64>' | base64 -d)"`.
- * On Windows its shell is PowerShell (it takes pwsh, then powershell, which Windows always has,
- * before Git Bash or cmd: core/src/shell.ts, 1.19.6), which decodes and runs it the same way.
+ * text in base64, which the shell decodes and runs whole, in its own language (`shellKindOf`):
+ * `eval "$(printf %s '<base64>' | base64 -d)"` for sh and its kin, `Invoke-Expression` of the
+ * decoded text for PowerShell, and none for any other.
  */
 export const shellCommandOf = (
   command: string,
   platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
 ): string | undefined => {
   const lines = command.replaceAll("\r\n", "\n").replace(/\n+$/, "").split("\n")
   if (lines.length < 2) return command.trim()
   const encoded = Buffer.from(lines.join("\n")).toString("base64")
-  if (platform === "win32")
+  const kind = shellKindOf(platform, env)
+  if (kind === "powershell")
     return `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))`
-  return `eval "$(printf %s '${encoded}' | base64 -d)"`
+  if (kind === "sh") return `eval "$(printf %s '${encoded}' | base64 -d)"`
+  return undefined
 }
 
 /**
@@ -194,7 +230,7 @@ export const box: BoxProfile = {
     expands: true,
     starts: true,
     footer: shellFooter,
-    command: shellCommandOf,
+    command: (command) => shellCommandOf(command),
     // A Backspace in the empty box leaves the mode; a command goes with Ctrl-C first.
     leave: (held) => (isEmpty(held) ? "\x7f" : `\x03${pause}\x7f`),
     midTurn: "drops",

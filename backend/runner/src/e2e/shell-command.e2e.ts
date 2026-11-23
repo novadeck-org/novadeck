@@ -1,8 +1,27 @@
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
+import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { asked, gate } from "./model/script.js"
 import { start } from "./scenarios.js"
+
+// A wait for the summary's command that, where it never shows, says what the agent's chat holds
+// of the command's run: its result, as the program printed it, tells a command that never ran from
+// one that ran and ended at once.
+const reported = async <T>(t: DeckTerminal, wait: () => Promise<T>): Promise<T> => {
+  try {
+    return await wait()
+  } catch (error) {
+    const items = await t.transcript().catch(() => [])
+    const tail = items
+      .slice(-4)
+      .map(
+        (item) => `${item.role}/${item.kind}: ${JSON.stringify((item.text ?? "").slice(0, 400))}`,
+      )
+      .join("\n")
+    throw new Error(`${String(error)}\nThe chat's last items:\n${tail}`, { cause: error })
+  }
+}
 
 // A command the person runs in the harness's own shell mode (`!sleep 8`) is no turn and no
 // hook tells it, yet the terminal's summary reports it as `shellCommand` while the process
@@ -59,14 +78,16 @@ for (const setup of setups) {
         raw("\r")
 
         const seen: (string | null)[] = []
-        const shell = await t.poll(
-          () => {
-            const found = t.summary().shellCommand
-            seen.push(t.summary().activity?.state ?? null)
-            return found ?? undefined
-          },
-          "its summary to report the shell command",
-          6000,
+        const shell = await reported(t, () =>
+          t.poll(
+            () => {
+              const found = t.summary().shellCommand
+              seen.push(t.summary().activity?.state ?? null)
+              return found ?? undefined
+            },
+            "its summary to report the shell command",
+            6000,
+          ),
         )
         expect(shell.command).toContain(needle)
         expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)
@@ -125,10 +146,12 @@ for (const setup of setups) {
         await t.until("Held.")
 
         // Codex shows it from its Enter; the others from the turn's end, a second or so after.
-        const shell = await t.poll(
-          () => t.summary().shellCommand ?? undefined,
-          "its summary to report the shell command after the turn",
-          longer * 1000,
+        const shell = await reported(t, () =>
+          t.poll(
+            () => t.summary().shellCommand ?? undefined,
+            "its summary to report the shell command after the turn",
+            longer * 1000,
+          ),
         )
         expect(shell.command).toContain(needleOf(sleeping(longer)))
         expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)

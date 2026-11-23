@@ -8,7 +8,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hidesText, leftoverOf, tailOf } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
-import { box, shellCommandOf, shellFooter } from "./box.js"
+import { box, shellCommandOf, shellFooter, shellKindOf } from "./box.js"
 
 // Probed 2026-11-22, 1.19.6 (fixtures/input-box.probe.json): the states of its box on the home
 // screen, in a session, with a turn running, and at 60x20.
@@ -257,11 +257,35 @@ describe("opencode's shell mode", () => {
 describe("opencode's shell command", () => {
   it("goes as written when it is one line, and as one line that evaluates the lines when it is more", () => {
     expect(shellCommandOf("  echo hi > f ", "linux")).toBe("echo hi > f")
-    const many = shellCommandOf("echo a\necho b", "linux")!
+    const many = shellCommandOf("echo a\necho b", "linux", {})!
     expect(many).not.toContain("\n")
-    expect(shellCommandOf("echo a\necho b", "win32")).toBe(
+    expect(shellCommandOf("echo a\necho b", "win32", {})).toBe(
       `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from("echo a\necho b").toString("base64")}')))`,
     )
+  })
+
+  it("writes a command of several lines in the language of the shell opencode picks, $SHELL first", () => {
+    const encoded = Buffer.from("echo a\necho b").toString("base64")
+    const sh = `eval "$(printf %s '${encoded}' | base64 -d)"`
+    const ps = `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))`
+    const there = () => true
+    const gone = () => false
+    // Windows: PowerShell where $SHELL names none, or one that isn't there; Git Bash where it is.
+    expect(shellKindOf("win32", {})).toBe("powershell")
+    expect(shellKindOf("win32", { SHELL: "C:\\Git\\bin\\bash.exe" }, gone)).toBe("powershell")
+    expect(shellKindOf("win32", { SHELL: "C:\\Git\\bin\\bash.exe" }, there)).toBe("sh")
+    expect(shellKindOf("win32", { SHELL: "pwsh" })).toBe("powershell")
+    expect(shellKindOf("win32", { SHELL: "cmd" })).toBe("other")
+    // Elsewhere: sh and its kin, or a fish or nu that takes neither form.
+    expect(shellKindOf("linux", {})).toBe("sh")
+    expect(shellKindOf("linux", { SHELL: "/bin/zsh" }, there)).toBe("sh")
+    expect(shellKindOf("linux", { SHELL: "/usr/bin/fish" }, there)).toBe("other")
+    expect(shellKindOf("linux", { SHELL: "/usr/bin/fish" }, gone)).toBe("sh")
+    expect(shellCommandOf("echo a\necho b", "linux", { SHELL: "/bin/bash" })).toBe(sh)
+    expect(shellCommandOf("echo a\necho b", "win32", {})).toBe(ps)
+    expect(shellCommandOf("echo a\necho b", "linux", { SHELL: "nu" })).toBeUndefined()
+    // One line goes as it is, whatever the shell.
+    expect(shellCommandOf("echo a", "linux", { SHELL: "nu" })).toBe("echo a")
   })
 
   it("runs every line of one of several, quotes, backslashes and a heredoc included", () => {
