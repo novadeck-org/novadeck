@@ -60,6 +60,26 @@ describe("connection failure", () => {
         message: "The runner didn't accept this app.",
       })
     })
+
+    it("says this device was signed out once its credential is revoked, and who can let it in", () => {
+      const failure = connectFailure(
+        new WireError("UNAUTHORIZED", "Unauthorized", { data: { reason: "revoked" } }),
+      )
+      expect(failure).toEqual({
+        kind: "unauthorized",
+        revoked: true,
+        message:
+          "This device was signed out of the runner. The runner's owner can let it in again with a new credential.",
+        code: "UNAUTHORIZED",
+        detail: "Unauthorized",
+      })
+      // A reason it doesn't know is no reason: a plain refusal.
+      expect(
+        connectFailure(
+          new WireError("UNAUTHORIZED", "Unauthorized", { data: { reason: "later" } }),
+        ),
+      ).not.toHaveProperty("revoked")
+    })
   })
 
   context("when a newer Novadeck has used the workspace", () => {

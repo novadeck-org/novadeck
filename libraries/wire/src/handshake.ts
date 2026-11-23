@@ -30,6 +30,11 @@ const handshake = oc
       // The server's lifetime: whatever a client resumes belongs to one epoch.
       epoch: z.string().min(1),
       protocolVersion: z.number().int(),
+      // The device whose own credential the token was; none for the owner's, or a trusted
+      // transport's.
+      device: z
+        .object({ id: z.string().min(1).max(64), name: z.string().min(1).max(64) })
+        .optional(),
     }),
   )
 

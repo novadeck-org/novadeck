@@ -20,13 +20,16 @@ const failureCopy: Record<ConnectFailure["kind"], { label: string; hint: string 
   },
 }
 
-// An app older than its runner reads two ways: a page reloads, the desktop app quits.
+// An app older than its runner reads two ways: a page reloads, the desktop app quits; and a
+// device refused as signed out reads apart from one never let in.
 const copyOf = (failure: ConnectFailure): { label: string; hint: string } =>
-  failure.update !== "app"
-    ? failureCopy[failure.kind]
-    : failure.reload
-      ? { label: "Older page", hint: "Reload only; loads the runner's newer page" }
-      : { label: "Older app", hint: "Quit only; says to update this app" }
+  failure.revoked
+    ? { label: "Device signed out", hint: "Retry asks again; says the owner can let it in" }
+    : failure.update !== "app"
+      ? failureCopy[failure.kind]
+      : failure.reload
+        ? { label: "Older page", hint: "Reload only; loads the runner's newer page" }
+        : { label: "Older app", hint: "Quit only; says to update this app" }
 
 // The panel's groups for the shell around the demo: how it starts, how it fails to,
 // its runner, its sandbox and the guides drawn over it.

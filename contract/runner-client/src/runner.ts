@@ -14,6 +14,7 @@ import {
   type CompanionChange,
   type CompanionItem,
   type ClosedTerminal,
+  type Device,
   type CompanionWindow,
   type FeedbackDraft,
   type CheckoutState,
@@ -30,6 +31,7 @@ import {
   type FilePart,
   type FolderMatch,
   type WroteFolder,
+  type MintedDevice,
   type MurmurSettings,
   type MurmurState,
   type PageLook,
@@ -861,6 +863,18 @@ export type Runner = {
     /** Changes the settings given; the others stay. */
     set(settings: Partial<RunnerSettings>): Promise<void>
   }
+  /**
+   * Devices with credentials of their own, beside the owner's token (`devices.*`, revision 3;
+   * ask `supports("devices.mint")` first).
+   */
+  readonly devices: {
+    /** Gives a new device its credential, answered once; the owner's connection only. */
+    mint(name: string): Promise<MintedDevice>
+    /** The devices not revoked, oldest first. */
+    list(): Promise<Device[]>
+    /** Revokes a device's credential and ends its sessions: any, as the owner, or this device. */
+    revoke(id: string): Promise<void>
+  }
   /** Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's. */
   readonly tour: {
     /** Readies a run with `agent` (`tour.prepare`): its folder emptied and briefed, its launch line. */
@@ -1178,6 +1192,11 @@ export const connectRunner = async (
     settings: {
       get: () => call((client) => client.settings.get()),
       set: (settings) => call((client) => client.settings.set(settings)),
+    },
+    devices: {
+      mint: (name) => call((client) => client.devices.mint({ name })),
+      list: () => call((client) => client.devices.list()),
+      revoke: (id) => call((client) => client.devices.revoke({ id })),
     },
     tour: {
       prepare: (agent) => call((client) => client.tour.prepare({ agent })),

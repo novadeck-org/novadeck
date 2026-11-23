@@ -47,21 +47,26 @@ const Attempt = ({
   render,
   onPhase,
   onFailed,
+  onEnded,
 }: {
   readonly selection: BackendSelection
   readonly render: (createBackend: CreateBackend) => ReactNode
   readonly onPhase: (phase: Phase) => void
   readonly onFailed: (failure: ConnectFailure) => void
+  // The link ended for good after it connected, for a reason the person must act on.
+  readonly onEnded: () => void
 }): ReactNode => {
   const [createBackend, setCreateBackend] = useState(() =>
     "createBackend" in selection ? selection.createBackend : undefined,
   )
   const phase = useEffectEvent(onPhase)
   const failed = useEffectEvent(onFailed)
+  const ended = useEffectEvent(onEnded)
   useEffect(() => {
     if (!("connect" in selection)) return
     const controller = new AbortController()
     let connection: BackendConnection | undefined
+    let stopListening: (() => void) | undefined
     selection
       .connect(controller.signal, () => {
         if (!controller.signal.aborted) phase("loading")
@@ -70,6 +75,9 @@ const Attempt = ({
         (connected) => {
           if (controller.signal.aborted) return connected.close()
           connection = connected
+          stopListening = connected.ended?.(() => {
+            if (!controller.signal.aborted) ended()
+          })
           setCreateBackend(() => connected.createBackend)
           phase("ready")
         },
@@ -79,6 +87,7 @@ const Attempt = ({
       )
     return () => {
       controller.abort()
+      stopListening?.()
       connection?.close()
     }
   }, [selection])
@@ -139,7 +148,9 @@ export const BackendGate = ({ selection, render, onShown }: GateProps): ReactNod
   // The debug panel can ask for a fresh boot: the workspace goes and the splash runs
   // the start again, as on launch, without reloading the page.
   const reboots = "connect" in initial ? initial.reboots : undefined
-  const reboot = useEffectEvent(() => {
+  // Boots again from the splash, as the debug panel asks, or as a link that ended for good
+  // does: the next attempt's handshake says why, as that this device was signed out.
+  const bootAgain = (): void => {
     setFailures(0)
     setFailure(null)
     setRetryAt(undefined)
@@ -149,7 +160,8 @@ export const BackendGate = ({ selection, render, onShown }: GateProps): ReactNod
     setFailedThisBoot(false)
     setAttempt((count) => count + 1)
     setAttempts(1)
-  })
+  }
+  const reboot = useEffectEvent(bootAgain)
   useEffect(() => reboots?.subscribe(reboot), [reboots])
 
   // Counts down to the next automatic retry, then takes it.
@@ -195,6 +207,7 @@ export const BackendGate = ({ selection, render, onShown }: GateProps): ReactNod
           if (next === "ready") setFailures(0)
         }}
         onFailed={fail}
+        onEnded={bootAgain}
       />
       {splashed && lift !== "gone" && (
         <BootSplash

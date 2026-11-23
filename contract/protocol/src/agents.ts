@@ -343,10 +343,10 @@ export const agentIntegration = z.strictObject({
   // keeps Novadeck's out, so it is never seen Ready at its first prompt; `outdated`, an agent
   // older than the release Novadeck's plugin works with (opencode's), which loads nothing of
   // Novadeck's until it is updated; `unsupported`, a release newer than Novadeck knows
-  // (opencode 2), which loads nothing of Novadeck's either. Read tolerantly from revision 6: a
+  // (opencode 2), which loads nothing of Novadeck's either. Read tolerantly from revision 7: a
   // reason a UI doesn't know is `newer`, never the agent's entry dropped from the list.
   limited: openEnum(["own-status-line", "outdated", "unsupported"], {
-    since: 6,
+    since: 7,
     unknown: "placeholder",
   }).optional(),
   // The command that installs the agent here, as a terminal runs it at its first prompt, for

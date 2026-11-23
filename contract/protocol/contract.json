@@ -1,7 +1,7 @@
 {
-  "revision": 6,
-  "oldestClient": 6,
-  "oldestRunner": 6,
+  "revision": 7,
+  "oldestClient": 7,
+  "oldestRunner": 7,
   "errors": {
     "AGENT_SETUP_FAILED": null,
     "ALREADY_ATTACHED": null,
@@ -35,6 +35,7 @@
     "CONTROL_IN_USE": null,
     "CONTROL_REQUIRED": null,
     "DIALOG_CHANGED": null,
+    "FORBIDDEN": null,
     "INCOMPATIBLE_PROTOCOL": {
       "x-optional": true,
       "type": "object",
@@ -75,7 +76,13 @@
     "TERMINAL_EXITED": null,
     "TERMINAL_LIMIT": null,
     "TERMINAL_NOT_FOUND": null,
-    "UNAUTHORIZED": null,
+    "UNAUTHORIZED": {
+      "x-optional": true,
+      "type": "object",
+      "properties": {"reason":{"type":"string","minLength":1,"maxLength":64}},
+      "required": ["reason"],
+      "additionalProperties": false
+    },
     "UPLOAD_TOO_LARGE": null,
     "VOICE_FAILED": null,
     "VOICE_UNAVAILABLE": {
@@ -112,6 +119,15 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "device": {
+            "type": "object",
+            "properties": {
+              "id": {"type":"string","minLength":1,"maxLength":64},
+              "name": {"type":"string","minLength":1,"maxLength":64}
+            },
+            "required": ["id","name"],
+            "additionalProperties": false
           }
         },
         "required": ["epoch","protocolVersion"],
@@ -3146,7 +3162,7 @@
             "limited": {
               "type": "string",
               "enum": ["own-status-line","outdated","unsupported","newer"],
-              "x-open": {"since":6,"unknown":"placeholder"}
+              "x-open": {"since":7,"unknown":"placeholder"}
             },
             "installer": {
               "type": "string",
@@ -4507,7 +4523,7 @@
           "limited": {
             "type": "string",
             "enum": ["own-status-line","outdated","unsupported","newer"],
-            "x-open": {"since":6,"unknown":"placeholder"}
+            "x-open": {"since":7,"unknown":"placeholder"}
           },
           "installer": {
             "type": "string",
@@ -8538,6 +8554,81 @@
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"}
         },
+        "additionalProperties": false
+      },
+      "output": {"x-optional":true}
+    },
+    "devices.mint": {
+      "since": 6,
+      "input": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[^\\t\\n\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069\\u180e\\u200b\\u2028\\u2029\\u2060\\ufeff]*$"
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "object",
+            "properties": {
+              "id": {"type":"string","pattern":"^[A-Za-z0-9_-]{22}$"},
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[^\\t\\n\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069\\u180e\\u200b\\u2028\\u2029\\u2060\\ufeff]*$"
+              },
+              "createdAt": {"type":"number"},
+              "lastSeenAt": {"type":["number","null"]},
+              "connected": {"type":"boolean"}
+            },
+            "required": ["id","name","createdAt","lastSeenAt","connected"],
+            "additionalProperties": false
+          },
+          "credential": {"type":"string","minLength":1,"maxLength":512}
+        },
+        "required": ["device","credential"],
+        "additionalProperties": false
+      }
+    },
+    "devices.list": {
+      "since": 6,
+      "input": {"x-optional":true},
+      "output": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {"type":"string","pattern":"^[A-Za-z0-9_-]{22}$"},
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[^\\t\\n\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069\\u180e\\u200b\\u2028\\u2029\\u2060\\ufeff]*$"
+            },
+            "createdAt": {"type":"number"},
+            "lastSeenAt": {"type":["number","null"]},
+            "connected": {"type":"boolean"}
+          },
+          "required": ["id","name","createdAt","lastSeenAt","connected"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "devices.revoke": {
+      "since": 6,
+      "input": {
+        "type": "object",
+        "properties": {"id":{"type":"string","pattern":"^[A-Za-z0-9_-]{22}$"}},
+        "required": ["id"],
         "additionalProperties": false
       },
       "output": {"x-optional":true}
