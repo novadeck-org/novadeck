@@ -1,5 +1,5 @@
 {
-  "revision": 7,
+  "revision": 8,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -2557,7 +2557,7 @@
       "output": {"x-optional":true}
     },
     "terminals.take": {
-      "since": 6,
+      "since": 8,
       "input": {
         "type": "object",
         "properties": {
@@ -2570,7 +2570,7 @@
       "output": {"x-optional":true}
     },
     "terminals.controls": {
-      "since": 6,
+      "since": 8,
       "input": {"x-optional":true},
       "yields": {
         "oneOf": [
@@ -2582,14 +2582,14 @@
               "holder": {
                 "type": "string",
                 "enum": ["you","other","none"],
-                "x-open": {"since":6,"unknown":"drop"}
+                "x-open": {"since":8,"unknown":"drop"}
               }
             },
             "required": ["type","terminalId","holder"],
             "additionalProperties": false
           }
         ],
-        "x-open": {"since":6,"unknown":"drop"}
+        "x-open": {"since":8,"unknown":"drop"}
       }
     },
     "terminals.active": {

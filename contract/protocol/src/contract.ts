@@ -366,7 +366,7 @@ export const contract = {
     // CONTROL_IN_USE. Taking a terminal no one controls, or that this client does, is fine; one
     // this client isn't attached to is a CONFLICT.
     take: procedure
-      .meta({ since: 6 })
+      .meta({ since: 8 })
       .input(
         z.strictObject({
           terminalId: id,
@@ -378,7 +378,7 @@ export const contract = {
     // attachment starts and again as it changes. A client that follows it is handed control
     // when the controller lets go (detaches, closes or disconnects): the one of those observing
     // the terminal it used last. Lapses with the connection.
-    controls: procedure.meta({ since: 6 }).input(z.void()).output(eventIterator(terminalControl)),
+    controls: procedure.meta({ since: 8 }).input(z.void()).output(eventIterator(terminalControl)),
     // The terminal this client's person is using now, null for none: the one on screen in Focus
     // view, the selected one in Grid and Canvas, while the window has their focus. Each client
     // has one, which replaces its last and lapses with its connection, and the runner gives

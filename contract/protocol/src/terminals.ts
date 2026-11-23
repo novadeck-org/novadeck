@@ -335,10 +335,10 @@ export const terminalControl = openUnion(
     z.strictObject({
       type: z.literal("control"),
       terminalId: id,
-      holder: openEnum(["you", "other", "none"], { since: 6, unknown: "drop" }),
+      holder: openEnum(["you", "other", "none"], { since: 8, unknown: "drop" }),
     }),
   ],
-  { since: 6, unknown: "drop" },
+  { since: 8, unknown: "drop" },
 )
 
 export type TerminalExit = z.infer<typeof exit>

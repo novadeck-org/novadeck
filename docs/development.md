@@ -1532,7 +1532,7 @@ browser's own zoom does it; the previews demo scales by CSS `zoom` instead.
 
 Two UI clients on one runner (two windows, or the desktop app and a browser) may show the same
 terminal, and only one of them controls it: writes and resizes are its alone. Where the runner supports
-`terminals.controls` (contract revision 6), no setting is involved: the adapter attaches with
+`terminals.controls` (contract revision 8), no setting is involved: the adapter attaches with
 `control-else-observe` (control where it is free, else observing, also after a reconnection), and
 `@novadeck/runner-client` follows `terminals.controls` once per connection to keep each attachment's
 `mode` current (`onMode` tells a change; `take({ ifIdleMs })` moves control here). Runners without it
