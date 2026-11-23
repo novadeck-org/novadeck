@@ -6,3 +6,6 @@ export type { Hold, ShowOptions, TerminalScreens, TerminalScreensOptions } from 
 export { clipboardImages, pastedFiles, pastedText, uploadName } from "./view/paste.js"
 export type { PasteFailure } from "./view/paste.js"
 export type { ViewPhase } from "./view/view-state.js"
+export { classifyInput, takeIdleMs } from "./view/takeover.js"
+export type { InputClass } from "./view/takeover.js"
+export type { ControlStrip } from "./view/view-state.js"

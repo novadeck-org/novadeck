@@ -18,7 +18,7 @@ import {
   type DemoTerminalScreen,
 } from "../screen/terminal"
 import type { DemoEngine } from "./engine"
-import type { DemoTerminalRuntime } from "./runtime"
+import type { DemoScreenState, DemoTerminalRuntime } from "./runtime"
 
 // The demo's terminals, drawn as the runner's are: real terminals, through the same screens
 // and mount, each fed by a screen the demo writes as terminal output (see screen/terminal.ts).
@@ -65,8 +65,11 @@ export const demoScreensOptions = (
     { readonly screen: DemoTerminalScreen; readonly stop: () => void }
   >()
   // Each terminal's stream that draws it now, which the debug layer ends to show its output
-  // on the way again.
-  const streams = new Map<string, { readonly key: TerminalKey; readonly end: () => void }>()
+  // on the way again, or hands to another window (`observed`).
+  const streams = new Map<
+    string,
+    { readonly key: TerminalKey; readonly end: () => void; readonly observed: () => void }
+  >()
   const connection = runtime?.connection ?? always
 
   const screenOf = (key: TerminalKey): DemoTerminalScreen => {
@@ -97,8 +100,14 @@ export const demoScreensOptions = (
   // What the debug layer says a screen is doing: its output still on the way.
   const attaching = (key: TerminalKey): boolean =>
     runtime?.screens.getSnapshot().get(terminalKeyId(key))?.attaching === true
+  // Whether the debug layer has another window holding the terminal's keyboard, and how.
+  const observedOf = (id: string): DemoScreenState["observed"] =>
+    runtime?.screens.getSnapshot().get(id)?.observed
   const endAttaching = (): void => {
-    for (const { key, end } of streams.values()) if (attaching(key)) end()
+    for (const { key, end, observed } of streams.values()) {
+      if (attaching(key)) end()
+      else observed()
+    }
   }
   // While the backend runs: stopped, as a reboot or the app going leaves it, its terminals
   // read as closed, so the terminal screens let theirs go, and its own demo screens and waits go
@@ -126,8 +135,17 @@ export const demoScreensOptions = (
       if (streams.get(id)?.end === close) streams.delete(id)
       wake?.()
     }
+    // Another window may have the keyboard, as the debug layer says: this stream observes then,
+    // until it takes it.
+    let mode: "control" | "observe" = observedOf(id) ? "observe" : "control"
+    const listeners = new Set<(next: "control" | "observe") => void>()
+    const moved = (next: "control" | "observe"): void => {
+      if (next === mode) return
+      mode = next
+      for (const listener of listeners) listener(next)
+    }
     streams.get(id)?.end()
-    streams.set(id, { key, end: close })
+    streams.set(id, { key, end: close, observed: () => observedOf(id) && moved("observe") })
     // Bracketed paste, so a paste reaches the line editor whole rather than line by line;
     // the screens reset the emulator before a snapshot, so each one sets it again.
     const { cols, rows } = screen.size()
@@ -141,7 +159,24 @@ export const demoScreensOptions = (
     })
     detach = screen.attach((data) => push({ sequence: (sequence += 1), type: "output", data }))
     return {
-      mode: "control",
+      get mode() {
+        return mode
+      },
+      onMode: (listener) => {
+        listeners.add(listener)
+        return () => void listeners.delete(listener)
+      },
+      // Refused while the other window types and the view asked only if it's idle, as the
+      // runner refuses it.
+      take: (options) => {
+        if (observedOf(id) === "typing" && options?.ifIdleMs !== undefined)
+          return Promise.reject(
+            Object.assign(new Error("Another window is typing."), { code: "CONTROL_BUSY" }),
+          )
+        runtime?.took?.(key)
+        moved("control")
+        return Promise.resolve()
+      },
       [Symbol.asyncIterator]: () => ({
         next: async (): Promise<IteratorResult<TerminalEvent, undefined>> => {
           // Waits for the next event, or the end; `close` wakes it too.

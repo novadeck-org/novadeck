@@ -30,14 +30,6 @@ describe("the demo's project windows", () => {
     expect(states.at(-1)?.elsewhere).toEqual(["b"])
   })
 
-  it("swaps the project the page leaves with the pretend window's", () => {
-    const { demo, states } = watched()
-    demo.windows.show("a", ["a", "b"])
-    demo.pretend(["b"])
-    demo.windows.swap("b")
-    expect(states.at(-1)?.elsewhere).toEqual(["a"])
-  })
-
   it("sends the page where a pretend window says, and notes what the page hands over", () => {
     const { demo } = watched()
     const places: unknown[] = []

@@ -12,7 +12,8 @@ const setup = () => {
   const voices: [string | undefined, string | undefined][] = []
   const windows = createProjectWindows<string>({
     create: (projectId) => {
-      const window = `new-${projectId}`
+      const again = created.filter((each) => each.startsWith(`new-${projectId}`)).length
+      const window = again === 0 ? `new-${projectId}` : `new-${projectId}-${again}`
       created.push(window)
       return window
     },
@@ -90,30 +91,32 @@ describe("opening a project in a window of its own", () => {
     expect(told.get("a")?.elsewhere).toEqual(["p2"])
   })
 
-  it("brings forward the window that already shows it", () => {
-    const { windows, created, forwarded } = setup()
+  it("opens another window on a project another window shows already", () => {
+    const { windows, created, forwarded, told } = setup()
     windows.add("a", "p1")
     windows.add("b", "p2")
     windows.open("a", "p2")
-    expect(created).toEqual([])
-    expect(forwarded).toEqual(["b"])
+    expect(created).toEqual(["new-p2"])
+    expect(forwarded).toEqual([])
+    expect(told.get("b")?.elsewhere).toEqual(["p1", "p2"])
   })
 
-  it("does nothing for the project the window shows itself", () => {
+  it("opens one on the project the window shows itself", () => {
     const { windows, created, forwarded } = setup()
     windows.add("a", "p1")
     windows.open("a", "p1")
-    expect(created).toEqual([])
+    expect(created).toEqual(["new-p1"])
     expect(forwarded).toEqual([])
   })
 
-  it("opens one window for two asks before its page reports", () => {
+  it("opens a window for each ask", () => {
     const { windows, created } = setup()
     windows.add("a", "p1")
     windows.show("a", "p1", ["p1", "p2"])
     windows.open("a", "p2")
     windows.open("a", "p2")
-    expect(created).toEqual(["new-p2"])
+    expect(created).toHaveLength(2)
+    expect(windows.size()).toBe(3)
   })
 })
 
@@ -150,39 +153,7 @@ describe("opening a window the app may not", () => {
   })
 })
 
-describe("swapping two windows' projects", () => {
-  // Each window's changes reach the other live through the runner: nothing is waited for.
-  it("gives the other window this window's former project and sends it there at once", () => {
-    const { windows, navigated, told } = setup()
-    windows.add("a", "p1")
-    windows.add("b", "p2")
-    expect(windows.swap("b", "p1")).toBe("swapped")
-    expect(navigated).toEqual([{ window: "a", target: { projectId: "p2" } }])
-    expect(told.get("b")?.elsewhere).toEqual(["p2"])
-    expect(told.get("a")?.elsewhere).toEqual(["p1"])
-  })
-
-  it("brings the other window forward, sends it nowhere and leaves this one where it is, when this one hadn't said what it showed", async () => {
-    const { windows, navigated, forwarded, told } = setup()
-    windows.add("a")
-    windows.add("b", "p2")
-    expect(windows.swap("a", "p2")).toBe("forwarded")
-    expect(navigated).toEqual([])
-    expect(forwarded).toEqual(["b"])
-    expect(told.get("b")?.elsewhere).toEqual([])
-  })
-
-  it("only records the window's project when no other window shows it", async () => {
-    const { windows, navigated, told } = setup()
-    windows.add("a", "p1")
-    windows.add("b", "p2")
-    expect(windows.swap("a", "p3")).toBe("alone")
-    expect(navigated).toEqual([])
-    expect(told.get("b")?.elsewhere).toEqual(["p3"])
-  })
-})
-
-describe("handing a place in a project to its window", () => {
+describe("handing a place in a project to a window", () => {
   it("brings the window that shows the project forward and sends it there", () => {
     const { windows, forwarded, navigated } = setup()
     windows.add("a", "p1")
@@ -190,6 +161,30 @@ describe("handing a place in a project to its window", () => {
     windows.handOff("a", { projectId: "p2", terminalId: "t1" })
     expect(forwarded).toEqual(["b"])
     expect(navigated).toEqual([{ window: "b", target: { projectId: "p2", terminalId: "t1" } }])
+  })
+
+  it("keeps it in the window it was handed in when that shows the project, whichever else does", () => {
+    const { windows, navigated } = setup()
+    windows.add("a", "p1")
+    windows.add("b", "p1")
+    windows.used("b")
+    windows.handOff("a", { projectId: "p1", terminalId: "t1" })
+    expect(navigated.map(({ window }) => window)).toEqual(["a"])
+  })
+
+  it("goes to the window showing the project that was used last", () => {
+    const { windows, forwarded, navigated } = setup()
+    windows.add("a", "p1")
+    windows.add("b", "p2")
+    windows.add("c", "p2")
+    windows.used("c")
+    windows.used("a")
+    windows.handOff("a", { projectId: "p2" })
+    expect(forwarded).toEqual(["c"])
+    expect(navigated.map(({ window }) => window)).toEqual(["c"])
+    windows.used("b")
+    windows.handOff("a", { projectId: "p2" })
+    expect(navigated.map(({ window }) => window)).toEqual(["c", "b"])
   })
 
   it("never raises a window for what an agent asked, only sends it there", () => {
@@ -202,7 +197,7 @@ describe("handing a place in a project to its window", () => {
     expect(navigated.map(({ window }) => window)).toEqual(["b", "a"])
   })
 
-  it("tells the asking window when no window shows the project", () => {
+  it("tells the asking window, which switches, when no window shows the project", () => {
     const { windows, forwarded, navigated } = setup()
     windows.add("a", "p1")
     windows.add("b", "p2")

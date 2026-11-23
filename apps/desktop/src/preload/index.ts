@@ -2,7 +2,7 @@ import {
   desktopBadgeOf,
   parsePortableState,
   parseProjectWindowShown,
-  projectWindowSwapOf,
+  windowKeyOf,
   parseProjectWindowsState,
   parseProjectWindowTarget,
   windowIdOf,
@@ -47,6 +47,7 @@ import {
   dismissWhatsNewChannel,
   feedbackAboutChannel,
   extraWindowArgumentPrefix,
+  windowKeyArgumentPrefix,
   feedbackArgumentPrefix,
   feedbackSendChannel,
   installAppChannel,
@@ -89,7 +90,6 @@ import {
   projectWindowsChannel,
   projectWindowsRequestChannel,
   projectWindowsUseChannel,
-  projectWindowSwapChannel,
   screenReaderChannel,
   screenReaderRequestChannel,
   tellsScreenReader,
@@ -113,6 +113,13 @@ const feedback = process.argv.includes(`${feedbackArgumentPrefix}1`)
 
 // Whether this window is not the app's first: the main process says so by an argument, `1`.
 const extraWindow = process.argv.includes(`${extraWindowArgumentPrefix}1`)
+
+// This window's key, which the main process passes as an argument when it is a UUID.
+const windowKey = windowKeyOf(
+  process.argv
+    .find((item) => item.startsWith(windowKeyArgumentPrefix))
+    ?.slice(windowKeyArgumentPrefix.length),
+)
 
 // What the main process raised Chromium's WebGL context limit to, when it says so in a form the
 // contract allows; the page keeps its browser default otherwise.
@@ -337,12 +344,7 @@ const bridge = {
   openProjectWindow: (projectId) => {
     if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowOpenChannel, projectId)
   },
-  // Only one of the three answers comes back.
-  swapProjectWindow: async (projectId) => {
-    if (windowIdOf(projectId) === undefined) return "alone"
-    return projectWindowSwapOf(await ipcRenderer.invoke(projectWindowSwapChannel, projectId))
-  },
-  // Only the three fields cross; the main process checks them again.
+  // Only a valid place goes to the app, which routes it to the window that takes it.
   handOffToProjectWindow: (target) => {
     const place = parseProjectWindowTarget(target)
     if (place) ipcRenderer.send(projectWindowHandOffChannel, place)
@@ -569,5 +571,6 @@ contextBridge.exposeInMainWorld("novadeck", {
   ...(webglContexts === undefined ? {} : { webglContexts }),
   ...(feedback ? { feedback: true as const } : {}),
   ...(extraWindow ? { extraWindow: true as const } : {}),
+  ...(windowKey ? { windowKey } : {}),
   ...bridge,
 } satisfies DesktopApp)

@@ -1289,3 +1289,194 @@ describe("voice input API", () => {
     ).rejects.toMatchObject({ code: "VOICE_UNAVAILABLE", data: { reason: "unavailable" } })
   })
 })
+
+describe("control of a terminal between clients", () => {
+  type Control = { type: "control"; terminalId: string; holder: "you" | "other" | "none" }
+  const control = (terminalId: string, holder: Control["holder"]): Control => ({
+    type: "control",
+    terminalId,
+    holder,
+  })
+
+  /** A client's `terminals.controls` stream, read an item at a time. */
+  const following = async (resources: Resources, client: WireClient) => {
+    const controller = new AbortController()
+    resources.defer(async () => controller.abort())
+    const stream = await client.terminals.controls(undefined, { signal: controller.signal })
+    const next = async (): Promise<Control> => {
+      const result = await Promise.race([
+        stream.next(),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("No control item in 10 s")), 10_000).unref(),
+        ),
+      ])
+      if (result.done) throw new Error("The controls ended")
+      return result.value as Control
+    }
+    return { next }
+  }
+
+  /** A terminal whose creator has gone, so that attaching as control takes it at once. */
+  const open = async (resources: Resources) => {
+    const app = await fixture(resources)
+    const creator = await app.connect()
+    const { project, session } = await app.setup(creator.client)
+    const terminal = await creator.client.terminals.create(shell(session.id))
+    await creator.disconnect()
+    return { app, project, terminal }
+  }
+
+  it("moves to a client that takes it, the earlier one observing with its writes refused", async ({
+    resources,
+  }) => {
+    const { app, terminal } = await open(resources)
+    const first = await app.connect()
+    const second = await app.connect()
+    const viewing = await reader(resources, first.client, terminal.id)
+    await viewing.untilText("PTY_READY")
+    const watching = await reader(resources, second.client, terminal.id, { mode: "observe" })
+    await watching.next()
+    const firstFeed = await following(resources, first.client)
+    const secondFeed = await following(resources, second.client)
+    expect(await firstFeed.next()).toEqual(control(terminal.id, "you"))
+    expect(await secondFeed.next()).toEqual(control(terminal.id, "other"))
+
+    await second.client.terminals.take({ terminalId: terminal.id })
+    expect(await firstFeed.next()).toEqual(control(terminal.id, "other"))
+    expect(await secondFeed.next()).toEqual(control(terminal.id, "you"))
+    await expect(
+      first.client.terminals.write({ terminalId: terminal.id, data: "denied" }),
+    ).rejects.toMatchObject({ code: "CONTROL_REQUIRED" })
+    await print(second.client, terminal.id, "TAKEN_", "OVER")
+    // The earlier controller still reads.
+    await viewing.untilText("TAKEN_OVER")
+  })
+
+  it("is refused for a controller that wrote lately, until it has been idle", async ({
+    resources,
+  }) => {
+    const { app, terminal } = await open(resources)
+    const first = await app.connect()
+    const second = await app.connect()
+    const viewing = await reader(resources, first.client, terminal.id)
+    await viewing.untilText("PTY_READY")
+    await reader(resources, second.client, terminal.id, { mode: "observe" }).then((each) =>
+      each.next(),
+    )
+    await (await following(resources, first.client)).next()
+    await (await following(resources, second.client)).next()
+    await print(first.client, terminal.id, "BUSY_", "TYPING")
+    await expect(
+      second.client.terminals.take({ terminalId: terminal.id, ifIdleMs: 60_000 }),
+    ).rejects.toMatchObject({ code: "CONTROL_BUSY" })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    await second.client.terminals.take({ terminalId: terminal.id, ifIdleMs: 30 })
+    await print(second.client, terminal.id, "IDLE_", "TAKEN")
+  })
+
+  it("is refused for a controller that doesn't follow controls, and for a client not attached", async ({
+    resources,
+  }) => {
+    const { app, terminal } = await open(resources)
+    const old = await app.connect()
+    const newer = await app.connect()
+    const stranger = await app.connect()
+    const viewing = await reader(resources, old.client, terminal.id)
+    await viewing.untilText("PTY_READY")
+    await reader(resources, newer.client, terminal.id, { mode: "observe" }).then((each) =>
+      each.next(),
+    )
+    await (await following(resources, newer.client)).next()
+    await expect(newer.client.terminals.take({ terminalId: terminal.id })).rejects.toMatchObject({
+      code: "CONTROL_IN_USE",
+    })
+    await expect(stranger.client.terminals.take({ terminalId: terminal.id })).rejects.toMatchObject(
+      { code: "CONFLICT" },
+    )
+    await expect(newer.client.terminals.take({ terminalId: randomUUID() })).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+    await print(old.client, terminal.id, "STILL_", "OLD")
+  })
+
+  it("tells a client who controls, as each attachment starts and as control moves", async ({
+    resources,
+  }) => {
+    const { app, terminal } = await open(resources)
+    const client = await app.connect()
+    const other = await app.connect()
+    const feed = await following(resources, client.client)
+    // Following before attaching: each attachment is told as it starts.
+    const watching = await reader(resources, client.client, terminal.id, { mode: "observe" })
+    await watching.next()
+    expect(await feed.next()).toEqual(control(terminal.id, "none"))
+    await other.client.terminals.attach({ terminalId: terminal.id }).then((stream) => stream.next())
+    expect(await feed.next()).toEqual(control(terminal.id, "other"))
+    // `other` follows too, so it could learn it lost control.
+    await (await following(resources, other.client)).next()
+    await client.client.terminals.take({ terminalId: terminal.id })
+    expect(await feed.next()).toEqual(control(terminal.id, "you"))
+  })
+
+  describe("let go of", () => {
+    /** `first` controls; `older` and `used` observe and follow, `used` being the one in use. */
+    const trio = async (resources: Resources) => {
+      const { app, project, terminal } = await open(resources)
+      const first = await app.connect()
+      const older = await app.connect()
+      const used = await app.connect()
+      const viewing = await reader(resources, first.client, terminal.id)
+      await viewing.untilText("PTY_READY")
+      const olderReader = await reader(resources, older.client, terminal.id, { mode: "observe" })
+      await olderReader.next()
+      await reader(resources, used.client, terminal.id, { mode: "observe" }).then((each) =>
+        each.next(),
+      )
+      const feeds = {
+        first: await following(resources, first.client),
+        older: await following(resources, older.client),
+        used: await following(resources, used.client),
+      }
+      await Promise.all(Object.values(feeds).map((feed) => feed.next()))
+      // The person uses `used`, which reported later than `older` by use, not by attaching.
+      await used.client.terminals.showing({ projectId: project.id })
+      await older.client.terminals.showing({ projectId: project.id })
+      await used.client.terminals.showing({ projectId: project.id })
+      await older.client.terminals.showing({ projectId: project.id })
+      await used.client.terminals.active({ terminalId: terminal.id })
+      return { terminal, first, older, used, viewing, feeds }
+    }
+
+    it("on detaching, goes to the most recently used following observer, which can type at once", async ({
+      resources,
+    }) => {
+      const { terminal, older, used, viewing, feeds } = await trio(resources)
+      await viewing.stream.return()
+      expect(await feeds.used.next()).toEqual(control(terminal.id, "you"))
+      expect(await feeds.older.next()).toEqual(control(terminal.id, "other"))
+      await print(used.client, terminal.id, "HANDED_", "DETACH")
+      await expect(
+        older.client.terminals.write({ terminalId: terminal.id, data: "denied" }),
+      ).rejects.toMatchObject({ code: "CONTROL_REQUIRED" })
+    })
+
+    it("is not changed by a client saying it uses no terminal, as a window losing focus does", async ({
+      resources,
+    }) => {
+      const { terminal, older, used, viewing, feeds } = await trio(resources)
+      await older.client.terminals.active({ terminalId: null })
+      await viewing.stream.return()
+      expect(await feeds.used.next()).toEqual(control(terminal.id, "you"))
+      expect(await feeds.older.next()).toEqual(control(terminal.id, "other"))
+      await print(used.client, terminal.id, "HANDED_", "BLUR")
+    })
+
+    it("on disconnecting, goes the same way", async ({ resources }) => {
+      const { terminal, first, used, feeds } = await trio(resources)
+      await first.disconnect()
+      expect(await feeds.used.next()).toEqual(control(terminal.id, "you"))
+      expect(await feeds.older.next()).toEqual(control(terminal.id, "other"))
+      await print(used.client, terminal.id, "HANDED_", "CLOSE")
+    })
+  })
+})

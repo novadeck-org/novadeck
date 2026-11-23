@@ -70,6 +70,8 @@ export type SessionSeed = {
 export type ProjectSeed = Project & {
   readonly sessions: readonly SessionSeed[]
   readonly pinned?: boolean
+  // The session the project opens, over the one visited last, when it names one of its sessions.
+  readonly openSessionId?: string
 }
 export type WorkspaceSeed = {
   readonly projects: readonly ProjectSeed[]
@@ -132,12 +134,12 @@ type SeedDefaults = {
 
 // Builds the starting workspace through the same reducer path as new sessions.
 // The seed's active project (else the first) is active, and each project opens the
-// session visited last (else its first listed), keeping the listed order.
+// session its seed names, else the one visited last (else its first listed), keeping the listed order.
 // Throws WorkspaceSeedError for a seed without projects or a project without sessions.
 export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): Workspace => {
   validate(seed)
   const projects = seed.projects.map(
-    ({ sessions: _sessions, pinned: _pinned, ...project }) => project,
+    ({ sessions: _sessions, pinned: _pinned, openSessionId: _open, ...project }) => project,
   )
   const active = projects.find((project) => project.id === seed.activeProjectId) ?? projects[0]!
   const seeded = seed.projects.reduce(
@@ -180,6 +182,7 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
       ),
     ),
   )
+  const opened = new Map(seed.projects.map((project) => [project.id, project.openSessionId]))
   return {
     ...seeded,
     projects: seeded.projects.map((project) => {
@@ -194,7 +197,12 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
             : best,
         undefined,
       )
-      return { ...project, history, activeSessionId: last?.id ?? project.activeSessionId }
+      const open = history.find((session) => session.id === opened.get(project.id))
+      return {
+        ...project,
+        history,
+        activeSessionId: open?.id ?? last?.id ?? project.activeSessionId,
+      }
     }),
   }
 }

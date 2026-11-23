@@ -36,6 +36,9 @@ export const createStore = <S>(initial: S): MutableStore<S> => {
 // only Enter, to start again.
 export type ViewPhase = "starting" | "running" | "ended"
 export type ViewLink = "connected" | "reconnecting" | "unavailable"
+// Who has the keyboard, while this client only observes the terminal: another does (`observing`),
+// or a take was refused as its controller is typing (`busy`).
+export type ControlStrip = "observing" | "busy"
 export type ViewLock = "starting" | "loading" | "reconnecting" | "offline"
 
 export type ViewState = {
@@ -50,6 +53,8 @@ export type ViewState = {
   // A short word for the person: why the last paste failed, for a few seconds after it
   // did, or that a copy reached the clipboard, for a moment.
   readonly notice: string | null
+  // Set while another client controls the terminal; null while this one does.
+  readonly control?: ControlStrip | null
 }
 
 // What the screen is told, apart from the state it keeps.
@@ -85,13 +90,14 @@ export const nextViewState = (
   change: ViewChange,
   facts: ViewFacts,
 ): ViewState => {
-  const { live, resuming, waits, notice } = { ...state, ...change }
+  const { live, resuming, waits, notice, control = null } = { ...state, ...change }
   const lock = lockOf(facts, { live, resuming, waits })
   return live === state.live &&
     resuming === state.resuming &&
     waits === state.waits &&
     notice === state.notice &&
+    control === (state.control ?? null) &&
     lock === state.lock
     ? state
-    : { live, resuming, waits, lock, notice }
+    : { live, resuming, waits, lock, notice, ...(control !== null && { control }) }
 }

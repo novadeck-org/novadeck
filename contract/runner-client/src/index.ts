@@ -10,4 +10,4 @@ export {
   type TerminalWatchItem,
   type WorkWatchItem,
 } from "./runner.js"
-export { type AttachedTerminal, type TerminalMode } from "./terminal.js"
+export { type AttachedTerminal, type AttachMode, type TerminalMode } from "./terminal.js"

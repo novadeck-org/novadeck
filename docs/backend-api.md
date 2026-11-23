@@ -808,11 +808,28 @@ How each kind of change ships:
 | New output field                                          | ignored                | missing                | `.optional()`, or raise `oldestRunner`                                                                                                                                     |
 | New procedure                                             | never called           | missing                | `.meta({ since: <revision> })`, and the UI asks `runner.supports(path)` first (a call to it rejects with `UNSUPPORTED` without asking the runner); or raise `oldestRunner` |
 | New value or variant in an output                         | unknown to it          | fine                   | add it to an open schema, once every UI in the window reads it so; or mark the schema open (as of the next revision) and raise `oldestClient`                              |
-| New value, or a looser bound, in an input                 | fine                   | refused                | gate it on the runner's revision with a new procedure, or raise `oldestRunner`                                                                                             |
+| New value, or a looser bound, in an input                 | fine                   | refused                | for a new enum value or union variant, mark it since the revision (below); else gate it with a new procedure, or raise `oldestRunner`                                      |
 | Removed or renamed procedure or field, new required input | broken                 | —                      | raise `oldestClient`; better, stage it: add the new one, move the UI to it, and remove the old one once the window has passed it                                           |
 
 Raising an edge past the newest release's revision is how a change that can't be additive
 is declared: the handshake then refuses that release's peers, with the message above.
+
+A new value of an input enum, or a new variant of an input union, can name the revision it came
+in (`inputEnum(values, { since: { opencode: 7 } })`, `inputUnion(tag, options, { since: { <tag
+value>: 7 } })` in `contract/protocol/src/open.ts`; `x-since` in `contract.json`). The types stay
+the plain enum and union. The check then takes the value as additive and lists it as new, for UIs
+to ask for, without moving `oldestRunner`: a line such as `agents.open harness "opencode" since 7`,
+where `harness` is the `at` to pass. It fails an unmarked new value, a mark on a value the newest
+release already had, a released mark changed or dropped, a mark past the revision, and a mark
+naming a value the schema doesn't take. A UI asks `runner.supports(path, { at, value })` before it
+offers the value: `at` names the input's keys with `.` between them, `*` for a list's or tuple's
+items and a record's values and keys (`list.*.harness`), and `value` is the enum value or the
+variant's tag value. It answers no when any place `at` reaches marks the value newer than the
+runner, and for an `at` the input doesn't have. A call whose input holds such a value in any
+place of the input (keys, items, records, tuples, intersections, catchalls, nested unions)
+rejects with `UNSUPPORTED` without asking the runner. Don't mark values inside a plain union,
+only a discriminated one. An enum an output shares still needs `openEnum` for that side, and
+moves `oldestClient` as before.
 
 #### Open schemas
 
@@ -876,6 +893,22 @@ see them change.
   write or resize. Another connection can attach with `mode: "observe"`.
   There is one attachment per terminal per connection. Cancelling a controlling
   attachment or disconnecting releases control, but leaves the shell running.
+  A client attached to a terminal can `take` it: its attachment controls from then
+  on, and the one that controlled stays attached as an observer, its `write` and `resize`
+  refused with `CONTROL_REQUIRED`. With `ifIdleMs` the take succeeds only where the
+  controller hasn't written for that long (`write` by the controller counts; the
+  runner's own typing, such as a prompt or keys an agent is sent, does not), else
+  `CONTROL_BUSY`. A client follows `terminals.controls` to learn who controls each
+  terminal it is attached to (`you`, `other` or `none`), once as each attachment starts and
+  again at every change: a take, a hand-over, a release, a restart. A controller that
+  doesn't follow it couldn't learn it lost control, so `take` refuses it with
+  `CONTROL_IN_USE`, as an older client that never follows gets today. When a
+  controller lets go of a running terminal, by ending its attachment or closing its
+  connection, the runner hands control to one of the terminal's observers that follow
+  `controls`: the one whose client the person used last (a `showing` report after the
+  first, or `active`), else the one that attached last. A client that fails
+  `SLOW_CONSUMER` hands nothing over, as it attaches again at once. The client handed
+  control resizes the terminal itself.
 - Events carry `terminalId` and an increasing `sequence`. Initial attachment emits
   a serialized screen snapshot with dimensions and `exit`, null while the shell
   runs. Output, resize, and exit events follow in order. A snapshot replaces the old
@@ -2413,7 +2446,7 @@ one from an earlier runner.
   step has waited on the agent past its patience. Refused as `tour.brief` is.
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
-`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
+`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`, `CONTROL_BUSY`,
 `INVALID_CURSOR`, `UPLOAD_TOO_LARGE`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
 `TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. A
 `CONFLICT` about typing into an agent's terminal (`agents.prompt`, `agents.answer`,

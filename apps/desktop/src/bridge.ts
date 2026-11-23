@@ -306,9 +306,6 @@ export const projectWindowsUseChannel = "novadeck:project-windows-use"
 /** Renderer-to-main request to open a project in a window of its own: the project's id. */
 export const projectWindowOpenChannel = "novadeck:project-window-open"
 
-/** Renderer-to-main request to swap the window's project with the window that shows another. */
-export const projectWindowSwapChannel = "novadeck:project-window-swap"
-
 /** Renderer-to-main request to hand a place in a project, `{ projectId, terminalId?, rowId? }`, to its window. */
 export const projectWindowHandOffChannel = "novadeck:project-window-hand-off"
 
@@ -320,3 +317,6 @@ export const projectWindowNavigateChannel = "novadeck:project-window-navigate"
  * absent in the first window.
  */
 export const extraWindowArgumentPrefix = "--novadeck-extra-window="
+
+/** Given to the page's preload: the window's key, a UUID (see `DesktopApp.windowKey`). */
+export const windowKeyArgumentPrefix = "--novadeck-window-key="

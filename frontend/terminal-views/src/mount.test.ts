@@ -31,6 +31,7 @@ const recorded = () => {
       place: () => void calls.push("place"),
       update: (change) => void asked.push(change),
       focus: () => true,
+      take: () => void calls.push("take"),
       release: ({ unmount = false } = {}) => void calls.push(unmount ? "unmount" : "release"),
     }
   }
@@ -54,6 +55,13 @@ describe("a terminal's mount", () => {
       return asked[0]?.webgl
     }
     expect([webglIn("grid"), webglIn("focus"), webglIn("canvas")]).toEqual([true, true, false])
+  })
+
+  it("takes control through its screen, whichever view shows it", () => {
+    const { calls, screens } = recorded()
+    const mount = createTerminalMount(screens)(document.createElement("div"), key, props("canvas"))
+    mount.take?.()
+    expect(calls).toContain("take")
   })
 
   it("asks again when its view changes", () => {

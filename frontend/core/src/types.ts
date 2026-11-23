@@ -72,7 +72,7 @@ export type PreferencesValue = {
   // Messages pane draws, in its program's place.
   agentAvatars: boolean
   // Whether a project opens in a window of its own, from its menu in the switcher and the pins
-  // bar: each window shows one project, and a project shows in one window at a time. Off by
+  // bar: each window shows one project, and a project may show in several windows. Off by
   // default, and only with Experimental on.
   projectWindows: boolean
   // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only

@@ -68,6 +68,34 @@ export function openUnion(
     : z.discriminatedUnion(tag, [...options]).meta({ [openMark]: open })
 }
 
+/** The keyword an input's marked values carry, in zod's meta and in contract.json. */
+export const sinceMark = "x-since"
+
+/** Each new value of an input enum, or each new variant's tag value, by the revision it came in. */
+export type ValueSince<Value extends string = string> = { readonly [K in Value]?: number }
+
+/**
+ * `values` as an input's enum, where the values a release lacked say the revision they came in:
+ * a runner older than it doesn't know the value, so a client sends it only to one at that
+ * revision or later (`servesValue`, `gated` in `@novadeck/wire`), and the compatibility check
+ * takes it as additive. Values a release already had carry none. It is the plain enum.
+ */
+export const inputEnum = <const T extends readonly [string, ...string[]]>(
+  values: T,
+  input: { readonly since: ValueSince<T[number]> },
+): z.ZodEnum<{ [K in T[number]]: K }> => z.enum(values).meta({ [sinceMark]: input.since }) as never
+
+/**
+ * A discriminated union of an input, where a variant a release lacked says the revision it came
+ * in by its `tag` value, as `inputEnum` does for a value. It is the plain union.
+ */
+export const inputUnion = <const Tag extends string, const T extends Options>(
+  tag: Tag,
+  options: T,
+  input: { readonly since: ValueSince },
+): z.ZodDiscriminatedUnion<[...T], Tag> =>
+  z.discriminatedUnion(tag, [...options]).meta({ [sinceMark]: input.since }) as never
+
 // A placeholder variant: an object whose every key reads `newer`.
 type IsPlaceholder<T> = keyof T extends never
   ? false

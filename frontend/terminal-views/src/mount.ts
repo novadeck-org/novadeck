@@ -124,6 +124,7 @@ export const createTerminalMount =
       restart: () => {
         if (!disposed) screens.restart(key)
       },
+      take: () => hold?.take(),
       dispose: () => {
         if (disposed) return
         disposed = true

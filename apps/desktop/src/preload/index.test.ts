@@ -9,6 +9,7 @@ import {
   apiUrlArgumentPrefix,
   feedbackAboutChannel,
   extraWindowArgumentPrefix,
+  windowKeyArgumentPrefix,
   feedbackArgumentPrefix,
   feedbackSendChannel,
   webglContextsArgumentPrefix,
@@ -56,7 +57,6 @@ import {
   projectWindowsChannel,
   projectWindowsRequestChannel,
   projectWindowsUseChannel,
-  projectWindowSwapChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -537,17 +537,6 @@ describe("the project windows", () => {
     ])
   })
 
-  it("asks for a swap, and hears only one of the three answers", async () => {
-    electron.answer = "swapped"
-    await expect(electron.exposed.swapProjectWindow!("p3")).resolves.toBe("swapped")
-    expect(electron.messages).toContainEqual([projectWindowSwapChannel, "p3"])
-    electron.answer = "forwarded"
-    await expect(electron.exposed.swapProjectWindow!("p3")).resolves.toBe("forwarded")
-    electron.answer = { what: "ever" }
-    await expect(electron.exposed.swapProjectWindow!("p3")).resolves.toBe("alone")
-    await expect(electron.exposed.swapProjectWindow!("")).resolves.toBe("alone")
-  })
-
   it("sends nothing for what is not", () => {
     const bridge = electron.exposed
     bridge.showProjectWindow!("")
@@ -579,6 +568,25 @@ describe("the project windows", () => {
       process.argv.splice(process.argv.indexOf(extra), 1)
     }
   })
+
+  it.each([
+    ["a UUID", "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b", "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b"],
+    ["anything else", "not-a-key", undefined],
+  ])(
+    "gives the page the window's key from its argument, when it is %s",
+    async (_name, given, key) => {
+      expect(electron.exposed.windowKey).toBeUndefined()
+      vi.resetModules()
+      const keyArgument = `${windowKeyArgumentPrefix}${given}`
+      process.argv.push(keyArgument)
+      try {
+        await import("./index")
+        expect(electron.exposed.windowKey).toBe(key)
+      } finally {
+        process.argv.splice(process.argv.indexOf(keyArgument), 1)
+      }
+    },
+  )
 })
 
 const ready = { kind: "ready", version: "1.2.3" }

@@ -75,6 +75,7 @@ import {
   maxUploadPartLength,
   startupCommand,
   terminalAttached,
+  terminalControl,
   terminalChange,
   terminalEvent,
   terminalRequest,
@@ -105,6 +106,8 @@ export const errors = {
   TERMINAL_EXITED: { status: 409 },
   CONTROL_IN_USE: { status: 409 },
   CONTROL_REQUIRED: { status: 403 },
+  // The terminal's controller wrote within the `ifIdleMs` a `terminals.take` gave: it's typing.
+  CONTROL_BUSY: { status: 409 },
   // The connection's credential doesn't let it do this, as a device minting another: only the
   // owner's does. Unlike UNAUTHORIZED, the connection goes on.
   FORBIDDEN: { status: 403 },
@@ -356,6 +359,26 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, cols: columns, rows }))
       .output(z.void()),
     ack: procedure.input(z.strictObject({ terminalId: id, sequence })).output(z.void()),
+    // Takes control of a terminal this client is attached to: its attachment controls from now
+    // on, and the one that controlled observes, its writes and resizes refused. With
+    // `ifIdleMs`, only where the controller hasn't written for that long, else CONTROL_BUSY.
+    // A controller that doesn't follow `controls` couldn't learn it lost control, so keeps it:
+    // CONTROL_IN_USE. Taking a terminal no one controls, or that this client does, is fine; one
+    // this client isn't attached to is a CONFLICT.
+    take: procedure
+      .meta({ since: 8 })
+      .input(
+        z.strictObject({
+          terminalId: id,
+          ifIdleMs: z.number().int().min(0).max(60_000).optional(),
+        }),
+      )
+      .output(z.void()),
+    // Who controls each terminal this client is attached to (`TerminalControl`), as each
+    // attachment starts and again as it changes. A client that follows it is handed control
+    // when the controller lets go (detaches, closes or disconnects): the one of those observing
+    // the terminal it used last. Lapses with the connection.
+    controls: procedure.meta({ since: 8 }).input(z.void()).output(eventIterator(terminalControl)),
     // The terminal this client's person is using now, null for none: the one on screen in Focus
     // view, the selected one in Grid and Canvas, while the window has their focus. Each client
     // has one, which replaces its last and lapses with its connection, and the runner gives

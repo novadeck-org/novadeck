@@ -95,6 +95,9 @@ export type TerminalMount = {
   readonly focus: () => boolean
   // A fresh shell in an exited or failed terminal.
   readonly restart: () => void
+  // Takes control of a terminal another client controls, as the strip's button asks. Absent
+  // where a backend has no observing.
+  readonly take?: () => void
   // Called while the element is still in the document, so focus carries to the next mount.
   // Safe twice; leaves the element's content where it is.
   readonly dispose: () => void
@@ -114,6 +117,10 @@ export type ViewState = {
   // A short word for the person: why the last paste failed, for a few seconds after it
   // did, or that a copy reached the clipboard, for a moment.
   readonly notice: string | null
+  // Set while another client controls the terminal and this one only observes it: the screen is
+  // drawn at the terminal's size and a key may take control (`TerminalMount.take`). `busy` says
+  // a take was refused because the controller is typing. Absent or null: this client controls.
+  readonly control?: "observing" | "busy" | null
 }
 // The terminal font from Preferences: the size in CSS pixels, and the family the person chose,
 // which goes in front of the theme's own chain; none is the theme's font.
@@ -513,6 +520,15 @@ export type BackendFields = {
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.
   readonly typeInto?: (key: TerminalKey, text: string) => boolean
+  // Optional, with `terminalControl`. Whether this window only observes the terminal, another
+  // client controlling it, which the backend knows synchronously. Absent: it never does.
+  readonly observing?: (key: TerminalKey) => boolean
+  // Optional. Takes control of an observed terminal, refused with the controller's reason (it
+  // wrote within `ifIdleMs`) by rejecting; resolves at once where this window controls it.
+  readonly takeControl?: (
+    key: TerminalKey,
+    options?: { readonly ifIdleMs?: number },
+  ) => Promise<void>
   // Optional. Hands a terminal's name back to the backend, which names it on its own
   // again: the name the person gave it goes, and the backend reports the one it takes
   // with `terminal/update`. Absent where names are only the person's.
@@ -534,9 +550,11 @@ export type BackendFields = {
   // Optional. Tells the backend which terminal the person is using in this window (its id),
   // or none (null): the one they look at while the window has their focus. A backend that runs
   // the terminals' programs gives it the CPU share of the app's own, and the others' programs
-  // yield it. Told again, with no change, only where the link to the runner came back. Absent
-  // where terminals run no programs on this machine, as in the demo.
-  readonly activeTerminal?: (terminalId: string | null) => void
+  // yield it. Told again, with no change, where the link to the runner came back, and where
+  // `again` is set, as when the window gains focus or the person types: the runner takes it as
+  // the window being used. Absent where terminals run no programs on this machine, as in the
+  // demo.
+  readonly activeTerminal?: (terminalId: string | null, again?: boolean) => void
   // Optional. Tells the backend which project this window shows (null for none), so what an
   // agent asks of the person reaches the window that shows the project of the terminal that
   // asked. Told again, with no change, only where the link to the runner came back. Called only

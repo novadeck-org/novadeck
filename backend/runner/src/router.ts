@@ -179,7 +179,7 @@ export const createRouter = (options: {
   /** Which terminals the people at the clients use; without it, reports of them are ignored. */
   activity?: Pick<ActiveTerminals, "report">
   /** Which project each client shows; without it, reports of it are ignored. */
-  clients?: Pick<ClientWindows, "report" | "touch">
+  clients?: Pick<ClientWindows, "report" | "touch" | "active">
   /** Which terminals the clients have in sight; without it, reports of them are ignored. */
   seen?: Pick<SeenTerminals, "report">
   /** The runner settings were saved. */
@@ -333,8 +333,14 @@ export const createRouter = (options: {
           signal,
         ),
       ),
+      take: api.terminals.take.handler(({ input, context }) =>
+        terminals.controls.take(input, context.session.id),
+      ),
+      controls: api.terminals.controls.handler(({ context, signal }) =>
+        terminals.controls.follow(context.session.id, signal),
+      ),
       active: api.terminals.active.handler(({ input, context }) => {
-        options.clients?.touch(context.session.id)
+        options.clients?.active(context.session.id, input.terminalId)
         options.activity?.report(context.session.id, input.terminalId)
       }),
       showing: api.terminals.showing.handler(({ input, context }) =>

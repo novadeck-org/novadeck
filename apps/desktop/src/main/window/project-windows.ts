@@ -1,13 +1,13 @@
-// Project windows: each of the app's windows shows one project, and a project shows in at
-// most one window. This keeps which window shows what, which window the person used last, and
-// the decisions that follow: swapping two windows' projects, opening a project in a window of
-// its own, and handing a place in a project to its window. It knows no Electron: the window
+// Project windows: each of the app's windows shows one project, and a project may show in
+// several windows at once. This keeps which window shows what, which window the person used
+// last, and the decisions that follow: opening a project in a window of its own, and handing
+// a place in a project to the window that takes it. It knows no Electron: the window
 // type is the caller's, and everything that touches a window goes through `ProjectWindowsOutput`.
 import type { ProjectWindowsState, ProjectWindowTarget } from "@novadeck/protocol/bridge"
 
 /** What the registry asks of the app's windows. */
 export type ProjectWindowsOutput<Window> = {
-  /** Opens a window on a project, which the new window shows from the start. */
+  /** Opens a window on a project, which the new window shows from the start, under a new key. */
   readonly create: (projectId: string) => Window
   /** Brings a window to the front. */
   readonly forward: (window: Window) => void
@@ -99,52 +99,24 @@ export const createProjectWindows = <Window>(output: ProjectWindowsOutput<Window
       if (shown.has(window)) output.tell(window, stateOf(window))
     },
     /**
-     * Opens a project in a window of its own; the window that shows it comes forward instead,
-     * and a window asking for the project it shows itself does nothing. A project no page
-     * knows, or one past `mostWindows` windows, opens nothing.
+     * Opens a project in a new window, even when this or another window shows it already. A
+     * project no page knows, or one past `mostWindows` windows, opens nothing.
      */
-    open: (from: Window, projectId: string): void => {
-      if (shown.get(from) === projectId || !isKnown(projectId)) return
-      const window = windowOf(projectId, from)
-      if (window !== undefined) return output.forward(window)
-      if (shown.size >= mostWindows) return
+    open: (_from: Window, projectId: string): void => {
+      if (!isKnown(projectId) || shown.size >= mostWindows) return
       const created = output.create(projectId)
       // A second ask before the new page reports finds it.
       shown.set(created, projectId)
       changed()
     },
     /**
-     * `from`'s page picks `projectId`: the window that shows it shows what `from` showed, and is
-     * sent there. Each window's changes reach the other live through the runner, so nothing
-     * waits for them. `swapped` then; with
-     * no other window on it, `alone`, and `from` simply shows it; and `forwarded` when `from`
-     * hadn't said what it shows, so there is nothing to give the other: it comes forward instead,
-     * the person's pick, and `from` stays where it is.
-     */
-    swap: (from: Window, projectId: string): "swapped" | "forwarded" | "alone" => {
-      const former = shown.get(from)
-      const other = windowOf(projectId, from)
-      if (other !== undefined && former === undefined) {
-        output.forward(other)
-        return "forwarded"
-      }
-      shown.set(from, projectId)
-      if (other === undefined || former === undefined || former === projectId) {
-        changed()
-        return "alone"
-      }
-      shown.set(other, former)
-      changed()
-      output.navigate(other, { projectId: former })
-      return "swapped"
-    },
-    /**
-     * Brings forward the window that shows the target's project and tells it to go there,
-     * unless an agent asked (`quiet`), which never raises a window; `from` is told instead
-     * when no other window shows it.
+     * Sends a place in a project to a window: `from` when it shows the project, else the window
+     * showing it that the person used last, else `from`, which switches. The window comes
+     * forward, unless an agent asked (`quiet`), which never raises a window.
      */
     handOff: (from: Window, target: ProjectWindowTarget): void => {
-      const window = windowOf(target.projectId, from) ?? from
+      const window =
+        shown.get(from) === target.projectId ? from : (windowOf(target.projectId, from) ?? from)
       if (target.quiet !== true) output.forward(window)
       output.navigate(window, target)
     },
