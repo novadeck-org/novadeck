@@ -3,9 +3,20 @@
  * architecture/grants.md). Both live in memory, per terminal: a restart fails closed, and a
  * command then needs a permit again.
  */
+import { randomUUID } from "node:crypto"
 
-/** How long a permit lasts: the same target gets retried (a failed push), and Codex asks twice. */
+/**
+ * How long a permit lasts once used: the same target gets retried (a failed push), and Codex
+ * asks twice for one run.
+ */
 export const permitMs = 10 * 60_000
+
+/**
+ * How long a permit stands unused: a go-ahead given at bedtime covers the merge once CI is
+ * green, hours later. Its first use, its PR closing, its terminal closing, a restart, or the
+ * person taking it back ends it sooner.
+ */
+export const standingMs = 12 * 60 * 60_000
 
 /** What gave a permit. */
 export type Source =
@@ -15,18 +26,32 @@ export type Source =
 export type Permit = {
   readonly terminalId: string
   readonly key: string
+  /**
+   * The permits one declaration or one card gave together (a PR's merge by its number and by
+   * its branch): used, shown and taken back as one.
+   */
+  readonly group: string
+  /** What it permits, in Novadeck's own words: "Merge PR #1170 into main". */
+  readonly title: string
+  readonly givenAt: number
   readonly until: number
+  /** When it was first used; its retry window runs from there. */
+  readonly usedAt: number | null
   /** A force or `--admin` permit is used once. */
   readonly singleUse: boolean
   readonly source: Source
 }
 
-/** The permits of every terminal, each for one target, kept ten minutes. */
+/** What a permit stands for, as one declaration or card gave it. */
+export type Given = { readonly group?: string; readonly title?: string }
+
+/** The permits of every terminal, each for one target, standing until used or `standingMs`. */
 export class Permits {
   private readonly held = new Map<string, Permit>()
   // Counts what ended permits other than their use: a revoke, a terminal's close.
   private epoch = 0
   private readonly listeners = new Set<(permit: Permit) => void>()
+  private readonly changes = new Set<(terminalId: string) => void>()
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -34,11 +59,34 @@ export class Permits {
     return `${terminalId}\n${key}`
   }
 
+  private changed(terminalIds: Iterable<string>): void {
+    for (const terminalId of new Set(terminalIds))
+      for (const listener of this.changes) listener(terminalId)
+  }
+
   /** Gives a terminal the permit for `key`, replacing one it held. */
-  give(terminalId: string, key: string, singleUse: boolean, source: Source): Permit {
-    const permit = { terminalId, key, until: this.now() + permitMs, singleUse, source }
+  give(
+    terminalId: string,
+    key: string,
+    singleUse: boolean,
+    source: Source,
+    given: Given = {},
+  ): Permit {
+    const at = this.now()
+    const permit: Permit = {
+      terminalId,
+      key,
+      group: given.group ?? randomUUID(),
+      title: given.title ?? key,
+      givenAt: at,
+      until: at + standingMs,
+      usedAt: null,
+      singleUse,
+      source,
+    }
     this.held.set(this.id(terminalId, key), permit)
     for (const listener of this.listeners) listener(permit)
+    this.changed([terminalId])
     return permit
   }
 
@@ -48,14 +96,42 @@ export class Permits {
     if (!permit) return undefined
     if (permit.until <= this.now()) {
       this.held.delete(this.id(terminalId, key))
+      this.changed([terminalId])
       return undefined
     }
     return permit
   }
 
-  /** A permit was used: a single-use one ends. */
+  /** The terminal's live permits, oldest first. */
+  of(terminalId: string): readonly Permit[] {
+    const now = this.now()
+    return [...this.held.values()]
+      .filter((permit) => permit.terminalId === terminalId && permit.until > now)
+      .toSorted((one, other) => one.givenAt - other.givenAt)
+  }
+
+  /**
+   * A permit was used: a single-use one ends, and a standing one, with the others of its
+   * group, keeps only its retry window from its first use.
+   */
   used(permit: Permit): void {
-    if (permit.singleUse) this.held.delete(this.id(permit.terminalId, permit.key))
+    if (permit.singleUse) {
+      if (this.held.delete(this.id(permit.terminalId, permit.key)))
+        this.changed([permit.terminalId])
+      return
+    }
+    const at = this.now()
+    let touched = false
+    for (const [id, each] of this.held)
+      if (
+        each.terminalId === permit.terminalId &&
+        each.group === permit.group &&
+        each.usedAt === null
+      ) {
+        this.held.set(id, { ...each, usedAt: at, until: Math.min(each.until, at + permitMs) })
+        touched = true
+      }
+    if (touched) this.changed([permit.terminalId])
   }
 
   /**
@@ -78,13 +154,38 @@ export class Permits {
   /** Ends every terminal's permit for `key`: the target it was given for has changed. */
   revoke(key: string): void {
     this.epoch += 1
-    for (const [id, permit] of this.held) if (permit.key === key) this.held.delete(id)
+    const ended: string[] = []
+    for (const [id, permit] of this.held)
+      if (permit.key === key) {
+        this.held.delete(id)
+        ended.push(permit.terminalId)
+      }
+    this.changed(ended)
+  }
+
+  /** Ends a terminal's permits of one group: the person took them back. Whether any stood. */
+  takeBack(terminalId: string, group: string): boolean {
+    this.epoch += 1
+    let ended = false
+    for (const [id, permit] of this.held)
+      if (permit.terminalId === terminalId && permit.group === group) {
+        this.held.delete(id)
+        ended = true
+      }
+    if (ended) this.changed([terminalId])
+    return ended
   }
 
   /** Ends every permit of a terminal, as it closes. */
   forget(terminalId: string): void {
     this.epoch += 1
-    for (const [id, permit] of this.held) if (permit.terminalId === terminalId) this.held.delete(id)
+    let ended = false
+    for (const [id, permit] of this.held)
+      if (permit.terminalId === terminalId) {
+        this.held.delete(id)
+        ended = true
+      }
+    if (ended) this.changed([terminalId])
   }
 
   /** Calls `listener` whenever a permit is given, to withdraw a card another source answered. */
@@ -92,11 +193,20 @@ export class Permits {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
+
+  /** Calls `listener` with the terminal whose permits changed: given, used, ended. */
+  watch(listener: (terminalId: string) => void): () => void {
+    this.changes.add(listener)
+    return () => this.changes.delete(listener)
+  }
 }
 
-/** How many of the person's prompts the ring keeps, and for how long. */
-export const ringPrompts = 3
+/**
+ * How long the ring keeps what the person typed, however many prompts came after: words count
+ * while they are fresh. The count only bounds the memory a chatty hour takes.
+ */
 export const ringMs = 60 * 60_000
+export const ringPrompts = 200
 
 /** The fewest words a quote may have: one or two letters could be found in any prompt. */
 export const quoteWords = 2
@@ -125,8 +235,8 @@ export const quotedIn = (prompt: string, quote: string): string | undefined => {
 }
 
 /**
- * What the person typed into each terminal's agent: the last few prompts, none older than an
- * hour, per root session, so a `/clear` (a new session) starts it empty. Only the person's real
+ * What the person typed into each terminal's agent: every prompt of the last hour, per root
+ * session, so a `/clear` (a new session) starts it empty. Only the person's real
  * typing goes in: the caller records a root turn the person began, never a doorbell, a delivery
  * or a command line an agent was started with.
  */

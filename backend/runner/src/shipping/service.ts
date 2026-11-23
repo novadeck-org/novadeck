@@ -3,6 +3,7 @@
  * ring of what the person typed, the decision, and the switch that turns it on. Everything is
  * in memory per terminal, so a restart fails closed.
  */
+import { execFile } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import { open } from "node:fs/promises"
 
@@ -13,7 +14,14 @@ import { noticeText } from "../messaging/notice-format.js"
 import type { GateCall } from "../shell/hook.js"
 import type { Record } from "../terminals/record.js"
 import { Cards, type Card } from "./cards.js"
-import { declare, ghDefault, ghPull, type Declared, type DeclareAnswer } from "./declare.js"
+import {
+  declare,
+  ghDefault,
+  ghPull,
+  standing,
+  type Declared,
+  type DeclareAnswer,
+} from "./declare.js"
 import {
   agyBypassMode,
   describeKey,
@@ -36,6 +44,31 @@ export type ShippingHost = {
   readonly owned: Owned
   /** Tells the agent in a terminal something, as a Novadeck notice; whether it was queued. */
   readonly notify: (terminalId: string, text: string) => boolean
+  /** Whether a PR, by its number or its head branch, is still open; `ghOpen` when left out. */
+  readonly prOpen?: (repo: string, pr: string) => Promise<boolean | undefined>
+}
+
+/**
+ * Whether `gh` says the PR (by number, or by its head branch) is open: false once it merged or
+ * closed, undefined where gh can't say, as for a branch with no PR yet. Read with no change.
+ */
+export const ghOpen = (repo: string, pr: string): Promise<boolean | undefined> =>
+  new Promise((resolve) => {
+    execFile(
+      "gh",
+      ["pr", "view", pr, "-R", repo, "--json", "state", "--jq", ".state"],
+      { timeout: 10_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } },
+      (error, out) => resolve(error ? undefined : out.trim() === "OPEN"),
+    )
+  })
+
+/** How often standing merge permits are checked against their PR: closed or merged, they end. */
+export const sweepMs = 5 * 60_000
+
+// A merge permit's repository and PR, as its key names them (`pr-merge:<repo>#<n>` or `@<branch>`).
+const mergeTarget = (key: string): { repo: string; pr: string } | undefined => {
+  const match = /^pr-merge:([^#@]+)[#@](.+)$/.exec(key)
+  return match ? { repo: match[1]!, pr: match[2]! } : undefined
 }
 
 // The tail of a rollout read for its latest turn context: a turn starts well within it.
@@ -227,17 +260,19 @@ export class Shipping {
       })
     if (allow)
       for (const key of card.keys)
-        this.permits.give(card.terminalId, key, card.singleUse, {
-          type: "answer",
-          card: card.id,
-          ...(client !== undefined && { client }),
-        })
+        this.permits.give(
+          card.terminalId,
+          key,
+          card.singleUse,
+          { type: "answer", card: card.id, ...(client !== undefined && { client }) },
+          { group: card.id, title: card.title.replace(/\?$/, "") },
+        )
     const what = describeKey(card.keys[0]!)
     this.host.notify(
       card.terminalId,
       noticeText("Shipping", {
         facts: allow
-          ? `The user allowed it: ${card.title} (${what}). The permit holds for ten minutes.`
+          ? `The user allowed it: ${card.title} (${what}). ${standing(card.singleUse)}`
           : `The user declined it: ${card.title} (${what}). No permit was given.`,
         actions: allow
           ? [
@@ -265,6 +300,12 @@ export class Shipping {
     this.cards.watch((terminalId) => {
       const record = records.get(terminalId)
       if (record) changed(record)
+    })
+    // A permit given, used or ended changes what the person sees stand.
+    this.permits.watch((terminalId) => {
+      const record = records.get(terminalId)
+      if (record) changed(record)
+      this.sweepWhileStanding()
     })
   }
 
@@ -542,6 +583,44 @@ export class Shipping {
     if (lease?.terminalId !== terminalId) return
     this.leases.delete(leaseId)
     if (lease.expires > Date.now()) lease.commit()
+  }
+
+  private sweeper: NodeJS.Timeout | undefined
+
+  // Checks the standing merge permits while any stand, and stops once none do.
+  private sweepWhileStanding(): void {
+    const merges = [...this.records.keys()].some((terminalId) =>
+      this.permits
+        .of(terminalId)
+        .some((permit) => mergeTarget(permit.key) && permit.usedAt === null),
+    )
+    if (merges && this.sweeper === undefined) {
+      this.sweeper = setInterval(() => void this.sweep(), sweepMs)
+      this.sweeper.unref()
+    } else if (!merges && this.sweeper !== undefined) {
+      clearInterval(this.sweeper)
+      this.sweeper = undefined
+    }
+  }
+
+  /**
+   * Ends every unused merge permit whose PR merged or closed, as GitHub says now: each group
+   * once, whichever of its targets says so. A PR gh can't read keeps its permit.
+   */
+  async sweep(terminalIds: Iterable<string> = this.records.keys()): Promise<void> {
+    const isOpen = this.host.prOpen ?? ghOpen
+    for (const terminalId of terminalIds)
+      for (const permit of this.permits.of(terminalId)) {
+        // One of its group's targets may have ended it already.
+        const still = this.permits.covering(terminalId, permit.key)
+        const target = still?.usedAt === null ? mergeTarget(permit.key) : undefined
+        // eslint-disable-next-line no-await-in-loop -- One PR at a time keeps gh's load low.
+        if (target && (await isOpen(target.repo, target.pr)) === false)
+          if (this.permits.takeBack(terminalId, permit.group))
+            log.info("shipping.ended", `A permit ended, its PR closed: ${permit.title}`, {
+              data: { terminalId, target: permit.key, at: new Date().toISOString() },
+            })
+      }
   }
 
   /** A terminal closed: its permits and quotes go. */

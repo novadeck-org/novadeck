@@ -1,27 +1,57 @@
 import { describe, expect, it } from "vitest"
 
-import { Permits, permitMs, Quotes, quotedIn, ringMs } from "./permits.js"
+import { Permits, permitMs, Quotes, quotedIn, ringMs, standingMs } from "./permits.js"
 
 describe("permits", () => {
-  it("cover one terminal's target for ten minutes", () => {
+  it("cover one terminal's target, standing for twelve hours unused", () => {
     let now = 1000
     const permits = new Permits(() => now)
     permits.give("a", "merge:1", false, { type: "quote", quote: "merge it" })
     expect(permits.covering("a", "merge:1")).toBeDefined()
     expect(permits.covering("b", "merge:1")).toBeUndefined()
     expect(permits.covering("a", "merge:2")).toBeUndefined()
-    now += permitMs
+    // A go-ahead at bedtime still covers the merge once CI is green, hours later.
+    now += 5 * 60 * 60_000
+    expect(permits.covering("a", "merge:1")).toBeDefined()
+    now = 1000 + standingMs
     expect(permits.covering("a", "merge:1")).toBeUndefined()
+    expect(permits.of("a")).toEqual([])
   })
 
-  it("end after one use only when single use", () => {
-    const permits = new Permits()
-    const many = permits.give("a", "x", false, { type: "answer", card: "c" })
+  it("keep only a retry window from their first use, for their whole group; a single-use one ends there", () => {
+    let now = 0
+    const permits = new Permits(() => now)
+    const given = { group: "g", title: "Merge PR #5 into main" }
+    const many = permits.give("a", "x", false, { type: "answer", card: "c" }, given)
+    permits.give("a", "x-branch", false, { type: "answer", card: "c" }, given)
     const once = permits.give("a", "y", true, { type: "answer", card: "c" })
+    now = 60 * 60_000
     permits.used(many)
     permits.used(once)
-    expect(permits.covering("a", "x")).toBeDefined()
     expect(permits.covering("a", "y")).toBeUndefined()
+    // Retried, as a failed push is, or asked twice, as Codex does.
+    now += permitMs - 1
+    permits.used(many)
+    expect(permits.covering("a", "x")).toBeDefined()
+    expect(permits.covering("a", "x-branch")?.usedAt).toBe(60 * 60_000)
+    now += 1
+    expect(permits.covering("a", "x")).toBeUndefined()
+    expect(permits.covering("a", "x-branch")).toBeUndefined()
+  })
+
+  it("are taken back by group, the person's own call, leaving the rest", () => {
+    const permits = new Permits()
+    const changed: string[] = []
+    permits.watch((terminalId) => changed.push(terminalId))
+    permits.give("a", "x", false, { type: "quote", quote: "q" }, { group: "g" })
+    permits.give("a", "x2", false, { type: "quote", quote: "q" }, { group: "g" })
+    permits.give("a", "y", false, { type: "quote", quote: "q" }, { group: "h" })
+    permits.give("b", "x", false, { type: "quote", quote: "q" }, { group: "g" })
+    expect(permits.takeBack("a", "g")).toBe(true)
+    expect(permits.takeBack("a", "g")).toBe(false)
+    expect(permits.of("a").map(({ key }) => key)).toEqual(["y"])
+    expect(permits.covering("b", "x")).toBeDefined()
+    expect(changed.at(-1)).toBe("a")
   })
 
   it("end every terminal's permit for a target that changed", () => {
@@ -69,13 +99,25 @@ describe("the quote ring", () => {
     expect(quotedIn("merge #1170, then stop", "merge 1170")).toBe("merge #1170")
   })
 
-  it("keeps three prompts, none older than an hour, and starts over with a new session", () => {
+  it("keeps every prompt of the last hour, however many came after, and starts over with a new session", () => {
     let now = 0
     const quotes = new Quotes(() => now)
-    for (const text of ["first one", "second one", "third one", "fourth one"])
+    quotes.record("a", "s1", "feel free to merge stuff")
+    for (const text of ["second one", "third one", "fourth one", "fifth one", "sixth one"]) {
+      now += 60_000
       quotes.record("a", "s1", text)
-    expect(quotes.prompts("a")).toEqual(["second one", "third one", "fourth one"])
-    now += ringMs + 1
+    }
+    expect(quotes.said("a", "merge stuff")).toBe("merge stuff")
+    now = ringMs
+    expect(quotes.said("a", "merge stuff")).toBeUndefined()
+    expect(quotes.prompts("a")).toEqual([
+      "second one",
+      "third one",
+      "fourth one",
+      "fifth one",
+      "sixth one",
+    ])
+    now += ringMs
     expect(quotes.prompts("a")).toEqual([])
     quotes.record("a", "s1", "ship it now")
     quotes.record("a", "s2", "after clear")

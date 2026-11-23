@@ -491,3 +491,65 @@ describe("the record of permits", () => {
     }
   })
 })
+
+describe("a standing permit", () => {
+  it("stands past ten minutes once the person allowed it, and the agent is told how long", () => {
+    vi.useFakeTimers()
+    try {
+      const told: string[] = []
+      const shipping = new Shipping({
+        enabled: () => true,
+        owned: { ofTerminal: () => [], all: () => [] },
+        notify: (_terminalId, text) => told.push(text) > 0,
+      })
+      const card = shipping.cards.ask(
+        "t",
+        ["pr-merge:r/app#5"],
+        false,
+        "Merge PR #5 into main?",
+        "",
+      ).card
+      shipping.answered(card, true)
+      vi.advanceTimersByTime(3 * 60 * 60_000)
+      expect(shipping.permits.covering("t", "pr-merge:r/app#5")).toMatchObject({
+        group: card.id,
+        title: "Merge PR #5 into main",
+      })
+      expect(told[0]).toContain("The permit stands for 12 hours, until its first use")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ends once its PR merged or closed, as GitHub says, and stays while gh can't say", async () => {
+    const states = new Map<string, boolean | undefined>([
+      ["5", false],
+      ["6", true],
+      ["feat/x", undefined],
+    ])
+    const asked: string[] = []
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+      prOpen: async (repoName, pr) => {
+        asked.push(`${repoName} ${pr}`)
+        return states.get(pr)
+      },
+    })
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, { group: "a" })
+    shipping.permits.give("t", "pr-merge:r/app@feat/a", false, quote, { group: "a" })
+    shipping.permits.give("t", "pr-merge:r/app#6", false, quote, { group: "b" })
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, { group: "c" })
+    shipping.permits.give("t", "push:r/app:origin/main", false, quote, { group: "d" })
+    await shipping.sweep(["t"])
+    expect(shipping.permits.of("t").map(({ key }) => key)).toEqual([
+      "pr-merge:r/app#6",
+      "pr-merge:r/app@feat/x",
+      "push:r/app:origin/main",
+    ])
+    // A push isn't a PR: it isn't asked about.
+    expect(asked).toEqual(["r/app 5", "r/app 6", "r/app feat/x"])
+  })
+})

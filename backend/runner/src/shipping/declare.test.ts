@@ -53,6 +53,46 @@ describe("request_permit", () => {
     expect(permits.covering("t", "pr-merge:r/app@feat/x")).toBeDefined()
   })
 
+  it("gives one standing permit for a branch's PR, opened or not, which its number then shares", async () => {
+    let now = 0
+    const permits = new Permits(() => now)
+    const quotes = new Quotes(() => now)
+    const { all } = deps()
+    const fresh = { ...all, permits, quotes }
+    quotes.record("t", "s", "feel free to merge stuff when green")
+    const branch = await declare(fresh, "t", "/w", {
+      action: "merge_pr",
+      target: "feat/x",
+      said: "merge stuff",
+    })
+    expect(branch).toMatchObject({ ok: true, state: "permitted" })
+    expect(permits.of("t").map(({ key, title }) => [key, title])).toEqual([
+      ["pr-merge:r/app@feat/x", "Merge the PR of feat/x"],
+    ])
+    // Hours later, CI green, the PR open as #1190: its number is the same target, with no new words.
+    now += 4 * 60 * 60_000
+    const numbered = await declare(fresh, "t", "/w", { action: "merge_pr", target: "1190" })
+    expect(numbered).toMatchObject({ ok: true, state: "permitted" })
+    const [first, second] = permits.of("t")
+    expect(second).toMatchObject({ key: "pr-merge:r/app#1190", group: first!.group })
+    expect(await declare(fresh, "t", "/w", { action: "merge_pr", target: "fe at" })).toMatchObject({
+      ok: false,
+    })
+  })
+
+  it("says how long a permit from the user's words stands", async () => {
+    const { all, quotes } = deps()
+    quotes.record("t", "s", "go ahead and merge it please")
+    const answer = await declare(all, "t", "/w", {
+      action: "merge_pr",
+      target: "1170",
+      said: "merge it",
+    })
+    expect(answer.ok && answer.text).toContain(
+      "The permit stands for 12 hours, until its first use, and for ten minutes after that use, for a retry. The user sees it and can take it back.",
+    )
+  })
+
   it("reads a relative folder from the terminal's directory, never the runner's own", async () => {
     const asked: string[] = []
     const { all } = deps("claude", {
