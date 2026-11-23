@@ -55,13 +55,15 @@ export const failureAction = (failure: ConnectFailure): "quit" | "reload" | "ret
       : "retry"
 
 // The splash's heading: a copy that is out of date says so, as retrying won't help, and so
-// does a runner older than the app.
+// does a runner older than the app, and a device signed out of its runner.
 export const failureTitle = (failure: ConnectFailure): string =>
-  failure.update === "runner"
-    ? "The runner is out of date"
-    : failure.kind === "outdated" || failure.update === "app"
-      ? "This copy of Novadeck is out of date"
-      : "Couldn't power the deck"
+  failure.revoked
+    ? "This device was signed out"
+    : failure.update === "runner"
+      ? "The runner is out of date"
+      : failure.kind === "outdated" || failure.update === "app"
+        ? "This copy of Novadeck is out of date"
+        : "Couldn't power the deck"
 
 // The failure a rejected connect carries, or an unknown one.
 export const failureOf = (error: unknown): ConnectFailure => {

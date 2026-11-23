@@ -335,6 +335,57 @@ describe("backend gate", () => {
     })
   })
 
+  context("when the link ends for good once the workspace is shown", () => {
+    it("boots again, and the splash says why, as that this device was signed out", async () => {
+      vi.useFakeTimers()
+      const { selection, attempts } = pending()
+      const page = show(selection)
+      const listeners: ((failure: ConnectFailure) => void)[] = []
+      let stopped = 0
+      await act(async () =>
+        attempts.at(-1)!.resolve({
+          createBackend,
+          close: () => {},
+          ended: (listener) => {
+            listeners.push(listener)
+            return () => void (stopped += 1)
+          },
+        }),
+      )
+      page.report({ attached: 0, total: 0, done: true })
+      act(() => vi.advanceTimersByTime(onlineHoldMs + splashFadeMs))
+      expect(page.phase()).toBeNull()
+      const before = attempts.length
+
+      act(() =>
+        listeners.at(-1)!({
+          kind: "unauthorized",
+          revoked: true,
+          message: "signed out",
+          code: "UNAUTHORIZED",
+          detail: "Unauthorized",
+        }),
+      )
+      expect(page.phase()).toBe("Powering the deck…")
+      // A fresh attempt (StrictMode makes two of each).
+      expect(attempts.length).toBeGreaterThan(before)
+      // The workspace that was shown stopped listening as it went.
+      expect(stopped).toBeGreaterThan(0)
+      await act(async () =>
+        attempts.at(-1)!.reject(
+          failing("unauthorized", "UNAUTHORIZED", {
+            revoked: true,
+            message:
+              "This device was signed out of the runner. The runner's owner can let it in again with a new credential.",
+          }),
+        ),
+      )
+      const alert = page.container.querySelector("[role=alert]")?.textContent
+      expect(alert).toContain("This device was signed out")
+      expect(alert).toContain("The runner's owner can let it in again")
+    })
+  })
+
   context("with a backend that needs no connection", () => {
     it("renders the workspace at once, without a splash", () => {
       const { container, phase } = show({ createBackend })

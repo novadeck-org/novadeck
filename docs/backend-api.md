@@ -596,7 +596,59 @@ const dispose = servePort(runner.sessions, port)
 
 The CLI (`pnpm --filter @novadeck/runner start`) and `startServer` from
 `@novadeck/runner/server` compose the WebSocket form with the HTTP status
-endpoint.
+endpoint. They check the owner's token and the runner's devices' own credentials
+(`verify: (token) => tokenCheck(owner)(token) || (runner.device(token) ?? false)`), as
+[Devices](#devices) says.
+
+### Devices
+
+A standalone runner tells its clients apart by the credential each proves in its
+handshake. `NOVADECK_TOKEN` is the **owner's**: every client that has it, and the desktop
+app's own MessagePort, is the owner, as before devices. A **device** has a credential of
+its own, which the owner gives it and can revoke without touching the token or any other
+device. A device's credential grants what the owner's does (its shells are the runner's
+user's); what tells them apart is who may add and revoke devices.
+
+- **Its credential** is `ndd_<id>_<secret>`: 16 random bytes of id and 32 of secret, each
+  in base64url (70 characters in all), given as the handshake's `token`, as the owner's is.
+  The runner keeps the id, the name and a SHA-256 hash of the id and secret, never the
+  secret: the secret is 256 random bits, so a leaked hash can't be guessed back however fast
+  each guess is, and neither a slow derivation nor a key kept beside the database would add
+  to that. It looks a device up by its id and compares hashes in constant time, hashing as
+  much for an id it doesn't have. The owner's token is checked first and always, as before.
+  A credential has no expiry and doesn't rotate by itself: revoke it and mint another. The
+  table keeps an `expires_at` for credentials that expire, as pairing may give; a device past
+  it is refused as `expired`.
+- **The handshake** takes the credential in `token` and answers, beside `epoch` and
+  `protocolVersion`, the `device` (`{ id, name }`) the connection proved itself as; none for
+  the owner. An older client ignores it.
+- **`devices.mint({ name })`** answers `{ device, credential }`, the credential once: the
+  runner can't show it again. The owner's only (`FORBIDDEN` to a device, which, unlike
+  `UNAUTHORIZED`, leaves its connection up); 64 devices at once, then `CONFLICT`.
+  **`devices.list()`**, to any connection, gives the devices not revoked, oldest first, each with `createdAt`,
+  `lastSeenAt` (its last handshake or session end) and whether it is `connected` now.
+  **`devices.revoke({ id })`**: the owner may revoke any device, a device only itself.
+  All three are new in revision 6 (`since: 6`).
+- **Revoking** ends the device's sessions at once: their calls are refused, and their sockets
+  close a moment later (`revokeGraceMs`), so a device that revoked itself is answered first. The client's reconnection is refused `UNAUTHORIZED` with `{ reason: "revoked" }`, as
+  is every later handshake that proves the revoked credential, since its row stays; one that
+  doesn't prove it is told nothing more than a wrong token is. The UI's splash then says the
+  device was signed out of the runner, and that its owner can let it in again, with a new
+  credential.
+- **What it doesn't contain:** a device has the runner account's shells, so one that turned
+  hostile could have read the owner's token from the runner's environment. Revoking ends its
+  credential, not what it did; rotate `NOVADECK_TOKEN` too if a device may be compromised
+  (SECURITY.md, "Terminal Runner").
+- **Logs** name a device by its id (`client.connected`, `client.closed`, `device.minted`,
+  `device.revoked`, `device.refused`), never by its credential; a refused credential is
+  logged only for an id the runner has.
+
+The first device gets its credential from the owner: a client with `NOVADECK_TOKEN` calls
+`devices.mint` (`runner.devices.mint(name)` in `@novadeck/runner-client`). Pairing, such as
+a code the owner approves in the app, is a way to hand that credential over, and needs no
+other change to the protocol. Agents' relays never use these credentials: they reach the
+runner over its local socket, each with its terminal's own token
+([Relay protocol](#relay-protocol)).
 
 ### Desktop app
 
@@ -645,10 +697,12 @@ wire's own error codes (`wireErrors`) beside the runner's. Applications use
 
 Every connection starts with the wire's handshake, `wire.handshake({ protocolVersion,
 token, clientId })`, which returns the runner's `epoch` (its lifetime: terminal cursors
-are valid only within one) and its own revision of the contract as `protocolVersion`
-(see [Versions](#versions)). WebSocket connections
+are valid only within one), its own revision of the contract as `protocolVersion`
+(see [Versions](#versions)), and the `device` a device's credential proved
+([Devices](#devices)). WebSocket connections
 require the token in the handshake, never in a URL, and time out after ten seconds
-without it. MessagePort connections omit it. Each `terminals.attach` stream begins
+without it. A refused token is `UNAUTHORIZED`, whose data, when the runner says, is why
+(`{ reason: "revoked" }`). MessagePort connections omit it. Each `terminals.attach` stream begins
 with an unsequenced `attached` marker confirming the granted mode, followed by
 sequenced terminal events.
 

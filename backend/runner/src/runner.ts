@@ -6,12 +6,13 @@ import { dirname, join } from "node:path"
 import { compatibility, errors } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
 import { terminalPriorities, userScopes } from "@novadeck/terminal/pty"
-import { createSessions, type Sessions } from "@novadeck/wire/server"
+import { createSessions, type Sessions, type Verdict } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
 import { Snapshots } from "./checkouts/snapshots.js"
 import { CompanionItems } from "./companions/items.js"
 import { secrets } from "./companions/secrets.js"
+import { Devices } from "./devices/devices.js"
 import { DomainError } from "./errors.js"
 import { repositoriesOf } from "./forges/repositories.js"
 import { Forges } from "./forges/service.js"
@@ -129,6 +130,12 @@ export type Runner = {
    * that ends releases its attachments and terminal control; its shells keep running.
    */
   readonly sessions: Sessions
+  /**
+   * What a handshake's token proves of one of the runner's devices (`Devices.verify`), or
+   * `undefined` for a token that isn't a device's credential, for a transport to check
+   * beside the owner's token.
+   */
+  device(token: string | undefined): Verdict | undefined
   /** The largest initial snapshot, which transports allow for in their send buffers. */
   readonly snapshotBytes: number
   /** Saves every terminal's restore state now, as when the system is shutting down. */
@@ -604,6 +611,8 @@ const refusingRunner = (): Runner => ({
       throw new ORPCError("WORKSPACE_TOO_NEW", { status: errors.WORKSPACE_TOO_NEW.status })
     },
   }),
+  // Its devices are in the workspace it can't open: only the owner is told why.
+  device: () => undefined,
   snapshotBytes: 0,
   persist: () => {},
   close: () => Promise.resolve(),
@@ -671,59 +680,79 @@ const startRunner = (options: RunnerOptions): Runner => {
     seen,
   } = wire(options)
   let closing: Promise<void> | undefined
-  return {
-    sessions: createSessions({
-      revision: compatibility.revision,
-      oldestClient: compatibility.oldestClient,
-      router: createRouter({
-        store,
-        terminals,
-        feedback: terminals.feedback,
-        history: terminals.history,
-        works,
-        checkouts,
-        forges,
-        projects,
-        items,
-        agents,
-        uploads,
-        voice,
-        murmur,
-        transcriptsAvailable: () => transcriptsAvailable(sealer),
-        closing: () => closing !== undefined,
-        settingsSaved: () => rootFolder.ensure(),
-        // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
-        // hooks, so they are written again, and a Codex copy that differs is installed again.
-        shippingSwitched: () =>
-          void shellFiles
-            .then(() => rewriteShellFiles())
-            .then(() => agents.refresh(true))
-            .catch((error: unknown) =>
-              log.error("shipping.rewrite-failed", "Novadeck could not write the gate's hooks", {
-                err: error,
-              }),
-            ),
-        tour,
-        activity,
-        clients,
-        seen,
-      }),
-      error: apiError,
-      failed: logFailure,
-      admit: (session) =>
-        log.info("client.connected", "A client connected.", { data: { session: session.id } }),
-      // Whatever a client held through a session it lost or replaced: its shells keep running.
-      closed: (session) => {
-        log.info("client.closed", "A client's session ended.", { data: { session: session.id } })
-        activity.release(session.id)
-        clients.release(session.id)
-        seen.release(session.id)
-        terminals.release(session.id)
-        works.release(session.id)
-        voice.release(session.id)
-        murmur.release(session.id)
-      },
+  const devices = new Devices(store.devices)
+  const sessions = createSessions({
+    revision: compatibility.revision,
+    oldestClient: compatibility.oldestClient,
+    router: createRouter({
+      store,
+      terminals,
+      feedback: terminals.feedback,
+      history: terminals.history,
+      works,
+      checkouts,
+      forges,
+      projects,
+      items,
+      agents,
+      uploads,
+      voice,
+      murmur,
+      transcriptsAvailable: () => transcriptsAvailable(sealer),
+      closing: () => closing !== undefined,
+      settingsSaved: () => rootFolder.ensure(),
+      // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
+      // hooks, so they are written again, and a Codex copy that differs is installed again.
+      shippingSwitched: () =>
+        void shellFiles
+          .then(() => rewriteShellFiles())
+          .then(() => agents.refresh(true))
+          .catch((error: unknown) =>
+            log.error("shipping.rewrite-failed", "Novadeck could not write the gate's hooks", {
+              err: error,
+            }),
+          ),
+      tour,
+      activity,
+      clients,
+      seen,
+      devices,
     }),
+    error: apiError,
+    failed: logFailure,
+    // Each line names the device a session proved itself as, by its id: null for the owner.
+    admit: (session) =>
+      log.info("client.connected", "A client connected.", {
+        data: { session: session.id, device: session.device?.id ?? null },
+      }),
+    // Whatever a client held through a session it lost or replaced: its shells keep running.
+    closed: (session) => {
+      log.info("client.closed", "A client's session ended.", {
+        data: { session: session.id, device: session.device?.id ?? null },
+      })
+      activity.release(session.id)
+      clients.release(session.id)
+      seen.release(session.id)
+      terminals.release(session.id)
+      works.release(session.id)
+      voice.release(session.id)
+      murmur.release(session.id)
+      // Last, and never failing the rest: a store that can't write (a full disk) only misses
+      // when the device was last seen.
+      if (!closing)
+        try {
+          devices.ended(session)
+        } catch (error) {
+          log.warn("device.unseen", "Novadeck could not note when a device was last seen.", {
+            err: error,
+          })
+        }
+    },
+  })
+  devices.serve(sessions)
+  return {
+    sessions,
+    device: (token) => devices.verify(token),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,
     persist: () => {
       if (!closing) terminals.persist()
