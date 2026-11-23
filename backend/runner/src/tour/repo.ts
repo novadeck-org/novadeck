@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises"
+import { appendFile, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -52,19 +52,20 @@ export const commitSandbox = async (folder: string): Promise<void> => {
   await step(["symbolic-ref", "HEAD", "refs/heads/main"])
   await mkdir(join(folder, ".git", "info"), { recursive: true })
   // An empty folder for hooks, so none of the person's (global `core.hooksPath`) runs.
-  const hooks = join(folder, ".git", "no-hooks")
-  await mkdir(hooks, { recursive: true })
+  await mkdir(join(folder, ".git", "no-hooks"), { recursive: true })
   await appendFile(join(folder, ".git", "info", "exclude"), `${excluded.join("\n")}\n`)
-  await step([
-    "-c",
-    "core.autocrlf=false",
-    "-c",
-    "core.safecrlf=false",
-    "-c",
-    "core.excludesFile=",
-    "add",
-    "--all",
-  ])
+  await commitAll(folder, "Start the tour's repo", step)
+}
+
+// Stages every file of the folder and commits them as the tour (`Novadeck tour`), unsigned and
+// with no hooks (the repo's own empty folder of them, `.git/no-hooks`).
+const commitAll = async (
+  folder: string,
+  message: string,
+  step: (args: readonly string[]) => Promise<void>,
+): Promise<void> => {
+  const plain = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"]
+  await step([...plain, "-c", "core.excludesFile=", "add", "--all"])
   await step([
     "-c",
     "user.name=Novadeck tour",
@@ -75,16 +76,106 @@ export const commitSandbox = async (folder: string): Promise<void> => {
     "-c",
     "tag.gpgsign=false",
     "-c",
-    `core.hooksPath=${hooks}`,
-    "-c",
-    "core.autocrlf=false",
-    "-c",
-    "core.safecrlf=false",
+    `core.hooksPath=${join(folder, ".git", "no-hooks")}`,
+    ...plain,
     "commit",
     "--no-verify",
     "--message",
-    "Start the tour's repo",
+    message,
   ])
+}
+
+// Lists of files, which a game's folder keeps short.
+const listing = { cap: 4 * 1024 * 1024, ms: 30_000 }
+
+// The paths of a git listing of NUL-ended names.
+const names = (run: Run): string[] => (run.ok ? run.out.split("\0").filter(Boolean) : [])
+
+// The other worktrees of the folder's repository, by top folder, those still on the disk.
+const worktreesOf = async (folder: string): Promise<string[]> => {
+  const run = await git(folder, ["worktree", "list", "--porcelain"], listing)
+  if (!run.ok) return []
+  const paths = run.out
+    .split("\n")
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => line.slice("worktree ".length))
+  // The first is the folder itself.
+  return paths.slice(1).filter((path) => existsSync(path))
+}
+
+// The files `folder` changed since `base`, as the dev server (the seed's dev.mjs) counts them:
+// those that differ from that commit, and those git doesn't track and doesn't ignore.
+const changedSince = async (folder: string, base: string): Promise<Set<string>> =>
+  new Set([
+    ...names(await git(folder, ["diff", "--name-only", "-z", base], listing)),
+    ...names(await git(folder, ["ls-files", "--others", "--exclude-standard", "-z"], listing)),
+  ])
+
+// When the file at `path` last changed, or undefined where there is no file.
+const changedAt = async (path: string): Promise<number | undefined> => {
+  const found = await stat(path).catch(() => undefined)
+  return found?.isFile() ? found.mtimeMs : undefined
+}
+
+/**
+ * Brings the tour's work home, for the person who keeps the project: the folder ends up holding
+ * what the dev server (the seed's `dev.mjs`) last served, committed on `main` as "The team's
+ * game". Each worktree's files that it changed since it parted from the folder are laid over
+ * the folder, the newest copy of each where several changed one (the folder's own among them
+ * where it changed it too), as the dev server picks them; a file a worktree removed stays, as
+ * the dev server serves the folder's. Then each worktree is moved to that commit (`reset
+ * --hard`), so it holds nothing main doesn't and the Worktrees panel shows its work merged. No
+ * agent runs git for any of it. Where the folder is no repo, nothing happens; where a step of
+ * git fails, a `CONFLICT` says so.
+ */
+export const bringHome = async (folder: string): Promise<void> => {
+  if (!existsSync(join(folder, ".git"))) return
+  const step = async (args: readonly string[], at = folder): Promise<void> => {
+    const run = await git(at, args, small)
+    if (!run.ok)
+      throw new DomainError("CONFLICT", `The tour couldn't keep the team's work: ${said(run)}`)
+  }
+  const head = await git(folder, ["rev-parse", "HEAD"], small)
+  if (!head.ok) return
+  const others = await worktreesOf(folder)
+  // What each worktree changed, and what the folder changed since the same commit.
+  const changes = await Promise.all(
+    others.map(async (worktree) => {
+      const parted = await git(worktree, ["merge-base", "HEAD", head.out.trim()], small)
+      const base = parted.ok ? parted.out.trim() : "HEAD"
+      return {
+        worktree,
+        theirs: await changedSince(worktree, base),
+        ours: await changedSince(folder, base),
+      }
+    }),
+  )
+  const files = new Set(changes.flatMap(({ theirs }) => [...theirs]))
+  await Promise.all(
+    [...files].map(async (name) => {
+      const own = join(folder, name)
+      const copies = changes
+        .filter(({ theirs }) => theirs.has(name))
+        .map(({ worktree }) => join(worktree, name))
+      if (changes.some(({ theirs, ours }) => theirs.has(name) && ours.has(name))) copies.push(own)
+      const dated = await Promise.all(
+        copies.map(async (path) => ({ path, at: await changedAt(path) })),
+      )
+      const newest = dated
+        .filter((copy): copy is { path: string; at: number } => copy.at !== undefined)
+        .toSorted((a, b) => b.at - a.at)[0]
+      if (newest === undefined || newest.path === own) return
+      await mkdir(dirname(own), { recursive: true })
+      await copyFile(newest.path, own)
+    }),
+  )
+  const status = await git(folder, ["status", "--porcelain"], listing)
+  if (status.ok && status.out.trim() !== "") await commitAll(folder, "The team's game", step)
+  const kept = await git(folder, ["rev-parse", "HEAD"], small)
+  if (!kept.ok) return
+  for (const worktree of others)
+    // eslint-disable-next-line no-await-in-loop -- One worktree at a time: they share the repo's lock.
+    await step(["reset", "--quiet", "--hard", kept.out.trim()], worktree)
 }
 
 // The files of `names` that the folder's repo tracks.
