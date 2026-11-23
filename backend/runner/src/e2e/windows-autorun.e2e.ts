@@ -3,7 +3,8 @@
 // Antigravity runs its hooks as `cmd /c <command>` through the `cmd` it finds on PATH, without
 // `/d`; where cmd prints, Novadeck puts its own `cmd.exe` pass-through (novadeck-cmd.exe,
 // backend/relay) first on PATH for Antigravity in its terminals, adding `/d` to Novadeck's own
-// hook commands alone. Claude Code and Codex run their hooks in PowerShell, whose line starts
+// hook commands alone, and adds the folder holding its PreToolUse hook, which its global plugin
+// can't register there (harnesses/agy/src/shim.ts). Claude Code and Codex run their hooks in PowerShell, whose line starts
 // the launcher (a batch file) in a cmd with `/d` itself (`hookCommand`). A message crossing
 // between two agents needs a hook's JSON answer read (a Stop or prompt hook delivers it), so
 // each harness's round-trip shows the AutoRun did not spoil it.
@@ -121,6 +122,12 @@ for (const setup of setups.filter(selected)) {
         passed.filter((one) => !isNovadeckHook(one)).some((one) => one.startsWith("/d ")),
         "no other cmd got /d",
       ).toBe(false)
+      // Its PreToolUse too, which its global plugin leaves out here and the shim adds in
+      // Novadeck's terminals alone, from a folder of Novadeck's own: the shipping gate covers it.
+      expect(
+        hooks.some((one) => /\bagy PreToolUse\b/.test(one)),
+        "Antigravity's PreToolUse went through the pass-through",
+      ).toBe(true)
     }, 240_000)
   })
 }

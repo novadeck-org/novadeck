@@ -185,9 +185,14 @@ export const agy = {
             path: "agy.cmd",
             content: makeCmdShim({
               cmdShimDir: machine.cmdShimDir,
+              hooksFolder: machine.cmdShimDir === undefined ? undefined : machine.hooksFolder,
               root: machine.worktreesRoot,
-              // Where cmd prints no PreToolUse is registered, so no rule is written either.
-              gate: machine.shippingGate === true && machine.cmdPrints !== true,
+              // Where cmd prints, PreToolUse comes only with the hooks folder, so no rule is
+              // written without it either.
+              gate:
+                machine.shippingGate === true &&
+                (machine.cmdPrints !== true ||
+                  (machine.cmdShimDir !== undefined && machine.hooksFolder !== undefined)),
             }),
           },
         ],

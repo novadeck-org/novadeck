@@ -421,8 +421,8 @@ export class Shipping {
   /**
    * Whether the gate is on and covers `agent`'s harness: Claude Code, Codex, Antigravity and
    * opencode, but Antigravity not where it has no PreToolUse hook (Windows, where cmd prints before
-   * hooks): nothing is refused there, so nobody is told of permits, and agy's own dialog is the
-   * only one asked. opencode's plugin runs its hook through `cmd /d` there, which skips the
+   * hooks and Novadeck's terminals couldn't be given one: `agyPreToolUse`): nothing is refused
+   * there, so nobody is told of permits, and agy's own dialog is the only one asked. opencode's plugin runs its hook through `cmd /d` there, which skips the
    * AutoRun, so it is covered everywhere its plugin loads (`hooksTrusted`).
    */
   covers(agent: AgentName): boolean {

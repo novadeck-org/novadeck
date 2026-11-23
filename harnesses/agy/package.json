@@ -28,6 +28,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./plugin": {
+      "development": "./src/plugin.ts",
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    },
     "./settings": {
       "development": "./src/settings.ts",
       "types": "./dist/settings.d.ts",
