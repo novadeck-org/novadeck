@@ -801,7 +801,7 @@ App:
   (`frontend/demo/src/tour/story.ts`, as a runner would report it; its files, model and page
   are made in `tour/content.ts`, loaded only as a story plays, so the website's bundle doesn't
   carry them): the tour's folder is a blank start for a browser game, as the runner's seed has
-  it. The lead asks its sheet in the Inbox, "What game shall we make?", one ask of two questions,
+  it. The lead asks its sheet in the Inbox, "Which game shall we build?", one ask of two questions,
   "The world" (Fantasy / Sci-fi / Modern) and "The kind" (RPG / Shooter / Strategy), own words
   allowed. Once answered it opens two teammates (terminals with `ledBy` = the lead, on the lead's
   own harness), "Modeller" and "Builder"; a few seconds later it asks to run the game's server
