@@ -207,18 +207,21 @@ const candidates = (
     found.push({ id, source, at, stopped, seen: false, ...content })
   }
 
-  // A request waiting on the person: the oldest, as the harness asks one at a time, once its
+  // A request waiting on the person: the oldest, as the harness asks one at a time, and each
+  // other that asks without waiting (as the shipping gate's cards, one per target), once its
   // dialog reads or it has waited long enough to be answered in the terminal. It hides
-  // nothing else of the terminal's: one a screen or a subagent raised can stand after the
-  // turn ended, beside how it ended.
-  if (status.attention) {
-    const [oldest] = requests[terminal.id] ?? []
-    if (oldest && (oldest.request.dialog !== null || now - oldest.askedAt >= dialogMs))
-      add(`request:${oldest.request.id}`, oldest.askedAt, true, {
-        kind: "request",
-        request: oldest.request,
-      })
-  }
+  // nothing else of the terminal's: one a screen or a subagent raised, or a card, can stand
+  // after the turn ended, beside how it ended.
+  if (status.attention)
+    for (const [index, asked] of (requests[terminal.id] ?? []).entries())
+      if (
+        (index === 0 || asked.request.detached === true) &&
+        (asked.request.dialog !== null || now - asked.askedAt >= dialogMs)
+      )
+        add(`request:${asked.request.id}`, asked.askedAt, true, {
+          kind: "request",
+          request: asked.request,
+        })
 
   // Its messages held long, as only the person can clear what holds them: in the terminal.
   // Not while it works, as its status says, whatever the listing last said.

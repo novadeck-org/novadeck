@@ -1722,6 +1722,12 @@ only gates them (`backend/runner/src/shipping/`).
   refused for it. It is drawn from fields Novadeck resolved. The answer resolves in the runner
   (`held.ts`), gives the permit on Allow, and tells the agent in a Novadeck notice. One card is
   open per (terminal, action, target), and another source giving the permit withdraws it.
+  `request_permit` answers at once, so the agent's turn usually ends while its card waits: the
+  terminal's summary counts each open card in its `attention` as a request asked without waiting
+  (`withCards` in `harnesses/activity.ts`), which is what a client follows to read the detail,
+  list the card in the Inbox (each card its own entry, beside the harness's oldest request) and
+  mark the tab. `agents` says the terminal waits on the user for `request_permit`, and an agent
+  with a card open doesn't rest.
 - **Hook answers.** Claude Code: PreToolUse for `Bash`, in the per-launch settings file the shim
   passes (nothing of the person's is written), allow or deny. Codex: PreToolUse widened to the
   shell tools, and PermissionRequest. A Codex permitted command in a restricted sandbox is denied

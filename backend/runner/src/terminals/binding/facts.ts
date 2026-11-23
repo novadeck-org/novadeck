@@ -11,6 +11,7 @@ import {
   escapeScreenMs,
   escapeVerdictMs,
   summary as activitySummary,
+  withCards,
   withLimit,
 } from "../../harnesses/activity.js"
 import { withVersion } from "../../harnesses/bindings.js"
@@ -60,6 +61,8 @@ export type BindingsHost = {
   readonly save: (record: Record) => void
   /** Tells the terminal's detail readers of a change. */
   readonly detailed: (record: Record) => void
+  /** How many of the shipping gate's cards are open in a terminal; none without the gate. */
+  readonly cards?: (terminalId: string) => number
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (
     record: Record,
@@ -704,7 +707,8 @@ export class Bindings {
         : signedOutEnded
           ? null
           : record.summary.startup
-    const activity = bound ? activitySummary(bound.activity) : null
+    const cards = this.host.cards?.(record.summary.id) ?? 0
+    const activity = bound ? withCards(activitySummary(bound.activity), cards) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
     // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended
@@ -733,6 +737,15 @@ export class Bindings {
       return
     record.summary = { ...summary, agentRan, agent, ready, startup, activity, telemetry, reported }
     this.host.announce(record)
+  }
+
+  /**
+   * The shipping gate's cards changed in the terminal: its detail lists them, and its summary
+   * counts each open one as a request waiting on the person, which is what a client follows
+   * to read the detail, list the card in the Inbox and mark the tab.
+   */
+  publishGate(record: Record): void {
+    this.publishAgent(record, false)
   }
 
   /** Forgets every session `agent` reported in the terminals, as once it is disconnected. */

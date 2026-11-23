@@ -11,7 +11,7 @@ import {
   type ProcessTrees,
 } from "@novadeck/terminal/pty"
 
-import { summary as activitySummary } from "../harnesses/activity.js"
+import { summary as activitySummary, withCards } from "../harnesses/activity.js"
 import { logs } from "../log.js"
 import type { Inbox } from "../messaging/inbox.js"
 import type { Messaging } from "../messaging/messaging.js"
@@ -277,6 +277,8 @@ export type HibernationHost = {
   readonly sleepers: () => Sleepers
   /** Whether anyone reads the terminal's chat. */
   readonly detailWatched: (terminalId: string) => boolean
+  /** How many of the shipping gate's cards wait on the person there; none without the gate. */
+  readonly cards?: (terminalId: string) => number
   readonly trees: () => ProcessTrees
   /**
    * Whether the agent's box holds text, read from the screen as the doorbell reads it;
@@ -525,7 +527,10 @@ export class Hibernation {
     const agent = bound?.binding.agent ?? null
     const sessionId = bound?.binding.sessionId
     const report = agent === null ? undefined : record.agents[agent]
-    const activity = bound ? activitySummary(bound.activity) : null
+    // A card the shipping gate holds open waits on the person as a dialog does.
+    const activity = bound
+      ? withCards(activitySummary(bound.activity), host.cards?.(id) ?? 0)
+      : null
     const last = bound?.activity.lastTurn
     const ended = Math.max(last?.at ?? 0, report?.endedAt ?? 0)
     const delivery = host.messaging().delivery(id)

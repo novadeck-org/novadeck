@@ -145,7 +145,10 @@ const askedSlackMs = 200
 export class Shipping {
   readonly permits = new Permits()
   readonly quotes = new Quotes()
-  readonly cards = new Cards()
+  // A card stands for the agent session that asked it: another one bound there, or none, ends it.
+  readonly cards = new Cards(Date.now, {
+    session: (terminalId) => this.records.get(terminalId)?.bound?.binding.sessionId,
+  })
   private readonly gate: Gate
   // Answers handed to a hook whose effect waits for its acknowledgement, by lease.
   private readonly leases = new Map<
@@ -279,6 +282,20 @@ export class Shipping {
   /** Whether the gate is on. */
   enabled(): boolean {
     return this.host.enabled()
+  }
+
+  /** The cards open in a terminal, oldest first; none while the gate is off. */
+  cardsOf(terminalId: string): readonly Card[] {
+    return this.host.enabled() ? this.cards.of(terminalId) : []
+  }
+
+  /**
+   * The gate was switched on or off: off, every card closes, and the terminals' summaries say
+   * so, so none waits on the person meanwhile or comes back when it is on again.
+   */
+  switched(): void {
+    if (this.host.enabled()) return
+    for (const terminalId of this.records.keys()) this.cards.forget(terminalId)
   }
 
   /**
