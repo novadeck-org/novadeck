@@ -2,19 +2,23 @@ import { randomUUID } from "node:crypto"
 
 import {
   agentAsk,
-  askAnswer,
+  askAnswer as replyAnswer,
   hiddenIn,
   inboxContent,
   inboxTextLimits,
   isAgentName,
   maxAskOptions,
+  maxAskQuestions,
   maxCommandLines,
+  maxQuestionOptions,
   maxInboxResolved,
+  questionsAnswer,
   unsafeInLine,
   type AgentAsk,
   type AgentName,
-  type AskAnswer,
+  type AskAnswer as ReplyAnswer,
   type InboxEntry as ListedEntry,
+  type QuestionsAnswer,
   type Sent,
   type TerminalMessages,
 } from "@novadeck/protocol"
@@ -29,6 +33,9 @@ import {
   allowSend,
   byteLength,
   cleanInboxText,
+  cleanText,
+  maxDeliveryBytes,
+  personSender,
   rates,
   recentSends,
   retentionMs,
@@ -45,6 +52,7 @@ import {
   type LogWrite,
   type TurnContent,
 } from "./report-log.js"
+import { deliveredBytes } from "./sending.js"
 
 // The runner's own entries, which never hold the placeholders a UI reads in.
 type InboxEntry = Sent<ListedEntry>
@@ -134,7 +142,7 @@ type Host = {
     subject: string,
     text: string,
     commit: (message: Message) => void,
-    choice?: { readonly option?: string; readonly action?: string },
+    choice?: Choice,
   ): void
   changed(terminalId: string): void
   exists(terminalId: string): boolean
@@ -199,6 +207,39 @@ const option = z.strictObject({
   details: markdown.nullable().optional(),
   code: z.strictObject({ path: subject, text: markdown }).nullable().optional(),
 })
+// One of several questions an agent asks at once: a header and a question that clean to one
+// line and some text, its options (a label and a summary each), whether several may be picked,
+// and its pick.
+const question = z.strictObject({
+  header: z
+    .string()
+    .transform((text) => cleanInboxText(text).trim() || null)
+    .pipe(
+      z
+        .string()
+        .max(inboxTextLimits.header)
+        .refine((text) => !unsafeInLine.test(text), "Use one line for a question's header")
+        .nullable(),
+    )
+    .nullable()
+    .optional(),
+  question: z
+    .string()
+    .transform((text) => cleanInboxText(text).trim())
+    .pipe(z.string().min(1).max(inboxTextLimits.question)),
+  options: z
+    .array(option.pick({ label: true, summary: true }))
+    .min(1)
+    .max(maxQuestionOptions),
+  multi_select: z.boolean().optional(),
+  recommend: z
+    .number()
+    .int()
+    .min(0)
+    .max(maxQuestionOptions - 1)
+    .nullable()
+    .optional(),
+})
 const requestedShape = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("text") }),
   z.strictObject({
@@ -233,6 +274,10 @@ const requestedShape = z.discriminatedUnion("type", [
       .nullable()
       .optional(),
     done_label: subject,
+  }),
+  z.strictObject({
+    type: z.literal("questions"),
+    questions: z.array(question).min(1).max(maxAskQuestions),
   }),
 ])
 const askRequest = z.strictObject({
@@ -275,7 +320,19 @@ const askText = (ask: AgentAsk): string => {
           .join("\n\n")
       : shape.type === "action"
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
-        : null
+        : shape.type === "questions"
+          ? shape.questions
+              .map((each, at) =>
+                [
+                  `${at + 1}. ${each.header ? `${each.header}: ` : ""}${each.question}${each.multiSelect ? " (pick any)" : ""}`,
+                  ...each.options.map(
+                    (choice, index) =>
+                      `   - ${choice.label}${each.recommend === index ? " (recommended)" : ""}${choice.summary ? `: ${choice.summary}` : ""}`,
+                  ),
+                ].join("\n"),
+              )
+              .join("\n\n")
+          : null
   return [
     ask.subject,
     ask.body,
@@ -285,6 +342,141 @@ const askText = (ask: AgentAsk): string => {
   ]
     .filter(Boolean)
     .join("\n\n")
+}
+
+/**
+ * The person's answer to an ask: to one of options, words or an action (`inbox.answer`), or to
+ * one of several questions, all of them at once (`inbox.answerQuestions`).
+ */
+export type AskAnswer =
+  | ReplyAnswer
+  | { readonly type: "questions"; readonly answers: QuestionsAnswer }
+const askAnswer = z.union([
+  replyAnswer,
+  z.strictObject({ type: z.literal("questions"), answers: questionsAnswer }),
+])
+
+/** What the person chose in answering an ask, as it reaches the agent. */
+type Choice = {
+  readonly option?: string
+  readonly action?: string
+  readonly answers?: QuestionAnswers
+}
+export type QuestionAnswers = NonNullable<NonNullable<Message["response"]>["answers"]>
+type AskQuestions = Extract<AgentAsk["shape"], { type: "questions" }>["questions"]
+
+/**
+ * A questions ask's answers as the agent reads them, one per question in its order: the labels
+ * of the options picked, in the order offered, and the person's own words. Each question needs
+ * one or the other, and only a question that takes several takes more than one option.
+ */
+const questionAnswers = (questions: AskQuestions, given: QuestionsAnswer): QuestionAnswers => {
+  if (given.length !== questions.length)
+    throw new DomainError("ANSWER_FAILED", "Answer each of this ask's questions.")
+  return questions.map((each, at) => {
+    const { options, text } = given[at]!
+    const picked = [...new Set(options)].toSorted((a, b) => a - b)
+    if (picked.some((index) => !each.options[index]))
+      throw new DomainError("ANSWER_FAILED", "Choose among each question's own options.")
+    if (!each.multiSelect && picked.length > 1)
+      throw new DomainError("ANSWER_FAILED", "Choose one option for each question that takes one.")
+    const words = cleanText(text).trim()
+    if (picked.length === 0 && !words)
+      throw new DomainError("ANSWER_FAILED", "Answer each of this ask's questions.")
+    return {
+      question: each.question,
+      ...(each.header !== null && { header: each.header }),
+      picked: picked.map((index) => each.options[index]!.label),
+      ...(words && { text: words }),
+    }
+  })
+}
+
+/**
+ * What the person's answer to `ask` makes: `words` as the Inbox keeps it, the reply's own
+ * `text` and the `choice` they made, which reach the agent, and `own`, every word of theirs,
+ * which the runner records as what they said. A questions ask keeps each question's words with
+ * its answer, so its reply has none of its own.
+ */
+const replyOf = (
+  ask: AgentAsk,
+  answer: AskAnswer,
+): {
+  readonly words: string
+  readonly text: string
+  readonly choice: Choice
+  readonly own: string
+} => {
+  if (answer.type === "done") {
+    if (ask.shape.type !== "action")
+      throw new DomainError("ANSWER_FAILED", "This ask has no action to mark done.")
+    const label = ask.shape.doneLabel
+    return { words: label, text: "", choice: { action: label }, own: "" }
+  }
+  if (answer.type === "questions") {
+    if (ask.shape.type !== "questions")
+      throw new DomainError("ANSWER_FAILED", "This ask has no questions to answer.")
+    const answers = questionAnswers(ask.shape.questions, answer.answers)
+    const words = answers
+      .map(
+        (each) =>
+          `${each.header ?? each.question}: ${[...each.picked, ...(each.text ? [each.text] : [])].join(", ")}`,
+      )
+      .join("; ")
+    const own = answers.flatMap((each) => (each.text ? [each.text] : [])).join("\n\n")
+    return { words, text: "", choice: { answers }, own }
+  }
+  const picked = answer.option
+  if (picked !== null && (ask.shape.type !== "options" || !ask.shape.options[picked]))
+    throw new DomainError("ANSWER_FAILED", "Choose one of this ask's options.")
+  const label =
+    picked !== null && ask.shape.type === "options" ? ask.shape.options[picked]!.label : ""
+  const text = answer.text.trim()
+  if (!text && !label)
+    throw new DomainError("ANSWER_FAILED", "Write an answer or choose an option.")
+  return {
+    words: [label, text].filter(Boolean).join(": "),
+    text,
+    choice: label ? { option: label } : {},
+    own: text,
+  }
+}
+
+/** The room an answer to several questions keeps for the person's own words, in bytes. */
+const wordsRoom = 1024
+
+/**
+ * Whether the person's answers to these questions reach the agent whatever they pick: the
+ * delivery that quotes every question with every option picked leaves `wordsRoom` for their
+ * words under a delivery's limit.
+ */
+const answersFit = (asked: string, questions: AskQuestions): boolean => {
+  const fullest: Message = {
+    id: "m-fullest",
+    projectId: "project",
+    thread: "t-fullest",
+    hop: 2,
+    from: personSender,
+    to: { terminalId: "terminal", handle: "handle", agent: "claude", sessionId: "session" },
+    text: "",
+    sentAt: 0,
+    state: "queued",
+    deliveredAt: null,
+    notified: true,
+    stopped: false,
+    fromLead: false,
+    toLead: false,
+    response: {
+      askId: randomUUID(),
+      subject: asked,
+      answers: questions.map((each) => ({
+        question: each.question,
+        ...(each.header !== null && { header: each.header }),
+        picked: each.options.map(({ label }) => label),
+      })),
+    },
+  }
+  return deliveredBytes(fullest) + wordsRoom <= maxDeliveryBytes
 }
 
 const maxOpenAsks = 50
@@ -510,7 +702,21 @@ export class Inbox {
                           directory: choice.directory ?? null,
                           doneLabel: choice.done_label,
                         }
-                      : choice
+                      : choice.type === "questions"
+                        ? {
+                            type: "questions" as const,
+                            questions: choice.questions.map((each) => ({
+                              header: each.header ?? null,
+                              question: each.question,
+                              options: each.options.map(({ label, summary }) => ({
+                                label,
+                                summary: summary ?? null,
+                              })),
+                              multiSelect: each.multi_select ?? false,
+                              recommend: each.recommend ?? null,
+                            })),
+                          }
+                        : choice
                 return {
                   kind: "ask" as const,
                   ask: agentAsk.parse({
@@ -522,6 +728,15 @@ export class Inbox {
                   }),
                 }
               })()
+      if (
+        content.kind === "ask" &&
+        content.ask.shape.type === "questions" &&
+        !answersFit(content.ask.subject, content.ask.shape.questions)
+      )
+        throw new Error(
+          "These questions and their options are too long for the user's answers to reach you, " +
+            "as each answer quotes them. Shorten them.",
+        )
       if (byteLength(JSON.stringify(content)) > 32_768)
         throw new Error(
           "This Inbox item is over 32 KB. Shorten its details or put longer content in a file.",
@@ -677,27 +892,8 @@ export class Inbox {
       throw new DomainError("CONFLICT", "This ask is no longer waiting in that agent session.")
     const parsed = askAnswer.safeParse(input)
     if (!parsed.success) throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this ask.")
-    const answer = parsed.data
     const { ask } = entry.content
-    let text: string
-    let choice: { readonly option?: string; readonly action?: string } = {}
-    if (answer.type === "done") {
-      if (ask.shape.type !== "action")
-        throw new DomainError("ANSWER_FAILED", "This ask has no action to mark done.")
-      text = ""
-      choice = { action: ask.shape.doneLabel }
-    } else {
-      const picked = answer.option
-      if (picked !== null && (ask.shape.type !== "options" || !ask.shape.options[picked]))
-        throw new DomainError("ANSWER_FAILED", "Choose one of this ask's options.")
-      const label =
-        picked !== null && ask.shape.type === "options" ? ask.shape.options[picked]!.label : ""
-      text = answer.text.trim()
-      if (label) choice = { option: label }
-      if (!text && !label)
-        throw new DomainError("ANSWER_FAILED", "Write an answer or choose an option.")
-    }
-    const words = [choice.option ?? choice.action, text].filter(Boolean).join(": ")
+    const { words, text, choice, own } = replyOf(ask, parsed.data)
     const answered: StoredEntry = {
       ...entry,
       state: "answered",
@@ -718,7 +914,7 @@ export class Inbox {
     )
     this.changed(entry.terminalId)
     this.maintain(entry.terminalId)
-    return { terminalId: entry.terminalId, text }
+    return { terminalId: entry.terminalId, text: own }
   }
 
   read(ids: readonly string[]): void {

@@ -258,6 +258,13 @@ export const scriptedRunner = ({
         })
       }),
       ack: api.terminals.ack.handler(() => {}),
+      // No other client attaches in a script: it controls every terminal it attaches to, and
+      // hears no news of control.
+      take: api.terminals.take.handler(() => {}),
+      controls: api.terminals.controls.handler(async function* ({ signal }) {
+        await nextOrAbort(new Promise<never>(() => {}), signal)
+        yield* []
+      }),
       // As the runner does: a terminal it has goes, and watchers hear of it; one it doesn't
       // is not found.
       close: api.terminals.close.handler(({ input: { terminalId } }) => {
@@ -335,6 +342,7 @@ export const scriptedRunner = ({
       list: api.inbox.list.handler(unplayed("inbox.list")),
       watch: api.inbox.watch.handler(idle),
       answer: api.inbox.answer.handler(unplayed("inbox.answer")),
+      answerQuestions: api.inbox.answerQuestions.handler(unplayed("inbox.answerQuestions")),
       read: api.inbox.read.handler(unplayed("inbox.read")),
       dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
     },
@@ -396,6 +404,12 @@ export const scriptedRunner = ({
         worktrees: false,
       })),
       set: api.settings.set.handler(() => {}),
+      watch: api.settings.watch.handler(idle),
+    },
+    preferences: {
+      get: api.preferences.get.handler(() => ({ values: {}, revision: 0, writer: null })),
+      set: api.preferences.set.handler(unplayed("preferences.set")),
+      watch: api.preferences.watch.handler(idle),
     },
   })
   // What the app typed into the terminals.

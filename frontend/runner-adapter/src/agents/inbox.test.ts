@@ -212,6 +212,7 @@ const setup = (
     inbox: {
       watch: vi.fn<InboxStreams["inbox"]["watch"]>(() => feed.iterator),
       answer: vi.fn<InboxStreams["inbox"]["answer"]>(async () => {}),
+      answerQuestions: vi.fn<InboxStreams["inbox"]["answerQuestions"]>(async () => {}),
       dismiss: vi.fn<InboxStreams["inbox"]["dismiss"]>(async () => {}),
       read: vi.fn<InboxStreams["inbox"]["read"]>(async (ids) => {
         const gone = ({ id, content }: InboxEntry) => content.kind === "turn" && ids.includes(id)
@@ -1240,6 +1241,27 @@ describe("Inbox entries", () => {
     expect(inbox.state.getSnapshot().answering).toEqual({})
   })
 
+  it("sends the answers to several questions by their own procedure", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([entry()])
+    await settle()
+    inbox.answer("entry-1", {
+      kind: "ask",
+      answer: {
+        type: "questions",
+        answers: [
+          { options: [1], text: "" },
+          { options: [], text: "Neither" },
+        ],
+      },
+    })
+    expect(streams.inbox.answerQuestions).toHaveBeenCalledExactlyOnceWith("entry-1", [
+      { options: [1], text: "" },
+      { options: [], text: "Neither" },
+    ])
+    expect(streams.inbox.answer).not.toHaveBeenCalled()
+  })
+
   it("keeps an ask pending beside trouble while its answer is unresolved", async () => {
     const { entries, inbox, streams, marks, workspaceStore, ids } = setup(
       workspaceOf(agentTerminal(1)),
@@ -1625,6 +1647,7 @@ describe("Turn entries", () => {
       inbox: {
         watch: () => feed.iterator,
         answer: async () => {},
+        answerQuestions: async () => {},
         read: async () => {},
         dismiss: async () => {},
       },

@@ -52,8 +52,9 @@ import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
 import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
-import { askAnswer, inboxEntry } from "./inbox.js"
+import { askAnswer, inboxEntry, questionsAnswer } from "./inbox.js"
 import { terminalMessages, terminalRings, threadId } from "./messages.js"
+import { preferenceChange, preferenceKey, preferenceValue } from "./preferences.js"
 import {
   checkoutState,
   checkoutUpdate,
@@ -74,6 +75,7 @@ import {
   maxUploadPartLength,
   startupCommand,
   terminalAttached,
+  terminalControl,
   terminalChange,
   terminalEvent,
   terminalRequest,
@@ -104,6 +106,8 @@ export const errors = {
   TERMINAL_EXITED: { status: 409 },
   CONTROL_IN_USE: { status: 409 },
   CONTROL_REQUIRED: { status: 403 },
+  // The terminal's controller wrote within the `ifIdleMs` a `terminals.take` gave: it's typing.
+  CONTROL_BUSY: { status: 409 },
   // The connection's credential doesn't let it do this, as a device minting another: only the
   // owner's does. Unlike UNAUTHORIZED, the connection goes on.
   FORBIDDEN: { status: 403 },
@@ -355,6 +359,26 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, cols: columns, rows }))
       .output(z.void()),
     ack: procedure.input(z.strictObject({ terminalId: id, sequence })).output(z.void()),
+    // Takes control of a terminal this client is attached to: its attachment controls from now
+    // on, and the one that controlled observes, its writes and resizes refused. With
+    // `ifIdleMs`, only where the controller hasn't written for that long, else CONTROL_BUSY.
+    // A controller that doesn't follow `controls` couldn't learn it lost control, so keeps it:
+    // CONTROL_IN_USE. Taking a terminal no one controls, or that this client does, is fine; one
+    // this client isn't attached to is a CONFLICT.
+    take: procedure
+      .meta({ since: 8 })
+      .input(
+        z.strictObject({
+          terminalId: id,
+          ifIdleMs: z.number().int().min(0).max(60_000).optional(),
+        }),
+      )
+      .output(z.void()),
+    // Who controls each terminal this client is attached to (`TerminalControl`), as each
+    // attachment starts and again as it changes. A client that follows it is handed control
+    // when the controller lets go (detaches, closes or disconnects): the one of those observing
+    // the terminal it used last. Lapses with the connection.
+    controls: procedure.meta({ since: 8 }).input(z.void()).output(eventIterator(terminalControl)),
     // The terminal this client's person is using now, null for none: the one on screen in Focus
     // view, the selected one in Grid and Canvas, while the window has their focus. Each client
     // has one, which replaces its last and lapses with its connection, and the runner gives
@@ -590,7 +614,7 @@ export const contract = {
     // covered, and the agent is told. Resolves whether one stood; a terminal it doesn't have
     // is NOT_FOUND.
     takeBack: procedure
-      .meta({ since: 7 })
+      .meta({ since: 10 })
       .input(z.strictObject({ terminalId: id, permit: z.string().min(1).max(64) }))
       .output(z.strictObject({ ended: z.boolean() })),
     // Writes a request's raw dialog (one the runner could not read, `agents.detail`'s
@@ -904,6 +928,11 @@ export const contract = {
     list: procedure.input(z.void()).output(z.array(inboxEntry)),
     watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),
     answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
+    // Answers an ask of several questions, all at once; errors as `answer` does.
+    answerQuestions: procedure
+      .meta({ since: 9 })
+      .input(z.strictObject({ id, answers: questionsAnswer }))
+      .output(z.void()),
     // Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
     // not touched. Unknown ids are skipped.
     read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
@@ -1030,6 +1059,31 @@ export const contract = {
     get: procedure.input(z.void()).output(runnerSettingsState),
     // Changes the settings given; the others stay.
     set: procedure.input(runnerSettings.partial()).output(z.void()),
+    // The settings as they are now, then again each time a client changes them, so every
+    // device the person uses follows. Ends with the connection.
+    watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(runnerSettingsState)),
+  },
+  // The person's own preferences, which follow them from device to device (see
+  // `preferenceChange`; docs/backend-api.md, "Preferences").
+  preferences: {
+    // Every preference kept, and the revision they are at (`writer` null).
+    get: procedure.meta({ since: 7 }).input(z.void()).output(preferenceChange),
+    // Keeps `value` as the preference `key`, or forgets it for null, as `writer` (a client
+    // instance's own short token, which `watch` passes on) changed it; resolves the new
+    // revision. Last write wins, key by key. A key past `maxPreferences` is a CONFLICT.
+    set: procedure
+      .meta({ since: 7 })
+      .input(
+        z.strictObject({
+          key: preferenceKey,
+          value: preferenceValue.nullable(),
+          writer: z.string().min(1).max(64),
+        }),
+      )
+      .output(z.strictObject({ revision: z.number().int().nonnegative() })),
+    // Every preference first, then each change: a reader slower than the changes gets each
+    // key once, as it is when it reads it. Ends with the connection.
+    watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(preferenceChange)),
   },
   // Devices with credentials of their own (docs/backend-api.md, "Devices"). A connection
   // proved by the owner's token, or the desktop app's own, is the owner's; one proved by a

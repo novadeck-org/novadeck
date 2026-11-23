@@ -279,7 +279,8 @@ Terminals:
   agent with a saved session and no process; a showcase sleeper, once seen for a moment, in Focus or
   in sight in Grid and Canvas, wakes by itself: waking, then its agent resting; one the panel set,
   from here or the gallery, stays asleep), waking (that agent on its way back), loading
-  output, back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
+  output, another window holding its keyboard (idle, or typing so a key shows the strip's busy
+  form; see "Observing a terminal another client controls"), back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
@@ -932,10 +933,10 @@ App:
   welcome dialog, Agent Chat offer, voice or Murmur offer or what's-new card. The other windows
   are pretended: "Another window shows the next project" and "Other windows show every other
   project" put the quiet window mark and its "Shown in another window" tooltip on those projects in
-  the switcher and the pins bar, picking one swaps (the project this window leaves takes the mark),
-  and a project's right-click menu opens one in a window of its own ("Open in new window", not
-  offered for the project on screen); "No other window" clears them. "Another window sends this one
-  to the next project" plays the receiving side of a swap or hand-off; "Another window has the
+  the switcher and the pins bar (a hint only: picking one shows it in this window all the same),
+  and a project's right-click menu opens one in a window of its own ("Open in new window", offered
+  for every project, the one on screen too); "No other window" clears them. "Another window sends
+  this one to the next project" plays the receiving side of a hand-off; "Another window has the
   voice" and "This window has the voice" move the voice (this window rings no ding without it).
   The page's hand-offs to a pretend window go nowhere a page can see, so the demo only notes them
   (`frontend/demo-debug/src/desktop/project-windows.ts`). Specs use `&windows=on` and
@@ -1536,43 +1537,66 @@ any window resize; the browser pane's views keep their own zoom. Nothing else zo
 Ctrl+0 is taken from a terminal on Linux or Windows), and Electron applies no pinch or Ctrl+wheel zoom. A browser has no `showScale`, so the row is hidden there and the
 browser's own zoom does it; the previews demo scales by CSS `zoom` instead.
 
+### Observing a terminal another client controls
+
+Two UI clients on one runner (two windows, or the desktop app and a browser) may show the same
+terminal, and only one of them controls it: writes and resizes are its alone. Where the runner supports
+`terminals.controls` (contract revision 8), no setting is involved: the adapter attaches with
+`control-else-observe` (control where it is free, else observing, also after a reconnection), and
+`@novadeck/runner-client` follows `terminals.controls` once per connection to keep each attachment's
+`mode` current (`onMode` tells a change; `take({ ifIdleMs })` moves control here). Runners without it
+keep the old behaviour: a refused attach is polled every 300 ms with project windows on, and after 4 s
+the terminal reads "Open in another window".
+
+An observing screen (`libraries/terminal/src/view`, shared by Focus, Grid and Canvas) is sized to the
+pty from `snapshot` and `resized`, never refits to its frame and never sends a size. It is drawn
+scaled down to fit the frame, never above 1:1, anchored top left (`scale.ts`; the layout size is
+measured, so Canvas's zoom doesn't change it), and the 120-column cap doesn't apply. A slim strip
+above it (`TerminalControlStrip`) reads "Typing in another window" with a Take over button. Becoming
+the controller fits the frame and sends the size as before. Focus, clicks, selection and scrolling
+(arrow keys the emulator makes of the wheel included) never take control; input does, by its class
+(`takeover.ts`, applied in `follow.ts`): typed text and a paste take control (`take` with
+`ifIdleMs: 2000`) and are delivered, while Enter, Esc, Tab, Backspace, arrows and Ctrl or Alt chords take
+control but aren't delivered, and the screen says "You have the keyboard now". Ctrl+C with a selection
+still copies. A take refused with `CONTROL_BUSY` delivers nothing and keeps the strip.
+
 ### Project windows
 
 With Preferences > Experimental > Project windows on (`projectWindows` in the preferences; the
 desktop app only, with Experimental on), the app can open several windows, each showing one project,
-and a project shows in at most one window; all windows are equal. Everything lives in the runner, so
+and a project may show in several windows at once; all windows are equal. Everything lives in the runner, so
 a window is another UI client of it. The main process keeps which window shows what
 (`apps/desktop/src/main/window/project-windows.ts`, pure over the window type, with its IPC in
 `project-windows-ipc.ts`); each page reports its project (`showProjectWindow`) and hears the
 projects the other windows show and whether it is the voice window (`onProjectWindows`, kept in
 the UI store's `windows`); the page decides at once what an action does:
 
-- **Open in new window** (a project's right-click menu in the switcher and the pins bar, not for the
-  project on screen) opens a window on it (`openProjectWindow`: its route is
-  `#/projects/<id>/sessions/_/_`, so the page takes the project's own session and view), or brings
-  forward the window that shows it. The app opens only on a project a page has told it knows
+- **Open in new window** (a project's right-click menu in the switcher and the pins bar, for any
+  project, this window's own too) always opens a new window on it (`openProjectWindow`: its route is
+  `#/projects/<id>/sessions/_/_`, so the page takes the project's own session and view), whether or
+  not a window shows it already. The app opens only on a project a page has told it knows
   (`showProjectWindow`'s `known`) and at most 16 windows. There is no other way to open one.
-- **Swap.** Picking, in the switcher, a pin or its shortcut, a project another window shows asks the app to
-  swap (`swapProjectWindow`, which answers how it went at once): the app sends the other window to this window's
-  former project. Then this window reads the project from the runner (`Backend.syncProject`, then the core's
-  `project/sync`), for the sessions the other window made or removed, and switches. Neither window waits for the
-  other's saves: what each changes in a session reaches the other live through the runner's session feed
-  (`sessions.watch` in [Backend API](backend-api.md)), so a change still on its way when
-  the windows swap shows a moment later. A window that hadn't said what it shows can't give the other anything:
-  the app brings the other forward and this window stays (`forwarded`). The latest pick wins when readings finish
-  out of order. A project this window shows is never read over: its copy is the live one. A read lets this
-  window's own saves and creates land first, and one that can't be read or built is logged and the window carries
-  on with what it has. A project the window never heard of, made in another window after it loaded, is learned
-  the same way: no page reload.
+- **Picking a project.** Picking, in the switcher, a pin or its shortcut, a project shows it in this
+  window, even when another window shows it too; that window is never changed or brought forward. With
+  project windows on, this window first reads the project from the runner (`Backend.syncProject`, then the
+  core's `project/sync`), for the sessions another window made or removed, and then switches. What each
+  window changes in a session reaches the others live through the runner's session feed (`sessions.watch`
+  in [Backend API](backend-api.md)), so nothing waits for another window's saves. The latest pick wins when
+  readings finish out of order. A project this window shows is never read over: its copy is the live one. A
+  read lets this window's own saves and creates land first, and one that can't be read or built is logged and
+  the window carries on with what it has. A project the window never heard of, made in another window after it
+  loaded, is learned the same way: no page reload. The switcher's mark for a project another window shows
+  is only a hint: it neither redirects nor blocks.
 - **Saves.** Every window saves its changes to any session, as one client of the runner among others: the runner
   merges the windows' changes a record at a time and feeds them to each, so two windows never overwrite each
   other's layouts.
-- **Routing.** What is about a project goes to its window, which comes forward and goes there
+- **Routing.** What is about a project goes to one window that shows it, which comes forward and goes there
   (`handOffToProjectWindow`): `reveal` (an Inbox entry's "Go to terminal", a message link, a toast),
-  an Inbox entry's sheet (`InboxProvider`'s `routeAway`), and a notification's click. A notification's click
+  an Inbox entry's sheet (`InboxProvider`'s `routeAway`), and a notification's click. The target is the
+  window acted in when it shows the project, else the window showing it that the person used last, else, with
+  none showing it, the window acted in, which switches to it. A notification's click
   always brings some window forward: the project's, else the one that raised it, else the voice's
-  (`clickNotice` in `window/voice.ts`). With none showing the project, the window acted in switches to
-  it as before. What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
+  (`clickNotice` in `window/voice.ts`). What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
   nothing changes a window on its own.
 - **Agents.** What an agent asks of the person goes to the window that shows the project of the terminal
   that asked: the page tells the runner which project it shows (`terminals.showing`, while the switch is
@@ -1581,7 +1605,7 @@ the UI store's `windows`); the page decides at once what an action does:
   (`ClientWindows`, `Followers.newest`), which is also what a client that says nothing gets. What an agent
   does never raises a window: an `open_agent` with focus for a project another window shows is handed
   over `quiet`, so that window goes there without coming forward or taking the system's focus. Only
-  the person's own actions (an Inbox entry, a notification click, a swap, Open in new window) bring a window
+  the person's own actions (an Inbox entry, a notification click, Open in new window) bring a window
   forward. A request from a session the receiving window doesn't know (made after it loaded) is
   answered "The terminal that asked isn't open in Novadeck."; with routing by project this mostly goes
   away.
@@ -1594,10 +1618,26 @@ the UI store's `windows`); the page decides at once what an action does:
 - **Restore.** With the switch on the main process keeps each window's project and bounds in
   `windows.json` of the data folder (`window/saved-windows.ts`) and reopens them at the next launch; a
   window closed while others remain leaves the list, a quit keeps the windows open at its start, and
-  the last window closing keeps the list as it stood before. Off, launch is as it was.
-- **Known limit.** "The window used last" (what a request with no window for its project goes to) moves
-  with the runner's `showing` and `active` reports, not with focus: a background window that reconnects
-  and reports becomes the last used, and a client that never reports (a `dev:web` tab) is never chosen.
+  the last window closing keeps the list as it stood before. Off, launch is as it was. Two windows on one
+  project are two entries, so both reopen.
+- **Window keys.** Each window has a key, a UUID kept in `windows.json` beside its project and bounds (an
+  older entry gets one at load, written back at once), the same across relaunches; a window created while
+  project windows are on gets a new one. With them off a window has none, so nothing keyed is written; one
+  opened before the switch went on stays keyless until the next launch. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
+  `DesktopApp.windowKey`; a browser has none. The page keeps what is one window's own under it in
+  `localStorage`: the view of a session (`novadeck:session-view:<key>:<sessionId>`, read before the device's
+  `novadeck:session-view:<sessionId>`, and written to both so a new window starts from the view used last;
+  `sessions/views.ts`) and the session the window shows in each project
+  (`novadeck:window-session:<key>:<projectId>`, which the seed opens the project on before the session visited
+  last, so two windows on one project each reopen their own; `ProjectSeed.openSessionId`). Without a key only
+  the device's view is kept.
+- **Use.** The page tells the runner which terminal the window uses (`terminals.active`, which counts as the
+  window used last) as the terminal changes, and again, at most once a second, when the window gains focus and
+  on keys and pointer presses (`watchActiveTerminal`).
+- **Known limit.** "The window used last" (what a request with no window for its project goes to) follows
+  the window the person focuses or types in (its `active` report, re-sent on focus and input), or last
+  showed a project (`showing`); a null `active` is not use. A client that never reports (a `dev:web` tab)
+  is never chosen.
 - **Title.** The document's title names the project while project windows are on, which the window shows.
 
 Preferences are one `localStorage` shared by the windows, which follow each other's changes through

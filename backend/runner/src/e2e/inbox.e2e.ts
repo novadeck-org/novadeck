@@ -82,6 +82,32 @@ const usable = (schema: unknown) => {
             },
             required: ["type", "command", "done_label"],
           },
+          {
+            type: "object",
+            properties: {
+              type: kind("questions"),
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    header: { type: "string" },
+                    question: { type: "string" },
+                    options: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: { label: { type: "string" }, summary: { type: "string" } },
+                      },
+                    },
+                    multi_select: { type: "boolean" },
+                    recommend: { type: ["integer", "null"] },
+                  },
+                },
+              },
+            },
+            required: ["type", "questions"],
+          },
         ],
       },
     },
@@ -674,6 +700,94 @@ for (const setup of setups) {
           from: { kind: "person" },
           state: "delivered",
           text: "I signed in",
+        }),
+      )
+    })
+
+    it("asks several questions at once and receives every answer as one message", async ({
+      e2e: run,
+    }) => {
+      run.model.use(
+        own((call) => {
+          if (delivered(call, "you")) {
+            const said = allOf(call)
+            const heard =
+              said.includes("<quoted-question>Which theme?</quoted-question>") &&
+              said.includes("<quoted-option>Fantasy</quoted-option>") &&
+              said.includes(
+                "<quoted-option>RPG</quoted-option> <quoted-option>RTS</quoted-option>",
+              ) &&
+              said.includes("<reply>no shooters</reply>")
+            return { text: heard ? "I received both answers." : "The answers were garbled." }
+          }
+          if (asked(call, "Ask two questions")) {
+            const name = tool(call, "ask")
+            if (!name) throw new Error("Novadeck's ask tool is missing")
+            return {
+              calls: [
+                {
+                  name,
+                  input: {
+                    subject: "Theme and genre?",
+                    body: "For the prototype.",
+                    shape: {
+                      type: "questions",
+                      questions: [
+                        {
+                          header: "Theme",
+                          question: "Which theme?",
+                          options: [{ label: "Fantasy" }, { label: "Sci-fi" }],
+                          recommend: 0,
+                        },
+                        {
+                          header: "Genre",
+                          question: "Which genres?",
+                          options: [{ label: "RPG" }, { label: "FPS" }, { label: "RTS" }],
+                          multi_select: true,
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            }
+          }
+          if (result(call)?.includes(" is in the user's Inbox"))
+            return { text: "I wait for your answers." }
+          return undefined
+        }),
+      )
+      const terminal = await start(run, setup)
+      await turn(terminal, "Ask two questions", "I wait for your answers.")
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      expect(ask.content).toMatchObject({
+        kind: "ask",
+        ask: {
+          shape: {
+            type: "questions",
+            questions: [
+              { header: "Theme", multiSelect: false, recommend: 0 },
+              { header: "Genre", multiSelect: true, recommend: null },
+            ],
+          },
+        },
+      })
+      const answered = terminal.mark()
+      run.deck.terminals.answerAsk(ask.id, {
+        type: "questions",
+        answers: [
+          { options: [0], text: "" },
+          { options: [0, 2], text: "no shooters" },
+        ],
+      })
+      await terminal.until("I received both answers.")
+      await through(terminal, ["settled"], { after: answered })
+      expect(terminal.messages().threads.flatMap((thread) => thread.messages)).toContainEqual(
+        expect.objectContaining({
+          inbox: "answer",
+          from: { kind: "person" },
+          state: "delivered",
+          text: "Theme: Fantasy\n\nGenre: RPG, RTS, no shooters",
         }),
       )
     })

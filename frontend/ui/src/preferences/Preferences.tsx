@@ -393,7 +393,7 @@ export const Preferences = ({
       id: "project-windows",
       label: "Project windows",
       description: windows
-        ? "Open a project in its own window, say one per monitor. A project shows in one window at a time: picking one that's open in another window swaps the two."
+        ? "Open a project in its own window, say one per monitor. Pick it to work on several projects side by side, or on one project in two windows; each window keeps its own session and view."
         : "Not available here.",
       checked: windows && value.projectWindows,
       onToggle: (projectWindows: boolean) => onChange({ ...value, projectWindows }),

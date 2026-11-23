@@ -459,6 +459,11 @@ for await (const entries of runner.inbox.watch()) showInbox(entries)
 const entries = await runner.inbox.list()
 await runner.inbox.answer(askId, { type: "reply", option: null, text: "Use green" })
 await runner.inbox.answer(actionAskId, { type: "done" })
+// An ask of several questions, from revision 9: an answer per question, in its order.
+await runner.inbox.answerQuestions(questionsAskId, [
+  { options: [0], text: "" },
+  { options: [0, 2], text: "but no shooters" },
+])
 await runner.inbox.read(updateIds)
 ```
 
@@ -645,6 +650,45 @@ other change to the protocol. Agents' relays never use these credentials: they r
 runner over its local socket, each with its terminal's own token
 ([Relay protocol](#relay-protocol)).
 
+### Preferences
+
+Some of what a person chooses is theirs on every device, and some is the device's own. The
+runner keeps the person's (`preferences.*`); each device keeps its own in its local storage, as
+before, and that copy is also where the app reads the person's first, so a start paints at once.
+
+- **The person's:** the theme and its light or dark choice (`system` follows each screen as it
+  always did), which views are on, Agent Chat, agents' avatars, the onboarding tour switch, the
+  order of the rail's panels and of the footer's subscriptions, and what they've seen once: the
+  Help and feedback chips' words, the phone page's zoom hint, the Agent Chat offer.
+- **The device's:** text size, font and ligatures, the app's scale, notifications, sounds and
+  their volume, the screen reader setting, project windows, the sidebar's width and whether it
+  is collapsed, the view and terminal in front in each session, folds, and what concerns this
+  install (update chips, a portable copy's card).
+- **Still the device's for now:** which agents' messages were read (`novadeck.messages-seen`),
+  which needs merging rather than the last change; and the projects' order, which the runner
+  keeps on its own (`projects.arrange`).
+
+Each preference is text (the UI's JSON) under a key (`[a-z][a-z0-9.-]*`, at most 64 characters),
+at most 64 keys and 16,384 characters each. The runner keeps it as written, under `person:<key>` in its
+settings, without reading it; the UI reads it as it reads a saved preference, so what an older or
+newer build wrote reads as its default where it can't be read. `set` keeps one key, or forgets
+it for `null`: the last change wins, key by key, so two devices changing different things never
+undo each other. `watch` yields every preference, then each change, with the revision every
+change raises and the `writer` (a client's own token) whose change it was, which that client
+skips; a reader slower than the changes gets each key once, as it is when it reads it.
+
+As a device first connects to a runner that keeps them, it takes each preference the runner has,
+and gives it each the person chose there that the runner lacks; a default is no choice, and is
+never given. So the first device after an update gives the person's preferences, the next takes
+them, and a new device that connects first resets nothing. A mark of something seen once is given
+only once seen, so seen anywhere is seen. A value a device takes from another, or from another of
+its windows, it shows but never sends back: one an older build can't read shows as its default
+there, and stays the newer build's on the runner. Another client's change of a key this device is
+changing meanwhile waits behind it, and a change the runner couldn't take, as while the link was
+down, is sent again once it answers and stands over what it says. Against a runner without
+`preferences.*` the app keeps them on the device, as before; an app from before them keeps its own
+and never asks.
+
 ### Desktop app
 
 The Electron host runs the runner in a utility process, so shells live outside the
@@ -764,11 +808,28 @@ How each kind of change ships:
 | New output field                                          | ignored                | missing                | `.optional()`, or raise `oldestRunner`                                                                                                                                     |
 | New procedure                                             | never called           | missing                | `.meta({ since: <revision> })`, and the UI asks `runner.supports(path)` first (a call to it rejects with `UNSUPPORTED` without asking the runner); or raise `oldestRunner` |
 | New value or variant in an output                         | unknown to it          | fine                   | add it to an open schema, once every UI in the window reads it so; or mark the schema open (as of the next revision) and raise `oldestClient`                              |
-| New value, or a looser bound, in an input                 | fine                   | refused                | gate it on the runner's revision with a new procedure, or raise `oldestRunner`                                                                                             |
+| New value, or a looser bound, in an input                 | fine                   | refused                | for a new enum value or union variant, mark it since the revision (below); else gate it with a new procedure, or raise `oldestRunner`                                      |
 | Removed or renamed procedure or field, new required input | broken                 | —                      | raise `oldestClient`; better, stage it: add the new one, move the UI to it, and remove the old one once the window has passed it                                           |
 
 Raising an edge past the newest release's revision is how a change that can't be additive
 is declared: the handshake then refuses that release's peers, with the message above.
+
+A new value of an input enum, or a new variant of an input union, can name the revision it came
+in (`inputEnum(values, { since: { opencode: 7 } })`, `inputUnion(tag, options, { since: { <tag
+value>: 7 } })` in `contract/protocol/src/open.ts`; `x-since` in `contract.json`). The types stay
+the plain enum and union. The check then takes the value as additive and lists it as new, for UIs
+to ask for, without moving `oldestRunner`: a line such as `agents.open harness "opencode" since 7`,
+where `harness` is the `at` to pass. It fails an unmarked new value, a mark on a value the newest
+release already had, a released mark changed or dropped, a mark past the revision, and a mark
+naming a value the schema doesn't take. A UI asks `runner.supports(path, { at, value })` before it
+offers the value: `at` names the input's keys with `.` between them, `*` for a list's or tuple's
+items and a record's values and keys (`list.*.harness`), and `value` is the enum value or the
+variant's tag value. It answers no when any place `at` reaches marks the value newer than the
+runner, and for an `at` the input doesn't have. A call whose input holds such a value in any
+place of the input (keys, items, records, tuples, intersections, catchalls, nested unions)
+rejects with `UNSUPPORTED` without asking the runner. Don't mark values inside a plain union,
+only a discriminated one. An enum an output shares still needs `openEnum` for that side, and
+moves `oldestClient` as before.
 
 #### Open schemas
 
@@ -832,6 +893,22 @@ see them change.
   write or resize. Another connection can attach with `mode: "observe"`.
   There is one attachment per terminal per connection. Cancelling a controlling
   attachment or disconnecting releases control, but leaves the shell running.
+  A client attached to a terminal can `take` it: its attachment controls from then
+  on, and the one that controlled stays attached as an observer, its `write` and `resize`
+  refused with `CONTROL_REQUIRED`. With `ifIdleMs` the take succeeds only where the
+  controller hasn't written for that long (`write` by the controller counts; the
+  runner's own typing, such as a prompt or keys an agent is sent, does not), else
+  `CONTROL_BUSY`. A client follows `terminals.controls` to learn who controls each
+  terminal it is attached to (`you`, `other` or `none`), once as each attachment starts and
+  again at every change: a take, a hand-over, a release, a restart. A controller that
+  doesn't follow it couldn't learn it lost control, so `take` refuses it with
+  `CONTROL_IN_USE`, as an older client that never follows gets today. When a
+  controller lets go of a running terminal, by ending its attachment or closing its
+  connection, the runner hands control to one of the terminal's observers that follow
+  `controls`: the one whose client the person used last (a `showing` report after the
+  first, or `active`), else the one that attached last. A client that fails
+  `SLOW_CONSUMER` hands nothing over, as it attaches again at once. The client handed
+  control resizes the terminal itself.
 - Events carry `terminalId` and an increasing `sequence`. Initial attachment emits
   a serialized screen snapshot with dimensions and `exit`, null while the shell
   runs. Output, resize, and exit events follow in order. A snapshot replaces the old
@@ -1856,7 +1933,7 @@ one from an earlier runner.
   dialog is not raw, or the terminal is gone. The client's
   `agents.saveDialog(terminalId, request)` is that call.
 
-- `agents.takeBack({ terminalId, permit })` (since revision 7) is the person's Take back on a
+- `agents.takeBack({ terminalId, permit })` (since revision 10) is the person's Take back on a
   permit of the shipping gate that stands for the terminal's agent: `permit` is an id from
   `agents.detail`'s `permits`, whose entries say what it covers (`title`), the person's own
   matched words (`quote`, null where they allowed it on the gate's card), when it was given and
@@ -2237,7 +2314,14 @@ one from an earlier runner.
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
-  second for it).
+  second for it). `settings.watch()` (revision 7) yields the settings as `get` reports them,
+  then again each time any client changes them, so every device the person uses follows: the
+  app shows each switch, the Inbox's order and its snoozes as another device left them, but a
+  change of its own still under way stands until the runner answers it.
+
+- `preferences.get()`, `preferences.set({ key, value, writer })` and `preferences.watch()`
+  (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
+  them from device to device.
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
   (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep, set in a neon city at night
@@ -2372,7 +2456,7 @@ one from an earlier runner.
   step has waited on the agent past its patience. Refused as `tour.brief` is.
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
-`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
+`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`, `CONTROL_BUSY`,
 `INVALID_CURSOR`, `UPLOAD_TOO_LARGE`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
 `TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. A
 `CONFLICT` about typing into an agent's terminal (`agents.prompt`, `agents.answer`,

@@ -5,6 +5,7 @@ import { hasCode } from "@novadeck/runner-client"
 import { fitsRunner } from "../fits"
 import { reportCaught } from "../streams"
 import { encodeSession } from "./state"
+import { keepWindowSession } from "./views"
 
 // What a save holds: the state and the visit are sent together, and a visit alone is a change.
 // `revision` is the runner's for that state, where it keeps them (from revision 4 of the
@@ -87,6 +88,8 @@ export const createSessionSaves = ({
 }: SessionSavesOptions): SessionSaves => {
   const saved = new Map(initial)
   const seen = new Map<string, WorkspaceSession>()
+  // The session each project shows here, which this window keeps for its next launch.
+  const shownSession = new Map<string, string>()
   const dirty = new Set<string>()
   let baseline = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -155,6 +158,11 @@ export const createSessionSaves = ({
   }
   return {
     note: (workspace) => {
+      for (const { id, activeSessionId } of workspace.projects) {
+        if (shownSession.get(id) === activeSessionId) continue
+        shownSession.set(id, activeSessionId)
+        keepWindowSession(id, activeSessionId)
+      }
       for (const session of workspace.projects.flatMap((project) => project.history)) {
         if (seen.get(session.id) === session) continue
         seen.set(session.id, session)

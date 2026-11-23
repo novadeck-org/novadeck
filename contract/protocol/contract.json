@@ -1,5 +1,5 @@
 {
-  "revision": 7,
+  "revision": 10,
   "oldestClient": 3,
   "oldestRunner": 2,
   "errors": {
@@ -32,6 +32,7 @@
       "required": ["reason"],
       "additionalProperties": false
     },
+    "CONTROL_BUSY": null,
     "CONTROL_IN_USE": null,
     "CONTROL_REQUIRED": null,
     "DIALOG_CHANGED": null,
@@ -2558,6 +2559,42 @@
       },
       "output": {"x-optional":true}
     },
+    "terminals.take": {
+      "since": 8,
+      "input": {
+        "type": "object",
+        "properties": {
+          "terminalId": {"type":"string","format":"uuid"},
+          "ifIdleMs": {"type":"integer","minimum":0,"maximum":60000}
+        },
+        "required": ["terminalId"],
+        "additionalProperties": false
+      },
+      "output": {"x-optional":true}
+    },
+    "terminals.controls": {
+      "since": 8,
+      "input": {"x-optional":true},
+      "yields": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {"type":"string","const":"control"},
+              "terminalId": {"type":"string","format":"uuid"},
+              "holder": {
+                "type": "string",
+                "enum": ["you","other","none"],
+                "x-open": {"since":8,"unknown":"drop"}
+              }
+            },
+            "required": ["type","terminalId","holder"],
+            "additionalProperties": false
+          }
+        ],
+        "x-open": {"since":8,"unknown":"drop"}
+      }
+    },
     "terminals.active": {
       "input": {
         "type": "object",
@@ -4471,7 +4508,7 @@
       "output": {"x-optional":true}
     },
     "agents.takeBack": {
-      "since": 7,
+      "since": 10,
       "input": {
         "type": "object",
         "properties": {
@@ -7270,6 +7307,65 @@
                             },
                             {
                               "type": "object",
+                              "properties": {
+                                "type": {"type":"string","const":"questions"},
+                                "questions": {
+                                  "minItems": 1,
+                                  "maxItems": 4,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "header": {
+                                        "anyOf": [
+                                          {"type":"string","minLength":1,"maxLength":64},
+                                          {"type":"null"}
+                                        ]
+                                      },
+                                      "question": {"type":"string","minLength":1,"maxLength":2048},
+                                      "options": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "label": {"type":"string","minLength":1,"maxLength":256},
+                                            "summary": {
+                                              "anyOf": [
+                                                {"type":"string","maxLength":2048},
+                                                {"type":"null"}
+                                              ]
+                                            }
+                                          },
+                                          "required": ["label","summary"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "multiSelect": {"type":"boolean"},
+                                      "recommend": {
+                                        "anyOf": [
+                                          {"type":"integer","minimum":0,"maximum":3},
+                                          {"type":"null"}
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "header",
+                                      "question",
+                                      "options",
+                                      "multiSelect",
+                                      "recommend"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": ["type","questions"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
                               "properties": {"type":{"type":"string","const":"newer"}},
                               "required": ["type"],
                               "additionalProperties": false
@@ -7475,6 +7571,65 @@
                             },
                             {
                               "type": "object",
+                              "properties": {
+                                "type": {"type":"string","const":"questions"},
+                                "questions": {
+                                  "minItems": 1,
+                                  "maxItems": 4,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "header": {
+                                        "anyOf": [
+                                          {"type":"string","minLength":1,"maxLength":64},
+                                          {"type":"null"}
+                                        ]
+                                      },
+                                      "question": {"type":"string","minLength":1,"maxLength":2048},
+                                      "options": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "label": {"type":"string","minLength":1,"maxLength":256},
+                                            "summary": {
+                                              "anyOf": [
+                                                {"type":"string","maxLength":2048},
+                                                {"type":"null"}
+                                              ]
+                                            }
+                                          },
+                                          "required": ["label","summary"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "multiSelect": {"type":"boolean"},
+                                      "recommend": {
+                                        "anyOf": [
+                                          {"type":"integer","minimum":0,"maximum":3},
+                                          {"type":"null"}
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "header",
+                                      "question",
+                                      "options",
+                                      "multiSelect",
+                                      "recommend"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": ["type","questions"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
                               "properties": {"type":{"type":"string","const":"newer"}},
                               "required": ["type"],
                               "additionalProperties": false
@@ -7592,6 +7747,36 @@
           }
         },
         "required": ["id","answer"],
+        "additionalProperties": false
+      },
+      "output": {"x-optional":true}
+    },
+    "inbox.answerQuestions": {
+      "since": 9,
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "answers": {
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "options": {
+                  "maxItems": 4,
+                  "type": "array",
+                  "items": {"type":"integer","minimum":0,"maximum":3}
+                },
+                "text": {"type":"string","maxLength":4096}
+              },
+              "required": ["options","text"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["id","answers"],
         "additionalProperties": false
       },
       "output": {"x-optional":true}
@@ -8588,6 +8773,113 @@
         "additionalProperties": false
       },
       "output": {"x-optional":true}
+    },
+    "settings.watch": {
+      "since": 7,
+      "input": {"x-optional":true},
+      "yields": {
+        "type": "object",
+        "properties": {
+          "transcripts": {"type":"boolean"},
+          "welcomed": {"type":"boolean"},
+          "inboxOrder": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {"type":"string","minLength":1,"maxLength":200}
+          },
+          "inboxSnoozed": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {"type":"string","minLength":1,"maxLength":200}
+          },
+          "inboxHistory": {
+            "maxItems": 60,
+            "type": "array",
+            "items": {"type":"string","minLength":1,"maxLength":65536}
+          },
+          "hibernateAfterMinutes": {
+            "anyOf": [{"type":"integer","minimum":1,"maximum":10080},{"type":"null"}]
+          },
+          "worktrees": {"type":"boolean"},
+          "agentModes": {"type":"boolean"},
+          "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
+          "shippingGate": {"type":"boolean"},
+          "transcriptsAvailable": {"type":"boolean"}
+        },
+        "required": [
+          "transcripts",
+          "welcomed",
+          "inboxOrder",
+          "inboxSnoozed",
+          "inboxHistory",
+          "hibernateAfterMinutes",
+          "worktrees",
+          "agentModes",
+          "agentMode",
+          "shippingGate",
+          "transcriptsAvailable"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "preferences.get": {
+      "since": 7,
+      "input": {"x-optional":true},
+      "output": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "propertyNames": {"type":"string","pattern":"^[a-z][a-z0-9.-]{0,63}$"},
+            "additionalProperties": {
+              "anyOf": [{"type":"string","minLength":1,"maxLength":16384},{"type":"null"}]
+            }
+          },
+          "revision": {"type":"integer","minimum":0,"maximum":9007199254740991},
+          "writer": {"anyOf":[{"type":"string","minLength":1,"maxLength":64},{"type":"null"}]}
+        },
+        "required": ["values","revision","writer"],
+        "additionalProperties": false
+      }
+    },
+    "preferences.set": {
+      "since": 7,
+      "input": {
+        "type": "object",
+        "properties": {
+          "key": {"type":"string","pattern":"^[a-z][a-z0-9.-]{0,63}$"},
+          "value": {"anyOf":[{"type":"string","minLength":1,"maxLength":16384},{"type":"null"}]},
+          "writer": {"type":"string","minLength":1,"maxLength":64}
+        },
+        "required": ["key","value","writer"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {"revision":{"type":"integer","minimum":0,"maximum":9007199254740991}},
+        "required": ["revision"],
+        "additionalProperties": false
+      }
+    },
+    "preferences.watch": {
+      "since": 7,
+      "input": {"x-optional":true},
+      "yields": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "propertyNames": {"type":"string","pattern":"^[a-z][a-z0-9.-]{0,63}$"},
+            "additionalProperties": {
+              "anyOf": [{"type":"string","minLength":1,"maxLength":16384},{"type":"null"}]
+            }
+          },
+          "revision": {"type":"integer","minimum":0,"maximum":9007199254740991},
+          "writer": {"anyOf":[{"type":"string","minLength":1,"maxLength":64},{"type":"null"}]}
+        },
+        "required": ["values","revision","writer"],
+        "additionalProperties": false
+      }
     },
     "devices.mint": {
       "since": 6,

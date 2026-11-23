@@ -61,7 +61,7 @@ export const ProjectRow = ({
   const pinDisabled = pinBlocked && !pinned
   const inAnotherWindow = useProjectWindows()?.elsewhere.has(project.id) === true
   return (
-    <ProjectWindowMenu project={project} current={selected}>
+    <ProjectWindowMenu project={project}>
       <div
         ref={ref}
         className="workspace-switcher-row group relative"

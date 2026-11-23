@@ -35,7 +35,10 @@ import type { Tour } from "./tour/tour.js"
 import type { Voice } from "./voice/service.js"
 import type { Works } from "./works/works.js"
 import { listFolder } from "./workspaces/folder.js"
+import { keptPreferences } from "./workspaces/preferences.js"
+import type { Preferences } from "./workspaces/preferences.js"
 import type { Projects } from "./workspaces/projects.js"
+import { SettingsFeed } from "./workspaces/settings-feed.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 import type { MainCheckouts } from "./worktrees/main-checkout.js"
 
@@ -177,7 +180,7 @@ export const createRouter = (options: {
   /** Which terminals the people at the clients use; without it, reports of them are ignored. */
   activity?: Pick<ActiveTerminals, "report">
   /** Which project each client shows; without it, reports of it are ignored. */
-  clients?: Pick<ClientWindows, "report" | "touch">
+  clients?: Pick<ClientWindows, "report" | "touch" | "active">
   /** Which terminals the clients have in sight; without it, reports of them are ignored. */
   seen?: Pick<SeenTerminals, "report">
   /** The runner settings were saved. */
@@ -188,6 +191,8 @@ export const createRouter = (options: {
   shipping?: Pick<Shipping, "takeBack">
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
   tour?: Tour
+  /** The person's preferences; without it, kept in `store`'s settings. */
+  preferences?: Preferences
   /** The devices with credentials of their own; without it there are none, and none can be added. */
   devices?: Devices
 }) => {
@@ -209,6 +214,13 @@ export const createRouter = (options: {
   const api = implement(served).$context<SessionContext>()
   // The projects' and sessions' changes, for clients that share them.
   const { projectFeed, sessionFeed } = projects
+  // The person's settings and preferences as they change, for every device they use.
+  const runnerSettings = async () => ({
+    ...store.settings.runner(),
+    transcriptsAvailable: await options.transcriptsAvailable(),
+  })
+  const settingsFeed = new SettingsFeed(runnerSettings)
+  const preferences = options.preferences ?? keptPreferences(store.settings)
 
   return api.router({
     projects: {
@@ -324,8 +336,14 @@ export const createRouter = (options: {
           signal,
         ),
       ),
+      take: api.terminals.take.handler(({ input, context }) =>
+        terminals.controls.take(input, context.session.id),
+      ),
+      controls: api.terminals.controls.handler(({ context, signal }) =>
+        terminals.controls.follow(context.session.id, signal),
+      ),
       active: api.terminals.active.handler(({ input, context }) => {
-        options.clients?.touch(context.session.id)
+        options.clients?.active(context.session.id, input.terminalId)
         options.activity?.report(context.session.id, input.terminalId)
       }),
       showing: api.terminals.showing.handler(({ input, context }) =>
@@ -501,6 +519,9 @@ export const createRouter = (options: {
       list: api.inbox.list.handler(() => terminals.inboxEntries()),
       watch: api.inbox.watch.handler(({ signal }) => terminals.watchInbox(signal)),
       answer: api.inbox.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
+      answerQuestions: api.inbox.answerQuestions.handler(({ input }) =>
+        terminals.answerAsk(input.id, { type: "questions", answers: input.answers }),
+      ),
       read: api.inbox.read.handler(({ input }) => terminals.readTells(input.ids)),
       dismiss: api.inbox.dismiss.handler(({ input }) => terminals.dismissAsk(input.id)),
     },
@@ -551,17 +572,32 @@ export const createRouter = (options: {
     },
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {
-      get: api.settings.get.handler(async () => ({
-        ...store.settings.runner(),
-        transcriptsAvailable: await options.transcriptsAvailable(),
-      })),
+      get: api.settings.get.handler(() => runnerSettings()),
       set: api.settings.set.handler(({ input }) => {
         if (options.closing()) throw new DomainError("CLOSING")
         store.settings.saveRunner(input)
         options.settingsSaved?.()
         if (input.shippingGate !== undefined) options.shippingSwitched?.()
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
+        void settingsFeed.changed().catch((error: unknown) =>
+          log.error("settings.feed-failed", "Novadeck could not tell clients of a change.", {
+            err: error,
+          }),
+        )
       }),
+      watch: api.settings.watch.handler(({ signal }) =>
+        settingsFeed.watch(signal ?? new AbortController().signal),
+      ),
+    },
+    preferences: {
+      get: api.preferences.get.handler(() => preferences.get()),
+      set: api.preferences.set.handler(({ input }) => {
+        if (options.closing()) throw new DomainError("CLOSING")
+        return preferences.set(input)
+      }),
+      watch: api.preferences.watch.handler(({ signal }) =>
+        preferences.watch(signal ?? new AbortController().signal),
+      ),
     },
     devices: {
       mint: api.devices.mint.handler(({ input, context }) =>

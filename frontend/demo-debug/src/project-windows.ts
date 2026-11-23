@@ -46,7 +46,7 @@ export const projectWindowGroups = (
       },
       {
         label: "Another window shows the next project",
-        hint: "The first project that isn't on screen shows Shown in another window in the switcher and the pins bar (turn Project windows on first); picking it swaps",
+        hint: "The first project that isn't on screen shows Shown in another window in the switcher and the pins bar (turn Project windows on first); picking it shows it here all the same",
         run: (context) => {
           const [next] = others(workspace())
           if (next === undefined) return context.note("There is no other project.")
@@ -65,7 +65,7 @@ export const projectWindowGroups = (
       },
       {
         label: "Another window sends this one to the next project",
-        hint: "This window goes to the project, as after a swap or a hand-off, and nothing else changes",
+        hint: "This window goes to the project, as after a hand-off, and nothing else changes",
         run: (context) => {
           const [next] = others(workspace())
           if (next === undefined) return context.note("There is no other project.")

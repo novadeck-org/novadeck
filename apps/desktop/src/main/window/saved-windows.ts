@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { readFile, rename, rm, writeFile } from "node:fs/promises"
 
-import { windowIdOf } from "@novadeck/protocol/bridge"
+import { windowIdOf, windowKeyOf } from "@novadeck/protocol/bridge"
 
 /** Where a window was and how large, in the screen's own pixels. */
 export type Bounds = {
@@ -11,8 +11,12 @@ export type Bounds = {
   readonly height: number
 }
 
-/** A window the app reopens: the project it showed, and where it stood. */
+/**
+ * A window the app reopens: its key, the project it showed, and where it stood. The key tells
+ * windows apart, which the project can't, as two windows may show one project.
+ */
 export type SavedWindow = {
+  readonly key: string
   readonly projectId: string
   readonly bounds: Bounds
   readonly maximized: boolean
@@ -58,23 +62,28 @@ const boundsOf = (value: unknown): Bounds | undefined => {
 }
 
 /**
- * The saved windows a file holds: the ones that are well formed, at most `mostWindows`, and
+ * The saved windows a file holds: the ones that are well formed, at most `mostWindows`, each
+ * with a key of its own (an older entry gets one here), and
  * nothing at all (`noSavedWindows`) for a file that isn't an object. Never throws.
  */
 export const savedWindowsOf = (value: unknown): SavedWindows => {
   if (typeof value !== "object" || value === null) return noSavedWindows
   const { on, windows } = value as Record<string, unknown>
   const listed = Array.isArray(windows) ? (windows as unknown[]) : []
+  const taken = new Set<string>()
   return {
     on: on === true,
     windows: listed.slice(0, mostWindows).flatMap((entry): SavedWindow[] => {
       if (typeof entry !== "object" || entry === null) return []
-      const { projectId, bounds, maximized } = entry as Record<string, unknown>
+      const { key, projectId, bounds, maximized } = entry as Record<string, unknown>
       const project = windowIdOf(projectId)
       const box = boundsOf(bounds)
-      return project !== undefined && box
-        ? [{ projectId: project, bounds: box, maximized: maximized === true }]
-        : []
+      if (project === undefined || !box) return []
+      // An entry from before keys, or one whose key another window has, gets a new one.
+      let own = windowKeyOf(key)
+      if (own === undefined || taken.has(own)) own = randomUUID()
+      taken.add(own)
+      return [{ key: own, projectId: project, bounds: box, maximized: maximized === true }]
     }),
   }
 }
@@ -145,10 +154,19 @@ export const keepWindows = (file: string, files: Files = { readFile, writeFile, 
     return saving
   }
   return {
-    /** Reads what the last launch kept; nothing when it kept nothing usable. */
+    /**
+     * Reads what the last launch kept; nothing when it kept nothing usable. Keys given to
+     * older entries are written back at once, so a window keeps its key across launches.
+     */
     load: async (): Promise<SavedWindows> => {
       try {
-        current = savedWindowsOf(JSON.parse(await files.readFile(file, "utf8")))
+        const text = await files.readFile(file, "utf8")
+        const loaded = savedWindowsOf(JSON.parse(text))
+        current = loaded
+        if (loaded.windows.some(({ key }) => !text.includes(key))) {
+          current = noSavedWindows
+          void save(loaded)
+        }
       } catch {
         current = noSavedWindows
       }

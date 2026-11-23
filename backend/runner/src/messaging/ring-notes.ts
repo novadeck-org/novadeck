@@ -10,6 +10,7 @@ import {
   type TerminalRings,
 } from "@novadeck/protocol"
 
+import { answerLine } from "./listing.js"
 import { isNotice, type Message } from "./messages.js"
 
 /**
@@ -40,7 +41,9 @@ export const partOf = (message: Message, withId = false): RingPart => {
             ? `Picked ${response.option}`
             : response.action !== undefined
               ? `Marked done: ${response.action}`
-              : undefined,
+              : response.answers !== undefined
+                ? response.answers.map(answerLine).join("; ")
+                : undefined,
           message.text,
         ]
     return {

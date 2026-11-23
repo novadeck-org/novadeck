@@ -85,7 +85,9 @@ const setup = (state: VoiceState = installed) => {
   }
   const typed: { key: TerminalKey; text: string }[] = []
   // Whether the target terminal is still there to take text.
-  const terminal = { open: true }
+  // `keyboard` is who has the terminal's keyboard: this window, or another window whose controller
+  // is idle (so the take lands before the words are typed) or typing (the take is refused).
+  const terminal = { open: true, keyboard: "own" as "own" | "idle" | "busy" }
   const microphone: {
     handlers: CaptureHandlers[]
     stops: number
@@ -103,8 +105,12 @@ const setup = (state: VoiceState = installed) => {
     voice,
     offered: () => void offers.push("offer"),
     typeInto: (key, text) => {
-      if (terminal.open) typed.push({ key, text })
-      return terminal.open
+      if (terminal.keyboard === "busy") return Promise.resolve("busy" as const)
+      const type = (): boolean => {
+        if (terminal.open) typed.push({ key, text })
+        return terminal.open
+      }
+      return terminal.keyboard === "idle" ? Promise.resolve().then(type) : type()
     },
     startCapture: (handlers) =>
       new Promise((resolve, reject) => {
@@ -191,6 +197,40 @@ describe("dictation", () => {
       expect(view.getSnapshot()).toMatchObject({ phase: "idle", target: null })
       // It says the words went in, in the terminal they went to.
       expect(view.getSnapshot().notice).toEqual({ text: "Typed 3 words", tone: "done", target })
+    })
+
+    it("says the words went in only once the keyboard was taken from an idle window", async () => {
+      const app = setup()
+      app.terminal.keyboard = "idle"
+      const { dictation, view } = app.controller
+      dictation.press(target, "KeyM")
+      await app.speak(2)
+      app.advance(2000)
+      dictation.release("KeyM")
+      await flush()
+      app.clips[0]!.resolve({ text: "run the tests", language: "en" })
+      await flush()
+      expect(app.typed).toEqual([{ key: target, text: "run the tests" }])
+      expect(view.getSnapshot().notice).toEqual({ text: "Typed 3 words", tone: "done", target })
+    })
+
+    it("types nothing and says another window has the keyboard when it is typing", async () => {
+      const app = setup()
+      app.terminal.keyboard = "busy"
+      const { dictation, view } = app.controller
+      dictation.press(target, "KeyM")
+      await app.speak(2)
+      app.advance(2000)
+      dictation.release("KeyM")
+      await flush()
+      app.clips[0]!.resolve({ text: "run the tests", language: "en" })
+      await flush()
+      expect(app.typed).toEqual([])
+      expect(view.getSnapshot().notice).toEqual({
+        text: "Another window has the keyboard. Take over to dictate",
+        tone: "error",
+        target,
+      })
     })
 
     it("streams audio into the clip as it arrives", async () => {

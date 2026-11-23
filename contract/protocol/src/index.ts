@@ -180,6 +180,10 @@ export {
   type InboxEntry,
   inboxTextLimits,
   maxAskOptions,
+  maxAskQuestions,
+  maxQuestionOptions,
+  questionsAnswer,
+  type QuestionsAnswer,
 } from "./inbox.js"
 export {
   type DeliveredNotice,
@@ -239,6 +243,14 @@ export {
   type Device,
   type MintedDevice,
 } from "./devices.js"
+export {
+  maxPreferenceLength,
+  maxPreferences,
+  preferenceChange,
+  preferenceKey,
+  preferenceValue,
+  type PreferenceChange,
+} from "./preferences.js"
 export { tourPrepared, type TourPrepared } from "./tour.js"
 export {
   type Approval,
@@ -257,6 +269,7 @@ export {
   type BusyShells,
   type TerminalAttached,
   type TerminalChange,
+  type TerminalControl,
   type TerminalEvent,
   type TerminalExit,
   type TerminalRequest,

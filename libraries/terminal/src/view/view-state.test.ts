@@ -66,6 +66,11 @@ describe("a terminal's view state", () => {
     const noticed = nextViewState(opening, { notice: "No" }, connected)
     expect(noticed).not.toBe(opening)
     expect(nextViewState(noticed, { notice: "No" }, connected)).toBe(noticed)
+    const observing = nextViewState(opening, { control: "observing" }, connected)
+    expect(observing.control).toBe("observing")
+    expect(nextViewState(observing, { control: "observing" }, connected)).toBe(observing)
+    // Observing does not lock the input: a key asks for the keyboard.
+    expect(nextViewState(observing, { live: true }, connected).lock).toBeNull()
   })
 
   it("follows the facts it is given, as when the stage or the link changes", () => {

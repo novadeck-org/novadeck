@@ -194,6 +194,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         restart,
         failPaste: states.failPaste,
         holds: states.holds,
+        took: states.took,
       },
     },
     turns,

@@ -9,7 +9,12 @@ import type {
 import { endingText, terminalEnding, terminalPhase } from "@novadeck/core/terminals/ending"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
 import { useShown } from "@novadeck/toolkit/shown"
-import { TerminalEndingBar, TerminalLock, TerminalNotice } from "@novadeck/toolkit/TerminalStatus"
+import {
+  TerminalControlStrip,
+  TerminalEndingBar,
+  TerminalLock,
+  TerminalNotice,
+} from "@novadeck/toolkit/TerminalStatus"
 import {
   useCallback,
   useEffect,
@@ -150,7 +155,7 @@ export const MountedTerminal = ({
   )
   const latest = useRef(props)
   const ending = terminalEnding(terminal)
-  const { lock, notice } = useSyncExternalStore(
+  const { lock, notice, control } = useSyncExternalStore(
     mount?.state.subscribe ?? ignore,
     () => mount?.state.getSnapshot() ?? opening,
   )
@@ -224,6 +229,16 @@ export const MountedTerminal = ({
           className="terminal-content terminal-mounted nodrag nopan relative flex min-h-0 flex-1 flex-col"
           data-locked={locked || undefined}
         >
+          {control && (
+            <TerminalControlStrip
+              busy={control === "busy"}
+              onTake={() => {
+                mount?.take?.()
+                // Typing goes on in the terminal the keyboard was just taken for.
+                mount?.focus()
+              }}
+            />
+          )}
           <div ref={onSlot} className="flex min-h-0 flex-1 flex-col" />
           <TerminalEndingBar
             ending={ending}
@@ -257,7 +272,7 @@ export const MountedTerminal = ({
       <span aria-live="polite" aria-atomic className="sr-only">
         {ending ? endingText(ending) : ""}
       </span>
-      {/* A failed paste or a copy, announced the same way. */}
+      {/* A failed paste, a copy or a takeover, announced the same way. */}
       <span aria-live="polite" aria-atomic className="sr-only">
         {notice ?? ""}
       </span>

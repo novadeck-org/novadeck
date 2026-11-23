@@ -67,6 +67,7 @@ import { createRunnerItems } from "./companions/items"
 import { answerLook, type Looks } from "./companions/looks"
 import { createRunnerFiles } from "./files"
 import { createRunnerHistory } from "./history"
+import { runnerPreferences } from "./person"
 import { listProject } from "./sessions/listing"
 import { followProjects, type ProjectArrangement } from "./sessions/projects-feed"
 import { createSessionSaves } from "./sessions/saves"
@@ -124,7 +125,7 @@ export type RunnerApi = Pick<
   | "works"
 > &
   // Not every runner has them (an older one doesn't): none are offered without.
-  Partial<Pick<Runner, "forges" | "tour">>
+  Partial<Pick<Runner, "forges" | "tour" | "preferences">>
 
 // What a terminal says while another window controls it and this one waits its turn.
 const openElsewhere: TerminalStatus = { state: "failed", message: "Open in another window" }
@@ -307,7 +308,12 @@ export type SurfaceRuntime = {
   // The surface's attachment, until the returned release; releasing leaves one that
   // took its place, as another surface's, alone.
   readonly attached: (key: TerminalKey, attachment: AttachedTerminal) => () => void
+  // Attaches taking control where it is free, else observing, where the runner supports it
+  // (`terminals.controls`); otherwise as control alone.
   readonly attach: (terminalId: string) => Promise<AttachedTerminal>
+  // Whether the runner hands control between clients (`terminals.controls`): a terminal another
+  // client controls is observed, never refused as in use.
+  readonly observes?: () => boolean
   // Saves a file pasted into a terminal on the runner's machine; resolves with its path.
   readonly upload: Runner["terminals"]["upload"]
   // Resolves once the runner is reachable again, or closed for good.
@@ -1554,12 +1560,36 @@ export const runnerBackend = (
   // The person's order of the Inbox's entries and their snoozes: shown at once, kept by the
   // runner (`fitted`).
   const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
+  // Both follow another device's as the runner tells (`settings.watch`); a change of this
+  // one's own under way stands until it is sent.
+  let takeSnoozes: ((keys: readonly string[]) => void) | undefined
+  let ordering = 0
+  let snoozing = 0
   const snoozable = (shown: Inbox): Inbox =>
     options.inboxSnoozed
-      ? withSnoozes(shown, options.inboxSnoozed, (ids) => {
-          void track(runner.settings.set({ inboxSnoozed: fitted(ids) })).catch(() => {})
-        })
+      ? withSnoozes(
+          shown,
+          options.inboxSnoozed,
+          (ids) => {
+            snoozing += 1
+            void track(runner.settings.set({ inboxSnoozed: fitted(ids) }))
+              .catch(() => {})
+              .finally(() => (snoozing -= 1))
+          },
+          (take) => (takeSnoozes = take),
+        )
       : shown
+  const takeInbox = (settings: {
+    readonly inboxOrder: readonly string[]
+    readonly inboxSnoozed: readonly string[]
+  }): void => {
+    if (inboxOrder && ordering === 0) {
+      const order = inboxOrder.getSnapshot()
+      if (order.join("\n") !== settings.inboxOrder.join("\n"))
+        inboxOrder.update(() => settings.inboxOrder)
+    }
+    if (snoozing === 0) takeSnoozes?.(settings.inboxSnoozed)
+  }
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
   // Murmur, followed the same way.
@@ -1692,6 +1722,31 @@ export const runnerBackend = (
           ],
     ),
   )
+  // The runner's settings and the person's preferences as another client changes them, where
+  // the runner tells (`settings.watch`, `preferences.watch`).
+  const has = (path: "settings.watch" | "preferences.get"): boolean =>
+    typeof (runner as Partial<typeof runner>).supports === "function" && runner.supports(path)
+  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
+  let settingsStream: AsyncIterableIterator<unknown> | undefined
+  const followSettings = (): void => {
+    if (settingsStream || !has("settings.watch")) return
+    const changes = runner.settings.watch()
+    settingsStream = changes
+    void consume(changes, (settings) => {
+      if (settingsStream !== changes) return
+      takeSettings(settings)
+      takeInbox(settings)
+    })
+  }
+  const stopSettings = (): void => {
+    const ended = settingsStream
+    settingsStream = undefined
+    void ended?.return?.()?.catch(() => {})
+  }
+  const person =
+    runner.preferences && has("preferences.get")
+      ? runnerPreferences(runner as Pick<Runner, "preferences">, track)
+      : undefined
   // Sessions shared with the runner's other clients: this one's changes as patches, theirs as
   // they arrive (sessions/sharing.ts).
   // How what another client made opens here, where it has no view of its own: as this
@@ -1885,7 +1940,12 @@ export const runnerBackend = (
         if (entry?.attachment === attachment) entry.attachment = undefined
       }
     },
-    attach: (terminalId) => runner.terminals.attach(terminalId),
+    attach: (terminalId) =>
+      runner.terminals.attach(
+        terminalId,
+        runner.supports("terminals.controls") ? { mode: "control-else-observe" } : undefined,
+      ),
+    observes: () => runner.supports("terminals.controls"),
     upload: (terminalId, file) => track(runner.terminals.upload(terminalId, file)),
     connected,
     lost: (key, error) => {
@@ -2176,6 +2236,8 @@ export const runnerBackend = (
       sessionsArranged: sharing.arranged,
       listed: listing.map(({ project }) => project.id),
     })
+    followSettings()
+    person?.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
@@ -2203,6 +2265,8 @@ export const runnerBackend = (
       sharing.stop()
       liveProjects?.stop()
       liveProjects = undefined
+      stopSettings()
+      person?.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -2232,6 +2296,8 @@ export const runnerBackend = (
     voice: voice.voice,
     murmur: murmur.murmur,
     typeInto: screens.typeInto,
+    observing: screens.observing,
+    takeControl: screens.take,
     activeTerminal: inUse.report,
     showingProject: (projectId, others) => {
       // A project this window stops showing is let go of at once where another window may take
@@ -2266,7 +2332,10 @@ export const runnerBackend = (
             arrange: (keys) => {
               const kept = trimmed(keys, new Set(inbox.state.getSnapshot().items.map(entryKey)))
               inboxOrder.update(() => kept)
-              void track(runner.settings.set({ inboxOrder: fitted(kept) })).catch(() => {})
+              ordering += 1
+              void track(runner.settings.set({ inboxOrder: fitted(kept) }))
+                .catch(() => {})
+                .finally(() => (ordering -= 1))
             },
           }
         : inbox,
@@ -2355,6 +2424,7 @@ export const runnerBackend = (
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,
     ...switches,
+    ...(person && { preferences: person.preferences }),
     ...(runner.tour && {
       // The tours it removes are this window's to remove, as it opens the new one: the projects
       // feed holds what goes meanwhile, and lets go only of what the run didn't remove.

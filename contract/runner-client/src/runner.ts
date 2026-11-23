@@ -25,6 +25,7 @@ import {
   type HistoryChange,
   type InboxEntry,
   type InterruptResult,
+  type QuestionsAnswer,
   type ChangeFileDiff,
   type ChangeRange,
   type ItemContent,
@@ -42,6 +43,7 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type PreferenceChange,
   type SessionChange,
   type ProjectsChange,
   type SessionPatch,
@@ -68,12 +70,24 @@ import {
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
-import { connect, serves, type Transport, type WireStatus } from "@novadeck/wire/client"
+import {
+  connect,
+  serves,
+  servesValue,
+  type Transport,
+  type WireStatus,
+} from "@novadeck/wire/client"
 
 import { lost, type RunnerErrorCode } from "./errors.js"
 import { followAll, followRestarting, followSession, type Reset } from "./follow.js"
 import { base64Parts } from "./parts.js"
-import { attachTerminal, type AttachedTerminal, type TerminalMode } from "./terminal.js"
+import {
+  attachTerminal,
+  type AttachedTerminal,
+  type AttachMode,
+  type ControlHub,
+  type TerminalMode,
+} from "./terminal.js"
 
 export type ConnectOptions = {
   /** Cancels the initial connection. Afterwards, use `runner.close()`. */
@@ -126,8 +140,14 @@ export type Runner = {
    * asking. A UI asks before it offers what such a procedure does. While reconnecting, it
    * answers for the runner it last reached; a runner replaced since shows as a new epoch in
    * `status`, and the UI asks again.
+   *
+   * With `{ at, value }` it asks instead whether the runner takes `value` at `at` of the
+   * procedure's input, where the contract marks it new since a revision (`inputEnum`,
+   * `inputUnion`): `at` names the input's keys with `.` between them, `*` for a list's items
+   * (`"harness"`), and for a union `value` is the variant's tag value. A call holding such a
+   * value rejects with `UNSUPPORTED` without asking the runner.
    */
-  supports(path: ProcedurePath): boolean
+  supports(path: ProcedurePath, input?: { readonly at: string; readonly value: string }): boolean
   /**
    * Yields the current status, then the latest one after each change, until the runner
    * closes. Quick successive changes may be coalesced. `break` stops it at any time.
@@ -396,11 +416,13 @@ export type Runner = {
       terminalId: string,
       options: { readonly cols: number; readonly rows: number; readonly resume?: AgentName },
     ): Promise<TerminalSummary>
-    /** Resolves once the runner has granted the attachment; `control` is the default mode. */
-    attach(
-      terminalId: string,
-      options?: { readonly mode?: TerminalMode },
-    ): Promise<AttachedTerminal>
+    /**
+     * Resolves once the runner has granted the attachment; `control` is the default mode.
+     * `control-else-observe` takes control where it is free and observes where another client
+     * has it, also after a reconnection (an observer then learns of a change of control from
+     * the attachment's `onMode`, where the runner supports `terminals.controls`).
+     */
+    attach(terminalId: string, options?: { readonly mode?: AttachMode }): Promise<AttachedTerminal>
   }
   readonly agents: {
     /**
@@ -759,6 +781,11 @@ export type Runner = {
     /** Answers an agent's ask with the person's answer. */
     answer(id: string, answer: AskAnswer): Promise<void>
     /**
+     * Answers an agent's ask of several questions, one answer per question in its order. Only a
+     * runner from revision 9 on asks those (`supports("inbox.answerQuestions")`).
+     */
+    answerQuestions(id: string, answers: QuestionsAnswer): Promise<void>
+    /**
      * Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
      * not touched. Unknown ids are skipped.
      */
@@ -863,6 +890,23 @@ export type Runner = {
     get(): Promise<RunnerSettingsState>
     /** Changes the settings given; the others stay. */
     set(settings: Partial<RunnerSettings>): Promise<void>
+    /**
+     * The settings now, then as any client changes them, again after each reconnection
+     * (revision 3; ask `supports("settings.watch")` first).
+     */
+    watch(): AsyncIterableIterator<RunnerSettingsState, undefined>
+  }
+  /**
+   * The person's own preferences, which follow them from device to device (`preferences.*`,
+   * revision 3; ask `supports("preferences.get")` first).
+   */
+  readonly preferences: {
+    /** Every preference kept, and their revision. */
+    get(): Promise<PreferenceChange>
+    /** Keeps `value` (JSON text) as `key`, or forgets it for null, as `writer`; the new revision. */
+    set(key: string, value: string | null, writer: string): Promise<number>
+    /** Every preference, then each change, opened again (every preference first) after each reconnection. */
+    watch(): AsyncIterableIterator<PreferenceChange, undefined>
   }
   /**
    * Devices with credentials of their own, beside the owner's token (`devices.*`, revision 3;
@@ -930,12 +974,69 @@ export const connectRunner = async (
       throw lost(error, session)
     }
   }
+  // Who holds each terminal this connection is attached to, once an attachment asks and the
+  // runner tells (`terminals.controls`): one stream for the connection, which opens again after
+  // each reconnection and sets the mode of the attachments it names.
+  const supportsControls = (): boolean => serves(contract, ["terminals", "controls"], current())
+  const joined = new Map<
+    string,
+    Set<(mode: TerminalMode, holder: "you" | "other" | "none") => void>
+  >()
+  const latest = new Map<
+    string,
+    { readonly mode: TerminalMode; readonly holder: "you" | "other" | "none"; readonly at: number }
+  >()
+  let controlEvents = 0
+  let controlling = false
+  const followControls = (): void => {
+    if (controlling) return
+    controlling = true
+    const events = followSession(connection, (client, signal) =>
+      client.terminals.controls(undefined, { signal }),
+    )
+    void (async () => {
+      try {
+        for await (const event of events) {
+          if (event.type !== "control") continue
+          controlEvents += 1
+          const mode = event.holder === "you" ? "control" : "observe"
+          latest.set(event.terminalId, { mode, holder: event.holder, at: controlEvents })
+          for (const set of joined.get(event.terminalId) ?? []) set(mode, event.holder)
+        }
+      } catch {
+        // The connection ended for good: modes stay as they were.
+      } finally {
+        controlling = false
+      }
+    })()
+  }
+  const controlHub: ControlHub = {
+    now: () => controlEvents,
+    join: (id, since, set) => {
+      const members = joined.get(id) ?? new Set()
+      members.add(set)
+      joined.set(id, members)
+      // News that came while the attachment was being granted.
+      const known = latest.get(id)
+      if (known && known.at > since) set(known.mode, known.holder)
+      return () => {
+        members.delete(set)
+        if (members.size === 0 && joined.get(id) === members) joined.delete(id)
+      }
+    },
+  }
+  // Control-aware from the start, so a client that makes a terminal before attaching anything is
+  // handed control when another lets go.
+  if (supportsControls()) followControls()
   return {
     get status() {
       return connection.status.value
     },
     watch: () => connection.status.watch(),
-    supports: (path) => serves(contract, path.split("."), current()),
+    supports: (path, input) =>
+      serves(contract, path.split("."), current()) &&
+      (input === undefined ||
+        servesValue(contract, path.split("."), input.at, input.value, current())),
     projects: {
       list: () => call((client) => client.projects.list()),
       create: (input) => call((client) => client.projects.create(input)),
@@ -1018,8 +1119,10 @@ export const connectRunner = async (
         call((client) =>
           client.terminals.restart({ terminalId, cols, rows, ...(resume && { resume }) }),
         ),
-      attach: (terminalId, { mode = "control" } = {}) =>
-        attachTerminal(connection, terminalId, mode),
+      attach: (terminalId, { mode = "control" } = {}) => {
+        if (supportsControls()) followControls()
+        return attachTerminal(connection, terminalId, mode, controlHub)
+      },
     },
     agents: {
       list: (look) => call((client) => client.agents.list(look)),
@@ -1145,6 +1248,8 @@ export const connectRunner = async (
       watch: () =>
         followSession(connection, (client, signal) => client.inbox.watch(undefined, { signal })),
       answer: (id, answer) => call((client) => client.inbox.answer({ id, answer })),
+      answerQuestions: (id, answers) =>
+        call((client) => client.inbox.answerQuestions({ id, answers })),
       read: (ids) => call((client) => client.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((client) => client.inbox.dismiss({ id })),
     },
@@ -1195,6 +1300,17 @@ export const connectRunner = async (
     settings: {
       get: () => call((client) => client.settings.get()),
       set: (settings) => call((client) => client.settings.set(settings)),
+      watch: () =>
+        followSession(connection, (client, signal) => client.settings.watch(undefined, { signal })),
+    },
+    preferences: {
+      get: () => call((client) => client.preferences.get()),
+      set: async (key, value, writer) =>
+        (await call((client) => client.preferences.set({ key, value, writer }))).revision,
+      watch: () =>
+        followSession(connection, (client, signal) =>
+          client.preferences.watch(undefined, { signal }),
+        ),
     },
     devices: {
       mint: (name) => call((client) => client.devices.mint({ name })),

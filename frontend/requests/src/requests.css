@@ -434,6 +434,11 @@
   padding: 0 var(--_pad) 0 var(--_inset);
   color: var(--_muted);
 }
+/* Under a host's own words (an agent's ask of several questions), they start half a line down,
+   as a menu's rows do. */
+.request-card > :not(.request-head) + .request-questions {
+  margin-top: calc(var(--_lh) / 2);
+}
 .request-tabs-line .request-dialog-title {
   padding: 0;
 }

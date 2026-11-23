@@ -10,7 +10,7 @@ import { createContext, useContext, type ReactElement } from "react"
 export type ProjectWindowsView = {
   // The ids of the projects other windows show.
   readonly elsewhere: ReadonlySet<string>
-  // Opens a project in a new window, or brings forward the window that shows it.
+  // Opens a project in a new window, even when a window shows it already.
   readonly open: (projectId: string) => void
 }
 
@@ -31,22 +31,19 @@ export const OtherWindowMark = (): React.JSX.Element => (
 )
 
 // A project's menu: "Open in new window", on a right-click of `children`, which holds a row or
-// a pin. Not for the project this window shows, which is in a window already, nor while project
-// windows are off. `contents` wraps `children` in an element that adds no box of its own, for
+// a pin, for any project, this window's own too; not while project windows are off. `contents` wraps `children` in an element that adds no box of its own, for
 // a child that is not one element.
 export const ProjectWindowMenu = ({
   project,
-  current,
   contents = false,
   children,
 }: {
   readonly project: { readonly id: string; readonly name: string }
-  readonly current: boolean
   readonly contents?: boolean
   readonly children: ReactElement
 }): ReactElement => {
   const windows = useProjectWindows()
-  if (!windows || current) return children
+  if (!windows) return children
   return (
     <ContextMenu
       label={`${project.name} actions`}

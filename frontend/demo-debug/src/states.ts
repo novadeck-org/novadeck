@@ -638,6 +638,11 @@ export const createDemoStates = (
     return actions
   }
   // Sets what a terminal's screen is doing for a while, then shows its output again.
+  // Another window holds the terminal's keyboard, idle or typing, until this one takes it.
+  const observe = (key: TerminalKey, observed: "idle" | "typing"): void => {
+    const id = terminalKeyId(key)
+    screens.update((all) => new Map(all).set(id, { ...all.get(id), observed }))
+  }
   const showScreen = (key: TerminalKey, screen: DemoScreenState, ms: number): void => {
     const id = terminalKeyId(key)
     screens.update((all) => new Map(all).set(id, screen))
@@ -676,6 +681,16 @@ export const createDemoStates = (
         ),
         onSelected("Loading output", "Briefly, as after a reconnect", (key) =>
           showScreen(key, { attaching: true }, attachMs),
+        ),
+        onSelected(
+          "Another window has the keyboard",
+          "The screen shows the other window's size under a “Typing in another window · Take over” strip; plain typing takes the keyboard and goes through, Enter or a Ctrl key takes it and says so",
+          (key) => observe(key, "idle"),
+        ),
+        onSelected(
+          "Another window is typing",
+          "As above while the other window types: a key shows the strip's busy form and goes nowhere, and only Take over takes the keyboard",
+          (key) => observe(key, "typing"),
         ),
         setting(
           "Asleep",
@@ -1144,6 +1159,17 @@ export const createDemoStates = (
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),
+    took: (key) =>
+      screens.update((all) => {
+        const id = terminalKeyId(key)
+        const state = all.get(id)
+        if (!state?.observed) return all
+        const next = new Map(all)
+        const { observed: _, ...rest } = state
+        if (Object.keys(rest).length > 0) next.set(id, rest)
+        else next.delete(id)
+        return next
+      }),
     restart: (key, dispatch) => {
       verbs.release(key)
       dispatch(backToPrompt(key))

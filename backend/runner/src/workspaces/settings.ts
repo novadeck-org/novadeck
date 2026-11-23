@@ -5,6 +5,7 @@ import {
   defaultAgentMode,
   defaultHibernateMinutes,
   forgeName,
+  maxPreferences,
   murmurCheck,
   runnerSettings,
   voiceCheck,
@@ -298,4 +299,52 @@ export class Settings {
   saveMurmurSettings(settings: MurmurSettingsChange): void {
     this.saveGroup("murmur", settings)
   }
+
+  /**
+   * The person's preferences (`preferences` in the contract), each as the UI wrote it, by its
+   * key, and the revision they are at. Kept as `person:<key>` rows, beside `person.revision`.
+   */
+  preferences(): { readonly values: Record<string, string>; readonly revision: number } {
+    const rows = this.queries.all`
+      SELECT key, value FROM settings WHERE key LIKE 'person:%' ORDER BY key` as {
+      key: string
+      value: string
+    }[]
+    return {
+      values: Object.fromEntries(
+        rows.map(({ key, value }) => [key.slice(personPrefix.length), value]),
+      ),
+      revision: this.preferenceRevision(),
+    }
+  }
+
+  private preferenceRevision(): number {
+    const revision = Number(this.setting(personRevision))
+    return Number.isInteger(revision) && revision > 0 ? revision : 0
+  }
+
+  /**
+   * Keeps `value` as the preference `key`, or forgets it for null; resolves the new revision.
+   * A new key past `maxPreferences` is refused (`undefined`), and changes nothing.
+   */
+  savePreference(key: string, value: string | null): number | undefined {
+    const row = `${personPrefix}${key}`
+    if (value === null) this.forgetSetting(row)
+    else {
+      if (this.setting(row) === undefined) {
+        const { count } = this.queries.get`
+          SELECT count(*) AS count FROM settings WHERE key LIKE 'person:%'` as { count: number }
+        if (Number(count) >= maxPreferences) return undefined
+      }
+      this.saveSetting(row, value)
+    }
+    const revision = this.preferenceRevision() + 1
+    this.saveSetting(personRevision, String(revision))
+    return revision
+  }
 }
+
+// Where the person's preferences are kept: `person:<key>` rows, and their revision. The
+// revision's key has no colon, so no preference is ever it.
+const personPrefix = "person:"
+const personRevision = "person.revision"

@@ -105,6 +105,10 @@ describe("Novadeck's own tools", () => {
     expect(ask({ type: "action", command: "gh auth login", done_label: "Done" })?.title).toBe(
       "Asked you to run a command",
     )
+    expect(
+      ask({ type: "questions", questions: [{ question: "Which?", options: [{ label: "A" }] }] })
+        ?.title,
+    ).toBe("Asked you some questions")
   })
 
   it("reads an ask's shape given as JSON text", () => {

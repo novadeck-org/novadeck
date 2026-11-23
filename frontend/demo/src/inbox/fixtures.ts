@@ -269,6 +269,7 @@ export const demoInboxIds = {
   webhook: "demo-webhook-ask",
   question: "demo-question",
   questions: "demo-questions",
+  askQuestions: "demo-ask-questions",
   preview: "demo-preview-ask",
   login: "demo-login",
   limit: "demo-limit",
@@ -379,6 +380,61 @@ const extraFixtures: readonly Fixture[] = [
     minutes: 3,
     stopped: true,
     content: { kind: "request", request: severalQuestionsRequest },
+  },
+  // The same questions asked through Novadeck's own ask, from Codex, which has no question tool
+  // that takes several: drawn as the dialog above is, with the ask's own words over it.
+  {
+    id: demoInboxIds.askQuestions,
+    project: "infra",
+    terminal: 2,
+    agent: "codex",
+    minutes: 2,
+    stopped: true,
+    content: {
+      kind: "ask",
+      ask: {
+        subject: "How should the test fixtures handle dates?",
+        body: "The new fixtures need a few calls before I generate them.",
+        details: null,
+        hardToUndo: null,
+        shape: {
+          type: "questions",
+          questions: [
+            {
+              header: "Dates",
+              question: "Which date library should the tests use?",
+              multiSelect: false,
+              recommend: 0,
+              options: [
+                { label: "date-fns", summary: "Already used in the app." },
+                { label: "Keep native Date", summary: "No change." },
+              ],
+            },
+            {
+              header: "Suites",
+              question: "Which suites should run against the new fixtures?",
+              multiSelect: true,
+              recommend: null,
+              options: [
+                { label: "Unit", summary: "Fast, no browser." },
+                { label: "End to end", summary: "About 6 minutes in CI." },
+                { label: "Visual snapshots", summary: "Needs the fixtures regenerated." },
+              ],
+            },
+            {
+              header: "Timezone",
+              question: "Which timezone should the fixtures assume?",
+              multiSelect: false,
+              recommend: null,
+              options: [
+                { label: "UTC", summary: "Same everywhere." },
+                { label: "The machine's own", summary: "Catches DST bugs, flakier on CI." },
+              ],
+            },
+          ],
+        },
+      },
+    },
   },
   {
     id: demoInboxIds.plan,

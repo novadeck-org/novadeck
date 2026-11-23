@@ -46,6 +46,7 @@ const open = (change?: Partial<TerminalMetadata>) => {
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   const fails = new Set<string>()
   const restarted: TerminalKey[] = []
+  const took: TerminalKey[] = []
   // What still listens to the engine, of what the screens subscribed.
   const listening = new Set<object>()
   const heard = {
@@ -66,6 +67,7 @@ const open = (change?: Partial<TerminalMetadata>) => {
       screens,
       restart: (key) => restarted.push(key),
       failPaste: (key) => fails.delete(terminalKeyId(key)),
+      took: (key) => took.push(key),
     },
   })
   const attaching = (on: boolean): void =>
@@ -81,6 +83,7 @@ const open = (change?: Partial<TerminalMetadata>) => {
     start,
     stop,
     screens,
+    took,
     listeners: () => listening.size,
   }
 }
@@ -153,6 +156,43 @@ describe("the demo's terminal screens", () => {
       attaching(false)
       await lifecycle.revived
       expect((await reader(await waiting)()).value).toMatchObject({ type: "snapshot" })
+    })
+  })
+
+  context("while the debug layer gives its keyboard to another window", () => {
+    const observed = (state: "idle" | "typing") =>
+      new Map([[terminalKeyId(shell), { observed: state }]])
+
+    it("observes, and takes the keyboard once the other window is idle", async () => {
+      const { options, screens, took } = open()
+      screens.update(() => observed("idle"))
+      const stream = await options.attach(shell)
+      expect(stream.mode).toBe("observe")
+      const modes: string[] = []
+      stream.onMode?.((mode) => modes.push(mode))
+      await stream.take?.({ ifIdleMs: 2000 })
+      expect([stream.mode, modes, took]).toEqual(["control", ["control"], [shell]])
+    })
+
+    it("refuses an idle-only take while the other window types, but not Take over", async () => {
+      const { options, screens } = open()
+      screens.update(() => observed("typing"))
+      const stream = await options.attach(shell)
+      await expect(stream.take?.({ ifIdleMs: 2000 })).rejects.toMatchObject({
+        code: "CONTROL_BUSY",
+      })
+      expect(stream.mode).toBe("observe")
+      await stream.take?.()
+      expect(stream.mode).toBe("control")
+    })
+
+    it("turns a stream that controls into one that observes", async () => {
+      const { options, screens } = open()
+      const stream = await options.attach(shell)
+      const modes: string[] = []
+      stream.onMode?.((mode) => modes.push(mode))
+      screens.update(() => observed("idle"))
+      expect([stream.mode, modes]).toEqual(["observe", ["observe"]])
     })
   })
 

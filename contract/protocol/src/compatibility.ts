@@ -25,9 +25,13 @@ export const compatibility: Compatibility = {
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
   // 6: each device has its own credential, revoked on its own (`devices.*`).
-  // 7: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
-  //    `agents.takeBack`).
-  revision: 7,
+  // 7: the person's settings follow them from device to device, live (`settings.watch`,
+  //    `preferences.*`).
+  // 8: a terminal's control moves between clients (`terminals.take`, `terminals.controls`).
+  // 9: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
+  // 10: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
+  //     `agents.takeBack`).
+  revision: 10,
   oldestClient: 3,
   oldestRunner: 2,
 }

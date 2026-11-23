@@ -95,6 +95,9 @@ export type TerminalMount = {
   readonly focus: () => boolean
   // A fresh shell in an exited or failed terminal.
   readonly restart: () => void
+  // Takes control of a terminal another client controls, as the strip's button asks. Absent
+  // where a backend has no observing.
+  readonly take?: () => void
   // Called while the element is still in the document, so focus carries to the next mount.
   // Safe twice; leaves the element's content where it is.
   readonly dispose: () => void
@@ -114,6 +117,10 @@ export type ViewState = {
   // A short word for the person: why the last paste failed, for a few seconds after it
   // did, or that a copy reached the clipboard, for a moment.
   readonly notice: string | null
+  // Set while another client controls the terminal and this one only observes it: the screen is
+  // drawn at the terminal's size and a key may take control (`TerminalMount.take`). `busy` says
+  // a take was refused because the controller is typing. Absent or null: this client controls.
+  readonly control?: "observing" | "busy" | null
 }
 // The terminal font from Preferences: the size in CSS pixels, and the family the person chose,
 // which goes in front of the theme's own chain; none is the theme's font.
@@ -347,6 +354,9 @@ export type BackendFields = {
   // Optional. How the link to the far side is doing, for the footer. Updates may begin
   // only once `start` runs.
   readonly connection?: Store<BackendConnectionState>
+  // Optional. The person's own settings, which the far side keeps for every device they use
+  // (person.ts). Without it they stay on this device.
+  readonly preferences?: PersonPreferences
   // Optional. Where the far side can keep crashing: the backend then stops restarting
   // terminals until the person asks it to try again.
   readonly crashLoop?: {
@@ -510,6 +520,15 @@ export type BackendFields = {
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.
   readonly typeInto?: (key: TerminalKey, text: string) => boolean
+  // Optional, with `terminalControl`. Whether this window only observes the terminal, another
+  // client controlling it, which the backend knows synchronously. Absent: it never does.
+  readonly observing?: (key: TerminalKey) => boolean
+  // Optional. Takes control of an observed terminal, refused with the controller's reason (it
+  // wrote within `ifIdleMs`) by rejecting; resolves at once where this window controls it.
+  readonly takeControl?: (
+    key: TerminalKey,
+    options?: { readonly ifIdleMs?: number },
+  ) => Promise<void>
   // Optional. Hands a terminal's name back to the backend, which names it on its own
   // again: the name the person gave it goes, and the backend reports the one it takes
   // with `terminal/update`. Absent where names are only the person's.
@@ -531,9 +550,11 @@ export type BackendFields = {
   // Optional. Tells the backend which terminal the person is using in this window (its id),
   // or none (null): the one they look at while the window has their focus. A backend that runs
   // the terminals' programs gives it the CPU share of the app's own, and the others' programs
-  // yield it. Told again, with no change, only where the link to the runner came back. Absent
-  // where terminals run no programs on this machine, as in the demo.
-  readonly activeTerminal?: (terminalId: string | null) => void
+  // yield it. Told again, with no change, where the link to the runner came back, and where
+  // `again` is set, as when the window gains focus or the person types: the runner takes it as
+  // the window being used. Absent where terminals run no programs on this machine, as in the
+  // demo.
+  readonly activeTerminal?: (terminalId: string | null, again?: boolean) => void
   // Optional. Tells the backend which project this window shows (null for none), so what an
   // agent asks of the person reaches the window that shows the project of the terminal that
   // asked. Told again, with no change, only where the link to the runner came back. Called only
@@ -746,6 +767,19 @@ export type AgentConnection = {
   // While it is not `available`: the command that installs it where the backend runs, as a
   // terminal would run it for the person.
   readonly installer?: string | undefined
+}
+
+// The person's own settings as the far side keeps them: text by key, the last change winning
+// key by key.
+export type PersonPreferences = {
+  // Changes this device made, as person.ts saves them; null forgets one.
+  readonly set: (key: string, value: string | null) => void
+  // Every setting the far side keeps, at once if it has said, else once it does (`first`);
+  // then each another client changed, as they arrive, a forgotten one as null. Returns what
+  // stops it.
+  readonly subscribe: (
+    listener: (values: Readonly<Record<string, string | null>>, first: boolean) => void,
+  ) => () => void
 }
 
 // "unavailable" means the backend gave up reconnecting.

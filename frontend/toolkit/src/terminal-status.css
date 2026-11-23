@@ -77,6 +77,29 @@
   --_fg: var(--color-muted);
 }
 
+/* The strip over a terminal this window only observes: in the flow above the output. */
+.terminal-control {
+  border-bottom: var(--border-width) solid var(--terminal-ending-border-color, var(--color-line));
+  background-color: var(--terminal-ending-bg, var(--color-shell));
+  color: var(--terminal-ending-reason-fg, var(--color-muted));
+}
+.terminal-control[data-terminal-control="busy"] {
+  color: var(--terminal-ending-fg, var(--color-ink));
+}
+.terminal-take {
+  --_bg: transparent;
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--terminal-ending-fg, var(--color-ink));
+}
+.terminal-take:hover {
+  --_bg: var(--terminal-restart-hover-bg, var(--color-soft));
+}
+.terminal-take:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: 1px;
+}
+
 /* Canvas scales its resize grip (28px, at the node's bottom-right corner) with
    --_canvas-chrome-scale; the end-of-session bar keeps its Restart button clear of it. */
 .canvas-node .terminal-ending {

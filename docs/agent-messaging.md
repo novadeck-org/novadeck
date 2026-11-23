@@ -949,9 +949,13 @@ it ships, are its harness's and the person's setup, as without Novadeck. Texts t
 their own pick and then raise a decision they'd otherwise have settled, and examples
 naming pull requests drew agents toward them.
 `shape` defaults to `{ type: "text" }`. It can instead offer one to three options (`label`, optional `summary`, Markdown `details` and `code: { path, text }`),
-with `recommend` a zero-based index or null; or an action (`command`, optional `directory`,
-`done_label`). Action commands are shown for the person to run, never executed by
-Novadeck. The person can always write their own answer. Secret shapes are unavailable:
+with `recommend` a zero-based index or null; several questions at once (`questions`: one to
+four, each a `question` with an optional short `header`, one to four options of a `label` and
+optional `summary`, `multi_select` and `recommend`), which the Inbox draws as it draws a
+harness's own dialog of questions, a tab each and a page that sends them, and answers all
+together; or an action (`command`, optional `directory`, `done_label`). Action commands are
+shown for the person to run, never executed by Novadeck. The person can always write their
+own answer, to each question of several too. Secret shapes are unavailable:
 Novadeck does not write secrets into project files or send them through this feature.
 
 `ask({ withdraw: id })` withdraws only the caller's own open ask in its current session.
@@ -1063,9 +1067,10 @@ state. The latest `done` of each terminal that still exists is never pruned, rea
 as it is the report that still stands; it goes with its terminal. Pruning a settled question also removes its settled message response. Removing
 a project deletes its entries with its messages.
 
-Only the authenticated UI's `inbox.answer` operation creates a person response. It checks
-that the ask is still open in the same session and that the answer fits the offered
-shape. Saving the answer message and resolving the ask is one SQLite transaction;
+Only the authenticated UI's `inbox.answer` and `inbox.answerQuestions` operations create a
+person response. They check that the ask is still open in the same session and that the answer
+fits the offered shape: an ask of several questions takes an answer to every one of them, each
+options it offered (one where it takes one) or the person's words, or both. Saving the answer message and resolving the ask is one SQLite transaction;
 failed storage or an oversized answer leaves the ask answerable. Answers take the
 existing Stop lease and doorbell delivery path in Claude Code, Codex and Antigravity,
 including escaped-output bounds and recipient-session fencing. The pause switch holds
@@ -1077,7 +1082,9 @@ Delivered text says **Novadeck relayed the user's response** and marks the respo
 delivery, distinct from a lead's nonce. The outer `<rules>` name it, and admit a person
 approval only when that delivery actually carries a person-marked response. The agent's
 question, selected option and action label are explicitly quoted as agent-written;
-only the person's own note appears under "The user's own reply". Agent text and subjects
+only the person's own note appears under "The user's own reply". An answer to several
+questions quotes each question (and its header) with the options picked for it, and the
+person's words for it under "The user's own answer". Agent text and subjects
 are escaped, so a send claiming to be the person, or quoting an earlier mark, carries only its sender's authority.
 
 Messages lists a **You** thread for each ask or tell. Ask and Tell entries are already

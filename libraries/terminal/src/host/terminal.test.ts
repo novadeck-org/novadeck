@@ -831,6 +831,115 @@ describe("a terminal's attachments", () => {
   })
 })
 
+describe("a terminal's control", () => {
+  const watched = (terminal: Hosted["terminal"]) => {
+    const told: boolean[] = []
+    terminal.on("control", (letGo) => told.push(letGo))
+    return told
+  }
+
+  it("moves to an attached observer that takes it, the controller observing on", async () => {
+    const { terminal, program, settled } = terminalOf({ controller: "first" })
+    const first = terminal.attach("first", { mode: "control" })
+    terminal.attach("second", { mode: "observe" })
+    const told = watched(terminal)
+    terminal.take("second")
+    expect(terminal.controller).toBe("second")
+    expect(told).toEqual([false])
+    // Still attached, still reading.
+    expect(terminal.attachment("first")).toBe(first)
+    program.draw("hi")
+    await settled()
+    expect(await drain(terminal, "first", first, 2)).toMatchObject([
+      { type: "snapshot" },
+      { type: "output", data: "hi" },
+    ])
+    // Taking what it controls changes nothing.
+    terminal.take("second")
+    expect(told).toEqual([false])
+  })
+
+  it("is taken from no one, and refused to one that isn't attached", () => {
+    const { terminal } = terminalOf()
+    terminal.attach("viewer", { mode: "observe" })
+    terminal.take("viewer")
+    expect(terminal.controller).toBe("viewer")
+    expect(() => terminal.take("stranger")).toThrow(expect.objectContaining({ code: "CONFLICT" }))
+    expect(terminal.controller).toBe("viewer")
+  })
+
+  it("leaves a window's parked size behind when another takes control", async () => {
+    const { terminal, program } = terminalOf({ controller: "first" })
+    terminal.attach("first", { mode: "control" })
+    terminal.attach("second", { mode: "observe" })
+    const hold = terminal.hold({ inputMs: 1000, sizeMs: 1000 })
+    terminal.resize(30, 5, "first")
+    terminal.take("second")
+    hold.settle()
+    expect(program.calls).not.toContain("resize 30x5")
+    expect(terminal.size).toEqual({ cols: 20, rows: 4 })
+  })
+
+  it("tells its listeners each change, and a controller letting go of a running one", () => {
+    const { terminal } = terminalOf({ controller: "creator" })
+    const told = watched(terminal)
+    terminal.attach("creator", { mode: "control" })
+    // Attaching as the controller already is changes nothing.
+    expect(told).toEqual([])
+    terminal.attach("other", { mode: "observe" })
+    terminal.release("other")
+    expect(told).toEqual([])
+    terminal.release("creator")
+    expect(told).toEqual([true])
+    terminal.attach("other", { mode: "control" })
+    expect(told).toEqual([true, false])
+  })
+
+  it("lets a listener hand control to an observer as it is let go", () => {
+    const { terminal } = terminalOf({ controller: "creator" })
+    terminal.attach("creator", { mode: "control" })
+    terminal.attach("other", { mode: "observe" })
+    terminal.on("control", (letGo) => {
+      if (letGo) terminal.take("other")
+    })
+    terminal.release("creator")
+    expect(terminal.controller).toBe("other")
+    expect(terminal.owners).toEqual(["other"])
+  })
+
+  it("is not let go when an attachment fails behind, nor once the program exited", async () => {
+    const slow = terminalOf({
+      controller: "creator",
+      limits: { ...limits, subscriberBytes: 1024, ackWindowBytes: 256 },
+    })
+    const attachment = slow.terminal.attach("creator", { mode: "control" })
+    await attachment.next()
+    const told = watched(slow.terminal)
+    for (let index = 0; index < 8; index += 1) {
+      slow.program.draw("x".repeat(200))
+      // eslint-disable-next-line no-await-in-loop -- One event a draw.
+      await slow.settled()
+    }
+    expect(told).toEqual([false])
+    const done = terminalOf({ controller: "creator" })
+    done.terminal.attach("creator", { mode: "control" })
+    const exited = watched(done.terminal)
+    done.program.exit(0)
+    await done.settled()
+    done.terminal.release("creator")
+    expect(exited).toEqual([false])
+  })
+
+  it("lists its owners in the order they attached", () => {
+    const { terminal } = terminalOf()
+    terminal.attach("a", { mode: "observe" })
+    terminal.attach("b", { mode: "observe" })
+    terminal.release("a")
+    terminal.attach("a", { mode: "observe" })
+    expect(terminal.owners).toEqual(["b", "a"])
+  })
+})
+
 describe("a terminal's snapshot", () => {
   const snapshotOf = async ({ terminal }: Hosted) => {
     const attachment = terminal.attach("snapshot", { mode: "observe" })

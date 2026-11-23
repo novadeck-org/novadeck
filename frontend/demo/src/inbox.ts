@@ -17,6 +17,7 @@ import {
 } from "@novadeck/core/inbox"
 import { dialogMs, inboxEntries, type Asked, type WrittenEntry } from "@novadeck/core/inbox/entries"
 import { answerLine, createInboxHistory } from "@novadeck/core/inbox/history"
+import { questionsWords } from "@novadeck/core/inbox/questions"
 import { answerEntry, createInboxTracker, keepInbox, keyOf } from "@novadeck/core/inbox/tracker"
 import { noMessages, type InboxHistory, type Messages } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
@@ -164,6 +165,12 @@ const resolution = (found: InboxEntry, answer: InboxAnswer): Pick<Settled, "how"
         : answer.answer.type === "done" && shape.type === "action"
           ? shape.doneLabel
           : undefined
+    if (answer.answer.type === "questions")
+      return {
+        how: "answered",
+        answer:
+          shape.type === "questions" ? questionsWords(shape.questions, answer.answer.answers) : "",
+      }
     const words = answer.answer.type === "reply" ? answer.answer.text.trim() : ""
     return { how: "answered", answer: [picked, words].filter(Boolean).join(": ") }
   }

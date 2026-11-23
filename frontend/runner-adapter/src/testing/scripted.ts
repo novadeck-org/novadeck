@@ -6,6 +6,8 @@ import type {
   FeedbackDraft,
   ForgeIntegration,
   InboxEntry,
+  PreferenceChange,
+  RunnerSettingsState,
   TerminalRequest,
   TerminalSummary,
 } from "@novadeck/protocol"
@@ -156,6 +158,7 @@ export const scripted = ({
   answerRequest = async () => {},
   createProject = unused,
   move = () => new Promise<never>(() => {}),
+  follows = false,
 }: {
   shown: readonly Saved[]
   background?: readonly Saved[]
@@ -200,7 +203,14 @@ export const scripted = ({
   createProject?: () => Promise<unknown>
   // How the runner answers a move of a terminal to another session; by default it never does.
   move?: () => Promise<unknown>
+  // Whether the runner tells of its settings and the person's preferences as they change
+  // (`settings.watch`, `preferences.*`), which the test pushes.
+  follows?: boolean
 }) => {
+  // How the runner answers `preferences.set`, which a test may change as it goes.
+  const answers: { preference: () => Promise<number> } = { preference: async () => 1 }
+  const settingsChanges = channel<RunnerSettingsState>()
+  const preferenceChanges = channel<PreferenceChange>()
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
   const inbox = channel<InboxEntry[]>()
@@ -219,6 +229,13 @@ export const scripted = ({
     }
   const api = {
     watch: () => statuses.iterator,
+    supports: (path: string) =>
+      follows && (path === "settings.watch" || path === "preferences.get"),
+    preferences: {
+      get: unused,
+      set: note("preference", () => answers.preference()),
+      watch: () => preferenceChanges.iterator,
+    },
     projects: {
       list: unused,
       create: note("create project", createProject),
@@ -232,11 +249,16 @@ export const scripted = ({
       rename: unused,
       save: async () => {},
     },
-    settings: { get: unused, set: note("settings", saveSettings) },
+    settings: {
+      get: unused,
+      set: note("settings", saveSettings),
+      watch: () => settingsChanges.iterator,
+    },
     // Each `inbox.watch` reads the one stream the test pushes listings to.
     inbox: {
       watch: () => inbox.iterator,
       answer: unused,
+      answerQuestions: unused,
       read: async () => {},
       dismiss: unused,
     },
@@ -396,6 +418,12 @@ export const scripted = ({
     items,
     inbox,
     statuses,
+    settingsChanges,
+    preferenceChanges,
+    // Changes how the runner answers `preferences.set` from now on.
+    answerPreference: (answer: () => Promise<number>) => {
+      answers.preference = answer
+    },
     watches,
     received,
     calls,

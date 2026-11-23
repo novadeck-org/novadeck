@@ -2,6 +2,9 @@ import { describe, expect, it } from "../../test"
 import { boundsToOpen, keepWindows, noSavedWindows, savedWindowsOf } from "./saved-windows"
 
 const bounds = { x: 10, y: 20, width: 1000, height: 700 }
+const key = "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b"
+const other = "9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
+const uuid = expect.stringMatching(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/)
 
 describe("the saved windows a file holds", () => {
   it("are the well formed ones, rounded to whole pixels", () => {
@@ -9,19 +12,32 @@ describe("the saved windows a file holds", () => {
       savedWindowsOf({
         on: true,
         windows: [
-          { projectId: "p1", bounds: { ...bounds, x: 10.4 }, maximized: true },
-          { projectId: "p2", bounds },
+          { key, projectId: "p1", bounds: { ...bounds, x: 10.4 }, maximized: true },
+          { key: other, projectId: "p2", bounds },
         ],
       }),
     ).toEqual({
       on: true,
       windows: [
-        { projectId: "p1", bounds, maximized: true },
-        { projectId: "p2", bounds, maximized: false },
+        { key, projectId: "p1", bounds, maximized: true },
+        { key: other, projectId: "p2", bounds, maximized: false },
       ],
     })
   })
 
+  it("give an entry from before keys a key, and each window a key of its own", () => {
+    const { windows } = savedWindowsOf({
+      on: true,
+      windows: [
+        { projectId: "p1", bounds },
+        { key: "not a key", projectId: "p1", bounds },
+        { key, projectId: "p1", bounds },
+        { key, projectId: "p1", bounds },
+      ],
+    })
+    expect(windows.map((each) => each.key)).toEqual([uuid, uuid, key, uuid])
+    expect(new Set(windows.map((each) => each.key)).size).toBe(4)
+  })
   it("leave out a window with no project or with bounds that make no sense", () => {
     expect(
       savedWindowsOf({
@@ -44,7 +60,7 @@ describe("the saved windows a file holds", () => {
   })
 
   it("never list more than a person has screens for", () => {
-    const windows = Array.from({ length: 40 }, () => ({ projectId: "p", bounds }))
+    const windows = Array.from({ length: 40 }, () => ({ key, projectId: "p", bounds }))
     expect(savedWindowsOf({ on: true, windows }).windows).toHaveLength(16)
   })
 })
@@ -84,7 +100,7 @@ const files = () => {
 }
 
 describe("keeping the windows for the next launch", () => {
-  const window = { projectId: "p1", bounds, maximized: false }
+  const window = { key, projectId: "p1", bounds, maximized: false }
 
   it("keeps the open windows only while project windows are on", async () => {
     const disk = files()
@@ -116,5 +132,27 @@ describe("keeping the windows for the next launch", () => {
     expect(await keepWindows("windows.json", disk).load()).toEqual({ on: true, windows: [window] })
     disk.written.set("windows.json", "{not json")
     expect(await keepWindows("windows.json", disk).load()).toEqual(noSavedWindows)
+  })
+
+  it("keeps two windows on one project, each under its own key", async () => {
+    const disk = files()
+    const first = keepWindows("windows.json", disk)
+    await first.load()
+    await first.use(true)
+    const second = { ...window, key: other }
+    await first.remember([window, second])
+    const { windows } = await keepWindows("windows.json", disk).load()
+    expect(windows).toEqual([window, second])
+  })
+
+  it("writes back the keys it gave older entries, so they hold across launches", async () => {
+    const disk = files()
+    const old = { projectId: "p1", bounds, maximized: false }
+    disk.written.set("windows.json", JSON.stringify({ on: true, windows: [old, old] }))
+    const first = await keepWindows("windows.json", disk).load()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const second = await keepWindows("windows.json", disk).load()
+    expect(second.windows).toEqual(first.windows)
+    expect(second.windows[0]!.key).not.toBe(second.windows[1]!.key)
   })
 })

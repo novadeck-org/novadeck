@@ -83,6 +83,12 @@ export type InboxReply = {
   readonly subject: string
   readonly option?: string
   readonly action?: string
+  /** A questions ask's answers: each question (its header where it has one), the labels picked, and the words written. */
+  readonly answers?: readonly {
+    readonly question: string
+    readonly picked: readonly string[]
+    readonly text: string
+  }[]
   readonly text: string
 }
 
@@ -151,9 +157,10 @@ const cut = (text: string, limit: number): string => {
  * One reply as the line says it, in the person's voice, their words whole: the agent's
  * subject and labels quoted as its own.
  */
-const replyPhrase = ({ subject, option, action, text }: InboxReply): string => {
+const replyPhrase = ({ subject, option, action, answers, text }: InboxReply): string => {
   const asked = `Re your ask ${quoted(subject, agentLimits.subject)}:`
   const own = inline(text)
+  if (answers !== undefined) return `${asked} ${answers.map(answerPhrase).join(" ")}`
   if (action !== undefined)
     return `${asked} I marked it done (${quoted(action, agentLimits.choice)}).`
   if (option !== undefined)
@@ -161,6 +168,20 @@ const replyPhrase = ({ subject, option, action, text }: InboxReply): string => {
       ? `${asked} I picked ${quoted(option, agentLimits.choice)} and wrote: ${own}`
       : `${asked} I picked ${quoted(option, agentLimits.choice)}.`
   return `${asked} ${own}`
+}
+
+/** One question's answer as the reply line says it: what was picked, and what was written. */
+const answerPhrase = ({
+  question,
+  picked,
+  text,
+}: NonNullable<InboxReply["answers"]>[number]): string => {
+  const own = inline(text)
+  const chose = picked.map((label) => quoted(label, agentLimits.choice)).join(" and ")
+  const said = [chose && `I picked ${chose}`, own && `I wrote: ${own}`]
+    .filter(Boolean)
+    .join(" and ")
+  return `For ${quoted(question, agentLimits.choice)}, ${said}.`
 }
 
 /**
@@ -177,10 +198,11 @@ export const replyLine = (
   replies: readonly InboxReply[],
 ): ((nonce: string) => string) | undefined => {
   if (replies.length === 0) return undefined
-  const fields = replies.flatMap(({ subject, option, action, text }) => [
+  const fields = replies.flatMap(({ subject, option, action, answers, text }) => [
     subject,
     option ?? "",
     action ?? "",
+    ...(answers ?? []).flatMap((each) => [each.question, ...each.picked, each.text]),
     text,
   ])
   if (fields.some((field) => unfit.test(field))) return undefined

@@ -56,6 +56,28 @@ const entry = {
     recommend: 0,
   },
 }
+// An ask of two questions: one picks one option, with the agent's pick, the other several.
+const questionsAsk = {
+  subject: "Theme and genre?",
+  body: "For the prototype.",
+  shape: {
+    type: "questions",
+    questions: [
+      {
+        header: "Theme",
+        question: "Which theme?",
+        options: [{ label: "Fantasy", summary: "Castles" }, { label: "Sci-fi" }],
+        recommend: 0,
+      },
+      {
+        header: "  ",
+        question: "Which genres?",
+        options: [{ label: "RPG" }, { label: "FPS" }, { label: "RTS" }],
+        multi_select: true,
+      },
+    ],
+  },
+}
 const setup = (
   records: InboxRecords = memoryInbox(),
   store?: WorkspaceStore,
@@ -286,6 +308,163 @@ describe("Inbox asks and updates", () => {
     expect(messaging.list(identity.terminalId, identity.handle).threads[0]?.messages[0]?.text).toBe(
       "I signed in",
     )
+    messaging.close()
+  })
+
+  it("asks several questions at once, each with its options, and normalizes them", () => {
+    const { inbox, create } = setup()
+    const id = create(questionsAsk)
+    expect(inbox.list()).toMatchObject([
+      {
+        id,
+        content: {
+          kind: "ask",
+          ask: {
+            shape: {
+              type: "questions",
+              questions: [
+                {
+                  header: "Theme",
+                  question: "Which theme?",
+                  options: [
+                    { label: "Fantasy", summary: "Castles" },
+                    { label: "Sci-fi", summary: null },
+                  ],
+                  multiSelect: false,
+                  recommend: 0,
+                },
+                {
+                  header: null,
+                  question: "Which genres?",
+                  options: [{ label: "RPG" }, { label: "FPS" }, { label: "RTS" }],
+                  multiSelect: true,
+                  recommend: null,
+                },
+              ],
+            },
+          },
+        },
+      },
+    ])
+    expect(inboxEntry.safeParse(inbox.list()[0]).success).toBe(true)
+  })
+
+  it("refuses an ask of no questions, too many, or a question of too many options or none", () => {
+    const { inbox } = setup()
+    const question = { question: "Which?", options: [{ label: "A" }] }
+    for (const questions of [
+      [],
+      Array.from({ length: 5 }, () => question),
+      [{ ...question, options: [] }],
+      [{ ...question, options: Array.from({ length: 5 }, () => ({ label: "A" })) }],
+      [{ ...question, recommend: 1 }],
+      [{ ...question, question: "  " }],
+      [{ ...question, header: "two\nlines" }],
+    ])
+      expect(
+        inbox.call(identity.terminalId, "ask", {
+          ...entry,
+          shape: { type: "questions", questions },
+        }).ok,
+      ).toBe(false)
+    expect(inbox.list()).toEqual([])
+  })
+
+  it("answers every question at once, each with its picks and the person's own words", () => {
+    const { inbox, messaging, create } = setup()
+    const id = create(questionsAsk)
+    expect(
+      inbox.answer(id, {
+        type: "questions",
+        answers: [
+          { options: [0], text: "" },
+          { options: [2, 0], text: "  no shooters  " },
+        ],
+      }),
+    ).toEqual({ terminalId: identity.terminalId, text: "no shooters" })
+    expect(messaging.inboxReply(id)?.response).toMatchObject({
+      subject: "Theme and genre?",
+      answers: [
+        { question: "Which theme?", header: "Theme", picked: ["Fantasy"] },
+        { question: "Which genres?", picked: ["RPG", "RTS"], text: "no shooters" },
+      ],
+    })
+    expect(messaging.inboxReply(id)?.text).toBe("")
+    expect(inbox.list()[0]?.settled).toMatchObject({
+      how: "answered",
+      answer: "Theme: Fantasy; Which genres?: RPG, RTS, no shooters",
+    })
+    const thread = messaging.list(identity.terminalId, identity.handle).threads[0]
+    expect(thread?.messages.at(-1)?.text).toBe(
+      "Theme: Fantasy\n\nWhich genres?: RPG, RTS, no shooters",
+    )
+    messaging.close()
+  })
+
+  it("refuses questions whose answers could not all reach the agent, as each answer quotes them", () => {
+    const { inbox } = setup()
+    const long = (fill: string) => ({
+      question: fill.repeat(1000),
+      options: [{ label: "A" }, { label: "B" }],
+    })
+    // Four questions of 1,000 ampersands: each is five bytes once escaped.
+    const refused = inbox.call(identity.terminalId, "ask", {
+      ...entry,
+      shape: { type: "questions", questions: Array.from({ length: 4 }, () => long("&")) },
+    })
+    expect(refused).toMatchObject({ ok: false, reason: expect.stringMatching(/too long/) })
+    expect(inbox.list()).toEqual([])
+    // Four of 900 plain characters leave room for the person's words.
+    const fits = inbox.call(identity.terminalId, "ask", {
+      ...entry,
+      shape: {
+        type: "questions",
+        questions: Array.from({ length: 4 }, () => ({ ...long("x"), question: "x".repeat(900) })),
+      },
+    })
+    expect(fits.ok).toBe(true)
+  })
+
+  it("takes the person's words to a question without the controls no delivery holds", () => {
+    const { inbox, messaging, create } = setup()
+    const id = create(questionsAsk)
+    inbox.answer(id, {
+      type: "questions",
+      answers: [
+        { options: [], text: "dark\u001b[2J fantasy\u0007" },
+        { options: [1], text: "" },
+      ],
+    })
+    expect(messaging.inboxReply(id)?.response?.answers?.[0]?.text).toBe("dark[2J fantasy")
+    messaging.close()
+  })
+
+  it("refuses an answer that leaves a question unanswered or picks outside its options", () => {
+    const { inbox, create, messaging } = setup()
+    const id = create(questionsAsk)
+    for (const answers of [
+      [{ options: [0], text: "" }],
+      [
+        { options: [0], text: "" },
+        { options: [], text: "  " },
+      ],
+      [
+        { options: [0, 1], text: "" },
+        { options: [0], text: "" },
+      ],
+      [
+        { options: [2], text: "" },
+        { options: [0], text: "" },
+      ],
+    ])
+      expect(() => inbox.answer(id, { type: "questions", answers })).toThrow()
+    expect(() => inbox.answer(id, { type: "reply", option: 0, text: "" })).toThrow(/options/)
+    // Still open, and answerable.
+    expect(inbox.list()).toHaveLength(1)
+    const other = create()
+    expect(() =>
+      inbox.answer(other, { type: "questions", answers: [{ options: [0], text: "" }] }),
+    ).toThrow(/no questions/)
     messaging.close()
   })
 

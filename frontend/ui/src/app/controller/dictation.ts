@@ -23,9 +23,19 @@ import { domEffects } from "./effects"
 
 export const DictationContext = createContext<DictationController | undefined>(undefined)
 
+// How long the controller of a terminal this window only observes must have been quiet for
+// dictation to take the keyboard, as typing does.
+const dictationIdleMs = 2_000
+
+// What typing the words did: typed (or not, where the terminal took none), or the keyboard is
+// another window's, which is typing there.
+export type Typed = boolean | "busy"
+
 // Where dictated words go: a terminal showing its agent's chat takes them in the chat's box,
-// after what is there, for the person to send; any other takes them typed into it.
-// `terminalOf` finds the terminal a key names, on a backend that reads conversations.
+// after what is there, for the person to send; any other takes them typed into it. Where this
+// window only observes the terminal, it takes the keyboard first, and says so ("busy", nothing
+// typed) when the other window is typing. `terminalOf` finds the terminal a key names, on a
+// backend that reads conversations.
 export const dictateInto =
   (
     ui: UiStore,
@@ -33,8 +43,12 @@ export const dictateInto =
     typeInto: (key: TerminalKey, text: string) => boolean,
     terminalOf: (key: TerminalKey) => TerminalMetadata | undefined,
     conversationOf?: (key: TerminalKey) => Conversation | undefined,
+    keyboard?: {
+      readonly observing: (key: TerminalKey) => boolean
+      readonly take: (key: TerminalKey, options: { readonly ifIdleMs: number }) => Promise<void>
+    },
   ) =>
-  (key: TerminalKey, text: string): boolean => {
+  (key: TerminalKey, text: string): Typed | Promise<Typed> => {
     const context = `${key.projectId}/${key.workspaceSessionId}`
     const terminal = terminalOf(key)
     const conversation = conversationOf?.(key)
@@ -47,7 +61,12 @@ export const dictateInto =
       !terminal ||
       !chatShown(chatViewOn(ui.getSnapshot()), answering, context, terminal, boundSession)
     )
-      return typeInto(key, text)
+      return keyboard?.observing(key)
+        ? keyboard.take(key, { ifIdleMs: dictationIdleMs }).then(
+            () => typeInto(key, text),
+            () => "busy" as const,
+          )
+        : typeInto(key, text)
     dictateIntoDraft(chat, context, key.terminalId, text)
     return true
   }
@@ -107,7 +126,7 @@ export const useDictationController = ({
 }: Pick<WorkspaceServices, "backend" | "workspace" | "ui" | "chat" | "commands">):
   | DictationController
   | undefined => {
-  const { voice, typeInto } = backend
+  const { voice, typeInto, observing, takeControl } = backend
   const controller = useMemo(
     () =>
       voice &&
@@ -128,12 +147,13 @@ export const useDictationController = ({
                   ?.state.roster.terminals.find((each) => each.id === key.terminalId)
               : undefined,
           (key) => backend.conversations?.conversation(key).getSnapshot(),
+          observing && takeControl ? { observing, take: takeControl } : undefined,
         ),
         startCapture,
         now: domEffects.now,
         after: domEffects.after,
       }),
-    [voice, typeInto, backend.conversations, workspace, ui, chat, commands],
+    [voice, typeInto, observing, takeControl, backend.conversations, workspace, ui, chat, commands],
   )
   useEffect(() => () => controller?.dictation.cancel(), [controller])
   useEffect(() => controller?.start(), [controller])
