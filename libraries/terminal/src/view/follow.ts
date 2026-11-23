@@ -479,12 +479,12 @@ export const followTerminal = <K>(
       if (attachment.mode === "observe" || waiting > 0) return enqueue(attachment, data)
       void attachment.write(data).catch(() => {})
     },
-    take: async (options) => {
+    take: async (asked) => {
       const stream = attachment
       if (stream?.mode !== "observe") return
       try {
         if (!stream.take) throw new Error("The host can't hand control over.")
-        await stream.take(options)
+        await stream.take(asked)
       } catch (error) {
         busy = true
         if (attachment === stream) screen.strip?.("busy")
