@@ -104,10 +104,12 @@ const start = async (env: Record<string, string> = {}, gate = false): Promise<Ho
 
 const reports = (): Report[] => {
   const file = join(dir, "reports.jsonl")
+  // Only the lines the hook finished: the file may be read as it is created, empty, or while a
+  // line is being written, so the text after the last newline is left for the next read.
   return existsSync(file)
     ? readFileSync(file, "utf8")
-        .trim()
         .split("\n")
+        .slice(0, -1)
         .map((line) => JSON.parse(line) as Report)
     : []
 }
