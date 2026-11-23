@@ -244,6 +244,8 @@ ${header("rem", "shim for opencode")}
 rem Runs the real opencode with Novadeck's plugin loaded for this launch, and tells the plugin
 rem which session the command line named, which a plugin can't read.
 setlocal
+rem This file's folder, kept before the words are walked: each shift moves %0 as well.
+set "novadeck_here=%~dp0"
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:opencode 2^>nul') do call :consider "%%~fi"
 if not defined novadeck_real (
@@ -313,7 +315,7 @@ set "novadeck_strip=1"
 shift
 goto command
 :session
-for %%i in ("%~dp0..\\${pluginFolder.replaceAll("/", "\\")}") do set "novadeck_plugin=%%~fi"
+for %%i in ("%novadeck_here%..\\${pluginFolder.replaceAll("/", "\\")}") do set "novadeck_plugin=%%~fi"
 if not exist "%novadeck_plugin%\\${pluginFile}" goto config
 set "novadeck_slash=%novadeck_plugin:\\=/%"
 if defined OPENCODE_CONFIG_CONTENT goto dir
