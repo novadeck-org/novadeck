@@ -553,3 +553,88 @@ describe("a standing permit", () => {
     expect(asked).toEqual(["r/app 5", "r/app 6", "r/app feat/x"])
   })
 })
+
+describe("what the person sees stand, and takes back", () => {
+  const joined = () => {
+    const told: string[] = []
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: (_terminalId, text) => told.push(text) > 0,
+    })
+    const changed: string[] = []
+    const records = new Map([["t", { summary: { id: "t" }, bound: undefined }]]) as never
+    shipping.attach(records, (record: { summary: { id: string } }) =>
+      changed.push(record.summary.id),
+    )
+    return { shipping, told, changed }
+  }
+
+  it("shows one entry for each declaration or card, with the person's own words, never the agent's", () => {
+    const { shipping, changed } = joined()
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    const given = { group: "g", title: "Merge PR #5 into main" }
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, given)
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, given)
+    shipping.permits.give(
+      "t",
+      "land:r/app:main",
+      false,
+      { type: "answer", card: "c" },
+      {
+        group: "c",
+        title: "Land work on main",
+      },
+    )
+    const { permits } = shipping.held("t")
+    expect(permits).toEqual([
+      expect.objectContaining({
+        id: "g",
+        title: "Merge PR #5 into main",
+        quote: "merge stuff",
+        usedAt: null,
+      }),
+      expect.objectContaining({ id: "c", title: "Land work on main", quote: null }),
+    ])
+    expect(permits[0]!.until - permits[0]!.givenAt).toBe(12 * 60 * 60_000)
+    // Each change republishes the terminal's detail.
+    expect(changed).toEqual(["t", "t", "t"])
+  })
+
+  it("takes a permit back whole, tells the agent, and says so; a terminal it doesn't know is no terminal", () => {
+    const { shipping, told } = joined()
+    const quote = { type: "quote", quote: "merge stuff" } as const
+    shipping.permits.give("t", "pr-merge:r/app#5", false, quote, {
+      group: "g",
+      title: "Merge PR #5 into main",
+    })
+    shipping.permits.give("t", "pr-merge:r/app@feat/x", false, quote, {
+      group: "g",
+      title: "Merge PR #5 into main",
+    })
+    expect(shipping.takeBack("t", "g")).toBe(true)
+    expect(shipping.permits.covering("t", "pr-merge:r/app@feat/x")).toBeUndefined()
+    expect(shipping.held("t").permits).toEqual([])
+    expect(told[0]).toContain(
+      "The user took back the permit: Merge PR #5 into main. No permit covers it now.",
+    )
+    expect(shipping.takeBack("t", "g")).toBe(false)
+    expect(shipping.takeBack("gone", "g")).toBeUndefined()
+  })
+})
+
+describe("the gate while off", () => {
+  it("holds nothing for the detail, so the agent's detail is as it was", () => {
+    let on = true
+    const shipping = new Shipping({
+      enabled: () => on,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    shipping.permits.give("t", "land:r/app:main", false, { type: "quote", quote: "land it" })
+    shipping.cards.ask("t", ["push:r/app:origin/main"], false, "Push to origin/main?", "")
+    expect(shipping.held("t").permits).toHaveLength(1)
+    on = false
+    expect(shipping.held("t")).toEqual({ cards: [], permits: [] })
+  })
+})

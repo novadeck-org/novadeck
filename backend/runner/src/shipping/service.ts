@@ -7,7 +7,7 @@ import { execFile } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import { open } from "node:fs/promises"
 
-import type { AgentName } from "@novadeck/protocol"
+import { agentLimits, type AgentName, type StandingPermit } from "@novadeck/protocol"
 
 import { logs } from "../log.js"
 import { noticeText } from "../messaging/notice-format.js"
@@ -33,7 +33,7 @@ import {
 } from "./gate.js"
 import { agyPreToolUse } from "./hooks.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
-import { Permits, Quotes } from "./permits.js"
+import { Permits, Quotes, type Permit } from "./permits.js"
 import { agyRules, claudeRules, codexRules } from "./rules.js"
 import { shipsByRule } from "./shapes.js"
 
@@ -583,6 +583,57 @@ export class Shipping {
     if (lease?.terminalId !== terminalId) return
     this.leases.delete(leaseId)
     if (lease.expires > Date.now()) lease.commit()
+  }
+
+  /**
+   * What the gate holds for the person in a terminal: its open cards, and the permits that
+   * stand there, one for each declaration or card that gave them, oldest first. Nothing while
+   * the gate is off.
+   */
+  held(terminalId: string): {
+    readonly cards: readonly Card[]
+    readonly permits: StandingPermit[]
+  } {
+    if (!this.host.enabled()) return { cards: [], permits: [] }
+    const groups = new Map<string, Permit>()
+    for (const permit of this.permits.of(terminalId))
+      if (!groups.has(permit.group)) groups.set(permit.group, permit)
+    const permits = [...groups.values()].slice(0, agentLimits.permits).map((permit) => ({
+      id: permit.group,
+      title: permit.title.slice(0, agentLimits.subject),
+      quote:
+        permit.source.type === "quote" ? permit.source.quote.slice(0, agentLimits.quote) : null,
+      givenAt: permit.givenAt,
+      until: permit.until,
+      usedAt: permit.usedAt,
+    }))
+    return { cards: this.cards.of(terminalId), permits }
+  }
+
+  /**
+   * The person took back a permit that stood in a terminal: it ends with every target it
+   * covered, and the agent is told. Whether one stood; undefined for a terminal it doesn't know.
+   */
+  takeBack(terminalId: string, group: string, client?: string): boolean | undefined {
+    if (!this.records.has(terminalId)) return undefined
+    const permit = this.permits.of(terminalId).find((each) => each.group === group)
+    if (!permit || !this.permits.takeBack(terminalId, group)) return false
+    log.info("shipping.taken-back", `The user took back a permit: ${permit.title}`, {
+      data: {
+        terminalId,
+        target: permit.key,
+        client: client ?? null,
+        at: new Date().toISOString(),
+      },
+    })
+    this.host.notify(
+      terminalId,
+      noticeText("Shipping", {
+        facts: `The user took back the permit: ${permit.title}. No permit covers it now.`,
+        actions: [],
+      }),
+    )
+    return true
   }
 
   private sweeper: NodeJS.Timeout | undefined

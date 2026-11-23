@@ -570,6 +570,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     rewriteShellFiles,
     agents,
     terminals,
+    shipping,
     items,
     projects,
     works,
@@ -652,6 +653,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     shellFiles,
     rewriteShellFiles,
     terminals,
+    shipping,
     items,
     agents,
     projects,
@@ -694,6 +696,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         settingsSaved: () => rootFolder.ensure(),
         // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
         // hooks, so they are written again, and a Codex copy that differs is installed again.
+        shipping,
         shippingSwitched: () =>
           void shellFiles
             .then(() => rewriteShellFiles())

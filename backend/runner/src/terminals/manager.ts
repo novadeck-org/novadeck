@@ -422,7 +422,7 @@ export class Terminals {
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
           this.typing.boxes.view(record.summary.id),
-          this.options.shipping?.enabled() ? this.options.shipping.cards.of(record.summary.id) : [],
+          this.options.shipping?.held(record.summary.id),
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
