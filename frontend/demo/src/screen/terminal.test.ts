@@ -105,6 +105,7 @@ const conversationOf = (fields: Partial<Conversation> = {}): Conversation => ({
   screen: null,
   items: [],
   requests: [],
+  permits: [],
   prompts: [],
   box: null,
   ...fields,

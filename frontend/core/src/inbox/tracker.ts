@@ -235,6 +235,9 @@ export type InboxActions = {
     options?: { readonly automatic?: true },
   ) => Promise<unknown>
   readonly interrupt: (key: TerminalKey) => Promise<unknown>
+  // Takes back a shipping permit that stands for the key's agent; rejects with why not, also
+  // where it no longer stood.
+  readonly takeBack: (key: TerminalKey, permit: string) => Promise<unknown>
   // The entry's terminal now, to see whether its agent works.
   readonly terminal: (key: TerminalKey) => TerminalMetadata | undefined
 }
@@ -270,6 +273,8 @@ export const answerEntry = (
     if (entry.update.type === "newer") return
     return actions.read([id])
   }
+  if (entry.kind === "permit" && given.kind === "permit")
+    return tracker.call(id, () => actions.takeBack(key, entry.permit.id), { settles: true })
   if (entry.kind === "trouble" && given.kind === "trouble") {
     const { action } = given
     const settles = { settles: true }

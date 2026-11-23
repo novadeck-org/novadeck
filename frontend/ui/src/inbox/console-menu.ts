@@ -298,6 +298,21 @@ const answersOf = (entry: OwnEntry, now: number): Menu => {
     case "update":
       // Opening it read it: all that is left to do is to answer in the terminal.
       return { rows: [], hard: false }
+    case "permit":
+      return {
+        rows: [
+          {
+            type: "answer",
+            label: "Take back",
+            effect: `@${entry.source.handle} is told.`,
+            pick: false,
+            details: null,
+            answer: { kind: "permit", action: "take-back" },
+            receipt: `Took back @${entry.source.handle}'s permit: ${entry.permit.title}.`,
+          },
+        ],
+        hard: false,
+      }
   }
 }
 

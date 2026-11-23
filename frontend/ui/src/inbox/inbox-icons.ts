@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   OctagonX,
   Repeat2,
+  ShieldCheck,
   ShieldQuestionMark,
   SquareTerminal,
   type LucideIcon,
@@ -36,6 +37,7 @@ export type IconKey =
   | "done"
   | "told"
   | "newer"
+  | "permit"
 
 export const icons: Readonly<Record<IconKey, LucideIcon>> = {
   permission: ShieldQuestionMark,
@@ -51,6 +53,7 @@ export const icons: Readonly<Record<IconKey, LucideIcon>> = {
   done: Flag,
   told: MessageSquareText,
   newer: CircleDashed,
+  permit: ShieldCheck,
 }
 
 // The kind of an entry, for its icon: a harness's dialog by what it asks (a permission, a plan, a
@@ -70,6 +73,8 @@ export const iconKey = (entry: InboxEntry): IconKey => {
       return entry.trouble.type
     case "update":
       return entry.update.type
+    case "permit":
+      return "permit"
   }
 }
 
@@ -96,6 +101,8 @@ export const tintOf = (entry: InboxEntry): Tint => {
         : entry.update.type === "newer"
           ? "note"
           : "ink"
+    case "permit":
+      return "ink"
   }
 }
 

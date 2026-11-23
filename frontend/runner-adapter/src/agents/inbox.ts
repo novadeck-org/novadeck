@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
+import type { ChatAnswer, ChatPermit, ChatRequest } from "@novadeck/core/conversation"
 import {
   emptyInbox,
   type Inbox,
@@ -31,6 +31,7 @@ import {
 
 import { reportCaught } from "../streams"
 import { requestOf, rootOf } from "./conversations"
+import { permitsOf, samePermits, takeBackOf } from "./permits"
 
 // The runner's Inbox: what every agent terminal waits on the person for, as Inbox entries, built from what the UI already has: the terminals' statuses (a finished turn,
 // its error, a usage limit), the messages held for release, and the requests of the agents
@@ -65,6 +66,11 @@ export type InboxStreams = {
     readonly dismiss: (id: string) => Promise<void>
   }
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
+  // Where the runner keeps the shipping gate's standing permits and takes one back, and whether
+  // the gate is on: while it is, every running agent's detail is followed for its permits.
+  // Absent where it has none, and no permit shows.
+  readonly takeBack?: (terminalId: string, permit: string) => Promise<{ readonly ended: boolean }>
+  readonly gate?: Store<boolean>
   readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
   readonly send: (
     key: TerminalKey,
@@ -93,6 +99,7 @@ export type RunnerInbox = Inbox & {
 type Reading = {
   alive: boolean
   requests: readonly Asked[]
+  permits: readonly ChatPermit[]
   stream: AsyncIterableIterator<AgentDetail, undefined> | undefined
   closing: ReturnType<typeof setTimeout> | undefined
   retrying: ReturnType<typeof setTimeout> | undefined
@@ -241,6 +248,8 @@ export const createRunnerInbox = (
         for await (const snapshot of stream) {
           if (!reading.alive || reading.stream !== stream) return
           reading.requests = askedOf(snapshot)
+          const standing = permitsOf(snapshot)
+          if (!samePermits(reading.permits, standing)) reading.permits = standing
           reading.backoff = retryMs
           recompute()
         }
@@ -262,13 +271,19 @@ export const createRunnerInbox = (
   }
 
   // Details stay open for the terminals whose agent has a request waiting, and a while
-  // after.
+  // after; with the shipping gate on, for every running agent, whose permits only its detail says.
   const follow = (workspace: Workspace): void => {
     const waiting = new Set<string>()
+    const permitting = !!streams.takeBack && streams.gate?.getSnapshot() === true
     for (const project of workspace.projects)
       for (const session of project.history)
         for (const terminal of session.state.roster.terminals)
-          if (terminal.state === "running" && terminal.agent?.attention) waiting.add(terminal.id)
+          if (
+            terminal.state === "running" &&
+            terminal.agent &&
+            (terminal.agent.attention || permitting)
+          )
+            waiting.add(terminal.id)
     for (const id of waiting) {
       const known = readings.get(id)
       if (known) {
@@ -279,6 +294,7 @@ export const createRunnerInbox = (
       const reading: Reading = {
         alive: true,
         requests: [],
+        permits: [],
         stream: undefined,
         closing: undefined,
         retrying: undefined,
@@ -374,6 +390,12 @@ export const createRunnerInbox = (
     const requests = Object.fromEntries(
       [...readings].map(([id, reading]) => [id, reading.requests] as const),
     )
+    // Permits only show while the gate is on, as the runner sends none otherwise.
+    const permits = Object.fromEntries(
+      streams.takeBack && streams.gate?.getSnapshot() === true
+        ? [...readings].map(([id, reading]) => [id, reading.permits] as const)
+        : [],
+    )
     const at = now()
     const found = inboxEntries({
       workspace,
@@ -381,6 +403,7 @@ export const createRunnerInbox = (
       messages: messages.getSnapshot(),
       entries,
       requests,
+      permits,
       now: at,
       longHoldMs,
     })
@@ -485,6 +508,8 @@ export const createRunnerInbox = (
     })()
   }
 
+  const takeBack = streams.takeBack && takeBackOf(streams.takeBack, track)
+
   const find = (id: string): InboxEntry | undefined =>
     state.getSnapshot().items.find((item) => item.id === id)
 
@@ -518,6 +543,7 @@ export const createRunnerInbox = (
       (item.update.type === "told" || item.update.type === "done")
     )
       return tracker.call(id, () => streams.inbox.read([id]))
+    if (item.kind === "permit") endings.note(id, "takenBack")
     answerEntry(tracker, item, given, {
       request: (_, { request }, chat) => {
         endings.note(id, "answered", answerLine(request, chat))
@@ -540,6 +566,15 @@ export const createRunnerInbox = (
       forget: hide,
       send: (at, text, options) => streams.send(at, text, options),
       interrupt: (at) => streams.interrupt(at),
+      takeBack: async (at, permit) => {
+        if (!takeBack) throw new Error("This runner can't take a permit back.")
+        try {
+          await takeBack(at.terminalId, permit)
+        } catch (error) {
+          endings.forget(id)
+          throw error
+        }
+      },
       terminal: () => terminalOf(item.source),
     })
   }
@@ -580,7 +615,11 @@ export const createRunnerInbox = (
     },
     bind: (next) => {
       binding = next
-      unsubscribe = [next.workspace.subscribe(recompute), messages.subscribe(recompute)]
+      unsubscribe = [
+        next.workspace.subscribe(recompute),
+        messages.subscribe(recompute),
+        ...(streams.gate ? [streams.gate.subscribe(recompute)] : []),
+      ]
       watchEntries(next)
       if (status) {
         const stream = status()

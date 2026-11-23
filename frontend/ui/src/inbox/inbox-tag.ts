@@ -19,6 +19,8 @@ export type TagWord =
   | "Stuck"
   | "Undelivered"
   | "Update"
+  | "Allowed"
+  | "Taken back"
   | "Answered"
   | "Dismissed"
   | "Replied"
@@ -41,6 +43,8 @@ const settledWords = {
   worked: "Resolved",
   delivered: "Delivered",
   read: "Read",
+  takenBack: "Taken back",
+  lapsed: "Ended",
   gone: "Ended",
   ended: "Ended",
   away: "Ended",
@@ -67,6 +71,8 @@ const wordOf = (entry: InboxEntry): TagWord => {
       return "Undelivered"
     case "update":
       return "Update"
+    case "permit":
+      return "Allowed"
   }
 }
 

@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatRequest } from "./conversation"
+import type { ChatAnswer, ChatPermit, ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
@@ -8,7 +8,7 @@ import type { TerminalKey, Workspace } from "./types"
 // puts in front of the person, each as its own entry. The person reads and answers it
 // there, without going to the terminal. An entry is open while it waits for them, and resolved
 // once it ended: it stays then, with how it ended (`Settled`), as the Inbox's history. Only an
-// ask its own agent withdrew leaves it. Each entry comes from one of five sources, and the UI
+// ask its own agent withdrew leaves it. Each entry comes from one of six sources, and the UI
 // presents it as one of four types:
 // - `request`: a prompt the agent's harness shows and Novadeck reads from its screen
 //   (`ChatRequest`, as the chat view has it). A permission or plan is an Unblock, a
@@ -20,6 +20,8 @@ import type { TerminalKey, Workspace } from "./types"
 // - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, failed, or
 //   its messages held long behind what keeps the doorbell from waking it.
 // - `update`: what the agent reported through the MCP `done` tool, or told through `tell`.
+// - `permit`: a permit of the shipping gate that stands for the agent, with the way to take it
+//   back (an Update: it asks nothing of the person).
 // Agents write subjects, bodies and options; Novadeck shows them as they are.
 
 // Where an entry comes from: the terminal, its project and session, the agent running in
@@ -140,13 +142,17 @@ export type InboxContent =
   | { readonly kind: "ask"; readonly ask: AgentAsk }
   | { readonly kind: "trouble"; readonly trouble: Trouble }
   | { readonly kind: "update"; readonly update: Update }
+  // A permit of the shipping gate that stands for the agent: what the person allowed, and on
+  // which words. It is an Update for the Inbox, as it asks nothing of them.
+  | { readonly kind: "permit"; readonly permit: ChatPermit }
 
 // How an entry ended, and when. An agent's ask was `answered` (here, with its `answer`),
 // `dismissed` by the person, or `replied` to by them writing in the terminal; a request the
 // harness shows was `answered` (here or in the chat, with its `answer` where it is known), or
 // `terminal` (answered in the terminal), or went `gone` closed in the terminal (a No or Escape, which look alike); a held message was `released` or `stopped`; trouble ended as the agent
 // `worked` again, or messages waiting were `delivered`; a tell, a done report or a failed turn
-// was `read`; and any entry `ended` with its agent session or its terminal, or `away` while the
+// was `read`; a shipping permit was `takenBack` by the person or `lapsed` (it was used and its
+// retry passed, it ran out, or its PR closed); and any entry `ended` with its agent session or its terminal, or `away` while the
 // app was closed. `gone` is a dialog or waiting messages that closed with nothing to say how.
 export type SettledHow =
   | "answered"
@@ -158,6 +164,8 @@ export type SettledHow =
   | "worked"
   | "delivered"
   | "read"
+  | "takenBack"
+  | "lapsed"
   | "gone"
   | "ended"
   | "away"
@@ -196,6 +204,7 @@ export type InboxType = "unblock" | "ask" | "trouble" | "update"
 export const inboxType = (entry: InboxContent): InboxType => {
   if (entry.kind === "request") return entry.request.kind === "question" ? "ask" : "unblock"
   if (entry.kind === "held") return "unblock"
+  if (entry.kind === "permit") return "update"
   if (entry.kind === "ask" && entry.ask.shape.type === "action") return "unblock"
   return entry.kind
 }
@@ -225,6 +234,7 @@ export type InboxAnswer =
         | { readonly type: "auto-resume"; readonly on: boolean }
     }
   | { readonly kind: "update"; readonly action: "read" }
+  | { readonly kind: "permit"; readonly action: "take-back" }
 
 // Every entry, the newest first (`ordered`). `answering` the entries whose
 // answer is on its way, until the backend drops them; `failed` why an answer didn't take.

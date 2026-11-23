@@ -431,6 +431,15 @@ Agents:
   has two, and an image pasted into any demo chat shows as pasted once the prompt is
   recorded), gone (boxes naming each `[Image #N]`), slow (quiet boxes for 6 s) or unreachable
   (the boxes, asked again when the row is drawn again). Click a thumbnail to see it larger.
+- **Chat: shipping permits:** the shipping gate's standing permits, which no demo agent is given
+  (`agents.detail`'s `permits`). "Permit by words, not used" and "Permit by card, not used" give
+  the selected agent one for a merge or a PR, "Permit by words, used" and "Permit by card, used"
+  one that was used and stands only for its retry (`Used at … · ends …`). Each shows in the agent's
+  chat as an `Allowed` card under the requests, and in the Inbox as an Update entry with the same
+  facts (`On your words: "…"` or `You allowed it on its card`, then when it stands until) and one
+  Take back, which the demo answers after 300 ms and which resolves the entry. "Next Take back
+  fails" makes the next one say it couldn't, on the card and the sheet, with the permit standing;
+  "Back to normal" removes the selected agent's permits (`frontend/demo-debug/src/permits.ts`).
 - **Chat: nothing to show:** what the selected agent's chat says when it has no items, as the runner's
   facts about its record and screen decide (`emptiness` in `frontend/core`): "Empty, proven" is
   the plain "Nothing said yet. Send a prompt below."; "Transcript not found", "Records

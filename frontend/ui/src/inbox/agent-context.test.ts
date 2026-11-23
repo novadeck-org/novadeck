@@ -184,6 +184,7 @@ describe("an Inbox entry's agent context", () => {
         screen: null,
         items: transcript,
         requests: [],
+        permits: [],
         prompts: [],
         box: null,
       }))

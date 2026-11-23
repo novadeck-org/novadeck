@@ -309,6 +309,28 @@ describe("A sheet's menu of its own", () => {
     })
   })
 
+  context("a shipping permit", () => {
+    it("offers one way to take it back, and the way to its terminal", () => {
+      const permit: OwnEntry = {
+        ...base,
+        stopped: false,
+        kind: "permit",
+        permit: {
+          id: "p1",
+          title: "Open a PR into main",
+          quote: null,
+          givenAt: 1,
+          until: 2,
+          usedAt: null,
+        },
+      }
+      const { rows } = menuOf(permit, 0)
+
+      expect(labels(rows)).toEqual(["Take back", "Go to terminal"])
+      expect(rows[0]).toMatchObject({ answer: { kind: "permit", action: "take-back" } })
+    })
+  })
+
   context("on every entry", () => {
     it("ends on the way to its terminal, and offers it only once", () => {
       const update: OwnEntry = {

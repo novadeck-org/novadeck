@@ -61,6 +61,7 @@ import { createRunnerConversations } from "./agents/conversations"
 import { runnerFeedback } from "./agents/feedback"
 import { createRunnerInbox } from "./agents/inbox"
 import { createRunnerMessages } from "./agents/messages"
+import { takeBackCall } from "./agents/permits"
 import { createRunnerCompanions } from "./companions/content"
 import { createRunnerItems } from "./companions/items"
 import { answerLook, type Looks } from "./companions/looks"
@@ -1476,6 +1477,10 @@ export const runnerBackend = (
     },
     track,
   )
+  const switches = runnerSwitches(runner, options, track)
+  // Whether the runner has the call, as one from before it has none: the shipping gate's
+  // standing permits are neither shown nor taken back there.
+  const takeBack = takeBackCall(runner)
   const conversations = createRunnerConversations(
     {
       detail: (terminalId) => runner.agents.detail(terminalId),
@@ -1491,6 +1496,7 @@ export const runnerBackend = (
       clearBox: (terminalId, seen) => runner.agents.clearBox(terminalId, seen),
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
       saveDialog: (terminalId, request) => runner.agents.saveDialog(terminalId, request),
+      ...(takeBack && { takeBack }),
     },
     track,
     messages.state,
@@ -1502,6 +1508,7 @@ export const runnerBackend = (
     {
       inbox: runner.inbox,
       detail: (terminalId) => runner.agents.detail(terminalId),
+      ...(takeBack && switches.shippingGate && { takeBack, gate: switches.shippingGate.enabled }),
       answer: (key, request, answer) => conversations.answer(key, request, answer),
       send: (key, text, sending) => conversations.send(key, text, sending),
       interrupt: async (key) => (await conversations.interrupt(key)).words,
@@ -2337,7 +2344,7 @@ export const runnerBackend = (
     connection,
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,
-    ...runnerSwitches(runner, options, track),
+    ...switches,
     ...(runner.tour && {
       // The tours it removes are this window's to remove, as it opens the new one: the projects
       // feed holds what goes meanwhile, and lets go only of what the run didn't remove.

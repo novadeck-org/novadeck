@@ -1,5 +1,5 @@
 import { followFinishes, type FollowedFinish } from "@novadeck/core/agents/finish"
-import type { Conversation, Conversations } from "@novadeck/core/conversation"
+import type { ChatPermit, Conversation, Conversations } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import {
   emptyInbox,
@@ -53,6 +53,9 @@ export type DemoInbox = Inbox & {
   // The terminal's agent called `done`: its report becomes an Update once the terminal is
   // there, as the runner's done entry does, a worker's as any other's.
   readonly done: (key: TerminalKey, report: { subject: string; body: string }) => void
+  // The conversations the debug panel layers over the agents' (`PermitHolders`): the Inbox lists
+  // the shipping permits they hold, and takes them back through them.
+  readonly holdPermits: (conversations: Conversations & PermitHolders) => void
 }
 
 // Whether a backend's Inbox is the demo's, which the debug panel adds entries to.
@@ -123,6 +126,10 @@ const waiting = (workspace: Workspace): { key: TerminalKey; terminal: TerminalMe
   terminalsOf(workspace).filter(
     ({ terminal }) => terminal.state === "running" && terminal.agent?.attention,
   )
+
+// Conversations that hold shipping permits (the debug panel gives them) say which terminals hold
+// some, by `terminalKeyId`, so the Inbox follows those too and lists their permits.
+export type PermitHolders = { readonly permitHolders: Store<ReadonlySet<string>> }
 
 // Every entry stands on its own, as in core's `inboxEntries`, but for one: the demo's own entries
 // that wait on the person for their agent (a request, an ask, trouble) stand in for what
@@ -294,9 +301,22 @@ export const createDemoInbox = (
       readonly stop: () => void
     }
   >()
+  // The conversations that hold shipping permits, once the debug panel layers them over.
+  let permitting: (Conversations & PermitHolders) | undefined
   const follow = (workspace: Workspace): void => {
     if (!sources) return
-    const asking = waiting(workspace)
+    const holders = permitting?.permitHolders.getSnapshot()
+    const asking = [
+      ...waiting(workspace),
+      ...(holders
+        ? terminalsOf(workspace).filter(
+            ({ key, terminal }) =>
+              terminal.state === "running" &&
+              !terminal.agent?.attention &&
+              holders.has(terminalKeyId(key)),
+          )
+        : []),
+    ]
     const ids = new Set(asking.map(({ key }) => terminalKeyId(key)))
     for (const [id, each] of followed)
       if (!ids.has(id)) {
@@ -306,7 +326,7 @@ export const createDemoInbox = (
     for (const { key } of asking) {
       const id = terminalKeyId(key)
       if (followed.has(id)) continue
-      const store = sources.conversations.conversation(key)
+      const store = (permitting ?? sources.conversations).conversation(key)
       followed.set(id, { key, store, stop: store.subscribe(() => recompute()) })
     }
   }
@@ -316,8 +336,10 @@ export const createDemoInbox = (
     follow(workspace)
     const at = Date.now()
     const requests: Record<string, Asked[]> = {}
+    const permits: Record<string, readonly ChatPermit[]> = {}
     const present = new Set<string>()
     for (const { key, store } of followed.values()) {
+      permits[key.terminalId] = store.getSnapshot().permits
       requests[key.terminalId] = store.getSnapshot().requests.map((each) => {
         const request = { ...each, id: scoped(key, each.id) }
         present.add(request.id)
@@ -343,6 +365,7 @@ export const createDemoInbox = (
         ...(entry.settled ? { settled: entry.settled } : {}),
       })),
       requests,
+      permits,
       now: at,
       // The demo's messages wait for no idle agent long.
       longHoldMs: null,
@@ -391,6 +414,16 @@ export const createDemoInbox = (
       forget: readTurns,
       send: (key, text, options) => conversations.send(key, text, options),
       interrupt: (key) => conversations.interrupt(key),
+      takeBack: (key, permit) => {
+        history.note(target.id, "takenBack")
+        return (
+          (permitting ?? conversations).takeBack?.(key, permit) ??
+          Promise.reject(new Error("This demo can't take a permit back."))
+        ).catch((error: unknown) => {
+          history.forget(target.id)
+          throw error
+        })
+      },
       terminal: (key) => terminalOf(workspace.getSnapshot(), key),
     })
   }
@@ -410,6 +443,13 @@ export const createDemoInbox = (
       dropTurns((entry) =>
         read.has(`${entry.projectId}/${entry.workspaceSessionId}/${entry.terminalId}`),
       )
+    },
+    holdPermits: (next) => {
+      permitting = next
+      for (const each of followed.values()) each.stop()
+      followed.clear()
+      next.permitHolders.subscribe(() => recompute())
+      recompute()
     },
     bind: (next) => {
       binding = next

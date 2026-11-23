@@ -1,3 +1,4 @@
+import type { Conversations } from "@novadeck/core/conversation"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type {
   Backend,
@@ -17,7 +18,7 @@ import { createDemoInstalls } from "@novadeck/demo/agents/installs"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoFeedback } from "@novadeck/demo/feedback"
 import { isDemoFiles } from "@novadeck/demo/files"
-import { isDemoInbox } from "@novadeck/demo/inbox"
+import { isDemoInbox, type PermitHolders } from "@novadeck/demo/inbox"
 import { demoTour, isDemoTour } from "@novadeck/demo/tour"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { babciaCuesOf } from "@novadeck/demo/videos/babcia"
@@ -333,6 +334,9 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
   })
+  // The Inbox lists the shipping permits the panel gives a chat, and takes them back through it.
+  if (isDemoInbox(inner.inbox) && backend.conversations && "permitHolders" in backend.conversations)
+    inner.inbox.holdPermits(backend.conversations as Conversations & PermitHolders)
   panels.set(
     backend,
     createDebugPanel({
