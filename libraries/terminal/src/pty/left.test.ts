@@ -177,10 +177,18 @@ const terminal = async (
     run(`${process.execPath} agent.mjs`)
     const pid = Number((await said(/AGENT=(\d+)=/))[1])
     pty.agentStarted(pid)
+    // The agent counts every line told, the person's servers' too: its own may not have told yet.
+    await eventually(() => names.every((name) => told(root).has(name)), "the agent's servers")
     const servers = told(root)
     ended.push(pid, ...servers.values())
-    // The agent's own start, read back by a listing.
-    await sleep(macOS ? 500 : 100)
+    // Until the run is dated from the agent's own start, read back by listings, it starts as the
+    // agent bound, after it started its servers: a test that ended the agent sooner would leave
+    // them looking like the person's. On a loaded Mac (a night's whole suite) those listings
+    // take seconds, so this waits for the servers to count as the agent's rather than a while.
+    await eventually(async () => {
+      const left = new Set((await pty.leftovers({ listing }))?.map((one) => one.pid))
+      return names.every((name) => left.has(servers.get(name)!))
+    }, "the agent's run to start where the agent did")
     return { pid, servers }
   }
   const end = (
