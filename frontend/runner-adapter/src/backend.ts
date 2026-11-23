@@ -1483,7 +1483,7 @@ export const runnerBackend = (
     },
     track,
   )
-  const switches = runnerSwitches(runner, options, track)
+  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
   // Whether the runner has the call, as one from before it has none: the shipping gate's
   // standing permits are neither shown nor taken back there.
   const takeBack = takeBackCall(runner)
@@ -1726,7 +1726,6 @@ export const runnerBackend = (
   // the runner tells (`settings.watch`, `preferences.watch`).
   const has = (path: "settings.watch" | "preferences.get"): boolean =>
     typeof (runner as Partial<typeof runner>).supports === "function" && runner.supports(path)
-  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
   let settingsStream: AsyncIterableIterator<unknown> | undefined
   const followSettings = (): void => {
     if (settingsStream || !has("settings.watch")) return

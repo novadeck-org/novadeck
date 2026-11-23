@@ -320,6 +320,59 @@ describe("The Inbox's entries", () => {
       expect(entry).toMatchObject({ id: "request:r1", kind: "request", request: { dialog: null } })
     })
 
+    // `request_permit` answers at once, so the agent ends its turn while the gate's card waits:
+    // the runner counts each card as a request asked without waiting.
+    describe("the shipping gate's card", () => {
+      const card = (id: string, askedAt: number, title: string): Asked => ({
+        request: {
+          ...asked(id, askedAt).request,
+          tool: "request_permit",
+          subject: title,
+          choices: ["Allow", "Deny"],
+          dialog: { ...choices, id: `permit-${id}`, title },
+          detached: true,
+        },
+        askedAt,
+      })
+      const ended = (count: number) =>
+        workspaceOf(
+          agentTerminal(1, {
+            working: false,
+            attention: { kind: "permission", count, detached: true },
+            lastTurn: turn(),
+          }),
+        )
+
+      it("waits on the person after the agent's turn ended, each card its own", () => {
+        const requests = {
+          "01": [card("c1", 4000, "Merge PR #1189?"), card("c2", 4100, "Merge PR #1191?")],
+        }
+        const entries = inboxEntries(inputs(ended(2), { requests, now: 9000 }))
+
+        // Newest first, as the Inbox lists.
+        expect(entries.filter((entry) => entry.kind === "request")).toMatchObject([
+          { id: "request:c2", at: 4100, stopped: true, request: { subject: "Merge PR #1191?" } },
+          { id: "request:c1", at: 4000, stopped: true, request: { subject: "Merge PR #1189?" } },
+        ])
+      })
+
+      it("stands beside the harness's own request, which still shows only its oldest", () => {
+        const requests = {
+          "01": [asked("r1", 4000), asked("r2", 4200), card("c1", 4100, "Merge PR #5?")],
+        }
+        const entries = inboxEntries(inputs(waiting, { requests, now: 9000 }))
+
+        expect(entries.map((entry) => entry.id).toSorted()).toEqual(["request:c1", "request:r1"])
+      })
+
+      it("is gone once nothing waits: answered, given by the person's words, or closed", () => {
+        const requests = { "01": [card("c1", 4000, "Merge PR #5?")] }
+        const rested = workspaceOf(agentTerminal(1, { working: false, lastTurn: turn() }))
+
+        expect(inboxEntries(inputs(rested, { requests, now: 9000 }))).toEqual([])
+      })
+    })
+
     it("is none once the agent no longer waits, whatever was last read", () => {
       const rested = workspaceOf(agentTerminal(1))
 

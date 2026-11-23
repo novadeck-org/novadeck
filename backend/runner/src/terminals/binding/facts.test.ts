@@ -3,6 +3,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { apply, started } from "../../harnesses/activity.js"
 import { Inbox, memoryInbox, type TurnOwner } from "../../messaging/inbox.js"
+import { Shipping } from "../../shipping/service.js"
 import { describe, expect, it } from "../../test.js"
 import type { Record } from "../record.js"
 import { endingSamples, exitKeysMs, graceSamples } from "../sampling.js"
@@ -14,10 +15,11 @@ import { Bindings, type BindingsHost } from "./facts.js"
  */
 const noReports = { reports: () => ({ tell: null, done: null }) }
 
-const bindings = (shown?: AgentName) => {
+const bindings = (shown?: AgentName, held?: BindingsHost["held"]) => {
   const announce = vi.fn<(record: Record) => void>()
   const detailed = vi.fn<(record: Record) => void>()
   const host = {
+    held,
     messaging: () => ({
       shownAgent: () => shown,
       inboxOwner: () => undefined,
@@ -670,29 +672,113 @@ describe("following a bound session's subagents in their own sources", () => {
   })
 })
 
-describe("the shipping gate's permits in a terminal's summary", () => {
-  it("says how many stand, only where some do, and always tells the detail", () => {
-    let standing = 0
-    const announce = vi.fn<(record: Record) => void>()
-    const detailed = vi.fn<(record: Record) => void>()
-    const ends = new Bindings({
-      announce,
-      detailed,
-      permits: () => standing,
-    } as unknown as BindingsHost)
+describe("the shipping gate in a terminal's summary", () => {
+  const gate = () => {
+    const held = { cards: [] as unknown[], permits: [] as unknown[] }
+    const { bindings: ends, announce, detailed } = bindings(undefined, () => held)
+    return { ends, held, announce, detailed }
+  }
+
+  it("says how many permits stand, only where some do, and always tells the detail", () => {
+    const { ends, held, announce, detailed } = gate()
     const shown = record()
-    ends.publishPermits(shown)
-    expect(announce).not.toHaveBeenCalled()
-    expect(detailed).toHaveBeenCalledTimes(1)
+    ends.publishGate(shown)
+    const first = announce.mock.calls.length
+    expect(detailed).toHaveBeenCalled()
     expect("permits" in shown.summary).toBe(false)
-    standing = 2
-    ends.publishPermits(shown)
+    held.permits = [{}, {}]
+    ends.publishGate(shown)
     expect(shown.summary.permits).toBe(2)
-    ends.publishPermits(shown)
-    expect(announce).toHaveBeenCalledTimes(1)
-    standing = 0
-    ends.publishPermits(shown)
+    ends.publishGate(shown)
+    expect(announce).toHaveBeenCalledTimes(first + 1)
+    held.permits = []
+    ends.publishGate(shown)
     expect("permits" in shown.summary).toBe(false)
-    expect(announce).toHaveBeenCalledTimes(2)
+    expect(announce).toHaveBeenCalledTimes(first + 2)
+  })
+
+  // The gate's card waits on the person after `request_permit` has answered, so the agent's
+  // turn may well have ended: its summary still says something waits on them, which is what
+  // a client follows to show the card, mark the tab and list it in the Inbox.
+  it.each(["claude", "codex", "agy"] as const)(
+    "counts each open card as a request waiting on the person, the turn of %s ended or not",
+    (agent) => {
+      const { ends, held } = gate()
+      const shown = record()
+      shown.bound = { ...shown.bound!, binding: { agent, sessionId: "s1", instance: "41" } }
+      ends.publishGate(shown)
+      expect(shown.summary.activity?.state).toBe("idle")
+      expect(shown.summary.activity?.attention).toEqual({ pending: 0, kind: null })
+
+      held.cards = [{}, {}]
+      ends.publishGate(shown)
+      expect(shown.summary.activity?.attention).toEqual({
+        pending: 2,
+        kind: "permission",
+        detached: 2,
+      })
+
+      // Answered, withdrawn or closed with its terminal: nothing waits any more.
+      held.cards = []
+      ends.publishGate(shown)
+      expect(shown.summary.activity?.attention).toEqual({ pending: 0, kind: null })
+    },
+  )
+
+  it("keeps the harness's own request first, a card counted after it", () => {
+    const { ends, held } = gate()
+    const shown = record()
+    shown.bound = {
+      ...shown.bound!,
+      activity: apply(shown.bound!.activity, shown.bound!.binding, {
+        type: "attention-requested",
+        agent: "claude",
+        sessionId: "s1",
+        instance: "41",
+        startedAt: 1,
+        requestId: "q1",
+        actor: null,
+        kind: "question",
+        toolName: "AskUserQuestion",
+        subject: "Which?",
+        choices: [],
+      })!,
+    }
+    held.cards = [{}]
+    ends.publishGate(shown)
+    expect(shown.summary.activity?.attention).toMatchObject({
+      pending: 2,
+      kind: "question",
+      detached: 1,
+    })
+  })
+
+  it("shows a card from its asking to its end: answered, given by the person's words, or closed", () => {
+    const shipping = new Shipping({
+      enabled: () => true,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    const { bindings: ends, announce } = bindings(undefined, (id) => shipping.held(id))
+    const shown = record()
+    shipping.attach(new Map([["t1", shown]]), (each) => ends.publishGate(each))
+    const waiting = () => shown.summary.activity?.attention.pending ?? 0
+
+    const { card } = shipping.cards.ask("t1", ["pr-merge:r/app#5"], false, "Merge PR #5?", "")
+    expect(waiting()).toBe(1)
+    expect(announce).toHaveBeenCalled()
+    shipping.cards.close(card)
+    expect(waiting()).toBe(0)
+
+    // The person's words give the permit the card asked for: the card goes.
+    shipping.cards.ask("t1", ["pr-merge:r/app#5"], false, "Merge PR #5?", "")
+    expect(waiting()).toBe(1)
+    shipping.permits.give("t1", "pr-merge:r/app#5", false, { type: "quote", quote: "go ahead" })
+    expect(waiting()).toBe(0)
+
+    shipping.cards.ask("t1", ["pr-merge:r/app#6"], false, "Merge PR #6?", "")
+    expect(waiting()).toBe(1)
+    shipping.closed("t1")
+    expect(waiting()).toBe(0)
   })
 })

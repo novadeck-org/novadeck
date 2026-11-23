@@ -221,7 +221,11 @@ describe("an agent's place in a Windows terminal's tree", () => {
 
 /** A running terminal with an idle agent bound, as the sweep sees it, and a host that notes what it is asked. */
 const resting = (
-  change: { occupied?: () => boolean; end?: (record: Record) => Promise<void> } = {},
+  change: {
+    occupied?: () => boolean
+    end?: (record: Record) => Promise<void>
+    cards?: () => number
+  } = {},
 ) => {
   const record = {
     summary: { id: "t", handle: "moth", lastProgram: "bash" },
@@ -250,6 +254,7 @@ const resting = (
     opens: () => ({ asked: () => false }),
     sleepers: () => ({ restable: () => true }),
     detailWatched: () => false,
+    cards: change.cards,
     trees: () => ({}),
     boxHolds: async () => false,
     save: async () => void calls.push("save"),
@@ -273,6 +278,18 @@ const resting = (
     })
   return { record, calls, hibernation, rest }
 }
+
+describe("an agent the shipping gate's card waits on", () => {
+  // `request_permit` answers at once, so the agent's turn ends while the card waits: a rested
+  // terminal leaves the Inbox, and the card with it.
+  it("stays awake while a card is open, and may rest once none is", () => {
+    let cards = 1
+    const { record, hibernation } = resting({ cards: () => cards })
+    expect(vetoOf(hibernation.facts(record, 10_000), 10_000)).toBe("attention")
+    cards = 0
+    expect(vetoOf(hibernation.facts(record, 10_000), 10_000)).not.toBe("attention")
+  })
+})
 
 describe("stopping an agent that looked idle", () => {
   it("saves the screen, ends the agent, and lets the terminal rest, pinning what resumes", async () => {
