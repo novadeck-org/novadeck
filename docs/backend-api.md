@@ -2429,10 +2429,11 @@ one from an earlier runner.
   of 127.0.0.1 (bound to port 0, read, closed); with none, `page` is false and the lead's script
   has no serving steps.
   `command` starts the agent there on its cheapest model (Claude Code's `haiku`, Codex's newest
-  `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, each at its lowest
-  effort), taking edits in the folder without asking for this launch only
+  `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, opencode's own free
+  `opencode/*-free`, each at its lowest effort; opencode with none of its free models listed is
+  `MODELS_UNLISTED`), taking edits in the folder without asking for this launch only
   (`--permission-mode acceptEdits`, Codex's `--sandbox workspace-write --ask-for-approval
-  on-request`, `--mode accept-edits`), with no prompt on it, and nothing written to the agent's
+  on-request`, `--mode accept-edits`, opencode's `--agent build`), with no prompt on it, and nothing written to the agent's
   own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
@@ -2451,8 +2452,8 @@ one from an earlier runner.
   approves in the app's usual dialog) and `show` its page. No agent runs git. The texts are tuned
   on Codex (its `*-luna`, low effort) alone; the other harnesses run them untuned. What each
   agent is told of the shell follows its harness (`shellRule`, in the lead's script, both tasks
-  and the folder's note): Claude Code and Antigravity, which read and write files with tools of their
-  own, run no shell command; Codex, which reads files only through its shell, uses it to read
+  and the folder's note): Claude Code, Antigravity and opencode, which read and write files with
+  tools of their own, run no shell command; Codex, which reads files only through its shell, uses it to read
   files and for nothing else (probed 2026-11-22, 0.171.0: told to run none, its agents couldn't
   read the files they were to change). A
   teammate the lead opens in the folder starts with the same write flags as the lead, for that
