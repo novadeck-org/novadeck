@@ -9,48 +9,36 @@ import type { PreviewHunk } from "@novadeck/core/works"
 
 // What the tour's agents show and change, as the runner's tour would have them: the seed
 // project's files by name, the game's page, the hero's 3D model (a start shape and one sculpted
-// for each hero), the artist's cover, and the score fixer's changes. Small and made here, not
-// kept as files: the demo ships in the website's bundle, and this is loaded only as a story plays.
+// for each world), and the builder's changes. Small and made here, not kept as files: the demo
+// ships in the website's bundle, and this is loaded only as a story plays.
 
 // The tour repo's files, as its Files panel lists them (the runner's seed, and the libraries it
 // keeps out of git under vendor/).
 export const tourEntries: readonly string[] = [
   ".gitattributes",
   ".gitignore",
-  "AGENTS.md",
-  "CLAUDE.md",
   "README.md",
   "dev.mjs",
   "dev.py",
   "index.html",
-  "model/README.md",
-  "model/hero.gltf",
-  "model/shapes.bin",
-  "src/city.js",
-  "src/config.js",
-  "src/hero.js",
+  "models/README.md",
+  "models/placeholder.gltf",
+  "models/shapes.bin",
   "src/main.js",
-  "src/play.js",
-  "src/score.js",
+  "src/models.js",
   "src/style.css",
-  "src/title.js",
   "vendor/",
 ]
 
 export const tourIgnored: readonly string[] = ["vendor/"]
 
-export const heroFile = "model/hero.gltf"
-export const scoreFile = "src/score.js"
-export const configFile = "src/config.js"
-export const coverFile = "art/cover.svg"
-export const readmeFile = "README.md"
+export const modelFile = "models/hero.gltf"
+export const gameFile = "src/main.js"
 
 // The branches the agents' worktrees are on.
 export const branches = {
-  lead: "game",
-  sculptor: "hero",
-  fixer: "fix-score",
-  artist: "cover",
+  modeller: "models",
+  builder: "build",
 } as const
 
 // The address the game's page is at.
@@ -60,8 +48,9 @@ export const serverCommand = "node dev.mjs 5173"
 // ---- The hero ----
 
 export type Hero = {
-  // As the sculptor tells the lead: "a rocket".
-  readonly name: string
+  // What the person picked on the sheet: "Sci-fi" and "Strategy", or their own words.
+  readonly world: string
+  readonly kind: string
   // Which of the models it is sculpted as.
   readonly shape: "rocket" | "robot" | "cat"
   readonly title: string
@@ -70,39 +59,21 @@ export type Hero = {
   readonly accent: string
 }
 
-const looks: Readonly<Record<Hero["shape"], Omit<Hero, "name">>> = {
-  rocket: {
-    shape: "rocket",
-    title: "Rocket Rescue",
-    pickup: "⭐",
-    background: "#0d0b1a",
-    accent: "#ff4fd8",
-  },
-  robot: {
-    shape: "robot",
-    title: "Robo Rally",
-    pickup: "🔩",
-    background: "#08121f",
-    accent: "#22e5ee",
-  },
-  cat: {
-    shape: "cat",
-    title: "Cat Catch",
-    pickup: "🐟",
-    background: "#120a24",
-    accent: "#c6f432",
-  },
+const looks: Readonly<Record<Hero["shape"], Pick<Hero, "pickup" | "background" | "accent">>> = {
+  rocket: { pickup: "⭐", background: "#0d0b1a", accent: "#ff4fd8" },
+  robot: { pickup: "🔩", background: "#08121f", accent: "#22e5ee" },
+  cat: { pickup: "🐟", background: "#120a24", accent: "#c6f432" },
 }
 
-// The hero a person's answer names: an option's label ("A robot") or their own words, which
-// sculpt whichever of the three they mention, a rocket otherwise.
-export const heroOf = (words: string): Hero => {
-  const name = words
-    .trim()
-    .replace(/^A (?=\S)/, "a ")
-    .replace(/\.$/, "")
-  const shape = /robot/i.test(words) ? "robot" : /cat|kitten|kitty/i.test(words) ? "cat" : "rocket"
-  return { name: name || "a rocket", ...looks[shape] }
+// The game a sheet's answers name: the world picks the hero's shape (Sci-fi a rocket, Modern a
+// robot, anything else, Fantasy among it, a cat), and both name the game.
+export const heroOf = (world: string, kind: string): Hero => {
+  const shape = /sci|space|rocket/i.test(world)
+    ? "rocket"
+    : /modern|city|robot/i.test(world)
+      ? "robot"
+      : "cat"
+  return { world, kind, shape, title: `${world} ${kind}`, ...looks[shape] }
 }
 
 // ---- The model ----
@@ -259,7 +230,8 @@ const gltf = (parts: readonly Part[]): Uint8Array<ArrayBuffer> => {
 
 export type Model = { readonly bytes: Uint8Array<ArrayBuffer>; readonly content: ItemContent }
 
-// `hero.gltf` as the seed has it (a ball and a box), or sculpted as `hero` is, as of `stamp`.
+// A model as the seed's placeholder has it (a ball and a box), or sculpted as `hero` is, as of
+// `stamp`.
 export const modelOf = (hero: Hero | undefined, stamp: string): Model => {
   const bytes = gltf(hero ? sculpted[hero.shape] : start)
   return {
@@ -272,7 +244,7 @@ export const modelOf = (hero: Hero | undefined, stamp: string): Model => {
   }
 }
 
-// ---- The page, the cover ----
+// ---- The page ----
 
 const svgUri = (svg: string): string =>
   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
@@ -304,94 +276,42 @@ export const pageContent = (hero: Hero | undefined, shown: number): ItemContent 
   }
 }
 
-// The cover the artist draws for the game: a night skyline, its windows lit in the accent.
-export const coverSvg = (hero: Hero): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hero.background}"/><stop offset="1" stop-color="${hero.accent}" stop-opacity=".3"/></linearGradient></defs>
-<rect width="960" height="540" fill="url(#g)"/>
-<circle cx="780" cy="110" r="44" fill="${hero.accent}" opacity=".3"/>
-<g fill="${hero.background}" stroke="${hero.accent}" stroke-opacity=".4"><rect x="30" y="250" width="130" height="300"/><rect x="190" y="170" width="110" height="380"/><rect x="330" y="290" width="150" height="260"/><rect x="510" y="210" width="120" height="340"/><rect x="660" y="300" width="130" height="250"/><rect x="820" y="230" width="120" height="320"/></g>
-<g fill="${hero.accent}"><rect x="60" y="290" width="10" height="14"/><rect x="100" y="340" width="10" height="14"/><rect x="220" y="220" width="10" height="14"/><rect x="260" y="300" width="10" height="14"/><rect x="370" y="340" width="10" height="14"/><rect x="540" y="260" width="10" height="14"/><rect x="580" y="350" width="10" height="14"/><rect x="700" y="350" width="10" height="14"/><rect x="850" y="280" width="10" height="14"/><rect x="890" y="380" width="10" height="14"/><rect x="440" y="400" width="10" height="14"/></g>
-</svg>
-`
+// ---- The seed's file the story changes ----
 
-export const coverContent = (hero: Hero): ItemContent => ({
-  state: "ready",
-  stamp: "1",
-  content: { kind: "image", src: svgUri(coverSvg(hero)) },
-})
-
-// ---- The seed's files the story changes ----
-
-export const scoreMain = [
-  "// A pickup is worth 1 point, or 2 when it comes within a second of the last one.",
-  "export const points = (sinceLast) => (sinceLast < 1000 ? 2 : 1)",
+export const gameMain = [
+  "// The game starts here: it draws the city and moves the hero each frame.",
+  'import { models } from "./models.js"',
   "",
-  "// The score after a pickup.",
-  "export const add = (score, sinceLast) => {",
-  "  score + points(sinceLast)",
-  "  return score",
+  'const title = "Untitled Game"',
+  "const speed = 2",
+  "",
+  "export const start = (canvas) => {",
+  "  canvas.title = title",
+  '  models.load("models/placeholder.gltf", speed)',
   "}",
 ]
 
-const scoreFixed = [
-  ...scoreMain.slice(0, 4),
-  "export const add = (score, sinceLast) => score + points(sinceLast)",
-]
-
-export const configMain = [
-  "// What the game is about. Change these and the whole game follows.",
-  "export const config = {",
-  "  // The game's name, on the start screen.",
-  '  title: "Untitled Game",',
-  "  // Who the player is: the 3D model in model/hero.gltf.",
-  '  hero: "a ball and a box",',
-  "  // What the hero collects: one emoji.",
-  '  pickup: "⭐",',
-  "  // The colours. The background is the night sky; the accent is the city's neon, in its windows,",
-  "  // signs and rain, and in the text.",
-  '  background: "#2b2b33",',
-  '  accent: "#9a9aa6",',
+const gameBuilt = (hero: Hero): string[] => [
+  ...gameMain.slice(0, 3),
+  `const title = "${hero.title}"`,
+  "const speed = 4",
+  "",
+  "export const start = (canvas) => {",
+  "  canvas.title = title",
+  '  models.load("models/hero.gltf", speed)',
   "}",
 ]
-
-const configOf = (hero: Hero): string[] => [
-  `  title: "${hero.title}",`,
-  "  // Who the player is: the 3D model in model/hero.gltf.",
-  `  hero: "${hero.name}",`,
-  "  // What the hero collects: one emoji.",
-  `  pickup: "${hero.pickup}",`,
-  "  // The colours. The background is the night sky; the accent is the city's neon, in its windows,",
-  "  // signs and rain, and in the text.",
-  `  background: "${hero.background}",`,
-  `  accent: "${hero.accent}",`,
-]
-
-const readmeMain = [
-  "## What is where",
-  "",
-  "- `src/score.js`: how a pickup scores.",
-  "- `art/cover.svg`: the backdrop of the start screen.",
-  "",
-  "## Known bug",
-  "",
-  "The score never goes up: `add()` in `src/score.js` works the new score out and throws it away.",
-]
-
-const readmeFixed = readmeMain.slice(0, 4)
 
 export const mainOf = (path: string): string[] | undefined =>
-  path === scoreFile ? scoreMain : path === configFile ? configMain : undefined
+  path === gameFile ? gameMain : undefined
 
 // What a work does to a file in the merged preview: the lines it replaces (`at` from 1).
-export const hunkOf = (path: string, hero: Hero | undefined): PreviewHunk | undefined => {
-  if (path === scoreFile) return { at: 5, removed: 4, lines: scoreFixed.slice(4), applies: true }
-  if (path === configFile && hero)
-    return { at: 4, removed: 9, lines: configOf(hero), applies: true }
-  return undefined
-}
+export const hunkOf = (path: string, hero: Hero | undefined): PreviewHunk | undefined =>
+  path === gameFile && hero
+    ? { at: 4, removed: gameMain.length - 3, lines: gameBuilt(hero).slice(3), applies: true }
+    : undefined
 
-// ---- The score fixer's changes ----
+// ---- The builder's changes ----
 
 // A diff of the lines `from` replaced by `to`, with three lines around, as git writes one.
 const diffOf = (before: readonly string[], after: readonly string[], at: number): DiffHunk => {
@@ -436,19 +356,10 @@ const changed = (path: string, added: number, removed: number): ChangedFile => (
   secret: false,
 })
 
-const fixes: readonly {
-  readonly file: ChangedFile
-  readonly before: readonly string[]
-  readonly after: readonly string[]
-}[] = [
-  { file: changed(scoreFile, 1, 4), before: scoreMain, after: scoreFixed },
-  { file: changed(readmeFile, 0, 4), before: readmeMain, after: readmeFixed },
-]
-
-// The score fixer's change against main: its two files, its work not committed yet, as its
-// `changes` item shows it.
-export const fixerChanges = (root: string): ChangesContent => {
-  const files = fixes.map(({ file }) => file)
+// The builder's change against main: src/main.js, its work not committed yet, as its `changes`
+// item shows it.
+export const builderChanges = (root: string): ChangesContent => {
+  const files = [changed(gameFile, 3, 3)]
   const added = files.reduce((sum, file) => sum + file.added, 0)
   const removed = files.reduce((sum, file) => sum + file.removed, 0)
   return {
@@ -473,19 +384,19 @@ export const fixerChanges = (root: string): ChangesContent => {
   }
 }
 
-export const fixerDiffs: Readonly<Record<string, ChangeFileDiff>> = Object.fromEntries(
-  fixes.map(({ file, before, after }) => [
-    file.path,
-    {
+export const builderDiffs = (hero: Hero): Readonly<Record<string, ChangeFileDiff>> => {
+  const after = gameBuilt(hero)
+  return {
+    [gameFile]: {
       run: {
         layers: ["uncommitted"],
-        file,
+        file: changed(gameFile, 3, 3),
         big: false,
         badName: false,
-        hunks: [diffOf(before, after, 3)],
-        before: before.join("\n") + "\n",
+        hunks: [diffOf(gameMain, after, 3)],
+        before: gameMain.join("\n") + "\n",
         after: after.join("\n") + "\n",
       },
     },
-  ]),
-)
+  }
+}
