@@ -22,15 +22,17 @@ export type SavedWindow = {
   readonly maximized: boolean
 }
 
-/** What the app keeps of its windows between launches. */
+/**
+ * What the app keeps of its windows between launches. A file from before project windows left
+ * Experimental also says whether they were on (`on`), which is read past: with them off it
+ * listed no window.
+ */
 export type SavedWindows = {
-  /** Whether the person had project windows on when the app last said. */
-  readonly on: boolean
   readonly windows: readonly SavedWindow[]
 }
 
-/** Nothing kept: project windows off. */
-export const noSavedWindows: SavedWindows = { on: false, windows: [] }
+/** Nothing kept. */
+export const noSavedWindows: SavedWindows = { windows: [] }
 
 // More than a person has screens for; a file that lists more is not trusted.
 const mostWindows = 16
@@ -68,11 +70,10 @@ const boundsOf = (value: unknown): Bounds | undefined => {
  */
 export const savedWindowsOf = (value: unknown): SavedWindows => {
   if (typeof value !== "object" || value === null) return noSavedWindows
-  const { on, windows } = value as Record<string, unknown>
+  const { windows } = value as Record<string, unknown>
   const listed = Array.isArray(windows) ? (windows as unknown[]) : []
   const taken = new Set<string>()
   return {
-    on: on === true,
     windows: listed.slice(0, mostWindows).flatMap((entry): SavedWindow[] => {
       if (typeof entry !== "object" || entry === null) return []
       const { key, projectId, bounds, maximized } = entry as Record<string, unknown>
@@ -124,8 +125,7 @@ type Files = {
 
 /**
  * The windows the app reopens at the next launch, kept in `file`: the open windows' projects
- * and bounds, and whether the person has project windows on, which decides whether any are
- * reopened. Saves run one after another and each writes a temporary file and renames it over,
+ * and bounds. Saves run one after another and each writes a temporary file and renames it over,
  * so a failed write leaves the last whole file.
  */
 export const keepWindows = (file: string, files: Files = { readFile, writeFile, rename, rm }) => {
@@ -173,10 +173,7 @@ export const keepWindows = (file: string, files: Files = { readFile, writeFile, 
       return current
     },
     current: (): SavedWindows => current,
-    /** Keeps whether project windows are on; with them off no window is kept. */
-    use: (on: boolean): Promise<void> => save({ on, windows: on ? current.windows : [] }),
-    /** Keeps the open windows, while project windows are on. Resolves once written. */
-    remember: (windows: readonly SavedWindow[]): Promise<void> =>
-      current.on ? save({ on: true, windows }) : saving,
+    /** Keeps the open windows. Resolves once written. */
+    remember: (windows: readonly SavedWindow[]): Promise<void> => save({ windows }),
   }
 }

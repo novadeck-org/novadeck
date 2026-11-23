@@ -121,13 +121,18 @@ export const installShellFiles = async (
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
   const prints = platform === "win32" ? await printing() : undefined
-  // Where cmd prints, Antigravity's plugin registers no PreToolUse hook, which the shipping gate needs.
-  setAgyPreToolUse(prints === undefined)
   // Where cmd prints, Antigravity's hooks run through Novadeck's own cmd.exe, which starts the
   // real one with /d for them and so skips the AutoRun: once that is installed and is the
   // shipped one, with a path to put on PATH. Without it, as before.
   const cmdShimDir = prints !== undefined ? await installCmdShim(cmdShim, paths, short) : undefined
   const covered = cmdShimDir !== undefined
+  // There Antigravity's plugin, which is global, registers no PreToolUse hook, which the shipping
+  // gate needs, so its shim adds the folder holding that hook to sessions in Novadeck's terminals,
+  // where its answer is read through the pass-through.
+  const hooksFolder = covered ? await agyHooksFolder(paths.agyHooks, short) : undefined
+  const hooked = hooksFolder !== undefined
+  if (!hooked) await rm(paths.agyHooks, { recursive: true, force: true }).catch(() => {})
+  setAgyPreToolUse(prints === undefined || hooked)
   // On Windows Codex's commands capture through Novadeck's PowerShell, while Codex is connected,
   // once it is installed and is the shipped one. Without it, they run as before, uncaptured.
   const pwshWanted = pwsh === "kept" ? existsSync(join(paths.pwshDir, "pwsh.exe")) : pwsh
@@ -138,19 +143,23 @@ export const installShellFiles = async (
   if (prints === "prints")
     log.warn(
       "shell.cmd-prints",
-      `Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then outside Novadeck's terminals, so Novadeck registers no PreToolUse hook for it (the plugin is global), and installs its plugin again where it is connected; its own policy asks before each tool.${
-        covered
-          ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe, which skips the AutoRun for them, so messaging works there."
-          : " Messaging with it won't work until that output goes."
+      `Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then outside Novadeck's terminals, so Novadeck's plugin for it (which is global) registers no PreToolUse hook, and is installed again where it is connected; outside Novadeck's terminals its own policy asks before each tool.${
+        hooked
+          ? " In Novadeck's terminals its hooks, PreToolUse included, run through Novadeck's own cmd.exe, which skips the AutoRun for them, so messaging and the shipping gate work there."
+          : covered
+            ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe, which skips the AutoRun for them, so messaging works there, but its PreToolUse hook couldn't be put in place, so the shipping gate doesn't cover it."
+            : " Messaging with it won't work until that output goes, and the shipping gate doesn't cover it."
       }`,
     )
   if (prints === "slow")
     log.warn(
       "shell.cmd-slow",
-      `Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool.${
-        covered
-          ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe."
-          : ""
+      `Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked outside Novadeck's terminals, Novadeck's plugin for it registers no PreToolUse hook this time; Antigravity's own policy asks before each tool there.${
+        hooked
+          ? " In Novadeck's terminals its hooks, PreToolUse included, run through Novadeck's own cmd.exe, which skips the AutoRun, so the shipping gate covers it there."
+          : covered
+            ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe; the shipping gate doesn't cover it."
+            : " The shipping gate doesn't cover it."
       } It looks again at the next start.`,
     )
   // Read, never written: Codex's shim passes its roots on with the worktrees' folder.
@@ -165,6 +174,7 @@ export const installShellFiles = async (
     // Only while on: with it off every file is written as it always was.
     ...(gate && { shippingGate: true }),
     ...(cmdShimDir !== undefined && { cmdShimDir }),
+    ...(hooksFolder !== undefined && { hooksFolder }),
     ...(pwshShimDir !== undefined && { pwshShimDir }),
   })
   // Antigravity's Windows shim a start left is gone once nothing needs it.
@@ -235,6 +245,27 @@ const installCmdShim = async (
     return /^[\w.:\\~-]+$/.test(folder) ? folder : undefined
   } catch (error) {
     log.warn("shell.cmd-shim-unavailable", "Novadeck's cmd.exe pass-through is unavailable", {
+      err: error,
+    })
+    return undefined
+  }
+}
+
+/**
+ * Makes the folder that holds Antigravity's PreToolUse hook as a workspace's (`ShellPaths.agyHooks`,
+ * whose file `shellFiles` writes), and returns it by a path cmd reads unquoted; else undefined, and
+ * Antigravity goes without that hook, as before.
+ */
+const agyHooksFolder = async (
+  folder: string,
+  short: (path: string) => Promise<string>,
+): Promise<string | undefined> => {
+  try {
+    await mkdir(folder, { recursive: true, mode: 0o700 })
+    const named = await short(folder)
+    return /^[\w.:\\~-]+$/.test(named) ? named : undefined
+  } catch (error) {
+    log.warn("shell.agy-hooks-unavailable", "Antigravity's hooks folder is unavailable", {
       err: error,
     })
     return undefined

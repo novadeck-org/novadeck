@@ -13,6 +13,7 @@ import { join } from "node:path"
 
 import { vi } from "vitest"
 
+import { agyPreToolUse, setAgyPreToolUse } from "../shipping/hooks.js"
 import { describe, expect, it } from "../test.js"
 import { ownHome } from "../testing/host.js"
 import { cmdPrints, installRelay, installShellFiles } from "./install.js"
@@ -342,6 +343,56 @@ describe("the cmd.exe pass-through", () => {
     expect(readFileSync(agyShim(printing), "utf8")).toContain('set "PATH=')
     const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
     expect(readFileSync(agyShim(quiet), "utf8")).not.toContain('set "PATH=')
+  })
+
+  it("gives Antigravity's sessions in Novadeck's terminals its PreToolUse hook, so the gate covers it", async ({
+    resources,
+  }) => {
+    resources.defer(() => setAgyPreToolUse(true))
+    const { directory, options } = setup(resources)
+    for (const prints of ["prints", "slow"] as const) {
+      setAgyPreToolUse(false)
+      // eslint-disable-next-line no-await-in-loop -- One machine after the other.
+      const shell = await installShellFiles(
+        directory,
+        options({ prints: () => Promise.resolve(prints) }),
+      )
+      // A folder holding the hook alone, as a workspace's, which the shim adds.
+      expect(readdirSync(shell.agyHooks)).toEqual([".agents"])
+      const hooks = JSON.parse(
+        readFileSync(join(shell.agyHooks, ".agents", "hooks.json"), "utf8"),
+      ) as { novadeck: { PreToolUse: { hooks: { command: string }[] }[] } }
+      expect(hooks.novadeck.PreToolUse[0]!.hooks[0]!.command).toContain("PreToolUse")
+      expect(readFileSync(agyShim(shell), "utf8")).toContain("set novadeck_hooks=--add-dir=")
+      // The global plugin still registers none.
+      expect(readFileSync(join(shell.plugins.agy, "hooks.json"), "utf8")).not.toContain(
+        "PreToolUse",
+      )
+      expect(agyPreToolUse()).toBe(true)
+    }
+  })
+
+  it("leaves Antigravity ungated where cmd prints and the pass-through is missing, and takes the hook's folder away", async ({
+    resources,
+  }) => {
+    resources.defer(() => setAgyPreToolUse(true))
+    const { directory, folder, options } = setup(resources)
+    const logged = vi.spyOn(console, "warn").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const printing = await installShellFiles(directory, options())
+    expect(existsSync(printing.agyHooks)).toBe(true)
+    const without = await installShellFiles(
+      directory,
+      options({ cmdShim: join(folder, "none.exe") }),
+    )
+    expect(agyPreToolUse()).toBe(false)
+    expect(existsSync(without.agyHooks)).toBe(false)
+    expect(readFileSync(agyShim(without), "utf8")).not.toContain("novadeck_hooks")
+    // Where cmd prints nothing, the plugin registers it everywhere, as before.
+    const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
+    expect(agyPreToolUse()).toBe(true)
+    expect(existsSync(quiet.agyHooks)).toBe(false)
+    expect(readFileSync(join(quiet.plugins.agy, "hooks.json"), "utf8")).toContain("PreToolUse")
   })
 
   // Every session takes Novadeck's tools through it (harnesses/agy/src/shim.ts).

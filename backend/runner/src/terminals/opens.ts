@@ -14,11 +14,14 @@ import {
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { SendAnswer } from "../messaging/sending.js"
 import { list } from "../text.js"
 import type { ClientWindows } from "./client-windows.js"
 import { Followers } from "./followers.js"
+
+const log = logs.for("opens")
 
 /**
  * What an agent asks to open, through Novadeck's MCP server: a new terminal beside its
@@ -211,12 +214,24 @@ export type Opener = {
 }
 
 /**
- * How a request went: answered; sent to nobody, as no client follows; or left without an
- * answer, as its client went away or took too long.
+ * How a request went: answered; made, as the client created its terminal but didn't confirm
+ * it in time; sent to nobody, as no client follows; or left without an answer, as its client
+ * went away or took too long, with no terminal made for it.
  */
 export type Asked =
   | { readonly type: "answered"; readonly answer: TerminalRequestAnswer }
+  | { readonly type: "made"; readonly terminalId: string }
   | { readonly type: "nobody" | "gone" | "late" }
+
+/**
+ * How much longer than its deadline a request waits by default for the terminal the client is
+ * creating for it, as a slow shell start on Windows can outlast the deadline: once made, it is
+ * answered as made, so its opener never starts an agent it doesn't know of.
+ */
+export const creatingMs = 15_000
+
+/** How many answers that came after their request settled are let pass without an error. */
+const settledKept = 64
 
 /**
  * Agents' requests for a new terminal, on their way to the client that lays terminals
@@ -239,9 +254,26 @@ export class OpenRequests {
       readonly from: string
       /** Who asked, until the terminal created for the request takes it. */
       opener: Opener | undefined
+      /** Whether a terminal is being created for it: its opener taken, not yet made. */
+      creating: boolean
+      /** The terminal made for it, before the client confirmed it. */
+      made: string | undefined
+      /**
+       * Whether it is answered as soon as its terminal's creation ends: its deadline passed,
+       * or its client went away, while a terminal was being created for it.
+       */
+      overdue: boolean
+      /** Tells the asker the terminal made for it, as soon as it is made. */
+      readonly onMade: ((terminalId: string) => void) | undefined
       readonly settle: (asked: Asked) => void
     }
   >()
+
+  /**
+   * Requests settled before their client answered, by id, with the client each went to: its
+   * answer, still on its way, is no error. The newest few only.
+   */
+  private readonly settled = new Map<string, string>()
 
   /**
    * The requests sent to `owner`'s client, until `signal` aborts, the owner is released,
@@ -254,17 +286,35 @@ export class OpenRequests {
   /**
    * Sends the request to the client that shows the asking terminal's project, else the one
    * used last, else the newest, and waits up to `ms` for its answer; the
-   * `opener`, with the title it asked for, waits for the terminal the client creates for it.
+   * `opener`, with the title it asked for, waits for the terminal the client creates for it,
+   * and `made` hears of that terminal as soon as the runner has made it, before the client
+   * confirms it. Past `ms`, a request whose terminal is made is answered as made; one whose
+   * terminal is being made waits for it until `until` (a time), by default `creatingMs` more,
+   * and is late after that, its terminal no longer told of; any other is late.
    */
-  request(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
+  request(
+    request: Omit<TerminalRequest, "requestId">,
+    ms: number,
+    opener: Opener,
+    made?: (terminalId: string) => void,
+    until?: number,
+  ): Promise<Asked> {
     const follower = this.followers.newest(this.windows()?.choosing(request.sessionId))
     if (!follower) return Promise.resolve({ type: "nobody" })
     const requestId = randomUUID()
     return new Promise<Asked>((resolve) => {
-      const timer = setTimeout(() => settle({ type: "late" }), ms)
+      let timer = setTimeout(() => {
+        const waiting = this.pending.get(requestId)
+        if (waiting?.made !== undefined) return settle({ type: "made", terminalId: waiting.made })
+        if (!waiting?.creating) return settle({ type: "late" })
+        waiting.overdue = true
+        const left = until === undefined ? creatingMs : until - Date.now()
+        timer = setTimeout(() => settle({ type: "late" }), Math.max(0, left))
+      }, ms)
       const settle = (asked: Asked) => {
         clearTimeout(timer)
         this.pending.delete(requestId)
+        if (asked.type !== "answered") this.keepSettled(requestId, follower.owner)
         resolve(asked)
       }
       this.pending.set(requestId, {
@@ -272,6 +322,10 @@ export class OpenRequests {
         sessionId: request.sessionId,
         from: request.from,
         opener,
+        creating: false,
+        made: undefined,
+        overdue: false,
+        onMade: made,
         settle,
       })
       follower.push({ requestId, ...request })
@@ -288,12 +342,45 @@ export class OpenRequests {
     if (waiting?.owner !== owner || waiting.sessionId !== sessionId) return undefined
     const { opener } = waiting
     waiting.opener = undefined
+    if (opener) waiting.creating = true
     return opener
   }
 
-  /** The client's answer; NOT_FOUND once nothing waits for it from this client. */
+  /**
+   * How creating the terminal for a request whose opener it took ended: the terminal made,
+   * before the client confirms it, whose asker hears of it at once; or null, as none could be
+   * made. A request past its deadline is answered by it.
+   */
+  created(requestId: string | undefined, terminalId: string | null): void {
+    const waiting = requestId === undefined ? undefined : this.pending.get(requestId)
+    if (!waiting?.creating) return
+    waiting.creating = false
+    if (terminalId === null) {
+      if (waiting.overdue) waiting.settle({ type: "late" })
+      return
+    }
+    waiting.made = terminalId
+    try {
+      waiting.onMade?.(terminalId)
+    } catch (error) {
+      // The terminal is made all the same: the create it ends must not fail for it.
+      log.error("opens.made-failed", "Novadeck could not take up a terminal opened for an agent", {
+        err: error,
+      })
+    }
+    if (waiting.overdue) waiting.settle({ type: "made", terminalId })
+  }
+
+  /**
+   * The client's answer; NOT_FOUND once nothing waits for it from this client, unless it
+   * comes after its request settled without it, when it needs nothing.
+   */
   answer(answer: TerminalRequestAnswer, owner: string): void {
     const waiting = this.pending.get(answer.requestId)
+    if (!waiting && this.settled.get(answer.requestId) === owner) {
+      this.settled.delete(answer.requestId)
+      return
+    }
     if (!waiting || waiting.owner !== owner) throw new DomainError("NOT_FOUND")
     waiting.settle({ type: "answered", answer })
   }
@@ -321,10 +408,24 @@ export class OpenRequests {
     for (const { settle } of this.pending.values()) settle({ type: "gone" })
   }
 
+  private keepSettled(requestId: string, owner: string): void {
+    this.settled.set(requestId, owner)
+    for (const oldest of this.settled.keys()) {
+      if (this.settled.size <= settledKept) break
+      this.settled.delete(oldest)
+    }
+  }
+
   /** Requests sent to `owner`, unless it still follows on another stream. */
   private abandon(owner: string): void {
     if (this.followers.follows(owner)) return
+    // One whose terminal the runner already made opened all the same; one it is making is
+    // answered once that ends, within its deadline.
     for (const waiting of this.pending.values())
-      if (waiting.owner === owner) waiting.settle({ type: "gone" })
+      if (waiting.owner !== owner) continue
+      else if (waiting.made !== undefined)
+        waiting.settle({ type: "made", terminalId: waiting.made })
+      else if (waiting.creating) waiting.overdue = true
+      else waiting.settle({ type: "gone" })
   }
 }

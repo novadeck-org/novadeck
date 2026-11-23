@@ -661,7 +661,7 @@ before, and that copy is also where the app reads the person's first, so a start
   order of the rail's panels and of the footer's subscriptions, and what they've seen once: the
   Help and feedback chips' words, the phone page's zoom hint, the Agent Chat offer.
 - **The device's:** text size, font and ligatures, the app's scale, notifications, sounds and
-  their volume, the screen reader setting, project windows, the sidebar's width and whether it
+  their volume, the screen reader setting, the sidebar's width and whether it
   is collapsed, the view and terminal in front in each session, folds, and what concerns this
   install (update chips, a portable copy's card).
 - **Still the device's for now:** which agents' messages were read (`novadeck.messages-seen`),
@@ -1044,11 +1044,41 @@ see them change.
   the id, Novadeck's codex shim sets it again (`shell_environment_policy.set`); an
   `include_only` of theirs that leaves it out still drops it. An Apple `ssh` is never seen, so
   an ssh `ControlMaster` an agent started stays, unlike on Linux.
-- Otherwise, on Windows and on Linux without the user's systemd, it is not a
+- On Windows the same is done with a job object per terminal in place of the scope
+  (`libraries/terminal/src/pty/jobs.ts`, `backend/relay/src/jobs.rs`). Windows keeps a
+  process's recorded parent once that parent has ended, and the tree read above walks only
+  from the shell, so a program started through a launcher that exits (`start /b`,
+  `Start-Process`, a detached child of a short-lived process) leaves it; but a process
+  stays in the job it was started in. The runner's own relay holds each terminal's job
+  (`novadeck-relay jobs`, below) for as long as the runner runs, and the shell goes into it
+  as soon as node-pty names its pid, which it does as it creates the shell, a moment after
+  `spawn` returns: what the shell starts before then stays out, so its startup command
+  waits for the file the runner makes once that has settled (`scopeFile`; cmd through
+  `novadeck-relay held`). The agent's runs, what counts as one of its trees and what is
+  spared are as on Linux, with starts in Windows' creation times (milliseconds since the
+  Unix epoch, read against the wall clock) and a parent counted only where it started no
+  later than its child, as a later process may hold an ended parent's pid. What is found is
+  ended at once, by pid and start, as Windows has no signal to ask first. A job only holds:
+  it is made without `KILL_ON_JOB_CLOSE`, so the relay's exit ends nothing, and a terminal's
+  job is let go once it closes, leaving what was spared running. It allows no breakaway: Git
+  Bash's runtime starts every program with `CREATE_BREAKAWAY_FROM_JOB` where its job allows
+  it, so everything Claude Code's Bash tool runs would leave the job; a program that asks to
+  break away without looking first is refused, and doesn't start in a Novadeck terminal. One
+  started by a service, as through WMI or the Task Scheduler, is never in it: Claude Code
+  starts its background service through WMI, so it is never one of a Windows terminal's
+  leftovers. An app an agent opens is started by its caller, inside the job, however it opens
+  it (`start`, `Start-Process`, npm's `open`, `BROWSER`; measured on Windows 10 21H2), and
+  Windows has no shim for that as Linux's `xdg-open`: where a browser is running, it only
+  hands the URL to it and exits, and the tab is the running browser's, but a browser an agent
+  starts from nothing ends with its terminal, tabs and all. `explorer.exe <file>` hands it to
+  the running explorer, outside. Under Antigravity, what a command started ends about a
+  second after the command does, detached or not, so nothing of it is left for a close;
+  under Codex it mostly ends with the agent itself when it dies, its sandbox off too, though
+  not always (measured); under Claude Code and opencode it runs on until the terminal closes.
+- Otherwise, on Linux without the user's systemd, it is not a
   process-tree kill guarantee: daemonized jobs and descendants that ignore hangup may
   continue, as with an ordinary terminal emulator, and so may a daemon an agent left in a
-  group of its own. On Windows a job object per terminal (as the relay's own,
-  `backend/relay/src/job.rs`) would give the scope's list of members.
+  group of its own.
 
 ## Shell integration and restoring terminals
 
@@ -1076,7 +1106,10 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   front after the user's startup files.
 - `bin/agy` (`agy.cmd`), which shells get first on `PATH` while Antigravity is connected: it passes
   the person's allow rules with Novadeck's own tools added, which the relay (`novadeck-relay allow`)
-  writes to `allow/<terminal id>.json`, a folder the runner empties as it starts.
+  writes to `allow/<terminal id>.json`, a folder the runner empties as it starts, and the folder of
+  agents' worktrees only where it sorts after the folder agy starts in (on Windows as
+  `novadeck-relay after <folder> <cwd>` answers, by its exit code; see harness-adapters.md, "Shims
+  and the worktrees folder").
 - On Linux, `open/xdg-open` and `open/gio`, each written only where its program is on the
   runner's `PATH`, in a folder that shells get first on `PATH` whenever the terminal has a
   scope of its own (`NOVADECK_OPEN` names it), with `BROWSER` naming the `xdg-open` one where
@@ -1090,7 +1123,9 @@ changed. Only connecting an agent (below) installs anything elsewhere:
 - On Windows, where cmd's AutoRun prints: `agy-cmd/cmd.exe`, Novadeck's `cmd.exe` pass-through
   (`novadeck-cmd.exe`, built with the relay and checked byte for byte against the shipped one),
   which `agy.cmd` puts first on `PATH` for Antigravity alone, so its `cmd /c` hooks run the real cmd
-  with `/d` and the AutoRun's output stays out of their answers. See
+  with `/d` and the AutoRun's output stays out of their answers; and with it
+  `agy-hooks/.agents/hooks.json`, Antigravity's PreToolUse hook, which its global plugin leaves out
+  there and `agy.cmd` adds to sessions in Novadeck's terminals as a workspace (`--add-dir`). See
   [agent messaging](agent-messaging.md).
 - `hook` (`hook.cmd`), a launcher that starts Novadeck's relay (`novadeck-relay`, a
   small native program copied in beside it; see `backend/relay`), so the hook needs
@@ -1215,6 +1250,17 @@ or taskkill for:
   recorded parent.
 - `novadeck-relay end <pid>:<startedAt>...` ends each of those processes still running
   that started then, and no other given its pid since.
+- `novadeck-relay jobs` runs as long as the runner keeps its input open and holds the
+  terminals' job objects, answering a JSON line, `{"n":<n>,...}`, for each line asked,
+  `<n> <ask>`: `hold <terminal> <pid>[:<startedAt>]` puts that process in a new job for the
+  terminal (`held`), `members <terminal>` lists the job's processes as `tree` does
+  (`processes`, null for none; only processes the job holds, each checked on the handle its
+  start is read from, so a pid reused since is never one), `release <terminal>` lets the job
+  go, and `end <pid>:<startedAt>...` ends processes as `end` does. Its exit ends nothing. The
+  runner starts it with itself and ends its input as it closes, after the terminals; a
+  terminal whose hold it doesn't answer in time gets no job, and the rest go on.
+- `novadeck-relay held <file>` waits up to about a quarter of a second for `file`, then
+  removes it: a cmd terminal's startup command runs after it, so it starts inside its job.
 
 On macOS the runner runs it to list each terminal's processes (see "Closing"):
 
@@ -2474,17 +2520,18 @@ one from an earlier runner.
   tells every agent never to use their name, even one it knows. It has the lead describe itself
   and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
   Sci-fi, Modern) and "The kind" (RPG, Shooter, Strategy), own words allowed (dismissed, it takes
-  Fantasy and RPG). With the answer it names the game's three models (the player, an enemy, one
-  more) and, in that one turn (a sentence in between ends a cheap model's turn), opens two
-  teammates with `open_agent` on the lead's own harness and its cheapest model, at its lowest
+  Fantasy and RPG). With the answer, where `page` is true, it first asks to `open_terminal` the
+  dev server's command (`node dev.mjs <port>`, say, which the person approves in the app's usual
+  dialog) and ends its turn, opening no one while the approval is on screen; told the outcome, it
+  `show`s the page where they approved it. Then (with the answer, where `page` is false) it
+  names the game's three models (the player, an enemy, one more) and, in that one turn (a
+  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on the lead's own harness and its cheapest model, at its lowest
   effort as above, each with its task as the message, the picks and the names written in for the
   task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
   three models in a worktree on `models`, shows the first as soon as it exists, asks the person
   one thing about their look, then makes the other two; the Builder writes the game in `src/` in
   a worktree on `game`, loading the models by name, shows its changes, asks the person one thing
-  it should get next and makes that change; each tells the lead when done), and, where `page` is
-  true, `open_terminal` the dev server's command (`node dev.mjs <port>`, say, which the person
-  approves in the app's usual dialog) and `show` its page. No agent runs git. The texts are tuned
+  it should get next and makes that change; each tells the lead when done). No agent runs git. The texts are tuned
   on Codex (its `*-luna`, low effort) alone; the other harnesses run them untuned. What each
   agent is told of the shell follows its harness (`shellRule`, in the lead's script, both tasks
   and the folder's note): Claude Code, Antigravity and opencode, which read and write files with

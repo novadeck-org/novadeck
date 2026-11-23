@@ -29,9 +29,9 @@ import {
 } from "./scenarios.js"
 
 // Novadeck's tour story (backend/runner/src/tour/brief.ts): the lead asks the person which game
-// to make (a world and a kind, one sheet of two questions), then opens a modeller and a builder
-// with `open_agent`, their tasks with the picks and three models' names written in, asks to run
-// the game's dev server (the person approves) and shows its page. The modeller makes the first
+// to make (a world and a kind, one sheet of two questions), then asks to run the game's dev
+// server; once the person approves it shows its page and opens a modeller and a builder with
+// `open_agent`, their tasks with the picks and three models' names written in. The modeller makes the first
 // model in a worktree, shows it, asks the person one thing, then makes the other two; the builder
 // writes the game in a worktree, shows its changes, asks one thing, and makes that change. Once
 // the person keeps the project, the runner commits their work on main. The fake model plays all
@@ -415,6 +415,23 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
     return words || undefined
   }
 
+  // The lead's two calls that open its team, each with its task as the brief quotes it, the
+  // picks and the models' names written in.
+  const hire = (brief: string, [world, kind]: readonly [string, string]): Step[] => {
+    const [first, second] = openings(brief)
+    if (!first || !second) throw new Error("The lead's brief has no two open_agent calls")
+    return [first, second].map((mate) =>
+      using("open_agent", () => ({
+        agent: mate.agent,
+        model: mate.model,
+        ...(mate.effort !== undefined && { effort: mate.effort }),
+        message: filled(mate.message, world, kind),
+      })),
+    )
+  }
+  // Whether the lead has opened its team.
+  let hired = false
+
   const rules: Rule[] = [
     // The lead, by the brief's steps and what it is told after.
     own((one) => {
@@ -449,31 +466,36 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
           if (message.from === "you" && picks === undefined) {
             const [world = "", kind = ""] = answersIn(message.text)
             picks = [world, kind]
-            const [first, second] = openings(brief)
-            if (!first || !second) throw new Error("The lead's brief has no two open_agent calls")
-            const open = (mate: Opening): Step =>
-              using("open_agent", () => ({
-                agent: mate.agent,
-                model: mate.model,
-                ...(mate.effort !== undefined && { effort: mate.effort }),
-                message: filled(mate.message, world, kind),
-              }))
-            lead.queue.push(
-              open(first),
-              open(second),
-              using("open_terminal", () => {
-                const [command, title] = read(
-                  brief,
-                  /Call `open_terminal` with `command` "([^"]+)" and `title` "([^"]+)"/,
-                  "open_terminal",
-                ) as [string, string]
-                return { command, title }
-              }),
-              ends("The team is at work: the game starts once you approve the command."),
-            )
-          } else if (message.from === "novadeck" && /approved running/.test(message.text)) {
-            const [url] = read(brief, /`page` \{"url": "([^"]+)"\}/, "show page")
-            lead.queue.push(using("show", () => ({ page: { url }, open: true })))
+            // Where the dev server can run, the lead asks for it and opens its team only once
+            // the person has answered that; else it opens the team at once.
+            if (/Call `open_terminal`/.test(brief))
+              lead.queue.push(
+                using("open_terminal", () => {
+                  const [command, title] = read(
+                    brief,
+                    /Call `open_terminal` with `command` "([^"]+)" and `title` "([^"]+)"/,
+                    "open_terminal",
+                  ) as [string, string]
+                  return { command, title }
+                }),
+                ends("The game starts once you approve the command."),
+              )
+            else {
+              hired = true
+              lead.queue.push(...hire(brief, picks), ends("The team is at work."))
+            }
+          } else if (
+            message.from === "novadeck" &&
+            /(approved|declined) running/.test(message.text) &&
+            picks !== undefined &&
+            !hired
+          ) {
+            hired = true
+            if (/approved running/.test(message.text)) {
+              const [url] = read(brief, /`page` \{"url": "([^"]+)"\}/, "show page")
+              lead.queue.push(using("show", () => ({ page: { url }, open: true })))
+            }
+            lead.queue.push(...hire(brief, picks), ends("The team is at work."))
           }
         }
       }
@@ -716,8 +738,37 @@ const play = async (
     ],
   })
 
-  // 2. It opens the modeller and the builder, on the brief's model and effort, each with its
-  // task as the brief quotes it, the picks and the models' names written in.
+  // 2. It asks to run the game's dev server, and opens nobody before the person answers: the
+  // person is asked, and approves, and the server's terminal is the first the lead opens.
+  const approval = await asks.next(90_000)
+  expect(approval).toMatchObject({
+    from: lead.id,
+    terminalId: lead.id,
+    action: {
+      type: "run",
+      command: expect.stringMatching(/^(node dev\.mjs|python3? dev\.py) \d+$/),
+    },
+  })
+  expect(samePath(approval.action.type === "run" ? approval.action.cwd : "", directory)).toBe(true)
+  run.deck.terminals.answerApproval(
+    { requestId: approval.requestId, approved: true },
+    run.deck.owner,
+  )
+  const server = await requests.next(90_000)
+  inTour(server, directory)
+  expect(server.summary().title).toBe("Game server")
+  // The lead is told and shows the page: a page item for the address, on the lead's bar.
+  const [url] = read(instructions, /`page` \{"url": "([^"]+)"\}/, "page") as [string]
+  const page = await lead.poll(
+    () => run.deck.items.bar(lead.id).find((each) => each.kind === "page"),
+    "its page shown",
+    90_000,
+  )
+  expect(page).toMatchObject({ kind: "page", by: "agent", from: { terminalId: lead.id } })
+  expect(JSON.stringify(page)).toContain(url)
+
+  // 3. Only then it opens the modeller and the builder, on the brief's model and effort, each with
+  // its task as the brief quotes it, the picks and the models' names written in.
   const modeller = await requests.next(90_000)
   const builder = await requests.next(90_000)
   expect(story.picks()).toEqual([world, kinds[0]])
@@ -755,34 +806,6 @@ const play = async (
   }
   expect(story.tasks().modeller).toBe(filled(first!.message, world, kinds[0]))
   expect(story.tasks().builder).toBe(filled(second!.message, world, kinds[0]))
-
-  // 3. It asks to run the game's dev server: the person is asked, and approves.
-  const approval = await asks.next(90_000)
-  expect(approval).toMatchObject({
-    from: lead.id,
-    terminalId: lead.id,
-    action: {
-      type: "run",
-      command: expect.stringMatching(/^(node dev\.mjs|python3? dev\.py) \d+$/),
-    },
-  })
-  expect(samePath(approval.action.type === "run" ? approval.action.cwd : "", directory)).toBe(true)
-  run.deck.terminals.answerApproval(
-    { requestId: approval.requestId, approved: true },
-    run.deck.owner,
-  )
-  const server = await requests.next(90_000)
-  inTour(server, directory)
-  expect(server.summary().title).toBe("Game server")
-  // The lead is told and shows the page: a page item for the address, on the lead's bar.
-  const [url] = read(instructions, /`page` \{"url": "([^"]+)"\}/, "page") as [string]
-  const page = await lead.poll(
-    () => run.deck.items.bar(lead.id).find((each) => each.kind === "page"),
-    "its page shown",
-    90_000,
-  )
-  expect(page).toMatchObject({ kind: "page", by: "agent", from: { terminalId: lead.id } })
-  expect(JSON.stringify(page)).toContain(url)
 
   // 4. The modeller: describes itself, works in a worktree, shows its first model, asks the
   // person, then makes the other two and tells the lead.

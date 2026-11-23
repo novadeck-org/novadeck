@@ -235,6 +235,108 @@ describe("requests on their way to the client", () => {
     opens.finish()
   })
 
+  it("tell their asker of the terminal made for them before the client confirms it", async () => {
+    const opens = new OpenRequests()
+    const stream = opens.follow("client")
+    const first = stream.next()
+    const made: string[] = []
+    const asked = opens.request(
+      request,
+      1_000,
+      { by: "id-moth", handle: "moth", leads: false },
+      (terminalId) => void made.push(terminalId),
+    )
+    const { value } = await first
+    const { requestId } = value!
+    // Only a create that took the opener tells.
+    opens.created(requestId, "t-stray")
+    expect(made).toEqual([])
+    opens.opener(requestId, "client", request.sessionId)
+    opens.created(requestId, "t2")
+    expect(made).toEqual(["t2"])
+    opens.answer({ requestId, terminalId: "t2" }, "client")
+    await expect(asked).resolves.toEqual({
+      type: "answered",
+      answer: { requestId, terminalId: "t2" },
+    })
+    opens.finish()
+  })
+
+  it("answer as made, past their deadline, once their terminal is made, and let its late confirm pass", async () => {
+    const opens = new OpenRequests()
+    const stream = opens.follow("client")
+    let first = stream.next()
+    const opener = { by: "id-moth", handle: "moth", leads: false }
+    // Made before the deadline: answered as made once it passes.
+    const early = opens.request(request, 10, opener)
+    let { value } = await first
+    opens.opener(value!.requestId, "client", request.sessionId)
+    opens.created(value!.requestId, "t2")
+    await expect(early).resolves.toEqual({ type: "made", terminalId: "t2" })
+    // Its client's confirmation, on its way meanwhile, is no error; another client's is.
+    expect(() => opens.answer({ requestId: value!.requestId, terminalId: "t2" }, "other")).toThrow(
+      expect.objectContaining({ code: "NOT_FOUND" }),
+    )
+    opens.answer({ requestId: value!.requestId, terminalId: "t2" }, "client")
+    // Being made as the deadline passes: it waits for the terminal.
+    first = stream.next()
+    const slow = opens.request(request, 10, opener)
+    ;({ value } = await first)
+    opens.opener(value!.requestId, "client", request.sessionId)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    opens.created(value!.requestId, "t3")
+    await expect(slow).resolves.toEqual({ type: "made", terminalId: "t3" })
+    // One that couldn't be made is late.
+    first = stream.next()
+    const failed = opens.request(request, 10, opener)
+    ;({ value } = await first)
+    opens.opener(value!.requestId, "client", request.sessionId)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    opens.created(value!.requestId, null)
+    await expect(failed).resolves.toEqual({ type: "late" })
+    // A client that goes away after its terminal was made: opened all the same.
+    first = stream.next()
+    const left = opens.request(request, 1_000, opener)
+    ;({ value } = await first)
+    opens.opener(value!.requestId, "client", request.sessionId)
+    opens.created(value!.requestId, "t4")
+    opens.release("client")
+    await expect(left).resolves.toEqual({ type: "made", terminalId: "t4" })
+    opens.finish()
+  })
+
+  it("wait for a terminal being made when the client goes away, and no longer than the asker can answer", async () => {
+    const opens = new OpenRequests()
+    const opener = { by: "id-moth", handle: "moth", leads: false }
+    // The client goes away while the runner makes its terminal: answered once it is made.
+    let stream = opens.follow("client")
+    let first = stream.next()
+    const left = opens.request(request, 1_000, opener)
+    let { value } = await first
+    opens.opener(value!.requestId, "client", request.sessionId)
+    opens.release("client")
+    opens.created(value!.requestId, "t5")
+    await expect(left).resolves.toEqual({ type: "made", terminalId: "t5" })
+    // Past the time its asker can answer by, a terminal still being made is late, and the
+    // asker never hears of it after.
+    stream = opens.follow("client")
+    first = stream.next()
+    const made: string[] = []
+    const slow = opens.request(
+      request,
+      10,
+      opener,
+      (terminalId) => void made.push(terminalId),
+      Date.now() + 20,
+    )
+    ;({ value } = await first)
+    opens.opener(value!.requestId, "client", request.sessionId)
+    await expect(slow).resolves.toEqual({ type: "late" })
+    opens.created(value!.requestId, "t6")
+    expect(made).toEqual([])
+    opens.finish()
+  })
+
   it("go unanswered when the client takes too long, or goes away", async () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")

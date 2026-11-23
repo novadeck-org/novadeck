@@ -5,7 +5,6 @@ import {
   projectWindowOpenChannel,
   projectWindowShowChannel,
   projectWindowsRequestChannel,
-  projectWindowsUseChannel,
 } from "../../bridge.js"
 import { describe, expect, it } from "../../test"
 import { registerProjectWindowsIpc } from "./project-windows-ipc"
@@ -21,7 +20,6 @@ const registered = (own: boolean) => {
       window: () => (own ? "window" : undefined),
       ask: (window) => void calls.push(["ask", window]),
       show: (window, id, known) => void calls.push(["show", window, id, known]),
-      use: (on) => void calls.push(["use", on]),
       open: (window, id) => void calls.push(["open", window, id]),
       handOff: (window, target) => void calls.push(["handOff", window, target]),
     },
@@ -37,14 +35,12 @@ describe("the pages' project window requests", () => {
     send(projectWindowsRequestChannel)
     send(projectWindowShowChannel, { projectId: "p1", known: ["p1", "p2"] })
     send(projectWindowShowChannel, { projectId: null, known: [] })
-    send(projectWindowsUseChannel, true)
     send(projectWindowOpenChannel, "p2")
     send(projectWindowHandOffChannel, { projectId: "p4", terminalId: "t" })
     expect(calls).toEqual([
       ["ask", "window"],
       ["show", "window", "p1", ["p1", "p2"]],
       ["show", "window", undefined, []],
-      ["use", true],
       ["open", "window", "p2"],
       ["handOff", "window", { projectId: "p4", terminalId: "t" }],
     ])
@@ -61,7 +57,6 @@ describe("the pages' project window requests", () => {
     const { send, calls } = registered(true)
     send(projectWindowShowChannel, 7)
     send(projectWindowShowChannel, { projectId: "", known: [] })
-    send(projectWindowsUseChannel, "yes")
     send(projectWindowOpenChannel, "")
     send(projectWindowHandOffChannel, { terminalId: "t" })
     expect(calls).toEqual([])

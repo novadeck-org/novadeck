@@ -83,3 +83,84 @@ export const expectLookAtWindows = (...names: readonly string[]): Promise<void> 
  * are icons, so they add no words.
  */
 export const topTab = (pane: HTMLElement | undefined): string => pane?.textContent ?? ""
+
+/** Waits until the tour marks, to press, exactly the elements these find now. */
+export const expectClickAt = (...find: readonly (() => HTMLElement | undefined)[]): Promise<void> =>
+  expect
+    .poll(
+      () => {
+        const marked = clicked()
+        const wanted = find.map((each) => each())
+        return (
+          marked.length === wanted.length && marked.every((element) => wanted.includes(element))
+        )
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true)
+
+/** Waits until the tour marks windows named so, and no others, to press. */
+export const expectClickAtWindows = (...names: readonly string[]): Promise<void> =>
+  expect
+    .poll(
+      () =>
+        clicked()
+          .map((each) => nameOf(each.getAttribute("aria-label") ?? "").replace(/ terminal$/, ""))
+          .toSorted(),
+      { timeout: 15_000 },
+    )
+    .toEqual(names.toSorted())
+
+/**
+ * Plays a step that waits on the person, as they would: once its caption says `line`, presses
+ * what opens its subject where the tour marks that first (the rail's button for a panel, a window
+ * whose pane isn't showing yet), each once, then touches the subject itself, one of what
+ * `subject` finds, and waits for the caption to move on (unless the step `stays` a while after,
+ * as the game's last does).
+ */
+export const touchStep = async (
+  line: string,
+  subject: () => readonly (HTMLElement | undefined)[],
+  { timeout = 40_000, stays = false }: { readonly timeout?: number; readonly stays?: boolean } = {},
+): Promise<void> => {
+  await coachSays(line, timeout)
+  const opened = new Set<HTMLElement>()
+  await expect
+    .poll(
+      async () => {
+        const marked = clicked()[0]
+        const wanted = subject().filter((each) => each !== undefined)
+        if (marked && wanted.includes(marked)) return true
+        if (marked && !opened.has(marked)) {
+          opened.add(marked)
+          await page.elementLocator(marked).click()
+        }
+        return false
+      },
+      { timeout: 20_000, interval: 400 },
+    )
+    .toBe(true)
+  const marked = clicked()[0]!
+  // On its window's header, on the app's own page, as the tour counts a press anywhere in the
+  // window: never in a page or a model's frame, which the tour hears by the app's page losing the
+  // focus, which a page sharing its browser with other specs may not have to lose; and on no
+  // control of the pane's (its tab's open button opens it over everything). Where the window takes
+  // the press itself (on Canvas, a window not selected takes it, to select itself), pressed all the
+  // same, as a person would.
+  const header =
+    marked
+      .closest<HTMLElement>('[data-terminal]:not([data-terminal="true"])')
+      ?.querySelector<HTMLElement>(".terminal-header") ?? marked
+  await page
+    .elementLocator(header)
+    .click({ timeout: 3_000 })
+    .catch(() => page.elementLocator(header).click({ force: true }))
+  if (stays) return
+  await expect
+    .poll(
+      () =>
+        document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? "",
+      { timeout: 15_000 },
+    )
+    .not.toContain(line)
+}

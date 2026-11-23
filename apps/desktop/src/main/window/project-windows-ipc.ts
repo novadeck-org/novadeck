@@ -11,7 +11,6 @@ import {
   projectWindowOpenChannel,
   projectWindowShowChannel,
   projectWindowsRequestChannel,
-  projectWindowsUseChannel,
 } from "../../bridge.js"
 
 type ProjectWindowsIpc = {
@@ -29,7 +28,6 @@ export const registerProjectWindowsIpc = <Window>(
     window,
     ask,
     show,
-    use,
     open,
     handOff,
   }: {
@@ -38,8 +36,6 @@ export const registerProjectWindowsIpc = <Window>(
     readonly ask: (window: Window) => void
     /** The window's page shows this project now, or none. */
     readonly show: (window: Window, projectId: string | undefined, known: readonly string[]) => void
-    /** The person turned project windows on or off. */
-    readonly use: (on: boolean) => void
     readonly open: (window: Window, projectId: string) => void
     readonly handOff: (window: Window, target: ProjectWindowTarget) => void
   },
@@ -54,9 +50,6 @@ export const registerProjectWindowsIpc = <Window>(
   from(projectWindowShowChannel, (target, value) => {
     const shown = parseProjectWindowShown(value)
     if (shown) show(target, shown.projectId ?? undefined, shown.known)
-  })
-  from(projectWindowsUseChannel, (_target, value) => {
-    if (typeof value === "boolean") use(value)
   })
   from(projectWindowOpenChannel, (target, value) => {
     const id = windowIdOf(value)

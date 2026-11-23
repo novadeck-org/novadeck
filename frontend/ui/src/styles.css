@@ -16,9 +16,10 @@
 @source "../../tour/src";
 @source not "../../terminal-views/src/**/*.test.ts";
 
-/* The header's narrow look (WorkspaceHeader.tsx): below 701px. */
+/* The header's narrow look (WorkspaceHeader.tsx): the header 701px wide or less, its own
+   width (`@container/header`), as on macOS it heads the terminals' column alone. */
 @custom-variant narrow-header {
-  @media (max-width: 701px) {
+  @container header (max-width: 701px) {
     @slot;
   }
 }

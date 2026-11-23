@@ -300,9 +300,6 @@ export const projectWindowsRequestChannel = "novadeck:project-windows-request"
 /** Renderer-to-main report of the project the window shows now: its id, or null for none. */
 export const projectWindowShowChannel = "novadeck:project-window-show"
 
-/** Renderer-to-main report of whether the person has project windows on, a boolean. */
-export const projectWindowsUseChannel = "novadeck:project-windows-use"
-
 /** Renderer-to-main request to open a project in a window of its own: the project's id. */
 export const projectWindowOpenChannel = "novadeck:project-window-open"
 
@@ -317,6 +314,12 @@ export const projectWindowNavigateChannel = "novadeck:project-window-navigate"
  * absent in the first window.
  */
 export const extraWindowArgumentPrefix = "--novadeck-extra-window="
+
+/**
+ * Renderer-to-main request for the keys of the windows the app keeps for the next launch or has
+ * open, answered with their UUIDs (see `DesktopBridge.windowKeys`).
+ */
+export const windowKeysChannel = "novadeck:window-keys"
 
 /** Given to the page's preload: the window's key, a UUID (see `DesktopApp.windowKey`). */
 export const windowKeyArgumentPrefix = "--novadeck-window-key="

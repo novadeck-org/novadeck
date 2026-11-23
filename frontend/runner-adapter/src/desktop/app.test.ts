@@ -249,7 +249,6 @@ describe("the desktop app's project windows", () => {
         return () => void calls.push(["stop"])
       },
       showProjectWindow: (id: unknown, known: unknown) => void calls.push(["show", id, known]),
-      useProjectWindows: (on: unknown) => void calls.push(["use", on]),
       openProjectWindow: (id: unknown) => void calls.push(["open", id]),
       handOffToProjectWindow: (target: unknown) => void calls.push(["handOff", target]),
       onProjectWindowNavigate: (listener: (target: unknown) => void) => {
@@ -269,7 +268,6 @@ describe("the desktop app's project windows", () => {
     windows.onNavigate((place) => places.push(place))
     windows.show("p1", ["p1", "p2"])
     windows.show(null, [])
-    windows.use(true)
     windows.open("p2")
     windows.handOff({ projectId: "p3", rowId: "r" })
     stop()
@@ -280,7 +278,6 @@ describe("the desktop app's project windows", () => {
       ["listen"],
       ["show", "p1", ["p1", "p2"]],
       ["show", null, []],
-      ["use", true],
       ["open", "p2"],
       ["handOff", { projectId: "p3", rowId: "r" }],
       ["stop"],

@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises"
 import { posix } from "node:path"
 import { promisify } from "node:util"
 
+import type { Followed, Listed } from "./descendants.js"
+
 /** Why a pty's program ended, where its platform says: it was killed for memory. */
 export type ExitCause = "out-of-memory"
 
@@ -45,6 +47,29 @@ export type Scope = {
    * left for systemd to collect once they end. It never rejects.
    */
   exited(): Promise<void>
+  /**
+   * Whether the program reached its scope, once that is settled, where it gets there only
+   * some milliseconds after it starts and its shell can't see that for itself, as with a
+   * Windows job (`windowsJobs`): the shell's startup command waits for it.
+   */
+  readonly held?: Promise<boolean>
+  /**
+   * The processes in the scope now, as a listing shows them, where the scope can say so
+   * itself, as a Windows job does, which no `Listing` can see. Undefined where it can't be
+   * told; it never rejects.
+   */
+  listed?(): Promise<readonly Listed[] | undefined>
+  /**
+   * Ends each of `ones` still running as the process it was, by its pid and start, where the
+   * scope can, as Windows has no signal to send first. It never rejects.
+   */
+  end?(ones: readonly Followed[]): Promise<void>
+  /**
+   * The terminal is gone, and nothing reads its scope again: what still runs in it runs on,
+   * in no scope of Novadeck's. Where letting go would end what runs there, as stopping a
+   * systemd scope would, there is none.
+   */
+  done?(): void
 }
 
 /** Where each pty's program is kept apart from the app's own processes. */

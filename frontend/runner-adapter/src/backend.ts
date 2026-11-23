@@ -441,7 +441,7 @@ export const runnerBackend = (
   const inUse = terminalInUse((terminalId) => runner.terminals.active(terminalId))
   // The project this window shows, told to the runner so an agent's request reaches the window
   // that shows its project (see `terminals.showing`).
-  // The project this window told the runner it shows, while project windows are on.
+  // The project this window told the runner it shows, where the app opens project windows.
   let shownProject: string | null = null
   const showing = terminalInUse((projectId) => runner.terminals.showing(projectId))
   const inSight = terminalsInSight((terminalIds) => runner.terminals.seen(terminalIds))
@@ -1989,7 +1989,7 @@ export const runnerBackend = (
         entry.dwell = undefined
       }
     },
-    // A shown project is told only with project windows on.
+    // A shown project is told only where the app opens project windows.
     sharing: () => shownProject !== null,
     shown: (key) => {
       const entry = registry.get(key)?.entry

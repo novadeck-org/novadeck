@@ -51,7 +51,8 @@
   position: absolute;
   display: block;
 }
-/* The border itself: one pixel, exactly over the rail's. */
+/* The border itself: one pixel, exactly over the rail's, or where it would run where the rail
+   has none (on macOS, beside an open sidebar it is one surface with). */
 .team-wire-segment {
   width: 1px;
   background-color: var(--_rest);

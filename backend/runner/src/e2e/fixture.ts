@@ -13,7 +13,7 @@ import { it as base } from "../test.js"
 import { watchAddedFolders } from "./added-folders.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
-import { endClaudeService } from "./claude-service.js"
+import { endClaudeService, endServices, services } from "./claude-service.js"
 import { harnessLogins, loginStore } from "./credentials.js"
 import { createDeck, type Deck, type DeckOptions } from "./deck.js"
 import { installHarness } from "./install.js"
@@ -187,8 +187,8 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
       // a logout would end it, strictly (claude-service.ts), named apart from the leaks.
       const background = await checked(
         "Claude Code's background service",
-        () =>
-          endClaudeService(
+        async () => {
+          const named = await endClaudeService(
             harnesses.claude.home({
               env,
               home: sandbox.home,
@@ -196,7 +196,11 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
               plugin: "",
             }),
             trees,
-          ),
+          )
+          // On Windows, also the sandbox's own that no lock names (`services`).
+          if (process.platform !== "win32") return named
+          return [...named, ...(await endServices(services(await census(sandbox)), trees))]
+        },
         [],
       )
       if (background.length > 0)

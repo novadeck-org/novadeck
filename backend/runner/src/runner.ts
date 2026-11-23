@@ -6,7 +6,7 @@ import { dirname, join } from "node:path"
 import { compatibility, errors } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
-import { taggedScopes, terminalPriorities, userScopes } from "@novadeck/terminal/pty"
+import { taggedScopes, terminalPriorities, userScopes, windowsJobs } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions, type Verdict } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
@@ -201,7 +201,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       ? Promise.resolve(undefined)
       : installShellFiles(options.shell, {
           ...(options.relay !== undefined && { relay: options.relay }),
-          ...(options.worktreesRoot !== undefined && { worktrees: options.worktreesRoot }),
+          ...(options.worktreesRoot !== undefined && {
+            worktrees: options.worktreesRoot,
+          }),
           gate: store.settings.runner().shippingGate,
           // Whether Codex is connected is known only once these are written (see below).
           pwsh: "kept",
@@ -223,7 +225,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     const write = async () => {
       await installShellFiles(shell, {
         ...(options.relay !== undefined && { relay: options.relay }),
-        ...(options.worktreesRoot !== undefined && { worktrees: options.worktreesRoot }),
+        ...(options.worktreesRoot !== undefined && {
+          worktrees: options.worktreesRoot,
+        }),
         gate: store.settings.runner().shippingGate,
         pwsh: process.platform === "win32" && (await agents.connected("codex")),
       })
@@ -234,7 +238,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   }
   // The runner's own calls of the relay use the build's, never the copy for agents.
   const relay = options.relay === undefined ? {} : { relay: options.relay }
-  const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
+  const agents = createHarnesses(() => shellFiles, {
+    ...relay,
+    ...options.agents,
+  })
   started.push(agents)
   // Codex's commands on Windows capture once it is found connected, or connected later.
   const setAgent = agents.set
@@ -277,7 +284,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // the object folders live beside the memory, which names trees in them.
   const snapshots = new Snapshots({
     held: () => secrets(agents.environment()),
-    ...(memory !== undefined && { home: join(dirname(memory), "works-objects") }),
+    ...(memory !== undefined && {
+      home: join(dirname(memory), "works-objects"),
+    }),
   })
   // What agents show and the person attaches beside terminals, kept in the store; it
   // asks the terminals where each one is.
@@ -319,7 +328,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     },
   })
   const voice = new Voice(store.settings, {
-    ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
+    ...(options.softwareGraphics !== undefined && {
+      softwareGraphics: options.softwareGraphics,
+    }),
     engine: options.voice?.engine,
     source: options.voice?.source,
     directory:
@@ -353,18 +364,24 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       (options.database === undefined
         ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
         : join(dirname(options.database), "murmur")),
-    ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
+    ...(options.softwareGraphics !== undefined && {
+      softwareGraphics: options.softwareGraphics,
+    }),
     // Voice input has priority over the GPU.
     voice: voice.activity,
   })
   murmur.start()
   started.push(murmur)
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
-  // takes down its terminal, not the app. On macOS a terminal's processes are those that
-  // started with it named in their environment, as every shell starts (`launching.ts`), read
-  // through the relay; so on both, what an agent left detached there ends with it.
+  // takes down its terminal, not the app. On Windows each runs in a job object of its own,
+  // kept by the runner's own relay. On macOS a terminal's processes are those that started
+  // with it named in their environment, as every shell starts (`launching.ts`), read through
+  // the relay. On all three, what an agent left there ends with the terminal.
+  const jobs = windowsJobs(async () => options.relay ?? relayPath)
+  if (jobs) started.push({ close: async () => jobs.close() })
   const scopes =
     userScopes() ??
+    jobs ??
     taggedScopes(() => Promise.resolve(options.relay ?? relayPath), "NOVADECK_TERMINAL_ID")
   // On macOS and Windows each shell and what it starts run below the window's priority.
   const priority = terminalPriorities()
@@ -419,7 +436,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // The shipping gate (Experimental): read live, so the switch counts at once.
   const shipping = new Shipping({
     enabled: () => store.settings.runner().shippingGate,
-    owned: { ofTerminal: (id) => worktrees.ownedRows(id), all: () => worktrees.all() },
+    owned: {
+      ofTerminal: (id) => worktrees.ownedRows(id),
+      all: () => worktrees.all(),
+    },
     notify: (terminalId, text) =>
       shippingTerminals().messaging.notice(terminalId, text, { always: true }),
   })
@@ -464,7 +484,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Without an engine nothing is described, so terminals have nothing to wait for.
     ...(options.murmur?.engine !== undefined && { describer: murmur }),
     ...((scopes || priority) && {
-      pty: { ...(scopes && { scopes }), ...(priority && { priority }), activity },
+      pty: {
+        ...(scopes && { scopes }),
+        ...(priority && { priority }),
+        activity,
+      },
     }),
     ...options.terminals,
     // Whatever a test says of the answers, the dialogs still see which terminals are in sight.
@@ -484,7 +508,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     connected: (agent) => agents.connected(agent),
     models: (agent) => agents.models(agent),
     // Every project, those being removed too, whose removal the tour waits for.
-    projects: { list: () => store.projects(), remove: (id) => projects.remove(id) },
+    projects: {
+      list: () => store.projects(),
+      remove: (id) => projects.remove(id),
+    },
     notice: (terminalId, text) => terminals.messaging.notice(terminalId, text, { always: true }),
     cwdOf: (terminalId) => terminals.get(terminalId).cwd,
     leadOf: (terminalId) => terminals.messaging.leadOf(terminalId)?.terminalId,
@@ -550,7 +577,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       const place = terminals.place(terminalId)
       if (!place) throw new DomainError("TERMINAL_NOT_FOUND")
       // The person asked, so it opens, as an agent's show does when told the person asked.
-      const shown = await items.show(place, { changes: { path: root }, open: true })
+      const shown = await items.show(place, {
+        changes: { path: root },
+        open: true,
+      })
       if (!shown.ok) throw new DomainError("NOT_FOUND", shown.reason)
       return shown.id
     },
@@ -593,6 +623,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     uploads,
     voice,
     murmur,
+    jobs,
     sealer,
     rootFolder,
     tour,
@@ -614,7 +645,9 @@ const refusingRunner = (): Runner => ({
     oldestClient: compatibility.oldestClient,
     router: {},
     admit: () => {
-      throw new ORPCError("WORKSPACE_TOO_NEW", { status: errors.WORKSPACE_TOO_NEW.status })
+      throw new ORPCError("WORKSPACE_TOO_NEW", {
+        status: errors.WORKSPACE_TOO_NEW.status,
+      })
     },
   }),
   // Its devices are in the workspace it can't open: only the owner is told why.
@@ -679,6 +712,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     uploads,
     voice,
     murmur,
+    jobs,
     sealer,
     rootFolder,
     tour,
@@ -775,6 +809,8 @@ const startRunner = (options: RunnerOptions): Runner => {
         try {
           await terminals.shutdown()
         } finally {
+          // After the terminals, whose leftovers it lists and ends as they close.
+          jobs?.close()
           await forges.close()
           await works.close()
           await tidying

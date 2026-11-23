@@ -165,7 +165,7 @@ export const shellGroups = ({
       actions: [
         {
           label: "macOS, in the header",
-          hint: "The window's close, minimise and zoom buttons sit at the header's start, where the mark gives way to them; in Zen they hide, and come back while the pointer is in the top-left corner",
+          hint: "The rail and the sidebar run to the window's top, and the window's close, minimise and zoom buttons sit on them; with the sidebar closed the header runs the width and its start gives way to them; in Zen they hide, and come back while the pointer is in the top-left corner",
           reboots: true,
           run: () => launch.setWindowControls("inset"),
         },

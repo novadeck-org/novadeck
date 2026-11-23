@@ -6,12 +6,14 @@ import { processListing, type Listed } from "./descendants.js"
 import {
   endLeftovers,
   leftovers,
+  listedScope,
   readScope,
   runClock,
   runStart,
   tickClock,
   ticksNow,
   wallClock,
+  windowsClock,
 } from "./leftovers.js"
 
 // A process as a listing shows it, started at `started` clock ticks.
@@ -163,6 +165,18 @@ describe("what an agent left in its terminal's scope", () => {
     expect(pids(leftovers({ rows, members: inside(30, 31, 1), runs }))).toEqual([30])
   })
 
+  it("takes no parent that started after its child, whose recorded parent's pid it took", () => {
+    // Windows keeps 30's parent, 25, after 25 ended; 25 is now a later process, in the scope.
+    const rows = [shell, row(25, 10, 800), row(30, 25, 600), row(31, 30, 650)]
+    const found = leftovers({
+      rows,
+      members: inside(10, 25, 30, 31),
+      runs,
+      shell: 10,
+    })
+    expect(pids(found)).toEqual([30, 31])
+  })
+
   it("is nothing for a start that isn't Linux's clock ticks", () => {
     const rows = [{ ...row(30, 1, 600), started: "Mon Nov 23 01:00:00 2026" }]
     expect(leftovers({ rows, members: inside(30), runs })).toEqual([])
@@ -280,7 +294,31 @@ describe("now, in clock ticks", () => {
   })
 })
 
+describe("now, in a platform's clock for a process's start", () => {
+  it("is Windows' wall clock in milliseconds, as its creation times count", () => {
+    const before = Date.now()
+    expect(runClock("win32")).toBe(windowsClock)
+    expect(windowsClock.now()).toBeGreaterThanOrEqual(before)
+    expect(windowsClock.start(row(30, 1, 1_795_444_200_359))).toBe(1_795_444_200_359)
+  })
+
+  it("is none where no process's start is told", () => {
+    expect(runClock("freebsd").now()).toBeUndefined()
+    expect(runClock("freebsd").start(row(30, 1, 600))).toBeUndefined()
+  })
+})
+
 describe("reading a scope", () => {
+  it("lists one that lists its own, as a Windows job, with its members", async () => {
+    const rows = [row(30, 1, 600), row(31, 30, 650)]
+    expect(await listedScope(() => Promise.resolve(rows))).toEqual({
+      rows,
+      members: inside(30, 31),
+    })
+    expect(await listedScope(() => Promise.resolve([]))).toBeUndefined()
+    expect(await listedScope(() => Promise.resolve(undefined))).toBeUndefined()
+  })
+
   it("is nothing where its members or the processes can't be read, or it is empty", async () => {
     const rows = [row(1, 0, 0)]
     expect(
@@ -333,6 +371,30 @@ const ended = (child: ReturnType<typeof spawn>) =>
   new Promise<NodeJS.Signals | null>((resolve) =>
     child.once("exit", (_code, signal) => resolve(signal)),
   )
+
+describe("ending what an agent left where its scope ends a process itself", () => {
+  it("ends what it finds at once, by its pid and start, with no signal", async () => {
+    const asked: string[][] = []
+    const found = [{ pid: 30, started: "600" }]
+    const done = await endLeftovers(
+      () => Promise.resolve(found),
+      undefined,
+      async (ones) => void asked.push(ones.map(({ pid, started }) => `${pid}:${started}`)),
+    )
+    expect(done).toEqual(found)
+    expect(asked).toEqual([["30:600"]])
+  })
+
+  it("ends nothing where it finds nothing", async () => {
+    let asked = false
+    const end = async () => {
+      asked = true
+    }
+    expect(await endLeftovers(() => Promise.resolve(undefined), undefined, end)).toEqual([])
+    expect(await endLeftovers(() => Promise.resolve([]), undefined, end)).toEqual([])
+    expect(asked).toBe(false)
+  })
+})
 
 describe.skipIf(process.platform === "win32")("ending what an agent left", () => {
   it("asks with SIGTERM, then forces what ignores it half a second on", async () => {

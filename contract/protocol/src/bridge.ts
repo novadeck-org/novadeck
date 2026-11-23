@@ -113,12 +113,6 @@ export type DesktopBridge = {
    */
   showProjectWindow?(projectId: string | null, known?: readonly string[]): void
   /**
-   * Tells the app whether the person has turned project windows on, which it keeps: only with
-   * it on does quitting remember the open windows for the next launch. Absent from apps that
-   * came before it.
-   */
-  useProjectWindows?(on: boolean): void
-  /**
    * Opens a project in a new window, even when this or another window shows it already (up to
    * the most windows the app opens). Absent from apps that came before it.
    */
@@ -135,6 +129,12 @@ export type DesktopBridge = {
    * function that stops listening. Absent from apps that came before it.
    */
   onProjectWindowNavigate?(listener: (target: ProjectWindowTarget) => void): () => void
+  /**
+   * The keys (`windowKey`) of the windows the app keeps for the next launch or has open, each a
+   * UUID; undefined when the app can't say. A page clears what it kept under any other key: the
+   * window that kept it is gone for good. Absent from apps that came before it.
+   */
+  windowKeys?(): Promise<readonly string[] | undefined>
   /**
    * Calls `listener` with whether a screen reader or other assistive technology is running,
    * as the system tells Chromium: at once with the current state, and again on each change.

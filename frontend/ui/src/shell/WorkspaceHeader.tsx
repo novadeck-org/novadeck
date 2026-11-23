@@ -5,7 +5,7 @@ import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { views } from "@novadeck/toolkit/views"
 import { Scan, Search, Settings2 } from "lucide-react"
-import { useSyncExternalStore } from "react"
+import { useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { Link } from "react-router"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -18,15 +18,25 @@ import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
 const controlsSide = (): string | undefined =>
   typeof document === "undefined" ? undefined : document.documentElement.dataset.windowControls
 
-// The view switch gives up its words below 701px, as the `narrow-header` variant (styles.css)
-// does.
-const iconOnlyQuery = "(max-width: 701px)"
-const subscribe = (notify: () => void): (() => void) => {
-  const media = window.matchMedia(iconOnlyQuery)
-  media.addEventListener("change", notify)
-  return () => media.removeEventListener("change", notify)
+// The view switch gives up its words where the header is 701px wide or less, as the
+// `narrow-header` variant (styles.css) does: the header's own width, not the window's, as on
+// macOS it heads the terminals' column alone, beside the sidebar.
+const iconOnlyWidth = 701
+
+// Whether the header is narrow enough for the view switch to give up its words.
+const useIconOnly = (header: RefObject<HTMLElement | null>): boolean => {
+  const [iconOnly, setIconOnly] = useState(false)
+  useLayoutEffect(() => {
+    const element = header.current
+    if (!element) return
+    const measure = (): void => setIconOnly(element.getBoundingClientRect().width <= iconOnlyWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [header])
+  return iconOnly
 }
-const isIconOnly = (): boolean => window.matchMedia(iconOnlyQuery).matches
 
 export const WorkspaceHeader = ({
   hidden = false,
@@ -76,7 +86,8 @@ export const WorkspaceHeader = ({
   onPreferences: () => void
   onZen: () => void
 }): React.JSX.Element => {
-  const iconOnly = useSyncExternalStore(subscribe, isIconOnly)
+  const header = useRef<HTMLElement>(null)
+  const iconOnly = useIconOnly(header)
   // Where the window's own controls sit in the header, its actions may give up their words for
   // the room, so Search always says itself in a tooltip. On macOS, whose apps leave their icon to
   // the Dock and the menu bar, the mark gives way to the window's buttons; the view switch's
@@ -99,14 +110,18 @@ export const WorkspaceHeader = ({
       </button>
     </Tooltip>
   )
+  // The header's edges are its columns' (`ps-*` at the start, after the room the window's
+  // controls take, `--header-controls`; `pe-*` at the end), not its own padding, so its
+  // container queries (`@container/header`) read its whole width.
   return (
     <header
+      ref={header}
       hidden={hidden}
       inert={hidden}
       aria-hidden={hidden}
-      className="app-header max-[1001px]:gap-3 max-[701px]:h-[var(--app-header-height,3.75rem)] max-[701px]:px-3 max-[701px]:gap-2 max-[335px]:px-1 h-[var(--app-header-height,4rem)] shrink-0 items-center gap-6 px-4 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
+      className="app-header @container/header max-[1001px]:gap-3 max-[701px]:h-[var(--app-header-height,3.75rem)] max-[701px]:gap-2 h-[var(--app-header-height,4rem)] shrink-0 items-center gap-6 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
     >
-      <div className="header-workspace max-[701px]:gap-2 flex min-w-0 items-center gap-4">
+      <div className="header-workspace ps-[calc(var(--header-controls,0px)+1rem)] @max-[701px]/header:ps-[calc(var(--header-controls,0px)+0.75rem)] @max-[335px]/header:ps-[calc(var(--header-controls,0px)+0.25rem)] @max-[701px]/header:gap-2 flex min-w-0 items-center gap-4">
         {side !== "start" && (
           <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="Novadeck home">
             <NovaMark size={28} className="brand-symbol" />
@@ -166,18 +181,18 @@ export const WorkspaceHeader = ({
       {/* The actions measure the room their column leaves them, less the Zen button's reach into
           it: the shortcut goes first, then Search's word. */}
       <div
-        className={`header-actions @container/actions max-[1001px]:ml-0 max-[701px]:shrink-0 max-[701px]:gap-0 flex items-center justify-end justify-self-stretch gap-2 ${switchable ? "ps-9 max-[701px]:ps-0" : ""}`}
+        className={`header-actions @container/actions pe-4 @max-[701px]/header:pe-3 @max-[335px]/header:pe-1 @max-[1001px]/header:ml-0 @max-[701px]/header:shrink-0 @max-[701px]/header:gap-0 flex items-center justify-end justify-self-stretch gap-2 ${switchable ? "ps-9 @max-[701px]/header:ps-0" : ""}`}
       >
         {!switchable && zen}
         <Tooltip content={`Search · ${searchShortcut}`} disabled={!iconOnly && !controlled}>
           <button
-            className="icon-button header-search w-auto gap-2 px-2.5 text-control max-[701px]:w-8 max-[701px]:gap-0 max-[701px]:px-0 @max-[130px]/actions:w-8 @max-[130px]/actions:gap-0 @max-[130px]/actions:px-0"
+            className="icon-button header-search w-auto gap-2 px-2.5 text-control @max-[701px]/header:w-8 @max-[701px]/header:gap-0 @max-[701px]/header:px-0 @max-[130px]/actions:w-8 @max-[130px]/actions:gap-0 @max-[130px]/actions:px-0"
             aria-label="Find a terminal"
             onClick={onSearch}
           >
             <Search size={14} />
-            <span className="max-[701px]:hidden @max-[130px]/actions:hidden">Search</span>
-            <kbd className="hint mb-[-2px] ml-3 max-[701px]:hidden @max-[214px]/actions:hidden">
+            <span className="@max-[701px]/header:hidden @max-[130px]/actions:hidden">Search</span>
+            <kbd className="hint mb-[-2px] ml-3 @max-[701px]/header:hidden @max-[214px]/actions:hidden">
               {searchShortcut}
             </kbd>
           </button>

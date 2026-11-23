@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, type RefObject } from "react"
 
 import { prefersReducedMotion } from "../../interaction/reduced-motion"
+import { legibleZoom } from "../useSeen"
 import {
   centerOf,
   chromeScaleAt,
@@ -22,7 +23,13 @@ import type { createCanvasVisit } from "./visit"
 
 type NavigationProps = Pick<
   CanvasProps,
-  "navigation" | "selected" | "hidden" | "fitOnNavigate" | "flyOnNavigate" | "fitAllOnNavigate"
+  | "navigation"
+  | "selected"
+  | "hidden"
+  | "fitOnNavigate"
+  | "flyOnNavigate"
+  | "fitAllOnNavigate"
+  | "travelOnNavigate"
 > & {
   // The canvas opens as it was left (Canvas.tsx): it keeps the camera it was left with.
   restored: boolean
@@ -56,6 +63,12 @@ const focusButtonInView = (
   )
 }
 
+// A guided look's way to a window off screen, or too small to read: out to every window first
+// (unless they're all in sight already), a beat there, then in to it, so the person sees where it
+// goes rather than being swept across the canvas.
+const travelOutMs = 320
+const travelBeatMs = 260
+
 // Sidebar navigation and new-terminal revelation preserve zoom unless fitting is requested.
 export const useCanvasNavigation = ({
   navigation,
@@ -63,6 +76,7 @@ export const useCanvasNavigation = ({
   hidden,
   fitOnNavigate,
   fitAllOnNavigate = false,
+  travelOnNavigate = false,
   flyOnNavigate,
   restored,
   initialViewport,
@@ -77,6 +91,24 @@ export const useCanvasNavigation = ({
   // Canvas sets its camera as it opens (below), and flies from there to a terminal gone to
   // from outside; only new sidebar requests recenter it.
   const lastNavigation = useRef(navigation)
+  // The guided looks asked so far, and the beat before the latest flies in.
+  const travels = useRef(0)
+  const travelTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => {
+    // The person's own pan or zoom while a guided look waits to fly in: theirs, not the look's.
+    const own = (): void => {
+      travels.current += 1
+    }
+    const element = container.current
+    element?.addEventListener("wheel", own, { passive: true })
+    element?.addEventListener("pointerdown", own)
+    return () => {
+      element?.removeEventListener("wheel", own)
+      element?.removeEventListener("pointerdown", own)
+      travels.current += 1
+      clearTimeout(travelTimer.current)
+    }
+  }, [container])
   useEffect(() => {
     if (
       !initialized ||
@@ -88,6 +120,8 @@ export const useCanvasNavigation = ({
     const node = getNode(selected)
     if (!node || node.hidden) return
     lastNavigation.current = navigation
+    // Any other move of the camera ends a guided look's wait to fly in.
+    travels.current += 1
     if (fitAllOnNavigate) {
       visit.clear()
       void fitView({
@@ -96,6 +130,36 @@ export const useCanvasNavigation = ({
           .filter((each) => !each.hidden)
           .map(({ id }) => ({ id })),
         duration: prefersReducedMotion() ? 0 : 180,
+      })
+      return
+    }
+    if (travelOnNavigate) {
+      createdPositions.current.delete(selected)
+      const viewport = getViewport()
+      const screen = viewportSize()
+      const inSight = (each: TerminalNode): boolean =>
+        onScreen(each.position, windowSize, viewport, screen)
+      if (viewport.zoom >= legibleZoom && inSight(node)) return
+      const shown = getNodes().filter((each) => !each.hidden)
+      const reduced = prefersReducedMotion()
+      const out = shown.every(inSight)
+        ? Promise.resolve(true)
+        : (visit.clear(),
+          fitView({
+            ...fitOptions,
+            nodes: shown.map(({ id }) => ({ id })),
+            duration: reduced ? 0 : travelOutMs,
+          }))
+      // Only the latest look flies in, and none once the canvas is gone or moved since.
+      const look = travels.current
+      void out.then(() => {
+        if (look !== travels.current) return
+        travelTimer.current = setTimeout(
+          () => {
+            if (look === travels.current) flyIn(selected)
+          },
+          reduced ? 0 : travelBeatMs,
+        )
       })
       return
     }
@@ -137,6 +201,7 @@ export const useCanvasNavigation = ({
     hidden,
     fitOnNavigate,
     fitAllOnNavigate,
+    travelOnNavigate,
     flyOnNavigate,
     flyIn,
     fitView,

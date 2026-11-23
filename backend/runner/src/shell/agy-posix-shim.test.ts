@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
@@ -17,14 +25,19 @@ type Fixture = {
   readonly passed: () => unknown
   readonly bin: string
   readonly real: string
-  readonly run: (args: string[], env?: NodeJS.ProcessEnv, path?: string[]) => string[]
+  /** The folder agy starts in unless a run names another: beside the worktrees', sorting before it. */
+  readonly project: string
+  readonly run: (args: string[], env?: NodeJS.ProcessEnv, path?: string[], cwd?: string) => string[]
 }
 
 // The shim as the runner writes it for Linux and macOS. The real agy is a stand-in that
 // records the arguments it received.
 const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
-    const root = mkdtempSync(join(tmpdir(), "novadeck-agy-posix-shim-"))
+    // By the path the shell names its folder by, as it sets `$PWD` from the system's own where
+    // it inherited none of its folder: macOS's temporary folders lie behind `/var`, a link to
+    // `/private/var`, and the shim compares `$PWD` with the worktrees' folder.
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "novadeck-agy-posix-shim-")))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const worktrees = join(root, "worktrees")
     const paths = await installShellFiles(join(root, "shell"), {
@@ -39,6 +52,8 @@ const it = base.extend<{ shim: Fixture }>({
     const file = join(paths.allow, `${terminal}.json`)
     const real = join(root, "real")
     mkdirSync(real)
+    const project = join(root, "project")
+    mkdirSync(project)
     const log = join(root, "args.json")
     const recorder = join(root, "record.cjs")
     writeFileSync(
@@ -48,7 +63,7 @@ const it = base.extend<{ shim: Fixture }>({
     writeFileSync(join(real, "agy"), `#!/bin/sh\nexec "${process.execPath}" "${recorder}" "$@"\n`, {
       mode: 0o755,
     })
-    const run: Fixture["run"] = (args, env = {}, path = [paths.bin, real]) => {
+    const run: Fixture["run"] = (args, env = {}, path = [paths.bin, real], cwd = project) => {
       rmSync(log, { force: true })
       const result = spawnSync(join(paths.bin, "agy"), args, {
         env: hostless({
@@ -60,6 +75,7 @@ const it = base.extend<{ shim: Fixture }>({
         }),
         encoding: "utf8",
         timeout: 30_000,
+        cwd,
       })
       expect(result.stderr).toBe("")
       expect(result.status).toBe(0)
@@ -73,6 +89,7 @@ const it = base.extend<{ shim: Fixture }>({
       passed: () => JSON.parse(readFileSync(file, "utf8")) as unknown,
       bin: paths.bin,
       real,
+      project,
       run,
     })
   },
@@ -138,6 +155,32 @@ describe.skipIf(process.platform === "win32")("agy shim on Linux and macOS", () 
       ...shim.allow,
       "--conversation",
       "abc",
+    ])
+  })
+
+  // Antigravity works in the first of its workspaces by path, byte for byte, and a folder sorts
+  // before what it holds (e2e/probes/agy-worktrees-folder.e2e.ts).
+  it("opens the folder only where it sorts after the folder agy starts in, never from inside it", ({
+    shim,
+  }) => {
+    mkdirSync(shim.worktrees)
+    const worktree = join(shim.worktrees, "project", "fix")
+    mkdirSync(worktree, { recursive: true })
+    const after = join(shim.worktrees, "..", "zz-project")
+    mkdirSync(after)
+    expect(shim.run([], {}, undefined, worktree)).toEqual([...shim.allow])
+    expect(shim.run([], {}, undefined, shim.worktrees)).toEqual([...shim.allow])
+    expect(shim.run([], {}, undefined, after)).toEqual([...shim.allow])
+    expect(shim.run([], {}, undefined, shim.project)).toEqual([
+      `--add-dir=${shim.worktrees}`,
+      ...shim.allow,
+    ])
+    // Bytes, not the locale's order: "Xproject" sorts before "worktrees", as Antigravity sorts.
+    const upper = join(shim.worktrees, "..", "Xproject")
+    mkdirSync(upper)
+    expect(shim.run([], {}, undefined, upper)).toEqual([
+      `--add-dir=${shim.worktrees}`,
+      ...shim.allow,
     ])
   })
 

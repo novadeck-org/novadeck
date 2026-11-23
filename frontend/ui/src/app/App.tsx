@@ -289,6 +289,10 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   const voice = useDictationController(services)
   useKeyboard(voice?.dictation)
   const { backend } = services
+  // Where macOS's window buttons sit over the page, the rail and the sidebar run to the window's
+  // top, as a Mac app's sidebar does, with the buttons on them, and the header heads the
+  // terminals' column alone (shell/region.css). The side is the window's for its life.
+  const [besideSidebar] = useState(() => backend.windowControls?.side === "start")
   const worktreesShown = useWorktreesShown()
   useLeaveHiddenWorktrees(worktreesShown)
   // The terminals' font follows Preferences.
@@ -343,11 +347,18 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
             {/* Windows' caption buttons' strip in Zen, where the header hides (shell/region.css). */}
             <div className="window-caption" aria-hidden="true" />
             <VisitorBar />
-            <HeaderSection />
+            {!besideSidebar && <HeaderSection />}
             <TabListContext.Provider value={tabList}>
               <MoveSessionsProvider>
-                <div className="workspace-body relative flex min-h-0 flex-1">
+                <div
+                  className="workspace-body relative flex min-h-0 flex-1"
+                  data-titlebar={besideSidebar || undefined}
+                  // Open only where the sidebar sits beside the rail: on a narrow screen it
+                  // is a drawer over the page, and the header keeps clear of the buttons.
+                  data-sidebar={desktop && !zen && !sidebarCollapsed ? "open" : "closed"}
+                >
                   {sidebarRail()}
+                  {besideSidebar && <div className="rail-titlebar" aria-hidden="true" />}
                   <TeamWireSection
                     shown={
                       !zen &&
@@ -368,8 +379,16 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
                     mobileWide={sidebarPanel === "inbox"}
                     mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
                     sidebar={<SidebarSection />}
+                    titlebar={besideSidebar}
                   >
-                    <WorkspaceStage canvas={canvas} />
+                    {besideSidebar ? (
+                      <div className="workspace-column flex h-full min-h-0 min-w-0 flex-1 flex-col">
+                        <HeaderSection />
+                        <WorkspaceStage canvas={canvas} />
+                      </div>
+                    ) : (
+                      <WorkspaceStage canvas={canvas} />
+                    )}
                   </WorkspacePanels>
                   {zen && (
                     <ZenDockWithBadge

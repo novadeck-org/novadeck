@@ -1777,8 +1777,9 @@ only gates them (`backend/runner/src/shipping/`).
   push with no dialog; the first probe's "ask shows the dialog" used glob rules, which never
   match). So the hook answers `{"decision":"deny","reason":…}` for a command no permit covers (the
   same text as the others'), and is silent for any other. Three parts handle a permitted command:
-  - **Rules for two commands.** While the gate is on (and not where cmd prints, nor for a launch
-    with `--dangerously-skip-permissions`) the shim passes `command(gh pr create)` and
+  - **Rules for two commands.** While the gate is on (where cmd prints, only with the folder of the
+    PreToolUse hook the shim adds; never for a launch with `--dangerously-skip-permissions`) the
+    shim passes `command(gh pr create)` and
     `command(gh pr merge)` (`shippingRules`, `harnesses/agy/src/shim.ts`) with the person's own
     allow list in its per-launch `--settings`. The reader always reads these as shipping, so the
     hook's deny (unpermitted, or a tail: "run it on its own") or silence (permitted) decides every
@@ -1819,9 +1820,12 @@ only gates them (`backend/runner/src/shipping/`).
     `ask` (the dialog waits for the person) except for the two rule shapes. Only a `run_command`
     hook takes the 4 s ask limit. The person's own `command(...)` allow rules (read from
     `~/.gemini/antigravity-cli/settings.json`, never written) leave a command to them. Where
-    Windows' cmd prints before hooks no PreToolUse is registered, no rule is written, and the gate
-    doesn't cover Antigravity there (no refusal, no `request_permit`, no approval text); the person
-    gets its own dialog, as before the gate.
+    Windows' cmd prints before hooks, the plugin registers no PreToolUse, and Novadeck's terminals
+    get it from the shim instead ("Antigravity on a machine whose cmd AutoRun prints" below), so
+    the gate covers Antigravity there as anywhere. Only where that can't be put in place (no
+    pass-through, or no folder for the hook) is no rule written, and the gate doesn't cover it (no
+    refusal, no `request_permit`, no approval text); the person gets its own dialog, as before the
+    gate.
 - **opencode** (`harnesses/opencode/src/plugin-source.ts`, `shipping/service.ts`). It runs no hook
   commands: Novadeck's plugin reports a `bash` call (`tool.execute.before`, reported as PreToolUse
   with `tool_name` `bash`, `call_id` and `tool_input.command`/`workdir`) and, while the gate is on
@@ -1999,17 +2003,38 @@ pass-through passes any other command on unchanged, AutoRun included).
   Novadeck terminal whose `NOVADECK_SHIMS` names `agy`. It finds the real `agy` on PATH only.
   Where the pass-through is missing or differs, the shim leaves PATH alone and only passes
   `--add-dir` and the allow rules (see harness-adapters.md, "Shims and the worktrees folder").
-- **What stays.** The plugin is global, so under `cmdPrints` its PreToolUse hook stays
-  unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
-  person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are
-  registered and, in Novadeck's terminals, run through the pass-through, so messages arrive.
-  Without PreToolUse Novadeck learns of no call before it runs, so there: an `ask_question`
-  never reaches the Inbox, a confirmation can't be answered from the chat (its dialog is
-  matched to the call PreToolUse named), a Stop lists no job or timer, and the loop guard sees
-  no calls, so it counts every turn as work.
-  Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
-  The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
-  a printing AutoRun.
+- **PreToolUse, per launch.** The plugin is global, so under `cmdPrints` its PreToolUse hook
+  stays unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through
+  the person's own `cmd`, where the AutoRun's output breaks the answer and would let a tool run
+  unasked. Its other hooks are registered and, in Novadeck's terminals, run through the
+  pass-through, so messages arrive. PreToolUse reaches Novadeck's terminals alone another way:
+  with the pass-through in place, `installShellFiles` writes it, the same handler the plugin
+  registers elsewhere (`launchHooks`, `harnesses/agy/src/plugin.ts`), as a workspace's
+  `.agents/hooks.json` in `<shell dir>\agy-hooks`, a folder holding nothing else
+  (`Machine.hooksFolder`, by its short name), and the shim adds that folder to the session with
+  `--add-dir`. Antigravity loads a workspace's hooks beside its plugins' and runs them through the
+  same `cmd`, so the pass-through gives this one `/d` too. `--settings`, which the shim already
+  passes, takes no hooks (`unknown setting "hooks"`), and no other per-launch route was found
+  (probed 2026-11-23, 1.5.13, `e2e/probes/agy-settings-hooks.e2e.ts`). Two things follow from the
+  folder being a workspace:
+  - Antigravity orders workspaces by path, case and all, and names the first as the "Command
+    Working Directory" it tells the model, where a `run_command` without a `Cwd` runs. So the
+    shim adds the folder with its drive letter in lower case (`c:\…`) and starts Antigravity in
+    its own folder with the drive letter in upper case (through the drive's root: a `cd` to the
+    same folder keeps its case; `setlocal` gives the terminal its folder back), which sorts the
+    terminal's folder first. The decoder leaves the added folder out of `workspacePaths`, as it
+    does the worktrees folder (harness-adapters.md, "Shims and the worktrees folder").
+  - The agent may write in it, as in any workspace; the next start writes the hook again.
+    Then the gate covers Antigravity (`agyPreToolUse`) and the shim passes its rules. Where the
+    pass-through or the folder is missing, neither is, as before: without PreToolUse Novadeck
+    learns of no call before it runs, so there an `ask_question` never reaches the Inbox, a
+    confirmation can't be answered from the chat (its dialog is matched to the call PreToolUse
+    named), a Stop lists no job or timer, and the loop guard sees no calls, so it counts every turn
+    as work. Where cmd was too slow to tell (`shell.cmd-slow`), all of this is the same, as the
+    pass-through skips a slow AutoRun as it does a printing one.
+    Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
+    The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
+    a printing AutoRun, and checks their PreToolUse went through the pass-through.
 
 ### A turn the runner's stop cut short
 
@@ -3465,7 +3490,7 @@ nothing when exactly one page is on the bar. The rules:
    1.5 s capture). The worst case for one look is about 14 s. The runner waits 20 s
    (`lookMs`), so a look queued behind a quick one fits, while one behind a worst-case look
    may run out, and is then refused as too slow; the MCP call itself is given 24 s
-   (`ReportsOptions.lookMs`), not the 8 s other calls get. Claude Code's MCP tool timeout is
+   (`ReportsOptions.lookMs`), as an open call is (`openMs`), not the 8 s other calls get. Claude Code's MCP tool timeout is
    far longer than that by default (counted in hours) and Codex's `tool_timeout_sec`
    defaults to 60 s; Novadeck sets neither. A real Claude Code, Codex and Antigravity each
    took a look held for 19 s and passed its picture on (probed once with the e2e deck

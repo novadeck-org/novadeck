@@ -2,13 +2,22 @@ import { Popover as ArkPopover, usePopoverContext } from "@ark-ui/react/popover"
 import { Portal } from "@ark-ui/react/portal"
 import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react"
 
+/** A box in the viewport, in CSS pixels. */
+export type SheetBounds = {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
 export type SheetProps = {
   readonly label: string
   readonly open: boolean
   // Where its anchor is now, read each time the sheet places itself.
   readonly anchor: () => HTMLElement | null
-  // What it stays within: the area it slides along to fit.
-  readonly boundary: () => HTMLElement | null
+  // What it stays within: the area it slides along to fit, an element's box or a box of the
+  // viewport's, in CSS pixels.
+  readonly boundary: () => HTMLElement | SheetBounds | null
   // What the anchor is: the sheet starts over, and places itself anew, when it changes.
   readonly anchorKey: string
   // Where the anchor stands among what is around it: the sheet moves to it, as it is, when

@@ -38,6 +38,7 @@ import {
   directoryPickerChannel,
   extraWindowArgumentPrefix,
   windowKeyArgumentPrefix,
+  windowKeysChannel,
   feedbackArgumentPrefix,
   noticeClickChannel,
   portableStateChannel,
@@ -348,25 +349,17 @@ const news = updateNewsOf({
 // A portable launch giving way to a newer copy.
 const portableCopies = portableLaunch({ copies, exitApp, log: warnings("portable") })
 
-// The windows the next launch reopens, when the person has project windows on: each open
-// window's project and bounds, kept as they change (see ./window/saved-windows.ts).
+// The windows the next launch reopens: each open window's project and bounds, kept as they
+// change (see ./window/saved-windows.ts).
 const savedWindows = keepWindows(join(app.getPath("userData"), "windows.json"))
 const windowsSaveDelayMs = 400
 let windowsTimer: ReturnType<typeof setTimeout> | undefined
 // Each window's key (see `DesktopApp.windowKey`), which it keeps for as long as it lives.
 const windowKeys = new WeakMap<BrowserWindow, string>()
-// A key for a window that has none, only while project windows are on.
-const keyWhileOn = (window: BrowserWindow): string | undefined => {
-  if (!savedWindows.current().on) return undefined
-  const key = randomUUID()
-  windowKeys.set(window, key)
-  return key
-}
 // The open windows that show a project, as they stand.
 const openWindows = (): SavedWindow[] =>
   projectWindows.list().flatMap(({ window, projectId }): SavedWindow[] => {
-    // A window opened before the switch went on gets its key here, which its page learns at the next launch.
-    const key = windowKeys.get(window) ?? keyWhileOn(window)
+    const key = windowKeys.get(window)
     return projectId === undefined || key === undefined || window.isDestroyed()
       ? []
       : [{ key, projectId, bounds: window.getNormalBounds(), maximized: window.isMaximized() }]
@@ -461,8 +454,7 @@ const createWindow = (
   } = {},
 ): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
-  // Only while project windows are on: with them off nothing keyed is kept.
-  const key = options.key ?? (savedWindows.current().on ? randomUUID() : undefined)
+  const key = options.key ?? randomUUID()
   const window = openAppWindow({
     ground: appearance.current()?.ground ?? "#ffffff",
     ink: appearance.current()?.ink,
@@ -472,7 +464,7 @@ const createWindow = (
       webglContextsArgument(webglContexts),
       ...(feedbackTo ? [`${feedbackArgumentPrefix}1`] : []),
       ...(options.extra ? [`${extraWindowArgumentPrefix}1`] : []),
-      ...(key ? [`${windowKeyArgumentPrefix}${key}`] : []),
+      `${windowKeyArgumentPrefix}${key}`,
     ],
     ...(options.bounds
       ? {
@@ -488,7 +480,7 @@ const createWindow = (
       ? { route: `/projects/${encodeURIComponent(options.projectId)}/sessions/_/_` }
       : {}),
   })
-  if (key) windowKeys.set(window, key)
+  windowKeys.set(window, key)
   projectWindows.add(window, options.projectId)
   window.on("focus", () => projectWindows.used(window))
   window.on("move", rememberWindowsSoon)
@@ -546,10 +538,10 @@ const loadKey = (): Promise<string | null> =>
   })
 let transcriptKey: Promise<string | null> = Promise.resolve(null)
 
-// Opens the app's windows at launch: with project windows on, those the last run had open,
-// each on its project, the first as the app's own and the rest as extra ones; else one window.
+// Opens the app's windows at launch: those the last run had open, each on its project, the
+// first as the app's own and the rest as extra ones; one window when it kept none.
 const openFirstWindows = (origin: string, kept: SavedWindows): void => {
-  const reopened = kept.on ? kept.windows : []
+  const reopened = kept.windows
   if (reopened.length === 0) {
     createWindow(origin)
     return
@@ -647,7 +639,7 @@ const launch = async (): Promise<void> => {
     create: (notice) => new Notification(notificationOptions(notice, process.platform)),
     clicked: (window: BrowserWindow, id) =>
       clickNotice({
-        windowsOn: savedWindows.current().on,
+        alone: projectWindows.size() <= 1,
         raising: window,
         voice: projectWindows.voice(),
         alive: (each) => !each.isDestroyed(),
@@ -727,7 +719,6 @@ const launch = async (): Promise<void> => {
       projectWindows.show(window, projectId, projects)
       rememberWindowsSoon()
     },
-    use: (on) => void savedWindows.use(on).then(rememberWindows),
     open: (window, projectId) => projectWindows.open(window, projectId),
     handOff: (window, target) => projectWindows.handOff(window, target),
   })
@@ -890,6 +881,18 @@ const launch = async (): Promise<void> => {
   pages.registerIpc((event) => appWindow(event) !== undefined)
   // And pictures of its own companion panes, to stand in while each builds again.
   registerPanePictureIpc(ipcMain, (event) => appWindow(event) !== undefined)
+  // The keys of the windows kept for the next launch or open: a page clears what it kept under
+  // any other, whose window is gone for good.
+  ipcMain.handle(windowKeysChannel, (event) =>
+    appWindow(event)
+      ? [
+          ...new Set([
+            ...savedWindows.current().windows.map(({ key }) => key),
+            ...appWindows().flatMap((window) => windowKeys.get(window) ?? []),
+          ]),
+        ]
+      : null,
+  )
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {
@@ -922,8 +925,8 @@ const launch = async (): Promise<void> => {
   if (!app.isPackaged) await waitForUi(developmentOrigin)
   if (quitting.stopping) return
 
-  // With project windows on, the windows the last run had open open again, each on its
-  // project; the first as the app's own, the rest as extra ones.
+  // The windows the last run had open open again, each on its project; the first as the app's
+  // own, the rest as extra ones.
   openFirstWindows(server.origin, await savedWindows.load())
   void updates
     .start()
@@ -961,9 +964,9 @@ app.on("second-instance", () => {
   quitting.reopenWanted = rememberReopen(quitting.reopenWanted, quitting.stopping)
   const window = projectWindows.voice() ?? appWindows()[0]
   if (window) bringForward(window)
-  // On macOS the app lives on with no window, so a second launch has none to show; one
-  // that is quitting opens none.
-  else if (server && !quitting.stopping) createWindow(server.origin)
+  // On macOS the app lives on with no window, so a second launch has none to show: the windows
+  // kept open again, under their keys, as at a launch. One that is quitting opens none.
+  else if (server && !quitting.stopping) openFirstWindows(server.origin, savedWindows.current())
   if (process.platform === "darwin") app.focus({ steal: true })
 })
 
@@ -1006,7 +1009,7 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     quitting.reopenWanted = rememberReopen(quitting.reopenWanted, quitting.stopping)
     if (appWindows().length === 0) {
-      if (server && !quitting.stopping) createWindow(server.origin)
+      if (server && !quitting.stopping) openFirstWindows(server.origin, savedWindows.current())
     }
   })
 })

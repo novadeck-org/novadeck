@@ -764,7 +764,28 @@ Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code
   unchanged.
 - **Antigravity** leaves its own subcommands (`agy mcp`, `agy update`) unchanged on Linux and macOS. On
   Windows its cmd shim adds it with or without the cmd.exe pass-through's folder on PATH, and
-  passes every command the flag.
+  passes every command the flag. It gets the flag only where the folder sorts after the one it
+  starts in, see below.
+
+An added folder must sort after the session's own. Antigravity orders its workspaces, its own
+folder and those added, by path, byte for byte and case and all, and tells the model the first
+is the "Command Working Directory" its commands run in, which `run_command` takes as its `Cwd`.
+So an added folder that sorts first takes the session's place: `~/.novadeck/worktrees` ahead of
+a project in the home (`.` sorts before letters, and `C:\Users\…` before most of a Windows
+machine), and ahead of a worktree in it whatever the platform, as a folder sorts before what it
+holds; there agents were told to work in the worktrees folder itself (probed 2026-11-23, 1.5.13,
+`e2e/probes/agy-worktrees-folder.e2e.ts`). Its shims pass the flag only where the folder sorts
+after the folder they start Antigravity in, and never from inside it (`posixAdd` and `cmdAdd`
+in harness-core's `shim-root.ts`): the POSIX shim compares `$PWD`, which Go reads as the
+working directory, with `LC_ALL=C sort`; cmd orders strings by the locale's rules, so the cmd
+shim asks the relay (`novadeck-relay after <folder> <cwd>`, `backend/relay/src/order.rs`), and
+gives none where the relay can't answer. Where the flag isn't given, writing in a worktree from
+the project asks, with Antigravity's "outside workspace" reason, as before the flag. Nothing
+else stands in for it: `--settings` takes `permissions.additionalDirectories` and does nothing
+with it, refuses a top-level `additionalDirectories`, and a `write_file(<folder>)` rule lets
+every write there run unasked in every mode; and the folder can't go in with another case (a
+lower-case drive letter would sort it last on Windows), as whether a file lies in a workspace
+heeds case too, so the folder would hold none of the paths an agent is given.
 
 An added folder isn't where a session runs. Antigravity lists it in each hook's
 `workspacePaths` beside its own folder, in order of path (probed 2026-11-17, 1.5.9:

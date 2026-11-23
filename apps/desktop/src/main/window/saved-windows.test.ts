@@ -17,7 +17,6 @@ describe("the saved windows a file holds", () => {
         ],
       }),
     ).toEqual({
-      on: true,
       windows: [
         { key, projectId: "p1", bounds, maximized: true },
         { key: other, projectId: "p2", bounds, maximized: false },
@@ -53,10 +52,15 @@ describe("the saved windows a file holds", () => {
     ).toEqual([])
   })
 
-  it("are nothing where the file is no object, and off unless it says it is on", () => {
+  it("are nothing where the file is no object", () => {
     expect(savedWindowsOf("windows")).toEqual(noSavedWindows)
     expect(savedWindowsOf(null)).toEqual(noSavedWindows)
-    expect(savedWindowsOf({ windows: [] }).on).toBe(false)
+  })
+
+  it("read a file from before project windows left Experimental, whatever its switch said", () => {
+    const window = { key, projectId: "p1", bounds, maximized: false }
+    expect(savedWindowsOf({ on: true, windows: [window] })).toEqual({ windows: [window] })
+    expect(savedWindowsOf({ on: false, windows: [] })).toEqual(noSavedWindows)
   })
 
   it("never list more than a person has screens for", () => {
@@ -102,34 +106,26 @@ const files = () => {
 describe("keeping the windows for the next launch", () => {
   const window = { key, projectId: "p1", bounds, maximized: false }
 
-  it("keeps the open windows only while project windows are on", async () => {
+  it("keeps the open windows", async () => {
     const disk = files()
     const kept = keepWindows("windows.json", disk)
     await kept.load()
     await kept.remember([window])
-    expect(disk.written.size).toBe(0)
-    await kept.use(true)
-    await kept.remember([window])
-    expect(JSON.parse(disk.written.get("windows.json")!)).toEqual({ on: true, windows: [window] })
+    expect(JSON.parse(disk.written.get("windows.json")!)).toEqual({ windows: [window] })
   })
 
-  it("forgets the windows when project windows are turned off", async () => {
+  it("reopens the windows a build from before kept with its switch on", async () => {
     const disk = files()
-    const kept = keepWindows("windows.json", disk)
-    await kept.load()
-    await kept.use(true)
-    await kept.remember([window])
-    await kept.use(false)
-    expect(JSON.parse(disk.written.get("windows.json")!)).toEqual({ on: false, windows: [] })
+    disk.written.set("windows.json", JSON.stringify({ on: true, windows: [window] }))
+    expect(await keepWindows("windows.json", disk).load()).toEqual({ windows: [window] })
   })
 
   it("reads back what it kept, and nothing from a file that is broken", async () => {
     const disk = files()
     const first = keepWindows("windows.json", disk)
     await first.load()
-    await first.use(true)
     await first.remember([window])
-    expect(await keepWindows("windows.json", disk).load()).toEqual({ on: true, windows: [window] })
+    expect(await keepWindows("windows.json", disk).load()).toEqual({ windows: [window] })
     disk.written.set("windows.json", "{not json")
     expect(await keepWindows("windows.json", disk).load()).toEqual(noSavedWindows)
   })
@@ -138,7 +134,6 @@ describe("keeping the windows for the next launch", () => {
     const disk = files()
     const first = keepWindows("windows.json", disk)
     await first.load()
-    await first.use(true)
     const second = { ...window, key: other }
     await first.remember([window, second])
     const { windows } = await keepWindows("windows.json", disk).load()

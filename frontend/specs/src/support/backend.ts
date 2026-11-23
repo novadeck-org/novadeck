@@ -25,6 +25,11 @@ import {
 import { createDemoScreenReader } from "@novadeck/demo-debug/desktop/screen-reader"
 import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/desktop/uninstall"
 import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
+import {
+  clearDemoWindowControls,
+  createDemoWindowControls,
+  type DemoWindowControls,
+} from "@novadeck/demo-debug/desktop/window-controls"
 import { addressParams } from "@novadeck/demo/address"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoInbox } from "@novadeck/demo/inbox"
@@ -188,6 +193,17 @@ const requestedUninstall = (): Backend["uninstall"] => {
   return name && Object.hasOwn(uninstallScenarios, name)
     ? createDemoUninstall(uninstallScenarios[name as keyof typeof uninstallScenarios]).uninstall
     : undefined
+}
+
+// Specs open the demo as the desktop app holding its window's controls over the page with
+// `?controls=` `inset` (macOS's buttons at the start), `fullScreen` (macOS's, in the menu bar)
+// or `caption` (Windows' at the end), drawn as the debug panel draws them; without it, the
+// window has its own title bar, as in a browser.
+const requestedWindowControls = (): Backend["windowControls"] => {
+  const mode = addressParams().get("controls")
+  const modes: readonly DemoWindowControls[] = ["inset", "fullScreen", "caption"]
+  const known = modes.find((each) => each === mode)
+  return known ? createDemoWindowControls(known) : undefined
 }
 
 // `&version=dev` makes the app a development build, which carries 0.0.0, and
@@ -634,20 +650,23 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
       ? { ...withReader, showScale: (scale: number) => void scalesShown.push(scale) }
       : withReader
   const withUninstall = uninstall ? { ...withScale, uninstall } : withScale
+  const windowControls = requestedWindowControls()
+  const withControls = windowControls ? { ...withUninstall, windowControls } : withUninstall
   return portable
     ? {
-        ...withUninstall,
+        ...withControls,
         portable: createDemoPortable(portable, stepped() ? { schedule: hold } : {}).portable,
       }
-    : withUninstall
+    : withControls
 }
 
 /**
- * Forgets what earlier pages' backends left (their updates, desktop windows, approvals and Babcia
- * cues), as the workspace opens: what a spec reads and drives is then the page it has open,
- * though an earlier spec or an earlier page of its own made more.
+ * Forgets what earlier pages' backends left (their updates, desktop windows, window controls,
+ * approvals and Babcia cues), as the workspace opens: what a spec reads and drives is then the
+ * page it has open, though an earlier spec or an earlier page of its own made more.
  */
 export const forgetEarlierPages = (): void => {
+  clearDemoWindowControls()
   screenReaderStandIns.length = 0
   scalesShown.length = 0
   approvalBackends.length = 0

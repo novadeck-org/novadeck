@@ -1,3 +1,4 @@
+import { rm, writeFile } from "node:fs/promises"
 import { constants as system } from "node:os"
 
 import { spawn as nodePtySpawn } from "node-pty"
@@ -12,7 +13,7 @@ import {
   type Listing,
 } from "./descendants.js"
 import { terminalForeground } from "./foreground.js"
-import { endLeftovers, leftovers, readScope, runClock, runStart } from "./leftovers.js"
+import { endLeftovers, leftovers, listedScope, readScope, runClock, runStart } from "./leftovers.js"
 import type { Priority } from "./priority.js"
 import type { ExitCause, Scopes } from "./scopes.js"
 import { anyRunning, relayMs, taskkillTree, type Member } from "./trees.js"
@@ -24,7 +25,11 @@ export type Disposable = { dispose(): void }
  * How a pty's program ended: its exit code, or the signal that ended it (null on Windows),
  * and why, where its platform says.
  */
-export type PtyExit = { code: number | null; signal: string | null; cause?: ExitCause }
+export type PtyExit = {
+  code: number | null
+  signal: string | null
+  cause?: ExitCause
+}
 
 /** node-pty's `IPty`, as far as a `Pty` uses it: what a test's stand-in plays. */
 export type NativePty = {
@@ -302,6 +307,18 @@ const endTreeLeft = async (
     )
 }
 
+/**
+ * How long a Windows shell's pid is waited for, to put it in its job: node-pty names it as it
+ * creates the shell, once its console's output pipe connects, or 5 s on if that never does.
+ */
+const pidWaitMs = 6_000
+
+/**
+ * How long a Windows shell's `scopeFile` stays, once made, for a shell that gave up waiting
+ * for it: long past any shell's wait, so it is only ever one no shell will read.
+ */
+const scopeFileMs = 30_000
+
 const usualBudget = (treeGraceMs: number): EndBudget => ({
   run: (usual) => usual,
   graceEnds: (began) => began + treeGraceMs,
@@ -322,6 +339,11 @@ export const spawnPty = (
     env: NodeJS.ProcessEnv
     cols: number
     rows: number
+    /**
+     * On Windows, a file made once the shell's job has settled, whether it got there or not,
+     * which its startup command waits for (`ShellLaunch.scopeFile`).
+     */
+    scopeFile?: string | undefined
   } & PtyOptions,
 ): Pty => {
   const platform = options.platform ?? process.platform
@@ -339,7 +361,11 @@ export const spawnPty = (
     // everything on the console at once.
     useConptyDll: platform === "win32",
   })
-  const scope = child.pid > 0 ? options.scopes?.contain(child.pid, options.env) : undefined
+  // Its scope, asked for as it starts; a Windows shell's job once node-pty names its pid (below).
+  let scope =
+    child.pid > 0 && platform !== "win32"
+      ? options.scopes?.contain(child.pid, options.env)
+      : undefined
   const boost = boosting({
     scope,
     priority: options.priority,
@@ -386,6 +412,41 @@ export const spawnPty = (
   let ending = false
   // node-pty's exit came, its fd closed, while the report may wait for its cause.
   let gone = false
+  // On Windows node-pty names the shell's pid only once it has created it, a moment after
+  // `spawn` returns: the shell goes into its job then (see `windowsJobs`). What it started
+  // before it got there stays out, so its startup command waits for `scopeFile`, made once
+  // that has settled either way. The shell takes the file once it sees it; one it gave up on
+  // first goes `scopeFileMs` on, so none is left behind.
+  if (platform === "win32" && options.scopes) {
+    const scopes = options.scopes
+    const settled = (held: Promise<boolean>) => {
+      const file = options.scopeFile
+      if (file === undefined) return
+      void held
+        .then(() => writeFile(file, ""))
+        .then(() => {
+          setTimeout(() => void rm(file, { force: true }).catch(() => {}), scopeFileMs).unref()
+        })
+        .catch(() => {})
+    }
+    const contain = () => {
+      if (child.pid > 0 && !gone) {
+        scope = scopes.contain(child.pid)
+        settled(scope.held ?? Promise.resolve(true))
+      } else settled(Promise.resolve(false))
+    }
+    if (child.pid > 0) contain()
+    else {
+      const began = Date.now()
+      const watch = setInterval(() => {
+        if (child.pid > 0 || gone || Date.now() - began > pidWaitMs) {
+          clearInterval(watch)
+          contain()
+        }
+      }, 1)
+      watch.unref?.()
+    }
+  }
   const exitListeners = new Set<(exit: PtyExit) => void>()
   // Told at once whether its terminal is in use, and on each change until it exits.
   const stopActivity =
@@ -402,11 +463,12 @@ export const spawnPty = (
   const exit = new Promise<void>((resolve) => {
     resolveExit = resolve
   })
-  // Agents' runs in the terminal, kept where its scope can say what they left (Linux, macOS),
-  // in the clock its platform tells processes' starts in.
-  // `agent` is the agent whose own start `since` has been read as, once.
+  // Agents' runs in the terminal, kept where its scope can say what they left (Linux, macOS,
+  // Windows), in the clock its platform lists processes' starts in. `agent` is the agent whose
+  // own start `since` has been read as, once.
   const runs: { since: number; until?: number; agent?: number }[] = []
-  const tracksRuns = (platform === "linux" || platform === "darwin") && scope !== undefined
+  const tracksRuns = () =>
+    (platform === "linux" || platform === "darwin" || platform === "win32") && scope !== undefined
   const clock = runClock(platform)
   const closeRun = (): void => {
     const run = runs.at(-1)
@@ -422,7 +484,10 @@ export const spawnPty = (
     gone = true
     // A scope its program was moved into as it died stays empty, and active, for ever.
     void scope?.exited()
-    const ended = { code: signal ? null : (exitCode ?? null), signal: signalName(signal, platform) }
+    const ended = {
+      code: signal ? null : (exitCode ?? null),
+      signal: signalName(signal, platform),
+    }
     // Why it ended is looked up only where nothing here ended it.
     const cause = ending ? undefined : scope?.cause(ended.signal)
     if (!cause) return report(ended)
@@ -436,8 +501,11 @@ export const spawnPty = (
   const findLeft =
     (left: LeftOptions, skip?: ReadonlySet<string>) =>
     async (): Promise<readonly Followed[] | undefined> => {
-      if (!scope || runs.length === 0) return undefined
-      const read = await readScope(left.listing, () => scope.members())
+      const held = scope
+      if (!held || runs.length === 0) return undefined
+      const read = held.listed
+        ? await listedScope(held.listed.bind(held))
+        : await readScope(left.listing, () => held.members())
       if (!read) return undefined
       return leftovers({
         rows: read.rows,
@@ -452,9 +520,13 @@ export const spawnPty = (
         partial: platform === "darwin",
       })
     }
+  // Ends what agents left there, as a close does, after which nothing reads the scope again.
   const endLeft = async (left: LeftOptions, by?: () => number): Promise<void> => {
-    if (runs.length === 0) return
-    await endLeftovers(findLeft(left), by)
+    try {
+      if (runs.length > 0) await endLeftovers(findLeft(left), by, scope?.end?.bind(scope))
+    } finally {
+      scope?.done?.()
+    }
   }
 
   const pty: Pty = {
@@ -503,6 +575,7 @@ export const spawnPty = (
       if (gone) {
         await exit
         if (left) await endLeft(left, by)
+        scope?.done?.()
         return
       }
       const began = Date.now()
@@ -586,17 +659,23 @@ export const spawnPty = (
           // wait for: ended at once, but for what the follow gives its grace.
           left &&
             runs.length > 0 &&
-            endLeftovers(findLeft(left, new Set((followed ?? []).map(processKey))), by),
+            endLeftovers(
+              findLeft(left, new Set((followed ?? []).map(processKey))),
+              by,
+              scope?.end?.bind(scope),
+            ),
         ])
         // What is left once the shell has gone: what was under it, as a `nohup` of the
         // agent's, and what started meanwhile, as a hook's as the agent ended.
         if (left) await endLeft(left, by)
       } finally {
         if (timer) clearTimeout(timer)
+        // Closed: nothing reads its scope again.
+        scope?.done?.()
       }
     },
     agentStarted: (agent) => {
-      if (!tracksRuns) return
+      if (!tracksRuns()) return
       let run = runs.at(-1)
       if (!run || run.until !== undefined) {
         const now = clock.now()
@@ -606,12 +685,14 @@ export const spawnPty = (
       }
       // From the agent's own start where the listing shows it, as it may have started its
       // helpers before it bound; the time it bound stands only where it can't be read. macOS's
-      // scope gives that start to the microsecond, the listing to the second.
-      if (agent === undefined || !options.listing || run.agent === agent) return
+      // scope gives that start to the microsecond, the listing to the second; a Windows job
+      // lists its own, which no listing sees.
+      const held = scope
+      const listing = held?.listed ? () => held.listed!() : options.listing
+      if (agent === undefined || !listing || run.agent === agent) return
       const open = run
-      const { listing } = options
       void (async () => {
-        const members = platform === "darwin" ? await scope?.members() : undefined
+        const members = platform === "darwin" ? await held?.members() : undefined
         const rows = await listing()
         const start = rows && runStart(rows, agent, clock, members)
         if (start === undefined || open.until !== undefined) return

@@ -55,7 +55,6 @@ export const preferencesFrom = (
     screenReader: "auto",
     chatView: false,
     agentAvatars: false,
-    projectWindows: false,
     onboardingTour: false,
     appScale: 100,
   }
@@ -84,8 +83,6 @@ export const preferencesFrom = (
     chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
     agentAvatars:
       typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
-    projectWindows:
-      typeof saved?.projectWindows === "boolean" ? saved.projectWindows : defaults.projectWindows,
     onboardingTour:
       typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
     // A saved scale the app doesn't offer is the normal one.

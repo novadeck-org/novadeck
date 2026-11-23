@@ -1,6 +1,6 @@
 import type { AgentName } from "@novadeck/core/harnesses"
 import { messagesKey, type BarKey } from "@novadeck/core/items/companion-bar"
-import type { SidebarPanel, ViewMode } from "@novadeck/core/types"
+import type { ViewMode } from "@novadeck/core/types"
 
 import type { LeadState, TourRole, TourSignals } from "./signals"
 import {
@@ -50,6 +50,10 @@ export type TourRun = {
   // step holds from then, so its line is read for the full `holdMs` however long the camera, the
   // tab and the caption's own delay took. Not kept through a reload: the caption shows again.
   readonly captionAt: number | null
+  // When the person touched the subject of the step on now (`TourStep.person`), null while they
+  // haven't: such a step moves on only once they have. Not kept through a reload: they touch it
+  // again.
+  readonly touched: number | null
   // Whether the person declined the lead's run: from then on the run has no page, whatever
   // `page` says. Kept, so a reload doesn't bring the page steps back.
   readonly declined: boolean
@@ -78,6 +82,13 @@ export type TourEvent =
       readonly signals: TourSignals
       readonly now: number
     }
+  // The person touched what the step's caption, with this line, marks as its subject.
+  | {
+      readonly type: "touched"
+      readonly line: string
+      readonly signals: TourSignals
+      readonly now: number
+    }
   | { readonly type: "end" }
   | { readonly type: "brief-failed" }
 
@@ -87,8 +98,7 @@ export type TourEnd = "done" | "ended" | "gone"
 // A move of a step, with the terminal its role is.
 export type TourMade =
   | { readonly kind: "view"; readonly view: ViewMode }
-  | { readonly kind: "reveal"; readonly terminalId: string; readonly panel?: SidebarPanel }
-  | { readonly kind: "inbox" }
+  | { readonly kind: "travel"; readonly terminalId: string }
   | { readonly kind: "fit-all" }
 
 // What follows from an event: the run as it is now (null once it ended, with why), the moves to
@@ -124,6 +134,7 @@ export const beginRun = (
   tabbed: false,
   doneAt: null,
   captionAt: null,
+  touched: null,
   declined: false,
   approvalSeen: false,
   approvalGoneAt: null,
@@ -152,6 +163,7 @@ const nextStep = (run: TourRun, steps: readonly TourStep[], now: number): TourOu
     tabbed: false,
     doneAt: null,
     captionAt: null,
+    touched: null,
   })
 }
 
@@ -161,16 +173,24 @@ export const captionWaitMs = 8_000
 
 // When a done step's hold ends: `holdMs` after its caption was shown (or after the wait for it
 // ran out), never before it was done. A step with no line to read holds from when it was done.
+// One that waits on the person holds until they touch its subject, and `holdMs` (none where it
+// has none) from then: no end while they haven't.
 const holdEnd = (run: TourRun, step: TourStep): number | null => {
-  if (step.holdMs === undefined || typeof run.doneAt !== "number") return null
+  if (typeof run.doneAt !== "number") return null
+  if (step.person)
+    return run.touched === null ? null : Math.max(run.doneAt, run.touched) + (step.holdMs ?? 0)
+  if (step.holdMs === undefined) return null
   if (step.coach.line === "") return run.doneAt + step.holdMs
   return Math.max(run.doneAt, run.captionAt ?? run.doneAt + captionWaitMs) + step.holdMs
 }
 
-// Whether a done step still holds, for the person to look at what it shows.
+// Whether a step holds once done: it waits on the person, or holds a while for its line.
+const holds = (step: TourStep): boolean => step.person === true || step.holdMs !== undefined
+
+// Whether a done step still holds, for the person to look at what it shows, or touch it.
 const holding = (run: TourRun, step: TourStep, now: number): boolean => {
   const end = holdEnd(run, step)
-  return step.holdMs !== undefined && (end === null || now < end)
+  return holds(step) && (end === null || now < end)
 }
 
 // The agent a step waits on, as the signals show it: a teammate's for one on the modeller or the
@@ -202,7 +222,7 @@ const counting = (step: TourStep, signals: TourSignals): boolean => {
 
 // The roles a step's moves name, which have to be found before they can be made.
 const rolesOf = (step: TourStep): readonly TourRole[] => [
-  ...step.enter.flatMap((move) => (move.kind === "reveal" ? [move.role ?? "lead"] : [])),
+  ...step.enter.flatMap((move) => (move.kind === "travel" ? [move.role ?? "lead"] : [])),
   ...(step.open ? [step.open.role] : []),
 ]
 
@@ -216,12 +236,36 @@ const resolve = (
   signals: TourSignals,
 ): readonly TourMade[] =>
   moves.flatMap((move): TourMade[] => {
-    if (move.kind !== "reveal") return [move]
+    if (move.kind !== "travel") return [move]
     const terminalId = terminalOf(run, signals, move.role ?? "lead")
-    return terminalId === undefined
-      ? []
-      : [{ kind: "reveal", terminalId, ...(move.panel && { panel: move.panel }) }]
+    return terminalId === undefined ? [] : [{ kind: "travel", terminalId }]
   })
+
+/**
+ * What brings the step on now back into view, as the person asks ("Show me") once it's out of
+ * their sight: its travel again (or, for one about the team, every window framed), and its pane
+ * tab where its item is there. Never on its own: the tour moves the camera once per step.
+ */
+export const showAgain = (
+  run: TourRun,
+  steps: readonly TourStep[],
+  signals: TourSignals,
+): Pick<TourOutcome, "moves" | "tab"> => {
+  const step = steps[run.step]
+  if (!step) return { moves: [], tab: null }
+  const travels = resolve(
+    step.enter.filter(({ kind }) => kind === "travel"),
+    run,
+    signals,
+  )
+  const moves: readonly TourMade[] =
+    travels.length > 0 ? travels : step.frameTeam ? [{ kind: "fit-all" }] : []
+  const { open } = step
+  const terminalId = open && terminalOf(run, signals, open.role)
+  const key: BarKey | null | undefined =
+    open && (open.tab === "messages" ? messagesKey : signals.shown[open.tab])
+  return { moves, tab: terminalId && key ? { terminalId, key } : null }
+}
 
 // A step's beginning: its moves, made once, as it begins on screen with the roles they name
 // found; and its pane tab, opened once, as soon as its item is there after that.
@@ -230,9 +274,12 @@ const entering = (
   step: TourStep,
   signals: TourSignals,
 ): Pick<TourOutcome, "moves" | "tab"> & { readonly run: TourRun } => {
+  // Never while a teammate's question waits on the person: the tour opened the Inbox for it, and
+  // a step's moves (a sidebar panel, the camera) would take it away while they answer.
   const enter =
     !run.entered &&
     signals.onScreen &&
+    signals.askingRow === null &&
     rolesOf(step).every((role) => terminalOf(run, signals, role))
   const entered = run.entered || enter
   const { open } = step
@@ -285,6 +332,15 @@ export const stepRun = (
       const adjusted = adjust({ ...run, captionAt: event.now }, steps, event.signals, event.now)
       return follow(adjusted.run, adjusted.steps, event.signals, event.now, patienceMs)
     }
+    // The person touched the step's subject while its own caption showed (not a teammate's
+    // question's, or the agent's own screen's): kept the first time, for a step that waits on
+    // them.
+    case "touched": {
+      const step = steps[run.step]
+      if (!step?.person || step.coach.line !== event.line || run.touched !== null) return still(run)
+      const adjusted = adjust({ ...run, touched: event.now }, steps, event.signals, event.now)
+      return follow(adjusted.run, adjusted.steps, event.signals, event.now, patienceMs)
+    }
     case "signals":
     case "tick": {
       const adjusted = adjust(run, steps, event.signals, event.now)
@@ -330,8 +386,8 @@ const reshape = (
   const played = stepsFor(next)
   const index = played.findIndex(({ id }) => id === here)
   if (index >= 0) return { run: { ...next, step: index }, steps: played }
-  // Its step dropped: on to the first the story still plays after it.
-  const after = here === "run" || here === "page" ? "shape" : "play"
+  // Its step dropped: on to the first the story still plays after it, the team.
+  const after = here === "run" || here === "page" ? "team" : "play"
   return {
     run: {
       ...next,
@@ -343,6 +399,7 @@ const reshape = (
       tabbed: false,
       doneAt: null,
       captionAt: null,
+      touched: null,
     },
     steps: played,
   }
@@ -378,7 +435,7 @@ const follow = (
     // A step that holds stays, its coach still said and its moves made, until its time is up.
     // Its time counts only while the tour's project is on screen: away, it starts over, so the
     // person sees what it holds on, and the story never ends in another project.
-    if (holding(briefed, step, now) || (step.holdMs !== undefined && !signals.onScreen)) {
+    if (holding(briefed, step, now) || (holds(step) && !signals.onScreen)) {
       const begun = entering(briefed, step, signals)
       const held = {
         ...begun.run,
@@ -428,7 +485,13 @@ export const nextTick = (
   const times: number[] = []
   const end = step && holdEnd(run, step)
   if (typeof end === "number") times.push(end)
-  else if (step && waitOf(step, run, signals) === "nudge" && counting(step, signals))
+  // Done, it waits on the person alone: no nudge.
+  else if (
+    step &&
+    !(step.person && typeof run.doneAt === "number") &&
+    waitOf(step, run, signals) === "nudge" &&
+    counting(step, signals)
+  )
     times.push(run.waitingSince + patienceMs)
   // The step's cap.
   if (step?.capMs !== undefined) times.push(run.stepAt + step.capMs)
@@ -471,7 +534,8 @@ export const coachNow = (
   // A teammate's own question to the person, in the Inbox, whenever it comes: after the caption
   // of a step that holds, done, for its subject to be seen first.
   const step = steps[run.step]
-  const showing = typeof run.doneAt === "number" && step?.holdMs !== undefined
+  // A step waiting on the person's touch gives way to the question, as it may wait a long time.
+  const showing = typeof run.doneAt === "number" && step?.holdMs !== undefined && !step.person
   if (signals.askingRow !== null && !showing) return questionCoach
   return step?.coach ?? null
 }

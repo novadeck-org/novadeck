@@ -348,11 +348,12 @@
 }
 
 /* ---- The sheet ---- */
-/* The workspace steps back while a sheet is read over it, and stays live. */
-.workspace-main-pane[data-inbox-reading] {
+/* The workspace steps back while a sheet is read over it, and stays live: its views, not the
+   header that heads them on macOS, which stays as a title bar does. */
+.workspace-main-pane[data-inbox-reading] .main-area {
   transition: opacity var(--motion-state) var(--ease-interface);
 }
-.workspace-main-pane[data-inbox-reading="true"] {
+.workspace-main-pane[data-inbox-reading="true"] .main-area {
   opacity: var(--inbox-workspace-opacity, 0.55);
 }
 

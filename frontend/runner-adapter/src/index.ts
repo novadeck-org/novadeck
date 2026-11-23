@@ -16,6 +16,7 @@ import { desktopOptions } from "./desktop/app"
 import { reportPoolTo, sizePoolTo } from "./desktop/renderer-pool"
 import { listProject } from "./sessions/listing"
 import type { RunnerListing } from "./sessions/seed"
+import { forgetClosedWindows } from "./sessions/views"
 
 /** The desktop app's runner: the one the app starts, over a port it hands the page. */
 export const desktopTransport = (): Transport => desktop()
@@ -208,6 +209,12 @@ export const connectRunnerBackend = async (
     ])
     const appOptions = desktopOptions(app)
     reportPoolTo(app)
+    // What windows gone for good kept in this device's storage goes, once the app says which
+    // windows it still has.
+    void app
+      ?.windowKeys?.()
+      .then((live) => live && forgetClosedWindows(live))
+      .catch(() => {})
     // StrictMode creates a backend twice and keeps the first, so the last one created is
     // not necessarily the one running: close waits on them all (an unstarted one is idle).
     const created: RunnerBackend[] = []

@@ -148,6 +148,13 @@ const open = async (setup?: (tour: DemoTour) => void) => {
   const items = () => session().state.items
   const works = () => backend.works!.state.getSnapshot().works
   const approvals = () => backend.approvals!.pending.getSnapshot()
+  // The person answers the lead's ask to run the game's server, which it makes as the sheet is
+  // answered.
+  const allow = async (approved = true) => {
+    // eslint-disable-next-line no-await-in-loop -- The clock moves on until the ask is there.
+    for (let waited = 0; approvals().length === 0 && waited < 5_000; waited += 100) await at(100)
+    backend.approvals!.answer(approvals()[0]!.requestId, approved)
+  }
   return {
     backend,
     tour,
@@ -161,6 +168,7 @@ const open = async (setup?: (tour: DemoTour) => void) => {
     items,
     works,
     approvals,
+    allow,
   }
 }
 
@@ -179,9 +187,9 @@ const messagesOf = (backend: Demo["backend"]) => {
 // Long enough for the lead to bind, work, describe itself and ask its sheet.
 const asking = 300 + 400 + 300 + 300 + 400
 
-// Long enough, from the sheet's answer, for the lead to open its team, and the team to name
-// itself, work and report.
-const teamUp = 300 + 300 + 300 * 4 + 400 * 3 + 600 + tourStoryMs.serve
+// Long enough, from the person's answer to the lead's ask to run the server, for the lead to show
+// its page and open its team, and the team to name itself, work and report.
+const teamUp = 400 + tourStoryMs.hire + 300 + 300 + 300 * 4 + 400 * 3 + 600
 
 const sheetOf = (backend: Demo["backend"]) =>
   backend.inbox!.state.getSnapshot().items.filter((entry) => entry.kind === "ask")
@@ -205,10 +213,11 @@ describe("the story in the demo", () => {
     expect(sheetOf(backend).filter((entry) => !entry.settled)).toHaveLength(1)
   })
 
-  it("opens a modeller and a builder, which the lead leads, once the sheet is answered", async () => {
-    const { backend, tour, at, lead, project: id, terminals, items, works } = await open()
+  it("opens a modeller and a builder, which the lead leads, once the sheet and the server are answered", async () => {
+    const { backend, tour, at, allow, lead, project: id, terminals, items, works } = await open()
     await at(asking)
     tour.answerSheet({ world: 1, kind: 1 })
+    await allow()
     await at(teamUp)
     const mates = terminals().filter((each) => each.ledBy === lead)
     expect(mates.map((each) => each.name).toSorted()).toEqual([builderName, modellerName])
@@ -244,18 +253,21 @@ describe("the story in the demo", () => {
   })
 
   it("takes the first options where the sheet is dismissed", async () => {
-    const { backend, at, lead, terminals } = await open()
+    const { backend, at, allow, lead, terminals } = await open()
     await at(asking)
     backend.inbox!.dismiss?.(sheetOf(backend)[0]!.id)
-    await at(1000)
+    await allow()
+    await at(teamUp)
     expect(terminals().some((each) => each.ledBy === lead)).toBe(true)
   })
 
-  it("asks to run the game's server; allowed, it opens a terminal of its own and shows the page", async () => {
+  it("asks to run the game's server first; allowed, it opens a terminal of its own, shows the page, then opens its team", async () => {
     const { backend, tour, at, lead, terminals, items, approvals } = await open()
     await at(asking)
     tour.answerSheet()
-    await at(teamUp)
+    // It opens nobody while the person has the approval to answer, however long they take.
+    await at(60_000)
+    expect(terminals().filter((each) => each.ledBy === lead)).toEqual([])
     expect(approvals()).toHaveLength(1)
     expect(approvals()[0]).toMatchObject({
       from: lead,
@@ -273,17 +285,21 @@ describe("the story in the demo", () => {
       holder: { terminalId: lead },
       url: "http://127.0.0.1:5173/",
     })
+    expect(terminals().filter((each) => each.ledBy === lead)).toEqual([])
+    await at(teamUp)
+    expect(terminals().filter((each) => each.ledBy === lead)).toHaveLength(2)
   })
 
   it("goes on without a page where the person says no, and where there is none", async () => {
     const declined = await open()
     await declined.at(asking)
     declined.tour.answerSheet()
+    await declined.allow(false)
     await declined.at(teamUp)
-    declined.backend.approvals!.answer(declined.approvals()[0]!.requestId, false)
-    await declined.at(1000)
     expect(declined.items().some((item) => item.kind === "page")).toBe(false)
     expect(declined.terminals().some((each) => each.name === serverName)).toBe(false)
+    // Its team all the same.
+    expect(declined.terminals().filter((each) => each.ledBy === declined.lead)).toHaveLength(2)
   })
 
   it("has no page to run where the computer has no Node or Python", async () => {
@@ -306,9 +322,10 @@ describe("the story in the demo", () => {
   })
 
   it("has the modeller ask its own question, and wait for the person's answer before it reports", async () => {
-    const { backend, tour, at, lead, terminals } = await open((each) => each.goMateAsks())
+    const { backend, tour, at, allow, lead, terminals } = await open((each) => each.goMateAsks())
     await at(asking)
     tour.answerSheet()
+    await allow()
     await at(teamUp)
     const modeller = terminals().find((each) => each.name === modellerName)!
     const asks = () => sheetOf(backend).filter((entry) => !entry.settled)
@@ -327,9 +344,10 @@ describe("the story in the demo", () => {
   })
 
   it("keeps the modeller quiet until nudged, and stops with the agent", async () => {
-    const { tour, at, lead, terminals } = await open((each) => each.goQuietModeller())
+    const { tour, at, allow, lead, terminals } = await open((each) => each.goQuietModeller())
     await at(asking)
     tour.answerSheet()
+    await allow()
     await at(teamUp)
     const modeller = terminals().find((each) => each.ledBy === lead && each.name !== builderName)!
     expect(modeller.name).not.toBe(modellerName)
@@ -341,13 +359,14 @@ describe("the story in the demo", () => {
   })
 
   it("waits for a nudge before opening its team", async () => {
-    const { tour, at, lead, terminals } = await open((each) => each.goQuietTeam())
+    const { tour, at, allow, lead, terminals } = await open((each) => each.goQuietTeam())
     await at(teamUp)
     expect(terminals().filter((each) => each.ledBy === lead)).toEqual([])
     await tour.nudge!(lead)
     await at(asking)
     tour.answerSheet()
-    await at(1000)
+    await allow()
+    await at(teamUp)
     expect(terminals().some((each) => each.ledBy === lead)).toBe(true)
   })
 

@@ -3,7 +3,8 @@ import { describe, e2e, supported } from "./fixture.js"
 import { folder, tell } from "./tour-story.js"
 
 // Novadeck's tour story (see tour-story.ts), for each harness as the tour's agent: the lead asks
-// the person which game, then opens a modeller, a builder and a dev server the person approves;
+// the person which game, then asks for a dev server the person approves, then opens a modeller
+// and a builder;
 // each teammate works in a worktree of its own and asks the person one thing; the person then
 // keeps the project, and the team's work is committed on main. The model is a script that
 // follows the briefs. All three agents run on the tour's harness.

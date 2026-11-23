@@ -12,9 +12,11 @@ import type { ScopeMember } from "./scopes.js"
 import { parseLstart } from "./spawned.js"
 
 /**
- * An agent's run in a terminal, in its platform's `RunClock`: from the agent's own process's
- * start (`runStart`), or the time it bound where that can't be read, until its session ended,
- * or still open while it runs.
+ * An agent's run in a terminal, in the clock a process's start is listed in (`runClock`): Linux's
+ * clock ticks since boot, as /proc/<pid>/stat gives it; Windows' and macOS's milliseconds since
+ * the Unix epoch, as the relay reads a process's start. From the agent's own process's start
+ * (`runStart`), or the time it bound where that can't be read, until its session ended, or still
+ * open while it runs.
  */
 export type AgentRun = { readonly since: number; readonly until?: number }
 
@@ -40,7 +42,10 @@ export const ticksNow = (
   return Number.isFinite(seconds) ? Math.floor(seconds * ticksPerSecond) : undefined
 }
 
-/** A listed process's start, as a number of clock ticks; undefined off Linux. */
+/**
+ * A listed process's start, as a number: Linux's clock ticks, or Windows' milliseconds;
+ * undefined for macOS's `lstart`.
+ */
 const ticks = (row: Listed): number | undefined => {
   const value = Number(row.started)
   return /^\d+$/.test(row.started) && Number.isSafeInteger(value) ? value : undefined
@@ -62,6 +67,15 @@ export type RunClock = {
  * /proc/uptime counts on through suspend.
  */
 export const tickClock: RunClock = { now: () => ticksNow(), start: (row) => ticks(row) }
+
+/**
+ * Windows': the wall clock in milliseconds, which the relay reads a process's creation time
+ * in. A wall clock set back or forward meanwhile shifts a run against the starts in it.
+ */
+export const windowsClock: RunClock = { now: () => Date.now(), start: (row) => ticks(row) }
+
+/** Where no process's start is told: nothing is anyone's run. */
+const noClock: RunClock = { now: () => undefined, start: () => undefined }
 
 /** A quarter of an hour, which every time zone's offset, and its daylight saving, is a multiple of. */
 const zoneStepMs = 15 * 60 * 1000
@@ -97,9 +111,15 @@ export const wallClock: RunClock = {
   },
 }
 
-/** The clock `platform`'s runs are kept in. */
+/** The clock `platform`'s runs are kept in, and its processes' starts compared in. */
 export const runClock = (platform: NodeJS.Platform): RunClock =>
-  platform === "darwin" ? wallClock : tickClock
+  platform === "linux"
+    ? tickClock
+    : platform === "darwin"
+      ? wallClock
+      : platform === "win32"
+        ? windowsClock
+        : noClock
 
 /**
  * Where the agent `agent` began: its own start, which is its shell's where it took the shell's
@@ -123,6 +143,19 @@ export const runStart = (
 
 const during = (start: number, runs: readonly AgentRun[]): boolean =>
   runs.some(({ since, until }) => start >= since && (until === undefined || start <= until))
+
+/**
+ * `row`'s parent among `among`, only where it started no later than its child: Windows keeps a
+ * process's parent pid once that parent has ended, and may give the pid to a later process.
+ */
+const parentIn =
+  (among: ReadonlyMap<number, Listed>) =>
+  (row: Listed): Listed | undefined => {
+    const parent = among.get(row.parent)
+    if (!parent) return undefined
+    const [started, child] = [ticks(parent), ticks(row)]
+    return started === undefined || child === undefined || started <= child ? parent : undefined
+  }
 
 /**
  * What an agent left in its terminal's scope, by one listing and the scope's `members`: the
@@ -171,10 +204,22 @@ export const leftovers = ({
   // Where the scope may leave processes out, its members' parents are followed through all.
   const tree = partial ? rows.filter((row) => !row.zombie && row.pid > 1) : scoped
   const byPid = new Map(tree.map((row) => [row.pid, row]))
+  const parentOf = parentIn(byPid)
+  // The running shell's tree, by the whole listing's parents: macOS's scope never holds an
+  // Apple shell.
   const running = shell === undefined ? undefined : rows.find((row) => row.pid === shell)
-  const underShell = new Set(
-    running && !running.zombie ? withBelow(rows, [running]).map((row) => row.pid) : [],
+  const listedParent = parentIn(
+    new Map(rows.filter((row) => !row.zombie).map((row) => [row.pid, row])),
   )
+  const underShell = (row: Listed): boolean => {
+    if (!running || running.zombie) return false
+    const seen = new Set<number>()
+    for (let at = listedParent(row); at && !seen.has(at.pid); at = listedParent(at)) {
+      if (at.pid === running.pid) return true
+      seen.add(at.pid)
+    }
+    return false
+  }
   const kept = new Set(
     withBelow(
       tree,
@@ -189,10 +234,10 @@ export const leftovers = ({
     if (known) return known
     const chain: Listed[] = []
     let at = row
-    for (let parent = byPid.get(at.parent); parent && !chain.includes(parent);) {
+    for (let parent = parentOf(at); parent && !chain.includes(parent);) {
       chain.push(at)
       at = parent
-      parent = byPid.get(at.parent)
+      parent = parentOf(at)
     }
     const root = roots.get(at.pid) ?? at
     for (const one of [...chain, at]) roots.set(one.pid, root)
@@ -200,7 +245,7 @@ export const leftovers = ({
   }
   return scoped
     .filter((row) => {
-      if (kept.has(row.pid) || row.pid === shell || underShell.has(row.pid)) return false
+      if (kept.has(row.pid) || row.pid === shell || underShell(row)) return false
       if (skip.has(processKey(row))) return false
       const root = rootOf(row)
       if (root.pid === shell) return false
@@ -242,7 +287,9 @@ const within = async <T>(found: Promise<T>, by: number): Promise<T | undefined> 
 }
 
 /**
- * Ends what `find` names, as `endFollowed` ends what a follow left: SIGTERM, with SIGCONT for
+ * Ends what `find` names, as `endFollowed` ends what a follow left. Where the scope ends a
+ * process itself (`end`, as Windows', which has no signal to send first), at once, each by its
+ * pid and start. Elsewhere: SIGTERM, with SIGCONT for
  * what is stopped, then SIGKILL `termGraceMs` on, or by `by()` where that comes first, as a quit
  * bounds it; finding them is bounded by it too. Each by its pid, only right after a fresh
  * listing has shown that pid to be the process found, so never one that has since been given
@@ -253,9 +300,15 @@ const within = async <T>(found: Promise<T>, by: number): Promise<T | undefined> 
 export const endLeftovers = async (
   find: () => Promise<readonly Followed[] | undefined>,
   by: () => number = () => Number.POSITIVE_INFINITY,
+  end?: (ones: readonly Followed[]) => Promise<void>,
 ): Promise<readonly Followed[]> => {
   const first = await within(find(), by())
   if (!first || first.length === 0) return []
+  if (end) {
+    // Past its bound by the one quick ask, as SIGKILL's last look below is.
+    await within(end(first), Math.max(by(), Date.now() + 300))
+    return first
+  }
   signalEach(first, "SIGTERM")
   // A stopped process acts on neither until it runs again.
   signalEach(first, "SIGCONT")
@@ -269,6 +322,17 @@ export const endLeftovers = async (
   const asked = new Set(first.map(processKey))
   signalEach(again?.filter((one) => asked.has(processKey(one))) ?? [], "SIGKILL")
   return first
+}
+
+/**
+ * The processes of a scope that lists its own (`Scope.listed`, a Windows job), as `readScope`
+ * gives them; undefined where it can't say, or holds nothing.
+ */
+export const listedScope = async (
+  listed: () => Promise<readonly Listed[] | undefined>,
+): Promise<{ rows: readonly Listed[]; members: readonly ScopeMember[] } | undefined> => {
+  const rows = await listed()
+  return rows && rows.length > 0 ? { rows, members: rows.map(({ pid }) => ({ pid })) } : undefined
 }
 
 /** The listing and the scope's members together, for `leftovers`; undefined where either fails. */

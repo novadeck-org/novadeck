@@ -32,6 +32,8 @@
 .workspace[data-zen="true"] > .app-header,
 .workspace[data-zen="true"] > .pins-bar,
 .workspace[data-zen="true"] > .app-footer,
+.workspace[data-zen="true"] .workspace-column > :is(.app-header, .pins-bar),
+.workspace[data-zen="true"] .rail-titlebar,
 .workspace[data-zen="true"] .sidebar-tools {
   display: none;
 }

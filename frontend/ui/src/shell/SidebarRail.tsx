@@ -183,7 +183,7 @@ export const SidebarRail = ({
       }}
     >
       <ToggleGroup
-        className="sidebar-tools z-30 w-11 shrink-0 flex-col items-center gap-1 px-1.5 py-3"
+        className="sidebar-tools z-30 w-11 shrink-0 flex-col items-center gap-1 px-1.5 pt-[var(--rail-top,0.75rem)] pb-3"
         aria-label="Sidebar actions"
         aria-hidden={Boolean(zen)}
         orientation="vertical"
@@ -314,6 +314,8 @@ const RailToggle = ({
         ...(index < count - 1 ? ["Alt+ArrowDown"] : []),
       ].join(" ")}
       data-dragging={isDragSource ? "true" : undefined}
+      // What the tour points at to open a panel, as the person would.
+      data-tour-rail={value}
       // Before the group's own keys, which would move the focus along the rail instead.
       onKeyDownCapture={(event) => {
         if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return

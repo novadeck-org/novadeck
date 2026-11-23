@@ -297,11 +297,14 @@ export type ReportsOptions = {
   readonly readMs?: number
   /**
    * How long a call waits for its answer before it gets its type's `unansweredCalls`, in
-   * milliseconds:
-   * by default 8 s, as opening a terminal waits for Novadeck's window, and within the
-   * 10 s Novadeck's MCP server waits.
+   * milliseconds: by default 8 s.
    */
   readonly answerMs?: number
+  /**
+   * The same for opening a terminal, which waits for Novadeck's window to make it, slow to
+   * start a shell on some Windows machines: by default `openCallMs`.
+   */
+  readonly openMs?: number
   /**
    * The same for a look, which waits for the client to picture the page, a fresh load
    * included: by default 24 s, past the runner's 20 s wait for the client.
@@ -352,11 +355,26 @@ export type Reports = {
  * else is ended without an answer. None is checked against the terminal's own token
  * here; the handlers do.
  */
+/**
+ * How long an open call (`open_terminal`, `open_agent`) waits for its answer by default, as a
+ * look does: the runner answers it within that, past the window's deadline (see
+ * `OpenRequests.request`). Claude Code's MCP tool timeout is counted in hours, Codex's
+ * `tool_timeout_sec` defaults to 60 s, and Antigravity and opencode take a 24 s look.
+ */
+export const openCallMs = 24_000
+
 export const listenForReports = async (
   handlers: ReportHandlers,
   options: ReportsOptions = {},
 ): Promise<Reports> => {
-  const { platform = process.platform, readMs = 2_000, answerMs = 8_000, lookMs = 24_000 } = options
+  const {
+    platform = process.platform,
+    readMs = 2_000,
+    answerMs = 8_000,
+    lookMs = 24_000,
+    openMs = openCallMs,
+  } = options
+  const callMs = { look: lookMs, open: openMs } as Partial<Record<Call["type"], number>>
   const directory =
     platform === "win32" ? undefined : await mkdtemp(join(tmpdir(), "novadeck-reports-"))
   const endpoint =
@@ -367,7 +385,7 @@ export const listenForReports = async (
   const relayCall =
     (from: { terminalId: string; token: string }): McpCall =>
     (type, request) =>
-      within(handlers.call({ type, ...from, request }), type === "look" ? lookMs : answerMs, {
+      within(handlers.call({ type, ...from, request }), callMs[type] ?? answerMs, {
         ...unansweredCalls[type],
         unexplained: true,
       })

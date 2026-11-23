@@ -208,6 +208,33 @@ describe("relay sessions", () => {
     )
   })
 
+  it("gives an open longer than other calls too, as the window makes its terminal", async ({
+    resources,
+  }) => {
+    const slow = async (asked: Call) => {
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      return asked.type === "open"
+        ? { ok: false, reason: "Answered late." }
+        : { ok: true, text: "Listed." }
+    }
+    const reports = await listenForReports(handlers({ call: slow }), {
+      answerMs: 50,
+      openMs: 2_000,
+    })
+    resources.defer(() => reports.close())
+    const answers = await session(reports.endpoint, [
+      hello(),
+      tool(1, "open_agent", { agent: "claude" }),
+      tool(2, "showing", {}),
+      end,
+    ])
+    // The runner's own answer, not the one for a call it didn't answer in time.
+    expect(JSON.stringify(answers)).toContain("Answered late.")
+    expect(answers).toContainEqual(
+      expect.objectContaining({ id: 2, result: expect.objectContaining({ isError: true }) }),
+    )
+  })
+
   // What a failure of Novadeck's own adds to its tool's words.
   const nudge =
     "\nIf this looks like a bug in Novadeck, you can draft feedback with the feedback tool."
@@ -226,7 +253,7 @@ describe("relay sessions", () => {
             : new Promise(() => {})
         },
       }),
-      { answerMs: 50 },
+      { answerMs: 50, openMs: 50 },
     )
     resources.defer(() => reports.close())
     const answers = await session(reports.endpoint, [

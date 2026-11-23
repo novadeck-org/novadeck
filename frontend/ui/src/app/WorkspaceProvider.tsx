@@ -242,8 +242,7 @@ export const WorkspaceProvider = ({
     [services],
   )
   useEffect(
-    () =>
-      watchWindowTitle(window, services.backend.projectWindows, services.workspace, services.ui),
+    () => watchWindowTitle(window, services.backend.projectWindows, services.workspace),
     [services],
   )
   useEffect(

@@ -851,22 +851,36 @@ App:
   marks the page's own elements, `data-tour-look` where to look (a magenta line) and
   `data-tour-click` what to press (a slowly breathing yellow one), each drawn by a mark a little
   way out from the element, and, a second after a mark shows, letters one caption box beside
-  them in space no window takes. A step that holds once done (`holdMs`: 3 s for the first and
-  the team's, 5 s for the page, the model, the Files panel and the diff, 25 s for the game, 8 s
-  for the model where there is no page) holds that long from when its caption box is shown
-  (`onCaption`, the reducer's `caption` event); a caption that hasn't shown `captionWaitMs`
-  (8 s) after the step was done on screen is given up on, and the hold counts from then. Its
+  them in space no window takes. The tour opens no sidebar panel and moves the camera only to
+  bring the window a step is about into view (`travel`, the app's `travel` command): on Canvas
+  the camera stays where that window is on screen at a size to read, and otherwise zooms out to
+  every window first and then flies in to it; the team step zooms out only where a teammate
+  lands out of sight. A step that shows the person something waits for them (`person`): once
+  done, it marks its subject to press, or what opens it first (the rail's Inbox or Files button,
+  a window whose pane isn't showing), and moves on only when they press in it or click into it
+  (a page or a model takes the focus: `useTouch` in `Stage.tsx`, the reducer's `touched` event),
+  however long they take; the last step holds 20 s from that press before the closing card (8 s
+  on the model, where there is no page). The tour never moves the view again by itself: where
+  what a step marks is there but has been out of sight 2.5 s (the person went elsewhere, opened a
+  file over it, or is in Zen with the rail hidden), its caption box shows all the same with
+  Show me, which takes the same calm way back (`showAgain`), or opens the panel the rail would. A step the agents end holds a while once done
+  (`holdMs`: 3 s, the first and the finish) from when its caption box is shown (`onCaption`, the
+  reducer's `caption` event); a caption that hasn't shown `captionWaitMs` (8 s) after the step
+  was done on screen is given up on, and the hold counts from then. Its
   steps (`frontend/tour/src/steps.ts`), in Nyx's voice: "That's your agent. It runs this job."
-  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the lead's sheet in the
-  Inbox, until it is answered); "Look. It hired its own help." (`team`, both teammates there and
-  named); "It wants to run the game. Fine. Say yes." (`run`, the approval's Run command is
-  marked, and the step waits on the person); "The game. Live. It fills in as they write."
-  (`page`, the lead's page tab); "A model. From scratch. Go on, spin it." (`shape`, the
+  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the Inbox's button,
+  then the lead's sheet in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
+  approval's Run command is marked, and the step waits on the person: the lead hires no one
+  before they answer, so the approval has the screen to itself); "The game. Live. Empty, for
+  now." (`page`, the lead's page tab); "Look. It hired its own help." (`team`, both teammates
+  there and named); "A model. From scratch. Go on, spin it." (`shape`, the
   Modeller's model tab); "Every blink? An agent. Writing." (`files`, the Files panel); "What it
   wrote. Line by line." (`diff`, the Builder's changes tab); and "Three agents. Your game. Go
   play." (`play`, the lead's page, a while, then the closing card: "It's yours now."). A
   teammate's own question to the person is no step: while one waits in the Inbox the coach says
-  "A teammate has a question for you." and points at it until it is answered or dismissed. The
+  "A teammate has a question for you." and points at it (or the Inbox's button) until it is
+  answered or dismissed, and no step makes its moves meanwhile (the camera would take the person
+  away from the Inbox). The
   UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
   to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
   Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run
@@ -895,7 +909,9 @@ App:
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
 - **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
-  zoom buttons into the header (drawn in the page as stand-ins): the header is 52px, its mark gives
+  zoom buttons into the page (drawn in the page as stand-ins): the rail and the sidebar run to the
+  window's top, their top 52px a strip of the title bar the buttons sit on, and the header heads
+  the terminals' column alone; with the sidebar closed the header runs the width, its mark gives
   way to them and its start keeps clear of them, and in Zen they hide and come back while the
   pointer is in the top-left corner, the Focus window's header moving aside for them, and in Grid
   and Canvas a plate in the dock's look holding them. "macOS, full screen" boots with them gone to
@@ -910,11 +926,9 @@ App:
   actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
   the Agent worktrees row disabled, reading "Not available here."; "Offered" boots
   back to normal.
-- **Project windows:** the App section's group for the desktop app's project windows
-  (Preferences > Experimental > Project windows, which needs the experimental channel and the
-  switch on). "Offered, on Experimental" boots on the experimental channel with a backend that can
-  open windows; "Not offered" boots one that can't, so the row is disabled, reading "Not available
-  here."; "A second window, not the first" boots as a window that isn't the app's first, with no
+- **Project windows:** the App section's group for the desktop app's project windows. "Offered"
+  boots with a backend that can open windows; "Not offered" boots one that can't, as a browser, so a
+  project's menu has no Open in new window; "A second window, not the first" boots as a window that isn't the app's first, with no
   welcome dialog, Agent Chat offer, voice or Murmur offer or what's-new card. The other windows
   are pretended: "Another window shows the next project" and "Other windows show every other
   project" put the quiet window mark and its "Shown in another window" tooltip on those projects in
@@ -1531,7 +1545,7 @@ terminal, and only one of them controls it: writes and resizes are its alone. Wh
 `control-else-observe` (control where it is free, else observing, also after a reconnection), and
 `@novadeck/runner-client` follows `terminals.controls` once per connection to keep each attachment's
 `mode` current (`onMode` tells a change; `take({ ifIdleMs })` moves control here). Runners without it
-keep the old behaviour: a refused attach is polled every 300 ms with project windows on, and after 4 s
+keep the old behaviour: a refused attach is polled every 300 ms in the desktop app, and after 4 s
 the terminal reads "Open in another window".
 
 An observing screen (`libraries/terminal/src/view`, shared by Focus, Grid and Canvas) is sized to the
@@ -1548,9 +1562,10 @@ still copies. A take refused with `CONTROL_BUSY` delivers nothing and keeps the 
 
 ### Project windows
 
-With Preferences > Experimental > Project windows on (`projectWindows` in the preferences; the
-desktop app only, with Experimental on), the app can open several windows, each showing one project,
-and a project may show in several windows at once; all windows are equal. Everything lives in the runner, so
+The desktop app can open several windows, each showing one project, and a project may show in
+several windows at once; all windows are equal. A browser can't, and there is no setting (earlier
+builds kept it behind Preferences > Experimental; their `projectWindows` preference is read past).
+Everything lives in the runner, so
 a window is another UI client of it. The main process keeps which window shows what
 (`apps/desktop/src/main/window/project-windows.ts`, pure over the window type, with its IPC in
 `project-windows-ipc.ts`); each page reports its project (`showProjectWindow`) and hears the
@@ -1563,8 +1578,9 @@ the UI store's `windows`); the page decides at once what an action does:
   not a window shows it already. The app opens only on a project a page has told it knows
   (`showProjectWindow`'s `known`) and at most 16 windows. There is no other way to open one.
 - **Picking a project.** Picking, in the switcher, a pin or its shortcut, a project shows it in this
-  window, even when another window shows it too; that window is never changed or brought forward. With
-  project windows on, this window first reads the project from the runner (`Backend.syncProject`, then the
+  window, even when another window shows it too; that window is never changed or brought forward. Once
+  another window has shown a project since this page loaded (`UiState.windowsShared`; from the start in a
+  window that isn't the app's first), this window first reads the project from the runner (`Backend.syncProject`, then the
   core's `project/sync`), for the sessions another window made or removed, and then switches. What each
   window changes in a session reaches the others live through the runner's session feed (`sessions.watch`
   in [Backend API](backend-api.md)), so nothing waits for another window's saves. The latest pick wins when
@@ -1580,13 +1596,15 @@ the UI store's `windows`); the page decides at once what an action does:
   (`handOffToProjectWindow`): `reveal` (an Inbox entry's "Go to terminal", a message link, a toast),
   an Inbox entry's sheet (`InboxProvider`'s `routeAway`), and a notification's click. The target is the
   window acted in when it shows the project, else the window showing it that the person used last, else, with
-  none showing it, the window acted in, which switches to it. A notification's click
-  always brings some window forward: the project's, else the one that raised it, else the voice's
-  (`clickNotice` in `window/voice.ts`). What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
+  none showing it, the window acted in, which switches to it. While no other window shows a project, the
+  window acted in does it all itself, as a browser does. A notification's click always brings some window
+  forward: with one window open, that one at once; else the project's, else the one that raised it, else
+  the voice's (`clickNotice` in `window/voice.ts`). What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
   nothing changes a window on its own.
 - **Agents.** What an agent asks of the person goes to the window that shows the project of the terminal
-  that asked: the page tells the runner which project it shows (`terminals.showing`, while the switch is
-  on, lapsing with its connection) and an approval, a look at a page and `open_agent` go to that client,
+  that asked: while another window shows a project, the page tells the runner which project it shows
+  (`terminals.showing`, lapsing with its connection; `null` once it is alone again, so a lone window
+  says nothing, as a browser doesn't) and an approval, a look at a page and `open_agent` go to that client,
   else the one used last (its `terminals.active` or `showing` report came last), else the newest
   (`ClientWindows`, `Followers.newest`), which is also what a client that says nothing gets. What an agent
   does never raises a window: an `open_agent` with focus for a project another window shows is handed
@@ -1601,15 +1619,16 @@ the UI store's `windows`); the page decides at once what an action does:
   notifications and sets the badge (the main process drops the others' notices and badges and shows
   the new voice's last count when the voice moves; a closing voice's notifications go with it). The
   rules are pure in `window/voice.ts`, tested there.
-- **Restore.** With the switch on the main process keeps each window's project and bounds in
+- **Restore.** The main process keeps each window's project and bounds in
   `windows.json` of the data folder (`window/saved-windows.ts`) and reopens them at the next launch; a
   window closed while others remain leaves the list, a quit keeps the windows open at its start, and
-  the last window closing keeps the list as it stood before. Off, launch is as it was. Two windows on one
-  project are two entries, so both reopen.
+  the last window closing keeps the list as it stood before. Two windows on one project are two entries, so
+  both reopen. On macOS, where the app lives on with no window, the Dock or a second launch reopens the
+  kept windows the same way. A file from before (with its `on`) is read past that switch: with it off it
+  listed none.
 - **Window keys.** Each window has a key, a UUID kept in `windows.json` beside its project and bounds (an
-  older entry gets one at load, written back at once), the same across relaunches; a window created while
-  project windows are on gets a new one. With them off a window has none, so nothing keyed is written; one
-  opened before the switch went on stays keyless until the next launch. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
+  older entry gets one at load, written back at once), the same across relaunches; a new window gets a new
+  one. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
   `DesktopApp.windowKey`; a browser has none. The page keeps what is one window's own under it in
   `localStorage`: the view of a session (`novadeck:session-view:<key>:<sessionId>`, read before the device's
   `novadeck:session-view:<sessionId>`, and written to both so a new window starts from the view used last;
@@ -1624,7 +1643,7 @@ the UI store's `windows`); the page decides at once what an action does:
   the window the person focuses or types in (its `active` report, re-sent on focus and input), or last
   showed a project (`showing`); a null `active` is not use. A client that never reports (a `dev:web` tab)
   is never chosen.
-- **Title.** The document's title names the project while project windows are on, which the window shows.
+- **Title.** The document's title names the project the window shows.
 
 Preferences are one `localStorage` shared by the windows, which follow each other's changes through
 the `storage` event (`followSavedPreferences`).

@@ -30,18 +30,14 @@ describe("readPreferences", () => {
     }
   })
 
-  it("reads preferences saved before project windows as having them off", () => {
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ fontSize: 14, sound: false }))
+  it("reads preferences saved with the old Project windows switch, and leaves the switch out", () => {
+    localStorage.setItem(
+      preferencesStorageKey,
+      JSON.stringify({ fontSize: 14, sound: false, projectWindows: true }),
+    )
 
-    expect(readPreferences()).toMatchObject({ fontSize: 14, sound: false, projectWindows: false })
-  })
-
-  it("keeps the project windows switch the person turned on, and nothing but a boolean", () => {
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ projectWindows: true }))
-    expect(readPreferences().projectWindows).toBe(true)
-
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ projectWindows: "yes" }))
-    expect(readPreferences().projectWindows).toBe(false)
+    expect(readPreferences()).toMatchObject({ fontSize: 14, sound: false })
+    expect(readPreferences()).not.toHaveProperty("projectWindows")
   })
 
   it("reads the sound setting, and keeps a volume within 0 and 1", () => {

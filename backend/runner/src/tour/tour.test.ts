@@ -499,7 +499,14 @@ describe("the brief's facts", () => {
     const text = brief()
     expect(text).toContain('`command` "python3 dev.py 6123"')
     expect(text).toContain("http://127.0.0.1:6123/")
-    expect(text).toContain("open_terminal")
+    // It asks to run the server first, its turn ending there, and opens its team only once the
+    // person has answered that, so the approval isn't on screen with the team coming up.
+    const serve = text.indexOf("Call `open_terminal`")
+    expect(serve).toBeGreaterThan(-1)
+    expect(serve).toBeLessThan(text.indexOf("Call `open_agent`"))
+    expect(text.slice(serve, text.indexOf("Call `open_agent`"))).toMatch(
+      /end your turn\.\n4\. When Novadeck says the command started/,
+    )
   })
 
   it("names neither where it can't", async ({ resources }) => {

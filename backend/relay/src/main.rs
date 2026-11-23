@@ -16,7 +16,10 @@ mod hook;
 mod idle;
 #[cfg(windows)]
 mod job;
+#[cfg(windows)]
+mod jobs;
 mod mcp;
+mod order;
 #[cfg(windows)]
 mod processes;
 #[cfg(windows)]
@@ -52,10 +55,13 @@ pub fn epoch_ms() -> Option<f64> {
 const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-version>...
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
        novadeck-relay allow <settings.json> <rule> <file> [<extra rule>... -- <agent's arguments>...]
+       novadeck-relay after <folder> <working directory>
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
        novadeck-relay end <pid>:<started-ms>...      (Windows)
+       novadeck-relay jobs                           (Windows)
+       novadeck-relay held <file>
        novadeck-relay tagged <variable>              (macOS)";
 
 /// The leading `--name value` options, and the arguments after them. Every option takes a
@@ -118,6 +124,15 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         }
+        // A shim's: succeeds where `folder` sorts after the agent's working directory, so adding it
+        // leaves that directory first among Antigravity's workspaces (`order.rs`).
+        Some((mode, [folder, cwd])) if mode == "after" => {
+            if order::sorts_after(folder, cwd, cfg!(windows)) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
         Some((mode, rest)) if mode == "mcp" => match rest.split_first() {
             Some((server, versions)) if !versions.is_empty() => {
                 mcp::run(server, versions);
@@ -154,8 +169,34 @@ fn main() -> ExitCode {
             }
             None => usage(),
         },
+        #[cfg(windows)]
+        Some((mode, [])) if mode == "jobs" => {
+            jobs::run();
+            ExitCode::SUCCESS
+        }
+        Some((mode, [file])) if mode == "held" => {
+            held(Path::new(file), HELD_TRIES);
+            ExitCode::SUCCESS
+        }
         _ => usage(),
     }
+}
+
+/// How many times `held` looks for its file, 5 ms apart: about a quarter of a second, as a
+/// Linux shell waits for its scope.
+const HELD_TRIES: u32 = 40;
+
+/// `novadeck-relay held <file>`: waits for `file`, which the runner makes once a shell's job
+/// has settled, then removes it, so a cmd's startup command runs inside the job; after `tries`
+/// looks it goes on all the same. cmd has no wait of its own short of a second.
+fn held(file: &Path, tries: u32) {
+    for _ in 0..tries {
+        if file.exists() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let _ = std::fs::remove_file(file);
 }
 
 /// Prints to stderr, where a failed write must not end the relay: `eprintln!` panics on
@@ -210,6 +251,20 @@ mod tests {
 
     fn args(each: &[&str]) -> Vec<String> {
         each.iter().map(|one| (*one).to_owned()).collect()
+    }
+
+    #[test]
+    fn held_waits_for_its_file_and_removes_it_or_goes_on_without_it() {
+        let file = std::env::temp_dir().join(format!("novadeck-held-{}", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let started = std::time::Instant::now();
+        held(&file, 4);
+        assert!(started.elapsed() >= std::time::Duration::from_millis(15));
+        std::fs::write(&file, "").unwrap();
+        let started = std::time::Instant::now();
+        held(&file, 400);
+        assert!(started.elapsed() < std::time::Duration::from_millis(500));
+        assert!(!file.exists());
     }
 
     #[test]

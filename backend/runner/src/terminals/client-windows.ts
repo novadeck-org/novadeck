@@ -5,7 +5,7 @@ export type Choose = (owners: readonly string[]) => string | undefined
  * Which project each client shows, for the clients that say (the desktop app's project
  * windows), and when each was last used. A request an agent makes goes to the client that
  * shows the project of the terminal that asked, else the one used last, else (among clients
- * that say nothing, as every client does with project windows off) the newest, which
+ * that say nothing, as a browser does) the newest, which
  * `Followers.newest` picks. A client's report replaces its last and lapses with its
  * connection, as `terminals.active` does.
  */
@@ -23,7 +23,7 @@ export class ClientWindows {
    * The client shows this project now. A client's first report doesn't count as use, so it
    * starts the least recent, as a window that reconnects in the background must not win over
    * the one the person uses; its later ones do. Told `null`, it says nothing of any project
-   * from now on, as a client does with project windows off.
+   * from now on, as a window that shows none does.
    */
   report(client: string, projectId: string | null): void {
     if (projectId === null) {

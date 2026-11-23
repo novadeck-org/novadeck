@@ -73,6 +73,9 @@ describe("the open call", () => {
     let barred: string | undefined
     let flagged: readonly string[] | undefined
     let given: { model: string; effort?: "low" | "max" } | undefined
+    // How the client answers: it confirms the terminal in time, confirms it only after the
+    // runner made it and the deadline passed, or makes none in time.
+    let window: "confirms" | "slow" | "late" = "confirms"
     const opened = {
       summary: { id: "t2", handle: "fox", title: "claude", ledBy: "t1" },
       terminal: { exiting: false },
@@ -112,13 +115,23 @@ describe("the open call", () => {
         directory: (path: string) => Promise.resolve(path),
       }),
       opens: () => ({
-        request: (request: { command?: string }, _ms: number, opener: Opener) => {
+        request: (
+          request: { command?: string },
+          _ms: number,
+          opener: Opener,
+          made?: (terminalId: string) => void,
+        ) => {
           asked.push({ ...request, opener })
+          if (window === "late") return Promise.resolve({ type: "late" })
           records.set("t2", opened)
-          return Promise.resolve({
-            type: "answered",
-            answer: { requestId: "r", terminalId: "t2" },
-          })
+          if (window === "confirms")
+            return Promise.resolve({
+              type: "answered",
+              answer: { requestId: "r", terminalId: "t2" },
+            })
+          // The runner makes the terminal, and the client confirms it only past the deadline.
+          made?.("t2")
+          return Promise.resolve({ type: "made", terminalId: "t2" })
         },
       }),
       messaging: () => ({
@@ -187,6 +200,7 @@ describe("the open call", () => {
       flag: (flags: readonly string[]) => (flagged = flags),
       give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
       mode: (next: AgentMode) => (mode = next),
+      window: (next: typeof window) => (window = next),
       open: (request: object) =>
         run.open({
           type: "open",
@@ -346,6 +360,43 @@ describe("the open call", () => {
     run.deliver()
     await Promise.resolve()
     expect(run.ended).toEqual([])
+  })
+
+  it("sends the brief as the terminal is made, and answers it opened, when the client confirms it late", async () => {
+    const run = setup()
+    run.window("slow")
+    const answer = await run.open({ agent: "claude", message: "Review a.ts.", lead: true })
+    expect(run.sent).toEqual([{ to: "fox", text: "Review a.ts." }])
+    expect(run.starts).toEqual([
+      { terminal: "t2", nonce: run.opened.startedWith, from: "moth", text: "Review a.ts." },
+    ])
+    expect(answer).toMatchObject({
+      ok: true,
+      terminalId: "t2",
+      handle: "fox",
+      led: true,
+      task: { ok: true, id: "m1" },
+    })
+  })
+
+  it("says the brief wasn't sent when no terminal was made in time", async () => {
+    const run = setup()
+    run.window("late")
+    expect(await run.open({ agent: "claude", message: "Review a.ts." })).toEqual({
+      ok: false,
+      reason:
+        "Novadeck didn't confirm the new terminal in time; it may still open, so check before " +
+        "asking again. Its task wasn't sent: if the terminal opens, send the task there with " +
+        "send, as nothing waits for it.",
+    })
+    expect(run.sent).toEqual([])
+    // Without a task there is nothing to say of one.
+    expect(await run.open({ agent: "claude" })).toEqual({
+      ok: false,
+      reason:
+        "Novadeck didn't confirm the new terminal in time; it may still open, so check before " +
+        "asking again.",
+    })
   })
 
   it("leads only until the brief is delivered when asked not to lead with one", async () => {

@@ -20,6 +20,7 @@ import {
   noticeChannel,
   noticeClickChannel,
   notificationsQuietChannel,
+  windowKeysChannel,
   noticeCloseChannel,
   dismissWhatsNewChannel,
   whatsNewChannel,
@@ -56,7 +57,6 @@ import {
   projectWindowShowChannel,
   projectWindowsChannel,
   projectWindowsRequestChannel,
-  projectWindowsUseChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -473,6 +473,18 @@ describe("the sound a notice names", () => {
   })
 })
 
+describe("asking for the keys of the app's windows", () => {
+  const key = "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b"
+
+  it("passes the keys that are keys, and no answer for anything but a list", async () => {
+    electron.answer = [key, "not a key", 7]
+    expect(await electron.exposed.windowKeys?.()).toEqual([key])
+    electron.answer = null
+    expect(await electron.exposed.windowKeys?.()).toBeUndefined()
+    expect(electron.sent.filter((channel) => channel === windowKeysChannel)).toHaveLength(2)
+  })
+})
+
 describe("asking whether notifications are held back", () => {
   it("passes a boolean answer, and anything else is false", async () => {
     electron.answer = true
@@ -525,13 +537,11 @@ describe("the project windows", () => {
     const bridge = electron.exposed
     bridge.showProjectWindow!("p1", ["p1", "p2"])
     bridge.showProjectWindow!(null)
-    bridge.useProjectWindows!(true)
     bridge.openProjectWindow!("p2")
     bridge.handOffToProjectWindow!({ projectId: "p4", terminalId: "t1" })
     expect(electron.messages).toEqual([
       [projectWindowShowChannel, { projectId: "p1", known: ["p1", "p2"] }],
       [projectWindowShowChannel, { projectId: null, known: [] }],
-      [projectWindowsUseChannel, true],
       [projectWindowOpenChannel, "p2"],
       [projectWindowHandOffChannel, { projectId: "p4", terminalId: "t1" }],
     ])
@@ -540,7 +550,6 @@ describe("the project windows", () => {
   it("sends nothing for what is not", () => {
     const bridge = electron.exposed
     bridge.showProjectWindow!("")
-    bridge.useProjectWindows!("yes" as unknown as boolean)
     bridge.openProjectWindow!("a\nb")
     bridge.handOffToProjectWindow!({ terminalId: "t" } as never)
     expect(electron.sent).toEqual([])

@@ -387,7 +387,7 @@ export const contract = {
     // most to the system, however fast they are told. A terminal not there is not an error: the
     // call stands for whenever it starts.
     active: procedure.input(z.strictObject({ terminalId: id.nullable() })).output(z.void()),
-    // The project this client shows now, null to say nothing of any (as with project windows off), which the desktop app's project windows
+    // The project this client shows now, null to say nothing of any (as a window that shows none), which the desktop app's project windows
     // tell so that what an agent asks of the person (a terminal to open, a command to approve, a
     // look at a page) goes to the window that shows the project of the terminal that asked: else
     // to the client used last, else to the one that connected last. Each client has one, which

@@ -4,10 +4,9 @@ import { activeProject } from "@novadeck/core/state"
 import type { Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 
-import { projectWindowsOn } from "./selectors"
 import type { UiState, UiStore } from "./ui-store"
 
-export { projectWindowsOn, shownElsewhere } from "./selectors"
+export { shownElsewhere } from "./selectors"
 
 // Project windows: each window of the desktop app shows one project, and a project may show in
 // several windows. The app (main process) knows which window shows what; this page hears
@@ -17,21 +16,16 @@ export { projectWindowsOn, shownElsewhere } from "./selectors"
 // icon. A window that hears nothing from the app has it.
 export const hasVoice = (state: Pick<UiState, "windows">): boolean => state.windows.voice
 
-// What the window's title says: the project it shows, with project windows on, so the taskbar
-// and the window menu tell the windows apart; the app's name alone otherwise.
-export const windowTitle = (projectName: string | undefined, on: boolean): string =>
-  on && projectName ? `${projectName} — Novadeck` : "Novadeck"
+// What the window's title says: the project it shows, so the taskbar and the window menu tell
+// the windows apart; the app's name alone while it shows none.
+export const windowTitle = (projectName: string | undefined): string =>
+  projectName ? `${projectName} — Novadeck` : "Novadeck"
 
 // The most projects a window tells the app it knows.
 const knownProjectsLimit = 256
 
-// How long a window with the feature on waits for the Experimental switch before it tells the
-// app the feature is off.
-export const flagGraceMs = 3_000
-
 // Follows the app's windows: what the others show is kept in `ui`, and the project this window
-// shows, and whether the person has project windows on, are told to the app as they change.
-// Returns the stop.
+// shows is told to the app as it changes. Returns the stop.
 export const watchProjectWindows = (
   backend: Pick<Backend, "projectWindows" | "showingProject">,
   workspace: Store<Workspace>,
@@ -45,14 +39,20 @@ export const watchProjectWindows = (
       current.windows.elsewhere.length === state.elsewhere.length &&
       current.windows.elsewhere.every((id, index) => id === state.elsewhere[index])
         ? current
-        : { ...current, windows: state },
+        : {
+            ...current,
+            windows: state,
+            windowsShared: current.windowsShared || state.elsewhere.length > 0,
+          },
     ),
   )
   let shown: string | undefined
   let known = ""
-  // With project windows on, the runner is told which project this window shows, so what an
-  // agent asks of the person reaches the window that shows its project. Every window saves what
-  // it changes in any project: the runner merges the windows' changes and feeds them to each.
+  // While another window shows a project, the runner is told which project this one shows, so
+  // what an agent asks of the person reaches the window that shows its project. A window alone
+  // says nothing, as a browser doesn't, so the client the person used last gets it. Every window
+  // saves what it changes in any project: the runner merges the windows' changes and feeds them
+  // to each.
   let scoped: string | null = null
   const showProject = (): void => {
     const snapshot = workspace.getSnapshot()
@@ -63,35 +63,16 @@ export const watchProjectWindows = (
       known = ids.join("\n")
       windows.show(id ?? null, ids)
     }
-    const scope = id !== undefined && projectWindowsOn(ui.getSnapshot(), windows) ? id : null
+    const others = ui.getSnapshot().windows.elsewhere.length > 0
+    const scope = others ? (id ?? null) : null
     if (scope === scoped) return
     scoped = scope
-    backend.showingProject?.(scope, ui.getSnapshot().windows.elsewhere.length > 0)
+    backend.showingProject?.(scope, others)
   }
-  // Whether the Experimental switch has had time to be read: it comes from the app a moment
-  // after the page starts, and a window that opens with the feature on must not tell the app it
-  // is off meanwhile, which would forget the windows kept for the next launch.
-  let settled = !ui.getSnapshot().preferences.projectWindows
-  let used: boolean | undefined
-  const useFeature = (): void => {
-    const on = projectWindowsOn(ui.getSnapshot(), windows)
-    if (on === used || (!settled && !on)) return
-    used = on
-    windows.use(on)
-  }
-  const settling = setTimeout(() => {
-    settled = true
-    useFeature()
-  }, flagGraceMs)
   showProject()
-  useFeature()
   const stopWorkspace = workspace.subscribe(showProject)
-  const stopUi = ui.subscribe(() => {
-    showProject()
-    useFeature()
-  })
+  const stopUi = ui.subscribe(showProject)
   return () => {
-    clearTimeout(settling)
     stopState()
     stopWorkspace()
     stopUi()
@@ -99,26 +80,20 @@ export const watchProjectWindows = (
 }
 
 // Keeps the document's title, which the desktop app shows as the window's, naming the project
-// this window shows while project windows are on. Returns the stop.
+// this window shows. Returns the stop.
 export const watchWindowTitle = (
   view: { readonly document: Pick<Document, "title"> },
   windows: ProjectWindows | undefined,
   workspace: Store<Workspace>,
-  ui: UiStore,
 ): (() => void) => {
   if (!windows) return () => {}
   const update = (): void => {
-    view.document.title = windowTitle(
-      activeProject(workspace.getSnapshot())?.name,
-      projectWindowsOn(ui.getSnapshot(), windows),
-    )
+    view.document.title = windowTitle(activeProject(workspace.getSnapshot())?.name)
   }
   update()
   const stopWorkspace = workspace.subscribe(update)
-  const stopUi = ui.subscribe(update)
   return () => {
     stopWorkspace()
-    stopUi()
     view.document.title = "Novadeck"
   }
 }

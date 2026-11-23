@@ -1,6 +1,6 @@
 import { inboxType, entryKey, type InboxEntry } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
-import { Sheet } from "@novadeck/toolkit/Sheet"
+import { Sheet, type SheetBounds } from "@novadeck/toolkit/Sheet"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowLeft, Bell, BellOff, Check, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -14,8 +14,16 @@ import { useInboxContext, type Receipt } from "./InboxProvider"
 import { Text } from "./sheet-parts"
 
 // What the sheet sits within: the whole workspace, the sidebar with it, so the sheet starts
-// over the sidebar's gutter, clear of a window's border beside it.
-const workspace = (): HTMLElement | null => document.querySelector<HTMLElement>(".workspace-panels")
+// over the sidebar's gutter, clear of a window's border beside it; from the views' top down,
+// as on macOS the panels run to the window's top, with the header over the views alone.
+const workspace = (): HTMLElement | SheetBounds | null => {
+  const panels = document.querySelector<HTMLElement>(".workspace-panels")
+  const views = panels?.querySelector<HTMLElement>(".main-area")
+  if (!panels || !views) return panels ?? null
+  const box = panels.getBoundingClientRect()
+  const top = Math.max(box.top, views.getBoundingClientRect().top)
+  return { x: box.left, y: top, width: box.width, height: Math.max(0, box.bottom - top) }
+}
 
 // What the workspace behind the sheet is, which steps back while it is read.
 const behind = (): HTMLElement | null => document.querySelector<HTMLElement>(".workspace-main-pane")

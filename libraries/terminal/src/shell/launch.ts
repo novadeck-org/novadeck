@@ -16,6 +16,11 @@ export type ShellLaunch = {
   readonly integrated: boolean
   readonly resumes: boolean
   readonly resumeFile?: string | undefined
+  /**
+   * On Windows, the file the startup command waits for: the caller makes it once the shell's
+   * job has settled (see `spawnPty`'s `scopeFile`), as a Linux shell reads its own cgroup.
+   */
+  readonly scopeFile?: string | undefined
 }
 
 // "/bin/zsh", "-zsh" and "pwsh.exe" name "zsh" and "pwsh".
@@ -41,6 +46,13 @@ export type ShellLaunchOptions = {
   readonly startup?: { readonly command: string; readonly file: string } | undefined
   /** Whether the shell is on its way to a scope of its own, for `startup` to wait for. */
   readonly scoped?: boolean | undefined
+  /**
+   * On Windows, a program that waits for the scope's file (`novadeck-relay held <file>`),
+   * which cmd runs before its startup command, as it has no wait of its own.
+   */
+  readonly waiter?: string | undefined
+  /** Where the shell runs: by default here. */
+  readonly platform?: NodeJS.Platform | undefined
 }
 
 /**
@@ -54,8 +66,9 @@ export type ShellLaunchOptions = {
  * The integration reads it from the file <PREFIX>_RESUME names, which it removes, and
  * unsets the variable first, so nothing the command starts runs it again; removing the
  * file first cancels it. bash, zsh and fish run it at the first prompt, PowerShell after
- * its profile. cmd runs the command line with /k. bash, zsh and fish hold it for a scope
- * that is `scoped`, whose move takes only the shell.
+ * its profile. cmd runs the command line with /k. Each holds it for a scope that is
+ * `scoped`, whose move takes only the shell: on Linux bash, zsh and fish read their own
+ * cgroup; on Windows each waits for `scopeFile`, cmd through `waiter`.
  */
 export const shellLaunch = ({
   shell,
@@ -64,6 +77,8 @@ export const shellLaunch = ({
   pathFirst,
   startup,
   scoped,
+  waiter,
+  platform = process.platform,
 }: ShellLaunchOptions): ShellLaunch => {
   const variable = checked(scripts.prefix).toUpperCase()
   const key = pathKey(env)
@@ -77,8 +92,15 @@ export const shellLaunch = ({
           [`${variable}_BIN`]: pathFirst,
         }
   const resuming = startup ? { ...ordered, [`${variable}_RESUME`]: startup.file } : ordered
-  const held = startup && scoped ? { ...resuming, [`${variable}_SCOPE`]: "1" } : resuming
-  const fromFile = { resumes: startup !== undefined, resumeFile: startup?.file }
+  // On Linux "1", the shell reads its cgroup; on Windows the file the caller makes.
+  const scopeFile = startup && scoped && platform === "win32" ? `${startup.file}.held` : undefined
+  const held =
+    startup && scoped ? { ...resuming, [`${variable}_SCOPE`]: scopeFile ?? "1" } : resuming
+  const fromFile = {
+    resumes: startup !== undefined,
+    resumeFile: startup?.file,
+    ...(scopeFile !== undefined && { scopeFile }),
+  }
   switch (shellName(shell)) {
     case "bash":
       return {
@@ -108,10 +130,11 @@ export const shellLaunch = ({
       }
     case "pwsh":
     case "powershell":
-      // A script policy that forbids the integration leaves the shell as it is.
+      // A script policy that forbids the integration leaves the shell as it is. It waits only
+      // for a Windows job's file: it reads no cgroup, so a Linux scope's "1" isn't its.
       return {
         args: ["-NoExit", "-Command", `try { . ${psQuote(scripts.powershell)} } catch {}`],
-        env: resuming,
+        env: scopeFile === undefined ? resuming : held,
         integrated: true,
         ...fromFile,
       }
@@ -120,10 +143,14 @@ export const shellLaunch = ({
       return {
         // As a raw command line, so the command reaches cmd as typed: with /s, cmd strips
         // only the outer quotes and runs the rest unchanged, inner quotes and all.
-        args: startup ? `/s /k "${startup.command}"` : [],
+        // Held for its job by `waiter` first, where it has one.
+        args: startup
+          ? `/s /k "${scopeFile && waiter ? `"${waiter}" held "${scopeFile}" & ` : ""}${startup.command}"`
+          : [],
         env: { ...ordered, PROMPT: `$e]9;9;$P$e\\${env.PROMPT || "$P$G"}` },
         integrated: true,
         resumes: startup !== undefined,
+        ...(scopeFile !== undefined && waiter !== undefined && { scopeFile }),
       }
     default:
       return { args: [], env: ordered, integrated: false, resumes: false }

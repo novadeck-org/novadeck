@@ -13,7 +13,6 @@ import { WorkspaceHeader } from "../shell/WorkspaceHeader"
 import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
-import { projectWindowsOn } from "./project-windows"
 import { routeUrl } from "./routing"
 import { currentState, shallowEqual } from "./selectors"
 import { useMoveOn } from "./useTerminalMarks"
@@ -106,8 +105,8 @@ export const HeaderSection = memo((): React.JSX.Element => {
   )
   const pins = useMemo(() => arrangeProjects(projects, arrangement).pinned, [projects, arrangement])
   // Which projects other windows show, and the menu that opens one in a window of its own,
-  // while project windows are on.
-  const windowsOn = useUiState((state) => projectWindowsOn(state, backend.projectWindows))
+  // where the app opens project windows.
+  const windowsOn = backend.projectWindows !== undefined
   const elsewhere = useUiState((state) => state.windows.elsewhere)
   const windowsView = useMemo<ProjectWindowsView | null>(
     () => (windowsOn ? { elsewhere: new Set(elsewhere), open: commands.openInNewWindow } : null),

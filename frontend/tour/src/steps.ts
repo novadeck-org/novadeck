@@ -1,12 +1,13 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { SidebarPanel, ViewMode } from "@novadeck/core/types"
+import type { ViewMode } from "@novadeck/core/types"
 
 import type { LeadState, PaneTab, TourRole, TourSignals } from "./signals"
 
 // What the tour marks on the page (`anchors.ts`): the window of a role, or its companion pane
 // (its tabs: the page, the model, the changes, the image, Messages), the terminal the coach
 // names, the teammates' windows, the approval dialog's button, the Inbox row waiting on the
-// person, the answers of the request sheet open now, and the Files panel.
+// person, the answers of the request sheet open now, the Files panel, and the sidebar rail's
+// buttons that open the Inbox and Files.
 export type TourTarget =
   | TourRole
   | `${TourRole}-pane`
@@ -16,6 +17,8 @@ export type TourTarget =
   | "asking-row"
   | "answers"
   | "files"
+  | "inbox-button"
+  | "files-button"
 
 // The tour's four acts, each opened by a wipe with its number and name. A step belongs to one.
 export const tourActs = ["Your agent", "Your call", "The team", "The result"] as const
@@ -23,7 +26,9 @@ export type TourAct = 1 | 2 | 3 | 4
 
 // What the tour says at a step: the line its caption box letters, beside what it marks, and for
 // a moment the person has to act on, a note of what to do, under the box. It marks where to
-// look (`look`) apart from what to press (`click`, the first of its targets drawn now).
+// look (`look`) apart from what to press (`click`, the first of its targets drawn now). A step
+// that waits on the person (`TourStep.person`) lists its subject first among them, then what
+// opens it: only a touch on the subject counts.
 export type Coach = {
   readonly look?: TourTarget
   readonly click?: readonly TourTarget[]
@@ -34,6 +39,10 @@ export type Coach = {
   readonly tab?: PaneTab
   readonly line: string
   readonly note?: string
+  // Whether the press that opens its subject (the first of its `click` targets marked, while the
+  // subject isn't there to mark) counts as the person's touch, as opening a sidebar panel does:
+  // what they'd press in it next (a file) would take them away from the story.
+  readonly opened?: true
   // Whether its box may lie over windows. A box keeps clear of every window where any free
   // space fits it; one whose step turns the person's eyes away from the windows (to the Inbox,
   // a question's sheet, the approval) goes beside what it marks instead, over them if need be.
@@ -41,18 +50,19 @@ export type Coach = {
 }
 
 // What the tour moves as a step begins, never again: the view, a role's terminal brought into
-// view and selected (in Canvas the camera flies to it; the lead's where none is named) with a
-// sidebar panel opened where one is named, the Inbox, every window framed (Canvas). A move
-// naming a role waits until that role is found.
+// view for a look and selected (`travel`: in Canvas the camera moves only where its window isn't
+// on screen at a size to read, out to every window first and then in to it; the lead's where
+// none is named), every window framed (Canvas). A move naming a role waits until that role is
+// found. The tour opens no sidebar panel of its own: it marks the rail's button for the person.
 export type TourMove =
   | { readonly kind: "view"; readonly view: ViewMode }
-  | { readonly kind: "reveal"; readonly role?: TourRole; readonly panel?: SidebarPanel }
-  | { readonly kind: "inbox" }
+  | { readonly kind: "travel"; readonly role?: TourRole }
   | { readonly kind: "fit-all" }
 
 // The tab a step opens in a role's companion pane: what an agent showed (a page, a model, its
 // changes, an image) or its Messages. An item waits on a pane until its terminal is selected,
-// so the step reveals the terminal and opens the tab, the tab as soon as the item is there.
+// so the step brings the terminal into view and opens the tab, the tab as soon as the item is
+// there.
 export type TourTab = {
   readonly role: TourRole
   readonly tab: PaneTab
@@ -75,9 +85,14 @@ export type TourStep = {
   readonly enter: readonly TourMove[]
   // The pane tab it opens, once the item is there.
   readonly open?: TourTab
-  // Every window is framed again as the team grows while the step is on, so the camera keeps
-  // the new windows in view (Canvas).
+  // Every window is framed (Canvas) as the team grows while the step is on, only where a
+  // teammate's window landed out of sight: the camera goes out, never across.
   readonly frameTeam?: boolean
+  // Once done, the step waits for the person to touch its subject (the first of its coach's
+  // `click` targets: a click or a focus in it, as spinning a model or clicking into a page),
+  // however long they take, before the run moves on; its hold (`holdMs`), where it has one,
+  // counts from that touch.
+  readonly person?: true
   // How long the step's caption stays on screen once done, for the person to look at what it
   // shows, before the run moves on: counted from when the caption is shown.
   readonly holdMs?: number
@@ -98,7 +113,8 @@ export const nudgeOf = (step: TourStep, signals: TourSignals): TourRole =>
   typeof step.nudges === "function" ? step.nudges(signals) : (step.nudges ?? "lead")
 
 // How long a step that's done in moments keeps its caption box on screen, counted from when the
-// box shows, so it is there long enough to read.
+// box shows, so it is there long enough to read: for a step the agents end, which has nothing for
+// the person to do.
 const lineMs = 3_000
 
 // Act 1: in Canvas, a terminal opens and the person's own agent starts there, with its brief,
@@ -106,7 +122,7 @@ const lineMs = 3_000
 export const startStep: TourStep = {
   id: "start",
   act: 1,
-  enter: [{ kind: "view", view: "canvas" }, { kind: "reveal" }],
+  enter: [{ kind: "view", view: "canvas" }, { kind: "travel" }],
   // A lead that names itself at once is done before its caption shows: it holds, so the first
   // beat is read.
   holdMs: lineMs,
@@ -119,41 +135,29 @@ export const startStep: TourStep = {
 
 // Act 2: the lead asks the person, in the Inbox, what game to build: one sheet of two
 // questions, the world and the kind. It waits on the agent until the sheet shows, then on the
-// person, as long as they take.
+// person, as long as they take: they open the Inbox (its button marked), its row, and answer.
 export const askStep: TourStep = {
   id: "ask",
   act: 2,
-  enter: [{ kind: "inbox" }],
+  enter: [],
   coach: {
-    click: ["answers", "asking-row"],
+    click: ["answers", "asking-row", "inbox-button"],
     line: "Your call. What game?",
-    note: "Pick a world and a kind, or write your own.",
+    note: "Open your Inbox: pick a world and a kind, or write your own.",
     overWindows: true,
   },
   done: ({ sheet }, { asked }) => sheet.answered || (asked && !sheet.asking),
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }
 
-// Act 3: with the answer, the lead opens its two teammates, which come up on the canvas, wired
-// to it, and name themselves; the camera pulls back to frame them as they come. Done, it stays a
-// moment (`lineMs`), as they name themselves in seconds, for its line to be read.
-export const teamStep: TourStep = {
-  id: "team",
-  act: 3,
-  enter: [{ kind: "fit-all" }],
-  frameTeam: true,
-  holdMs: lineMs,
-  coach: { look: "team", line: "Look. It hired its own help." },
-  done: ({ team }) => team.count >= 2 && team.named >= 2,
-  wait: "nudge",
-}
-
-// Still act 3: the lead asks to run the game's server in a new terminal, which Novadeck asks the
-// person to allow. It waits on the agent until the question shows, then on the person. Done once
-// it was allowed (the lead opened a terminal) or the page is shown.
+// Still act 2, the person's second call: with the answer, the lead asks to run the game's server
+// in a new terminal, which Novadeck asks the person to allow, and opens nobody before they have
+// answered: the approval has the screen to itself. It waits on the agent until the question
+// shows, then on the person. Done once it was allowed (the lead opened a terminal) or the page is
+// shown.
 export const runStep: TourStep = {
   id: "run",
-  act: 3,
+  act: 2,
   enter: [],
   coach: {
     click: ["approve"],
@@ -165,39 +169,71 @@ export const runStep: TourStep = {
   wait: (_, { approving }) => (approving ? "patient" : "nudge"),
 }
 
-// Still act 3: the lead shows the game's page in its pane, which fills in as the team writes.
+// Act 3: allowed, the lead shows the game's page in its pane, a blank start the team fills in.
+// It is on screen while the lead writes its teammates' tasks, and waits for the person to click
+// into it.
 export const pageStep: TourStep = {
   id: "page",
   act: 3,
-  enter: [{ kind: "reveal" }],
+  enter: [{ kind: "travel" }],
   open: { role: "lead", tab: "page" },
-  holdMs: 5_000,
-  coach: { look: "lead-pane", tab: "page", line: "The game. Live. It fills in as they write." },
+  person: true,
+  coach: {
+    click: ["lead-pane", "lead"],
+    tab: "page",
+    line: "The game. Live. Empty, for now.",
+    note: "Click into it.",
+  },
   done: ({ shown }) => shown.page !== null,
   wait: "nudge",
 }
 
-// Still act 3: the modeller's first model, in 3D in its pane.
+// Still act 3: the lead opens its two teammates, which come up on the canvas, wired to it, and
+// name themselves; the camera pulls back only where one lands out of sight. Once both are there,
+// it waits for the person to click one.
+export const teamStep: TourStep = {
+  id: "team",
+  act: 3,
+  enter: [],
+  frameTeam: true,
+  person: true,
+  coach: { click: ["team"], line: "Look. It hired its own help.", note: "Click one." },
+  done: ({ team }) => team.count >= 2 && team.named >= 2,
+  wait: "nudge",
+}
+
+// Still act 3: the modeller's first model, in 3D in its pane, for the person to spin.
 export const shapeStep: TourStep = {
   id: "shape",
   act: 3,
-  enter: [{ kind: "reveal", role: "modeller" }],
+  enter: [{ kind: "travel", role: "modeller" }],
   open: { role: "modeller", tab: "model" },
-  holdMs: 5_000,
-  coach: { look: "modeller-pane", tab: "model", line: "A model. From scratch. Go on, spin it." },
+  person: true,
+  coach: {
+    click: ["modeller-pane", "modeller"],
+    tab: "model",
+    line: "A model. From scratch. Go on, spin it.",
+    note: "Drag it.",
+  },
   done: ({ shown }) => shown.model !== null,
   wait: "nudge",
   nudges: "modeller",
 }
 
-// Still act 3: the agents write in their own worktrees, and the Files panel shows each blink.
-// Done once the models and the game have each been changed.
+// Still act 3: the agents write in their own worktrees, and the Files panel shows each blink:
+// the person opens it (its rail button marked), which is all the step asks. Done once the models and the
+// game have each been changed.
 export const filesStep: TourStep = {
   id: "files",
   act: 3,
-  enter: [{ kind: "reveal", role: "modeller", panel: "files" }],
-  holdMs: 5_000,
-  coach: { look: "files", line: "Every blink? An agent. Writing." },
+  enter: [],
+  person: true,
+  coach: {
+    click: ["files", "files-button"],
+    opened: true,
+    line: "Every blink? An agent. Writing.",
+    note: "Open Files on the left.",
+  },
   done: ({ changed }) => changed.models && changed.game,
   wait: "nudge",
   // The modeller is the one writing, until the models are changed; then the builder is.
@@ -208,11 +244,11 @@ export const filesStep: TourStep = {
 export const diffStep: TourStep = {
   id: "diff",
   act: 3,
-  enter: [{ kind: "reveal", role: "builder" }],
+  enter: [{ kind: "travel", role: "builder" }],
   open: { role: "builder", tab: "changes" },
-  holdMs: 5_000,
+  person: true,
   coach: {
-    look: "builder-pane",
+    click: ["builder-pane", "builder"],
     tab: "changes",
     line: "What it wrote. Line by line.",
     note: "Click a file to see its lines.",
@@ -243,16 +279,17 @@ export const finishStep: TourStep = {
   wait: (_, { team }) => (team.working ? "patient" : "nudge"),
 }
 
-// Act 4: the result's wipe, then the game in the lead's pane, for the person to play, a while;
-// then the story ends and the closing card comes.
+// Act 4: the result's wipe, then the game in the lead's pane, for the person to play: a while
+// after they first click into it, the story ends and the closing card comes.
 export const playStep: TourStep = {
   id: "play",
   act: 4,
-  enter: [{ kind: "reveal" }],
+  enter: [{ kind: "travel" }],
   open: { role: "lead", tab: "page" },
-  holdMs: 25_000,
+  person: true,
+  holdMs: 20_000,
   coach: {
-    look: "lead-pane",
+    click: ["lead-pane", "lead"],
     tab: "page",
     line: "Three agents. Your game. Go play.",
     note: "It's live in the pane: click it.",
@@ -266,19 +303,24 @@ export const playStep: TourStep = {
 // modeller's model is what is left to look at.
 const modelPlayStep: TourStep = {
   ...playStep,
-  enter: [{ kind: "reveal", role: "modeller" }],
+  enter: [{ kind: "travel", role: "modeller" }],
   open: { role: "modeller", tab: "model" },
   holdMs: 8_000,
-  coach: { look: "modeller-pane", tab: "model", line: "Three agents. Your game. Yours." },
+  coach: {
+    click: ["modeller-pane", "modeller"],
+    tab: "model",
+    line: "Three agents. Your game. Yours.",
+    note: "Give it one more spin.",
+  },
 }
 
 const played = {
   page: [
     startStep,
     askStep,
-    teamStep,
     runStep,
     pageStep,
+    teamStep,
     shapeStep,
     filesStep,
     diffStep,
@@ -325,7 +367,7 @@ export const screenCoach = (
 // What the tour says while a teammate's own question to the person waits in the Inbox: it isn't
 // part of the story, and the tour points at it until they answer or dismiss it.
 export const questionCoach: Coach = {
-  click: ["answers", "asking-row"],
+  click: ["answers", "asking-row", "inbox-button"],
   line: "A teammate has a question for you.",
   note: "Answer it in the Inbox, or dismiss it and it decides itself.",
   overWindows: true,

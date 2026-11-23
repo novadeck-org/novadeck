@@ -170,12 +170,12 @@ describe("the compiled desktop app", () => {
       expect(main.match(/app\.relaunch\(/gu)).toHaveLength(2)
     })
 
-    it("opens a window for a second launch when the app has none, as on macOS", async () => {
+    it("opens the kept windows for a second launch when the app has none, as on macOS", async () => {
       const main = await read("main/index.js")
       const handler = main.slice(main.indexOf('app.on("second-instance"'))
 
       expect(handler.slice(0, handler.indexOf("\n});"))).toMatch(
-        /bringForward\(window\);\s*else if \(server && !quitting\.stopping\) createWindow\(server\.origin\);\s*if \(process\.platform === "darwin"\) app\.focus\(\{ steal: true \}\)/u,
+        /bringForward\(window\);\s*else if \(server && !quitting\.stopping\) openFirstWindows\(server\.origin, savedWindows\.current\(\)\);\s*if \(process\.platform === "darwin"\) app\.focus\(\{ steal: true \}\)/u,
       )
     })
 

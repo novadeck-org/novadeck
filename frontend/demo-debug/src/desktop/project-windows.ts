@@ -45,7 +45,6 @@ export const createDemoProjectWindows = ({
     show: (projectId) => {
       shown = projectId
     },
-    use: () => {},
     open: (projectId) => {
       if (!state.elsewhere.includes(projectId))
         set({ ...state, elsewhere: [...state.elsewhere, projectId] })

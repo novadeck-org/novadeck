@@ -11,7 +11,7 @@ import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
-import { unansweredCalls, type Call } from "../shell/reports.js"
+import { openCallMs, unansweredCalls, type Call } from "../shell/reports.js"
 import type { Shipping } from "../shipping/service.js"
 import { list } from "../text.js"
 import { WorktreeCalls, type WorktreeCallsHost } from "../worktrees/calls.js"
@@ -85,6 +85,14 @@ const unopened = {
   gone: "Novadeck's window went away while opening the terminal; it may still open, so check before asking again.",
   late: "Novadeck didn't confirm the new terminal in time; it may still open, so check before asking again.",
 }
+
+// How long before an open call's own limit (`openCallMs`) the runner stops waiting for its
+// terminal, to answer in time.
+const answerMarginMs = 2_000
+
+// What an agent asked to start with a task hears when no terminal was made for it in time.
+const untasked =
+  "Its task wasn't sent: if the terminal opens, send the task there with send, as nothing waits for it."
 
 // `LeadsHost` holds the runner's records and stop, its messaging, peers, approvals,
 // bindings, and whether a terminal is closing.
@@ -208,6 +216,9 @@ export class Calls {
    * more.
    */
   async open(call: Call): Promise<OpenAnswer> {
+    // A terminal being made past the window's deadline is waited for only while this call can
+    // still answer: a task never goes after the agent heard nothing opened.
+    const until = Date.now() + openCallMs - answerMarginMs
     const record = callerOf(this.host.records(), call)
     if (!record) return unansweredCalls.open
     const read = readOpenRequest(call.request)
@@ -347,36 +358,15 @@ export class Calls {
     this.allOpened = all
     if (asks && request.command !== undefined)
       return this.askToRun(record, charged, { cwd, command: request.command, request })
-    const asked = await this.host.opens().request(
-      {
-        from: call.terminalId,
-        sessionId: record.summary.sessionId,
-        cwd,
-        ...(command !== undefined && { command }),
-        focus: request.focus === true,
-      },
-      this.openMs,
-      // The title it asked for is its own, never the person's: the terminal takes it as
-      // the client creates it for this request.
-      {
-        by: record.summary.id,
-        handle: record.summary.handle,
-        ...(request.title !== undefined && { title: request.title }),
-        ...(command !== undefined && { command }),
-        // Led from the start, so a brief carries the lead mark, until it lands if the lead
-        // ends with it.
-        leads: leads || briefOnly,
-        ...(request.agent !== undefined &&
-          request.resume !== undefined &&
-          resuming?.ok && { resume: { agent: request.agent, session: request.resume } }),
-      },
-    )
     let task: SendAnswer | undefined
-    if (asked.type === "answered" && "terminalId" in asked.answer) {
-      this.openers.set(asked.answer.terminalId, charged)
+    let adopted = false
+    const adopt = (terminalId: string): void => {
+      if (adopted) return
+      adopted = true
+      this.openers.set(terminalId, charged)
       // The opening result names it, so its handle is the caller's to use.
-      this.host.peers().introduce(call.terminalId, asked.answer.terminalId)
-      const opened = this.host.records().get(asked.answer.terminalId)
+      this.host.peers().introduce(call.terminalId, terminalId)
+      const opened = this.host.records().get(terminalId)
       if (opened) {
         // The task goes to the first session of the agent it starts there, from the opener,
         // which leads that terminal: it is the lead's first message. Its first typed entry
@@ -407,8 +397,43 @@ export class Calls {
       } else if (request.message !== undefined)
         task = { ok: false, reason: "the new terminal closed before the task could be sent." }
     }
+    const asked = await this.host.opens().request(
+      {
+        from: call.terminalId,
+        sessionId: record.summary.sessionId,
+        cwd,
+        ...(command !== undefined && { command }),
+        focus: request.focus === true,
+      },
+      this.openMs,
+      // The title it asked for is its own, never the person's: the terminal takes it as
+      // the client creates it for this request.
+      {
+        by: record.summary.id,
+        handle: record.summary.handle,
+        ...(request.title !== undefined && { title: request.title }),
+        ...(command !== undefined && { command }),
+        // Led from the start, so a brief carries the lead mark, until it lands if the lead
+        // ends with it.
+        leads: leads || briefOnly,
+        ...(request.agent !== undefined &&
+          request.resume !== undefined &&
+          resuming?.ok && { resume: { agent: request.agent, session: request.resume } }),
+      },
+      // Taken up as soon as the runner makes it, before the client confirms it: the agent
+      // there may submit its start prompt, which asks for its task, before that.
+      adopt,
+      until,
+    )
+    // A client that confirmed a terminal the runner never told of, as a stand-in may.
+    if (asked.type === "answered" && "terminalId" in asked.answer) adopt(asked.answer.terminalId)
     const answer = this.opening(asked, cwd, command)
-    if (!answer.ok) return answer
+    if (!answer.ok)
+      return request.message !== undefined &&
+        !adopted &&
+        (asked.type === "late" || asked.type === "gone")
+        ? refused(`${answer.reason} ${untasked}`)
+        : answer
     return {
       ...answer,
       ...(request.agent !== undefined && { led: leads }),
@@ -447,24 +472,25 @@ export class Calls {
             if (this.host.stopping() || this.host.records().get(id) !== caller) return
             if (outcome === "declined") return tell(runNotice.declined(command))
             if (outcome !== "confirmed") return tell(runNotice.gone(command))
-            const asked = await this.host
-              .opens()
-              .request(
-                { from: id, sessionId, cwd, command, focus: request.focus === true },
-                this.openMs,
-                {
-                  by: id,
-                  handle,
-                  ...(request.title !== undefined && { title: request.title }),
-                  command,
-                  leads: false,
-                },
-              )
-            if (this.host.stopping() || this.host.records().get(id) !== caller) return
-            if (asked.type === "answered" && "terminalId" in asked.answer) {
-              this.openers.set(asked.answer.terminalId, charged)
-              this.host.peers().introduce(id, asked.answer.terminalId)
+            const adopt = (terminalId: string) => {
+              this.openers.set(terminalId, charged)
+              this.host.peers().introduce(id, terminalId)
             }
+            const asked = await this.host.opens().request(
+              { from: id, sessionId, cwd, command, focus: request.focus === true },
+              this.openMs,
+              {
+                by: id,
+                handle,
+                ...(request.title !== undefined && { title: request.title }),
+                command,
+                leads: false,
+              },
+              adopt,
+            )
+            if (this.host.stopping() || this.host.records().get(id) !== caller) return
+            if (asked.type === "answered" && "terminalId" in asked.answer)
+              adopt(asked.answer.terminalId)
             const answer = this.opening(asked, cwd, command)
             tell(
               answer.ok && "handle" in answer && answer.handle !== undefined
@@ -547,14 +573,16 @@ export class Calls {
 
   /** What the agent learns of the client's answer. */
   private opening(asked: Asked, cwd: string, command: string | undefined): OpenAnswer {
-    if (asked.type !== "answered") return refused(unopened[asked.type])
-    const { answer } = asked
-    if ("reason" in answer) return refused(answer.reason)
-    const opened = this.host.records().get(answer.terminalId)
+    if (asked.type !== "answered" && asked.type !== "made") return refused(unopened[asked.type])
+    // Made, though the client hasn't confirmed it yet: it opened all the same.
+    const made = asked.type === "made" ? asked : asked.answer
+    if ("reason" in made) return refused(made.reason)
+    const { terminalId } = made
+    const opened = this.host.records().get(terminalId)
     if (!opened) return unansweredCalls.open
     return {
       ok: true,
-      terminalId: answer.terminalId,
+      terminalId,
       handle: opened.summary.handle,
       title: opened.summary.title,
       cwd,
