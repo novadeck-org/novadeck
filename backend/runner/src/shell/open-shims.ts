@@ -1,3 +1,6 @@
+import { accessSync, constants, statSync } from "node:fs"
+import { delimiter, join } from "node:path"
+
 import type { File } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 
@@ -8,8 +11,10 @@ import { header } from "@novadeck/harness-core/header"
 // 2026-11-23), so closing the terminal would close it, tabs and unsaved work with it. These
 // shims, first on PATH in Novadeck's terminals, hand the real program to the user's systemd
 // in a scope of its own, which outlives the terminal; `BROWSER` names the `xdg-open` one where
-// the person names no browser of their own. The rest is the real program's: its words, what
-// it prints and its exit status, as `systemd-run --scope` runs it in the foreground. Where the
+// the person names no browser of their own and a real `xdg-open` is there. They live in a
+// folder of their own (`ShellPaths.open`, named by NOVADECK_OPEN), put first on PATH as the
+// shell starts, so no harness's shim shows on PATH that wouldn't otherwise, each only where its
+// program is there. The rest is the real program's: its words, what it prints and its exit status, as `systemd-run --scope` runs it in the foreground. Where the
 // terminal has no scope, or the user's systemd doesn't answer (inside Codex's sandbox), the
 // program runs as it would without the shim. An app started any other way, as by its own
 // binary, stays the agent's and ends with the terminal.
@@ -52,7 +57,7 @@ if [ -z "$novadeck_real" ]; then
   exit 127
 fi
 # Only in a terminal Novadeck keeps in a scope of its own.
-[ -n "\${NOVADECK_SCOPED:-}" ] || exec "$novadeck_real" "$@"
+[ -n "\${NOVADECK_OPEN:-}" ] || exec "$novadeck_real" "$@"
 ${
   opening === undefined
     ? ""
@@ -63,10 +68,28 @@ exec systemd-run --user --scope --collect --quiet -- "$novadeck_real" "$@"
 `
 }
 
-/** The shims Novadeck's bin holds on `platform`: Linux's alone, where terminals have scopes. */
-export const openShims = (platform: NodeJS.Platform): readonly File[] =>
+/** Whether `program` is on `path` (a PATH), as an executable file. */
+export const onPath = (program: string, path = process.env.PATH ?? ""): boolean =>
+  path.split(delimiter).some((dir) => {
+    if (dir === "") return false
+    try {
+      accessSync(join(dir, program), constants.X_OK)
+      return statSync(join(dir, program)).isFile()
+    } catch {
+      return false
+    }
+  })
+
+/**
+ * The shims on `platform`: Linux's alone, where terminals have scopes, each only where its
+ * program is there (`has`), so a shim never makes one seem installed that isn't.
+ */
+export const openShims = (
+  platform: NodeJS.Platform,
+  has: (program: OpenProgram) => boolean = (program) => onPath(program),
+): readonly File[] =>
   platform === "linux"
-    ? (Object.keys(programs) as OpenProgram[]).map((program) => ({
+    ? (Object.keys(programs) as OpenProgram[]).filter(has).map((program) => ({
         path: program,
         content: openShim(program),
         mode: 0o755,

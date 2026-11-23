@@ -14,11 +14,15 @@ describe("withoutInherited", () => {
     expect(withoutInherited(env, "linux")).toEqual({ PATH: "/bin" })
   })
 
-  it("drops the BROWSER a Novadeck terminal gave, its own shim, and keeps the person's", () => {
-    const given = { NOVADECK_BIN: "/d/bin", NOVADECK_SCOPED: "1", BROWSER: "/d/bin/xdg-open" }
-    expect(withoutInherited(given, "linux")).toEqual({})
-    const theirs = { NOVADECK_BIN: "/d/bin", BROWSER: "firefox" }
-    expect(withoutInherited(theirs, "linux")).toEqual({ BROWSER: "firefox" })
+  it("drops the BROWSER and the PATH folder a Novadeck terminal gave, and keeps the person's", () => {
+    const given = {
+      NOVADECK_OPEN: "/d/open",
+      BROWSER: "/d/open/xdg-open",
+      PATH: "/d/open:/usr/bin",
+    }
+    expect(withoutInherited(given, "linux")).toEqual({ PATH: "/usr/bin" })
+    const theirs = { NOVADECK_OPEN: "/d/open", BROWSER: "firefox", PATH: "/usr/bin" }
+    expect(withoutInherited(theirs, "linux")).toEqual({ BROWSER: "firefox", PATH: "/usr/bin" })
   })
 
   it("drops them in any case on Windows, where names have none", () => {

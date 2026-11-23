@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 
 import { afterAll, describe, expect, it } from "vitest"
 
-import { openShim, openShims, type OpenProgram } from "./open-shims.js"
+import { onPath, openShim, openShims, type OpenProgram } from "./open-shims.js"
 
 const root = mkdtempSync(join(tmpdir(), "open-shims-"))
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -17,7 +17,7 @@ const bin = join(root, "bin")
 const real = join(root, "real")
 mkdirSync(bin)
 mkdirSync(real)
-for (const file of openShims("linux")) {
+for (const file of openShims("linux", () => true)) {
   writeFileSync(join(bin, file.path), file.content)
   chmodSync(join(bin, file.path), file.mode!)
 }
@@ -60,15 +60,20 @@ const systemd = (() => {
 })()
 
 describe.skipIf(process.platform !== "linux")("the shims that open apps", () => {
-  it("are Linux's alone", () => {
-    expect(openShims("darwin")).toEqual([])
-    expect(openShims("win32")).toEqual([])
-    expect(openShims("linux").map(({ path }) => path)).toEqual(["xdg-open", "gio"])
+  it("are Linux's alone, each where its program is there", () => {
+    expect(openShims("darwin", () => true)).toEqual([])
+    expect(openShims("win32", () => true)).toEqual([])
+    expect(openShims("linux", () => true).map(({ path }) => path)).toEqual(["xdg-open", "gio"])
+    expect(openShims("linux", (program) => program === "gio").map(({ path }) => path)).toEqual([
+      "gio",
+    ])
+    expect(onPath("xdg-open", real)).toBe(true)
+    expect(onPath("xdg-open", `${root}/nowhere`)).toBe(false)
   })
 
   it("run the real program with the same words, output and exit status", async () => {
     const words = ["https://example.com/a b?c=d&e", "--", "it's"]
-    for (const scoped of [{}, { NOVADECK_SCOPED: "1" }]) {
+    for (const scoped of [{}, { NOVADECK_OPEN: bin }]) {
       // eslint-disable-next-line no-await-in-loop -- One at a time, as a terminal runs them.
       const { lines, code } = await run("xdg-open", words, scoped)
       expect(lines.slice(0, 4)).toEqual(["xdg-open", ...words])
@@ -82,7 +87,7 @@ describe.skipIf(process.platform !== "linux")("the shims that open apps", () => 
   })
 
   it.skipIf(!systemd)("give what they open a scope of its own in a scoped terminal", async () => {
-    const { lines } = await run("xdg-open", ["file.png"], { NOVADECK_SCOPED: "1" })
+    const { lines } = await run("xdg-open", ["file.png"], { NOVADECK_OPEN: bin })
     expect(lines.at(-1)).not.toBe(own())
     expect(lines.at(-1)).toMatch(/\.scope$/)
   })
@@ -92,12 +97,12 @@ describe.skipIf(process.platform !== "linux")("the shims that open apps", () => 
     async () => {
       for (const command of ["open", "launch"]) {
         // eslint-disable-next-line no-await-in-loop -- One at a time, as a terminal runs them.
-        const { lines, code } = await run("gio", [command, "x.desktop"], { NOVADECK_SCOPED: "1" })
+        const { lines, code } = await run("gio", [command, "x.desktop"], { NOVADECK_OPEN: bin })
         expect(lines.slice(0, 3)).toEqual(["gio", command, "x.desktop"])
         expect(lines.at(-1)).not.toBe(own())
         expect(code).toBe(3)
       }
-      const { lines } = await run("gio", ["info", "x"], { NOVADECK_SCOPED: "1" })
+      const { lines } = await run("gio", ["info", "x"], { NOVADECK_OPEN: bin })
       expect(lines.at(-1)).toBe(own())
     },
   )
@@ -111,7 +116,7 @@ describe.skipIf(process.platform !== "linux")("the shims that open apps", () => 
     const { lines, code } = await run(
       "xdg-open",
       ["file.png"],
-      { NOVADECK_SCOPED: "1" },
+      { NOVADECK_OPEN: bin },
       `${bin}:${broken}:${real}:/usr/bin:/bin`,
     )
     expect(lines.at(-1)).toBe(own())

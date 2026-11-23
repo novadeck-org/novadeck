@@ -268,7 +268,7 @@ for (const setup of setups) {
             word,
             // The sandbox gives its terminals a runtime folder and a bus of their own, which no
             // systemd answers on; a desktop's terminal reaches the person's, as this does.
-            `#!/bin/bash\nXDG_RUNTIME_DIR=${runtime} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime}/bus PATH="$NOVADECK_BIN:$PWD/fake:$PATH" xdg-open "https://example.com/${word}"\nsleep 1; echo opened\n`,
+            `#!/bin/bash\nXDG_RUNTIME_DIR=${runtime} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime}/bus PATH="$NOVADECK_OPEN:$PWD/fake:$PATH" xdg-open "https://example.com/${word}"\nsleep 1; echo opened\n`,
           )
           const terminal = await run.deck.open(setup.agent === "codex" ? unsandboxed : setup.agent)
           await terminal.reached("ready", { timeoutMs: 60_000 })

@@ -32,11 +32,13 @@ import { openShims } from "./open-shims.js"
 
 /** Where each file lives under the shell directory; the shells' own as the library has them. */
 export type ShellPaths = ShellScriptPaths & {
-  /**
-   * Put first on PATH while a harness with shims is connected, as Codex's `codex`, and in every
-   * terminal with a scope of its own, for the shims that open apps (`openShims`).
-   */
+  /** Put first on PATH while a harness with shims is connected, as Codex's `codex`. */
   readonly bin: string
+  /**
+   * On Linux, the shims that open apps in scopes of their own (`openShims`), first on PATH in
+   * every terminal with a scope of its own.
+   */
+  readonly open: string
   /** The plugin sources each agent installs from when the person connects it. */
   readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
@@ -73,6 +75,7 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   // Their variables and functions are named NOVADECK_RESUME, __novadeck_prompt.
   ...shellScriptPaths(directory, "novadeck"),
   bin: join(directory, "bin"),
+  open: join(directory, "open"),
   plugins: Object.fromEntries(
     agents.map((agent) => [agent, join(directory, "plugins", harnesses[agent].plugin)]),
   ) as ShellPaths["plugins"],
@@ -302,12 +305,12 @@ export const shellFiles = (
         .map((each) => file(join(paths.plugins[agent], each.path), each.content, each.mode)),
     ),
   ]
-  // Every harness's shims, which apply only while their harness is connected, and on Linux
-  // the shims that open apps in scopes of their own (`openShims`).
-  const shims = [
-    ...agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? []),
-    ...openShims(platform),
-  ]
+  // Every harness's shims, which the shells put first on PATH only while one is connected.
+  const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? [])
+  // On Linux, the shims that open apps in scopes of their own, in a folder of their own.
+  const opening = openShims(platform).map((each) =>
+    file(join(paths.open, each.path), each.content, each.mode),
+  )
   const bin = shims.map((each) =>
     file(
       join(paths.bin, each.path),
@@ -332,5 +335,6 @@ export const shellFiles = (
         file(paths.hook, posixLauncher(paths, "hook", "agent hook launcher"), 0o700),
         file(paths.mcp, posixLauncher(paths, "mcp", "MCP server launcher"), 0o700),
         ...bin,
+        ...opening,
       ]
 }

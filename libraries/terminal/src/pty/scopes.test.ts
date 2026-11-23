@@ -568,12 +568,12 @@ describe("a scope whose program has exited", () => {
     expect(runs.at(-1)).toEqual(stopScope("p-term42.scope"))
   })
 
-  it("is stopped where its cgroup has gone already", async () => {
+  it("is left alone where its cgroup can't be read, as where the cgroups aren't systemd's", async () => {
     const { scope, stopped } = recorded("/u.scope", () =>
       Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" })),
     )
     await scope.exited()
-    expect(stopped()).toBe(true)
+    expect(stopped()).toBe(false)
   })
 
   it("is left to systemd while anything runs in it", async () => {

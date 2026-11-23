@@ -592,15 +592,15 @@ export const spawnPty = (
         run = { since: now }
         runs.push(run)
       }
-      // Back to the agent's own start, as it may have started its helpers before it bound.
+      // From the agent's own start where the listing shows it, as it may have started its
+      // helpers before it bound; the time it bound stands only where it can't be read.
       if (agent === undefined || !options.listing) return
       const open = run
       void options
         .listing()
         .then((rows) => {
           const start = rows && runStart(rows, agent)
-          if (start !== undefined && start < open.since && open.until === undefined)
-            open.since = start
+          if (start !== undefined && open.until === undefined) open.since = start
         })
         .catch(() => {})
     },

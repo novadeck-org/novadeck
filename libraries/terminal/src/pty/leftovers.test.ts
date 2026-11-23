@@ -135,31 +135,17 @@ describe("where an agent's run begins", () => {
 })
 
 describe("now, in clock ticks", () => {
-  it("is this process's start and the time it has run since", () => {
-    const stat = "4242 (node (dev)) S 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 123456 20"
-    expect(
-      ticksNow(
-        () => stat,
-        () => 2.5,
-      ),
-    ).toBe(123_456 + 250)
+  it("is the time since boot, through any suspend, as a process's start counts it", () => {
+    expect(ticksNow(() => "62427.76 1234567.89\n")).toBe(6_242_776)
   })
 
-  it("is unknown where its start can't be read", () => {
+  it("is unknown where it can't be read", () => {
     expect(
-      ticksNow(
-        () => {
-          throw new Error("no /proc")
-        },
-        () => 1,
-      ),
+      ticksNow(() => {
+        throw new Error("no /proc")
+      }),
     ).toBeUndefined()
-    expect(
-      ticksNow(
-        () => "garbage",
-        () => 1,
-      ),
-    ).toBeUndefined()
+    expect(ticksNow(() => "garbage")).toBeUndefined()
   })
 
   it.skipIf(process.platform !== "linux")("is after a process started a moment ago", async () => {
@@ -168,7 +154,9 @@ describe("now, in clock ticks", () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
     const rows = await processListing("linux", 0)()
     const started = Number(rows!.find((one) => one.pid === child.pid)!.started)
-    expect(ticksNow()!).toBeGreaterThanOrEqual(started)
+    const now = ticksNow()!
+    expect(now).toBeGreaterThanOrEqual(started)
+    expect(now - started).toBeLessThan(100)
   })
 })
 
@@ -254,6 +242,31 @@ describe.skipIf(process.platform === "win32")("ending what an agent left", () =>
     )
     expect(await exit).toBe("SIGKILL")
     expect(performance.now() - began).toBeLessThan(400)
+  })
+
+  it("forces only what it asked first, leaving what it finds later to be asked", async () => {
+    const first = await program(["SIGTERM"])
+    const later = await program(["SIGTERM"])
+    let asked = 0
+    const exit = ended(first)
+    await endLeftovers(() => {
+      asked += 1
+      const found = [{ pid: first.pid!, started: "x" }]
+      return Promise.resolve(asked === 1 ? found : [...found, { pid: later.pid!, started: "x" }])
+    })
+    expect(await exit).toBe("SIGKILL")
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(later.signalCode).toBeNull()
+  })
+
+  it("gives up finding them by a quit's bound", async () => {
+    const began = Date.now()
+    const found = await endLeftovers(
+      () => new Promise(() => {}),
+      () => began + 100,
+    )
+    expect(found).toEqual([])
+    expect(Date.now() - began).toBeLessThan(400)
   })
 
   it("signals nothing where nothing is found, and nothing more where it is found again gone", async () => {

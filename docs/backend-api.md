@@ -861,8 +861,11 @@ see them change.
   (`agentStarted`, `agentEnded`), and every tree of the scope whose root started in such a
   run is the agent's, with all under it: what has left the shell's tree gets SIGTERM as the
   hangup goes out, and what is left once the shell has exited, as a `nohup` the shell held,
-  gets it then; SIGKILL follows half a second on, or by the shutdown's own bound, each by
-  pid only right after a listing shows that pid to be the process found. Spared, with all
+  gets it then; SIGKILL follows half a second on, or by the shutdown's own bound, to what had
+  SIGTERM, each by pid only right after a listing shows that pid to be the process found. A
+  run's start is the agent's own process's, which is its shell's where it took the shell's
+  place (`exec claude`), and its end when its session ends, in the clock /proc counts starts
+  by, which runs on through suspend. Spared, with all
   under each: what the person started there before the agent or after its session ended,
   what `Harness.apart` names (Claude Code's background service sits in the scope of the
   terminal that started it, and is read from the terminal's latest sessions even with no
@@ -872,12 +875,14 @@ see them change.
   plain terminal, where no agent ran, keeps today's behaviour. A shared build daemon an
   agent started (Gradle's, Bazel's server, sccache, a turbo or nx daemon) is one of them: a
   build in another terminal using it at that moment fails once, and the next starts a new
-  one. An app the agent opens for the person is not: `xdg-open` and `gio open` start it in
+  one; an ssh `ControlMaster` an agent's `git fetch` started with `ControlPersist` ends too,
+  and with it the person's ssh sessions in other terminals that share it. An app the agent opens for the person is not: `xdg-open` and `gio open` start it in
   the caller's cgroup (measured with GLib 2.90 on GNOME), so a browser whose first window an
   agent opened would close with that terminal, tabs and all, and Novadeck's shims for them
-  (`bin/xdg-open`, `bin/gio`, and `BROWSER`, below) start it in a scope of its own instead.
-  An app an agent starts any other way, as by its own binary or a launcher without a shim, or
-  through the person's own `BROWSER`, stays in the terminal's scope and ends with it.
+  (`open/xdg-open`, `open/gio`, and `BROWSER`, below) start it in a scope of its own instead.
+  An app an agent starts any other way stays in the terminal's scope and ends with it: by its
+  own binary (`code`, `firefox`), through a launcher without a shim, as npm's `open` package
+  with its own bundled `xdg-open` (`vite --open`), or through the person's own `BROWSER`.
   Hibernation keeps an agent with such a program awake (`detached`),
   and the update's restart check counts it as work a restart would end.
 - Otherwise, and on macOS, Windows and Linux without the user's systemd, it is not a
@@ -913,14 +918,16 @@ changed. Only connecting an agent (below) installs anything elsewhere:
 - `bin/agy` (`agy.cmd`), which shells get first on `PATH` while Antigravity is connected: it passes
   the person's allow rules with Novadeck's own tools added, which the relay (`novadeck-relay allow`)
   writes to `allow/<terminal id>.json`, a folder the runner empties as it starts.
-- On Linux, `bin/xdg-open` and `bin/gio`, which shells get first on `PATH` whenever the
-  terminal has a scope of its own (`NOVADECK_SCOPED`), with `BROWSER` naming the `xdg-open`
-  one unless the person names a browser of their own: each runs the next program of its name
-  on `PATH`, `gio` only for `open` and `launch`, through `systemd-run --user --scope
-  --collect`, so what it opens gets a scope of its own and outlives the terminal, which ends
-  what an agent left in its own (see "Closing" above). Its words, output and exit status are
-  the program's. Where the user's systemd doesn't answer, as inside Codex's sandbox, the
-  program runs as it would without the shim.
+- On Linux, `open/xdg-open` and `open/gio`, each written only where its program is on the
+  runner's `PATH`, in a folder that shells get first on `PATH` whenever the terminal has a
+  scope of its own (`NOVADECK_OPEN` names it), with `BROWSER` naming the `xdg-open` one where
+  the person names no browser of their own and an `xdg-open` is there. Each runs the next
+  program of its name on `PATH`, `gio` only for `open` and `launch`, through `systemd-run
+  --user --scope --collect`, so what it opens gets a scope of its own and outlives the
+  terminal, which ends what an agent left in its own (see "Closing" above). Its words, output
+  and exit status are the program's. Where the user's systemd doesn't answer, as inside
+  Codex's sandbox, the program runs as it would without the shim. Startup files that set
+  `PATH` whole, dropping the folder, leave the shims out.
 - On Windows, where cmd's AutoRun prints: `agy-cmd/cmd.exe`, Novadeck's `cmd.exe` pass-through
   (`novadeck-cmd.exe`, built with the relay and checked byte for byte against the shipped one),
   which `agy.cmd` puts first on `PATH` for Antigravity alone, so its `cmd /c` hooks run the real cmd

@@ -18,7 +18,7 @@ export const inherited = [
   "NOVADECK_USER_ZDOTDIR",
   "NOVADECK_RESUME",
   "NOVADECK_SCOPE",
-  "NOVADECK_SCOPED",
+  "NOVADECK_OPEN",
   "NOVADECK_SHIMS",
   // An agent's own session markers, when Novadeck was started from inside one: an agent
   // in Novadeck's shells would take itself for that session's child. Claude Code, for
@@ -35,8 +35,16 @@ export const stripInherited = (
   platform: NodeJS.Platform = process.platform,
 ): void => {
   if (platform !== "win32") {
-    // The BROWSER a Novadeck terminal gave, its own shim, which the person never named.
-    if (env.NOVADECK_BIN && env.BROWSER === `${env.NOVADECK_BIN}/xdg-open`) delete env.BROWSER
+    // The BROWSER and the PATH folder a Novadeck terminal gave, its own shims, which the person
+    // never named.
+    const open = env.NOVADECK_OPEN
+    if (open) {
+      if (env.BROWSER === `${open}/xdg-open`) delete env.BROWSER
+      if (env.PATH)
+        env.PATH = env.PATH.split(":")
+          .filter((dir) => dir !== open)
+          .join(":")
+    }
     for (const name of inherited) delete env[name]
     return
   }

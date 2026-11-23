@@ -314,14 +314,18 @@ export class UserScopes implements Scopes {
       },
       exited: async () => {
         // Whether it was moved or not: a move whose program was dying may have made the
-        // scope and still been refused.
-        await started
-        const path = await groupOf()
+        // scope and still been refused. Asked again a moment later where systemd named no
+        // cgroup yet, as while its start is still under way.
+        const moved = await started
+        let path = await groupOf()
+        if (path === undefined && moved) {
+          await new Promise((resolve) => setTimeout(resolve, this.delayMs * 2))
+          path = await groupOf()
+        }
         if (path === undefined) return
-        const procs = await this.read(posix.join(path, "cgroup.procs")).then(
-          (text) => text,
-          (error: unknown) => ((error as NodeJS.ErrnoException).code === "ENOENT" ? "" : undefined),
-        )
+        // Only a cgroup read and found empty: one that can't be read, as where the cgroups
+        // here aren't systemd's, may hold anything.
+        const procs = await this.read(posix.join(path, "cgroup.procs")).catch(() => undefined)
         if (procs === undefined || parseProcs(procs).length > 0) return
         await this.run("busctl", stopScope(unit)).catch(() => undefined)
       },

@@ -11,8 +11,8 @@ import {
 
 /**
  * An agent's run in a terminal, in Linux's clock ticks since boot, as /proc/<pid>/stat gives a
- * process's start: from the start of the program the shell ran for it (the agent, or a wrapper
- * such as `npx` it runs under) until its session ended, or still open while it runs.
+ * process's start: from the agent's own process's start (`runStart`), or the time it bound where
+ * that can't be read, until its session ended, or still open while it runs.
  */
 export type AgentRun = { readonly since: number; readonly until?: number }
 
@@ -23,25 +23,19 @@ export type AgentRun = { readonly since: number; readonly until?: number }
 const ticksPerSecond = 100
 
 /**
- * Now in clock ticks since boot, as a process's start reads: this process's own start, and the
- * time it has run since by the monotonic clock. Where the kernel counts starts by the clock
- * that runs through suspend, this falls behind by the time suspended since Novadeck started,
- * which only ever makes a run end earlier and spares more. Undefined where it can't be read.
+ * Now in clock ticks since boot, as a process's start reads: /proc/uptime, which counts the
+ * same clock, the one that runs on through suspend. Undefined where it can't be read.
  */
 export const ticksNow = (
-  stat: () => string = () => readFileSync("/proc/self/stat", "utf8"),
-  uptime: () => number = () => process.uptime(),
+  uptime: () => string = () => readFileSync("/proc/uptime", "utf8"),
 ): number | undefined => {
-  let text: string
+  let seconds: number
   try {
-    text = stat()
+    seconds = Number.parseFloat(uptime())
   } catch {
     return undefined
   }
-  const fields = text.slice(text.lastIndexOf(")") + 2).split(/\s+/)
-  // After `(comm)`, the state is field 0 and the start field 19, as `parseStat` reads it.
-  const started = Number(fields[19])
-  return Number.isSafeInteger(started) ? started + Math.floor(uptime() * ticksPerSecond) : undefined
+  return Number.isFinite(seconds) ? Math.floor(seconds * ticksPerSecond) : undefined
 }
 
 /** A listed process's start, as a number of clock ticks; undefined off Linux. */
@@ -152,19 +146,30 @@ const answers = (pid: number): boolean => {
   }
 }
 
+/** `found`, or undefined once `by()` has passed, whatever it waits on. */
+const within = async <T>(found: Promise<T>, by: number): Promise<T | undefined> => {
+  if (by === Number.POSITIVE_INFINITY) return found
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(resolve, Math.max(0, by - Date.now()), undefined)
+  })
+  return Promise.race([found, late]).finally(() => clearTimeout(timer))
+}
+
 /**
  * Ends what `find` names, as `endFollowed` ends what a follow left: SIGTERM, with SIGCONT for
  * what is stopped, then SIGKILL `termGraceMs` on, or by `by()` where that comes first, as a quit
- * bounds it. Each by its pid, only right after a fresh listing has shown that pid to be the
- * process found, so never one that has since been given its pid; `find` is asked again before
- * SIGKILL, which reaches what the first ones started meanwhile too. Where it finds nothing,
+ * bounds it; finding them is bounded by it too. Each by its pid, only right after a fresh
+ * listing has shown that pid to be the process found, so never one that has since been given
+ * its pid. SIGKILL goes only to what had SIGTERM: what `find` names for the first time then, as
+ * a hook an ending agent started, is left for a later pass to ask first. Where it finds nothing,
  * as where the listing or the scope can't be read, nothing is signalled.
  */
 export const endLeftovers = async (
   find: () => Promise<readonly Followed[] | undefined>,
   by: () => number = () => Number.POSITIVE_INFINITY,
 ): Promise<readonly Followed[]> => {
-  const first = await find()
+  const first = await within(find(), by())
   if (!first || first.length === 0) return []
   signalEach(first, "SIGTERM")
   // A stopped process acts on neither until it runs again.
@@ -173,8 +178,11 @@ export const endLeftovers = async (
   while (first.some(({ pid }) => answers(pid)) && Date.now() < until)
     // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
     await sleep(Math.max(1, Math.min(50, until - Date.now())))
-  const stubborn = await find()
-  if (stubborn) signalEach(stubborn, "SIGKILL")
+  if (!first.some(({ pid }) => answers(pid))) return first
+  // Past its bound, as at a quit's end, by the one look that stays quick.
+  const again = await within(find(), Math.max(by(), Date.now() + 300))
+  const asked = new Set(first.map(processKey))
+  signalEach(again?.filter((one) => asked.has(processKey(one))) ?? [], "SIGKILL")
   return first
 }
 

@@ -1,4 +1,8 @@
-import { delimiter } from "node:path"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { delimiter, join } from "node:path"
+
+import { onTestFinished } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import type { InstalledShell } from "./install.js"
@@ -50,17 +54,27 @@ describe("Novadeck's launchers in a shell", () => {
       launcher: "/data/hook",
       mcpLauncher: "/data/mcp",
     }
-    expect(shellLaunch("bash", posix, { PATH: "/usr/bin" }, { scoped: true }).env).toMatchObject({
-      PATH: `${posix.bin}${delimiter}/usr/bin`,
-      NOVADECK_BIN: posix.bin,
-      NOVADECK_SCOPED: "1",
-      BROWSER: `${posix.bin}/xdg-open`,
+    // A PATH with an xdg-open on it: /usr/bin's on Linux, a stand-in elsewhere.
+    const real = mkdtempSync(join(tmpdir(), "launch-open-"))
+    onTestFinished(() => rmSync(real, { recursive: true, force: true }))
+    writeFileSync(join(real, "xdg-open"), "#!/bin/sh\n", { mode: 0o755 })
+    const scoped = shellLaunch("bash", posix, { PATH: real }, { scoped: true }).env
+    expect(scoped).toMatchObject({
+      PATH: `${posix.open}${delimiter}${real}`,
+      NOVADECK_OPEN: posix.open,
+      BROWSER: join(posix.open, "xdg-open"),
     })
-    // The person's own browser stands.
-    const theirs = shellLaunch("bash", posix, { BROWSER: "firefox" }, { scoped: true }).env
-    expect(theirs.BROWSER).toBe("firefox")
+    // Not the harnesses' shims, which go first only while one that has them is connected.
+    expect(scoped).not.toHaveProperty("NOVADECK_BIN")
+    // The person's own browser stands, and none is named where no xdg-open is there.
+    expect(
+      shellLaunch("bash", posix, { PATH: real, BROWSER: "firefox" }, { scoped: true }).env.BROWSER,
+    ).toBe("firefox")
+    expect(
+      shellLaunch("bash", posix, { PATH: "/nowhere" }, { scoped: true }).env,
+    ).not.toHaveProperty("BROWSER")
     const unscoped = shellLaunch("bash", posix, { PATH: "/usr/bin" }, { scoped: false }).env
-    expect(unscoped).not.toHaveProperty("NOVADECK_SCOPED")
+    expect(unscoped).not.toHaveProperty("NOVADECK_OPEN")
     expect(unscoped).not.toHaveProperty("BROWSER")
     expect(unscoped.PATH).toBe("/usr/bin")
   })
