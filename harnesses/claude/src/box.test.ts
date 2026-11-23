@@ -432,6 +432,19 @@ describe("Claude Code's images", () => {
   it("counts none in an empty box", () => {
     expect(box.images!.attached(screenOf(rule, "❯ ", rule, "  ? for shortcuts"))).toBe(0)
   })
+
+  it("counts one the box wrapped after the words, its two halves on two rows", () => {
+    // Pasted after words that nearly fill a row, the placeholder breaks at its space
+    // (probed 2026-11-23, 2.1.330, 120 columns, words pasted first and then the path).
+    const screen = screenOf(
+      rule,
+      "❯ why some of messages stretch farther? [Image",
+      "  #1]",
+      rule,
+      "  ⏵⏵ auto mode on (shift+tab to cycle)",
+    )
+    expect(box.images!.attached(screen)).toBe(1)
+  })
 })
 
 describe("the doorbell's line landing beside a feedback draft's card", () => {

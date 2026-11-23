@@ -90,6 +90,11 @@ describe("inBox", () => {
     expect(inBox("> earlier thought deploy now", ["deploy now"])).toBe(true)
   })
 
+  it("finds words beside an image's placeholder the box wrapped between its two words", () => {
+    expect(inBox("> look at this [Image\n  #1]", ["look at this "], 1)).toBe(true)
+    expect(inBox("> [Image\n  #1]", [], 1)).toBe(true)
+  })
+
   it("does not find other words, or any in an empty prompt", () => {
     expect(inBox("> deploy now", ["deploy later"])).toBe(false)
     expect(inBox("> deploy now", [])).toBe(false)

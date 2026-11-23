@@ -7,8 +7,13 @@ export const compact = (text: string): string => text.replace(/\s+/g, "")
 // leave a ZWJ family sequence blank, so a box's text is compared without them.
 const pictures = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f/gu
 
-/** A placeholder a program shows for a pasted image file: `[Image #1]`. */
-const mark = /\[Image #?\d+\]/g
+/**
+ * A placeholder a program shows for a pasted image file: `[Image #1]`. A box wraps its words
+ * at a space, so one late on a row may show as `[Image` there and `#1]` on the next (Claude
+ * Code 2.1.330, after the words of a 120-column box): any white space between counts. Use it
+ * with `match`, `matchAll` or `replace`, which start it over, never `test`.
+ */
+export const imageMark = /\[Image\s+#?\d+\]/g
 
 /**
  * A box's text without the placeholders of images (`[Image #1] words`, or among the words,
@@ -16,12 +21,12 @@ const mark = /\[Image #?\d+\]/g
  * loses the white space they leave at its start.
  */
 export const withoutImages = (text: string): string => {
-  const bare = text.replace(mark, "")
-  return /^\s*\[Image #?\d+\]/.test(text) ? bare.trimStart() : bare
+  const bare = text.replace(imageMark, "")
+  return /^\s*\[Image\s+#?\d+\]/.test(text) ? bare.trimStart() : bare
 }
 
 /** How many placeholders of images a box's text holds, wherever they stand. */
-export const imageCount = (text: string): number => text.match(mark)?.length ?? 0
+export const imageCount = (text: string): number => text.match(imageMark)?.length ?? 0
 
 /** Whether a box's text holds the placeholder of an image (see `withoutImages`). */
 export const hasImages = (text: string): boolean => imageCount(text) > 0

@@ -27,6 +27,14 @@ describe("the images in a box's text", () => {
     expect(splitImages("Look at [Image #1]")).toMatchObject({ words: "Look at", places: [6] })
   })
 
+  it("finds a placeholder the box wrapped between its two words", () => {
+    expect(splitImages("Look at\n  this [Image\n  #1]")).toEqual({
+      words: "Look at\n  this",
+      marks: 1,
+      places: [10],
+    })
+  })
+
   it("tells words with no placeholder in them", () => {
     expect(splitImages("plain words")).toEqual({ words: "plain words", marks: 0, places: [] })
   })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { endsText, sameText, withoutImages, wrappedRows } from "./text.js"
+import { endsText, imageCount, sameText, withoutImages, wrappedRows } from "./text.js"
 
 describe("sameText and endsText", () => {
   it("ignore whitespace the program wrapped or indented anywhere", () => {
@@ -46,5 +46,18 @@ describe("withoutImages", () => {
     expect(withoutImages("[Image #1]")).toBe("")
     expect(withoutImages("Look at [Image #1]")).toBe("Look at ")
     expect(withoutImages("See this: [Image #1] and fix it")).toBe("See this:  and fix it")
+  })
+
+  it("takes off a placeholder the box wrapped between its two words", () => {
+    expect(withoutImages("why do they stretch? [Image\n  #1]")).toBe("why do they stretch? ")
+    expect(withoutImages("[Image\n#1] Compare them")).toBe("Compare them")
+  })
+})
+
+describe("imageCount", () => {
+  it("counts placeholders, one the box wrapped between its two words too", () => {
+    expect(imageCount("[Image #1] look at [Image #2]")).toBe(2)
+    expect(imageCount("why do they stretch? [Image\n  #1]")).toBe(1)
+    expect(imageCount("no images here")).toBe(0)
   })
 })

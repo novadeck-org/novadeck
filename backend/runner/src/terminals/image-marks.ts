@@ -1,5 +1,4 @@
-/** The placeholder a harness shows for a pasted image, `[Image #N]`. */
-const mark = /\[Image #?\d+\]/g
+import { imageMark } from "@novadeck/tui-input/box"
 
 /** A text without its white space: where a mark stood is told by what came before it, so that a box's own spacing around one doesn't count. */
 export const compactLength = (text: string): number => text.replace(/\s+/g, "").length
@@ -30,7 +29,7 @@ export const splitImages = (text: string): Marked => {
   let before = 0
   let words = ""
   let from = 0
-  for (const found of text.matchAll(mark)) {
+  for (const found of text.matchAll(imageMark)) {
     const run = text.slice(from, found.index)
     words += run
     before += compactLength(run)

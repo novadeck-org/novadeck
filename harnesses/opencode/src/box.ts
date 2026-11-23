@@ -6,6 +6,7 @@ import { cmdJoined } from "@novadeck/harness-core/cmd-lines"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   compact,
+  imageCount,
   isEmpty,
   pause,
   type BoxProfile,
@@ -167,7 +168,7 @@ const emptyBox = (): string => "\x03"
  * a row's, chips and all, so erasing the rows empties it.
  */
 const images: ProfileImages = {
-  attached: (screen) => read(screen)?.text.match(/\[Image \d+\]/g)?.length ?? 0,
+  attached: (screen) => imageCount(read(screen)?.text ?? ""),
   alone: true,
   discard: (screen) => {
     const box = read(screen)

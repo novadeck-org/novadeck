@@ -1,6 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { compact, endsText } from "./text.js"
+import { compact, endsText, imageCount } from "./text.js"
 
 /**
  * What a program's input box holds, as a profile reads it off the screen. Only a profile
@@ -306,7 +306,7 @@ export type ProfileImages = {
 export const placeholderImages = (
   read: (screen: ScreenText) => InputBox | undefined,
 ): ProfileImages => ({
-  attached: (screen) => read(screen)?.text.match(/\[Image #\d+\]/g)?.length ?? 0,
+  attached: (screen) => imageCount(read(screen)?.text ?? ""),
   alone: true,
   discard: (screen) => {
     const box = read(screen)
