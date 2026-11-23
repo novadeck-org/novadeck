@@ -123,7 +123,23 @@ describe("servesValue", () => {
   it("takes a value with no mark, and one of an unmarked place", () => {
     expect(asks("harness", "claude", 1)).toBe(true)
     expect(asks("plain", "x", 1)).toBe(true)
-    expect(asks("missing", "x", 1)).toBe(true)
+  })
+
+  it("fails closed for a place the input doesn't have, a typo included", () => {
+    expect(asks("missing", "opencode", 1)).toBe(false)
+    expect(asks("harnes", "opencode", 99)).toBe(false)
+    expect(asks("harness.deeper", "opencode", 99)).toBe(false)
+  })
+
+  it("says no when any variant that has the place marks the value newer", () => {
+    const union = z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("a"), model: z.enum(["x", "y"]) }),
+      z.strictObject({ kind: z.literal("b"), model: marked(z.enum(["x", "y"]), { y: 7 }) }),
+    ])
+    const unions = { p: { q: oc.input(union).output(type<string>()) } }
+    expect(servesValue(unions, ["p", "q"], "model", "y", 6)).toBe(false)
+    expect(servesValue(unions, ["p", "q"], "model", "y", 7)).toBe(true)
+    expect(servesValue(unions, ["p", "q"], "model", "x", 1)).toBe(true)
   })
 
   it("reads through optional and nullable wrappers", () => {
@@ -179,6 +195,46 @@ describe("gated, reading inputs", () => {
     const plain = input({ later: undefined, nested: { choice: { kind: "a" } } })
     await expect(gated(client, inputs, 1).agents.open(plain)).resolves.toBe(plain)
     expect(await gated(client, inputs, 1).agents.list()).toBe("ok")
+  })
+
+  it("passes an absent or null value at a wrapper while a guard is on", async () => {
+    const old = gated(client, inputs, 6)
+    const given = input({ later: undefined, maybe: null, nested: undefined })
+    await expect(old.agents.open(given)).resolves.toBe(given)
+  })
+
+  it("ends on an input that holds itself, by a getter or a lazy schema", async () => {
+    const node: z.ZodObject<z.ZodRawShape> = z.object({
+      h: harness.optional(),
+      get kids() {
+        return z.array(node).optional()
+      },
+    })
+    const lazy: z.ZodType = z.lazy(() =>
+      z.object({ h: harness.optional(), kids: z.array(lazy).optional() }),
+    )
+    const bare: z.ZodObject<z.ZodRawShape> = z.object({
+      x: z.string().optional(),
+      get kids() {
+        return z.array(bare).optional()
+      },
+    })
+    const deep = { kids: [{ kids: [{ h: "opencode" }] }] }
+    const echo = { p: { q: (i: unknown) => Promise.resolve(i) } }
+    const kids = { kids: [{ h: "claude" }] }
+    await Promise.all(
+      [node, lazy].map(async (schema) => {
+        const recursive = { p: { q: oc.input(schema).output(type<string>()) } }
+        await expect(gated(echo, recursive, 6).p.q(deep)).rejects.toMatchObject({
+          code: "UNSUPPORTED",
+        })
+        await expect(gated(echo, recursive, 6).p.q(kids)).resolves.toBe(kids)
+        await expect(gated(echo, recursive, 7).p.q(deep)).resolves.toBe(deep)
+      }),
+    )
+    // With no mark inside it is walked all the same, and the client stays as it is.
+    const plain = { p: { q: () => Promise.resolve("ok") } }
+    expect(gated(plain, { p: { q: oc.input(bare).output(type<string>()) } }, 1)).toBe(plain)
   })
 
   it("returns the client as it is once the server takes every marked value", () => {

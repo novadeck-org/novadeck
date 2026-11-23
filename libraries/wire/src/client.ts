@@ -14,7 +14,7 @@ export {
   type RestartResume,
 } from "./follow.js"
 export { brokeredPort } from "./page.js"
-export { serves, servesValue, type Outputs } from "./since.js"
+export { gated, serves, servesValue, type Outputs } from "./since.js"
 export { messagePort, websocket, type Transport } from "./transport.js"
 export type { Watching } from "./watched.js"
 export { createWireClient } from "./wire-client.js"

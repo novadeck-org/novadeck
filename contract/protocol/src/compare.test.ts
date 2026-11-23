@@ -421,7 +421,7 @@ describe("input values marked since", () => {
     const verdict = compare(after)
     expect(verdict.findings).toEqual([])
     expect(verdict.problems).toEqual([])
-    expect(verdict.gated).toEqual(['agents.open input/harness "opencode" since 7'])
+    expect(verdict.gated).toEqual(['agents.open harness "opencode" since 7'])
   })
 
   it("pass in a nullable enum", () => {
@@ -431,7 +431,7 @@ describe("input values marked since", () => {
     const before = harnesses(z.enum(["claude", "codex"]).nullable())
     const verdict = judgeContract(snap(before, window(3, 3, 2)), snap(after, window(7, 3, 2)))
     expect(verdict.findings).toEqual([])
-    expect(verdict.gated).toEqual(['agents.open input/harness "opencode" since 7'])
+    expect(verdict.gated).toEqual(['agents.open harness "opencode" since 7'])
   })
 
   it("refuse an unmarked new value, as before", () => {
@@ -479,23 +479,83 @@ describe("input values marked since", () => {
   it("refuse a mark past the revision", () => {
     const after = harnesses(inputEnum(["claude", "codex", "opencode"], { since: { opencode: 9 } }))
     expect(compare(after, window(7, 3, 2)).problems).toEqual([
-      'agents.open input/harness "opencode" is marked since 9, past the revision (7).',
+      'agents.open harness "opencode" is marked since 9, past the revision (7).',
     ])
   })
 
+  const union = (variants: string[], since: Record<string, number>) =>
+    harnesses(
+      inputUnion(
+        "kind",
+        variants.map((kind) => z.strictObject({ kind: z.literal(kind) })) as never,
+        { since },
+      ),
+    )
+
+  it("hold a released variant's mark as it was, and refuse one past the revision", () => {
+    const release = snap(union(["a", "b", "c"], { c: 7 }), window(7, 3, 2))
+    const check = (after: object) =>
+      judgeContract(release, snap(after, window(8, 3, 2))).findings.map(({ reason }) => reason)
+    expect(check(union(["a", "b", "c"], { c: 7 }))).toEqual([])
+    expect(check(union(["a", "b", "c"], { c: 8 }))).toEqual([
+      'changed or lost the since mark a release had on "c"',
+    ])
+    expect(check(union(["a", "b", "c"], {}))).toEqual([
+      'changed or lost the since mark a release had on "c"',
+    ])
+    const before = snap(union(["a", "b"], {}), window(3, 3, 2))
+    expect(
+      judgeContract(before, snap(union(["a", "b", "c"], { c: 9 }), window(7, 3, 2))).problems,
+    ).toEqual(['agents.open harness "c" is marked since 9, past the revision (7).'])
+  })
+
+  it("keep each mark of a contract apart before judging it against the revision", () => {
+    const after = harnesses(
+      z.array(inputEnum(["claude", "codex", "a", "b"], { since: { a: 9, b: 7 } })),
+    )
+    const before = harnesses(z.array(z.enum(["claude", "codex"])))
+    const verdict = judgeContract(snap(before, window(3, 3, 2)), snap(after, window(7, 3, 2)))
+    expect(verdict.gated).toEqual([
+      'agents.open harness.* "a" since 9',
+      'agents.open harness.* "b" since 7',
+    ])
+    expect(verdict.problems).toEqual([
+      'agents.open harness.* "a" is marked since 9, past the revision (7).',
+    ])
+  })
+
+  it("refuse a mark that names a value or variant the schema doesn't take", () => {
+    const after = harnesses(
+      inputEnum(["claude", "codex", "opencode"], { since: { opencode: 7, nope: 7 } as never }),
+    )
+    expect(runner(after).map(({ reason }) => reason)).toEqual([
+      'marks "nope", which it doesn\'t take',
+    ])
+    const before = snap(union(["a", "b"], {}), window(3, 3, 2))
+    const found = judgeContract(
+      before,
+      snap(union(["a", "b", "c"], { c: 7, nope: 7 }), window(7, 3, 2)),
+    )
+    expect(found.findings.map(({ reason }) => reason)).toEqual([
+      'marks "nope", which it doesn\'t take',
+    ])
+  })
+
+  it("count a union of constants as one set of released values", () => {
+    const literals = (...values: string[]) =>
+      harnesses(z.union(values.map((value) => z.literal(value)) as never))
+    const before = snap(literals("claude", "codex"), window(3, 3, 2))
+    const after = harnesses(inputEnum(["claude", "codex", "opencode"], { since: { opencode: 7 } }))
+    const verdict = judgeContract(before, snap(after, window(7, 3, 2)))
+    expect(verdict.findings).toEqual([])
+    expect(verdict.gated).toEqual(['agents.open harness "opencode" since 7'])
+  })
+
   it("let a union input gain a marked variant, and refuse an unmarked one", () => {
-    const union = (variants: string[], since: Record<string, number>) =>
-      harnesses(
-        inputUnion(
-          "kind",
-          variants.map((kind) => z.strictObject({ kind: z.literal(kind) })) as never,
-          { since },
-        ),
-      )
     const before = snap(union(["a", "b"], {}), window(3, 3, 2))
     const marked = judgeContract(before, snap(union(["a", "b", "c"], { c: 7 }), window(7, 3, 2)))
     expect(marked.findings).toEqual([])
-    expect(marked.gated).toEqual(['agents.open input/harness "c" since 7'])
+    expect(marked.gated).toEqual(['agents.open harness "c" since 7'])
     const unmarked = judgeContract(before, snap(union(["a", "b", "c"], {}), window(7, 3, 2)))
     expect(unmarked.findings.map(({ reason }) => reason)).toEqual([
       'adds the "c" variant of "kind"',
@@ -586,6 +646,50 @@ describe("judgeReleases", () => {
     expect(verdict.older.map(({ ref }) => ref)).toEqual(["v1.2.0"])
     expect(verdict.problems).toHaveLength(2)
     expect(verdict.problems[0]).toMatch(/UIs of revision 2 \(v1.2.0\) behind/)
+  })
+
+  describe("with a value marked since", () => {
+    const harness = (schema: z.ZodType) => ({
+      agents: { open: call.input(z.strictObject({ harness: schema })).output(z.void()) },
+    })
+    const at = (schema: z.ZodType, revision: number) =>
+      snap(harness(schema), window(revision, 2, 2))
+
+    it("takes a mark against each older release still in the window", () => {
+      const verdict = judgeReleases(
+        [
+          { ref: "v1.4.0", contract: at(z.enum(["claude"]), 4) },
+          { ref: "v1.3.0", contract: at(z.enum(["claude"]), 3) },
+        ],
+        at(inputEnum(["claude", "opencode"], { since: { opencode: 5 } }), 5),
+      )
+      expect(verdict.problems).toEqual([])
+      expect(verdict.older).toEqual([])
+      expect(verdict.gated).toEqual(['agents.open harness "opencode" since 5'])
+    })
+
+    it("lets a value removed and added back be marked while an older release that had it is in the window", () => {
+      // v1.3.0 had codex, v1.4.0 dropped it, and this adds it back, marked.
+      const verdict = judgeReleases(
+        [
+          { ref: "v1.4.0", contract: at(z.enum(["claude"]), 4) },
+          { ref: "v1.3.0", contract: at(z.enum(["claude", "codex"]), 3) },
+        ],
+        at(inputEnum(["claude", "codex"], { since: { codex: 5 } }), 5),
+      )
+      expect(verdict.problems).toEqual([])
+      expect(verdict.gated).toEqual(['agents.open harness "codex" since 5'])
+    })
+
+    it("still refuses a mark on a value the newest release had", () => {
+      const verdict = judgeReleases(
+        [{ ref: "v1.4.0", contract: at(z.enum(["claude", "codex"]), 4) }],
+        at(inputEnum(["claude", "codex"], { since: { codex: 5 } }), 5),
+      )
+      // The mark is on a value the release had: no gating, and the check says so.
+      expect(verdict.gated).toEqual([])
+      expect(verdict.problems).toHaveLength(1)
+    })
   })
 
   it("passes once the window has moved past that release", () => {

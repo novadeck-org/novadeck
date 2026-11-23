@@ -42,7 +42,7 @@ const defOf = (schema: unknown): Def =>
 // The revisions an input enum's values, or a discriminated union's variants, came in, which
 // `inputEnum` and `inputUnion` (`@novadeck/protocol`) put in the schema's meta.
 const marksOf = (schema: unknown): Readonly<Record<string, number>> | undefined => {
-  const meta = (schema as { meta?: () => Record<string, unknown> | undefined }).meta?.()
+  const meta = (schema as { meta?: () => Record<string, unknown> | undefined } | null)?.meta?.()
   const mark = meta?.["x-since"]
   return isNode(mark) ? (mark as Readonly<Record<string, number>>) : undefined
 }
@@ -61,34 +61,52 @@ const wrappers = new Set([
 const optionsOf = (def: Def): readonly unknown[] =>
   def.type === "union" && Array.isArray(def.options) ? (def.options as unknown[]) : []
 
-// What `key` of an input's schema holds: an object's key, `*` for a list's items or a record's
-// values, through optional and nullable wrappers and a union's options. The wrappers it passed
-// come with it, as a mark may sit on any.
-const descend = (schema: unknown, key: string): unknown => {
+const lazyOf = (def: Def): unknown => (def.getter as () => unknown)()
+
+// The schemas `schema` is, as a value meets it: itself, what a wrapper, a pipe or a lazy schema
+// holds, and every option of a union and part of an intersection, each with its own marks.
+const viewsOf = (schema: unknown, seen = new Set<unknown>()): unknown[] => {
+  if (seen.has(schema)) return []
+  seen.add(schema)
   const def = defOf(schema)
-  if (wrappers.has(def.type)) return descend(def.innerType, key)
-  if (def.type === "pipe") return descend(def.in, key)
-  if (def.type === "lazy") return descend((def.getter as () => unknown)(), key)
-  if (def.type === "array") return key === "*" ? def.element : undefined
-  if (def.type === "record") return key === "*" ? def.valueType : undefined
-  if (def.type === "object") return isNode(def.shape) ? def.shape[key] : undefined
-  for (const option of optionsOf(def)) {
-    const found = descend(option, key)
-    if (found !== undefined) return found
-  }
-  return undefined
+  const inner: readonly unknown[] =
+    def.type === "pipe"
+      ? [def.in]
+      : def.type === "lazy"
+        ? [lazyOf(def)]
+        : def.type === "intersection"
+          ? [def.left, def.right]
+          : wrappers.has(def.type)
+            ? [def.innerType]
+            : optionsOf(def)
+  return [schema, ...inner.flatMap((each) => viewsOf(each, seen))]
 }
 
-// The mark of the enum or union `schema` is, through its wrappers.
-const markThrough = (schema: unknown): Readonly<Record<string, number>> | undefined => {
-  const def = defOf(schema)
-  const own = marksOf(schema)
-  if (own) return own
-  if (wrappers.has(def.type)) return markThrough(def.innerType)
-  if (def.type === "pipe") return markThrough(def.in)
-  if (def.type === "lazy") return markThrough((def.getter as () => unknown)())
-  return undefined
-}
+// What `key` holds in `schema`: an object's key; `*` for a list's or tuple's items, a record's
+// values and keys, and an object's keys its shape doesn't name (its catchall).
+const reach = (schema: unknown, key: string): unknown[] =>
+  viewsOf(schema)
+    .flatMap((view) => {
+      const def = defOf(view)
+      switch (def.type) {
+        case "array":
+          return key === "*" ? [def.element] : []
+        case "tuple":
+          return key === "*" ? [...((def.items as unknown[]) ?? []), def.rest] : []
+        case "record":
+          return key === "*" ? [def.valueType, def.keyType] : []
+        case "object": {
+          const named = isNode(def.shape) ? def.shape[key] : undefined
+          // A strict object's catchall is `never`, which takes no key.
+          return named === undefined && defOf(def.catchall).type !== "never"
+            ? [def.catchall]
+            : [named]
+        }
+        default:
+          return []
+      }
+    })
+    .filter((each) => each != null)
 
 const inputSchemaOf = (procedure: unknown): unknown =>
   (procedure as { readonly "~orpc": { readonly inputSchema?: unknown } })["~orpc"].inputSchema
@@ -96,10 +114,12 @@ const inputSchemaOf = (procedure: unknown): unknown =>
 /**
  * Whether a server of `revision` takes `value` at `at` of the input of the procedure at `path`:
  * not one an input enum or union marks as new since a later revision (`inputEnum`,
- * `inputUnion`). `at` names keys of the input with `.` between them, `*` for a list's items,
- * `"harness"` or `"options.harnesses.*"`; for a union, `value` is the variant's tag value. A
- * value with no mark, or a place the input doesn't have, is taken; a procedure the contract
- * lacks isn't.
+ * `inputUnion`), in any of the places `at` reaches. `at` names keys of the input with `.`
+ * between them, `*` for a list's or tuple's items and a record's values and keys (or the
+ * keys an object's catchall takes): `"harness"`, `"options.harnesses.*"`. It is the `at` a
+ * gated line of the compatibility check prints. For a union, `value` is the variant's tag
+ * value. A value with no mark is taken; a procedure the contract lacks, or an `at` the input
+ * doesn't have, isn't, so a mistyped place fails closed.
  */
 export const servesValue = (
   contract: unknown,
@@ -110,13 +130,16 @@ export const servesValue = (
 ): boolean => {
   const procedure = procedureAt(contract, path)
   if (procedure === undefined) return false
-  let node = inputSchemaOf(procedure)
-  for (const key of at === "" ? [] : at.split(".")) {
-    if (node === undefined) return true
-    node = descend(node, key)
-  }
-  const since = node === undefined ? undefined : markThrough(node)?.[value]
-  return typeof since !== "number" || since <= revision
+  let nodes: unknown[] = [inputSchemaOf(procedure)].filter((each) => each !== undefined)
+  for (const key of at === "" ? [] : at.split("."))
+    nodes = nodes.flatMap((node) => reach(node, key))
+  if (nodes.length === 0) return false
+  return nodes
+    .flatMap((node) => viewsOf(node))
+    .every((view) => {
+      const since = marksOf(view)?.[value]
+      return typeof since !== "number" || since <= revision
+    })
 }
 
 type Violation = { readonly at: string; readonly value: string; readonly since: number }
@@ -127,101 +150,139 @@ type Guard = { readonly check: Check; readonly newest: number }
 const record = (value: unknown): Record<string, unknown> | undefined =>
   isNode(value) && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
 
+// The values a schema's `tag` key takes: a literal's or an enum's, through a nested union's
+// options.
+const tagsOf = (option: unknown, tag: string): readonly unknown[] => {
+  const def = defOf(option)
+  if (def.type === "union") return optionsOf(def).flatMap((each) => tagsOf(each, tag))
+  const field = record(def.shape)?.[tag]
+  if (field === undefined) return []
+  const tagDef = defOf(field)
+  if (tagDef.type === "enum") return Object.values(record(tagDef.entries) ?? {})
+  return Array.isArray(tagDef.values) ? tagDef.values : []
+}
+
+const firstOf = (checks: readonly Check[]): Check | undefined =>
+  checks.length === 0
+    ? undefined
+    : (value, revision, at) => {
+        for (const check of checks) {
+          const found = check(value, revision, at)
+          if (found) return found
+        }
+        return undefined
+      }
+
 // How to find, in an input of `schema`, a value marked new since a revision later than a
-// server's; `undefined` when the schema marks none. A schema that meets itself again is
-// walked once.
+// server's; `undefined` when the schema marks none. Every schema is walked once, so one that
+// meets itself again, by a getter or a lazy schema, ends there.
 const checkerOf = (schema: unknown): Guard | undefined => {
   let latest = 0
-  const making = new Map<unknown, { check: Check | undefined }>()
+  const made = new Map<unknown, { check: Check | undefined }>()
 
   const make = (node: unknown): Check | undefined => {
-    const pending = making.get(node)
-    if (pending) return (value, revision, at) => pending.check?.(value, revision, at)
-    const def = defOf(node)
-    const mark = marksOf(node)
-    if (def.type === "enum") return mark && markCheck(mark, (value) => value)
-    if (def.type === "union" && typeof def.discriminator === "string")
-      return variantCheck(def, def.discriminator, mark)
-    if (wrappers.has(def.type)) {
-      const inner = make(def.innerType)
-      return (
-        inner && ((value, revision, at) => (value == null ? undefined : inner(value, revision, at)))
-      )
-    }
-    switch (def.type) {
-      case "pipe":
-        return make(def.in)
-      case "lazy": {
-        const slot: { check: Check | undefined } = { check: undefined }
-        making.set(node, slot)
-        slot.check = make((def.getter as () => unknown)())
-        return slot.check
-      }
-      case "object": {
-        const fields = Object.entries(record(def.shape) ?? {}).flatMap(([key, field]) => {
-          const check = make(field)
-          return check ? [[key, check] as const] : []
-        })
-        if (fields.length === 0) return undefined
-        return (value, revision, at) => {
-          const given = record(value)
-          if (!given) return undefined
-          for (const [key, check] of fields) {
-            if (!(key in given)) continue
-            const found = check(given[key], revision, [...at, key])
-            if (found) return found
-          }
-          return undefined
-        }
-      }
-      case "array": {
-        const item = make(def.element)
-        return (
-          item &&
-          ((value, revision, at) =>
-            Array.isArray(value) ? first(value, item, revision, at) : undefined)
-        )
-      }
-      case "record": {
-        const item = make(def.valueType)
-        return (
-          item &&
-          ((value, revision, at) => {
-            const given = record(value)
-            return given ? first(Object.values(given), item, revision, at) : undefined
-          })
-        )
-      }
-      case "union": {
-        const checks = optionsOf(def).flatMap((option) => {
-          const check = make(option)
-          return check ? [check] : []
-        })
-        if (checks.length === 0) return undefined
-        return (value, revision, at) => {
-          for (const check of checks) {
-            const found = check(value, revision, at)
-            if (found) return found
-          }
-          return undefined
-        }
-      }
-      default:
-        return undefined
-    }
+    const known = made.get(node)
+    if (known) return (value, revision, at) => known.check?.(value, revision, at)
+    const slot: { check: Check | undefined } = { check: undefined }
+    made.set(node, slot)
+    slot.check = build(node)
+    return slot.check
   }
 
-  const first = (
-    items: readonly unknown[],
-    check: Check,
-    revision: number,
-    at: readonly string[],
-  ) => {
-    for (const item of items) {
-      const found = check(item, revision, [...at, "*"])
-      if (found) return found
+  const items = (nodes: readonly unknown[]): Check | undefined => {
+    const checks = nodes.flatMap((node) => {
+      const check = make(node)
+      return check ? [check] : []
+    })
+    const each = firstOf(checks)
+    return (
+      each &&
+      ((value, revision, at) => {
+        const given = Array.isArray(value)
+          ? value
+          : (record(value) && Object.values(record(value)!)) || []
+        for (const item of given) {
+          const found = each(item, revision, [...at, "*"])
+          if (found) return found
+        }
+        return undefined
+      })
+    )
+  }
+
+  const build = (node: unknown): Check | undefined => {
+    const def = defOf(node)
+    const mark = marksOf(node)
+    const tag =
+      def.type === "union" && typeof def.discriminator === "string" ? def.discriminator : undefined
+    const own =
+      mark &&
+      markCheck(mark, tag === undefined ? (value) => value : (value) => record(value)?.[tag])
+    const checks: Check[] = own ? [own] : []
+    const add = (check: Check | undefined) => {
+      if (check) checks.push(check)
     }
-    return undefined
+    if (wrappers.has(def.type)) {
+      const inner = make(def.innerType)
+      add(
+        inner &&
+          ((value, revision, at) => (value == null ? undefined : inner(value, revision, at))),
+      )
+    } else if (def.type === "pipe") add(make(def.in))
+    else if (def.type === "lazy") add(make(lazyOf(def)))
+    else if (def.type === "intersection")
+      add(firstOf([def.left, def.right].flatMap((each) => make(each) ?? [])))
+    else if (def.type === "object") {
+      const fields = Object.entries(record(def.shape) ?? {}).flatMap(([key, field]) => {
+        const check = make(field)
+        return check ? [[key, check] as const] : []
+      })
+      const rest = def.catchall === undefined ? undefined : make(def.catchall)
+      if (fields.length > 0 || rest)
+        add((value, revision, at) => {
+          const given = record(value)
+          if (!given) return undefined
+          for (const [key, each] of Object.entries(given)) {
+            const field = fields.find(([name]) => name === key)
+            const check = field ? field[1] : rest
+            const found = check?.(each, revision, [...at, field ? key : "*"])
+            if (found) return found
+          }
+          return undefined
+        })
+    } else if (def.type === "array") add(items([def.element]))
+    else if (def.type === "tuple")
+      add(items([...((def.items as unknown[]) ?? []), def.rest].filter((each) => each != null)))
+    else if (def.type === "record") {
+      // A record's keys are checked as its values are, each at `*`.
+      const key = make(def.keyType)
+      add(
+        key &&
+          ((value, revision, at) => {
+            for (const name of Object.keys(record(value) ?? {})) {
+              const found = key(name, revision, [...at, "*"])
+              if (found) return found
+            }
+            return undefined
+          }),
+      )
+      add(items([def.valueType]))
+    } else if (tag !== undefined) {
+      // A union told apart by `tag`: each option's marks, where the value is of that option.
+      const byTag = new Map<unknown, Check[]>()
+      for (const option of optionsOf(def)) {
+        const check = make(option)
+        if (check)
+          for (const each of tagsOf(option, tag))
+            byTag.set(each, [...(byTag.get(each) ?? []), check])
+      }
+      if (byTag.size > 0)
+        add((value, revision, at) =>
+          firstOf(byTag.get(record(value)?.[tag]) ?? [])?.(value, revision, at),
+        )
+    } else if (def.type === "union")
+      add(firstOf(optionsOf(def).flatMap((each) => make(each) ?? [])))
+    return firstOf(checks)
   }
 
   const markCheck = (
@@ -236,26 +297,6 @@ const checkerOf = (schema: unknown): Guard | undefined => {
         ? { at: at.join("."), value: name as string, since }
         : undefined
     }
-  }
-
-  // A union told apart by `tag`: its own mark on a variant, and each variant's own marks where
-  // the value is of that variant.
-  const variantCheck = (
-    def: Def,
-    tag: string,
-    mark: Readonly<Record<string, number>> | undefined,
-  ): Check | undefined => {
-    const own = mark && markCheck(mark, (value) => record(value)?.[tag])
-    const byTag = new Map<unknown, Check>()
-    for (const option of optionsOf(def)) {
-      const check = make(option)
-      const literal = record(defOf(option).shape)?.[tag]
-      const values = literal === undefined ? undefined : defOf(literal).values
-      if (check && Array.isArray(values)) for (const each of values) byTag.set(each, check)
-    }
-    if (!own && byTag.size === 0) return undefined
-    return (value, revision, at) =>
-      own?.(value, revision, at) ?? byTag.get(record(value)?.[tag])?.(value, revision, at)
   }
 
   const check = make(schema)

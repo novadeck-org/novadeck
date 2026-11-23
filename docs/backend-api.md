@@ -774,12 +774,18 @@ A new value of an input enum, or a new variant of an input union, can name the r
 in (`inputEnum(values, { since: { opencode: 7 } })`, `inputUnion(tag, options, { since: { <tag
 value>: 7 } })` in `contract/protocol/src/open.ts`; `x-since` in `contract.json`). The types stay
 the plain enum and union. The check then takes the value as additive and lists it as new, for UIs
-to ask for, without moving `oldestRunner`; it fails an unmarked new value, a mark on a value the
-release already had, a released mark changed or dropped, and a mark past the revision. A UI asks
-`runner.supports(path, { at, value })` before it offers the value: `at` names the input's keys
-with `.` between them (`*` for a list's items), and `value` is the enum value or the variant's
-tag value. A call whose input holds a value the runner predates rejects with `UNSUPPORTED`
-without asking the runner.
+to ask for, without moving `oldestRunner`: a line such as `agents.open harness "opencode" since 7`,
+where `harness` is the `at` to pass. It fails an unmarked new value, a mark on a value the newest
+release already had, a released mark changed or dropped, a mark past the revision, and a mark
+naming a value the schema doesn't take. A UI asks `runner.supports(path, { at, value })` before it
+offers the value: `at` names the input's keys with `.` between them, `*` for a list's or tuple's
+items and a record's values and keys (`list.*.harness`), and `value` is the enum value or the
+variant's tag value. It answers no when any place `at` reaches marks the value newer than the
+runner, and for an `at` the input doesn't have. A call whose input holds such a value in any
+place of the input (keys, items, records, tuples, intersections, catchalls, nested unions)
+rejects with `UNSUPPORTED` without asking the runner. Don't mark values inside a plain union,
+only a discriminated one. An enum an output shares still needs `openEnum` for that side, and
+moves `oldestClient` as before.
 
 #### Open schemas
 

@@ -61,7 +61,7 @@ describe("main", () => {
     it("passes one marked since a later revision, and lists it for UIs to ask for", async () => {
       const { code, out } = await check([], sources(written, withAgent({ opencode: next })))
       expect(code).toBe(0)
-      expect(out).toContain(`agents.set input/agent "opencode" since ${next}`)
+      expect(out).toContain(`agents.set agent "opencode" since ${next}`)
     })
 
     it("fails one left unmarked", async () => {
