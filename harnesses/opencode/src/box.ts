@@ -162,7 +162,8 @@ const images: ProfileImages = {
  * and `touch f2.txt` on two lines made a file `f1.txtntouch`; the same lines inside `printf '%b'`
  * as `\n` did too), so a command of several lines goes as one line with no backslash in it: its
  * text in base64, which the shell decodes and evaluates, `eval "$(printf %s '<base64>' | base64 -d)"`.
- * Where its shell is not sh (Windows) none can be given.
+ * On Windows its shell is PowerShell (it takes pwsh, then powershell, which Windows always has,
+ * before Git Bash or cmd: core/src/shell.ts, 1.19.6), which decodes and runs it the same way.
  */
 export const shellCommandOf = (
   command: string,
@@ -170,8 +171,10 @@ export const shellCommandOf = (
 ): string | undefined => {
   const lines = command.replaceAll("\r\n", "\n").replace(/\n+$/, "").split("\n")
   if (lines.length < 2) return command.trim()
-  if (platform === "win32") return undefined
-  return `eval "$(printf %s '${Buffer.from(lines.join("\n")).toString("base64")}' | base64 -d)"`
+  const encoded = Buffer.from(lines.join("\n")).toString("base64")
+  if (platform === "win32")
+    return `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))`
+  return `eval "$(printf %s '${encoded}' | base64 -d)"`
 }
 
 /**

@@ -294,6 +294,31 @@ describe("a plan", () => {
     ])
   })
 
+  it("takes the file the plugin resolved where it gives one, a Windows path too", () => {
+    const told = decoded("QuestionRequest", {
+      session_id: root,
+      request_id: "que_1",
+      tool_name: "plan_exit",
+      cwd,
+      plan_file: "C:\\Users\\person\\.local\\share\\opencode\\plans\\1-calm-fox.md",
+      questions: [
+        {
+          question:
+            "Plan at ..\\..\\.local\\share\\opencode\\plans\\1-calm-fox.md is complete. Would you like to switch to the build agent and start implementing?",
+          header: "Build Agent",
+          options: [{ label: "Yes" }, { label: "No" }],
+        },
+      ],
+    })
+    expect(told[1]).toMatchObject({
+      type: "plan-observed",
+      plan: {
+        kind: "file",
+        path: "C:\\Users\\person\\.local\\share\\opencode\\plans\\1-calm-fox.md",
+      },
+    })
+  })
+
   it("outside a git repository names its file from the root, as opencode words it", () => {
     const [, plan] = decoded("QuestionRequest", {
       session_id: root,

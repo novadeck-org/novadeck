@@ -47,7 +47,7 @@ describe("main", () => {
       const agent = input.properties.agent!
       const grown = {
         ...agent,
-        enum: [...(agent.enum as string[]), "opencode"],
+        enum: [...(agent.enum as string[]), "grok"],
         ...(mark ? { "x-since": mark } : {}),
       }
       const properties = { ...input.properties, agent: grown }
@@ -59,15 +59,15 @@ describe("main", () => {
     }
 
     it("passes one marked since a later revision, and lists it for UIs to ask for", async () => {
-      const { code, out } = await check([], sources(written, withAgent({ opencode: next })))
+      const { code, out } = await check([], sources(written, withAgent({ grok: next })))
       expect(code).toBe(0)
-      expect(out).toContain(`agents.set agent "opencode" since ${next}`)
+      expect(out).toContain(`agents.set agent "grok" since ${next}`)
     })
 
     it("fails one left unmarked", async () => {
       const { code, out } = await check([], sources(written, withAgent(undefined)))
       expect(code).toBe(1)
-      expect(out).toContain('takes "opencode", beyond')
+      expect(out).toContain('takes "grok", beyond')
       expect(out).toContain("raise oldestRunner")
     })
   })

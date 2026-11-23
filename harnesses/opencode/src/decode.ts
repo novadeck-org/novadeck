@@ -223,7 +223,11 @@ const decodeReport = ({ event, seq, instance, payload }: Report): readonly Harne
       // Its experimental plan mode's plan_exit asks whether to build the plan it wrote, as a
       // question naming the plan's file relative to the project (tool/plan.ts, 1.19.6).
       const review = payload.tool_name === "plan_exit"
-      const file = review ? planFileOf(payload.questions, payload.worktree, payload.cwd) : undefined
+      // The plugin's own resolving first, as opencode measured it; else read from the question.
+      const file = review
+        ? (absolute(payload.plan_file) ??
+          planFileOf(payload.questions, payload.worktree, payload.cwd))
+        : undefined
       return [
         {
           type: "attention-requested",

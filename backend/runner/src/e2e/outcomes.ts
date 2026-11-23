@@ -405,9 +405,12 @@ const opencodeSteps: Variant["steps"] = (path) => [
     expected: { failed: true },
   },
   { name: "command-passes", call: () => opencodeBash("echo hello"), expected: { failed: false } },
+  // One that every shell its bash tool may run reads alike: on Windows it takes PowerShell first,
+  // then Git Bash, then cmd (core/src/shell.ts, 1.19.6), where `;` and `>&2` are another
+  // language's.
   {
     name: "command-fails",
-    call: () => opencodeBash("echo boom >&2; exit 3"),
+    call: () => opencodeBash("exit 3"),
     expected: { failed: true },
   },
   { name: "no-match", call: () => opencodeBash("grep -n zzz sample.txt") },

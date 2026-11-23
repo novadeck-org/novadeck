@@ -259,7 +259,9 @@ describe("opencode's shell command", () => {
     expect(shellCommandOf("  echo hi > f ", "linux")).toBe("echo hi > f")
     const many = shellCommandOf("echo a\necho b", "linux")!
     expect(many).not.toContain("\n")
-    expect(shellCommandOf("echo a\necho b", "win32")).toBeUndefined()
+    expect(shellCommandOf("echo a\necho b", "win32")).toBe(
+      `Invoke-Expression ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from("echo a\necho b").toString("base64")}')))`,
+    )
   })
 
   it("runs every line of one of several, quotes, backslashes and a heredoc included", () => {

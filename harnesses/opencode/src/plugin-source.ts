@@ -41,7 +41,7 @@ export const pluginSource = (config: PluginConfig): string =>
 // overwritten on each start; opencode loads it only in Novadeck's terminals, for one launch.
 import { spawn } from "node:child_process"
 import { appendFileSync, existsSync, mkdirSync, rmSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const config = ${JSON.stringify(config)}
@@ -552,17 +552,24 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
             if (props.reply === "reject" && props.sessionID) turnOf(props.sessionID).rejected = true
             report("PermissionReplied", { session_id: props.sessionID, request_id: props.requestID, reply: props.reply, root: await rootOf(props.sessionID) })
             return
-          case "question.asked":
+          case "question.asked": {
+            const tool = calls.get(props.tool?.callID) ?? null
+            // Its plan review names the plan relative to its worktree (tool/plan.ts, 1.19.6),
+            // which only this process resolves as opencode did: Windows' paths, its "/" for a
+            // folder outside git.
+            const named = /^Plan at (.+?) is complete\./.exec(props.questions?.[0]?.question ?? "")?.[1]
             report("QuestionRequest", {
               session_id: props.sessionID,
               request_id: props.id,
               questions: props.questions,
               tool: props.tool,
-              tool_name: calls.get(props.tool?.callID) ?? null,
+              tool_name: tool,
+              plan_file: tool === "plan_exit" && named && root ? resolve(root, named) : null,
               root: await rootOf(props.sessionID),
             })
-            asking.set(props.id, calls.get(props.tool?.callID) ?? null)
+            asking.set(props.id, tool)
             return
+          }
           case "question.replied":
             report("QuestionReplied", {
               session_id: props.sessionID,
