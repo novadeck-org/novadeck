@@ -1,10 +1,12 @@
+import { watchPerson } from "@novadeck/core/person"
 import { ContextMenu, type ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
 import { CircleHelp } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { readFirstUse, writeFirstUse } from "../interaction/first-use"
 
 export const helpOpenedStorageKey = "novadeck.help-opened"
+const readHelpOpened = (): boolean => readFirstUse(helpOpenedStorageKey)
 
 /**
  * The footer's Help button, after the feedback button: a chip like it, pressed while its menu is
@@ -18,7 +20,15 @@ export const FooterHelp = ({
 }: {
   readonly items: readonly ContextMenuAction[]
 }): React.JSX.Element => {
-  const [opened, setOpened] = useState(() => readFirstUse(helpOpenedStorageKey))
+  const [opened, setOpened] = useState(readHelpOpened)
+  // Opened on another device is opened (core's person.ts).
+  useEffect(
+    () =>
+      watchPerson((key) => {
+        if (key === "help-opened") setOpened(readHelpOpened())
+      }),
+    [],
+  )
   return (
     <ContextMenu
       label="Help"

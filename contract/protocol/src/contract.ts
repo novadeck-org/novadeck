@@ -46,6 +46,7 @@ import {
   maxWroteFolders,
   wroteFolder,
 } from "./companions.js"
+import { device, deviceId, deviceName, mintedDevice } from "./devices.js"
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
@@ -53,6 +54,7 @@ import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, terminalRings, threadId } from "./messages.js"
+import { preferenceChange, preferenceKey, preferenceValue } from "./preferences.js"
 import {
   checkoutState,
   checkoutUpdate,
@@ -106,6 +108,9 @@ export const errors = {
   CONTROL_REQUIRED: { status: 403 },
   // The terminal's controller wrote within the `ifIdleMs` a `terminals.take` gave: it's typing.
   CONTROL_BUSY: { status: 409 },
+  // The connection's credential doesn't let it do this, as a device minting another: only the
+  // owner's does. Unlike UNAUTHORIZED, the connection goes on.
+  FORBIDDEN: { status: 403 },
   ALREADY_ATTACHED: { status: 409 },
   SNAPSHOT_TOO_LARGE: { status: 413 },
   UPLOAD_TOO_LARGE: { status: 413 },
@@ -1041,6 +1046,52 @@ export const contract = {
     get: procedure.input(z.void()).output(runnerSettingsState),
     // Changes the settings given; the others stay.
     set: procedure.input(runnerSettings.partial()).output(z.void()),
+    // The settings as they are now, then again each time a client changes them, so every
+    // device the person uses follows. Ends with the connection.
+    watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(runnerSettingsState)),
+  },
+  // The person's own preferences, which follow them from device to device (see
+  // `preferenceChange`; docs/backend-api.md, "Preferences").
+  preferences: {
+    // Every preference kept, and the revision they are at (`writer` null).
+    get: procedure.meta({ since: 7 }).input(z.void()).output(preferenceChange),
+    // Keeps `value` as the preference `key`, or forgets it for null, as `writer` (a client
+    // instance's own short token, which `watch` passes on) changed it; resolves the new
+    // revision. Last write wins, key by key. A key past `maxPreferences` is a CONFLICT.
+    set: procedure
+      .meta({ since: 7 })
+      .input(
+        z.strictObject({
+          key: preferenceKey,
+          value: preferenceValue.nullable(),
+          writer: z.string().min(1).max(64),
+        }),
+      )
+      .output(z.strictObject({ revision: z.number().int().nonnegative() })),
+    // Every preference first, then each change: a reader slower than the changes gets each
+    // key once, as it is when it reads it. Ends with the connection.
+    watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(preferenceChange)),
+  },
+  // Devices with credentials of their own (docs/backend-api.md, "Devices"). A connection
+  // proved by the owner's token, or the desktop app's own, is the owner's; one proved by a
+  // device's credential is that device's.
+  devices: {
+    // Gives a new device its own credential, which its handshake's token then is: answered
+    // once, as the runner keeps only its hash. The owner's only (FORBIDDEN to a device);
+    // `maxDevices` not revoked at once, a CONFLICT.
+    mint: procedure
+      .meta({ since: 6 })
+      .input(z.strictObject({ name: deviceName }))
+      .output(mintedDevice),
+    // The devices not revoked, oldest first.
+    list: procedure.meta({ since: 6 }).input(z.void()).output(z.array(device)),
+    // Revokes a device's credential: its sessions end at once, and its next handshake is
+    // UNAUTHORIZED with `{ reason: "revoked" }`. The owner may revoke any device, a device
+    // only itself (FORBIDDEN otherwise); one not listed is NOT_FOUND.
+    revoke: procedure
+      .meta({ since: 6 })
+      .input(z.strictObject({ id: deviceId }))
+      .output(z.void()),
   },
   // Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's.
   tour: {

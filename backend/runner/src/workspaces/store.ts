@@ -23,6 +23,7 @@ import {
 } from "@novadeck/protocol"
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
+import { DeviceRecords } from "../devices/records.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
@@ -99,7 +100,8 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 22: an item may be a 3D model (`kind` takes 'model').
 // 23: a session keeps a revision, raised by every write, so clients that share it can tell a
 //     newer state from what they hold.
-const schemaVersion = 23
+// 24: devices, each with its own credential to reach a standalone runner by (`devices`).
+const schemaVersion = 24
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -415,6 +417,19 @@ const schema = `
     transcript TEXT
   ) STRICT;
   CREATE INDEX closed_terminals_project ON closed_terminals(project_id, closed_at);
+  -- Each device given its own credential to reach the runner by (devices/records.ts): only
+  -- a hash of its secret, never the secret. A revoked device keeps its row, so the next time
+  -- it proves its credential it is told it was revoked, rather than that it is unknown.
+  CREATE TABLE devices (
+    id TEXT PRIMARY KEY CHECK(length(id) = 22),
+    name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 64),
+    secret_hash BLOB NOT NULL CHECK(length(secret_hash) = 32),
+    created_at REAL NOT NULL,
+    last_seen_at REAL,
+    -- Kept for credentials that expire, as pairing may give; none does yet.
+    expires_at REAL,
+    revoked_at REAL
+  ) STRICT;
 `
 /**
  * A step that carries a database forward: the SQL that version's tables needed, or, where
@@ -1283,6 +1298,19 @@ const migrations: Readonly<Record<number, Step>> = {
   `,
   // Each session's revision, for clients that share it: every one starts at 0.
   22: `ALTER TABLE sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;`,
+  // Devices with credentials of their own: none yet.
+  23: `
+    CREATE TABLE devices (
+      id TEXT PRIMARY KEY CHECK(length(id) = 22),
+      name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 64),
+      secret_hash BLOB NOT NULL CHECK(length(secret_hash) = 32),
+      created_at REAL NOT NULL,
+      last_seen_at REAL,
+      -- Kept for credentials that expire, as pairing may give; none does yet.
+      expires_at REAL,
+      revoked_at REAL
+    ) STRICT;
+  `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -1972,6 +2000,8 @@ export class WorkspaceStore
   private readonly queries: SQLTagStore
   /** The person's settings, over the same queries. */
   readonly settings: Settings
+  /** The devices with credentials of their own, over the same queries. */
+  readonly devices: DeviceRecords
   private lastSave = 0
   // The checkpoint that empties the write-ahead log after something was forgotten.
   private scrubbing: NodeJS.Timeout | undefined
@@ -2003,6 +2033,7 @@ export class WorkspaceStore
     this.database.exec("PRAGMA synchronous = NORMAL")
     this.queries = this.database.createTagStore(64)
     this.settings = new Settings(this.queries)
+    this.devices = new DeviceRecords(this.queries)
   }
 
   projects(): Project[] {

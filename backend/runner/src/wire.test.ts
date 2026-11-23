@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite"
 import { createScreen } from "@novadeck/emulator/headless"
 import {
   compatibility,
+  maxPreferences,
   type contract,
   type TerminalEvent,
   type WireClient,
@@ -288,6 +289,79 @@ describe("WebSocket authentication and protocol", () => {
   })
 })
 
+describe("devices with credentials of their own", () => {
+  it("lets two devices in beside the owner, and revoking one ends it alone, telling it why", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const owner = await app.connect()
+    const laptop = await owner.client.devices.mint({ name: "Laptop" })
+    const phone = await owner.client.devices.mint({ name: "Phone" })
+    const asDevice = async (credential: string) => {
+      const connected = await app.connect(false)
+      const proved = await connected.client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token: credential,
+      })
+      return { ...connected, proved }
+    }
+    const first = await asDevice(laptop.credential)
+    const second = await asDevice(phone.credential)
+    // Each is told which device it is; the owner's answer names none.
+    expect(first.proved).toMatchObject({ device: { id: laptop.device.id, name: "Laptop" } })
+    expect(second.proved).toMatchObject({ device: { id: phone.device.id, name: "Phone" } })
+    await expect(
+      (await app.connect(false)).client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token,
+      }),
+    ).resolves.not.toHaveProperty("device")
+    await expect(owner.client.devices.list()).resolves.toEqual([
+      expect.objectContaining({ id: laptop.device.id, connected: true }),
+      expect.objectContaining({ id: phone.device.id, connected: true }),
+    ])
+    // A device may not add one, and its connection goes on.
+    await expect(first.client.devices.mint({ name: "Tablet" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    })
+    await expect(first.client.projects.list()).resolves.toEqual([])
+
+    const closed = once(first.socket, "close")
+    await owner.client.devices.revoke({ id: laptop.device.id })
+    await closed
+    // Its next handshake says it was revoked, which a client tells apart from a wrong token.
+    const again = await app.connect(false)
+    await expect(
+      again.client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token: laptop.credential,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED", data: { reason: "revoked" } })
+    await expect(
+      (await app.connect(false)).client.wire.handshake({
+        protocolVersion: compatibility.revision,
+        token: `${laptop.credential.slice(0, -1)}${laptop.credential.endsWith("A") ? "B" : "A"}`,
+      }),
+    ).rejects.toSatisfy(
+      (error: { code?: string; data?: unknown }) =>
+        error.code === "UNAUTHORIZED" && error.data === undefined,
+    )
+    // The other device goes on.
+    await expect(second.client.projects.list()).resolves.toEqual([])
+    // A device may sign itself out: it is answered, then its connection ends.
+    const own = once(second.socket, "close")
+    await expect(second.client.devices.revoke({ id: phone.device.id })).resolves.toBeUndefined()
+    await own
+    // The owner goes on, and can let a device in again with a new credential.
+    const tablet = await owner.client.devices.mint({ name: "Tablet" })
+    const third = await asDevice(tablet.credential)
+    await expect(third.client.projects.list()).resolves.toEqual([])
+    await expect(owner.client.devices.list()).resolves.toEqual([
+      expect.objectContaining({ id: tablet.device.id, connected: true }),
+    ])
+  })
+})
+
 describe("workspace metadata API", () => {
   it("project and session creation, listing, renaming and restart persistence", async ({
     resources,
@@ -435,6 +509,58 @@ describe("workspace metadata API", () => {
     expect([...told].toSorted()).toEqual(["changed", "removed"])
     await projects.return?.(undefined)
     await sessions.return?.(undefined)
+  })
+
+  it("keeps the person's preferences, key by key, and tells every client of each change", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const a = await app.connect()
+    const b = await app.connect()
+    const changes = await b.client.preferences.watch()
+    expect((await changes.next()).value).toEqual({ values: {}, revision: 0, writer: null })
+    await expect(
+      a.client.preferences.set({ key: "appearance", value: '{"theme":"dusk"}', writer: "a" }),
+    ).resolves.toEqual({ revision: 1 })
+    expect((await changes.next()).value).toEqual({
+      values: { appearance: '{"theme":"dusk"}' },
+      revision: 1,
+      writer: "a",
+    })
+    // Each key on its own: B's change of another keeps A's.
+    await b.client.preferences.set({ key: "chat-view", value: "true", writer: "b" })
+    await a.client.preferences.set({ key: "appearance", value: null, writer: "a" })
+    await expect(a.client.preferences.get()).resolves.toEqual({
+      values: { "chat-view": "true" },
+      revision: 3,
+      writer: null,
+    })
+    // What a key or a value may be, and how many keys.
+    await expect(
+      a.client.preferences.set({ key: "Bad key", value: "1", writer: "a" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" })
+    for (let index = 1; index < maxPreferences; index += 1)
+      // eslint-disable-next-line no-await-in-loop -- One key after another, to the limit.
+      await a.client.preferences.set({ key: `key-${index}`, value: "1", writer: "a" })
+    await expect(
+      a.client.preferences.set({ key: "one-more", value: "1", writer: "a" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    // A key kept already still changes at the limit.
+    await expect(
+      a.client.preferences.set({ key: "chat-view", value: "false", writer: "a" }),
+    ).resolves.toMatchObject({ revision: expect.any(Number) })
+    await changes.return?.(undefined)
+  })
+
+  it("tells every client of a change to the runner's settings", async ({ resources }) => {
+    const app = await fixture(resources)
+    const a = await app.connect()
+    const b = await app.connect()
+    const settings = await b.client.settings.watch()
+    expect((await settings.next()).value).toMatchObject({ agentMode: "herd", agentModes: false })
+    await a.client.settings.set({ agentModes: true, agentMode: "solo" })
+    expect((await settings.next()).value).toMatchObject({ agentMode: "solo", agentModes: true })
+    await settings.return?.(undefined)
   })
 
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {

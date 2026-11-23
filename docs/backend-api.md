@@ -591,7 +591,98 @@ const dispose = servePort(runner.sessions, port)
 
 The CLI (`pnpm --filter @novadeck/runner start`) and `startServer` from
 `@novadeck/runner/server` compose the WebSocket form with the HTTP status
-endpoint.
+endpoint. They check the owner's token and the runner's devices' own credentials
+(`verify: (token) => tokenCheck(owner)(token) || (runner.device(token) ?? false)`), as
+[Devices](#devices) says.
+
+### Devices
+
+A standalone runner tells its clients apart by the credential each proves in its
+handshake. `NOVADECK_TOKEN` is the **owner's**: every client that has it, and the desktop
+app's own MessagePort, is the owner, as before devices. A **device** has a credential of
+its own, which the owner gives it and can revoke without touching the token or any other
+device. A device's credential grants what the owner's does (its shells are the runner's
+user's); what tells them apart is who may add and revoke devices.
+
+- **Its credential** is `ndd_<id>_<secret>`: 16 random bytes of id and 32 of secret, each
+  in base64url (70 characters in all), given as the handshake's `token`, as the owner's is.
+  The runner keeps the id, the name and a SHA-256 hash of the id and secret, never the
+  secret: the secret is 256 random bits, so a leaked hash can't be guessed back however fast
+  each guess is, and neither a slow derivation nor a key kept beside the database would add
+  to that. It looks a device up by its id and compares hashes in constant time, hashing as
+  much for an id it doesn't have. The owner's token is checked first and always, as before.
+  A credential has no expiry and doesn't rotate by itself: revoke it and mint another. The
+  table keeps an `expires_at` for credentials that expire, as pairing may give; a device past
+  it is refused as `expired`.
+- **The handshake** takes the credential in `token` and answers, beside `epoch` and
+  `protocolVersion`, the `device` (`{ id, name }`) the connection proved itself as; none for
+  the owner. An older client ignores it.
+- **`devices.mint({ name })`** answers `{ device, credential }`, the credential once: the
+  runner can't show it again. The owner's only (`FORBIDDEN` to a device, which, unlike
+  `UNAUTHORIZED`, leaves its connection up); 64 devices at once, then `CONFLICT`.
+  **`devices.list()`**, to any connection, gives the devices not revoked, oldest first, each with `createdAt`,
+  `lastSeenAt` (its last handshake or session end) and whether it is `connected` now.
+  **`devices.revoke({ id })`**: the owner may revoke any device, a device only itself.
+  All three are new in revision 6 (`since: 6`).
+- **Revoking** ends the device's sessions at once: their calls are refused, and their sockets
+  close a moment later (`revokeGraceMs`), so a device that revoked itself is answered first. The client's reconnection is refused `UNAUTHORIZED` with `{ reason: "revoked" }`, as
+  is every later handshake that proves the revoked credential, since its row stays; one that
+  doesn't prove it is told nothing more than a wrong token is. The UI's splash then says the
+  device was signed out of the runner, and that its owner can let it in again, with a new
+  credential.
+- **What it doesn't contain:** a device has the runner account's shells, so one that turned
+  hostile could have read the owner's token from the runner's environment. Revoking ends its
+  credential, not what it did; rotate `NOVADECK_TOKEN` too if a device may be compromised
+  (SECURITY.md, "Terminal Runner").
+- **Logs** name a device by its id (`client.connected`, `client.closed`, `device.minted`,
+  `device.revoked`, `device.refused`), never by its credential; a refused credential is
+  logged only for an id the runner has.
+
+The first device gets its credential from the owner: a client with `NOVADECK_TOKEN` calls
+`devices.mint` (`runner.devices.mint(name)` in `@novadeck/runner-client`). Pairing, such as
+a code the owner approves in the app, is a way to hand that credential over, and needs no
+other change to the protocol. Agents' relays never use these credentials: they reach the
+runner over its local socket, each with its terminal's own token
+([Relay protocol](#relay-protocol)).
+
+### Preferences
+
+Some of what a person chooses is theirs on every device, and some is the device's own. The
+runner keeps the person's (`preferences.*`); each device keeps its own in its local storage, as
+before, and that copy is also where the app reads the person's first, so a start paints at once.
+
+- **The person's:** the theme and its light or dark choice (`system` follows each screen as it
+  always did), which views are on, Agent Chat, agents' avatars, the onboarding tour switch, the
+  order of the rail's panels and of the footer's subscriptions, and what they've seen once: the
+  Help and feedback chips' words, the phone page's zoom hint, the Agent Chat offer.
+- **The device's:** text size, font and ligatures, the app's scale, notifications, sounds and
+  their volume, the screen reader setting, project windows, the sidebar's width and whether it
+  is collapsed, the view and terminal in front in each session, folds, and what concerns this
+  install (update chips, a portable copy's card).
+- **Still the device's for now:** which agents' messages were read (`novadeck.messages-seen`),
+  which needs merging rather than the last change; and the projects' order, which the runner
+  keeps on its own (`projects.arrange`).
+
+Each preference is text (the UI's JSON) under a key (`[a-z][a-z0-9.-]*`, at most 64 characters),
+at most 64 keys and 16,384 characters each. The runner keeps it as written, under `person:<key>` in its
+settings, without reading it; the UI reads it as it reads a saved preference, so what an older or
+newer build wrote reads as its default where it can't be read. `set` keeps one key, or forgets
+it for `null`: the last change wins, key by key, so two devices changing different things never
+undo each other. `watch` yields every preference, then each change, with the revision every
+change raises and the `writer` (a client's own token) whose change it was, which that client
+skips; a reader slower than the changes gets each key once, as it is when it reads it.
+
+As a device first connects to a runner that keeps them, it takes each preference the runner has,
+and gives it each the person chose there that the runner lacks; a default is no choice, and is
+never given. So the first device after an update gives the person's preferences, the next takes
+them, and a new device that connects first resets nothing. A mark of something seen once is given
+only once seen, so seen anywhere is seen. A value a device takes from another, or from another of
+its windows, it shows but never sends back: one an older build can't read shows as its default
+there, and stays the newer build's on the runner. Another client's change of a key this device is
+changing meanwhile waits behind it, and a change the runner couldn't take, as while the link was
+down, is sent again once it answers and stands over what it says. Against a runner without
+`preferences.*` the app keeps them on the device, as before; an app from before them keeps its own
+and never asks.
 
 ### Desktop app
 
@@ -640,10 +731,12 @@ wire's own error codes (`wireErrors`) beside the runner's. Applications use
 
 Every connection starts with the wire's handshake, `wire.handshake({ protocolVersion,
 token, clientId })`, which returns the runner's `epoch` (its lifetime: terminal cursors
-are valid only within one) and its own revision of the contract as `protocolVersion`
-(see [Versions](#versions)). WebSocket connections
+are valid only within one), its own revision of the contract as `protocolVersion`
+(see [Versions](#versions)), and the `device` a device's credential proved
+([Devices](#devices)). WebSocket connections
 require the token in the handshake, never in a URL, and time out after ten seconds
-without it. MessagePort connections omit it. Each `terminals.attach` stream begins
+without it. A refused token is `UNAUTHORIZED`, whose data, when the runner says, is why
+(`{ reason: "revoked" }`). MessagePort connections omit it. Each `terminals.attach` stream begins
 with an unsequenced `attached` marker confirming the granted mode, followed by
 sequenced terminal events.
 
@@ -2189,7 +2282,14 @@ one from an earlier runner.
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
-  second for it).
+  second for it). `settings.watch()` (revision 7) yields the settings as `get` reports them,
+  then again each time any client changes them, so every device the person uses follows: the
+  app shows each switch, the Inbox's order and its snoozes as another device left them, but a
+  change of its own still under way stands until the runner answers it.
+
+- `preferences.get()`, `preferences.set({ key, value, writer })` and `preferences.watch()`
+  (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
+  them from device to device.
 
 - `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
   (`backend/runner/src/tour/`). The tour's project is a small browser game the person can keep, set in a neon city at night

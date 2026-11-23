@@ -354,6 +354,9 @@ export type BackendFields = {
   // Optional. How the link to the far side is doing, for the footer. Updates may begin
   // only once `start` runs.
   readonly connection?: Store<BackendConnectionState>
+  // Optional. The person's own settings, which the far side keeps for every device they use
+  // (person.ts). Without it they stay on this device.
+  readonly preferences?: PersonPreferences
   // Optional. Where the far side can keep crashing: the backend then stops restarting
   // terminals until the person asks it to try again.
   readonly crashLoop?: {
@@ -766,6 +769,19 @@ export type AgentConnection = {
   readonly installer?: string | undefined
 }
 
+// The person's own settings as the far side keeps them: text by key, the last change winning
+// key by key.
+export type PersonPreferences = {
+  // Changes this device made, as person.ts saves them; null forgets one.
+  readonly set: (key: string, value: string | null) => void
+  // Every setting the far side keeps, at once if it has said, else once it does (`first`);
+  // then each another client changed, as they arrive, a forgotten one as null. Returns what
+  // stops it.
+  readonly subscribe: (
+    listener: (values: Readonly<Record<string, string | null>>, first: boolean) => void,
+  ) => () => void
+}
+
 // "unavailable" means the backend gave up reconnecting.
 export type BackendConnectionState = "connected" | "reconnecting" | "unavailable"
 
@@ -778,6 +794,10 @@ export type BackendConnection = {
   readonly createBackend: CreateBackend
   // Ends the link once the app unmounts. Safe to call more than once.
   readonly close: () => void
+  // Optional. Tells `listener`, once, that the link ended for good after it connected, for a
+  // reason the person must act on, as this device being signed out of the runner; the gate
+  // then boots again, and the splash says why. Returns what stops listening.
+  readonly ended?: (listener: (failure: ConnectFailure) => void) => () => void
 }
 
 // Connects before the app first renders. Rejects with an Error carrying a
@@ -802,6 +822,9 @@ export type ConnectFailure = {
   readonly update?: "app" | "runner"
   // Reloading the page mends it: a page older than its runner loads the newer one.
   readonly reload?: boolean
+  // An unauthorized device was signed out of the runner (its credential revoked), rather
+  // than never let in.
+  readonly revoked?: boolean
 }
 
 // The restored session's terminals being attached: `done` once they all are, have

@@ -233,6 +233,29 @@ describe("withSnoozes", () => {
     expect(inbox.state.getSnapshot()).toBe(inbox.state.getSnapshot())
   })
 
+  it("takes the snoozes another device left, without keeping them again", () => {
+    const state = createStore<InboxState>({ ...emptyInbox, items: entries })
+    const saved: (readonly string[])[] = []
+    let take: (keys: readonly string[]) => void = () => {}
+    const inbox = withSnoozes(
+      { ...noInbox, state },
+      [],
+      (keys) => saved.push(keys),
+      (given) => {
+        take = given
+      },
+    )
+    let changes = 0
+    const stop = inbox.state.subscribe(() => changes++)
+    take(["a@0"])
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["a"])
+    // The same again changes nothing.
+    take(["a@0"])
+    expect(changes).toBe(1)
+    expect(saved).toEqual([])
+    stop()
+  })
+
   it("snoozes and brings back, tells who listens, and keeps each by its id and start", () => {
     const { inbox, saved } = make()
     let changes = 0

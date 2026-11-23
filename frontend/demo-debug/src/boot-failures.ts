@@ -45,6 +45,14 @@ export const bootFailures: readonly ConnectFailure[] = [
     detail: "Unauthorized",
   },
   {
+    kind: "unauthorized",
+    revoked: true,
+    message:
+      "This device was signed out of the runner. The runner's owner can let it in again with a new credential.",
+    code: "UNAUTHORIZED",
+    detail: "Unauthorized",
+  },
+  {
     kind: "unknown",
     message: "Something went wrong starting Novadeck.",
     code: "INTERNAL_SERVER_ERROR",
@@ -52,7 +60,10 @@ export const bootFailures: readonly ConnectFailure[] = [
   },
 ]
 
-// The name the debug panel rehearses a failure by: its code, with the side to update and
-// whether a reload mends it where one code reads several ways.
+// The name the debug panel rehearses a failure by: its code, with the side to update,
+// whether a reload mends it and whether a device was signed out, where one code reads
+// several ways.
 export const failureKey = (failure: ConnectFailure): string =>
-  [failure.code, failure.update, failure.reload && "reload"].filter(Boolean).join("/")
+  [failure.code, failure.update, failure.reload && "reload", failure.revoked && "revoked"]
+    .filter(Boolean)
+    .join("/")

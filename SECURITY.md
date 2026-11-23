@@ -301,6 +301,24 @@ currently requires restarting the runner, which ends its shells. The token is
 removed from inherited PTY environment variables, but processes sharing the OS
 account are not isolated from the runner.
 
+The token is the owner's. The owner can give each device a credential of its own
+(`devices.mint`, docs/backend-api.md "Devices"), which grants the same shell access but is
+revoked alone (`devices.revoke`), ending that device's sessions at once, without rotating the
+token. The runner keeps only a SHA-256 hash of each device's 256-bit secret, and compares it
+in constant time after looking the device up by its public id. Only the owner's connections
+(the token's, or the desktop app's port) may add a device; a device may revoke only itself.
+A revoked credential's next handshake is told it was revoked, and only a handshake that
+proves that credential: a wrong secret learns nothing more than a wrong token does. Logs
+name a device by its id, never by its credential. Any connection may list the devices
+(names, ids, when each was last seen); an id is the public half of a credential.
+
+Devices are not a boundary between their holders. Every device has the runner account's
+shells, and from one it can read what that account can, such as the runner's own
+environment, which holds `NOVADECK_TOKEN`, and so become the owner. Revoking a device ends its
+credential and its sessions, not what it already did with them: if a device may have been
+compromised, revoke it, rotate `NOVADECK_TOKEN` (which restarts the runner), and check what
+the account holds.
+
 A runner served over a MessagePort (`servePort`) trusts whoever holds the port and
 skips the token. Hand such a port only to a renderer the host itself loaded, such
 as an Electron window with context isolation, and never forward it to web content.

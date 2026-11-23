@@ -375,6 +375,11 @@ export const scriptedRunner = ({
       set: api.murmur.set.handler(unplayed("murmur.set")),
       noteOffered: api.murmur.noteOffered.handler(unplayed("murmur.noteOffered")),
     },
+    devices: {
+      mint: api.devices.mint.handler(unplayed("devices.mint")),
+      list: api.devices.list.handler(() => []),
+      revoke: api.devices.revoke.handler(unplayed("devices.revoke")),
+    },
     tour: {
       prepare: api.tour.prepare.handler(unplayed("tour.prepare")),
       brief: api.tour.brief.handler(unplayed("tour.brief")),
@@ -397,6 +402,12 @@ export const scriptedRunner = ({
         worktrees: false,
       })),
       set: api.settings.set.handler(() => {}),
+      watch: api.settings.watch.handler(idle),
+    },
+    preferences: {
+      get: api.preferences.get.handler(() => ({ values: {}, revision: 0, writer: null })),
+      set: api.preferences.set.handler(unplayed("preferences.set")),
+      watch: api.preferences.watch.handler(idle),
     },
   })
   // What the app typed into the terminals.

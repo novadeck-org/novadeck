@@ -24,8 +24,10 @@ export const compatibility: Compatibility = {
   // 4: sessions keep a revision, and clients share them (`sessions.change`, `sessions.watch`).
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
-  // 6: a terminal's control moves between clients (`terminals.take`, `terminals.controls`).
-  revision: 6,
+  // 6: each device has its own credential, revoked on its own (`devices.*`).
+  // 7: the person's settings follow them from device to device, live (`settings.watch`,
+  //    `preferences.*`).
+  revision: 7,
   oldestClient: 3,
   oldestRunner: 2,
 }

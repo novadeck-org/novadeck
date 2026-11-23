@@ -14,6 +14,7 @@ import {
   type CompanionChange,
   type CompanionItem,
   type ClosedTerminal,
+  type Device,
   type CompanionWindow,
   type FeedbackDraft,
   type CheckoutState,
@@ -30,6 +31,7 @@ import {
   type FilePart,
   type FolderMatch,
   type WroteFolder,
+  type MintedDevice,
   type MurmurSettings,
   type MurmurState,
   type PageLook,
@@ -40,6 +42,7 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type PreferenceChange,
   type SessionChange,
   type ProjectsChange,
   type SessionPatch,
@@ -868,6 +871,35 @@ export type Runner = {
     get(): Promise<RunnerSettingsState>
     /** Changes the settings given; the others stay. */
     set(settings: Partial<RunnerSettings>): Promise<void>
+    /**
+     * The settings now, then as any client changes them, again after each reconnection
+     * (revision 3; ask `supports("settings.watch")` first).
+     */
+    watch(): AsyncIterableIterator<RunnerSettingsState, undefined>
+  }
+  /**
+   * The person's own preferences, which follow them from device to device (`preferences.*`,
+   * revision 3; ask `supports("preferences.get")` first).
+   */
+  readonly preferences: {
+    /** Every preference kept, and their revision. */
+    get(): Promise<PreferenceChange>
+    /** Keeps `value` (JSON text) as `key`, or forgets it for null, as `writer`; the new revision. */
+    set(key: string, value: string | null, writer: string): Promise<number>
+    /** Every preference, then each change, opened again (every preference first) after each reconnection. */
+    watch(): AsyncIterableIterator<PreferenceChange, undefined>
+  }
+  /**
+   * Devices with credentials of their own, beside the owner's token (`devices.*`, revision 3;
+   * ask `supports("devices.mint")` first).
+   */
+  readonly devices: {
+    /** Gives a new device its credential, answered once; the owner's connection only. */
+    mint(name: string): Promise<MintedDevice>
+    /** The devices not revoked, oldest first. */
+    list(): Promise<Device[]>
+    /** Revokes a device's credential and ends its sessions: any, as the owner, or this device. */
+    revoke(id: string): Promise<void>
   }
   /** Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's. */
   readonly tour: {
@@ -1242,6 +1274,22 @@ export const connectRunner = async (
     settings: {
       get: () => call((client) => client.settings.get()),
       set: (settings) => call((client) => client.settings.set(settings)),
+      watch: () =>
+        followSession(connection, (client, signal) => client.settings.watch(undefined, { signal })),
+    },
+    preferences: {
+      get: () => call((client) => client.preferences.get()),
+      set: async (key, value, writer) =>
+        (await call((client) => client.preferences.set({ key, value, writer }))).revision,
+      watch: () =>
+        followSession(connection, (client, signal) =>
+          client.preferences.watch(undefined, { signal }),
+        ),
+    },
+    devices: {
+      mint: (name) => call((client) => client.devices.mint({ name })),
+      list: () => call((client) => client.devices.list()),
+      revoke: (id) => call((client) => client.devices.revoke({ id })),
     },
     tour: {
       prepare: (agent) => call((client) => client.tour.prepare({ agent })),

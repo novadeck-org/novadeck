@@ -1,4 +1,5 @@
 import { allTeams, leadChain, litTeams, sameLitTeams, sameTeams } from "@novadeck/core/derivations"
+import { watchPerson } from "@novadeck/core/person"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
@@ -23,7 +24,7 @@ import { elsewhereSessionsText } from "../projects/session-marks"
 import { useDesktop } from "../shell/desktop"
 import { HistoryDropNotice } from "../shell/HistoryDot"
 import { sidebarVisible } from "../shell/shell-state"
-import { readSidebarOrder, writeSidebarOrder } from "../shell/shell-storage"
+import { readSidebarOrder, sidebarOrder, writeSidebarOrder } from "../shell/shell-storage"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
@@ -292,7 +293,15 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   }, [backend, fontSize, fontFamily])
   // The order the person left the rail's toggles in, kept for their next visit; one order
   // for both rails, the drawer's on a phone and the window's.
+  // The person's, so it follows another device's change (core's person.ts).
   const [railOrder, setRailOrder] = useState(readSidebarOrder)
+  useEffect(
+    () =>
+      watchPerson((key) => {
+        if (key === sidebarOrder.key) setRailOrder(readSidebarOrder())
+      }),
+    [],
+  )
   const sidebarRail = (mobile = false): React.JSX.Element => (
     <RailWithBadge
       mobile={mobile}

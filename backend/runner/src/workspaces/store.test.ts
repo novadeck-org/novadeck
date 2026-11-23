@@ -260,7 +260,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(23)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(24)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -497,13 +497,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 24",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 25",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(24)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(25)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -555,7 +555,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(23)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(24)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -563,6 +563,7 @@ describe("workspace metadata", () => {
           "closed_terminals",
           "companion_items",
           "companion_windows",
+          "devices",
           "inbox_entries",
           "message_threads",
           "messages",
@@ -1948,8 +1949,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 23,
-        digest: "6967207aeb6e92964c5983f020c45f8d9785e361eaafadddc901d7f3ebd28484",
+        version: 24,
+        digest: "f53afc6a491ec6932496bfad652dd288de4c06ce766fd0d92be46e24bb73f2c1",
       })
     } finally {
       database.close()
@@ -2221,6 +2222,43 @@ main...feature', 'changes', '/p',
     // Each change raises it from there.
     migrated.renameSession({ sessionId: "s", name: "Renamed" })
     expect(migrated.revisions()).toEqual({ s: 1 })
+    migrated.close()
+    const fresh = join(directory(), "fresh.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("keeps devices from the step from 23, which starts with none and keeps the sessions", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/23.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 23;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name, client_state, visited_at, revision)
+        VALUES (1, 's', 'p', 'S', '{"version":2,"state":{}}', 7, 4);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.session("s")).toMatchObject({ id: "s", revision: 4 })
+    expect(migrated.devices.active()).toEqual([])
+    migrated.devices.add({
+      id: "a".repeat(22),
+      name: "Phone",
+      secretHash: new Uint8Array(32),
+      createdAt: 1,
+    })
+    expect(migrated.devices.active()).toEqual([
+      { id: "a".repeat(22), name: "Phone", createdAt: 1, lastSeenAt: null },
+    ])
     migrated.close()
     const fresh = join(directory(), "fresh.sqlite")
     new WorkspaceStore(fresh).close()

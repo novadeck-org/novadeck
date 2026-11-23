@@ -8,8 +8,8 @@ import {
   type Runner,
   type RunnerErrorCode,
 } from "@novadeck/runner-client"
-import { incompatibility, WireError } from "@novadeck/wire"
-import { websocket, type Transport } from "@novadeck/wire/client"
+import { incompatibility, refusalOf, WireError } from "@novadeck/wire"
+import { websocket, type Transport, type WireStatus } from "@novadeck/wire/client"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
 import { desktopOptions } from "./desktop/app"
@@ -62,6 +62,34 @@ const transient: readonly RunnerErrorCode[] = [
   "CLOSING",
   "RESOURCE_LIMIT",
 ]
+/**
+ * Tells `listener`, once, that the runner's link ended for good for a reason the person must
+ * act on (an unauthorized one: the reconnection's handshake says why, as that this device was
+ * signed out); not a link closed here, nor one the desktop app starts a new runner for.
+ * Returns what stops listening.
+ */
+export const watchEnd = (
+  runner: Pick<Runner, "watch" | "status">,
+  listener: (failure: ConnectFailure) => void,
+): (() => void) => {
+  const statuses = runner.watch()
+  let stopped = false
+  const tell = (status: WireStatus): boolean => {
+    if (status.state !== "closed") return false
+    const failure = status.error && connectFailure(status.error)
+    if (!stopped && failure?.kind === "unauthorized") listener(failure)
+    return true
+  }
+  void (async () => {
+    for await (const status of statuses) if (stopped || tell(status)) return
+    tell(runner.status)
+  })().catch(() => {})
+  return () => {
+    stopped = true
+    void statuses.return?.()
+  }
+}
+
 export const connectFailure = (
   error: unknown,
   // Whether this page is the desktop app's, which updates itself, or a browser's, which
@@ -116,7 +144,16 @@ export const connectFailure = (
       detail,
     }
   if (hasCode(error, "UNAUTHORIZED"))
-    return { kind: "unauthorized", message: "The runner didn't accept this app.", code, detail }
+    return refusalOf(error) === "revoked"
+      ? {
+          kind: "unauthorized",
+          revoked: true,
+          message:
+            "This device was signed out of the runner. The runner's owner can let it in again with a new credential.",
+          code,
+          detail,
+        }
+      : { kind: "unauthorized", message: "The runner didn't accept this app.", code, detail }
   return { kind: "unknown", message: "Something went wrong starting Novadeck.", code, detail }
 }
 
@@ -197,6 +234,8 @@ export const connectRunnerBackend = async (
         created.push(next)
         return next.backend
       },
+      // A link refused for good once connected, as when this device's credential is revoked.
+      ended: (listener) => watchEnd(runner, listener),
       // The app closes the connection before its workspace stops, and stopping sends
       // the last saves: let that happen, and let them land, before disconnecting.
       close: () => {
