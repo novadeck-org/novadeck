@@ -1049,9 +1049,8 @@ see them change.
   starts from nothing ends with its terminal, tabs and all. `explorer.exe <file>` hands it to
   the running explorer, outside. Under Antigravity, what a command started ends about a
   second after the command does, detached or not, so nothing of it is left for a close;
-  under Codex it ends with the agent itself when it dies (measured: none of it outlives a
-  killed one, its sandbox off too); under Claude Code and opencode it runs on until the
-  terminal closes.
+  under Codex it mostly ends with the agent itself when it dies, its sandbox off too, though
+  not always (measured); under Claude Code and opencode it runs on until the terminal closes.
 - Otherwise, and on macOS and Linux without the user's systemd, it is not a
   process-tree kill guarantee: daemonized jobs and descendants that ignore hangup may
   continue, as with an ordinary terminal emulator, and so may a daemon an agent left in a
@@ -1226,8 +1225,11 @@ or taskkill for:
   terminals' job objects, answering a JSON line, `{"n":<n>,...}`, for each line asked,
   `<n> <ask>`: `hold <terminal> <pid>[:<startedAt>]` puts that process in a new job for the
   terminal (`held`), `members <terminal>` lists the job's processes as `tree` does
-  (`processes`, null for none), `release <terminal>` lets the job go, and
-  `end <pid>:<startedAt>...` ends processes as `end` does. Its exit ends nothing.
+  (`processes`, null for none; only processes the job holds, each checked on the handle its
+  start is read from, so a pid reused since is never one), `release <terminal>` lets the job
+  go, and `end <pid>:<startedAt>...` ends processes as `end` does. Its exit ends nothing. The
+  runner starts it with itself and ends its input as it closes, after the terminals; a
+  terminal whose hold it doesn't answer in time gets no job, and the rest go on.
 - `novadeck-relay held <file>` waits up to about a quarter of a second for `file`, then
   removes it: a cmd terminal's startup command runs after it, so it starts inside its job.
 

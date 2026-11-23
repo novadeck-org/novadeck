@@ -31,7 +31,7 @@ export {
 } from "./pty/descendants.js"
 export { processesUnder, startResolutionMs, type Spawn } from "./pty/spawned.js"
 export { anyRunning, chainTo, relayMs, Trees, type Member } from "./pty/trees.js"
-export type { ProcessTrees, Pty, PtyOptions } from "./pty/pty.js"
+export { spawnPty, type ProcessTrees, type Pty, type PtyOptions } from "./pty/pty.js"
 export { activeCpuWeight, setScopeWeight, terminalCpuWeight, userScopes } from "./pty/scopes.js"
 export { WindowsJobs, windowsJobs } from "./pty/jobs.js"
 export type { Activity } from "./pty/boost.js"

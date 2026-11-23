@@ -3,11 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { relayPath } from "@novadeck/relay"
+import { spawnPty, Trees, WindowsJobs, type Pty } from "@novadeck/terminal/pty"
 import { describe, expect, it, onTestFinished } from "vitest"
-
-import { WindowsJobs } from "./jobs.js"
-import { spawnPty, type Pty } from "./pty.js"
-import { Trees } from "./trees.js"
 
 // Real cmd shells in real job objects, kept by the relay this repository built.
 const relay = relayPath

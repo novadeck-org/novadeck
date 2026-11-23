@@ -388,10 +388,15 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
     true
 }
 
-/// Each of `pids` still running, as `tree` prints a member: its pid, its start, its program's
-/// file name and its recorded parent; one that has ended, or that Windows won't open, is left
-/// out. None where Windows refused the snapshot.
-pub fn describe(pids: &[u32]) -> Option<Vec<Value>> {
+/// Each of `pids` still running that `member` owns, as `tree` prints a member: its pid, its
+/// start, its program's file name and its recorded parent; one that has ended, that Windows
+/// won't open, or that `member` disowns is left out. `member` and the start read the same
+/// open process, so a pid reused since it was listed names neither. None where Windows
+/// refused the snapshot.
+pub fn describe(
+    pids: &[u32],
+    member: impl Fn(std::os::windows::io::RawHandle) -> bool,
+) -> Option<Vec<Value>> {
     let processes = snapshot();
     if processes.is_empty() {
         return None;
@@ -406,7 +411,17 @@ pub fn describe(pids: &[u32]) -> Option<Vec<Value>> {
         .collect();
     Some(
         pids.iter()
-            .filter_map(|pid| started(*pid).map(|started| Member { pid: *pid, started }))
+            .filter_map(|pid| {
+                let handle = Handle::open(*pid, QUERY_LIMITED_INFORMATION)?;
+                let mut code = 0;
+                let read = unsafe { GetExitCodeProcess(handle.0, &mut code) };
+                if read == 0 || code != STILL_ACTIVE || !member(handle.0) {
+                    return None;
+                }
+                handle
+                    .started()
+                    .map(|started| Member { pid: *pid, started })
+            })
             .map(|member| member_json(&member, &files, &parents))
             .collect(),
     )

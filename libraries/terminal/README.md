@@ -86,7 +86,7 @@ resolve it.
 
 - `./pty`: a terminal's processes.
   - A `Terminal` runs its program in a `Pty`, through node-pty (an optional peer: install it to
-    use `./host`), started as `PtyOptions` say; on Windows its arguments can be one command
+    use `./host`), started as `PtyOptions` say (`spawnPty`, which a test can call alone); on Windows its arguments can be one command
     line, as cmd needs. Its `pid` is undefined until it is known,
     never 0 (on Windows, 0 names the app itself until the program's output connects); `drawn` says
     output has arrived; it reports its exit once, its code null where the program's isn't
@@ -102,7 +102,8 @@ resolve it.
     in its scope as `end` runs (`left`), or by `endLeft` once its shell has exited: each tree of
     the scope whose root started during an agent's run, but for what `apart` names
     (`leftovers`). `windowsJobs(relay)` gives Windows the same through a job object per
-    terminal, which the relay's `jobs` mode holds: the shell goes into it once node-pty names
+    terminal, which the relay's `jobs` mode holds (started at once, let go by `close()`): the
+    shell goes into it once node-pty names
     its pid, and `scopeFile` is made once that has settled; the job lists its own processes
     (`listed`) and ends them by pid and start (`end`).
   - `sampleForeground(child, last)` names the program in a terminal's foreground, cheaply

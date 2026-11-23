@@ -17,6 +17,9 @@ type Answer = {
   readonly error?: string
 }
 
+/** No answer within `relayMs`, from a relay that runs: slow, as on a cold machine. */
+const late = Symbol("late")
+
 /** The relay's `jobs` mode, started: what asks go to, and what answers come from. */
 export type Keeper = ChildProcessByStdio<Writable, Readable, null>
 
@@ -61,8 +64,8 @@ export const listedOf = (processes: unknown): readonly Listed[] | undefined => {
  *
  * Where the first hold fails for want of a relay that keeps jobs, as an older one, the rest
  * get none either, as before; one that fails for its program alone, as one that exited at
- * once, changes nothing. Where the relay exits, the jobs it held are lost, and terminals
- * started after it get a new one.
+ * once, or that comes too late, changes nothing. Where the relay exits, the jobs it held are
+ * lost, and terminals started after it get a new one.
  */
 export class WindowsJobs implements Scopes {
   private state: "unknown" | "works" | "off" = "unknown"
@@ -84,6 +87,11 @@ export class WindowsJobs implements Scopes {
     if (this.state === "off") return { ...unheld, held: Promise.resolve(false) }
     const terminal = `term${pid}-${++this.terminals}`
     const held = this.ask(`hold ${terminal} ${pid}`).then((answer) => {
+      if (answer === late) {
+        // The shell has run on: a hold the relay makes after all is let go, as it comes next.
+        void this.ask(`release ${terminal}`)
+        return false
+      }
       if (answer?.held === true) {
         this.state = "works"
         return true
@@ -96,7 +104,9 @@ export class WindowsJobs implements Scopes {
       return false
     })
     const listed = async (): Promise<readonly Listed[] | undefined> =>
-      (await held) ? listedOf((await this.ask(`members ${terminal}`))?.processes) : undefined
+      (await held)
+        ? listedOf(answered(await this.ask(`members ${terminal}`))?.processes)
+        : undefined
     let released = false
     const release = () => {
       if (released) return
@@ -122,14 +132,33 @@ export class WindowsJobs implements Scopes {
     }
   }
 
-  /** `line`'s answer, or undefined where the relay can't answer it within `relayMs`. */
-  private async ask(line: string): Promise<Answer | undefined> {
+  /** Starts the keeper ahead of the first terminal, which then waits for no relay's start. */
+  warm(): void {
+    void this.started()
+  }
+
+  /**
+   * Lets the keeper go, as the runner closes: its input ends, and it lets every job go, ending
+   * nothing. Asks after it start another.
+   */
+  close(): void {
+    const keeper = this.keeper
+    this.keeper = undefined
+    for (const settle of this.waiting.values()) settle(undefined)
+    keeper?.stdin.end()
+  }
+
+  /**
+   * `line`'s answer; undefined where no relay runs to answer it, or it exited first; `late`
+   * where it runs but didn't answer within `relayMs`.
+   */
+  private async ask(line: string): Promise<Answer | typeof late | undefined> {
     const keeper = await this.started()
     if (!keeper) return undefined
     const n = ++this.asked
-    return new Promise<Answer | undefined>((resolve) => {
-      const timer = setTimeout(() => settle(undefined), relayMs)
-      const settle = (answer: Answer | undefined) => {
+    return new Promise<Answer | typeof late | undefined>((resolve) => {
+      const timer = setTimeout(() => settle(late), relayMs)
+      const settle = (answer: Answer | typeof late | undefined) => {
         clearTimeout(timer)
         this.waiting.delete(n)
         resolve(answer)
@@ -179,6 +208,10 @@ export class WindowsJobs implements Scopes {
   }
 }
 
+/** An answer, or none where it came late. */
+const answered = (answer: Answer | typeof late | undefined): Answer | undefined =>
+  answer === late ? undefined : answer
+
 /** A process by its pid and start, as the relay names one. */
 const named = ({ pid, started }: Followed): string => `${pid}:${started}`
 
@@ -190,8 +223,13 @@ const unheld: Scope = {
   exited: () => Promise.resolve(),
 }
 
-/** The scopes on `platform`: Windows' jobs, kept by `relay`; none elsewhere. */
+/** The scopes on `platform`: Windows' jobs, kept by `relay`, its keeper started; none elsewhere. */
 export const windowsJobs = (
   relay: () => Promise<string | undefined>,
   platform: NodeJS.Platform = process.platform,
-): Scopes | undefined => (platform === "win32" ? new WindowsJobs(relay) : undefined)
+): WindowsJobs | undefined => {
+  if (platform !== "win32") return undefined
+  const jobs = new WindowsJobs(relay)
+  jobs.warm()
+  return jobs
+}

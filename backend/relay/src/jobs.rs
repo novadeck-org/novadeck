@@ -70,10 +70,10 @@ fn answer(line: &str, jobs: &mut HashMap<String, Job>) -> Value {
             }
         }
         ["members", terminal] => {
-            let processes = jobs
-                .get(*terminal)
-                .and_then(Job::pids)
-                .and_then(|pids| processes::describe(&pids));
+            let processes = jobs.get(*terminal).and_then(|job| {
+                job.pids()
+                    .and_then(|pids| processes::describe(&pids, |process| job.holds(process)))
+            });
             json!({ "n": n, "processes": processes })
         }
         ["release", terminal] => {

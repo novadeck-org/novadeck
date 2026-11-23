@@ -197,6 +197,7 @@ export const endLeftovers = async (
   const first = await within(find(), by())
   if (!first || first.length === 0) return []
   if (end) {
+    // Past its bound by the one quick ask, as SIGKILL's last look below is.
     await within(end(first), Math.max(by(), Date.now() + 300))
     return first
   }

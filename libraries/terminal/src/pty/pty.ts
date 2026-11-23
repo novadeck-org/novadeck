@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises"
+import { rm, writeFile } from "node:fs/promises"
 import { constants as system } from "node:os"
 
 import { spawn as nodePtySpawn } from "node-pty"
@@ -311,6 +311,12 @@ const endTreeLeft = async (
  */
 const pidWaitMs = 6_000
 
+/**
+ * How long a Windows shell's `scopeFile` stays, once made, for a shell that gave up waiting
+ * for it: long past any shell's wait, so it is only ever one no shell will read.
+ */
+const scopeFileMs = 30_000
+
 const usualBudget = (treeGraceMs: number): EndBudget => ({
   run: (usual) => usual,
   graceEnds: (began) => began + treeGraceMs,
@@ -404,12 +410,19 @@ export const spawnPty = (
   // On Windows node-pty names the shell's pid only once it has created it, a moment after
   // `spawn` returns: the shell goes into its job then (see `windowsJobs`). What it started
   // before it got there stays out, so its startup command waits for `scopeFile`, made once
-  // that has settled either way.
+  // that has settled either way. The shell takes the file once it sees it; one it gave up on
+  // first goes `scopeFileMs` on, so none is left behind.
   if (platform === "win32" && options.scopes) {
     const scopes = options.scopes
     const settled = (held: Promise<boolean>) => {
       const file = options.scopeFile
-      if (file !== undefined) void held.then(() => writeFile(file, "")).catch(() => {})
+      if (file === undefined) return
+      void held
+        .then(() => writeFile(file, ""))
+        .then(() => {
+          setTimeout(() => void rm(file, { force: true }).catch(() => {}), scopeFileMs).unref()
+        })
+        .catch(() => {})
     }
     const contain = () => {
       if (child.pid > 0 && !gone) {

@@ -375,7 +375,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
   // takes down its terminal, not the app. On Windows each runs in a job object of its own,
   // kept by the runner's own relay. In both, what an agent left there ends with the terminal.
-  const scopes = userScopes() ?? windowsJobs(async () => options.relay ?? relayPath)
+  const jobs = windowsJobs(async () => options.relay ?? relayPath)
+  if (jobs) started.push({ close: async () => jobs.close() })
+  const scopes = userScopes() ?? jobs
   // On macOS and Windows each shell and what it starts run below the window's priority.
   const priority = terminalPriorities()
   // The terminal the person uses in each window keeps the normal share of both.
@@ -616,6 +618,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     uploads,
     voice,
     murmur,
+    jobs,
     sealer,
     rootFolder,
     tour,
@@ -704,6 +707,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     uploads,
     voice,
     murmur,
+    jobs,
     sealer,
     rootFolder,
     tour,
@@ -800,6 +804,8 @@ const startRunner = (options: RunnerOptions): Runner => {
         try {
           await terminals.shutdown()
         } finally {
+          // After the terminals, whose leftovers it lists and ends as they close.
+          jobs?.close()
           await forges.close()
           await works.close()
           await tidying

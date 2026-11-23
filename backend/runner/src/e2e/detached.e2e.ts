@@ -494,12 +494,18 @@ for (const setup of setups) {
           "the agent's session to end",
           30_000,
         )
-        await new Promise((resolve) => setTimeout(resolve, 500))
-        // Codex (its sandbox off too) ends what its commands left as it dies, and Antigravity has
-        // already; Claude Code and opencode don't.
-        const survivors =
-          setup.agent === "claude" || setup.agent === "opencode" ? windowsVariants.toSorted() : []
-        expect(windowsLeft(run)).toEqual(survivors)
+        // Antigravity has ended what its commands left already; Claude Code and opencode don't
+        // as they die; Codex (its sandbox off too) mostly does, a moment on, but not always.
+        await new Promise((resolve) => setTimeout(resolve, 2_000))
+        const survivors = windowsLeft(run)
+        if (setup.agent === "codex")
+          expect([[], windowsVariants.toSorted()]).toContainEqual(survivors)
+        else
+          expect(survivors).toEqual(
+            setup.agent === "claude" || setup.agent === "opencode"
+              ? windowsVariants.toSorted()
+              : [],
+          )
         await terminal.submit(`node detach.mjs ${word} person`)
         await expect
           .poll(() => windowsLeft(run), { timeout: 10_000 })

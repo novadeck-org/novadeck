@@ -180,6 +180,7 @@ unsafe extern "system" {
     fn CloseHandle(handle: *mut c_void) -> i32;
     fn GetLastError() -> u32;
     fn AssignProcessToJobObject(job: *mut c_void, process: *mut c_void) -> i32;
+    fn IsProcessInJob(process: *mut c_void, job: *mut c_void, result: *mut i32) -> i32;
     fn QueryInformationJobObject(
         job: *mut c_void,
         class: i32,
@@ -561,6 +562,14 @@ impl Job {
         Ok(())
     }
 
+    /// Whether the open process `process` is in the job, or in a job nested in it: unlike
+    /// its pid, a handle names that one process, never a later one given its pid.
+    pub fn holds(&self, process: RawHandle) -> bool {
+        let mut result = 0;
+        let read = unsafe { IsProcessInJob(process, self.handle, &mut result) };
+        read != 0 && result != 0
+    }
+
     /// The pids of every process in the job now, those of jobs nested in it too; None where
     /// Windows won't say.
     pub fn pids(&self) -> Option<Vec<u32>> {
@@ -788,8 +797,10 @@ mod tests {
             .spawn()
             .unwrap();
         assert_eq!(job.pids().unwrap(), Vec::<u32>::new());
+        assert!(!job.holds(shell.as_raw_handle()));
         job.assign(shell.as_raw_handle()).unwrap();
         assert!(job.pids().unwrap().contains(&shell.id()));
+        assert!(job.holds(shell.as_raw_handle()));
         shell.wait().unwrap();
         // The ping, whose parent has ended, is still the job's.
         let left = job.pids().unwrap();

@@ -1,9 +1,10 @@
 import { EventEmitter } from "node:events"
 import { PassThrough } from "node:stream"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { listedOf, WindowsJobs, windowsJobs, type Keeper } from "./jobs.js"
+import { relayMs } from "./trees.js"
 
 /**
  * A stand-in for `novadeck-relay jobs`: it answers each ask as `answer` says, and keeps what it
@@ -140,6 +141,41 @@ describe("a Windows terminal's job", () => {
     expect(await jobs.contain(11).held).toBe(true)
   })
 
+  it("goes on for the rest where a hold comes late, letting that one go", async () => {
+    vi.useFakeTimers()
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    let first = true
+    const relay = keeper((verb) => {
+      if (verb !== "hold") return { released: true }
+      if (first) {
+        first = false
+        return undefined
+      }
+      return { held: true }
+    })
+    const jobs = new WindowsJobs(async () => "relay.exe", relay.start)
+    const slow = jobs.contain(10).held
+    await vi.advanceTimersByTimeAsync(relayMs)
+    expect(await slow).toBe(false)
+    expect(jobs.active()).toBe(true)
+    expect(relay.asked[1]).toBe(relay.asked[0]!.replace(/^hold (\S+) .*$/, "release $1"))
+    expect(await jobs.contain(11).held).toBe(true)
+  })
+
+  it("lets its keeper go as the runner closes, and starts another for a later ask", async () => {
+    const relay = holding()
+    const jobs = new WindowsJobs(async () => "relay.exe", relay.start)
+    jobs.warm()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(relay.started).toHaveLength(1)
+    jobs.close()
+    expect(relay.child.stdin.writableEnded).toBe(true)
+    await jobs.contain(10).held
+    expect(relay.started).toHaveLength(2)
+  })
+
   it("tells nothing of a job once its relay has gone, and starts another for the next", async () => {
     const relay = holding([member(10, 100)])
     const jobs = new WindowsJobs(async () => "relay.exe", relay.start)
@@ -152,7 +188,9 @@ describe("a Windows terminal's job", () => {
   })
 
   it("is there on Windows alone", () => {
-    expect(windowsJobs(async () => "relay.exe", "win32")).toBeInstanceOf(WindowsJobs)
+    const jobs = windowsJobs(async () => undefined, "win32")
+    expect(jobs).toBeInstanceOf(WindowsJobs)
+    jobs?.close()
     expect(windowsJobs(async () => "relay.exe", "linux")).toBeUndefined()
   })
 })

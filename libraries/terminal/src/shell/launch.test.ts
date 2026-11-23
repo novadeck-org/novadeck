@@ -71,6 +71,7 @@ describe("a shell's launch", () => {
     // Nothing to hold, nothing on its way, or a shell that doesn't wait.
     expect(launch("bash", { env: {}, scoped: true }).env).not.toHaveProperty("ACME_SCOPE")
     expect(launch("bash", { env: {}, startup }).env).not.toHaveProperty("ACME_SCOPE")
+    expect(launch("pwsh", linux).env).not.toHaveProperty("ACME_SCOPE")
   })
 
   it("holds a startup command for a Windows job until the file made once it has settled", () => {

@@ -130,10 +130,11 @@ export const shellLaunch = ({
       }
     case "pwsh":
     case "powershell":
-      // A script policy that forbids the integration leaves the shell as it is.
+      // A script policy that forbids the integration leaves the shell as it is. It waits only
+      // for a Windows job's file: it reads no cgroup, so a Linux scope's "1" isn't its.
       return {
         args: ["-NoExit", "-Command", `try { . ${psQuote(scripts.powershell)} } catch {}`],
-        env: held,
+        env: scopeFile === undefined ? resuming : held,
         integrated: true,
         ...fromFile,
       }
