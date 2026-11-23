@@ -11,15 +11,16 @@ import { harnesses } from "../harnesses/registry.js"
 import {
   maxDeliveryBytes,
   novadeckSender,
-  tourArtistMark,
   tourBriefMark,
   type Message,
 } from "../messaging/messages.js"
 import { deliveredBytes } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
 import {
-  artistBrief,
+  branches,
+  builderTask,
   keptLine,
+  modellerTask,
   nudgeLine,
   projectNote,
   sandboxNote,
@@ -171,11 +172,11 @@ describe("readying the tour", () => {
         "dev.mjs",
         "dev.py",
         "index.html",
-        "model/hero.gltf",
-        "model/shapes.bin",
-        "src/city.js",
-        "src/score.js",
-        "src/config.js",
+        "models/README.md",
+        "models/placeholder.gltf",
+        "models/shapes.bin",
+        "src/main.js",
+        "src/models.js",
         "vendor/phaser/phaser.min.js",
         "vendor/phaser/LICENSE.md",
         "vendor/three/build/three.module.js",
@@ -195,8 +196,8 @@ describe("readying the tour", () => {
     )
     // The model's binary is written as it is.
     const assets = await repositoryAssets()
-    expect(await readFile(join(directory, "model", "shapes.bin"))).toEqual(
-      await readFile(join(assets.seed, "model", "shapes.bin")),
+    expect(await readFile(join(directory, "models", "shapes.bin"))).toEqual(
+      await readFile(join(assets.seed, "models", "shapes.bin")),
     )
     expect((await stat(join(directory, "vendor", "phaser", "phaser.min.js"))).size).toBeGreaterThan(
       100_000,
@@ -382,8 +383,8 @@ describe("the sandbox repo", () => {
         "CLAUDE.md",
         "README.md",
         "dev.mjs",
-        "model/shapes.bin",
-        "src/score.js",
+        "models/shapes.bin",
+        "src/main.js",
       ]),
     )
     expect(tracked).not.toContain(tourMarker)
@@ -431,9 +432,9 @@ describe("the sandbox repo", () => {
     const { tour } = tourIn(home)
     await tour.prepare("claude")
     const directory = tourFolder(home)
-    await writeFile(join(directory, "src", "score.js"), "changed\n")
+    await writeFile(join(directory, "src", "main.js"), "changed\n")
     await tour.prepare("claude")
-    expect(await readFile(join(directory, "src", "score.js"), "utf8")).toContain("points")
+    expect(await readFile(join(directory, "src", "main.js"), "utf8")).toContain("placeholder")
     expect(
       execFileSync("git", ["-C", directory, "rev-list", "--count", "HEAD"], {
         encoding: "utf8",
@@ -461,10 +462,10 @@ describe("the brief's facts", () => {
       'agent "claude", model "haiku", effort "low"',
       'agent "claude", model "haiku", effort "low"',
     ])
-    expect(text).toContain("> You are Sculptor, a teammate in Novadeck's tour.")
-    expect(text).toContain("> You are Score fixer, a teammate in Novadeck's tour.")
-    expect(text).toContain('branch "hero"')
-    expect(text).toContain('branch "fix-score"')
+    expect(text).toContain("> You are Modeller, a teammate in Novadeck's tour.")
+    expect(text).toContain("> You are Builder, a teammate in Novadeck's tour.")
+    expect(text).toContain(`branch "${branches.modeller}"`)
+    expect(text).toContain(`branch "${branches.builder}"`)
   })
 
   it("names the serving command and the page's address where the game can be served", async ({
@@ -526,7 +527,7 @@ describe("the brief's facts", () => {
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("Never use the person's name, even if you know it")
+    expect(text).toContain(`Never use the person's name: say "you"`)
     expect(text).not.toMatch(/\bNAME\b/)
   })
 })
@@ -611,87 +612,38 @@ describe("what the briefs say of the shell", () => {
     expect(shellRule("agy")).toBe("Run no shell command.")
   })
 
-  it("says so in the lead's brief, both teammates' tasks, the artist's brief and the folder's note", () => {
+  it("says so in the lead's brief, both teammates' tasks and the folder's note", () => {
     for (const agent of ["claude", "codex", "agy"] as const) {
       const rule = shellRule(agent)
       const lead = tourBrief({ lead: "@fox", mate: { agent, model: "m" }, serving: null })
       // Once for the lead, once in each quoted task.
       expect(lead.split(rule)).toHaveLength(4)
-      expect(artistBrief(agent)).toContain(rule)
       expect(sandboxNote(agent)).toContain(rule)
     }
   })
 })
 
-describe("the artist's brief", () => {
-  it("fits one delivery, and is framed as the artist's", () => {
-    const text = artistBrief("codex")
-    expect(text.startsWith(tourArtistMark)).toBe(true)
-    expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
-  })
-
-  it("has the artist find the lead itself, ask it, and draw in its own worktree", () => {
-    const text = artistBrief("claude")
-    expect(text).toContain("Call `agents`")
-    expect(text).toContain('branch "cover"')
-    expect(text).toContain("art/cover.svg")
+describe("the teammates' tasks", () => {
+  it("leave the picks and the models' names for the lead to write in, and run no git", () => {
+    for (const task of [modellerTask("@fox", "codex"), builderTask("@fox", "codex")]) {
+      for (const name of ["[[world]]", "[[kind]]", "[[one]]", "[[two]]", "[[three]]"])
+        expect(task).toContain(name)
+      expect(task).toContain("Call `ask` once")
+      expect(task).toContain('`to` "@fox"')
+      expect(task).toContain("run git")
+    }
+    expect(modellerTask("@fox", "codex")).toContain("Make models/[[one]].gltf")
+    expect(builderTask("@fox", "codex")).toContain('loadModel("[[one]]")')
   })
 })
 
-describe("ringing the artist's brief", () => {
-  it("rings it to an agent on no team, once the lead has started", async ({ resources }) => {
+describe("the artist", () => {
+  it("is gone: asking for it is refused, ringing nothing", async ({ resources }) => {
     const { tour, brief, notices } = await readied(resources)
-    brief()
-    tour.artist("mine")
-    expect(notices.at(-1)).toEqual(["mine", artistBrief("claude")])
-  })
-
-  it("rings nothing twice for the same terminal, and refuses another", async ({ resources }) => {
-    const { tour, brief, notices } = await readied(resources)
-    brief()
-    tour.artist("mine")
-    tour.artist("mine")
-    expect(notices.filter(([id]) => id === "mine")).toHaveLength(1)
-    expect(() => tour.artist("next")).toThrow(/artist has started already/)
-  })
-
-  it("is refused before a run is readied and before the lead has started", async ({
-    resources,
-  }) => {
-    expect(() => tourIn("/nowhere").tour.artist("mine")).toThrow(/hasn't been readied/)
-    const { tour } = await readied(resources)
-    expect(() => tour.artist("mine")).toThrow(/lead hasn't started/)
-  })
-
-  it("refuses the lead, a teammate and a terminal elsewhere, ringing nothing", async ({
-    resources,
-  }) => {
-    const { tour, brief, notices } = await readied(resources, {
-      shown: ["lead", "led", "away"],
-      leads: { led: "lead" },
-      cwds: { away: "/h/code" },
-    })
     brief()
     const before = notices.length
-    expect(() => tour.artist("lead")).toThrow(/lead or a teammate/)
-    expect(() => tour.artist("led")).toThrow(/lead or a teammate/)
-    expect(() => tour.artist("away")).toThrow(/isn't one of the tour's/)
+    expect(() => tour.artist("mine")).toThrow(/no artist/)
     expect(notices).toHaveLength(before)
-  })
-
-  it("can be asked again where the agent hasn't shown yet, and claims only once it has", async ({
-    resources,
-  }) => {
-    const shown = ["lead"]
-    const home = await scratchHome(resources)
-    const notices: [string, string][] = []
-    const { tour, brief } = tourIn(home, { notices, shown })
-    await tour.prepare("claude")
-    brief()
-    expect(() => tour.artist("mine")).toThrow(/hasn't started yet/)
-    shown.push("mine")
-    tour.artist("mine")
-    expect(notices.at(-1)?.[0]).toBe("mine")
   })
 })
 
@@ -712,7 +664,7 @@ describe("the person keeping the project", () => {
     expect(await readdir(directory)).not.toContain(".claude")
     expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(projectNote)
     // The project itself is whole.
-    expect(files).toEqual(expect.arrayContaining(["src/score.js", "vendor/phaser/phaser.min.js"]))
+    expect(files).toEqual(expect.arrayContaining(["src/main.js", "vendor/phaser/phaser.min.js"]))
   })
 
   it("leaves git as the person's own: clean, nothing of the tour's tracked or excluded", async ({
@@ -847,15 +799,16 @@ describe("the brief's wording", () => {
     expect(nudgeLine).toContain("Don't redo a step.")
   })
 
-  it("leaves the choice to the person, and has the lead answer the artist", async ({
+  it("has the lead ask the person which game, and leave their questions to them", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare("claude")
     const text = brief()
-    expect(text).toContain("Never answer a teammate's question to the person yourself")
-    expect(text).toContain("An agent that isn't your teammate asks about the game")
+    expect(text).toContain("Never answer their questions to the")
+    expect(text).toContain('"header":"The world"')
+    expect(text).toContain('"header":"The kind"')
   })
 })
 
@@ -878,7 +831,7 @@ describe("what the folder's own instructions say", () => {
 })
 
 describe("what an agent's open_agent is subject to in the tour", () => {
-  it("refuses a teammate and the artist, who have no business opening agents", async ({
+  it("refuses a teammate and any other agent there, who have no business opening agents", async ({
     resources,
   }) => {
     const { tour, brief } = await readied(resources, {
@@ -886,7 +839,6 @@ describe("what an agent's open_agent is subject to in the tour", () => {
       leads: { mate: "lead" },
     })
     brief()
-    tour.artist("mine")
     expect(tour.openPolicy("mate").refusal).toMatch(
       /only the lead of Novadeck's tour opens agents/i,
     )
