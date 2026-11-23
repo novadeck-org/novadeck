@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
@@ -26,7 +34,10 @@ type Fixture = {
 // records the arguments it received.
 const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
-    const root = mkdtempSync(join(tmpdir(), "novadeck-agy-posix-shim-"))
+    // By the path the shell names its folder by, as it sets `$PWD` from the system's own where
+    // it inherited none of its folder: macOS's temporary folders lie behind `/var`, a link to
+    // `/private/var`, and the shim compares `$PWD` with the worktrees' folder.
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "novadeck-agy-posix-shim-")))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const worktrees = join(root, "worktrees")
     const paths = await installShellFiles(join(root, "shell"), {
