@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
 from urllib.parse import unquote, urlsplit
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5180
@@ -202,5 +203,15 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class Server(ThreadingHTTPServer):
+    def server_bind(self):
+        # Python's own asks the system for this computer's name between taking the port and
+        # listening on it, which can take seconds; a page asking meanwhile would wait or fail.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", PORT
+
+
+# Said once it listens, so whoever reads this line can ask at once.
+server = Server(("127.0.0.1", PORT), Handler)
 print(f"The game is at http://127.0.0.1:{PORT}/", flush=True)
-ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+server.serve_forever()

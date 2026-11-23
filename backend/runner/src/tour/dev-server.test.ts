@@ -37,7 +37,7 @@ for (const kind of ["node", "python"] as const) {
     // A project as the tour leaves it: committed, with the dev servers in it, served from a
     // free port. `put` writes a file with a time of its own, each later than any before and
     // than the files git writes, so "changed last" never rests on how fast the test ran.
-    const served = async (resources: Resources) => {
+    const served = async (resources: Resources, slowName = false) => {
       const program = kind === "node" ? process.execPath : await python()
       if (program === undefined) return undefined
       const root = await realpath(await mkdtemp(join(tmpdir(), "novadeck-dev-server-")))
@@ -65,11 +65,30 @@ for (const kind of ["node", "python"] as const) {
         git(home, "worktree", "add", "-q", "-b", name, folder)
         return folder
       }
+      // A computer slow to name itself, as some are (seconds, on a Mac): Python's own server
+      // asks for that name between taking its port and listening on it.
+      const slow = join(root, "slow-name")
+      if (slowName && kind === "python") {
+        await mkdir(slow)
+        await writeFile(
+          join(slow, "sitecustomize.py"),
+          [
+            "import socket, time",
+            "named = socket.getfqdn",
+            "def slowly(name=''):",
+            "    time.sleep(3)",
+            "    return named(name)",
+            "socket.getfqdn = slowly",
+            "",
+          ].join("\n"),
+        )
+      }
       const port = await freePort()
       const child = spawn(program, [kind === "node" ? "dev.mjs" : "dev.py", String(port)], {
         cwd: home,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
+        ...(slowName && kind === "python" && { env: { ...process.env, PYTHONPATH: slow } }),
       })
       resources.defer(
         () =>
@@ -79,21 +98,40 @@ for (const kind of ["node", "python"] as const) {
             child.kill()
           }),
       )
+      // What the server said, and how it ended: told with a request it didn't answer, as such
+      // a failure may show on one kind of computer only.
+      let said = ""
+      let ended: string | undefined
+      child.stdout.on("data", (chunk: Buffer) => (said += String(chunk)))
+      child.stderr.on("data", (chunk: Buffer) => (said += String(chunk)))
+      child.once("exit", (code, signal) => (ended = `ended (${code ?? signal})`))
       await new Promise<void>((resolve, reject) => {
-        let said = ""
-        child.stdout.on("data", (chunk: Buffer) => {
-          said += String(chunk)
+        child.stdout.on("data", () => {
           if (said.includes("The game is at")) resolve()
         })
-        child.stderr.on("data", (chunk: Buffer) => (said += String(chunk)))
         child.once("exit", (code) => reject(new Error(`The dev server ended (${code}): ${said}`)))
       })
       const get = async (path: string) => {
-        const answer = await fetch(`http://127.0.0.1:${port}/${path}`)
+        const answer = await fetch(`http://127.0.0.1:${port}/${path}`).catch((error: unknown) => {
+          throw new Error(
+            `No answer for ${path}: the dev server ${ended ?? "still runs"}, and said: ${said}`,
+            { cause: error },
+          )
+        })
         return answer.ok ? answer.text() : `${answer.status}`
       }
       return { home, put, worktree, get }
     }
+
+    it(
+      "answers from the moment it says where it is, however slow the computer is to name itself",
+      async ({ resources, skip }) => {
+        const run = await served(resources, true)
+        if (!run) return skip("No Python 3 here.")
+        expect(await run.get("src/a.js")).toBe("a: committed\n")
+      },
+      patient,
+    )
 
     it(
       "serves this folder's own change where no worktree touched the file",
