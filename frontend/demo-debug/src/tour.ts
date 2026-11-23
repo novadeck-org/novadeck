@@ -68,7 +68,7 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
       },
       {
         label: "Tour story: answer the sheet (Fantasy, RPG)",
-        hint: "While the lead's sheet waits in the Inbox (What game shall we make?), answers it with its first options as the person would: the row goes, and the lead opens its Modeller and Builder",
+        hint: "While the lead's sheet waits in the Inbox (Which game shall we build?), answers it with its first options as the person would: the row goes, and the lead opens its Modeller and Builder",
         run: () => tour.answerSheet(),
       },
       {

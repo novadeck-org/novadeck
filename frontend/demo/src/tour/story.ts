@@ -48,7 +48,7 @@ export const modellerName = "Modeller"
 export const builderName = "Builder"
 export const serverName = "Game server"
 
-export const sheetSubject = "What game shall we make?"
+export const sheetSubject = "Which game shall we build?"
 export const worldOptions = ["Fantasy", "Sci-fi", "Modern"] as const
 export const kindOptions = ["RPG", "Shooter", "Strategy"] as const
 

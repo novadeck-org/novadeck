@@ -38,7 +38,7 @@ export const gameFile = "src/main.js"
 // The branches the agents' worktrees are on.
 export const branches = {
   modeller: "models",
-  builder: "build",
+  builder: "game",
 } as const
 
 // The address the game's page is at.
