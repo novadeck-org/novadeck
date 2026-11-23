@@ -258,6 +258,7 @@ export const scripted = ({
     inbox: {
       watch: () => inbox.iterator,
       answer: unused,
+      answerQuestions: unused,
       read: async () => {},
       dismiss: unused,
     },

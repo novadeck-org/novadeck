@@ -25,6 +25,8 @@ const contractFile = "harnesses/core/src/harness.ts"
 const limitFiles: Record<string, string> = {
   inboxTextLimits: "contract/protocol/src/inbox.ts",
   maxAskOptions: "contract/protocol/src/inbox.ts",
+  maxAskQuestions: "contract/protocol/src/inbox.ts",
+  maxQuestionOptions: "contract/protocol/src/inbox.ts",
   maxCommandLines: "contract/protocol/src/text.ts",
   maxFeedbackText: "contract/protocol/src/feedback.ts",
   maxStartupCommand: "contract/protocol/src/terminals.ts",

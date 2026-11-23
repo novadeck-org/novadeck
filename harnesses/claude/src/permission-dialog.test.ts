@@ -1557,3 +1557,396 @@ describe("Claude Code's dialog for a command taller than the screen", () => {
     expect(dialogs.read(drawn, facts(command))).toBeUndefined()
   })
 })
+
+// 2.1.329, 2026-11-22 (tour run, Haiku, acceptEdits): a subagent's Bash heredoc taller than the
+// screen, a warning row under its command's closing rule, and a footer that also says how to stop
+// background agents. The footer row made the dialog read as raw.
+describe("Claude Code's permission dialog from a subagent, with a warning", () => {
+  const command = Array.from({ length: 12 }, (_, n) => `echo "line ${n + 1} of the script"`).join(
+    "\n",
+  )
+  const rule = "╌".repeat(100)
+  const drawn = (footer: string): string[] => [
+    ...command.split("\n").map((line) => ` │ ${line}`),
+    rule,
+    " Contains brace with quote character (expansion obfuscation)",
+    "",
+    " Do you want to proceed?",
+    " ❯ 1. Yes",
+    "   2. Yes, and switch to auto mode · auto mode handles these prompts for you",
+    "   3. No",
+    " ↑ 92 more lines",
+    footer,
+  ]
+  const facts: RequestFacts = { kind: "permission", tool: "Bash", input: { command }, cwd: null }
+
+  it.each([
+    " Esc to cancel · Tab to amend",
+    " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents",
+  ])("reads it as choices with the command as detail (footer %s)", (footer) => {
+    const found = need(dialogs.read(drawn(footer), facts))
+    expect(found.dialog).toMatchObject({
+      type: "choices",
+      title: "Do you want to proceed?",
+      detail: command,
+    })
+  })
+
+  it("still refuses a footer it does not know", () => {
+    expect(
+      dialogs.read(drawn(" Esc to cancel · Tab to amend · something new"), facts),
+    ).toBeUndefined()
+  })
+})
+
+// The real screen of the same run's short case (2.1.329, 2026-11-23, footer-fix): the header row
+// names the subagent, a tip row follows it, and the warning ("This command requires approval")
+// sits under the command; the footer says how to stop background agents.
+describe("Claude Code's permission dialog for a subagent's short command", () => {
+  const command = 'node -e "console.log(40 + 2)" > answer.txt && cat answer.txt'
+  const rule = "╌".repeat(100)
+  const rows = [
+    "─".repeat(100),
+    " Bash command · from the general-purpose agent",
+    ' Tip: auto mode handles these prompts for you — choose "switch to auto mode" below',
+    " Write 40 + 2 to answer.txt and print it",
+    rule,
+    ` ${command}`,
+    rule,
+    " This command requires approval",
+    "",
+    " Do you want to proceed?",
+    " ❯ 1. Yes",
+    ' 2. Yes, and don’t ask again for: node -e "console.log(40 + 2)"'.replace(" 2.", "   2."),
+    "   3. Yes, and switch to auto mode · auto mode handles these prompts for you",
+    "   4. No",
+    "",
+    " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents",
+  ]
+  const facts: RequestFacts = { kind: "permission", tool: "Bash", input: { command }, cwd: null }
+
+  it("reads it as choices with the command as detail", () => {
+    const found = need(dialogs.read(rows, facts))
+    expect(found.dialog).toMatchObject({ type: "choices", detail: command })
+    expect(found.dialog).toMatchObject({
+      options: expect.arrayContaining([{ id: "4", label: "No", text: null }]),
+    })
+  })
+
+  it("still refuses a header naming another tool", () => {
+    const fetched = rows.map((row) => row.replace("Bash command", "Fetch"))
+    expect(dialogs.read(fetched, facts)).toBeUndefined()
+  })
+})
+
+// The real screens of a subagent's Write, Read and WebFetch requests (2.1.329, 2026-11-23,
+// footer-tools probe): each header names the agent after its label, and the footer says how to
+// stop background agents. Every one read as raw before.
+describe("Claude Code's permission dialogs for a subagent's other tools", () => {
+  const top = "─".repeat(120)
+  const rule = "╌".repeat(120)
+  const footer = " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents"
+  const cwd = "/tmp/claude-1000/tour-real/footer-tools/game"
+
+  it("reads a file it wants to create", () => {
+    const rows = [
+      top,
+      " Create file · from the general-purpose agent",
+      " ../../../footer-probe/note.txt",
+      rule,
+      "  1 hello",
+      rule,
+      " Do you want to create note.txt?",
+      " ❯ 1. Yes",
+      "   2. Yes, and always allow access to /tmp/claude-1000/footer-probe for this session (shift+tab)",
+      "   3. No",
+      "",
+      footer,
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "Write",
+      // The probe's own file had no line break at its end, which the reader declines for any
+      // new file (see `contentLines`); with one, the same screen is read.
+      input: { file_path: "/tmp/claude-1000/footer-probe/note.txt", content: "hello\n" },
+      cwd,
+    }
+    expect(need(dialogs.read(rows, facts)).dialog).toMatchObject({
+      type: "choices",
+      title: "Do you want to create note.txt?",
+    })
+    // The label still has to be the tool's own.
+    expect(dialogs.read(swap(rows, "Create file", "Edit file"), facts)).toBeUndefined()
+  })
+
+  it("reads a file it wants to read", () => {
+    const rows = [
+      top,
+      " Read file · from the general-purpose agent",
+      rule,
+      " Read(/etc/hostname)",
+      rule,
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow reading from /etc during this session",
+      "   3. No",
+      "",
+      footer,
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "Read",
+      input: { file_path: "/etc/hostname" },
+      cwd,
+    }
+    expect(need(dialogs.read(rows, facts)).dialog).toMatchObject({
+      type: "choices",
+      detail: "Read(/etc/hostname)",
+    })
+    expect(dialogs.read(swap(rows, "Read file", "Open file"), facts)).toBeUndefined()
+  })
+
+  it("reads a page it wants to fetch", () => {
+    const rows = [
+      top,
+      " Fetch · from the general-purpose agent",
+      " Claude wants to fetch content from example.com",
+      rule,
+      " url: https://example.com/",
+      " prompt: What is the title of this page? Reply with the title only.",
+      rule,
+      " Do you want to allow Claude to fetch this content?",
+      " ❯ 1. Yes",
+      "   2. Yes, and don't ask again for example.com",
+      "   3. No, and tell Claude what to do differently (esc)",
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "WebFetch",
+      input: {
+        url: "https://example.com/",
+        prompt: "What is the title of this page? Reply with the title only.",
+      },
+      cwd,
+    }
+    expect(need(dialogs.read(rows, facts)).dialog).toMatchObject({
+      type: "choices",
+      detail:
+        "url: https://example.com/\nprompt: What is the title of this page? Reply with the title only.",
+    })
+  })
+
+  it("takes no other words after a label for whose request it is", () => {
+    const rows = [
+      top,
+      " Read file · for the general-purpose agent",
+      rule,
+      " Read(/etc/hostname)",
+      rule,
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow reading from /etc during this session",
+      "   3. No",
+      "",
+      footer,
+    ]
+    expect(
+      dialogs.read(rows, {
+        kind: "permission",
+        tool: "Read",
+        input: { file_path: "/etc/hostname" },
+        cwd,
+      }),
+    ).toBeUndefined()
+  })
+})
+
+// The same dialogs in narrow panes, as real screens (2.1.329, 2026-11-23, 72 and 60 columns):
+// the footer's hint is cut off with `…`, the tip under a command's label wraps, and the
+// description and the command wrap too, so the label sits up to five rows above the command.
+describe("Claude Code's permission dialogs for a subagent in a narrow pane", () => {
+  const command = 'node -e "console.log(40 + 2)" > answer.txt && cat answer.txt'
+  const bash: RequestFacts = { kind: "permission", tool: "Bash", input: { command }, cwd: null }
+  const cwd = "/tmp/claude-1000/tour-real/footer-tools-w60/game"
+
+  it("reads a command at 72 columns", () => {
+    const rows = [
+      "────────────────────────────────────────────────────────────────────────",
+      " Bash command · from the general-purpose agent",
+      ' Tip: auto mode handles these prompts for you — choose "switch to auto',
+      ' mode" below',
+      " Write 40+2 to answer.txt and print it",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      ' node -e "console.log(40 + 2)" > answer.txt && cat answer.txt',
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      " This command requires approval",
+      "",
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      '   2. Yes, and don’t ask again for: node -e "console.log(40 + 2)"',
+      "   3. Yes, and switch to auto mode · auto mode handles these prompts",
+      "      for you",
+      "   4. No",
+      "",
+      " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background…",
+    ]
+    expect(need(dialogs.read(rows, bash)).dialog).toMatchObject({
+      type: "choices",
+      detail: command,
+    })
+  })
+
+  it("reads a command at 60 columns", () => {
+    const rows = [
+      "────────────────────────────────────────────────────────────",
+      " Bash command · from the general-purpose agent",
+      " Tip: auto mode handles these prompts for you — choose",
+      ' "switch to auto mode" below',
+      " Run the specified node command writing to answer.txt and",
+      " print it",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      ' node -e "console.log(40 + 2)" > answer.txt && cat',
+      " answer.txt",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      " This command requires approval",
+      "",
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      '   2. Yes, and don’t ask again for: node -e "console.log(40',
+      '      + 2)"',
+      "   3. Yes, and switch to auto mode · auto mode handles",
+      "      these prompts for you",
+      "   4. No",
+      "",
+      " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to sto…",
+    ]
+    expect(need(dialogs.read(rows, bash)).dialog).toMatchObject({
+      type: "choices",
+      detail: command,
+    })
+  })
+
+  it("reads a file to read and a file to create at 60 columns", () => {
+    const read = [
+      "────────────────────────────────────────────────────────────",
+      " Read file · from the general-purpose agent",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      " Read(/etc/hostname)",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow reading from /etc during this session",
+      "   3. No",
+      "",
+      " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to sto…",
+    ]
+    expect(
+      need(
+        dialogs.read(read, {
+          kind: "permission",
+          tool: "Read",
+          input: { file_path: "/etc/hostname" },
+          cwd,
+        }),
+      ).dialog,
+    ).toMatchObject({ type: "choices", detail: "Read(/etc/hostname)" })
+    const write = [
+      "────────────────────────────────────────────────────────────",
+      " Create file · from the general-purpose agent",
+      " ../../../footer-probe/note.txt",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      "  1 hello",
+      "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      " Do you want to create note.txt?",
+      " ❯ 1. Yes",
+      "   2. Yes, and always allow access to",
+      "      /tmp/claude-1000/footer-probe for this session",
+      "      (shift+tab)",
+      "   3. No",
+      "",
+      " Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to sto…",
+    ]
+    expect(
+      need(
+        dialogs.read(write, {
+          kind: "permission",
+          tool: "Write",
+          input: { file_path: "/tmp/claude-1000/footer-probe/note.txt", content: "hello\n" },
+          cwd,
+        }),
+      ).dialog,
+    ).toMatchObject({ type: "choices", title: "Do you want to create note.txt?" })
+  })
+
+  it("takes the footer's hint cut short, and no other text there", () => {
+    const rows = [
+      "─".repeat(60),
+      " Read file · from the general-purpose agent",
+      "╌".repeat(60),
+      " Read(/etc/hostname)",
+      "╌".repeat(60),
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow reading from /etc during this session",
+      "   3. No",
+      "",
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "Read",
+      input: { file_path: "/etc/hostname" },
+      cwd,
+    }
+    const read = (footer: string) => dialogs.read([...rows, footer], facts)
+    expect(read(" Esc to cancel · Tab to amend · ctrl+x ctrl+k twi…")).toBeDefined()
+    // Too little of it to tell, other words, or the hint with more after it.
+    expect(read(" Esc to cancel · Tab to amend · …")).toBeUndefined()
+    expect(read(" Esc to cancel · Tab to amend · ctrl+c to sto…")).toBeUndefined()
+    expect(
+      read(" Esc to cancel · Tab to amend · ctrl+x ctrl+k twice to stop background agents now"),
+    ).toBeUndefined()
+  })
+
+  it("takes a description that repeats another tool's label for no header", () => {
+    // The label is the row under the dialog's top rule, not any row above the command.
+    const rows = [
+      "─".repeat(100),
+      " Fetch · from the general-purpose agent",
+      " Bash command",
+      "╌".repeat(100),
+      ` ${command}`,
+      "╌".repeat(100),
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. No",
+      "",
+      " Esc to cancel · Tab to amend",
+    ]
+    expect(dialogs.read(rows, bash)).toBeUndefined()
+  })
+
+  it("reads an MCP tool's dialog by the same rule (not yet seen from a subagent)", () => {
+    const rows = [
+      "─".repeat(100),
+      " Tool use · from the general-purpose agent",
+      " novadeck — show Tool: (MCP)",
+      "╌".repeat(100),
+      ' title: "Game"',
+      "╌".repeat(100),
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. No",
+      "",
+      " Esc to cancel · Tab to amend",
+    ]
+    const facts: RequestFacts = {
+      kind: "permission",
+      tool: "mcp__novadeck__show",
+      input: { title: "Game" },
+      cwd: null,
+    }
+    const root = rows.map((row) => row.replace(" · from the general-purpose agent", ""))
+    // Whatever the reader makes of this drawn dialog from the root, it makes of it from a subagent.
+    expect(dialogs.read(rows, facts)?.dialog).toEqual(dialogs.read(root, facts)?.dialog)
+  })
+})

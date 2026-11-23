@@ -341,6 +341,7 @@ export const scriptedRunner = ({
       list: api.inbox.list.handler(unplayed("inbox.list")),
       watch: api.inbox.watch.handler(idle),
       answer: api.inbox.answer.handler(unplayed("inbox.answer")),
+      answerQuestions: api.inbox.answerQuestions.handler(unplayed("inbox.answerQuestions")),
       read: api.inbox.read.handler(unplayed("inbox.read")),
       dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
     },

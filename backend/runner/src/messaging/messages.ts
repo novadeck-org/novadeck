@@ -137,6 +137,16 @@ export type Message = {
     readonly subject: string
     readonly option?: string
     readonly action?: string
+    /**
+     * A questions ask's answers, one per question in its order: the question and its header as
+     * the agent wrote them, the labels of the options the person picked, and their own words.
+     */
+    readonly answers?: readonly {
+      readonly question: string
+      readonly header?: string
+      readonly picked: readonly string[]
+      readonly text?: string
+    }[]
     /** The person asks the agent to draft feedback about Novadeck: the text is their hint. */
     readonly feedback?: true
     /** When this response became undeliverable, for retaining its final outcome. */
@@ -468,6 +478,25 @@ const leadRules = (mark: string, person: boolean, mode: AgentMode, gated: boolea
   })
 }
 
+/** One answer of the person's to a question of a questions ask, as the agent reads it. */
+const answerText = (
+  {
+    question,
+    header,
+    picked,
+    text,
+  }: NonNullable<NonNullable<Message["response"]>["answers"]>[number],
+  at: number,
+): string =>
+  [
+    `Your question ${at + 1} (written by you): ${header === undefined ? "" : `<quoted-header>${escapeText(cleanInboxText(header))}</quoted-header> `}<quoted-question>${escapeText(cleanInboxText(question))}</quoted-question>`,
+    picked.length > 0 &&
+      `The ${picked.length === 1 ? "option" : "options"} you offered that the user picked: ${picked.map((label) => `<quoted-option>${escapeText(cleanInboxText(label))}</quoted-option>`).join(" ")}`,
+    text !== undefined && `The user's own answer: <reply>${escapeText(text)}</reply>`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
 /**
  * The rules notes a delivery's wrapper carries, by kind: of the person's responses, of a
  * delivery with its lead's messages, of one with only peers', and of Novadeck's notices.
@@ -722,6 +751,7 @@ export const wrap = (
             `The option you offered that the user picked: <quoted-option>${escapeText(cleanInboxText(response.option))}</quoted-option>`,
           response.action !== undefined &&
             `The user marked the action done. Your button label: <quoted-label>${escapeText(cleanInboxText(response.action))}</quoted-label>`,
+          ...(response.answers ?? []).map(answerText),
           text !== "" && `The user's own reply: <reply>${escapeText(text)}</reply>`,
         ]
           .filter(Boolean)

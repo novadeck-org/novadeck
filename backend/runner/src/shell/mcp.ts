@@ -38,8 +38,10 @@ import {
   harnesses,
   inboxTextLimits,
   maxAskOptions,
+  maxAskQuestions,
   maxCommandLines,
   maxFeedbackText,
+  maxQuestionOptions,
   maxStartupCommand,
   defaultAgentMode,
   type AgentMode,
@@ -1480,7 +1482,8 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "on it, such as an action's command, and never mentions the Inbox or the ask. " +
     "Give a subject and Markdown body, optionally details, hard_to_undo and shape: an " +
     "options shape for a choice between options (recommend your pick where you have one, and give " +
-    "hard_to_undo when it is), or an action shape for what only the user can do, such as a " +
+    "hard_to_undo when it is), a questions shape for several questions at once, each with its " +
+    "own options, or an action shape for what only the user can do, such as a " +
     "sign-in, access to a service or repo, or a key put in place, which shows them a " +
     "command to run; Novadeck never runs it. The user can always write their own answer. " +
     "Secret shapes are unavailable; never ask for a secret value. Returns at once with the " +
@@ -1571,6 +1574,58 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               done_label: { type: "string", maxLength: inboxTextLimits.line },
             },
             required: ["type", "command", "done_label"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "questions" },
+              questions: {
+                type: "array",
+                description: `One to ${maxAskQuestions} questions, answered together.`,
+                minItems: 1,
+                maxItems: maxAskQuestions,
+                items: {
+                  type: "object",
+                  properties: {
+                    header: {
+                      type: "string",
+                      maxLength: inboxTextLimits.header,
+                      description: "A short name for the question, shown on its tab.",
+                    },
+                    question: { type: "string", maxLength: inboxTextLimits.question },
+                    options: {
+                      type: "array",
+                      description: `One to ${maxQuestionOptions} choices.`,
+                      minItems: 1,
+                      maxItems: maxQuestionOptions,
+                      items: {
+                        type: "object",
+                        properties: {
+                          label: { type: "string", maxLength: inboxTextLimits.line },
+                          summary: { type: "string", maxLength: inboxTextLimits.summary },
+                        },
+                        required: ["label"],
+                        additionalProperties: false,
+                      },
+                    },
+                    multi_select: {
+                      type: "boolean",
+                      description: "Whether the user may pick more than one option.",
+                    },
+                    recommend: {
+                      type: ["integer", "null"],
+                      minimum: 0,
+                      maximum: maxQuestionOptions - 1,
+                      description: "Index of your pick, counted from zero, or null.",
+                    },
+                  },
+                  required: ["question", "options"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["type", "questions"],
             additionalProperties: false,
           },
         ],

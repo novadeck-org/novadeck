@@ -80,6 +80,25 @@ const share = <T,>(ref: Ref<T> | undefined, value: T | null): void => {
 const reason = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : "That answer didn't go through."
 
+// A mouse's click anywhere on a card (`event.currentTarget`) but a control or a field brings the
+// keyboard to its dialog's row the person is on, so the keys answer it from there; a selection
+// stays to copy, and what the click focused in the card keeps it, as a box that scrolls by its
+// keys. A tap never does, which would raise a phone's keyboard for a field. A host's own card
+// that holds a dialog does the same.
+export const clickToDialog = (
+  event: React.MouseEvent<HTMLElement>,
+  dialog: MenuHandle | null,
+): void => {
+  const { target, nativeEvent, currentTarget } = event
+  if (event.detail > 1 || !(target instanceof Element) || target.closest(controls)) return
+  const by = "pointerType" in nativeEvent ? nativeEvent.pointerType : ""
+  if (by === "touch" || by === "pen") return
+  if (window.getSelection()?.isCollapsed === false) return
+  const active = document.activeElement
+  if (active && active !== document.body && currentTarget.contains(active)) return
+  dialog?.focus(false)
+}
+
 // A request that waits on the person: what it asks, and the controls of its dialog where the
 // backend read it. The way to the agent's terminal shows only where the card has no other: an
 // answer it waits on, a dialog not on screen yet, one it can't read and has no live rows of.
@@ -179,20 +198,8 @@ export const RequestCard = ({
     },
     [menu],
   )
-  // A mouse's click anywhere on the card but a control or a field brings the keyboard to the
-  // dialog's row the person is on, so the keys answer it from there; a selection stays to copy,
-  // and what the click focused in the card keeps it, as a box that scrolls by its keys. A tap
-  // never does, which would raise a phone's keyboard for a field.
-  const toDialog = (event: React.MouseEvent<HTMLElement>): void => {
-    const { target, nativeEvent } = event
-    if (event.detail > 1 || !(target instanceof Element) || target.closest(controls)) return
-    const by = "pointerType" in nativeEvent ? nativeEvent.pointerType : ""
-    if (by === "touch" || by === "pen") return
-    if (window.getSelection()?.isCollapsed === false) return
-    const active = document.activeElement
-    if (active && active !== document.body && card.current?.contains(active)) return
-    dialogHandle.current?.focus(false)
-  }
+  const toDialog = (event: React.MouseEvent<HTMLElement>): void =>
+    clickToDialog(event, dialogHandle.current)
   const status = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
     if (!request.answered) return

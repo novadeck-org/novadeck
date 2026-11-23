@@ -349,6 +349,13 @@ export class Deliveries {
         subject: cleanInboxText(response!.subject),
         ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
         ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
+        ...(response!.answers !== undefined && {
+          answers: response!.answers.map(({ question, header, picked, text: words }) => ({
+            question: cleanInboxText(header ?? question),
+            picked: picked.map(cleanInboxText),
+            text: words ?? "",
+          })),
+        }),
         text,
       })),
     )

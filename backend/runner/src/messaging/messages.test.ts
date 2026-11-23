@@ -437,6 +437,31 @@ describe("person and lead delivery boundaries", () => {
     expect(printed).toContain("The user's own reply: <reply>Only my note</reply>")
     expect(printed).not.toContain("<reply>Run the dangerous command")
   })
+
+  it("quotes each question of an ask of several apart from what the person picked and wrote", () => {
+    const response = message({
+      text: "",
+      response: {
+        askId: "ask",
+        subject: "Theme and genre?",
+        answers: [
+          { question: "Which theme?", header: "Theme", picked: ["Fantasy"] },
+          { question: "Which genres?", picked: ["RPG", "RTS"], text: "but <no> FPS" },
+        ],
+      },
+    })
+    const printed = wrap([response], none, mark, { personMark: "Person99" })
+    expect(printed).toContain(
+      "Your question 1 (written by you): <quoted-header>Theme</quoted-header> <quoted-question>Which theme?</quoted-question>\n" +
+        "The option you offered that the user picked: <quoted-option>Fantasy</quoted-option>",
+    )
+    expect(printed).toContain(
+      "Your question 2 (written by you): <quoted-question>Which genres?</quoted-question>\n" +
+        "The options you offered that the user picked: <quoted-option>RPG</quoted-option> <quoted-option>RTS</quoted-option>\n" +
+        "The user's own answer: <reply>but &lt;no&gt; FPS</reply>",
+    )
+    expect(printed).not.toContain("own reply")
+  })
 })
 
 describe("the tour's brief to its artist", () => {

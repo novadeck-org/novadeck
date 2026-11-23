@@ -27,6 +27,7 @@ import {
   type AgentDetail,
   type AskAnswer,
   type InboxEntry as WireEntry,
+  type QuestionsAnswer,
 } from "@novadeck/protocol"
 
 import { reportCaught } from "../streams"
@@ -56,11 +57,25 @@ export const settleMs = 15_000
 // again, before an entry that is missing is taken to have ended.
 export const relistMs = 3000
 
+// An ask's answer as the runner takes it: several questions' answers by their own procedure.
+const answerAsk = (
+  streams: InboxStreams,
+  id: string,
+  answer: Extract<InboxAnswer, { kind: "ask" }>["answer"],
+): Promise<void> =>
+  answer.type === "questions"
+    ? streams.inbox.answerQuestions(
+        id,
+        answer.answers.map(({ options, text }) => ({ options: [...options], text })),
+      )
+    : streams.inbox.answer(id, answer)
+
 // The streams and calls the Inbox needs of the runner.
 export type InboxStreams = {
   readonly inbox: {
     readonly watch: () => AsyncIterableIterator<WireEntry[], undefined>
     readonly answer: (id: string, answer: AskAnswer) => Promise<void>
+    readonly answerQuestions: (id: string, answers: QuestionsAnswer) => Promise<void>
     readonly read: (ids: readonly string[]) => Promise<void>
     readonly dismiss: (id: string) => Promise<void>
   }
@@ -508,7 +523,7 @@ export const createRunnerInbox = (
         observed: false,
       })
       if (replies.size > replyTrackingLimit) replies.delete(replies.keys().next().value!)
-      return tracker.call(id, () => streams.inbox.answer(id, given.answer), {
+      return tracker.call(id, () => answerAsk(streams, id, given.answer), {
         onError: () => replies.delete(id),
       })
     }

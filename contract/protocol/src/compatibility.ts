@@ -28,10 +28,11 @@ export const compatibility: Compatibility = {
   // 7: the person's settings follow them from device to device, live (`settings.watch`,
   //    `preferences.*`).
   // 8: a terminal's control moves between clients (`terminals.take`, `terminals.controls`).
-  // 9: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
+  // 9: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
+  // 10: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
   // runners before it refuse; and an agent's `limited` gains reasons (outdated, unsupported),
   // read tolerantly from here, which UIs before it don't.
-  revision: 9,
-  oldestClient: 9,
-  oldestRunner: 9,
+  revision: 10,
+  oldestClient: 10,
+  oldestRunner: 10,
 }

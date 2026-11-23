@@ -1,7 +1,7 @@
 {
-  "revision": 9,
-  "oldestClient": 9,
-  "oldestRunner": 9,
+  "revision": 10,
+  "oldestClient": 10,
+  "oldestRunner": 10,
   "errors": {
     "AGENT_SETUP_FAILED": null,
     "ALREADY_ATTACHED": null,
@@ -3199,7 +3199,7 @@
             "limited": {
               "type": "string",
               "enum": ["own-status-line","outdated","unsupported","newer"],
-              "x-open": {"since":9,"unknown":"placeholder"}
+              "x-open": {"since":10,"unknown":"placeholder"}
             },
             "installer": {
               "type": "string",
@@ -4560,7 +4560,7 @@
           "limited": {
             "type": "string",
             "enum": ["own-status-line","outdated","unsupported","newer"],
-            "x-open": {"since":9,"unknown":"placeholder"}
+            "x-open": {"since":10,"unknown":"placeholder"}
           },
           "installer": {
             "type": "string",
@@ -7276,6 +7276,65 @@
                             },
                             {
                               "type": "object",
+                              "properties": {
+                                "type": {"type":"string","const":"questions"},
+                                "questions": {
+                                  "minItems": 1,
+                                  "maxItems": 4,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "header": {
+                                        "anyOf": [
+                                          {"type":"string","minLength":1,"maxLength":64},
+                                          {"type":"null"}
+                                        ]
+                                      },
+                                      "question": {"type":"string","minLength":1,"maxLength":2048},
+                                      "options": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "label": {"type":"string","minLength":1,"maxLength":256},
+                                            "summary": {
+                                              "anyOf": [
+                                                {"type":"string","maxLength":2048},
+                                                {"type":"null"}
+                                              ]
+                                            }
+                                          },
+                                          "required": ["label","summary"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "multiSelect": {"type":"boolean"},
+                                      "recommend": {
+                                        "anyOf": [
+                                          {"type":"integer","minimum":0,"maximum":3},
+                                          {"type":"null"}
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "header",
+                                      "question",
+                                      "options",
+                                      "multiSelect",
+                                      "recommend"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": ["type","questions"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
                               "properties": {"type":{"type":"string","const":"newer"}},
                               "required": ["type"],
                               "additionalProperties": false
@@ -7481,6 +7540,65 @@
                             },
                             {
                               "type": "object",
+                              "properties": {
+                                "type": {"type":"string","const":"questions"},
+                                "questions": {
+                                  "minItems": 1,
+                                  "maxItems": 4,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "header": {
+                                        "anyOf": [
+                                          {"type":"string","minLength":1,"maxLength":64},
+                                          {"type":"null"}
+                                        ]
+                                      },
+                                      "question": {"type":"string","minLength":1,"maxLength":2048},
+                                      "options": {
+                                        "minItems": 1,
+                                        "maxItems": 4,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "label": {"type":"string","minLength":1,"maxLength":256},
+                                            "summary": {
+                                              "anyOf": [
+                                                {"type":"string","maxLength":2048},
+                                                {"type":"null"}
+                                              ]
+                                            }
+                                          },
+                                          "required": ["label","summary"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "multiSelect": {"type":"boolean"},
+                                      "recommend": {
+                                        "anyOf": [
+                                          {"type":"integer","minimum":0,"maximum":3},
+                                          {"type":"null"}
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "header",
+                                      "question",
+                                      "options",
+                                      "multiSelect",
+                                      "recommend"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": ["type","questions"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
                               "properties": {"type":{"type":"string","const":"newer"}},
                               "required": ["type"],
                               "additionalProperties": false
@@ -7598,6 +7716,36 @@
           }
         },
         "required": ["id","answer"],
+        "additionalProperties": false
+      },
+      "output": {"x-optional":true}
+    },
+    "inbox.answerQuestions": {
+      "since": 9,
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "answers": {
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "options": {
+                  "maxItems": 4,
+                  "type": "array",
+                  "items": {"type":"integer","minimum":0,"maximum":3}
+                },
+                "text": {"type":"string","maxLength":4096}
+              },
+              "required": ["options","text"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["id","answers"],
         "additionalProperties": false
       },
       "output": {"x-optional":true}

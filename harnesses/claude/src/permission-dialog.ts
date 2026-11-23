@@ -30,7 +30,18 @@ import { diffIs } from "./diffs.js"
 const permissionTitle = /^ (Do you want to .+\?)$/
 const permissionOption = /^ (❯| ) (\d+)\. (.+)$/
 const permissionContinuation = /^ {6,}\S/
-const permissionFooter = /^ Esc to cancel · Tab to amend$/
+// The footer, and what it adds while background agents run (a subagent's own request is one):
+// how to stop them (2.1.329, 2026-11-22 tour run), cut off with `…` where the row is too
+// narrow for all of it (72 and 60 columns, 2026-11-23 probes). Enough of the hint has to show
+// to tell it is this one.
+const footerBase = " Esc to cancel · Tab to amend"
+const footerHint = " · ctrl+x ctrl+k twice to stop background agents"
+const footerIs = (row: string): boolean => {
+  if (!row.startsWith(footerBase)) return false
+  const more = row.slice(footerBase.length)
+  if (more === "" || more === footerHint) return true
+  return more.length >= 5 && more.endsWith("…") && footerHint.startsWith(more.slice(0, -1))
+}
 // From 2.1.328 a dialog taller than the screen says under its options how many of its rows
 // scrolled away above them (` ↑ 145 more lines`, fixtures/tall.probe.json); what shows of it is
 // read as before.
@@ -64,6 +75,15 @@ const samePath = (path: string, shown: string, cwd: string | null): boolean => {
   return path === shown || path.endsWith(`/${shown}`)
 }
 
+// A subagent's request says whose it is after its header's label (`Bash command · from the
+// general-purpose agent`, and the same on `Create file`, `Read file` and `Fetch`: 2.1.329,
+// 2026-11-23 probes; `Tool use` by the same rule, not yet seen). A header is compared by its
+// label alone: what the dialog asks is read from its body, whoever asks.
+const whose = / · from the \S.* agent$/
+const labelOf = (row: string): string => row.replace(whose, "")
+// How far above a block its dialog's top rule is looked for.
+const headerReach = 8
+
 // An MCP server's or tool's name as the dialog's title and the tool's own name compare:
 // letters and digits, in lower case.
 const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -76,9 +96,17 @@ const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/
 const shows = (rows: readonly string[], title: number, facts: RequestFacts): string | undefined => {
   const input = fieldsOf(facts.input)
   if (!input) return refuse("permission.shows.1")
-  // The three rows above a block, where its header is.
-  const header = (open: number): string[] =>
-    rows.slice(Math.max(0, open - 3), open).map((each) => each.trim())
+  // Where a block's header is: the row under the dialog's top rule, as its label, without
+  // whose request it is. A subagent's command has a tip under its label that wraps in a narrow
+  // pane, above a description that may wrap too, so the label can be five rows above the block
+  // (72 and 60 columns, 2026-11-23 probes). Where the top rule isn't in reach, as when it has
+  // scrolled away, the three rows above the block, as before.
+  const header = (open: number): string[] => {
+    const from = Math.max(0, open - headerReach)
+    const top = rows.slice(from, open).findLastIndex((each) => rule.test(each))
+    const above = top < 0 ? rows.slice(Math.max(0, open - 3), open) : [rows[from + top + 1] ?? ""]
+    return above.map((each) => labelOf(each.trim()))
+  }
   switch (facts.tool) {
     case "Bash": {
       const command = nonBlank(input.command)
@@ -142,7 +170,7 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       const over = asked[1] === "overwrite"
       // The header and the question's verb agree with the tool, the question names the
       // subtitle's file, and the subtitle resolves to the request's.
-      const label = rows[open - 2]?.trim()
+      const label = labelOf(rows[open - 2]?.trim() ?? "")
       const expected = facts.tool === "Edit" ? "Edit file" : over ? "Overwrite file" : "Create file"
       if (label !== expected || (facts.tool === "Edit") !== (asked[1] === "make this edit to")) {
         return refuse("permission.shows.15")
@@ -160,7 +188,7 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       if (!mcp) return refuse("permission.shows.19")
       const at = rows.findIndex((each, index) => index < title && each.endsWith("(MCP)"))
       const named = /^ (.+?) — (.+?) Tool: \(MCP\)$/.exec(rows[at] ?? "")
-      if (!named || at < 1 || rows[at - 1]!.trim() !== "Tool use")
+      if (!named || at < 1 || labelOf(rows[at - 1]!.trim()) !== "Tool use")
         return refuse("permission.shows.20")
       if (nameKey(named[1]!) !== nameKey(mcp[1]!) || nameKey(named[2]!) !== nameKey(mcp[2]!)) {
         return refuse("permission.shows.21")
@@ -197,7 +225,7 @@ export const permission = (
   const read = numbered(rows, at + 1, permissionOption, permissionContinuation)
   if (!read) return refuse("permission.permission.3")
   const rest = scrolledAway.test(read.rest[0] ?? "") ? read.rest.slice(1) : read.rest
-  if (rest.length > 1 || (rest.length === 1 && !permissionFooter.test(rest[0]!))) {
+  if (rest.length > 1 || (rest.length === 1 && !footerIs(rest[0]!))) {
     return refuse("permission.permission.4")
   }
   const detail = shows(rows, at, facts)

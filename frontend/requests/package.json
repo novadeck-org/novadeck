@@ -11,6 +11,7 @@
     "./Hint": "./src/Hint.tsx",
     "./Menu": "./src/Menu.tsx",
     "./RequestCard": "./src/RequestCard.tsx",
+    "./RequestDialog": "./src/RequestDialog.tsx",
     "./requests.css": "./src/requests.css",
     "./shown-controls": "./src/shown-controls.ts",
     "./submit-on-enter": "./src/submit-on-enter.ts",

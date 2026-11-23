@@ -178,6 +178,10 @@ export {
   type InboxEntry,
   inboxTextLimits,
   maxAskOptions,
+  maxAskQuestions,
+  maxQuestionOptions,
+  questionsAnswer,
+  type QuestionsAnswer,
 } from "./inbox.js"
 export {
   type DeliveredNotice,

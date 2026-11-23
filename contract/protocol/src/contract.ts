@@ -52,7 +52,7 @@ import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
 import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
-import { askAnswer, inboxEntry } from "./inbox.js"
+import { askAnswer, inboxEntry, questionsAnswer } from "./inbox.js"
 import { terminalMessages, terminalRings, threadId } from "./messages.js"
 import { preferenceChange, preferenceKey, preferenceValue } from "./preferences.js"
 import {
@@ -920,6 +920,11 @@ export const contract = {
     list: procedure.input(z.void()).output(z.array(inboxEntry)),
     watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),
     answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
+    // Answers an ask of several questions, all at once; errors as `answer` does.
+    answerQuestions: procedure
+      .meta({ since: 9 })
+      .input(z.strictObject({ id, answers: questionsAnswer }))
+      .output(z.void()),
     // Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
     // not touched. Unknown ids are skipped.
     read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
