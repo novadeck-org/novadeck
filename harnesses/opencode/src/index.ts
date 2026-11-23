@@ -20,8 +20,13 @@ import { title } from "./startup.js"
 import { followTranscript } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
-/** How long a resume's prompt may show without its session bound before it counts as failed. */
-const resumeGraceMs = 3_000
+/**
+ * How long a resume's prompt may show without its session bound before it counts as failed: long,
+ * as the plugin binds only once opencode answered its version and that the session is there, which
+ * took over 3 s on CI's Windows runners. A missing session never waits it out: opencode exits
+ * ("Session not found"), and the shell's prompt coming back fails the resume at once.
+ */
+const resumeGraceMs = 15_000
 
 const launch: LaunchProfile = {
   start: ["opencode"],

@@ -88,7 +88,9 @@ export const opencode: AgentSetup = {
   keepsHookText: true,
   // It tries to install its plugin package into each configuration folder it loads from
   // (probed 2026-11-22, 1.19.6); the fake model's proxy refuses the tunnel.
-  refused: ["registry.npmjs.org"],
+  // Where no ripgrep is on PATH (CI's Windows runners), it fetches one from its GitHub releases
+  // (core/src/ripgrep/binary.ts, 1.19.6); refused, as every host is.
+  refused: ["registry.npmjs.org", "github.com"],
   watch: {
     searched: [".config/opencode/opencode.json"],
     listed: [".local/share/opencode", ".local/state/opencode"],

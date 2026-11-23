@@ -17,7 +17,8 @@ afterEach(() => rmSync(home, { recursive: true, force: true }))
 const install = (env: NodeJS.ProcessEnv = {}): Install => ({
   env,
   home,
-  platform: "linux",
+  // The host's own: its temporary folders are its paths.
+  platform: process.platform,
   plugin: join(home, "plugin"),
 })
 const dataDir = () => join(home, ".local", "share", "opencode")

@@ -68,9 +68,15 @@ export const versionOf = async (
   const key = `${program}\0${modified}`
   let found = known.get(key)
   if (!found) {
+    // npm's shim on Windows is `opencode.cmd`, which Node runs only through a shell (it refuses a
+    // batch file without one): quoted, as its path may hold a space.
+    const batch = /\.(?:cmd|bat)$/i.test(program)
     found = new Promise((resolve) =>
-      execFile(program, ["--version"], { env, timeout: 15_000, windowsHide: true }, (error, out) =>
-        resolve(error ? undefined : /\d+\.\d+\.\d+\S*/.exec(out)?.[0]),
+      execFile(
+        batch ? `"${program}"` : program,
+        ["--version"],
+        { env, timeout: 15_000, windowsHide: true, ...(batch && { shell: true }) },
+        (error, out) => resolve(error ? undefined : /\d+\.\d+\.\d+\S*/.exec(out)?.[0]),
       ),
     )
     known.set(key, found)

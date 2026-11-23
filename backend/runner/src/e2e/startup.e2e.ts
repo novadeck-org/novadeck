@@ -302,6 +302,11 @@ const signedOut: {
     })
   },
   // No screen of its own holds it before its prompt, signed in or not: a missing or refused
-  // key shows only as its first turn's error (probed 2026-11-22, 1.19.6).
-  opencode: () => {},
+  // key shows only as its first turn's error (probed 2026-11-22, 1.19.6). Skipped by name, so
+  // the suite isn't empty, which vitest fails.
+  opencode: (setup, how) =>
+    gated(
+      e2e(setup),
+      "it shows no sign-in screen: a missing or refused key is its first turn's error",
+    )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
 }
