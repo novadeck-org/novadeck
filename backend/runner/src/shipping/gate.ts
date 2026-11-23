@@ -67,7 +67,11 @@ export type GateDeps = {
    * The person's allow rules for the session `agent` holds in a terminal, whose command runs in
    * `cwd`: its harness reads its project's in the folder it started in, not the command's.
    */
-  readonly rules: (agent: GatedAgent, terminalId: string, cwd: string) => Promise<readonly AllowRule[]>
+  readonly rules: (
+    agent: GatedAgent,
+    terminalId: string,
+    cwd: string,
+  ) => Promise<readonly AllowRule[]>
   /** The turn Codex's rollout last started; undefined when it can't be read. */
   readonly turn: (transcript: string | undefined) => Promise<Turn | undefined>
   readonly now?: () => number
