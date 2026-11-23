@@ -8,6 +8,7 @@ import type {
 } from "@novadeck/core/feedback"
 import { scrub, strikeSummary, textToSend } from "@novadeck/core/feedback/scrub"
 import type { AgentName } from "@novadeck/core/harnesses"
+import { watchPerson } from "@novadeck/core/person"
 import type { TerminalKey } from "@novadeck/core/types"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Popover } from "@novadeck/toolkit/Popover"
@@ -116,6 +117,14 @@ export const FeedbackButton = ({
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const [opened, setOpened] = useState(readFeedbackOpened)
+  // Opened on another device is opened (core's person.ts).
+  useEffect(
+    () =>
+      watchPerson((key) => {
+        if (key === "feedback-opened") setOpened(readFeedbackOpened())
+      }),
+    [],
+  )
   const [kind, setKind] = useState<FeedbackKind | null>(null)
   const [text, setText] = useState("")
   const [send, setSend] = useState<Send>("idle")

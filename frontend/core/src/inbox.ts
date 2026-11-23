@@ -332,11 +332,13 @@ export const entryKey = (entry: InboxEntry): string => `${entry.id}@${entry.at}`
 
 // `inbox` with snoozes: its entries that the person snoozed, and that haven't settled, carry
 // `snoozed`. `initial` the snoozes kept before, and `save` keeps them each time one is
-// snoozed or brought back, the latest `maxSnoozes`.
+// snoozed or brought back, the latest `maxSnoozes`. `follow`, where given, is handed what
+// takes the snoozes as another device left them.
 export const withSnoozes = <I extends Inbox>(
   inbox: I,
   initial: readonly string[],
   save: (keys: readonly string[]) => void,
+  follow?: (take: (keys: readonly string[]) => void) => void,
 ): I => {
   let snoozed: readonly string[] = initial.slice(-maxSnoozes)
   let keys: ReadonlySet<string> = new Set(snoozed)
@@ -355,6 +357,17 @@ export const withSnoozes = <I extends Inbox>(
     state.items.some(asleep)
       ? { ...state, items: state.items.map((entry) => (asleep(entry) ? copy(entry) : entry)) }
       : state
+  const snoozeTo = (next: readonly string[]): void => {
+    snoozed = next
+    keys = new Set(snoozed)
+    from = undefined
+    copies = new WeakMap()
+    for (const listener of listeners) listener()
+  }
+  follow?.((next) => {
+    const kept = next.slice(-maxSnoozes)
+    if (kept.join("\n") !== snoozed.join("\n")) snoozeTo(kept)
+  })
   const getSnapshot = (): InboxState => {
     const now = inbox.state.getSnapshot()
     if (now !== from) {
@@ -382,12 +395,8 @@ export const withSnoozes = <I extends Inbox>(
       const entry = inbox.state.getSnapshot().items.find((each) => each.id === id)
       if (on && !entry) return
       const kept = snoozed.filter((key) => !key.startsWith(`${id}@`))
-      snoozed = (on && entry ? [...kept, entryKey(entry)] : kept).slice(-maxSnoozes)
-      keys = new Set(snoozed)
-      from = undefined
-      copies = new WeakMap()
+      snoozeTo((on && entry ? [...kept, entryKey(entry)] : kept).slice(-maxSnoozes))
       save(snoozed)
-      for (const listener of listeners) listener()
     },
   }
 }

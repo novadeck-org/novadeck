@@ -25,10 +25,12 @@ export const compatibility: Compatibility = {
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
   // 6: each device has its own credential, revoked on its own (`devices.*`).
-  // 7: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
+  // 7: the person's settings follow them from device to device, live (`settings.watch`,
+  //    `preferences.*`).
+  // 8: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
   // runners before it refuse; and an agent's `limited` gains reasons (outdated, unsupported),
   // read tolerantly from here, which UIs before it don't.
-  revision: 7,
-  oldestClient: 7,
-  oldestRunner: 7,
+  revision: 8,
+  oldestClient: 8,
+  oldestRunner: 8,
 }

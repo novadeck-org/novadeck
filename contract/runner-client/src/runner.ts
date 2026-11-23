@@ -42,6 +42,7 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type PreferenceChange,
   type SessionChange,
   type ProjectsChange,
   type SessionPatch,
@@ -862,6 +863,23 @@ export type Runner = {
     get(): Promise<RunnerSettingsState>
     /** Changes the settings given; the others stay. */
     set(settings: Partial<RunnerSettings>): Promise<void>
+    /**
+     * The settings now, then as any client changes them, again after each reconnection
+     * (revision 3; ask `supports("settings.watch")` first).
+     */
+    watch(): AsyncIterableIterator<RunnerSettingsState, undefined>
+  }
+  /**
+   * The person's own preferences, which follow them from device to device (`preferences.*`,
+   * revision 3; ask `supports("preferences.get")` first).
+   */
+  readonly preferences: {
+    /** Every preference kept, and their revision. */
+    get(): Promise<PreferenceChange>
+    /** Keeps `value` (JSON text) as `key`, or forgets it for null, as `writer`; the new revision. */
+    set(key: string, value: string | null, writer: string): Promise<number>
+    /** Every preference, then each change, opened again (every preference first) after each reconnection. */
+    watch(): AsyncIterableIterator<PreferenceChange, undefined>
   }
   /**
    * Devices with credentials of their own, beside the owner's token (`devices.*`, revision 3;
@@ -1192,6 +1210,17 @@ export const connectRunner = async (
     settings: {
       get: () => call((client) => client.settings.get()),
       set: (settings) => call((client) => client.settings.set(settings)),
+      watch: () =>
+        followSession(connection, (client, signal) => client.settings.watch(undefined, { signal })),
+    },
+    preferences: {
+      get: () => call((client) => client.preferences.get()),
+      set: async (key, value, writer) =>
+        (await call((client) => client.preferences.set({ key, value, writer }))).revision,
+      watch: () =>
+        followSession(connection, (client, signal) =>
+          client.preferences.watch(undefined, { signal }),
+        ),
     },
     devices: {
       mint: (name) => call((client) => client.devices.mint({ name })),

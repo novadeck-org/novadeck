@@ -1,5 +1,6 @@
 import { createChat, watchChat } from "@novadeck/chat/state"
 import { readChatOfferAnswered } from "@novadeck/core/agents/chat-offer"
+import { syncPerson } from "@novadeck/core/person"
 import type { CreateBackend } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -31,6 +32,7 @@ import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
+import { followPersonPreferences, quietly } from "./person-preferences"
 import { watchProjectWindows, watchWindowTitle } from "./project-windows"
 import { pullRequestsOf } from "./pull-requests"
 import { availablePanels, historyShown, resolveRoute, filesShown, reportsWorks } from "./routing"
@@ -174,10 +176,27 @@ export const WorkspaceProvider = ({
     return itemStore && backend.messages ? followMessages(workspace, backend.messages) : undefined
   }, [services])
   useEffect(() => persistUi(services.ui, services.workspace), [services])
+  // The settings that follow the person, kept on the runner for every device they use.
+  useEffect(
+    () =>
+      followPersonPreferences(services.ui, (next) =>
+        // Another device's choice isn't an answer to this one's Agent Chat offer.
+        services.commands.updatePreferences(next, { answersOffer: false }),
+      ),
+    [services],
+  )
+  useEffect(() => {
+    const { preferences } = services.backend
+    return preferences ? syncPerson(preferences) : undefined
+  }, [services])
   useEffect(() => watchAppearance(services.ui, window, services.backend.showAppearance), [services])
   useEffect(() => watchScale(services.ui, services.backend.showScale), [services])
   useEffect(
-    () => followSavedPreferences(services.ui, window, services.commands.updatePreferences),
+    () =>
+      followSavedPreferences(services.ui, window, (next) =>
+        // Another window's change, which that window sends the runner itself.
+        quietly(() => services.commands.updatePreferences(next)),
+      ),
     [services],
   )
   useEffect(() => watchPresentation(services.workspace, services.ui), [services])

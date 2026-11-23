@@ -26,7 +26,21 @@ export const fontFamilyOf = (saved: unknown): string => {
   return name.length <= 200 && !/[\u0000-\u001f\u007f-\u009f]/.test(name) ? name : ""
 }
 
-export const readPreferences = (): PreferencesValue => {
+// The preferences that follow the person from device to device (core's person.ts), by their
+// names on the runner. The rest are this device's: its text, its scale, its sounds and
+// notifications, its screen reader, its windows.
+export const personPreferences = {
+  appearance: "appearance",
+  enabledViews: "enabled-views",
+  chatView: "chat-view",
+  agentAvatars: "agent-avatars",
+  onboardingTour: "onboarding-tour",
+} as const satisfies Partial<Record<keyof PreferencesValue, string>>
+
+// Saved preferences as the app takes them: each it can read, the default for the rest.
+export const preferencesFrom = (
+  saved: Partial<PreferencesValue> | null | undefined,
+): PreferencesValue => {
   const defaults: PreferencesValue = {
     fontSize: fontSizeRange.fallback,
     fontFamily: "",
@@ -45,44 +59,49 @@ export const readPreferences = (): PreferencesValue => {
     onboardingTour: false,
     appScale: 100,
   }
+  if (typeof saved !== "object" || saved === null) return defaults
+  const enabledViews = Array.isArray(saved?.enabledViews)
+    ? viewModes.filter((mode) => saved.enabledViews!.includes(mode))
+    : defaults.enabledViews
+  return {
+    enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
+    fontSize: fontSizeOf(saved?.fontSize),
+    fontFamily: fontFamilyOf(saved?.fontFamily),
+    appearance: appearancePreferenceOf(saved?.appearance, themes),
+    notifyNeeds: typeof saved?.notifyNeeds === "boolean" ? saved.notifyNeeds : defaults.notifyNeeds,
+    notifyFinished:
+      typeof saved?.notifyFinished === "boolean" ? saved.notifyFinished : defaults.notifyFinished,
+    sound: typeof saved?.sound === "boolean" ? saved.sound : defaults.sound,
+    soundVolume:
+      typeof saved?.soundVolume === "number" && Number.isFinite(saved.soundVolume)
+        ? Math.min(1, Math.max(0, saved.soundVolume))
+        : defaults.soundVolume,
+    soundChoice: soundChoiceOf(saved?.soundChoice),
+    ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
+    screenReader:
+      screenReaderPreferences.find((choice) => choice === saved?.screenReader) ??
+      defaults.screenReader,
+    chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
+    agentAvatars:
+      typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
+    projectWindows:
+      typeof saved?.projectWindows === "boolean" ? saved.projectWindows : defaults.projectWindows,
+    onboardingTour:
+      typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
+    // A saved scale the app doesn't offer is the normal one.
+    appScale: appScales.find((scale) => scale === saved?.appScale) ?? defaults.appScale,
+  }
+}
+
+export const readPreferences = (): PreferencesValue => {
   try {
-    const saved = JSON.parse(
-      localStorage.getItem(preferencesStorageKey) ?? "null",
-    ) as Partial<PreferencesValue> | null
-    const enabledViews = Array.isArray(saved?.enabledViews)
-      ? viewModes.filter((mode) => saved.enabledViews!.includes(mode))
-      : defaults.enabledViews
-    return {
-      enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
-      fontSize: fontSizeOf(saved?.fontSize),
-      fontFamily: fontFamilyOf(saved?.fontFamily),
-      appearance: appearancePreferenceOf(saved?.appearance, themes),
-      notifyNeeds:
-        typeof saved?.notifyNeeds === "boolean" ? saved.notifyNeeds : defaults.notifyNeeds,
-      notifyFinished:
-        typeof saved?.notifyFinished === "boolean" ? saved.notifyFinished : defaults.notifyFinished,
-      sound: typeof saved?.sound === "boolean" ? saved.sound : defaults.sound,
-      soundVolume:
-        typeof saved?.soundVolume === "number" && Number.isFinite(saved.soundVolume)
-          ? Math.min(1, Math.max(0, saved.soundVolume))
-          : defaults.soundVolume,
-      soundChoice: soundChoiceOf(saved?.soundChoice),
-      ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
-      screenReader:
-        screenReaderPreferences.find((choice) => choice === saved?.screenReader) ??
-        defaults.screenReader,
-      chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
-      agentAvatars:
-        typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
-      projectWindows:
-        typeof saved?.projectWindows === "boolean" ? saved.projectWindows : defaults.projectWindows,
-      onboardingTour:
-        typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
-      // A saved scale the app doesn't offer is the normal one.
-      appScale: appScales.find((scale) => scale === saved?.appScale) ?? defaults.appScale,
-    }
+    return preferencesFrom(
+      JSON.parse(
+        localStorage.getItem(preferencesStorageKey) ?? "null",
+      ) as Partial<PreferencesValue> | null,
+    )
   } catch {
-    return defaults
+    return preferencesFrom(null)
   }
 }
 
