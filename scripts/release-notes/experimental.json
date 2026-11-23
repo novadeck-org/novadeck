@@ -1,11 +1,35 @@
 {
-  "why": "The features still behind Preferences > Experimental, by their row's id there, each with the commit scopes that are only about it. The notes leave out a commit in one of those scopes, or whose pull request says `Experimental: <id>` on a line of its own, while its feature is listed here at the release's tag. The pull request that takes a feature out of Experimental is a feat and removes its entry, so the next notes tell the feature as new, with every change to it since the last stable release.",
+  "why": "The features still behind Preferences > Experimental, by their row's id there. `scopes` are the commit scopes only about a feature: the notes leave out a commit in one, or whose pull request says `Experimental: <id>` on a line of its own, while its feature is listed here at the release's tag, unless it says `Experimental: none`. `paths` are the code only about it: Verify fails a feat, fix or perf pull request that changes them under another scope until its body says which of the two it is. The pull request that takes a feature out of Experimental is a feat and removes its entry, so the next notes tell the feature as new, with every change to it since the last stable release.",
   "features": {
-    "agent-avatars": [],
-    "onboarding-tour": ["tour"],
-    "agent-worktrees": ["worktrees", "works"],
-    "agent-modes": [],
-    "shipping-gate": ["shipping"],
-    "forges": ["forges"]
+    "agent-avatars": { "scopes": [], "paths": [] },
+    "onboarding-tour": {
+      "scopes": ["tour"],
+      "paths": [
+        "frontend/tour/",
+        "frontend/demo/src/tour/",
+        "backend/runner/src/tour/",
+        "backend/runner/assets/tour/"
+      ]
+    },
+    "agent-worktrees": {
+      "scopes": ["worktrees", "works"],
+      "paths": [
+        "backend/runner/src/worktrees/",
+        "backend/runner/src/works/",
+        "frontend/ui/src/sidebar/WorktreesPanel.tsx",
+        "frontend/ui/src/sidebar/worktree-rows.ts",
+        "frontend/ui/src/sidebar/worktrees.css",
+        "frontend/ui/src/sidebar/files-works.ts"
+      ]
+    },
+    "agent-modes": {
+      "scopes": [],
+      "paths": ["frontend/ui/src/preferences/AgentModePicker.tsx"]
+    },
+    "shipping-gate": { "scopes": ["shipping"], "paths": ["backend/runner/src/shipping/"] },
+    "forges": {
+      "scopes": ["forges"],
+      "paths": ["backend/runner/src/forges/", "libraries/forges/"]
+    }
   }
 }

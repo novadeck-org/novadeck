@@ -1,51 +1,84 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { z } from "zod"
-
 import { type RawCommit } from "./commits.ts"
 
 /** Where the list lives in the repository, as `git show <tag>:` reads it. */
 export const experimentalPath = "scripts/release-notes/experimental.json"
 
-/** Each feature still behind Preferences > Experimental, by its row's id, with its own scopes. */
-export type Experimental = ReadonlyMap<string, readonly string[]>
+/** A feature still behind Preferences > Experimental: its own commit scopes and code. */
+export type Feature = {
+  /** Commit scopes that are only about it: a commit in one is held back. */
+  readonly scopes: readonly string[]
+  /** Folders and files that are only about it, which Verify asks a pull request about. */
+  readonly paths: readonly string[]
+}
 
-const shape = z.object({
-  why: z.string(),
-  features: z.record(z.string().regex(/^[a-z][a-z-]*$/), z.array(z.string().min(1))),
-})
+/** Each feature still behind Preferences > Experimental, by its row's id. */
+export type Experimental = ReadonlyMap<string, Feature>
 
-/** The list from its file's text; throws on a file of the wrong shape. */
-export const parseExperimental = (text: string): Experimental =>
-  new Map(Object.entries(shape.parse(JSON.parse(text)).features))
+const words = (value: unknown, where: string): string[] => {
+  if (!Array.isArray(value) || !value.every((each) => typeof each === "string" && each !== ""))
+    throw new Error(`${where} is not a list of words.`)
+  return value
+}
+
+/**
+ * The list from its file's text; throws on a file of the wrong shape. Plain checks, not a
+ * schema library: Verify reads it too, on a runner that installs nothing.
+ */
+export const parseExperimental = (text: string): Experimental => {
+  const parsed: unknown = JSON.parse(text)
+  if (typeof parsed !== "object" || parsed === null) throw new Error("The list is not an object.")
+  const { why, features } = parsed as { why?: unknown; features?: unknown }
+  if (typeof why !== "string") throw new Error(`The list has no "why".`)
+  if (typeof features !== "object" || features === null || Array.isArray(features))
+    throw new Error(`The list has no "features".`)
+  return new Map(
+    Object.entries(features).map(([id, feature]): [string, Feature] => {
+      if (!/^[a-z][a-z-]*$/.test(id)) throw new Error(`"${id}" is not a row's id.`)
+      if (typeof feature !== "object" || feature === null)
+        throw new Error(`"${id}" is not an object.`)
+      const { scopes, paths } = feature as { scopes?: unknown; paths?: unknown }
+      return [id, { scopes: words(scopes, `${id}'s scopes`), paths: words(paths, `${id}'s paths`) }]
+    }),
+  )
+}
 
 /** The list as this checkout has it. */
 export const checkoutExperimental = (): Experimental =>
   parseExperimental(readFileSync(join(import.meta.dirname, "experimental.json"), "utf8"))
 
-const scoped = /^[a-z]+\((?<scope>[^)]*)\)!?: /
-// A pull request's own word that it belongs to a listed feature: `Experimental: tour`.
-const marker = /^Experimental:[ \t]*(?<id>[a-z][a-z-]*)[ \t]*$/gim
+/** The word a pull request gives for a change everyone sees, under a listed scope or not. */
+export const forEveryone = "none"
+
+/** A conventional subject's scopes: `fix(ui, works): …` → `["ui", "works"]`. */
+export const scopesOf = (subject: string): string[] =>
+  /^[a-z]+\((?<scope>[^)]*)\)!?: /
+    .exec(subject.trim())
+    ?.groups?.["scope"]?.split(",")
+    .map((part) => part.trim()) ?? []
+
+/** The ids a pull request body's `Experimental: <id>` lines name, `none` included. */
+export const markersOf = (body: string): string[] =>
+  [...body.matchAll(/^Experimental:[ \t]*(?<id>\S+)[ \t]*$/gim)].map((found) =>
+    found.groups!["id"]!.toLowerCase(),
+  )
 
 /**
  * The listed feature a commit belongs to, or `undefined` when it is for everyone: by its scope,
- * or by an `Experimental: <id>` line in its body. A subject that only says "behind Experimental"
- * names no feature, so its hold could never lift; the prompt leaves those to the model, which
- * sees whether a later change in the range takes the feature out.
+ * or by an `Experimental: <id>` line in its body, unless that body says `Experimental: none`,
+ * which a change people without the feature see too gives. A subject that only says "behind
+ * Experimental" names no feature, so its hold could never lift; the prompt leaves those to the
+ * model, which sees whether a later change in the range takes the feature out.
  */
 export const heldFeature = (raw: RawCommit, experimental: Experimental): string | undefined => {
-  const scopes =
-    scoped
-      .exec(raw.subject.trim())
-      ?.groups?.["scope"]?.split(",")
-      .map((part) => part.trim()) ?? []
-  for (const [id, own] of experimental) if (scopes.some((scope) => own.includes(scope))) return id
-  for (const found of raw.body.matchAll(marker)) {
-    const id = found.groups!["id"]!
-    if (experimental.has(id)) return id
-  }
-  return undefined
+  const markers = markersOf(raw.body)
+  if (markers.includes(forEveryone)) return undefined
+  const scopes = scopesOf(raw.subject)
+  for (const [id, { scopes: own }] of experimental)
+    if (scopes.some((scope) => own.includes(scope))) return id
+  return markers.find((id) => experimental.has(id))
 }
 
 /** The commits for everyone, and the ones held back with the feature each belongs to. */

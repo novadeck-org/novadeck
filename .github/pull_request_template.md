@@ -4,8 +4,8 @@ Lead with the outcome. Leave routine implementation details in the diff.
 Title: type(optional-scope): concise imperative summary.
 Types: build, chore, ci, docs, feat, fix, perf, poc, refactor, revert, style, test.
 Fill What, Why, and Impact. Remove these comments before submitting.
-A change to a feature still behind Preferences > Experimental, outside its own scope, adds a
-line `Experimental: <id>` (ids in scripts/release-notes/experimental.json).
+A change to a feature still behind Preferences > Experimental adds a line `Experimental: <id>`
+(ids in scripts/release-notes/experimental.json), or `Experimental: none` if everyone sees it.
 -->
 
 ## What

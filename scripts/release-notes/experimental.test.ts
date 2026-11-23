@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
@@ -18,9 +18,9 @@ import { summaryOf } from "./main.ts"
 const raw = (subject: string, body = ""): RawCommit => ({ sha: "abcdef0123456", subject, body })
 
 const listed: Experimental = new Map([
-  ["onboarding-tour", ["tour"]],
-  ["agent-worktrees", ["worktrees", "works"]],
-  ["agent-avatars", []],
+  ["onboarding-tour", { scopes: ["tour"], paths: [] }],
+  ["agent-worktrees", { scopes: ["worktrees", "works"], paths: [] }],
+  ["agent-avatars", { scopes: [], paths: [] }],
 ])
 
 describe("the features still behind Preferences > Experimental", () => {
@@ -42,9 +42,22 @@ describe("the features still behind Preferences > Experimental", () => {
     expect([...checkoutExperimental().keys()].toSorted()).toEqual(ids.toSorted())
   })
 
+  it("name code that is there, so a move doesn't quietly let its changes through Verify", () => {
+    const root = join(import.meta.dirname, "../..")
+    for (const [id, { paths }] of checkoutExperimental())
+      for (const path of paths) expect(existsSync(join(root, path)), `${id}: ${path}`).toBe(true)
+  })
+
   it("refuses a list of the wrong shape", () => {
-    expect(() => parseExperimental(`{"why": "x", "features": {"Tour": []}}`)).toThrow(/invalid_key/)
-    expect(() => parseExperimental(`{"features": {"tour": []}}`)).toThrow(/"why"/)
+    const one = (feature: string) => `{"why": "x", "features": {${feature}}}`
+    expect(() => parseExperimental(one(`"Tour": {"scopes": [], "paths": []}`))).toThrow(
+      /not a row's id/,
+    )
+    expect(() => parseExperimental(one(`"tour": {"scopes": [""], "paths": []}`))).toThrow(
+      /tour's scopes/,
+    )
+    expect(() => parseExperimental(one(`"tour": {"scopes": []}`))).toThrow(/tour's paths/)
+    expect(() => parseExperimental(`{"features": {}}`)).toThrow(/"why"/)
   })
 })
 
@@ -63,6 +76,10 @@ describe("a commit held back as Experimental", () => {
     )
     // The model never reads the line: once the feature leaves, it would only say to drop it.
     expect(whatOf(body)).toBe("The Files panel lays agents' work over the files.")
+    // A change everyone sees, under a listed scope or not, says so.
+    expect(
+      heldFeature(raw("fix(worktrees): main's behind line (#7)", "Experimental: none"), listed),
+    ).toBeUndefined()
     // A feature no longer listed has left Experimental: its commits are for everyone.
     expect(
       heldFeature(raw("feat(windows): two windows (#5)", "Experimental: project-windows"), listed),
@@ -99,7 +116,13 @@ describe("notes over a range with Experimental work", () => {
     "feat(tour): the onboarding tour leaves Experimental (#901)",
     "## What\n\nEvery new person is offered the tour.",
   )
-  const list = (features: Record<string, string[]>) => JSON.stringify({ why: "test", features })
+  const list = (features: Record<string, string[]>) =>
+    JSON.stringify({
+      why: "test",
+      features: Object.fromEntries(
+        Object.entries(features).map(([id, scopes]) => [id, { scopes, paths: [] }]),
+      ),
+    })
   const asked =
     (seen: number[][]): Ask =>
     async (_kind, _version, items) => {

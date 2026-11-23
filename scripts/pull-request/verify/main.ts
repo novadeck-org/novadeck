@@ -1,5 +1,7 @@
+import { checkoutExperimental } from "../../release-notes/experimental.ts"
 import { attributionErrors } from "./attribution.ts"
 import { pullRequestCommits } from "./commits.ts"
+import { experimentalErrors, pullRequestFiles } from "./experimental.ts"
 import { queuedEnv } from "./queued.ts"
 import { requiredSections, verifyPullRequest } from "./verify.ts"
 
@@ -28,8 +30,25 @@ export const main = (): void => {
     console.error(`::error title=AI attribution::${message}`)
   }
 
+  // Dependabot's pull requests change no feature's code.
+  const experimental =
+    env.PR_AUTHOR === "dependabot[bot]"
+      ? []
+      : experimentalErrors(
+          env.PR_TITLE ?? "",
+          env.PR_BODY ?? "",
+          pullRequestFiles(env),
+          checkoutExperimental(),
+        )
+  for (const message of experimental) {
+    console.error(`::error title=Experimental feature::${message}`)
+  }
+
   process.exitCode =
-    result.titleErrors.length > 0 || result.descriptionErrors.length > 0 || attribution.length > 0
+    result.titleErrors.length > 0 ||
+    result.descriptionErrors.length > 0 ||
+    attribution.length > 0 ||
+    experimental.length > 0
       ? 1
       : 0
 }

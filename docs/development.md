@@ -1960,15 +1960,17 @@ write without changing any release; it asks the model, so it spends credit.
 
 Features behind Preferences > Experimental stay out of the notes until they leave it.
 [scripts/release-notes/experimental.json](../scripts/release-notes/experimental.json) lists
-each Experimental row by its id, with the commit scopes that are only about it (a test keeps
-it equal to the tab's rows). A commit in one of those scopes, or whose pull request body has a
-line `Experimental: <id>` (for a change to the feature under another scope), is left out of
-the notes while the release's tag lists its feature; the run's summary names what it left
-out. A change under a listed scope that people without the feature see too, such as the Files
-panel's "main is N behind" line with its Update button, takes another scope (`files`). The pull request that takes a feature out of Experimental is a `feat`, removes its
-entry, and says in its What what the feature does: the next notes tell it as new, with every
-change to it since the last stable release, and the ones before that stable release are known
-only from that pull request.
+each Experimental row by its id (a test keeps it equal to the tab's rows), with the commit
+scopes and the code paths that are only about it. A commit in one of those scopes, or whose
+pull request body has a line `Experimental: <id>`, is left out of the notes while the
+release's tag lists its feature, unless its body says `Experimental: none` (a change people
+without the feature see too); the run's summary names what it left out. Verify fails a
+`feat`, `fix` or `perf` pull request that changes a listed feature's paths under another
+scope until its body has one of those lines, so the agent writing it says which it is. The
+pull request that takes a feature out of Experimental is a `feat`, removes its entry, and says
+in its What what the feature does: the next notes tell it as new, with every change to it
+since the last stable release, and the ones before that stable release are known only from
+that pull request.
 
 For an interrupted release, inspect the latest
 workflow first. An unpublished draft or orphaned version tag must be cleaned up before
