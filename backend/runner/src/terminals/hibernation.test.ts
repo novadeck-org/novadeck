@@ -1,4 +1,4 @@
-import type { AgentActivity } from "@novadeck/protocol"
+import type { AgentActivity, AgentName } from "@novadeck/protocol"
 
 import { started } from "../harnesses/activity.js"
 import { describe, expect, it } from "../test.js"
@@ -228,16 +228,20 @@ const resting = (
     occupied?: () => boolean
     end?: (record: Record) => Promise<void>
     cards?: () => number
+    agent?: AgentName
+    /** The agent the terminal rests on, as the sleepers say, once stopped. */
+    asleep?: AgentName
   } = {},
 ) => {
+  const agent = change.agent ?? "claude"
   const record = {
     summary: { id: "t", handle: "moth", lastProgram: "bash" },
     bound: {
-      binding: { agent: "claude", sessionId: "s", instance: "1" },
+      binding: { agent, sessionId: "s", instance: "1" },
       activity: started(0),
       telemetry: null,
     },
-    agents: { claude: { sessionId: "s", seq: 1, endedAt: 1 } },
+    agents: { [agent]: { sessionId: "s", seq: 1, endedAt: 1 } },
     terminal: { exit: null, exiting: false, attached: 0 },
     closed: false,
     changed: false,
@@ -255,7 +259,18 @@ const resting = (
     inbox: () => ({ hasOpenAsk: () => false }),
     approvals: () => ({ involves: () => false }),
     opens: () => ({ asked: () => false }),
-    sleepers: () => ({ restable: () => true }),
+    sleepers: () => ({
+      restable: () => true,
+      resting: () => (change.asleep ? { agent: change.asleep, sessionId: "s" } : undefined),
+      // The turns of an agent that shares its store, noted as they are taken.
+      turns: {
+        wake: async () => void calls.push("wake turn"),
+        stop: async () => {
+          calls.push("stop turn")
+          return () => void calls.push("stop turn ended")
+        },
+      },
+    }),
     detailWatched: () => false,
     cards: change.cards,
     trees: () => ({}),
@@ -305,6 +320,25 @@ describe("stopping an agent that looked idle", () => {
     await done
     expect(calls).toEqual(["save", "end", "rested"])
     expect(hibernation.settling("t")).toBeUndefined()
+  })
+
+  it("ends an agent that shares its store in its turn, which lasts until its end", async () => {
+    const { calls, rest } = resting({ agent: "opencode" })
+    await rest()
+    expect(calls).toEqual(["save", "stop turn", "end", "stop turn ended", "rested"])
+  })
+
+  it("gives its turn back where it leaves an agent that shares its store as it was", async () => {
+    const { calls, rest } = resting({ agent: "opencode", occupied: () => true })
+    await rest()
+    expect(calls).toEqual(["save", "stop turn", "stop turn ended"])
+  })
+
+  it("has a wake of an agent that shares its store wait for its turn, and no other", async () => {
+    const opencode = resting({ asleep: "opencode" })
+    await opencode.hibernation.settling("t")
+    expect(opencode.calls).toEqual(["wake turn"])
+    expect(resting({ asleep: "claude" }).hibernation.settling("t")).toBeUndefined()
   })
 
   it("leaves it as it was when a message came in while the screen was saved", async () => {
