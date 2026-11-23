@@ -13,6 +13,7 @@ import { tourMarker } from "../tour/folder.js"
 import { tourWrites } from "../tour/launch.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import type { AgentSetup } from "./agents/agent.js"
+import { freeModel } from "./agents/opencode.js"
 import { arrivals, poll, type DeckTerminal } from "./deck.js"
 import { expect, type E2E } from "./fixture.js"
 import { asked, tool, type Call, type Reply, type Rule } from "./model/script.js"
@@ -69,6 +70,7 @@ export const seedTour = async (run: E2E, agents: readonly AgentName[]): Promise<
         ],
       }),
     )
+  if (agents.includes("opencode")) await freeModel(run.sandbox)
   await writeFile(join(run.sandbox.home, ".gitconfig"), `[user]\n\tname = ${gitName}\n`)
 }
 

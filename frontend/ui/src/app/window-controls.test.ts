@@ -4,11 +4,11 @@ import { createStore } from "@novadeck/core/store"
 import { context, describe, expect, it } from "../test"
 import type { UiState } from "./ui-store"
 import {
+  captionHeight,
   controlsMiddle,
   revealsInZen,
   watchWindowControls,
   zenMiddle,
-  zenMiddles,
 } from "./window-controls"
 
 // The part of the UI store the watch reads: whether Zen is on.
@@ -105,8 +105,14 @@ describe("where the window's controls go", () => {
   })
 })
 
-describe("where Windows' caption buttons go in Zen, as they can't hide", () => {
-  it("is the Focus window's header along the page's top, revealed or not", () => {
+describe("where Windows' caption buttons go", () => {
+  it("is half their height down, in the header's top-right corner", () => {
+    expect(
+      controlsMiddle({ side: "end", zen: false, revealed: true, header: { top: 32, height: 48 } }),
+    ).toBe(captionHeight / 2)
+  })
+
+  it("is the same in Zen, as they can't hide, whatever runs along the top", () => {
     expect(
       controlsMiddle({
         side: "end",
@@ -115,13 +121,7 @@ describe("where Windows' caption buttons go in Zen, as they can't hide", () => {
         header: undefined,
         zenHeader: { top: 0, height: 46 },
       }),
-    ).toBe(23)
-  })
-
-  it("is the top-right corner's 32 pixels where no window's header runs along the top", () => {
-    expect(controlsMiddle({ side: "end", zen: true, revealed: false, header: undefined })).toBe(
-      zenMiddles.end,
-    )
+    ).toBe(captionHeight / 2)
   })
 })
 
@@ -268,60 +268,41 @@ describe("watching the window's controls", () => {
   })
 
   context("at the end, as Windows' caption buttons", () => {
-    it("keeps them in Zen, on a plate in the corner where no Focus header runs along the top", () => {
-      const { root, view, pointer } = page()
-      const { port, placed } = controls("end")
-      const stop = watchWindowControls(uiWith(true), view, port)
-      pointer(400, 300)
-      view.dispatchEvent(new Event("blur"))
-      root.dispatchEvent(new Event("mouseleave"))
-      expect(placed).toEqual([zenMiddles.end])
-      expect(root.dataset.windowControlsPlate).toBe("shown")
-      stop()
-    })
-
-    it("keeps them on the Focus window's header in Zen, with no plate", () => {
-      const { root, view, boxes } = page()
+    it("keeps them in place, with no plate, in Zen and out of it", () => {
+      const { root, view, boxes, draw, pointer } = page({ top: 32, height: 48 })
       boxes.set('.workspace[data-zen="true"] .focus-stage .terminal-header', { top: 0, height: 46 })
-      const { port, placed } = controls("end")
-      const stop = watchWindowControls(uiWith(true), view, port)
-      expect(placed).toEqual([23])
-      expect(root.dataset.windowControlsPlate).toBeUndefined()
-      stop()
-    })
-
-    it("follows the view in Zen: off the Focus window's header onto the plate, and back", () => {
-      const { root, view, boxes, draw } = page()
-      const zenHeader = '.workspace[data-zen="true"] .focus-stage .terminal-header'
-      boxes.set(zenHeader, { top: 0, height: 46 })
-      const { port, placed } = controls("end")
-      const ui = uiWith(true)
-      const stop = watchWindowControls(ui, view, port)
-      // Grid: no Focus window's header along the top.
-      boxes.set(zenHeader, null)
-      ui.update((state) => ({ ...state }) as UiState)
-      draw()
-      expect(root.dataset.windowControlsPlate).toBe("shown")
-      // Focus again.
-      boxes.set(zenHeader, { top: 0, height: 46 })
-      ui.update((state) => ({ ...state }) as UiState)
-      draw()
-      expect(placed).toEqual([23, zenMiddles.end, 23])
-      expect(root.dataset.windowControlsPlate).toBeUndefined()
-      stop()
-    })
-
-    it("moves them from the header to Zen's place and back", () => {
-      const { view, draw } = page({ top: 0, height: 48 })
       const { port, placed } = controls("end")
       const ui = uiWith(false)
       const stop = watchWindowControls(ui, view, port)
       setZen(ui, true)
       draw()
+      pointer(400, 300)
+      view.dispatchEvent(new Event("blur"))
+      root.dispatchEvent(new Event("mouseleave"))
       setZen(ui, false)
       draw()
-      expect(placed).toEqual([24, zenMiddles.end, 24])
+      expect(placed).toEqual([captionHeight / 2])
+      expect(root.dataset.windowControlsPlate).toBeUndefined()
       stop()
+    })
+
+    it("folds their room away while they take none, as in full screen", () => {
+      const { root, view } = page({ top: 32, height: 48 })
+      let tell: ((inset: number) => void) | undefined
+      const port: NonNullable<Backend["windowControls"]> = {
+        side: "end",
+        place: () => tell?.(138),
+        onInset: (listener) => {
+          tell = listener
+          return () => {}
+        },
+      }
+      const stop = watchWindowControls(uiWith(false), view, port)
+      expect(root.style.getPropertyValue("--window-caption-height")).toBe("32px")
+      tell?.(0)
+      expect(root.style.getPropertyValue("--window-caption-height")).toBe("0px")
+      stop()
+      expect(root.style.getPropertyValue("--window-caption-height")).toBe("")
     })
   })
 })

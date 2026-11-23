@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
+import { recordedScenarios } from "./fixtures"
 import { chatItemsOf, renderChat } from "./pipeline"
 import { describe, expect, it } from "./test"
 import { turn } from "./vocabulary/agy"
@@ -14,6 +15,14 @@ import { calls as codexCalls, said as codexSaid } from "./vocabulary/codex"
 // one stays folded. Every other golden is of a finished conversation.
 
 type Conversation = { readonly name: string; readonly records: readonly object[] }
+
+// The records of a recorded turn of opencode's as the plugin has them written while the agent
+// works: every call written as it started, none yet ended (opencode runs a step's calls together).
+const midTurn = (records: readonly object[]): readonly object[] => {
+  const first = records.findIndex((record) => (record as { called?: true }).called === true)
+  return records.slice(0, first)
+}
+const opencodeTurns = recordedScenarios("opencode-tools.json")
 
 const conversations: Readonly<Record<AgentName, readonly Conversation[]>> = {
   claude: [
@@ -118,6 +127,14 @@ const conversations: Readonly<Record<AgentName, readonly Conversation[]>> = {
         0,
       ),
     },
+  ],
+  // Recorded turns (src/recorded/opencode-tools.json: long-a, long-b and short) of calls, those of each turn's last step still running.
+  opencode: [
+    {
+      name: "long-run",
+      records: [...opencodeTurns["long-a"]!, ...midTurn(opencodeTurns["long-b"]!)],
+    },
+    { name: "short-run", records: midTurn(opencodeTurns.short!) },
   ],
 }
 

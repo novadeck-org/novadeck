@@ -2,8 +2,8 @@ import type { Backend } from "@novadeck/core/port"
 
 // How the desktop app's window holds its own controls, as the demo plays it: set into the
 // header's start (`inset`, macOS), the same in full screen, where they leave the page, or at the
-// header's end (`caption`, Windows' caption buttons); undefined for a window with its own title
-// bar, as on Linux, or a browser.
+// header's top-right corner (`caption`, Windows' caption buttons); undefined for a window with
+// its own title bar, as on Linux, or a browser.
 export type DemoWindowControls = "inset" | "fullScreen" | "caption"
 
 // Where macOS draws the buttons, in CSS pixels: as apps/desktop's main/window/controls.ts
@@ -14,8 +14,8 @@ const size = 12
 const colors = ["#ff5f57", "#febc2e", "#28c840"] as const
 
 // Windows' caption buttons as Electron draws them at the normal scale: 46 pixels each, from the
-// window's top, their symbols in the header's ink; the close button's hover is Windows' red,
-// the others' the ink at a tenth.
+// window's top, their symbols in the header's ink; the close button's hover is Electron's red,
+// the others' the ink at a tenth, as it tints them against the page's ground.
 const captionWidth = 46
 const glyphs = [
   '<path d="M0 5.5h10"/>',
@@ -122,9 +122,9 @@ export const createDemoWindowControls = (
       }
       let inset: number
       if (mode === "caption") {
-        // They can't hide: a page asking for none gets them on the header's middle.
+        // They can't hide: a page asking for none gets them 32 pixels tall.
         drawn.style.display = "flex"
-        drawn.style.height = `${2 * (middle ?? 24)}px`
+        drawn.style.height = `${2 * (middle ?? 16)}px`
         inset = captionWidth * glyphs.length
       } else {
         const shown = middle !== null && mode === "inset"

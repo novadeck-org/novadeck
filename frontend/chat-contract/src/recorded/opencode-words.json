@@ -1,0 +1,433 @@
+{
+  "probed": "2026-11-22",
+  "version": "1.19.6",
+  "how": "The same rig: the prompts the sent and turn-start tests share across harnesses, said to the fake model; the last, a prompt typed while a turn ran, queued behind it.",
+  "scenarios": {
+    "check-the-folder": [
+      {
+        "type": "prompt",
+        "info": {
+          "id": "msg_20364fa2f001i32urjnZfnaJQc",
+          "role": "user",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "time": {
+            "created": 1795353279023
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fake",
+            "modelID": "fake-sonnet"
+          }
+        },
+        "parts": [
+          {
+            "type": "text",
+            "text": "Check the folder",
+            "messageID": "msg_20364fa2f001i32urjnZfnaJQc",
+            "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+            "id": "prt_20364fa30001B6f2Eom1z9rBpQ"
+          }
+        ]
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_20364fc8f001LF4qIafdYvWHcx",
+          "messageID": "msg_20364fa40001F1U1wIx1Xe8gue",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-start"
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_20364fc91001BuX0pKPKTJ0Kon",
+          "messageID": "msg_20364fa40001F1U1wIx1Xe8gue",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "text",
+          "text": "The folder holds two files.",
+          "time": {
+            "start": 1795353279633,
+            "end": 1795353279634
+          }
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_20364fc94001g6rbqGD424zrBg",
+          "reason": "stop",
+          "messageID": "msg_20364fa40001F1U1wIx1Xe8gue",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-finish",
+          "tokens": {
+            "total": 12,
+            "input": 11,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        }
+      },
+      {
+        "type": "message",
+        "info": {
+          "id": "msg_20364fa40001F1U1wIx1Xe8gue",
+          "parentID": "msg_20364fa2f001i32urjnZfnaJQc",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/home/person/project",
+            "root": "/"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 12,
+            "input": 11,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fake-sonnet",
+          "providerID": "fake",
+          "time": {
+            "created": 1795353279040,
+            "completed": 1795353279638
+          },
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "finish": "stop"
+        }
+      }
+    ],
+    "open-the-first": [
+      {
+        "type": "prompt",
+        "info": {
+          "id": "msg_2036502bd001rEGNrOjkpxKS2E",
+          "role": "user",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "time": {
+            "created": 1795353281213
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fake",
+            "modelID": "fake-sonnet"
+          }
+        },
+        "parts": [
+          {
+            "type": "text",
+            "text": "Open the first",
+            "messageID": "msg_2036502bd001rEGNrOjkpxKS2E",
+            "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+            "id": "prt_2036502be001Wc3m3T5wdb6oB4"
+          }
+        ]
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_2036502d6001GnJbVCF8GADCJg",
+          "messageID": "msg_2036502c9001E3xi1L7lJJNJSt",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-start"
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_2036502d7001MwSL1PdpFxIA2F",
+          "messageID": "msg_2036502c9001E3xi1L7lJJNJSt",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "text",
+          "text": "Opened it.",
+          "time": {
+            "start": 1795353281239,
+            "end": 1795353281240
+          }
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_2036502d9001IMAabhFd0Sol5P",
+          "reason": "stop",
+          "messageID": "msg_2036502c9001E3xi1L7lJJNJSt",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-finish",
+          "tokens": {
+            "total": 39,
+            "input": 38,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        }
+      },
+      {
+        "type": "message",
+        "info": {
+          "id": "msg_2036502c9001E3xi1L7lJJNJSt",
+          "parentID": "msg_2036502bd001rEGNrOjkpxKS2E",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/home/person/project",
+            "root": "/"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 39,
+            "input": 38,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fake-sonnet",
+          "providerID": "fake",
+          "time": {
+            "created": 1795353281225,
+            "completed": 1795353281243
+          },
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "finish": "stop"
+        }
+      }
+    ],
+    "steering": [
+      {
+        "type": "prompt",
+        "info": {
+          "id": "msg_203650fa3001jAhHWeuitmtojU",
+          "role": "user",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "time": {
+            "created": 1795353284515
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fake",
+            "modelID": "fake-sonnet"
+          }
+        },
+        "parts": [
+          {
+            "type": "text",
+            "text": "Run the tests",
+            "messageID": "msg_203650fa3001jAhHWeuitmtojU",
+            "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+            "id": "prt_203650fa3002TjeE1n4GMy7mk2"
+          }
+        ]
+      },
+      {
+        "type": "prompt",
+        "info": {
+          "id": "msg_2036518a2001nId0aDRroCM6Kr",
+          "role": "user",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "time": {
+            "created": 1795353286818
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fake",
+            "modelID": "fake-sonnet"
+          }
+        },
+        "parts": [
+          {
+            "type": "text",
+            "text": "Skip the slow ones",
+            "messageID": "msg_2036518a2001nId0aDRroCM6Kr",
+            "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+            "id": "prt_2036518a200291FUTFWoIZ8yWF"
+          }
+        ]
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_203651e7e001fR4S537gd7tVDM",
+          "messageID": "msg_203650fae001Wml5MSfKa4VC3z",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-start"
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_203651e7f001MBJrpjjiQRe2DV",
+          "messageID": "msg_203650fae001Wml5MSfKa4VC3z",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "text",
+          "text": "Running them.",
+          "time": {
+            "start": 1795353288319,
+            "end": 1795353288320
+          }
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_203651e81001WnAyhgF5eakdoR",
+          "reason": "stop",
+          "messageID": "msg_203650fae001Wml5MSfKa4VC3z",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-finish",
+          "tokens": {
+            "total": 62,
+            "input": 61,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        }
+      },
+      {
+        "type": "message",
+        "info": {
+          "id": "msg_203650fae001Wml5MSfKa4VC3z",
+          "parentID": "msg_203650fa3001jAhHWeuitmtojU",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/home/person/project",
+            "root": "/"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 62,
+            "input": 61,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fake-sonnet",
+          "providerID": "fake",
+          "time": {
+            "created": 1795353284526,
+            "completed": 1795353288323
+          },
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "finish": "stop"
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_203651e900017b3Qyc5Lp2Dz3D",
+          "messageID": "msg_203651e85001AqyAZ5O3gNkTAA",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-start"
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_203651e91001BWlDw0hMgy6QeY",
+          "messageID": "msg_203651e85001AqyAZ5O3gNkTAA",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "text",
+          "text": "Skipping them.",
+          "time": {
+            "start": 1795353288337,
+            "end": 1795353288338
+          }
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_203651e93001uV6o63cjnthi4d",
+          "reason": "stop",
+          "messageID": "msg_203651e85001AqyAZ5O3gNkTAA",
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "type": "step-finish",
+          "tokens": {
+            "total": 87,
+            "input": 86,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        }
+      },
+      {
+        "type": "message",
+        "info": {
+          "id": "msg_203651e85001AqyAZ5O3gNkTAA",
+          "parentID": "msg_2036518a2001nId0aDRroCM6Kr",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/home/person/project",
+            "root": "/"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 87,
+            "input": 86,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fake-sonnet",
+          "providerID": "fake",
+          "time": {
+            "created": 1795353288325,
+            "completed": 1795353288341
+          },
+          "sessionID": "ses_dfc9b05e0ffeV1iKLjBlksNdMl",
+          "finish": "stop"
+        }
+      }
+    ]
+  }
+}

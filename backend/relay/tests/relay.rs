@@ -405,3 +405,113 @@ fn a_status_line_keeps_ignoring_a_signal_its_relay_was_started_ignoring() {
     assert_eq!(String::from_utf8_lossy(&printed.stdout).trim(), "mine");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// opencode's plugin's report of a tool call, as its PreToolUse hook is sent it.
+fn opencode_tool(tool: &str, input: serde_json::Value) -> String {
+    serde_json::json!({ "hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": input })
+        .to_string()
+}
+
+/// The relay's `relay.json` while the shipping gate is on, with opencode's PreToolUse asked.
+fn gated_config(dir: &Path) -> PathBuf {
+    let path = dir.join("relay.json");
+    let config = serde_json::json!({
+        "gate": true,
+        "asks": { "opencode": ["Stop", "PreToolUse", "PermissionRequest"] },
+    });
+    std::fs::write(&path, config.to_string()).unwrap();
+    path
+}
+
+#[test]
+fn refuses_what_looks_like_shipping_to_opencode_where_it_has_no_runner_and_leaves_the_rest() {
+    let dir = scratch("opencode-gate");
+    let config = gated_config(&dir);
+    let hook = |command: &str| {
+        let mut hook = relay(&[
+            "hook",
+            "--config",
+            config.to_str().unwrap(),
+            "opencode",
+            "PreToolUse",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+        let report = opencode_tool("bash", serde_json::json!({ "command": command }));
+        hook.stdin
+            .take()
+            .unwrap()
+            .write_all(report.as_bytes())
+            .unwrap();
+        String::from_utf8_lossy(&hook.wait_with_output().unwrap().stdout).into_owned()
+    };
+    // opencode's default runs a command its hook says nothing about, so these are refused.
+    for command in [
+        "git push origin main",
+        "git push -f origin main",
+        "gh pr edit 5 --base release",
+        "gh release create v1",
+        "gh pr create --title t",
+    ] {
+        let printed: serde_json::Value = serde_json::from_str(hook(command).trim()).unwrap();
+        assert_eq!(printed["decision"], "deny", "{command}");
+        assert!(
+            printed["reason"]
+                .as_str()
+                .is_some_and(|text| !text.is_empty())
+        );
+    }
+    for command in ["ls -la", "git status", "git diff main"] {
+        assert_eq!(hook(command), "", "{command}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// A hung runner holds a call only as long as its limit: opencode's `bash` calls (which the runner
+// answers) wait the long one, and every other tool's PreToolUse the short one.
+#[cfg(unix)]
+#[test]
+fn gives_only_opencodes_shell_calls_the_long_limit_while_the_runner_hangs() {
+    let runner = runner::Runner::new("opencode-limit");
+    let config = gated_config(runner.socket.parent().unwrap());
+    let start = |tool: &str, input: serde_json::Value| {
+        let mut hook = runner
+            .relay(&[
+                "hook",
+                "--config",
+                config.to_str().unwrap(),
+                "opencode",
+                "PreToolUse",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let report = opencode_tool(tool, input);
+        hook.stdin
+            .take()
+            .unwrap()
+            .write_all(report.as_bytes())
+            .unwrap();
+        (hook, Instant::now())
+    };
+    let (read, read_at) = start("read", serde_json::json!({ "filePath": "/a" }));
+    let (bash, bash_at) = start(
+        "bash",
+        serde_json::json!({ "command": "git push origin main" }),
+    );
+    // The runner takes both connections and answers neither.
+    let _held: Vec<_> = (0..2).map(|_| runner.accept()).collect();
+    let read = read.wait_with_output().unwrap();
+    let read_took = read_at.elapsed();
+    let bash = bash.wait_with_output().unwrap();
+    let bash_took = bash_at.elapsed();
+    assert_eq!(String::from_utf8_lossy(&read.stdout), "");
+    assert!(read_took < Duration::from_millis(3_000), "{read_took:?}");
+    assert!(bash_took >= Duration::from_millis(3_500), "{bash_took:?}");
+    let printed: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&bash.stdout).trim()).unwrap();
+    assert_eq!(printed["decision"], "deny");
+}

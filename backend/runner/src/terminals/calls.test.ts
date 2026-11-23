@@ -1,6 +1,6 @@
 import { resolve as resolvePath } from "node:path"
 
-import type { AgentMode } from "@novadeck/protocol"
+import type { AgentMode, AgentName } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { Approvals } from "./approvals.js"
@@ -34,7 +34,7 @@ describe("the models call", () => {
     ).call(call)
     expect(answer).toEqual({
       ok: true,
-      models: { claude, codex: [], agy: [] },
+      models: { claude, codex: [], agy: [], opencode: [] },
     })
   })
 
@@ -94,7 +94,12 @@ describe("the open call", () => {
       peers: () => ({ introduce: () => undefined }),
       save: () => undefined,
       install: () => Promise.resolve(undefined),
-      models: () => Promise.resolve([{ id: "opus", efforts: ["low", "max"] }]),
+      models: (agent: AgentName) =>
+        Promise.resolve(
+          agent === "opencode"
+            ? [{ id: "opencode/e2e-free", efforts: [] }]
+            : [{ id: "opus", efforts: ["low", "max"] }],
+        ),
       openPolicy: () => ({
         ...(barred !== undefined && { refusal: barred }),
         ...(flagged !== undefined && { flags: () => flagged! }),
@@ -294,6 +299,14 @@ describe("the open call", () => {
       ok: false,
       reason: "Give a model with effort: Claude Code's efforts depend on the model.",
     })
+  })
+
+  it("starts an opencode agent the call names no model for on the policy's, by its own flag", async () => {
+    const run = setup()
+    run.give({ model: "opencode/e2e-free" })
+    const answer = await run.open({ agent: "opencode" })
+    expect(answer).toMatchObject({ ok: true })
+    expect(run.asked[0]!.command).toBe("opencode --model opencode/e2e-free")
   })
 
   it("starts on the runner's policy model with no effort where it gives none", async () => {
@@ -635,6 +648,7 @@ describe("the mode call", () => {
     expect(await answer("codex", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("claude", false)).toEqual({ ok: true, mode: "herd", gated: false })
     expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: true })
+    expect(await answer("opencode", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer(null, true)).toEqual({ ok: true, mode: "herd", gated: false })
   })
 })

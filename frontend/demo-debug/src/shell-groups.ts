@@ -177,7 +177,7 @@ export const shellGroups = ({
         },
         {
           label: "Windows, in the header",
-          hint: "The window's caption buttons hold the header's end, as tall as it is, and the header keeps clear of them; in Zen they stay, on the Focus window's header or on a plate in the corner",
+          hint: "The window's caption buttons hold the header's top-right corner, 32px tall as a Windows 11 title bar; the mark, project and views keep to the header's top, Search and Preferences to its bottom, below them; in Zen a strip holds them",
           reboots: true,
           run: () => launch.setWindowControls("caption"),
         },

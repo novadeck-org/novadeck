@@ -5,6 +5,7 @@ import { unsealed } from "../testing/sealing.js"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
+import { opencode } from "./agents/opencode.js"
 import { createDeck, poll, type Deck, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { prompted } from "./scenarios.js"
@@ -16,7 +17,7 @@ import { prompted } from "./scenarios.js"
 // draws does, once every number is in the log.
 const rounds = 3
 
-const order = [claude, codex, agy]
+const order = [claude, codex, agy, opencode]
 
 // The screen a restored terminal draws first: colours on every other cell, more than a saved
 // transcript keeps (256 K characters, cut by whole halves of its scrollback, so about 220 K

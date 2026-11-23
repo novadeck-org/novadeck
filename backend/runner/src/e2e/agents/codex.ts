@@ -121,6 +121,7 @@ export const codex: AgentSetup = {
   bindsAtReady: false,
   keepsHookText: true,
   steers: true,
+  queuedTaken: "it steers what is queued into the turn",
   idleCommand: "/status",
   // Its curated-plugin sync and its startup tips (see `prepare`).
   refused: ["github.com", "api.github.com", "raw.githubusercontent.com"],

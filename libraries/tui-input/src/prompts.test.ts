@@ -803,6 +803,37 @@ describe("shell commands", () => {
     expect(state().held).toBe(false)
   })
 
+  it("refuse a command while the turn works, typing nothing, where the program drops it", async () => {
+    const { host, written } = terminal({ shell: true })
+    const dropping = (working: boolean): PromptHost => ({
+      ...host,
+      working: () => working,
+      admit: (id) => {
+        const profile = host.admit(id)
+        return { ...profile, shell: { ...profile.shell, midTurn: "drops" } }
+      },
+    })
+    expect(
+      await refusal(new Prompts(dropping(true), host.queue, fast).prompt("t", "!echo hi")),
+    ).toBe("refused")
+    expect(written).toEqual([])
+    // Once the turn has ended the same command goes, and a program that queues one is not refused.
+    await new Prompts(dropping(false), host.queue, fast).prompt("t", "!echo hi")
+    expect(written).toEqual(["!", `${bang}echo hi${end}`, "\r"])
+  })
+
+  it("wait, after the Enter, for a program that loses early keys to show the prompt as taken", async () => {
+    const { host, written } = terminal()
+    let looks = 0
+    const waiting: PromptHost = {
+      ...host,
+      admit: (id) => ({ ...host.admit(id), echoed: () => (looks += 1) >= 4 }),
+    }
+    await new Prompts(waiting, host.queue, fast).prompt("t", "Hello there")
+    expect(looks).toBeGreaterThanOrEqual(4)
+    expect(enters(written)).toBe(1)
+  })
+
   it("paste a multi-line command with its line breaks as returns", async () => {
     const { host, written } = terminal({ shell: true, takes: "box" })
     await new Prompts(host, host.queue, fast).prompt("t", "! echo a\r\necho b")

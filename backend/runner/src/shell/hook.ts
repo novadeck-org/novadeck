@@ -49,6 +49,8 @@ export type GateCall = {
   readonly step?: number
   /** The conversation the call is of: a subagent's has its own, with steps of its own. */
   readonly conversation?: string
+  /** opencode's id for the tool call, which its permission dialog's request names too. */
+  readonly call?: string
 }
 
 // The most of a command the gate takes; a longer one is refused by the reader's own limit.
@@ -78,6 +80,36 @@ const agyCall = (payload: Fields): { command: string; cwd: string | undefined } 
   const command = commandOf({ command: call.args.CommandLine })
   if (command === undefined) return undefined
   return { command, cwd: folderOf(payload, { workdir: call.args.Cwd }) }
+}
+
+/**
+ * opencode's shell command, in the two reports the plugin makes of it: the `bash` tool's call
+ * (its `command`, and its `workdir` where it gives one), and the `bash` permission's request,
+ * which names the raw command in its metadata and the call it is for. The tool is `bash` on
+ * every platform (tool/shell/id.ts, 1.19.6).
+ */
+const opencodeCall = (
+  payload: Fields,
+  event: string,
+): { command: string; cwd: string | undefined; call: string | undefined } | undefined => {
+  if (event === "PreToolUse") {
+    if (payload.tool_name !== "bash") return undefined
+    const command = commandOf(payload.tool_input)
+    return command === undefined
+      ? undefined
+      : {
+          command,
+          cwd: folderOf(payload, payload.tool_input),
+          call: text(payload.call_id, 128),
+        }
+  }
+  if (event !== "PermissionRequest" || payload.permission !== "bash") return undefined
+  const metadata = object(payload.metadata) ? payload.metadata : {}
+  const command = commandOf({ command: metadata.command })
+  const tool = object(payload.tool) ? payload.tool : {}
+  return command === undefined
+    ? undefined
+    : { command, cwd: folderOf(payload, undefined), call: text(tool.callID, 128) }
 }
 
 /**
@@ -393,12 +425,20 @@ export const relayHook = (
       : seq + askMs
   const gated = gating(agent.data, event)
   const agyRun = gated && agent.data === "agy" ? agyCall(payload) : undefined
+  const opencodeRun = gated && agent.data === "opencode" ? opencodeCall(payload, event) : undefined
   const command = gated
     ? agent.data === "agy"
       ? agyRun?.command
-      : commandOf(payload.tool_input)
+      : agent.data === "opencode"
+        ? opencodeRun?.command
+        : commandOf(payload.tool_input)
     : undefined
-  const folder = agent.data === "agy" ? agyRun?.cwd : folderOf(payload, payload.tool_input)
+  const folder =
+    agent.data === "agy"
+      ? agyRun?.cwd
+      : agent.data === "opencode"
+        ? opencodeRun?.cwd
+        : folderOf(payload, payload.tool_input)
   const gate: GateCall | undefined =
     command === undefined ||
     folder === undefined ||
@@ -420,6 +460,12 @@ export const relayHook = (
           ...(agent.data === "agy" &&
             typeof payload.conversationId === "string" &&
             payload.conversationId.length <= 128 && { conversation: payload.conversationId }),
+          // opencode's session and call, which tie its permission dialog to the hook that vetted it.
+          ...(agent.data === "opencode" &&
+            text(payload.session_id, 128) !== undefined && {
+              conversation: text(payload.session_id, 128)!,
+            }),
+          ...(opencodeRun?.call !== undefined && { call: opencodeRun.call }),
         }
   return askOf(agent.data, event) || gate
     ? {

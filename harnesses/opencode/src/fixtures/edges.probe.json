@@ -1,0 +1,508 @@
+{
+  "probed": "2026-11-22",
+  "version": "1.19.6",
+  "how": "The same rig: a turn the person stopped with Escape twice, a reply, a model call the API refused with 400, and a /compact.",
+  "reports": [
+    {
+      "event": "SessionStart",
+      "payload": {
+        "hook_event_name": "SessionStart",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "source": "startup",
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "prompt": "SLOW one",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "last_assistant_message": null,
+        "error": {
+          "name": "MessageAbortedError",
+          "message": "Aborted"
+        },
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl",
+        "usage": {
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "prompt": "BASH it",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "last_assistant_message": "slow done",
+        "error": null,
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl",
+        "usage": {
+          "tokens": {
+            "total": 12,
+            "input": 11,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "prompt": "FAIL now",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "last_assistant_message": null,
+        "error": {
+          "name": "APIError",
+          "message": "fake model refuses this one"
+        },
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl",
+        "usage": {
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "last_assistant_message": null,
+        "error": {
+          "name": "UnknownError",
+          "message": "Tool call not allowed while generating summary: bash"
+        },
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd34457ffeQJtGwNIeWVtENs.jsonl",
+        "usage": {
+          "tokens": {
+            "output": 0,
+            "input": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    }
+  ],
+  "transcript": [
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032cbbb7001FU3ti8nBlFYu1F",
+        "role": "user",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "time": {
+          "created": 1795349593015
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "SLOW one",
+          "messageID": "msg_2032cbbb7001FU3ti8nBlFYu1F",
+          "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+          "id": "prt_2032cbbb8001HOJ5d6MW5fFHKg"
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032cbbcb001ADsKvMPjU9NQmT",
+        "parentID": "msg_2032cbbb7001FU3ti8nBlFYu1F",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349593035,
+          "completed": 1795349595918
+        },
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "error": {
+          "name": "MessageAbortedError",
+          "data": {
+            "message": "Aborted"
+          }
+        }
+      }
+    },
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032cd0cc001umlbtpszPr4PIq",
+        "role": "user",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "time": {
+          "created": 1795349598412
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "BASH it",
+          "messageID": "msg_2032cd0cc001umlbtpszPr4PIq",
+          "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+          "id": "prt_2032cd0cc002Q9hslBNeCxNu35"
+        }
+      ]
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032cd0f3001bkwHKhwX6zYgzx",
+        "messageID": "msg_2032cd0e6001JPau7f6lP39bnR",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032cd0f4001oykX6PtRO4VfRg",
+        "messageID": "msg_2032cd0e6001JPau7f6lP39bnR",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "type": "text",
+        "text": "slow done",
+        "time": {
+          "start": 1795349598452,
+          "end": 1795349598455
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032cd0fa001LfVsiN9bXMwnJy",
+        "reason": "stop",
+        "messageID": "msg_2032cd0e6001JPau7f6lP39bnR",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "type": "step-finish",
+        "tokens": {
+          "total": 12,
+          "input": 11,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032cd0e6001JPau7f6lP39bnR",
+        "parentID": "msg_2032cd0cc001umlbtpszPr4PIq",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 12,
+          "input": 11,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349598438,
+          "completed": 1795349598461
+        },
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "finish": "stop"
+      }
+    },
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032ce840001284PGd5Xp1qgky",
+        "role": "user",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "time": {
+          "created": 1795349604416
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "FAIL now",
+          "messageID": "msg_2032ce840001284PGd5Xp1qgky",
+          "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+          "id": "prt_2032ce840002JV37BsMOsKPlmQ"
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032ce84c001NcsyH8Ng5N9eNP",
+        "parentID": "msg_2032ce840001284PGd5Xp1qgky",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349604428,
+          "completed": 1795349604441
+        },
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "error": {
+          "name": "APIError",
+          "data": {
+            "message": "fake model refuses this one",
+            "statusCode": 400,
+            "isRetryable": false,
+            "responseHeaders": {
+              "connection": "keep-alive",
+              "content-type": "application/json",
+              "date": "Sun, 22 Nov 2026 12:13:24 GMT",
+              "keep-alive": "timeout=5",
+              "transfer-encoding": "chunked"
+            },
+            "responseBody": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"fake model refuses this one\"}}",
+            "metadata": {
+              "url": "http://127.0.0.1:37833/v1/messages"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032d02d3001LmkJSb3c5PMOja",
+        "role": "user",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "agent": "build",
+        "time": {
+          "created": 1795349611219
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "user",
+      "part": {
+        "id": "prt_2032d02d4001Mtl8GvqrCKvLgl",
+        "messageID": "msg_2032d02d3001LmkJSb3c5PMOja",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "type": "compaction",
+        "auto": false
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d02dd001WZnB4UU5gbc5K2",
+        "messageID": "msg_2032d02d8001R2MDYmkpwx92Mu",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032d02d8001R2MDYmkpwx92Mu",
+        "role": "assistant",
+        "parentID": "msg_2032d02d3001LmkJSb3c5PMOja",
+        "sessionID": "ses_dfcd34457ffeQJtGwNIeWVtENs",
+        "mode": "compaction",
+        "agent": "compaction",
+        "summary": true,
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "output": 0,
+          "input": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349611224,
+          "completed": 1795349611231
+        },
+        "error": {
+          "name": "UnknownError",
+          "data": {
+            "message": "Tool call not allowed while generating summary: bash"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -124,7 +124,11 @@ export class Tour {
     if (tourChoice(agent, models).model === undefined)
       throw new DomainError(
         "MODELS_UNLISTED",
-        `${agentLabel(agent)} hasn't listed its models here yet, so the tour can't pick its cheapest. Start ${agentLabel(agent)} and sign in, then take the tour.`,
+        // opencode lists the models its providers give: with some listed and none of its own free
+        // ones, signing in is no help (a person's `enabled_providers` may leave the free ones out).
+        agent === "opencode" && models.length > 0
+          ? `opencode lists models here, but none of its own free ones (opencode/…-free), which the tour runs on so that it spends nothing of yours. Let opencode use its own provider, then take the tour.`
+          : `${agentLabel(agent)} hasn't listed its models here yet, so the tour can't pick its cheapest. Start ${agentLabel(agent)} and sign in, then take the tour.`,
       )
     // The files and the folder too, the last that can refuse, before anything is removed.
     const seed = await seedFiles(this.host.assets)

@@ -142,7 +142,7 @@ describe("readerOf", () => {
         }),
       )!
       expect(read({ agent: null })).toEqual({ agent: null })
-      expect(read({ agent: "opencode" })).toEqual({ agent: newer })
+      expect(read({ agent: "grok" })).toEqual({ agent: newer })
     })
   })
 

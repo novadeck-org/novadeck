@@ -653,7 +653,8 @@ Agents:
   projects have no preview, so they open as main's copy.
 - **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
   connect Antigravity with the note Preferences shows where its own status line keeps
-  Novadeck's out, as on Windows.
+  Novadeck's out, as on Windows, or opencode with the note for a release too old for Novadeck's
+  plugin, or for an opencode 2, which Novadeck doesn't know yet.
 
 App:
 
@@ -899,8 +900,9 @@ App:
   pointer is in the top-left corner, the Focus window's header moving aside for them, and in Grid
   and Canvas a plate in the dock's look holding them. "macOS, full screen" boots with them gone to
   the menu bar, the header starting at its edge. "Windows, in the header" boots as the Windows app,
-  its caption buttons at the 48px header's end, as tall as it; in Zen they stay, on the Focus
-  window's header past a rule, or on a plate in the top-right corner. "Own title bar" boots back to
+  its caption buttons 32px tall in the 72px header's top-right corner, as a Windows 11 app's title
+  bar: the mark, project and views keep to the header's top, Search and Preferences to its bottom,
+  below them; in Zen a strip as tall as the buttons holds them. "Own title bar" boots back to
   a window with its own, as on Linux and in a browser.
 - **Agent worktrees:** the page's update channel starts stable, which turns the
   setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
@@ -1141,6 +1143,7 @@ atlas.
 | `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                           |
 | `harnesses/codex`         | The Codex adapter, same shape.                                                             |
 | `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
+| `harnesses/opencode`      | The opencode adapter: the plugin its shim loads per launch, transcripts, dialogs, box.     |
 | `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
 | `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
 | `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |

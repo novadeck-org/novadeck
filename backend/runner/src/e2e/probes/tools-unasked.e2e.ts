@@ -155,6 +155,9 @@ const cases: { readonly [agent in AgentName]: readonly Case[] } = {
       words: (run) => `--mode plan --settings ${agySettings(run, ["mcp(novadeck_novadeck/*)"])}`,
     },
   ],
+  // Novadeck's plugin adds its tools' allow to the configuration opencode loaded, so the
+  // bare launch is the one that matters.
+  opencode: [{ label: "bare", words: () => "" }],
 }
 
 const slug = (label: string): string => label.replace(/[^a-z0-9]+/gi, "-")
@@ -179,6 +182,17 @@ const seedAllow = (run: E2E, agent: AgentName): void => {
     allowIn(join(home, ".claude", "settings.json"), "mcp__plugin_novadeck_novadeck")
   if (agent === "agy")
     allowIn(join(home, ".gemini", "antigravity-cli", "settings.json"), "mcp(novadeck_novadeck/*)")
+  if (agent === "opencode") {
+    const path = join(home, ".config", "opencode", "opencode.json")
+    const settings = JSON.parse(readFileSync(path, "utf8")) as { permission?: object }
+    writeFileSync(
+      path,
+      JSON.stringify({
+        ...settings,
+        permission: { ...settings.permission, "novadeck_*": "allow" },
+      }),
+    )
+  }
 }
 
 /**
@@ -189,6 +203,7 @@ const past: { readonly [agent in AgentName]: string } = {
   claude: "NOVADECK_SHIMS= claude",
   codex: `NOVADECK_SHIMS= codex --no-daemon -c "tui.terminal_title=['status','thread-id']"`,
   agy: "NOVADECK_SHIMS= agy",
+  opencode: "NOVADECK_SHIMS= opencode",
 }
 
 for (const setup of setups) {

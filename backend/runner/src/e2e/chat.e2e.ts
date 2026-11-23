@@ -119,7 +119,7 @@ for (const setup of setups) {
       const shiftTab = "\x1b[Z"
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
       // Its plan mode, or Claude Code's accept-edits, the first Shift+Tab takes it to.
-      if (setup.agent === "codex") await setup.planning!.enter!(t1)
+      if (setup.agent === "codex" || setup.agent === "opencode") await setup.planning!.enter!(t1)
       else {
         write(shiftTab)
         await sleep(1000)
@@ -129,7 +129,9 @@ for (const setup of setups) {
         }
       }
       await t1.submit("After the change")
-      const said = { claude: "acceptEdits", codex: "plan", agy: "plan" }[setup.agent]
+      const said = { claude: "acceptEdits", codex: "plan", agy: "plan", opencode: "plan" }[
+        setup.agent
+      ]
       await t1.poll(
         async () =>
           (await t1.transcript()).some(({ note }) => note?.type === "mode" && note.mode === said) ||
@@ -1052,7 +1054,13 @@ for (const setup of setups) {
         }, "its box to read empty")
 
       // A paragraph that wraps, a blank line and a line, short of what a box shows as a placeholder.
-      const words = `${"a paragraph that goes on ".repeat(8).trim()}\n\nits last`
+      // Where the program turns three lines, or a long paragraph, into a placeholder (opencode's
+      // `[Pasted ~3 lines]` from 3 lines or 150 characters: words it never shows, which the chat
+      // can neither take nor put back), a paragraph of two lines that wraps stays short of it.
+      const whole = `${"a paragraph that goes on ".repeat(8).trim()}\n\nits last`
+      const words = harnesses[setup.agent].box.collapses(whole)
+        ? `${"a paragraph that goes on ".repeat(5).trim()}\nits last`
+        : whole
       write(`\x1b[200~${words.replaceAll("\n", "\r")}\x1b[201~`)
       await t1.until("its last")
       expect(await taken()).toBe(words)
@@ -1072,7 +1080,14 @@ for (const setup of setups) {
         "its box in its shell mode",
       )
       t1.press("ls -la")
-      await t1.until("ls -la")
+      // Its box, not the screen: opencode's shell mode shows an example command in its empty
+      // box, and one of them is `Run a command… "ls -la"`.
+      await t1.poll(async () => {
+        const screen = await t1.screenText()
+        return screen && harnesses[setup.agent].box.read(screen)?.text === "ls -la"
+          ? true
+          : undefined
+      }, "its box to hold the command")
       expect(await taken()).toBe("!ls -la")
       await empty()
       expect(await put("!ls -la")).toBe(true)
@@ -1182,8 +1197,13 @@ for (const setup of setups) {
       await clears(() => true)
 
       // Only the end of it shows.
+      // Three lines a paste, or two where the program shows three as a placeholder (opencode).
+      const part = (at: number) =>
+        harnesses[setup.agent].box.collapses("a\nb\nc")
+          ? `Part ${at} of it\rits next line`
+          : `Part ${at} of it\rits next line\rits last line`
       for (let at = 0; at < 16; at += 1) {
-        write(`\x1b[200~Part ${at} of it\rits next line\rits last line\x1b[201~`)
+        write(`\x1b[200~${part(at)}\x1b[201~`)
         await t1.until(`Part ${at} of it`)
       }
       // Handing it over would lose what doesn't show: it stays, marked as a tail.

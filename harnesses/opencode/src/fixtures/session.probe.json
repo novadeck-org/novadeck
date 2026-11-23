@@ -1,0 +1,1540 @@
+{
+  "probed": "2026-11-22",
+  "version": "1.19.6",
+  "how": "opencode 1.19.6 TUI in a PTY on Novadeck's fake Anthropic model, Novadeck's plugin loaded through OPENCODE_CONFIG_CONTENT and a stand-in hook launcher recording each report: a prompt with a prompt-time delivery and Novadeck's MCP tool, a bash call asked and allowed once with a tool-time delivery, a question answered with its second option, a task subagent, and a Stop delivery that started the next turn.",
+  "reports": [
+    {
+      "event": "SessionStart",
+      "payload": {
+        "hook_event_name": "SessionStart",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "source": "startup",
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "prompt": "PING please",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "novadeck_ping",
+        "call_id": "toolu_af18cd171c9c9945a40b1a0c",
+        "tool_input": {},
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "hook_event_name": "PostToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "novadeck_ping",
+        "call_id": "toolu_af18cd171c9c9945a40b1a0c",
+        "tool_input": {},
+        "exit": null,
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "last_assistant_message": "OK.",
+        "error": null,
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl",
+        "usage": {
+          "tokens": {
+            "total": 74,
+            "input": 73,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "prompt": "BASH it",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "bash",
+        "call_id": "toolu_421240b8e9dfefef96ffa741",
+        "tool_input": {
+          "command": "echo approved",
+          "description": "Echo approved"
+        },
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "hook_event_name": "PermissionRequest",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "request_id": "per_2032d8d28001suW6BIBJF1pYg2",
+        "permission": "bash",
+        "patterns": ["echo approved"],
+        "metadata": {
+          "command": "echo approved"
+        },
+        "always": ["echo *"],
+        "tool": {
+          "messageID": "msg_2032d8d03001xJoseDc6K3NPYy",
+          "callID": "toolu_421240b8e9dfefef96ffa741"
+        },
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "PermissionReplied",
+      "payload": {
+        "hook_event_name": "PermissionReplied",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "request_id": "per_2032d8d28001suW6BIBJF1pYg2",
+        "reply": "once",
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "hook_event_name": "PostToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "bash",
+        "call_id": "toolu_421240b8e9dfefef96ffa741",
+        "tool_input": {
+          "command": "echo approved",
+          "description": "Echo approved"
+        },
+        "title": "echo approved",
+        "exit": 0,
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "last_assistant_message": "OK.",
+        "error": null,
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl",
+        "usage": {
+          "tokens": {
+            "total": 165,
+            "input": 164,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "prompt": "QUESTION now",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "question",
+        "call_id": "toolu_3191cc20cf68b2aa5ea60705",
+        "tool_input": {
+          "questions": [
+            {
+              "question": "Which colour?",
+              "header": "Colour",
+              "options": [
+                {
+                  "label": "Red",
+                  "description": "warm"
+                },
+                {
+                  "label": "Blue",
+                  "description": "cool"
+                }
+              ],
+              "multiple": false
+            }
+          ]
+        },
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "QuestionRequest",
+      "payload": {
+        "hook_event_name": "QuestionRequest",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "request_id": "que_2032da482001MQWJHGJI5l1liD",
+        "questions": [
+          {
+            "question": "Which colour?",
+            "header": "Colour",
+            "options": [
+              {
+                "label": "Red",
+                "description": "warm"
+              },
+              {
+                "label": "Blue",
+                "description": "cool"
+              }
+            ],
+            "multiple": false
+          }
+        ],
+        "tool": {
+          "messageID": "msg_2032da46e001Qa2kOipj6AhL29",
+          "callID": "toolu_3191cc20cf68b2aa5ea60705"
+        },
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "QuestionReplied",
+      "payload": {
+        "hook_event_name": "QuestionReplied",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "request_id": "que_2032da482001MQWJHGJI5l1liD",
+        "answers": [["Blue"]],
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "hook_event_name": "PostToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "question",
+        "call_id": "toolu_3191cc20cf68b2aa5ea60705",
+        "tool_input": {
+          "questions": [
+            {
+              "question": "Which colour?",
+              "header": "Colour",
+              "options": [
+                {
+                  "label": "Red",
+                  "description": "warm"
+                },
+                {
+                  "label": "Blue",
+                  "description": "cool"
+                }
+              ],
+              "multiple": false
+            }
+          ]
+        },
+        "title": "Asked 1 question",
+        "exit": null,
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "last_assistant_message": "OK.",
+        "error": null,
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl",
+        "usage": {
+          "tokens": {
+            "total": 299,
+            "input": 298,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "prompt": "SUBAGENT go",
+        "images": 0,
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        },
+        "variant": null,
+        "continuation": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "hook_event_name": "PreToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "task",
+        "call_id": "toolu_649190540726fa86c975f28d",
+        "tool_input": {
+          "description": "Look around",
+          "prompt": "CHILD-TASK list files",
+          "subagent_type": "general"
+        },
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "hook_event_name": "SubagentStart",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "agent_id": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "parent_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "agent_type": "general",
+        "title": "Look around (@general subagent)"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "hook_event_name": "PostToolUse",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "tool_name": "task",
+        "call_id": "toolu_649190540726fa86c975f28d",
+        "tool_input": {
+          "description": "Look around",
+          "prompt": "CHILD-TASK list files",
+          "subagent_type": "general"
+        },
+        "title": "Look around",
+        "exit": null,
+        "root": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "hook_event_name": "SubagentStop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "agent_id": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "last_assistant_message": "child says hi",
+        "error": null
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "last_assistant_message": "OK.",
+        "error": null,
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl",
+        "usage": {
+          "tokens": {
+            "total": 413,
+            "input": 412,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "prompt": "",
+        "images": 0,
+        "agent": null,
+        "model": null,
+        "variant": null,
+        "continuation": true,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl"
+      }
+    },
+    {
+      "event": "Continued",
+      "payload": {
+        "hook_event_name": "Continued",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "hook_event_name": "Stop",
+        "cwd": "/home/person/project",
+        "session_id": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "last_assistant_message": "OK.",
+        "error": null,
+        "rejected": false,
+        "transcript_path": "/home/person/.config/novadeck/shell/plugins/opencode/sessions/ses_dfcd282b4ffeoTgQUGRsGXEZ09.jsonl",
+        "usage": {
+          "tokens": {
+            "total": 442,
+            "input": 441,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "model": "fake-sonnet",
+          "provider": "fake",
+          "variant": null,
+          "window": 200000
+        }
+      }
+    }
+  ],
+  "transcript": [
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032d7d6d001a9UKy52MOv6khl",
+        "role": "user",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "time": {
+          "created": 1795349642605
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "PING please",
+          "messageID": "msg_2032d7d6d001a9UKy52MOv6khl",
+          "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+          "id": "prt_2032d7d6f001Q047wnB2cDaf5h"
+        },
+        {
+          "id": "prt_novadeckmwrstm5z",
+          "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+          "messageID": "msg_2032d7d6d001a9UKy52MOv6khl",
+          "type": "text",
+          "text": "<novadeck-messages>AT-PROMPT</novadeck-messages>",
+          "synthetic": true
+        }
+      ]
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d7fb30017eMrqdmimoJjka",
+        "messageID": "msg_2032d7d86001clSZPa13P0O2kd",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "type": "tool",
+        "tool": "novadeck_ping",
+        "callID": "toolu_af18cd171c9c9945a40b1a0c",
+        "state": {
+          "status": "completed",
+          "input": {},
+          "output": "pong-from-novadeck-probe",
+          "metadata": {
+            "truncated": false
+          },
+          "title": "",
+          "time": {
+            "start": 1795349643194,
+            "end": 1795349643207
+          }
+        },
+        "id": "prt_2032d7fb50014xeRBS9GzQgJ0H",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "messageID": "msg_2032d7d86001clSZPa13P0O2kd"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d7fc900165rx60jmgwZtcu",
+        "reason": "tool-calls",
+        "messageID": "msg_2032d7d86001clSZPa13P0O2kd",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 23,
+          "input": 22,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032d7d86001clSZPa13P0O2kd",
+        "parentID": "msg_2032d7d6d001a9UKy52MOv6khl",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 23,
+          "input": 22,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349642630,
+          "completed": 1795349643212
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "tool-calls"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d7fd8001oR6zgj3Yxbc7ee",
+        "messageID": "msg_2032d7fcd0014yfYCI113vY60g",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d7fd9001Wnqm4Jg0SRNRWx",
+        "messageID": "msg_2032d7fcd0014yfYCI113vY60g",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "text",
+        "text": "OK.",
+        "time": {
+          "start": 1795349643225,
+          "end": 1795349643226
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d7fdb001Jm8gPxnOFcUc4D",
+        "reason": "stop",
+        "messageID": "msg_2032d7fcd0014yfYCI113vY60g",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 74,
+          "input": 73,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032d7fcd0014yfYCI113vY60g",
+        "parentID": "msg_2032d7d6d001a9UKy52MOv6khl",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 74,
+          "input": 73,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349643213,
+          "completed": 1795349643229
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "stop"
+      }
+    },
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032d8cf60011w5tY6nApz4PJP",
+        "role": "user",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "time": {
+          "created": 1795349646582
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "BASH it",
+          "messageID": "msg_2032d8cf60011w5tY6nApz4PJP",
+          "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+          "id": "prt_2032d8cf7001mfRCHPidQ1XRRG"
+        }
+      ]
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d8d0e001HgeXfCbVa8yXXT",
+        "messageID": "msg_2032d8d03001xJoseDc6K3NPYy",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "type": "tool",
+        "tool": "bash",
+        "callID": "toolu_421240b8e9dfefef96ffa741",
+        "state": {
+          "status": "completed",
+          "input": {
+            "command": "echo approved",
+            "description": "Echo approved"
+          },
+          "output": "approved\n\n\n<novadeck-messages>AT-TOOL</novadeck-messages>",
+          "metadata": {
+            "output": "approved\n",
+            "exit": 0,
+            "truncated": false
+          },
+          "title": "echo approved",
+          "time": {
+            "start": 1795349646612,
+            "end": 1795349649586
+          }
+        },
+        "id": "prt_2032d8d100019Cl5i0puGXhHRT",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "messageID": "msg_2032d8d03001xJoseDc6K3NPYy"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d98b4001lwsUHrPhtBF3eD",
+        "reason": "tool-calls",
+        "messageID": "msg_2032d8d03001xJoseDc6K3NPYy",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 94,
+          "input": 93,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032d8d03001xJoseDc6K3NPYy",
+        "parentID": "msg_2032d8cf60011w5tY6nApz4PJP",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 94,
+          "input": 93,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349646595,
+          "completed": 1795349649591
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "tool-calls"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d98c8001mtjY7PfNFXTRwl",
+        "messageID": "msg_2032d98b9001jPO8XXrw9wFMuN",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d98c9001ixnTzXiC7cR0Mx",
+        "messageID": "msg_2032d98b9001jPO8XXrw9wFMuN",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "text",
+        "text": "OK.",
+        "time": {
+          "start": 1795349649609,
+          "end": 1795349649610
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032d98cc001qcO4gt4mRp0MPf",
+        "reason": "stop",
+        "messageID": "msg_2032d98b9001jPO8XXrw9wFMuN",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 165,
+          "input": 164,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032d98b9001jPO8XXrw9wFMuN",
+        "parentID": "msg_2032d8cf60011w5tY6nApz4PJP",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 165,
+          "input": 164,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349649594,
+          "completed": 1795349649614
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "stop"
+      }
+    },
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032da460001u0NmUA6Nr1g6g1",
+        "role": "user",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "time": {
+          "created": 1795349652577
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "QUESTION now",
+          "messageID": "msg_2032da460001u0NmUA6Nr1g6g1",
+          "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+          "id": "prt_2032da461001nNqBgh4AIpExPP"
+        }
+      ]
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032da47b0016vpffHa10YMw1O",
+        "messageID": "msg_2032da46e001Qa2kOipj6AhL29",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "type": "tool",
+        "tool": "question",
+        "callID": "toolu_3191cc20cf68b2aa5ea60705",
+        "state": {
+          "status": "completed",
+          "input": {
+            "questions": [
+              {
+                "question": "Which colour?",
+                "header": "Colour",
+                "options": [
+                  {
+                    "label": "Red",
+                    "description": "warm"
+                  },
+                  {
+                    "label": "Blue",
+                    "description": "cool"
+                  }
+                ],
+                "multiple": false
+              }
+            ]
+          },
+          "output": "User has answered your questions: \"Which colour?\"=\"Blue\". You can now continue with the user's answers in mind.",
+          "metadata": {
+            "answers": [["Blue"]],
+            "truncated": false
+          },
+          "title": "Asked 1 question",
+          "time": {
+            "start": 1795349652611,
+            "end": 1795349655587
+          }
+        },
+        "id": "prt_2032da47d001NwlbCKzsw9z2Qu",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "messageID": "msg_2032da46e001Qa2kOipj6AhL29"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032db026001uTZzaOMt17LCQe",
+        "reason": "tool-calls",
+        "messageID": "msg_2032da46e001Qa2kOipj6AhL29",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 186,
+          "input": 185,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032da46e001Qa2kOipj6AhL29",
+        "parentID": "msg_2032da460001u0NmUA6Nr1g6g1",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 186,
+          "input": 185,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349652590,
+          "completed": 1795349655592
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "tool-calls"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032db034001mZJsPOX6DmawJW",
+        "messageID": "msg_2032db02a00164quFYF6At9fm8",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032db035001KxhqAuv69PWjMV",
+        "messageID": "msg_2032db02a00164quFYF6At9fm8",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "text",
+        "text": "OK.",
+        "time": {
+          "start": 1795349655605,
+          "end": 1795349655607
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032db038001L14pQRCJJczai9",
+        "reason": "stop",
+        "messageID": "msg_2032db02a00164quFYF6At9fm8",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 299,
+          "input": 298,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032db02a00164quFYF6At9fm8",
+        "parentID": "msg_2032da460001u0NmUA6Nr1g6g1",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 299,
+          "input": 298,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349655594,
+          "completed": 1795349655610
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "stop"
+      }
+    },
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032dbbd4001gw62Gxej1BFe1M",
+        "role": "user",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "time": {
+          "created": 1795349658580
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "SUBAGENT go",
+          "messageID": "msg_2032dbbd4001gw62Gxej1BFe1M",
+          "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+          "id": "prt_2032dbbd5001N62JqYA4gnLA4B"
+        }
+      ]
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbbe8001nu0M3WXK3q72Oo",
+        "messageID": "msg_2032dbbde001uRrU4I6rk2UvkN",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "type": "tool",
+        "tool": "task",
+        "callID": "toolu_649190540726fa86c975f28d",
+        "state": {
+          "status": "completed",
+          "input": {
+            "description": "Look around",
+            "prompt": "CHILD-TASK list files",
+            "subagent_type": "general"
+          },
+          "output": "<task id=\"ses_dfcd24411ffeG30ilIDDiDE5b9\" state=\"completed\">\n<task_result>\nchild says hi\n</task_result>\n</task>",
+          "metadata": {
+            "parentSessionId": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+            "sessionId": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+            "model": {
+              "modelID": "fake-sonnet",
+              "providerID": "fake"
+            },
+            "truncated": false
+          },
+          "title": "Look around",
+          "time": {
+            "start": 1795349658608,
+            "end": 1795349658761
+          }
+        },
+        "id": "prt_2032dbbe9001ZNEiMadrEZUl9j",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "messageID": "msg_2032dbbde001uRrU4I6rk2UvkN"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc8b0015Ae3BJ16I4nmPh",
+        "reason": "tool-calls",
+        "messageID": "msg_2032dbbde001uRrU4I6rk2UvkN",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 319,
+          "input": 318,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032dbbde001uRrU4I6rk2UvkN",
+        "parentID": "msg_2032dbbd4001gw62Gxej1BFe1M",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 319,
+          "input": 318,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349658590,
+          "completed": 1795349658765
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "tool-calls"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc98001cDCSEozJx4Ese2",
+        "messageID": "msg_2032dbc8e001KDQHKVFyoeduuX",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc99001bC49PVKToSsVUJ",
+        "messageID": "msg_2032dbc8e001KDQHKVFyoeduuX",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "text",
+        "text": "OK.",
+        "time": {
+          "start": 1795349658777,
+          "end": 1795349658778
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc9b001j6AAC6i3lacoTl",
+        "reason": "stop",
+        "messageID": "msg_2032dbc8e001KDQHKVFyoeduuX",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 413,
+          "input": 412,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032dbc8e001KDQHKVFyoeduuX",
+        "parentID": "msg_2032dbbd4001gw62Gxej1BFe1M",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 413,
+          "input": 412,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349658766,
+          "completed": 1795349658780
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "stop"
+      }
+    },
+    {
+      "type": "prompt",
+      "info": {
+        "id": "msg_2032dbca9001JcTTfsP0bDxLHM",
+        "role": "user",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "time": {
+          "created": 1795349658793
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "<novadeck-messages>AT-STOP</novadeck-messages>",
+          "synthetic": true,
+          "messageID": "msg_2032dbca9001JcTTfsP0bDxLHM",
+          "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+          "id": "prt_2032dbca9002MEO2rQcRuBstuH"
+        }
+      ]
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbcbb001AWqEDt2IXW1B3G",
+        "messageID": "msg_2032dbcb3001jOS62FsOh53KZB",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbcbc001mhMp0IfI7Z3jRs",
+        "messageID": "msg_2032dbcb3001jOS62FsOh53KZB",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "text",
+        "text": "OK.",
+        "time": {
+          "start": 1795349658812,
+          "end": 1795349658813
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbcbe001qiM9yTY1iqDxwe",
+        "reason": "stop",
+        "messageID": "msg_2032dbcb3001jOS62FsOh53KZB",
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "type": "step-finish",
+        "tokens": {
+          "total": 442,
+          "input": 441,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032dbcb3001jOS62FsOh53KZB",
+        "parentID": "msg_2032dbca9001JcTTfsP0bDxLHM",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 442,
+          "input": 441,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349658803,
+          "completed": 1795349658816
+        },
+        "sessionID": "ses_dfcd282b4ffeoTgQUGRsGXEZ09",
+        "finish": "stop"
+      }
+    }
+  ],
+  "child": [
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032dbbf2001SwJitU8Re3psGC",
+        "role": "user",
+        "sessionID": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "time": {
+          "created": 1795349658610
+        },
+        "agent": "general",
+        "model": {
+          "providerID": "fake",
+          "modelID": "fake-sonnet"
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "user",
+      "part": {
+        "type": "text",
+        "text": "CHILD-TASK list files",
+        "messageID": "msg_2032dbbf2001SwJitU8Re3psGC",
+        "sessionID": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "id": "prt_2032dbbf4001i7qTYdYLoQ1d59"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc79001gi7mH2QqH0Iv8G",
+        "messageID": "msg_2032dbbfa001UgvYm6lcC4dWnW",
+        "sessionID": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "type": "step-start"
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc7b0016kxSwONZjO6Dvj",
+        "messageID": "msg_2032dbbfa001UgvYm6lcC4dWnW",
+        "sessionID": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "type": "text",
+        "text": "child says hi",
+        "time": {
+          "start": 1795349658747,
+          "end": 1795349658748
+        }
+      }
+    },
+    {
+      "type": "part",
+      "role": "assistant",
+      "part": {
+        "id": "prt_2032dbc7d001ILzdcsO5DQbnBr",
+        "reason": "stop",
+        "messageID": "msg_2032dbbfa001UgvYm6lcC4dWnW",
+        "sessionID": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "type": "step-finish",
+        "tokens": {
+          "total": 13,
+          "input": 12,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0
+      }
+    },
+    {
+      "type": "message",
+      "info": {
+        "id": "msg_2032dbbfa001UgvYm6lcC4dWnW",
+        "parentID": "msg_2032dbbf2001SwJitU8Re3psGC",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/home/person/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 13,
+          "input": 12,
+          "output": 1,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fake-sonnet",
+        "providerID": "fake",
+        "time": {
+          "created": 1795349658618,
+          "completed": 1795349658752
+        },
+        "sessionID": "ses_dfcd24411ffeG30ilIDDiDE5b9",
+        "finish": "stop"
+      }
+    }
+  ]
+}

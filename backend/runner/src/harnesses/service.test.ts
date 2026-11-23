@@ -101,7 +101,7 @@ const it = base.extend<{ fixture: Fixture }>({
     mkdirSync(bin)
     const script = join(root, "agent.cjs")
     writeFileSync(script, fakeAgent)
-    for (const agent of ["claude", "codex", "agy"])
+    for (const agent of ["claude", "codex", "agy", "opencode"])
       if (windows)
         writeFileSync(
           join(bin, `${agent}.cmd`),
@@ -167,7 +167,12 @@ const missing = (agent: string) => ({
 })
 
 const installed = (home: string, ...agents: string[]) => {
-  const homes = { claude: [".claude"], codex: [".codex"], agy: [".gemini", "antigravity-cli"] }
+  const homes = {
+    claude: [".claude"],
+    codex: [".codex"],
+    agy: [".gemini", "antigravity-cli"],
+    opencode: [".local", "share", "opencode"],
+  }
   for (const agent of agents)
     mkdirSync(join(home, ...homes[agent as keyof typeof homes]), { recursive: true })
 }
@@ -207,12 +212,14 @@ describe("agents Novadeck can connect", () => {
       missing("claude"),
       { agent: "codex", available: true, connected: false },
       missing("agy"),
+      missing("opencode"),
     ])
     // Installed and never run: no home yet, but the program is on PATH.
     expect(await fixture.agents().list()).toEqual([
       { agent: "claude", available: true, connected: false },
       { agent: "codex", available: true, connected: false },
       { agent: "agy", available: true, connected: false },
+      { agent: "opencode", available: true, connected: false },
     ])
   })
 
@@ -247,7 +254,7 @@ describe("agents Novadeck can connect", () => {
     fixture,
   }) => {
     const agents = fixture.agents()
-    for (const agent of ["claude", "codex", "agy"] as const)
+    for (const agent of ["claude", "codex", "agy", "opencode"] as const)
       // eslint-disable-next-line no-await-in-loop -- Each connects in its turn, as the runner's queue has them.
       expect(await agents.set(agent, true)).toMatchObject({
         agent,
@@ -318,6 +325,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "claude", available: true, connected: false },
       { agent: "codex", available: true, connected: true },
       { agent: "agy", available: true, connected: true },
+      { agent: "opencode", available: true, connected: false },
     ])
     expect(fixture.calls()).toContainEqual(["codex", "plugin", "add", "novadeck@novadeck"])
     expect(fixture.calls()).toContainEqual(["agy", "plugin", "install", fixture.paths.plugins.agy])
@@ -332,6 +340,23 @@ describe("agents Novadeck can connect", () => {
     await agents.set("agy", false)
     expect((await agents.list())[2]).toMatchObject({ connected: false })
     expect(statusLine()).toBeUndefined()
+  })
+
+  it("connects opencode by Novadeck's own marker, running none of its commands and writing nothing of its own", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "opencode")
+    const agents = fixture.agents()
+    expect(await agents.set("opencode", true)).toMatchObject({ connected: true })
+    expect(existsSync(join(fixture.paths.plugins.opencode, "connected"))).toBe(true)
+    // Only its version is asked, for whether Novadeck's plugin works with it.
+    expect(fixture.calls()).toEqual([["opencode", "--version"]])
+    // Nothing of opencode's own configuration: its plugin loads per launch, through the shim.
+    expect(existsSync(join(fixture.home, ".config", "opencode"))).toBe(false)
+    expect(await agents.shims()).toContain("opencode")
+    expect(await agents.set("opencode", false)).toMatchObject({ connected: false })
+    expect(existsSync(join(fixture.paths.plugins.opencode, "connected"))).toBe(false)
+    expect(await agents.shims()).not.toContain("opencode")
   })
 
   it("names Antigravity among the shimmed agents on Windows, with the cmd.exe pass-through or not", async ({

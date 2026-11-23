@@ -21,6 +21,8 @@ export type ScreenRecord = {
   readonly rows: { readonly [row: string]: string }
   /** The rows whose dim cells blank some of their text, as they read undimmed. Others read as `rows` do. */
   readonly bright?: { readonly [row: string]: string }
+  /** The rows with cells whose background stands out from the row's (`ScreenText.lit`); others have none. */
+  readonly lit?: { readonly [row: string]: string }
   /** Whether the terminal took bracketed pastes; it did unless this says not. */
   readonly bracketedPaste?: boolean
   /** Whether the alternate screen showed; it did not unless this says so. */
@@ -56,6 +58,11 @@ export const screenRecord = (
         ),
       ),
     }),
+    ...(read?.lit && {
+      lit: Object.fromEntries(
+        read.lit.flatMap((row, index) => (row.trim() === "" ? [] : [[String(index), row]])),
+      ),
+    }),
     ...(read && !read.bracketedPaste && { bracketedPaste: false }),
   }
 }
@@ -66,6 +73,9 @@ export const screenOf = (record: ScreenRecord): ScreenText => {
   return screen({
     rows,
     bright: rows.map((row, index) => record.bright?.[index] ?? row),
+    ...(record.lit && {
+      lit: rows.map((_, index) => record.lit?.[index] ?? ""),
+    }),
     ...(record.columns !== undefined && { columns: record.columns }),
     ...(record.cursor && { cursor: record.cursor }),
     ...(record.bracketedPaste !== undefined && { bracketedPaste: record.bracketedPaste }),

@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
@@ -21,6 +23,7 @@ import {
   agentWorking,
   doorbellHost,
   profileOf,
+  shellIn,
   typingTarget,
   type DoorbellBound,
   type DoorbellRecord,
@@ -709,5 +712,36 @@ describe("a session stopped with background work running", () => {
         }),
       ),
     ).toBe("queued")
+  })
+})
+
+describe("shellIn", () => {
+  // A folder of stand-in shells to put on a PATH, as `name` and `name.exe`, so it reads the same
+  // on every platform.
+  const shells = (...names: string[]): string => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-shells-"))
+    for (const name of names)
+      for (const file of [name, `${name}.exe`]) writeFileSync(join(folder, file), "")
+    return folder
+  }
+
+  it("writes opencode's command of several lines for the shell its terminal's PATH gives it", ({
+    resources,
+  }) => {
+    const { box } = harnesses.opencode
+    const pwsh = shells("pwsh")
+    const bash = shells("bash")
+    resources.defer(() => rmSync(pwsh, { recursive: true, force: true }))
+    resources.defer(() => rmSync(bash, { recursive: true, force: true }))
+    const written = (env: NodeJS.ProcessEnv) => shellIn(box, env).shell.command?.("echo a\necho b")
+    expect(written({ SHELL: "pwsh", PATH: pwsh })).toMatch(/^Invoke-Expression /)
+    expect(written({ SHELL: "bash", PATH: bash })).toMatch(/^eval "\$\(printf %s '/)
+    // One line goes as it is, whichever the shell.
+    expect(shellIn(box, { SHELL: "pwsh", PATH: pwsh }).shell.command?.("ls")).toBe("ls")
+  })
+
+  it("leaves a profile as it is without an environment, or with no command to write", () => {
+    expect(shellIn(harnesses.opencode.box, undefined)).toBe(harnesses.opencode.box)
+    expect(shellIn(harnesses.claude.box, { PATH: "" })).toBe(harnesses.claude.box)
   })
 })

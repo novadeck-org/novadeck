@@ -1,0 +1,1925 @@
+{
+  "harness": "opencode",
+  "source": "probed by hand 2026-11-22 against opencode 1.19.6 (rig: fake Anthropic model, a PTY, Novadeck's headless emulator)",
+  "how": "Each state read with `readScreen`: `rows` holds the rows that show anything, `bright` those whose dim cells blank some of their text, `cursor` the cursor; paths in the footer made `~/project`. Names ending 60 are 60x20, the rest 120x40.",
+  "version": "1.19.6",
+  "screens": {
+    "busy": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 34,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ■■■■■■⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ■■■■■■⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      }
+    },
+    "busy60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 14,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "13": "  ┃",
+        "14": "  ┃",
+        "15": "  ┃",
+        "16": "  ┃  Build · Fake Sonnet Fake",
+        "17": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "18": "   ■■■■■■⬝⬝  esc interrupt     tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "13": "  ┃",
+        "14": "  ┃",
+        "15": "  ┃",
+        "16": "  ┃  Build · Fake Sonnet Fake",
+        "17": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "18": "   ■■■■■■⬝⬝  esc interrupt     tab agents  ctrl+p commands"
+      }
+    },
+    "busyDraft": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 34,
+        "column": 18
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃  draft in busy",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃  draft in busy",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      }
+    },
+    "busyEsc1": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 34,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ■■■■⬝⬝⬝⬝  esc again to interrupt                                                        tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ■■■■⬝⬝⬝⬝  esc again to interrupt                                                        tab agents  ctrl+p commands"
+      }
+    },
+    "busySlash": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 34,
+        "column": 6
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "23": "  ┃ /agents       Switch agent                                                                                       ┃",
+        "24": "  ┃ /compact      Compact session                                                                                    ┃",
+        "25": "  ┃ /connect      Connect provider                                                                                   ┃",
+        "26": "  ┃ /copy         Copy session transcript                                                                            ┃",
+        "27": "  ┃ /debug        View debug info                                                                                    ┃",
+        "28": "  ┃ /diff         Open diff viewer                                                                                   ┃",
+        "29": "  ┃ /editor       Open editor                                                                                        ┃",
+        "30": "  ┃ /exit         Exit the app                                                                                       ┃",
+        "31": "  ┃ /export       Export session transcript                                                                          ┃",
+        "32": "  ┃ /fork         Fork session                                                                                       ┃",
+        "33": "  ┃",
+        "34": "  ┃  /",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet",
+        "23": "  ┃ /agents       Switch agent                                                                                       ┃",
+        "24": "  ┃ /compact      Compact session                                                                                    ┃",
+        "25": "  ┃ /connect      Connect provider                                                                                   ┃",
+        "26": "  ┃ /copy         Copy session transcript                                                                            ┃",
+        "27": "  ┃ /debug        View debug info                                                                                    ┃",
+        "28": "  ┃ /diff         Open diff viewer                                                                                   ┃",
+        "29": "  ┃ /editor       Open editor                                                                                        ┃",
+        "30": "  ┃ /exit         Exit the app                                                                                       ┃",
+        "31": "  ┃ /export       Export session transcript                                                                          ┃",
+        "32": "  ┃ /fork         Fork session                                                                                       ┃",
+        "33": "  ┃",
+        "34": "  ┃  /",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      }
+    },
+    "busySlash60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 14,
+        "column": 6
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃ /agents       Switch agent                           ┃",
+        "4": "  ┃ /compact      Compact session                        ┃",
+        "5": "  ┃ /connect      Connect provider                       ┃",
+        "6": "  ┃ /copy         Copy session transcript                ┃",
+        "7": "  ┃ /debug        View debug info                        ┃",
+        "8": "  ┃ /diff         Open diff viewer                       ┃",
+        "9": "  ┃ /editor       Open editor                            ┃",
+        "10": "  ┃ /exit         Exit the app                           ┃",
+        "11": "  ┃ /export       Export session transcript              ┃",
+        "12": "  ┃ /fork         Fork session                           ┃",
+        "13": "  ┃",
+        "14": "  ┃  /",
+        "15": "  ┃",
+        "16": "  ┃  Build · Fake Sonnet Fake",
+        "17": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "18": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt     tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃ /agents       Switch agent                           ┃",
+        "4": "  ┃ /compact      Compact session                        ┃",
+        "5": "  ┃ /connect      Connect provider                       ┃",
+        "6": "  ┃ /copy         Copy session transcript                ┃",
+        "7": "  ┃ /debug        View debug info                        ┃",
+        "8": "  ┃ /diff         Open diff viewer                       ┃",
+        "9": "  ┃ /editor       Open editor                            ┃",
+        "10": "  ┃ /exit         Exit the app                           ┃",
+        "11": "  ┃ /export       Export session transcript              ┃",
+        "12": "  ┃ /fork         Fork session                           ┃",
+        "13": "  ┃",
+        "14": "  ┃  /",
+        "15": "  ┃",
+        "16": "  ┃  Build · Fake Sonnet Fake",
+        "17": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "18": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt     tab agents  ctrl+p commands"
+      }
+    },
+    "help": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 39,
+        "column": 120
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "5": "     OK.",
+        "7": "     ▣  Build · Fake Sonnet · 584ms",
+        "11": "                                Help                                           esc/enter",
+        "13": "                                Press ctrl+p to see all available actions and commands",
+        "14": "                                in any context.",
+        "17": "                                                                                   ok",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                         commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "5": "     OK.",
+        "7": "     ▣  Build · Fake Sonnet · 584ms",
+        "11": "                                Help                                           esc/enter",
+        "13": "                                Press ctrl+p to see all available actions and commands",
+        "14": "                                in any context.",
+        "17": "                                                                                   ok",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                         commands"
+      }
+    },
+    "help60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 19,
+        "column": 60
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "6": "   Help                                         esc/enter",
+        "8": "   Press ctrl+p to see all available actions and",
+        "9": "   commands in any context.",
+        "12": "                                                    ok",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project",
+        "16": "                                               commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "6": "   Help                                         esc/enter",
+        "8": "   Press ctrl+p to see all available actions and",
+        "9": "   commands in any context.",
+        "12": "                                                    ok",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project",
+        "16": "                                               commands"
+      }
+    },
+    "homeAt": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 27
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃ @explore                                                                ┃",
+        "18": "                       ┃ @general                                                                ┃",
+        "19": "                       ┃",
+        "20": "                       ┃  @",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃ @explore                                                                ┃",
+        "18": "                       ┃ @general                                                                ┃",
+        "19": "                       ┃",
+        "20": "                       ┃  @",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeAtEsc": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 27
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  @",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  @",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeBang": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 26
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  Run a command… \"pwd\"",
+        "21": "                       ┃",
+        "22": "                       ┃  Shell",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                               esc exit shell mode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  Run a command… \"pwd\"",
+        "21": "                       ┃",
+        "22": "                       ┃  Shell",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                               esc exit shell mode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeBang60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 7,
+        "column": 5
+      },
+      "rows": {
+        "1": "                                            ▄",
+        "2": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "3": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "4": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "6": "  ┃",
+        "7": "  ┃  Run a command… \"git status\"",
+        "8": "  ┃",
+        "9": "  ┃  Shell",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                                       esc exit shell mode",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      },
+      "bright": {
+        "1": "                                            ▄",
+        "2": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "3": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "4": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "6": "  ┃",
+        "7": "  ┃  Run a command… \"git status\"",
+        "8": "  ┃",
+        "9": "  ┃  Shell",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                                       esc exit shell mode",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      }
+    },
+    "homeDraft": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 31
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  hello",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  hello",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeDraft60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 7,
+        "column": 10
+      },
+      "rows": {
+        "1": "                                            ▄",
+        "2": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "3": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "4": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "6": "  ┃",
+        "7": "  ┃  hello",
+        "8": "  ┃",
+        "9": "  ┃  Build · Fake Sonnet Fake",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                               tab agents  ctrl+p commands",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      },
+      "bright": {
+        "1": "                                            ▄",
+        "2": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "3": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "4": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "6": "  ┃",
+        "7": "  ┃  hello",
+        "8": "  ┃",
+        "9": "  ┃  Build · Fake Sonnet Fake",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                               tab agents  ctrl+p commands",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      }
+    },
+    "homeEmpty": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 26
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  Ask anything… \"Fix a TODO in the codebase\"",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  Ask anything… \"Fix a TODO in the codebase\"",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeEmpty60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 7,
+        "column": 5
+      },
+      "rows": {
+        "1": "                                            ▄",
+        "2": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "3": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "4": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "6": "  ┃",
+        "7": "  ┃  Ask anything… \"Fix a TODO in the codebase\"",
+        "8": "  ┃",
+        "9": "  ┃  Build · Fake Sonnet Fake",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                               tab agents  ctrl+p commands",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      },
+      "bright": {
+        "1": "                                            ▄",
+        "2": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "3": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "4": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "6": "  ┃",
+        "7": "  ┃  Ask anything… \"Fix a TODO in the codebase\"",
+        "8": "  ┃",
+        "9": "  ┃  Build · Fake Sonnet Fake",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                               tab agents  ctrl+p commands",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      }
+    },
+    "homePaste3": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 44
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  [Pasted ~3 lines]",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  [Pasted ~3 lines]",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homePaste30": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 45
+      },
+      "rows": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  [Pasted ~30 lines]",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "13": "                                                                          ▄",
+        "14": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "15": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "16": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "19": "                       ┃",
+        "20": "                       ┃  [Pasted ~30 lines]",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeSlash": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 27
+      },
+      "rows": {
+        "9": "                       ┃ /agents     Switch agent                                                ┃",
+        "10": "                       ┃ /connect    Connect provider                                            ┃",
+        "11": "                       ┃ /debug      View debug info                                             ┃",
+        "12": "                       ┃ /diff       Open diff viewer                                            ┃",
+        "13": "                       ┃ /editor     Open editor                                                 ┃",
+        "14": "                       ┃ /exit       Exit the app                                                ┃",
+        "15": "                       ┃ /help       Help                                                        ┃",
+        "16": "                       ┃ /init       guided AGENTS.md setup                                      ┃",
+        "17": "                       ┃ /mcps       Toggle MCPs                                                 ┃",
+        "18": "                       ┃ /models     Switch model                                                ┃",
+        "19": "                       ┃",
+        "20": "                       ┃  /",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "9": "                       ┃ /agents     Switch agent                                                ┃",
+        "10": "                       ┃ /connect    Connect provider                                            ┃",
+        "11": "                       ┃ /debug      View debug info                                             ┃",
+        "12": "                       ┃ /diff       Open diff viewer                                            ┃",
+        "13": "                       ┃ /editor     Open editor                                                 ┃",
+        "14": "                       ┃ /exit       Exit the app                                                ┃",
+        "15": "                       ┃ /help       Help                                                        ┃",
+        "16": "                       ┃ /init       guided AGENTS.md setup                                      ┃",
+        "17": "                       ┃ /mcps       Toggle MCPs                                                 ┃",
+        "18": "                       ┃ /models     Switch model                                                ┃",
+        "19": "                       ┃",
+        "20": "                       ┃  /",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "homeSlash60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 7,
+        "column": 6
+      },
+      "rows": {
+        "0": "  ┃ /agents     Switch agent                             ┃",
+        "1": "  ┃ /connect    Connect provider                         ┃",
+        "2": "  ┃ /debug      View debug info                          ┃",
+        "3": "  ┃ /diff       Open diff viewer                         ┃",
+        "4": "  ┃ /editor     Open editor                              ┃",
+        "5": "  ┃ /exit       Exit the app                             ┃",
+        "6": "  ┃",
+        "7": "  ┃  /",
+        "8": "  ┃",
+        "9": "  ┃  Build · Fake Sonnet Fake",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                               tab agents  ctrl+p commands",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      },
+      "bright": {
+        "0": "  ┃ /agents     Switch agent                             ┃",
+        "1": "  ┃ /connect    Connect provider                         ┃",
+        "2": "  ┃ /debug      View debug info                          ┃",
+        "3": "  ┃ /diff       Open diff viewer                         ┃",
+        "4": "  ┃ /editor     Open editor                              ┃",
+        "5": "  ┃ /exit       Exit the app                             ┃",
+        "6": "  ┃",
+        "7": "  ┃  /",
+        "8": "  ┃",
+        "9": "  ┃  Build · Fake Sonnet Fake",
+        "10": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "11": "                               tab agents  ctrl+p commands",
+        "15": "  ● Tip Create opencode.json for server settings, and tui.",
+        "16": "  ~/project                                         1.19.6"
+      }
+    },
+    "idleEsc": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW q1",
+        "3": "  ┃  L35",
+        "4": "  ┃  L36",
+        "5": "  ┃  L37",
+        "6": "  ┃  L38",
+        "7": "  ┃  L39",
+        "8": "  ┃",
+        "10": "     ▣  Build · Fake Sonnet · interrupted",
+        "12": "  ┃",
+        "13": "  ┃  second while busy",
+        "14": "  ┃",
+        "32": "  ┃",
+        "33": "  ┃  second while busy",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW q1",
+        "3": "  ┃  L35",
+        "4": "  ┃  L36",
+        "5": "  ┃  L37",
+        "6": "  ┃  L38",
+        "7": "  ┃  L39",
+        "8": "  ┃",
+        "10": "     ▣  Build · Fake Sonnet · interrupted",
+        "12": "  ┃",
+        "13": "  ┃  second while busy",
+        "14": "  ┃",
+        "32": "  ┃",
+        "33": "  ┃  second while busy",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "len150": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 36
+      },
+      "rows": {
+        "11": "                                                                          ▄",
+        "12": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "13": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "14": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃",
+        "18": "                       ┃  zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "19": "                       ┃  zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "20": "                       ┃  zzzzzzzzzz",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                            ● Tip Use plugins to send OS notifications when sessions complete",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "11": "                                                                          ▄",
+        "12": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "13": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "14": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃",
+        "18": "                       ┃  zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "19": "                       ┃  zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "20": "                       ┃  zzzzzzzzzz",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                            ● Tip Use plugins to send OS notifications when sessions complete",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "len151": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 19,
+        "column": 44
+      },
+      "rows": {
+        "12": "                                                                          ▄",
+        "13": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "14": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "15": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "18": "                       ┃",
+        "19": "                       ┃  [Pasted ~1 lines]",
+        "20": "                       ┃",
+        "21": "                       ┃  Build · Fake Sonnet Fake",
+        "22": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "23": "                                                                       tab agents  ctrl+p commands",
+        "27": "                            ● Tip Use plugins to send OS notifications when sessions complete",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "12": "                                                                          ▄",
+        "13": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "14": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "15": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "18": "                       ┃",
+        "19": "                       ┃  [Pasted ~1 lines]",
+        "20": "                       ┃",
+        "21": "                       ┃  Build · Fake Sonnet Fake",
+        "22": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "23": "                                                                       tab agents  ctrl+p commands",
+        "27": "                            ● Tip Use plugins to send OS notifications when sessions complete",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "models": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 34
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "5": "     OK.",
+        "7": "     ▣  Build · Fake Sonnet · 584ms",
+        "11": "                                  Select model                                     esc",
+        "13": "                                  Search",
+        "15": "                                  Iceman Free                                     Free",
+        "16": "                                  Inkling 2 Small Free                            Free",
+        "17": "                                  LongCat 2.5 Free                                Free",
+        "18": "                                  Flint 40B Free                                  Free",
+        "19": "                                  DeepSeek V4.1 Flash Free                        Free",
+        "20": "                                  Nemotron 3.5 Super VL Free                      Free",
+        "21": "                                  Beam Free                                       Free",
+        "22": "                                  MiMo-V2.6-Flash Free                            Free",
+        "23": "                                  GLM-5.3-Flash Free                              Free",
+        "24": "                                  Nemotron 3.5 Lightning Free                     Free",
+        "25": "                                  Big Pickle                                      Free",
+        "27": "                                  Fake",
+        "28": "                                ● Fake Sonnet",
+        "30": "                                  Connect provider ctrl+a  Favorite ctrl+f",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                         commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "5": "     OK.",
+        "7": "     ▣  Build · Fake Sonnet · 584ms",
+        "11": "                                  Select model                                     esc",
+        "13": "                                  Search",
+        "15": "                                  Iceman Free                                     Free",
+        "16": "                                  Inkling 2 Small Free                            Free",
+        "17": "                                  LongCat 2.5 Free                                Free",
+        "18": "                                  Flint 40B Free                                  Free",
+        "19": "                                  DeepSeek V4.1 Flash Free                        Free",
+        "20": "                                  Nemotron 3.5 Super VL Free                      Free",
+        "21": "                                  Beam Free                                       Free",
+        "22": "                                  MiMo-V2.6-Flash Free                            Free",
+        "23": "                                  GLM-5.3-Flash Free                              Free",
+        "24": "                                  Nemotron 3.5 Lightning Free                     Free",
+        "25": "                                  Big Pickle                                      Free",
+        "27": "                                  Fake",
+        "28": "                                ● Fake Sonnet",
+        "30": "                                  Connect provider ctrl+a  Favorite ctrl+f",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                         commands"
+      }
+    },
+    "models60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 8,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "6": "     Select model                                   esc",
+        "8": "     Search",
+        "10": "     Big Pickle                                    Free",
+        "12": "     Fake",
+        "13": "   ● Fake Sonnet",
+        "15": "     Connect provider ctrl+a  Favorite ctrl+f",
+        "17": "   ~/project"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "6": "     Select model                                   esc",
+        "8": "     Search",
+        "10": "     Big Pickle                                    Free",
+        "12": "     Fake",
+        "13": "   ● Fake Sonnet",
+        "15": "     Connect provider ctrl+a  Favorite ctrl+f",
+        "17": "   ~/project"
+      }
+    },
+    "palette": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 34
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "5": "     OK.",
+        "7": "     ▣  Build · Fake Sonnet · 584ms",
+        "11": "                                  Commands                                         esc",
+        "13": "                                  Search",
+        "15": "                                  Suggested",
+        "16": "                                  Switch session                              ctrl+x l",
+        "17": "                                  New session                                 ctrl+x n",
+        "18": "                                  Switch model                                ctrl+x m",
+        "20": "                                  Session",
+        "21": "                                  Open editor                                 ctrl+x e",
+        "22": "                                  Move session Move to another project dir",
+        "23": "                                  Rename session                                ctrl+r",
+        "24": "                                  Jump to message                             ctrl+x g",
+        "25": "                                  Fork session",
+        "26": "                                  Compact session                             ctrl+x c",
+        "27": "                                  Undo previous message                       ctrl+x u",
+        "28": "                                  Show sidebar                                ctrl+x b",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                         commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  hello",
+        "3": "  ┃",
+        "5": "     OK.",
+        "7": "     ▣  Build · Fake Sonnet · 584ms",
+        "11": "                                  Commands                                         esc",
+        "13": "                                  Search",
+        "15": "                                  Suggested",
+        "16": "                                  Switch session                              ctrl+x l",
+        "17": "                                  New session                                 ctrl+x n",
+        "18": "                                  Switch model                                ctrl+x m",
+        "20": "                                  Session",
+        "21": "                                  Open editor                                 ctrl+x e",
+        "22": "                                  Move session Move to another project dir",
+        "23": "                                  Rename session                                ctrl+r",
+        "24": "                                  Jump to message                             ctrl+x g",
+        "25": "                                  Fork session",
+        "26": "                                  Compact session                             ctrl+x c",
+        "27": "                                  Undo previous message                       ctrl+x u",
+        "28": "                                  Show sidebar                                ctrl+x b",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                         commands"
+      }
+    },
+    "paste2": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 27
+      },
+      "rows": {
+        "12": "                                                                          ▄",
+        "13": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "14": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "15": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "18": "                       ┃",
+        "19": "                       ┃  a",
+        "20": "                       ┃  b",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "12": "                                                                          ▄",
+        "13": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "14": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "15": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "18": "                       ┃",
+        "19": "                       ┃  a",
+        "20": "                       ┃  b",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "queued": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 34,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW q1",
+        "3": "  ┃  L35",
+        "4": "  ┃  L36",
+        "5": "  ┃  L37",
+        "6": "  ┃  L38",
+        "7": "  ┃  L39",
+        "8": "  ┃",
+        "10": "     ▣  Build · Fake Sonnet",
+        "12": "  ┃",
+        "13": "  ┃  second while busy",
+        "14": "  ┃   QUEUED",
+        "15": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW q1",
+        "3": "  ┃  L35",
+        "4": "  ┃  L36",
+        "5": "  ┃  L37",
+        "6": "  ┃  L38",
+        "7": "  ┃  L39",
+        "8": "  ┃",
+        "10": "     ▣  Build · Fake Sonnet",
+        "12": "  ┃",
+        "13": "  ┃  second while busy",
+        "14": "  ┃   QUEUED",
+        "15": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃",
+        "36": "  ┃  Build · Fake Sonnet Fake",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                                                 tab agents  ctrl+p commands"
+      }
+    },
+    "sessAt": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 6
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "30": "  ┃ @explore                                                                                                         ┃",
+        "31": "  ┃ @general                                                                                                         ┃",
+        "32": "  ┃",
+        "33": "  ┃  @",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "30": "  ┃ @explore                                                                                                         ┃",
+        "31": "  ┃ @general                                                                                                         ┃",
+        "32": "  ┃",
+        "33": "  ┃  @",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "sessBang": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Shell",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                      mode"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Shell",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                      mode"
+      }
+    },
+    "sessBangCmd": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 12
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  echo hi",
+        "34": "  ┃",
+        "35": "  ┃  Shell",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                      mode"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  echo hi",
+        "34": "  ┃",
+        "35": "  ┃  Shell",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project",
+        "38": "                                                                                                      mode"
+      }
+    },
+    "sessDraft": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 7
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  hi",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  hi",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "sessDraft60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 11,
+        "column": 7
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "10": "  ┃",
+        "11": "  ┃  hi",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project                           tab     ctrl+p",
+        "16": "                                       agents  commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "10": "  ┃",
+        "11": "  ┃  hi",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project                           tab     ctrl+p",
+        "16": "                                       agents  commands"
+      }
+    },
+    "sessEmpty": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "sessEmpty60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 11,
+        "column": 5
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "10": "  ┃",
+        "11": "  ┃",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project                           tab     ctrl+p",
+        "16": "                                       agents  commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "10": "  ┃",
+        "11": "  ┃",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project                           tab     ctrl+p",
+        "16": "                                       agents  commands"
+      }
+    },
+    "sessImage": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 15
+      },
+      "rows": {
+        "2": "  ┃",
+        "3": "  ┃  $ echo aaa",
+        "4": "  ┃  echo bbb",
+        "5": "  ┃  echo ccc",
+        "6": "  ┃",
+        "7": "  ┃  aaanecho bbbnecho ccc",
+        "8": "  ┃",
+        "10": "     ▣  Build · Fake Sonnet",
+        "32": "  ┃",
+        "33": "  ┃  [Image 1]",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "2": "  ┃",
+        "3": "  ┃  $ echo aaa",
+        "4": "  ┃  echo bbb",
+        "5": "  ┃  echo ccc",
+        "6": "  ┃",
+        "7": "  ┃  aaanecho bbbnecho ccc",
+        "8": "  ┃",
+        "10": "     ▣  Build · Fake Sonnet",
+        "32": "  ┃",
+        "33": "  ┃  [Image 1]",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "sessLong": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 23
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  [Pasted ~1 lines]",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  [Pasted ~1 lines]",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "sessPaste3": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 23
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  [Pasted ~3 lines]",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "32": "  ┃",
+        "33": "  ┃  [Pasted ~3 lines]",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "sessPaste3_60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 11,
+        "column": 23
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "10": "  ┃",
+        "11": "  ┃  [Pasted ~3 lines]",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project                           tab     ctrl+p",
+        "16": "                                       agents  commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "10": "  ┃",
+        "11": "  ┃  [Pasted ~3 lines]",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "   ~/project                           tab     ctrl+p",
+        "16": "                                       agents  commands"
+      }
+    },
+    "sessSlash": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 33,
+        "column": 6
+      },
+      "rows": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "22": "  ┃ /agents       Switch agent                                                                                       ┃",
+        "23": "  ┃ /compact      Compact session                                                                                    ┃",
+        "24": "  ┃ /connect      Connect provider                                                                                   ┃",
+        "25": "  ┃ /copy         Copy session transcript                                                                            ┃",
+        "26": "  ┃ /debug        View debug info                                                                                    ┃",
+        "27": "  ┃ /diff         Open diff viewer                                                                                   ┃",
+        "28": "  ┃ /editor       Open editor                                                                                        ┃",
+        "29": "  ┃ /exit         Exit the app                                                                                       ┃",
+        "30": "  ┃ /export       Export session transcript                                                                          ┃",
+        "31": "  ┃ /fork         Fork session                                                                                       ┃",
+        "32": "  ┃",
+        "33": "  ┃  /",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      },
+      "bright": {
+        "1": "  ┃",
+        "2": "  ┃  SLOW one",
+        "3": "  ┃",
+        "5": "     ▣  Build · Fake Sonnet · interrupted",
+        "22": "  ┃ /agents       Switch agent                                                                                       ┃",
+        "23": "  ┃ /compact      Compact session                                                                                    ┃",
+        "24": "  ┃ /connect      Connect provider                                                                                   ┃",
+        "25": "  ┃ /copy         Copy session transcript                                                                            ┃",
+        "26": "  ┃ /debug        View debug info                                                                                    ┃",
+        "27": "  ┃ /diff         Open diff viewer                                                                                   ┃",
+        "28": "  ┃ /editor       Open editor                                                                                        ┃",
+        "29": "  ┃ /exit         Exit the app                                                                                       ┃",
+        "30": "  ┃ /export       Export session transcript                                                                          ┃",
+        "31": "  ┃ /fork         Fork session                                                                                       ┃",
+        "32": "  ┃",
+        "33": "  ┃  /",
+        "34": "  ┃",
+        "35": "  ┃  Build · Fake Sonnet Fake",
+        "36": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "37": "   ~/project                                                                                    tab      ctrl+p",
+        "38": "                                                                                                agents   commands"
+      }
+    },
+    "shellMid": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 34,
+        "column": 13
+      },
+      "rows": {
+        "2": "  ┃",
+        "3": "  ┃  $ echo hi",
+        "4": "  ┃",
+        "5": "  ┃  hi",
+        "6": "  ┃",
+        "8": "  ┃",
+        "9": "  ┃  SLOW a",
+        "10": "  ┃",
+        "12": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃  echo mid",
+        "35": "  ┃",
+        "36": "  ┃  Shell",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ■■■■■⬝⬝⬝  esc interrupt                                                                         esc exit shell mode"
+      },
+      "bright": {
+        "2": "  ┃",
+        "3": "  ┃  $ echo hi",
+        "4": "  ┃",
+        "5": "  ┃  hi",
+        "6": "  ┃",
+        "8": "  ┃",
+        "9": "  ┃  SLOW a",
+        "10": "  ┃",
+        "12": "     ▣  Build · Fake Sonnet",
+        "33": "  ┃",
+        "34": "  ┃  echo mid",
+        "35": "  ┃",
+        "36": "  ┃  Shell",
+        "37": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "38": "   ■■■■■⬝⬝⬝  esc interrupt                                                                         esc exit shell mode"
+      }
+    },
+    "shellPaste3": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 19,
+        "column": 44
+      },
+      "rows": {
+        "12": "                                                                          ▄",
+        "13": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "14": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "15": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "18": "                       ┃",
+        "19": "                       ┃  [Pasted ~3 lines]",
+        "20": "                       ┃",
+        "21": "                       ┃  Shell",
+        "22": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "23": "                                                                               esc exit shell mode",
+        "27": "                         ● Tip Configure per-agent permissions for edit, bash, and webfetch tools",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "12": "                                                                          ▄",
+        "13": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "14": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "15": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "18": "                       ┃",
+        "19": "                       ┃  [Pasted ~3 lines]",
+        "20": "                       ┃",
+        "21": "                       ┃  Shell",
+        "22": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "23": "                                                                               esc exit shell mode",
+        "27": "                         ● Tip Configure per-agent permissions for edit, bash, and webfetch tools",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "tall12": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 25,
+        "column": 33
+      },
+      "rows": {
+        "7": "                                                                          ▄",
+        "8": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "9": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "10": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "13": "                       ┃",
+        "14": "                       ┃  line 0",
+        "15": "                       ┃  line 1",
+        "16": "                       ┃  line 2",
+        "17": "                       ┃  line 3",
+        "18": "                       ┃  line 4",
+        "19": "                       ┃  line 5",
+        "20": "                       ┃  line 6",
+        "21": "                       ┃  line 7",
+        "22": "                       ┃  line 8",
+        "23": "                       ┃  line 9",
+        "24": "                       ┃  line 10",
+        "25": "                       ┃  line 11",
+        "26": "                       ┃",
+        "27": "                       ┃  Build · Fake Sonnet Fake",
+        "28": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "29": "                                                                       tab agents  ctrl+p commands",
+        "33": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "7": "                                                                          ▄",
+        "8": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "9": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "10": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "13": "                       ┃",
+        "14": "                       ┃  line 0",
+        "15": "                       ┃  line 1",
+        "16": "                       ┃  line 2",
+        "17": "                       ┃  line 3",
+        "18": "                       ┃  line 4",
+        "19": "                       ┃  line 5",
+        "20": "                       ┃  line 6",
+        "21": "                       ┃  line 7",
+        "22": "                       ┃  line 8",
+        "23": "                       ┃  line 9",
+        "24": "                       ┃  line 10",
+        "25": "                       ┃  line 11",
+        "26": "                       ┃",
+        "27": "                       ┃  Build · Fake Sonnet Fake",
+        "28": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "29": "                                                                       tab agents  ctrl+p commands",
+        "33": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "tall40": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 25,
+        "column": 29
+      },
+      "rows": {
+        "6": "                                                                          ▄",
+        "7": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "8": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "9": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "12": "                       ┃",
+        "13": "                       ┃  L27",
+        "14": "                       ┃  L28",
+        "15": "                       ┃  L29",
+        "16": "                       ┃  L30",
+        "17": "                       ┃  L31",
+        "18": "                       ┃  L32",
+        "19": "                       ┃  L33",
+        "20": "                       ┃  L34",
+        "21": "                       ┃  L35",
+        "22": "                       ┃  L36",
+        "23": "                       ┃  L37",
+        "24": "                       ┃  L38",
+        "25": "                       ┃  L39",
+        "26": "                       ┃",
+        "27": "                       ┃  Build · Fake Sonnet Fake",
+        "28": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "29": "                                                                       tab agents  ctrl+p commands",
+        "33": "                            ● Tip Use plugins to send OS notifications when sessions complete",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "6": "                                                                          ▄",
+        "7": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "8": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "9": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "12": "                       ┃",
+        "13": "                       ┃  L27",
+        "14": "                       ┃  L28",
+        "15": "                       ┃  L29",
+        "16": "                       ┃  L30",
+        "17": "                       ┃  L31",
+        "18": "                       ┃  L32",
+        "19": "                       ┃  L33",
+        "20": "                       ┃  L34",
+        "21": "                       ┃  L35",
+        "22": "                       ┃  L36",
+        "23": "                       ┃  L37",
+        "24": "                       ┃  L38",
+        "25": "                       ┃  L39",
+        "26": "                       ┃",
+        "27": "                       ┃  Build · Fake Sonnet Fake",
+        "28": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "29": "                                                                       tab agents  ctrl+p commands",
+        "33": "                            ● Tip Use plugins to send OS notifications when sessions complete",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "tall40_60": {
+      "height": 20,
+      "columns": 60,
+      "cursor": {
+        "row": 11,
+        "column": 8
+      },
+      "rows": {
+        "0": "                                            ▄",
+        "1": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "2": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "3": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "5": "  ┃",
+        "6": "  ┃  L34",
+        "7": "  ┃  L35",
+        "8": "  ┃  L36",
+        "9": "  ┃  L37",
+        "10": "  ┃  L38",
+        "11": "  ┃  L39",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "                               tab agents  ctrl+p commands",
+        "16": "  ~/project                                         1.19.6",
+        "19": "  ● Tip Commit your project's AGENTS.md file to Git for"
+      },
+      "bright": {
+        "0": "                                            ▄",
+        "1": "           █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "2": "           █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "3": "           ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "5": "  ┃",
+        "6": "  ┃  L34",
+        "7": "  ┃  L35",
+        "8": "  ┃  L36",
+        "9": "  ┃  L37",
+        "10": "  ┃  L38",
+        "11": "  ┃  L39",
+        "12": "  ┃",
+        "13": "  ┃  Build · Fake Sonnet Fake",
+        "14": "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "15": "                               tab agents  ctrl+p commands",
+        "16": "  ~/project                                         1.19.6",
+        "19": "  ● Tip Commit your project's AGENTS.md file to Git for"
+      }
+    },
+    "typed3": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 31
+      },
+      "rows": {
+        "11": "                                                                          ▄",
+        "12": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "13": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "14": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃",
+        "18": "                       ┃  one",
+        "19": "                       ┃  two",
+        "20": "                       ┃  three",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "11": "                                                                          ▄",
+        "12": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "13": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "14": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃",
+        "18": "                       ┃  one",
+        "19": "                       ┃  two",
+        "20": "                       ┃  three",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "wrap200": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 86
+      },
+      "rows": {
+        "11": "                                                                          ▄",
+        "12": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "13": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "14": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃",
+        "18": "                       ┃  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "19": "                       ┃  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "20": "                       ┃  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      },
+      "bright": {
+        "11": "                                                                          ▄",
+        "12": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "13": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "14": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "17": "                       ┃",
+        "18": "                       ┃  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "19": "                       ┃  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "20": "                       ┃  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "21": "                       ┃",
+        "22": "                       ┃  Build · Fake Sonnet Fake",
+        "23": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "24": "                                                                       tab agents  ctrl+p commands",
+        "28": "                               ● Tip Run opencode serve for headless API access to OpenCode",
+        "37": "  ~/project                                                                                                     1.19.6"
+      }
+    },
+    "noSummaryLong": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 25,
+        "column": 44
+      },
+      "rows": {
+        "6": "                                                                          ▄",
+        "7": "                                         █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+        "8": "                                         █  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀",
+        "9": "                                         ▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+        "12": "                       ┃",
+        "13": "                       ┃  Line 28 of a paste",
+        "14": "                       ┃  Line 29 of a paste",
+        "15": "                       ┃  Line 30 of a paste",
+        "16": "                       ┃  Line 31 of a paste",
+        "17": "                       ┃  Line 32 of a paste",
+        "18": "                       ┃  Line 33 of a paste",
+        "19": "                       ┃  Line 34 of a paste",
+        "20": "                       ┃  Line 35 of a paste",
+        "21": "                       ┃  Line 36 of a paste",
+        "22": "                       ┃  Line 37 of a paste",
+        "23": "                       ┃  Line 38 of a paste",
+        "24": "                       ┃  Line 39 of a paste",
+        "25": "                       ┃  Line 40 of a paste",
+        "26": "                       ┃",
+        "27": "                       ┃  Build · Fake Sonnet Fake",
+        "28": "                       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+        "29": "                                                                       tab agents  ctrl+p commands",
+        "33": "                                     ● Tip Use /rename to rename the current session",
+        "37": "   ~/project",
+        "38": "  screens/sandbox/proj"
+      }
+    }
+  }
+}

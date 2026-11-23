@@ -544,7 +544,20 @@ for (const setup of setups) {
       const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
       const words = "enter to open · then merge it"
       run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
-      await run.model.waitFor((call) => !call.side && delivered(call, "you"), { after: calls })
+      try {
+        await run.model.waitFor((call) => !call.side && delivered(call, "you"), { after: calls })
+      } catch (error) {
+        // What the doorbell found no box in, with each row's first glyph, which tells a box its
+        // rules aren't read from one the screen never drew.
+        const shown = await terminal.screenText()
+        const rows = (shown?.rows ?? []).map(
+          (row, at) =>
+            `${String(at).padStart(2)} ${JSON.stringify(row.trimStart()[0] ?? "")} ${row}`,
+        )
+        throw new Error(`${String(error)}\nIts screen at 170x30:\n${rows.join("\n")}`, {
+          cause: error,
+        })
+      }
     })
 
     // Left opens Claude Code's agents view, whose field reads as a box in prompt mode and whose

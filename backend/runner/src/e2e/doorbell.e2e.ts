@@ -619,7 +619,14 @@ for (const setup of setups) {
 
     // A row of `─` in a draft read as the box's top rule, so the draft as a dialog, on Claude Code
     // and Antigravity: it waits as a draft, and says so.
-    it("holds the message for a draft with a row of ─ in it, as a draft", async ({ e2e: run }) => {
+    // A program that shows three lines as a placeholder (opencode's `[Pasted ~3 lines]`) never
+    // shows the row: it draws no rules either, so nothing of it can read as the box's top.
+    gated(
+      it,
+      harnesses[setup.agent].box.collapses(`first line\n${"─".repeat(30)}\nlast line`)
+        ? "its box shows three lines as a placeholder"
+        : undefined,
+    )("holds the message for a draft with a row of ─ in it, as a draft", async ({ e2e: run }) => {
       run.model.use(replies("Warm up", "Warmed up."), ...news)
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)

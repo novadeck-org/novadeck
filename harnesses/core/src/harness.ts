@@ -134,6 +134,13 @@ export type Harness = {
   readonly connect: (install: Install) => readonly Command[]
   readonly disconnect: readonly Command[]
   /**
+   * For a harness Novadeck connects with no command of its own, as opencode, whose plugin
+   * its shim loads per launch and which keeps no list of plugins Novadeck may write to: a
+   * file of Novadeck's own, in its plugin directory, that connecting writes and
+   * disconnecting removes, before and after its (empty) commands. `connected` reads it.
+   */
+  readonly marker?: (install: Install) => string
+  /**
    * The shell it runs its hook commands in on `platform` (see `hook-command.ts`), or the
    * command for `event`, as Claude Code's status line, where that runs in another.
    */
@@ -667,7 +674,9 @@ export type Machine = {
   /**
    * Whether the Experimental shipping gate is on: Claude Code's per-launch settings then
    * register its PreToolUse hook for shell commands, and Codex's plugin widens its PreToolUse
-   * matcher to them. Absent when it is off, and every file is written as it always was.
+   * matcher to them, Antigravity's shim passes its rules, and opencode's plugin waits for the
+   * runner's answer to a shell command. Absent when it is off, and every file is written as it
+   * always was.
    */
   readonly shippingGate?: boolean
   /**

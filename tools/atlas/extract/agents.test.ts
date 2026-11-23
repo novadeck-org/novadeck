@@ -66,4 +66,8 @@ test("marks a hook registered only on some machines as conditional", () => {
     { event: "SessionStart", conditional: false },
     { event: "Stop", conditional: false },
   ])
+  // opencode's plugin exports its list.
+  expect(hookEvents('export const events = [\n  "SessionLeft",\n]').events).toEqual([
+    { event: "SessionLeft", conditional: false },
+  ])
 })

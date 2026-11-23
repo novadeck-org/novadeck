@@ -24,8 +24,15 @@ const has = (setup: AgentSetup, trait: Trait): boolean => {
   if (trait === "multiSelect") return setup.asking?.multiSelect === true
   if (trait === "plan") return setup.planning !== undefined
   if (trait === "forms") return setup.forms !== undefined
+  if (trait === "pluginCopy") return setup.absent?.pluginCopy === undefined
   return setup[trait] !== undefined
 }
+
+/** The label of the chat's option that allows its permission dialog's tool this once. */
+export const allowLabel = (setup: AgentSetup): RegExp => setup.approval?.yes ?? /^Yes/
+
+/** The label of the chat's option that refuses it. */
+export const refuseLabel = (setup: AgentSetup): RegExp => setup.approval?.no ?? /^No/
 
 /**
  * Why the setup can't run a scenario that needs `traits`, as its skipped test says, or
@@ -183,7 +190,12 @@ export const hibernateMs = 60_000
 /**
  * Lets the terminal's agent sit idle until the runner stops it to rest, and waits until the
  * terminal is listed asleep on its agent. Nothing reads its screen meanwhile, as a client
- * would be one and keep it awake.
+ * would be one and keep it awake. Stopping idle agents is off again once it sleeps, so an
+ * agent the scenario starts after it, as the one whose message wakes it, isn't stopped too:
+ * that agent would stop just as the sleeper wakes, and opencode (1.19.6) started while
+ * another opencode exits can end at once on "database is locked", as it sets its wait for a
+ * lock only after its first statement (core/src/database/database.ts), which fails on the
+ * lock the exiting one's database takes as it closes (seen on Windows CI, 2026-11-23).
  */
 export const hibernated = async (
   { deck }: Pick<E2E, "deck">,
@@ -191,14 +203,18 @@ export const hibernated = async (
   agent: AgentName,
 ): Promise<void> => {
   deck.store.settings.saveRunner({ hibernateAfterMinutes: 1 })
-  await poll(
-    () => {
-      const listed = deck.terminals.list(deck.sessionId).find((one) => one.id === terminal.id)
-      return listed?.sleeping === true && listed.restingAgent === agent ? listed : undefined
-    },
-    `${terminal.handle} to be stopped to rest`,
-    hibernateMs,
-  )
+  try {
+    await poll(
+      () => {
+        const listed = deck.terminals.list(deck.sessionId).find((one) => one.id === terminal.id)
+        return listed?.sleeping === true && listed.restingAgent === agent ? listed : undefined
+      },
+      `${terminal.handle} to be stopped to rest`,
+      hibernateMs,
+    )
+  } finally {
+    deck.store.settings.saveRunner({ hibernateAfterMinutes: null })
+  }
 }
 
 /**

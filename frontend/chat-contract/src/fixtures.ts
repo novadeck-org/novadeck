@@ -2,7 +2,7 @@ import type { Fields } from "@novadeck/harness-core/fields"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
-import { harnessSources } from "./harnesses.test-support"
+import { harnessSources, recordedFile } from "./harnesses.test-support"
 import { agyAskSkipped, claudeAskSkipped, codexAskSkipped, codexPinnedAskSkipped } from "./skipped"
 import { agyVocabulary } from "./vocabulary/agy"
 import { claudeVocabulary } from "./vocabulary/claude"
@@ -164,6 +164,32 @@ const agyTranscript = (file: string): Extracted => {
   })
 }
 
+// opencode's transcripts are the lines Novadeck's plugin writes (see its transcripts.ts), a
+// conversation to a scenario, or, in its harness's probes, a `transcript` and a `child`.
+const opencodeProbe = (file: string): Extracted => {
+  const { transcript, child } = load<{ transcript: unknown; child?: unknown }>("opencode", file)
+  return found(file, {
+    conversations: [
+      { name: "transcript", lines: linesOf(recordsOf(file, transcript)) },
+      ...(child === undefined ? [] : [{ name: "child", lines: linesOf(recordsOf(file, child)) }]),
+    ],
+    skipped: [],
+  })
+}
+
+// This package's own recordings of the same rig (src/recorded/): { scenarios: { name: [line, …] } }.
+export const recordedScenarios = (file: string): { [name: string]: readonly object[] } =>
+  recordedFile<{ scenarios: { [name: string]: readonly object[] } }>(file).scenarios
+
+const opencodeRecorded = (file: string): Extracted =>
+  found(file, {
+    conversations: Object.entries(recordedScenarios(file)).map(([name, lines]) => ({
+      name,
+      lines: linesOf(recordsOf(`${file} ${name}`, lines)),
+    })),
+    skipped: [],
+  })
+
 const vocabulary = (written: readonly Written[]): Extracted =>
   found("vocabulary", {
     conversations: written.map((each) => ({ name: each.name, lines: linesOf(each.records) })),
@@ -171,19 +197,24 @@ const vocabulary = (written: readonly Written[]): Extracted =>
   })
 
 // The records of every case of a tool's outcome, a scenario each: its call and its result.
-const outcomeFixture = (harness: AgentName, count: number): Fixture => ({
+const outcomeFixture = (
+  harness: AgentName,
+  count: number,
+  extract: () => Extracted = () => scenarioLists(harness, "tool-outcomes.probe.json"),
+): Fixture => ({
   golden: `${harness}/tool-outcomes`,
   harness,
   tools: true,
   count,
   skipped: [],
-  extract: () => scenarioLists(harness, "tool-outcomes.probe.json"),
+  extract,
 })
 
 export const outcomeFixtures: readonly Fixture[] = [
   outcomeFixture("claude", 15),
   outcomeFixture("codex", 27),
   outcomeFixture("agy", 17),
+  outcomeFixture("opencode", 25, () => opencodeRecorded("opencode-outcomes.json")),
 ]
 
 export const fixtures: readonly Fixture[] = [
@@ -291,6 +322,40 @@ export const fixtures: readonly Fixture[] = [
     count: 6,
     skipped: agyAskSkipped,
     extract: () => agyAsk("ask.probe.json"),
+  },
+  {
+    golden: "opencode/session",
+    harness: "opencode",
+    tools: true,
+    count: 2,
+    skipped: [],
+    extract: () => opencodeProbe("session.probe.json"),
+  },
+  {
+    golden: "opencode/edges",
+    harness: "opencode",
+    // An aborted turn, a refused call, a compaction: no tool call.
+    tools: false,
+    count: 1,
+    skipped: [],
+    extract: () => opencodeProbe("edges.probe.json"),
+  },
+  {
+    golden: "opencode/tools",
+    harness: "opencode",
+    tools: true,
+    count: 21,
+    skipped: [],
+    extract: () => opencodeRecorded("opencode-tools.json"),
+  },
+  {
+    golden: "opencode/attached",
+    harness: "opencode",
+    // A prompt only.
+    tools: false,
+    count: 1,
+    skipped: [],
+    extract: () => opencodeRecorded("opencode-attached.json"),
   },
   // Each case of a tool's outcome, on each harness (see outcomes.test.ts).
   ...outcomeFixtures,

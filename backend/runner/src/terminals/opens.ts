@@ -114,6 +114,7 @@ const printForms: { readonly [agent in AgentName]: string } = {
   claude: "claude -p",
   codex: "codex exec",
   agy: "agy -p",
+  opencode: "opencode run",
 }
 
 /** Why a command that would run an agent session isn't opened by `open_terminal`. */

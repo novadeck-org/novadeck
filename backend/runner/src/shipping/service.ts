@@ -27,7 +27,9 @@ import {
   describeKey,
   describeSource,
   Gate,
+  opencodeBypassMode,
   printedAgy,
+  type Covered,
   type Decision,
   type Turn,
 } from "./gate.js"
@@ -35,7 +37,7 @@ import { agyPreToolUse } from "./hooks.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
 import { Permits, Quotes, type Permit } from "./permits.js"
 import { agyRules, claudeRules, codexRules } from "./rules.js"
-import { shipsByRule } from "./shapes.js"
+import { shipsByRule, shipsCoarsely } from "./shapes.js"
 
 /** What the gate needs of the rest of the runner. */
 export type ShippingHost = {
@@ -129,6 +131,40 @@ export const launchMode = (launch: readonly string[] | undefined): string | unde
   return mode
 }
 
+// The names of opencode's one skip-permissions flag (cli/cmd/tui.ts, 1.19.6): its interface then
+// answers every permission, as `auto`.
+const opencodeSkips: ReadonlySet<string> = new Set(["auto", "yolo", "dangerously-skip-permissions"])
+
+/**
+ * Whether a launch's words skip every permission, as opencode's flags read (yargs, booleans: a
+ * bare flag, `=true`, a following `true` turn it on; any other attached value, a following
+ * `false` or `--no-<name>` turn it off; the last of each name wins, and any name on skips). Words
+ * after `--` are the prompt's. A mode toggled in the interface later (its command palette's
+ * "auto-approve permissions") is not seen: launched with the flag and turned off there, the
+ * gate stays silent for that process.
+ */
+export const opencodeSkipsPermissions = (launch: readonly string[] | undefined): boolean => {
+  const words = launch ?? []
+  const on = new Map<string, boolean>()
+  for (let at = 0; at < words.length; at += 1) {
+    const word = words[at]!
+    if (word === "--") break
+    const found = /^--(no-)?([a-z-]+)(?:=(.*))?$/.exec(word)
+    if (!found || !opencodeSkips.has(found[2]!)) continue
+    const negated = found[1] !== undefined
+    let value = !negated
+    // yargs-parser 22 reads a boolean's attached value as `val === "true"`: `--auto=1`, `=` and
+    // `=TRUE` are off (opencode's own parser, 1.19.6, read from its source 2026-11-22).
+    if (found[3] !== undefined) value = negated ? false : found[3] === "true"
+    else if (words[at + 1] === "true" || words[at + 1] === "false") {
+      value = (words[at + 1] === "true") !== negated
+      at += 1
+    }
+    on.set(found[2]!, value)
+  }
+  return [...on.values()].some(Boolean)
+}
+
 /** What a hook prints, and the lease that says it was printed (null where nothing waits on that). */
 export type GateAnswer = { readonly stdout: string; readonly leaseId: string | null }
 
@@ -164,8 +200,29 @@ type Pending = {
   readonly until: number
 }
 
+/**
+ * A permitted command opencode's hook let through, until its `bash` permission asks about it or
+ * it lapses: its session and call (which the permission's request names too) and the raw command
+ * as the hook saw it whole. The hook already spent its permits (`Shipping.spend`), so the
+ * permission's answer takes none: `state` says whether that spending still stands, as the
+ * hook's acknowledgement committed it, is still waited for, or lapsed (the hook never printed
+ * it in time and the permits went back).
+ */
+type Vetted = {
+  readonly conversation: string
+  readonly call: string
+  readonly command: string
+  readonly until: number
+  state: "waiting" | "committed" | "lapsed"
+  /** The lease the hook's answer holds its permits by, which the dialog's answer commits. */
+  lease?: string
+}
+
 const failedText =
   "Novadeck: it couldn't decide this command, which ships work, in time, so it isn't allowed now. Run it again in a moment, on its own."
+
+const spentText =
+  "Novadeck: the permit that covered this command was just used or ended, so it isn't allowed now. request_permit gives a new one."
 
 /** A call as its hook named it: the conversation's step and a hash of its command. */
 const callKey = (call: GateCall): string =>
@@ -189,7 +246,13 @@ export class Shipping {
   // Answers handed to a hook whose effect waits for its acknowledgement, by lease.
   private readonly leases = new Map<
     string,
-    { terminalId: string; commit: () => void; expires: number }
+    {
+      terminalId: string
+      commit: () => void
+      expires: number
+      /** Where the answer took a permit: given back if the hook never printed it in time. */
+      timer?: NodeJS.Timeout
+    }
   >()
 
   constructor(private readonly host: ShippingHost) {
@@ -203,7 +266,12 @@ export class Shipping {
           ? claudeRules(folder, env, home)
           : agent === "codex"
             ? codexRules(folder, env, home)
-            : agyRules(home)
+            : agent === "agy"
+              ? agyRules(home)
+              : // opencode's merged configuration can't be read exactly (global, project, agents,
+                // environment), so its person's own allow rules never lift the gate: its deny
+                // comes before opencode's permission check, and an unknown case is gated.
+                Promise.resolve([])
       },
       turn: turnOf,
     })
@@ -336,7 +404,7 @@ export class Shipping {
     return record.agents[agent]?.cwd
   }
 
-  private agentOf(terminalId: string): "claude" | "codex" | "agy" | undefined {
+  private agentOf(terminalId: string): AgentName | undefined {
     return this.records.get(terminalId)?.bound?.binding.agent
   }
 
@@ -351,24 +419,31 @@ export class Shipping {
   }
 
   /**
-   * Whether the gate is on and covers `agent`'s harness: all three, but for Antigravity where it
-   * has no PreToolUse hook (Windows, where cmd prints before hooks): nothing is refused there, so
-   * nobody is told of permits, and agy's own dialog is the only one asked.
+   * Whether the gate is on and covers `agent`'s harness: Claude Code, Codex, Antigravity and
+   * opencode, but Antigravity not where it has no PreToolUse hook (Windows, where cmd prints before
+   * hooks): nothing is refused there, so nobody is told of permits, and agy's own dialog is the
+   * only one asked. opencode's plugin runs its hook through `cmd /d` there, which skips the
+   * AutoRun, so it is covered everywhere its plugin loads (`hooksTrusted`).
    */
   covers(agent: AgentName): boolean {
     if (!this.host.enabled()) return false
-    return agent === "agy" ? agyPreToolUse() : agent === "claude" || agent === "codex"
+    return agent === "agy" ? agyPreToolUse() : true
   }
 
   /**
    * Whether the gate answers `agent`'s `event`: Claude's and Antigravity's PreToolUse, Codex's
-   * PreToolUse and PermissionRequest. Antigravity's answers only to deny: a permitted command
-   * stays silent there, and its own confirmation is answered from the screen (`autoAnswer`).
+   * and opencode's PreToolUse and PermissionRequest. Antigravity's and opencode's PreToolUse
+   * answer only to deny: a permitted command stays silent there, and its own confirmation is
+   * answered for the very call the hook vetted (Antigravity's from the screen, `autoAnswer`;
+   * opencode's by its permission request, `confirmed`).
    */
   gating(agent: AgentName, event: string): boolean {
     if (!this.host.enabled()) return false
     if (agent === "claude" || agent === "agy") return event === "PreToolUse"
-    return agent === "codex" && (event === "PreToolUse" || event === "PermissionRequest")
+    return (
+      (agent === "codex" || agent === "opencode") &&
+      (event === "PreToolUse" || event === "PermissionRequest")
+    )
   }
 
   // The mode each Antigravity process's status line last said (`cycle_mode`: `""` for its Default
@@ -517,7 +592,10 @@ export class Shipping {
     until: number = Date.now() + 3_000,
   ): Promise<GateAnswer | undefined> {
     if (!this.gating(agent, call.event)) return undefined
-    if (agent !== "claude" && agent !== "codex" && agent !== "agy") return undefined
+    if (agent !== "claude" && agent !== "codex" && agent !== "agy" && agent !== "opencode")
+      return undefined
+    if (agent === "opencode" && call.event === "PermissionRequest")
+      return this.confirmed(terminalId, call)
     const saw = agent === "agy" ? this.sawHook(terminalId, call) : undefined
     let decision: Decision | undefined
     let failed = false
@@ -533,7 +611,9 @@ export class Shipping {
             cwd: call.cwd,
             ...(agent === "agy"
               ? { mode: this.agyMode(terminalId, call.launch, call.instance ?? null) }
-              : call.mode !== undefined && { mode: call.mode }),
+              : agent === "opencode"
+                ? opencodeSkipsPermissions(call.launch) && { mode: opencodeBypassMode }
+                : call.mode !== undefined && { mode: call.mode }),
             ...(call.transcript !== undefined && { transcript: call.transcript }),
           })
           .then((got) => ({ got })),
@@ -545,8 +625,16 @@ export class Shipping {
       failed = true
     }
     // Antigravity's rules run the commands of their shapes unasked where the hook says "ask", which
-    // it does for a hook that failed or was late: those are refused, never left to a rule.
-    if (agent === "agy" && failed && shipsByRule(call.command)) {
+    // it does for a hook that failed or was late: those are refused, never left to a rule. opencode
+    // has no dialog to fall back on: its built-in default allows a shell command, so a hook that
+    // gave no answer lets everything run (agent/agent.ts `"*": "allow"`, 1.19.6). What looks like
+    // shipping, read coarsely, is refused there, and every other command is left as it is.
+    if (
+      failed &&
+      (agent === "opencode"
+        ? shipsCoarsely(call.command)
+        : agent === "agy" && shipsByRule(call.command))
+    ) {
       if (saw) saw.denied = true
       return { stdout: printedAgy(failedText), leaseId: null }
     }
@@ -554,11 +642,15 @@ export class Shipping {
     if (saw && decision !== undefined && decision.stdout !== "") saw.denied = true
     if (agent === "agy" && decision?.permitted)
       await this.recordPending(terminalId, call, call.instance ?? null)
+    if (agent === "opencode" && decision?.covered)
+      return this.spend(terminalId, call, decision.covered, until)
     if (decision === undefined) return undefined
     const { stdout, commit } = decision
     if (commit === undefined) return stdout === "" ? undefined : { stdout, leaseId: null }
     const now = Date.now()
-    for (const [id, lease] of this.leases) if (lease.expires <= now) this.leases.delete(id)
+    // A lease with a timer is its timer's to end: it gives back the permits it took.
+    for (const [id, lease] of this.leases)
+      if (lease.expires <= now && lease.timer === undefined) this.leases.delete(id)
     const leaseId = randomUUID()
     this.leases.set(leaseId, { terminalId, commit, expires: until + ackSlackMs })
     return { stdout, leaseId }
@@ -607,12 +699,137 @@ export class Shipping {
     }
   }
 
+  // The permitted commands opencode's hook let through, by terminal: each is the call whose `bash`
+  // permission, where its setup asks one, will ask about exactly that command.
+  private readonly vetted = new Map<string, Vetted[]>()
+
+  /**
+   * A permitted shipping command opencode's hook let through: its permits are spent here, whether
+   * or not a dialog follows, as Claude Code's allow spends them. opencode's own default asks
+   * nothing for a shell command (`"*": "allow"`), so a permit that waited for a dialog would never
+   * be used up, nor would what the command voids (probed 2026-11-22, 1.19.6). The single-use
+   * permits are taken now, before the answer is printed, so no other call can use them; the
+   * hook's acknowledgement commits (the merge permits the command voids end), and with no
+   * acknowledgement by the hook's deadline the permits go back. The call is noted for its `bash`
+   * permission, where opencode's setup shows one (`confirmed`), which then answers it and takes
+   * nothing more. A call the hook didn't name is not noted: its permission can't be told from
+   * another's.
+   */
+  private spend(terminalId: string, call: GateCall, covered: Covered, until: number): GateAnswer {
+    // A permit another call used or a revoke ended since the reading: nothing covers it now.
+    if (!covered.take()) return { stdout: printedAgy(spentText), leaseId: null }
+    const now = Date.now()
+    let note: Vetted | undefined
+    if (call.call !== undefined && call.conversation !== undefined) {
+      note = {
+        conversation: call.conversation,
+        call: call.call,
+        command: call.command,
+        until: now + pendingMs,
+        state: "waiting",
+      }
+      const live = (this.vetted.get(terminalId) ?? []).filter((each) => each.until > now)
+      live.push(note)
+      this.vetted.set(terminalId, live)
+    }
+    // A lease with a timer is its timer's to end: it gives back the permits it took.
+    for (const [id, lease] of this.leases)
+      if (lease.expires <= now && lease.timer === undefined) this.leases.delete(id)
+    const leaseId = randomUUID()
+    const expires = until + ackSlackMs
+    const timer = setTimeout(
+      () => {
+        if (!this.leases.delete(leaseId)) return
+        covered.restore()
+        if (note) note.state = "lapsed"
+      },
+      Math.max(0, expires - now),
+    )
+    timer.unref()
+    if (note) note.lease = leaseId
+    this.leases.set(leaseId, {
+      terminalId,
+      commit: () => {
+        covered.voided()
+        if (note) note.state = "committed"
+      },
+      expires,
+      timer,
+    })
+    log.info(
+      "shipping.spent",
+      `Novadeck spends opencode's permit: ${covered.permits
+        .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
+        .join("; ")}`,
+      {
+        data: {
+          terminalId,
+          agent: "opencode",
+          call: call.call ?? null,
+          at: new Date().toISOString(),
+        },
+      },
+    )
+    // Silence is the answer opencode runs the command on; the lease is what ends the permits.
+    return { stdout: "", leaseId }
+  }
+
+  /**
+   * What the plugin does with opencode's `bash` permission: `{"reply":"once"}` for a request that is
+   * for the very call the hook vetted a moment before (the same session and call, the command in
+   * its metadata equal to the vetted raw command exactly) whose permits the hook spent (`spend`),
+   * and undefined (the person answers) in any doubt, or where that spending lapsed. It takes no
+   * permit of its own and answers nothing else: the note answers one request, whatever comes of
+   * it. A permit the person revoked in the moment between the hook and this dialog does not undo
+   * what the hook already allowed, as for Claude Code's allow.
+   */
+  private confirmed(terminalId: string, call: GateCall): GateAnswer | undefined {
+    const now = Date.now()
+    const live = (this.vetted.get(terminalId) ?? []).filter((each) => each.until > now)
+    const note = live.find(
+      (each) =>
+        call.call !== undefined &&
+        each.call === call.call &&
+        each.conversation === call.conversation,
+    )
+    this.vetted.set(
+      terminalId,
+      live.filter((each) => each !== note),
+    )
+    if (!note || note.command !== call.command || note.state === "lapsed") return undefined
+    // Its dialog shows only once opencode ran the call the hook answered: the hook printed that
+    // answer, so its permits are spent whether or not its acknowledgement comes.
+    if (note.state === "waiting" && note.lease !== undefined)
+      this.acknowledged(terminalId, note.lease)
+    log.info(
+      "shipping.confirmation",
+      "Novadeck answers opencode's permission for a permitted call",
+      {
+        data: {
+          terminalId,
+          agent: "opencode",
+          call: call.call ?? null,
+          at: new Date().toISOString(),
+        },
+      },
+    )
+    return {
+      stdout: `${JSON.stringify({ reply: "once" })}
+`,
+      leaseId: null,
+    }
+  }
+
   /** The hook printed what a lease delivered: its effect happens, if it was in time. */
   acknowledged(terminalId: string, leaseId: string): void {
     const lease = this.leases.get(leaseId)
     if (lease?.terminalId !== terminalId) return
     this.leases.delete(leaseId)
-    if (lease.expires > Date.now()) lease.commit()
+    clearTimeout(lease.timer)
+    // A lease with a timer took its permits when it answered, and the timer is due at `expires`:
+    // an acknowledgement just past it, before the timer ran, still says the hook printed, so it
+    // commits (the permits stay taken either way, and the voided ones must end).
+    if (lease.timer !== undefined || lease.expires > Date.now()) lease.commit()
   }
 
   /**
@@ -724,6 +941,7 @@ export class Shipping {
     this.cards.forget(terminalId)
     this.modes.delete(terminalId)
     this.pending.delete(terminalId)
+    this.vetted.delete(terminalId)
     this.hooked.delete(terminalId)
     for (const key of this.looked) if (key.startsWith(`${terminalId}\n`)) this.looked.delete(key)
   }

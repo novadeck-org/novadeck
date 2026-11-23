@@ -63,9 +63,9 @@ describe("demo window controls", () => {
       const controls = createDemoWindowControls("caption")
       const insets: number[] = []
       controls.onInset((inset) => insets.push(inset))
-      controls.place(24)
+      controls.place(16)
       expect(caption()?.style.display).toBe("flex")
-      expect(caption()?.style.height).toBe("48px")
+      expect(caption()?.style.height).toBe("32px")
       controls.place(null)
       expect(caption()?.style.display).toBe("flex")
       expect(insets).toEqual([138, 138])

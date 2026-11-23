@@ -285,6 +285,26 @@ describe("readying the tour", () => {
     await expect(readdir(tourFolder(home))).rejects.toThrow()
   })
 
+  it("tells an opencode user whose models hold no free one that signing in won't help, changing nothing", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const { tour, removed } = tourIn(home, {
+      connected: ["opencode"],
+      models: [{ id: "anthropic/claude-sonnet", efforts: [] }],
+      projects: [project("old-tour", tourFolder(home))],
+    })
+    const error = await tour.prepare("opencode").catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(DomainError)
+    expect((error as DomainError).code).toBe("MODELS_UNLISTED")
+    expect((error as DomainError).message).toContain("none of its own free ones")
+    expect((error as DomainError).message).not.toContain("sign in")
+    expect(removed).toEqual([])
+    // With no model listed at all, signing in is the way.
+    const { tour: empty } = tourIn(home, { connected: ["opencode"], models: [] })
+    await expect(empty.prepare("opencode")).rejects.toThrow("sign in")
+  })
+
   it("says so in words where the seed's files can't be read, changing nothing", async ({
     resources,
   }) => {
@@ -863,6 +883,8 @@ describe("what an agent's open_agent is subject to in the tour", () => {
       "on-request",
     ])
     expect(policy.flags?.("agy", at)).toEqual(["--mode", "accept-edits"])
+    // Its build agent edits without asking, where its plan agent may not edit at all.
+    expect(policy.flags?.("opencode", at)).toEqual(["--agent", "build"])
   })
 
   it("starts a teammate the lead names no model for on the run's teammate model, on its harness only", async ({
@@ -876,6 +898,28 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     expect(policy.choice?.("codex", at)).toBeUndefined()
     // One it opens outside the tour's folder keeps the person's own default.
     expect(policy.choice?.("claude", "/h/code")).toBeUndefined()
+  })
+
+  it("starts an opencode teammate the lead names no model for on one of opencode's free models", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const models = [
+      { id: "anthropic/claude-sonnet", efforts: [] },
+      { id: "opencode/e2e-free", efforts: [] },
+    ]
+    const { tour, brief } = tourIn(home, {
+      shown: ["lead", "mine", "next"],
+      models,
+      connected: ["opencode"],
+    })
+    await tour.prepare("opencode")
+    brief()
+    const policy = tour.openPolicy("lead")
+    const at = tourFolder(home)
+    expect(policy.choice?.("opencode", at)).toEqual({ model: "opencode/e2e-free" })
+    expect(policy.choice?.("claude", at)).toBeUndefined()
+    expect(policy.choice?.("opencode", "/h/code")).toBeUndefined()
   })
 
   it("gives the lead's agents no write flags where they start outside the tour's folder", async ({

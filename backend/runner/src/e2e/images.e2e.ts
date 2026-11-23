@@ -56,7 +56,8 @@ for (const setup of setups) {
           ).toBe(images.length)
           // The record keeps each image's place in the words, or beside them.
           const record = await item(t1, "user", (text) => text.includes(words))
-          if (setup.image!.inline) expect(record).toContain(`[Image #${images.length}]`)
+          if (setup.image!.inline)
+            expect(record).toMatch(new RegExp(`\\[Image #?${images.length}\\]`))
         },
       )
 
@@ -113,8 +114,8 @@ for (const setup of setups) {
             text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")
           const placed = new RegExp(
             held
-              ? pieces.map(flat).join("\\s*\\[Image #\\d+\\]\\s*")
-              : `(?:\\s*\\[Image #\\d+\\])+\\s*${flat(pieces.filter(Boolean).join(" "))}`,
+              ? pieces.map(flat).join("\\s*\\[Image #?\\d+\\]\\s*")
+              : `(?:\\s*\\[Image #?\\d+\\])+\\s*${flat(pieces.filter(Boolean).join(" "))}`,
           )
           const call = await run.model.waitFor(
             (each) =>

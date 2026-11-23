@@ -28,7 +28,7 @@ import {
   systems,
 } from "./plan.ts"
 
-const ids = ["claude", "codex", "agy"]
+const ids = ["claude", "codex", "opencode", "agy"]
 // The suite as it is, and the times recorded of it (durations.json).
 const sharding = recorded()
 // What `turbo ls --filter @novadeck/runner...` names: the runner and what it builds on.
@@ -37,6 +37,7 @@ const runner = [
   "@novadeck/harness-core",
   "@novadeck/harness-claude",
   "@novadeck/harness-codex",
+  "@novadeck/harness-opencode",
   "@novadeck/harness-agy",
   "@novadeck/protocol",
   "@novadeck/relay",
@@ -299,18 +300,18 @@ describe("E2E jobs by change", () => {
       "libraries/wire",
       ["@novadeck/wire", "@novadeck/protocol", "@novadeck/runner"],
       ["libraries/wire/src/index.ts"],
-      12,
+      15,
       1,
     ],
     [
       "libraries/terminal",
       ["@novadeck/terminal", "@novadeck/runner"],
       ["libraries/terminal/src/index.ts"],
-      12,
+      15,
       1,
     ],
-    ["the runner alone", ["@novadeck/runner"], ["backend/runner/src/index.ts"], 12, 1],
-    ["the lockfile alone", [], ["pnpm-lock.yaml"], 4, 0],
+    ["the runner alone", ["@novadeck/runner"], ["backend/runner/src/index.ts"], 15, 1],
+    ["the lockfile alone", [], ["pnpm-lock.yaml"], 5, 0],
     [
       "harnesses/claude",
       ["@novadeck/harness-claude", "@novadeck/runner"],
@@ -373,7 +374,7 @@ describe("E2E rows", () => {
   it("names each selected harness, then Mixed over every harness", () => {
     expect(setups(["codex"], ids)).toEqual([
       { agents: "codex", name: "Codex" },
-      { agents: "claude,codex,agy", name: "Mixed", files: "mixed.e2e.ts" },
+      { agents: "claude,codex,opencode,agy", name: "Mixed", files: "mixed.e2e.ts" },
     ])
   })
 
@@ -421,6 +422,7 @@ describe("E2E rows", () => {
     expect(planned.e2e.map((setup) => setup.name)).toEqual([
       "Claude Code",
       "Codex",
+      "opencode",
       "Antigravity",
       "Mixed",
     ])
@@ -461,7 +463,7 @@ describe("a suite split into shards", () => {
 })
 
 describe("E2E jobs", () => {
-  it("runs Claude Code in four shards on Linux and three on Windows, the rest in three and two, and Mixed whole", () => {
+  it("runs Claude Code and opencode in four shards on Linux and three on Windows, opencode in three on macOS, the rest in three and two, and Mixed whole", () => {
     expect(plan(nightly, ids, sharding).rows.map((row) => row.job)).toEqual([
       "Claude Code (1/4)",
       "Claude Code (2/4)",
@@ -470,6 +472,10 @@ describe("E2E jobs", () => {
       "Codex (1/3)",
       "Codex (2/3)",
       "Codex (3/3)",
+      "opencode (1/4)",
+      "opencode (2/4)",
+      "opencode (3/4)",
+      "opencode (4/4)",
       "Antigravity (1/3)",
       "Antigravity (2/3)",
       "Antigravity (3/3)",
@@ -479,6 +485,9 @@ describe("E2E jobs", () => {
       "Claude Code (Windows, 3/3)",
       "Codex (Windows, 1/2)",
       "Codex (Windows, 2/2)",
+      "opencode (Windows, 1/3)",
+      "opencode (Windows, 2/3)",
+      "opencode (Windows, 3/3)",
       "Antigravity (Windows, 1/2)",
       "Antigravity (Windows, 2/2)",
       "Mixed (Windows)",
@@ -486,6 +495,9 @@ describe("E2E jobs", () => {
       "Claude Code (macOS, 2/2)",
       "Codex (macOS, 1/2)",
       "Codex (macOS, 2/2)",
+      "opencode (macOS, 1/3)",
+      "opencode (macOS, 2/3)",
+      "opencode (macOS, 3/3)",
       "Antigravity (macOS, 1/2)",
       "Antigravity (macOS, 2/2)",
       "Mixed (macOS)",
@@ -620,6 +632,10 @@ describe("E2E jobs", () => {
       "Codex (1/3)",
       "Codex (2/3)",
       "Codex (3/3)",
+      "opencode (1/4)",
+      "opencode (2/4)",
+      "opencode (3/4)",
+      "opencode (4/4)",
       "Antigravity (1/3)",
       "Antigravity (2/3)",
       "Antigravity (3/3)",
@@ -639,6 +655,7 @@ describe("the plan script", () => {
     expect(planned.e2e.map((row) => row.name)).toEqual([
       "Claude Code",
       "Codex",
+      "opencode",
       "Antigravity",
       "Mixed",
     ])
@@ -852,6 +869,9 @@ describe("E2E on macOS", () => {
     "Claude Code (macOS, 2/2)",
     "Codex (macOS, 1/2)",
     "Codex (macOS, 2/2)",
+    "opencode (macOS, 1/3)",
+    "opencode (macOS, 2/3)",
+    "opencode (macOS, 3/3)",
     "Antigravity (macOS, 1/2)",
     "Antigravity (macOS, 2/2)",
     "Mixed (macOS)",
@@ -862,7 +882,7 @@ describe("E2E on macOS", () => {
       {
         os: systems.macos,
         job: `${coreName} (macOS)`,
-        setup: { agents: "claude,codex,agy", name: coreName, files: core },
+        setup: { agents: "claude,codex,opencode,agy", name: coreName, files: core },
       },
     ])
     expect(core).toBe(

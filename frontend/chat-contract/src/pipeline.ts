@@ -6,6 +6,7 @@ import { transcripts as agy } from "@novadeck/harness-agy/transcripts"
 import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
 import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
+import { transcripts as opencode } from "@novadeck/harness-opencode/transcripts"
 import { transcriptItem, type TranscriptItem } from "@novadeck/protocol"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
@@ -17,7 +18,12 @@ import { act, createElement } from "react"
 type Transcripts = TranscriptDecoder
 
 // Each harness's transcripts, whose decoder reads its records.
-export const transcriptsOf: Readonly<Record<AgentName, Transcripts>> = { claude, codex, agy }
+export const transcriptsOf: Readonly<Record<AgentName, Transcripts>> = {
+  claude,
+  codex,
+  agy,
+  opencode,
+}
 
 const session = "contract"
 

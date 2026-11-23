@@ -2,6 +2,7 @@ import { turnStarts } from "@novadeck/chat/turn-holds"
 import { groupItems } from "@novadeck/core/conversation/turns"
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
+import { recordedScenarios } from "./fixtures"
 import { chatItemsOf } from "./pipeline"
 import { describe, expect, it } from "./test"
 
@@ -60,6 +61,9 @@ const records: Readonly<Record<AgentName, readonly object[]>> = {
     content,
     created_at: time(second as number),
   })),
+  // As recorded (src/recorded/opencode-words.json): the second prompt typed while the first's turn
+  // ran, written when it was sent, so before the answer the agent gave the first.
+  opencode: recordedScenarios("opencode-words.json").steering!,
 }
 
 describe("which records start a turn", () => {

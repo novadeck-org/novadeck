@@ -7,6 +7,7 @@ import type { Install } from "@novadeck/harness-core/harness"
 
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
+import { removeSession } from "./agents/opencode.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked } from "./model/script.js"
@@ -21,6 +22,8 @@ const layouts: { readonly [agent: string]: RegExp } = {
   claude: /(?:^|\/)projects\/[^/]+\/<id>\.jsonl$/,
   codex: /(?:^|\/)sessions\/\d{4}\/\d{2}\/\d{2}\/rollout-[^/]*-<id>\.jsonl(?:\.zst)?$/,
   agy: /(?:^|\/)conversations\/<id>\.db$/,
+  // One SQLite database holds every conversation, none a file of its own.
+  opencode: /(?:^|\/)opencode\/opencode\.db$/,
 }
 
 const resumeCapMs = 30_000
@@ -160,10 +163,13 @@ for (const setup of setups) {
 
       // A conversation whose file is gone: the check says so, and a resume does not work.
       const lost = await make()
-      const store = /(?:^|\/)(?:projects|sessions|conversations)\//
-      for (const path of walk(run.sandbox.home))
-        if (store.test(path) && path.includes(lost))
-          rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
+      if (setup.agent === "opencode") removeSession(run.sandbox, lost)
+      else {
+        const store = /(?:^|\/)(?:projects|sessions|conversations)\//
+        for (const path of walk(run.sandbox.home))
+          if (store.test(path) && path.includes(lost))
+            rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
+      }
       expect(await harness.conversation(install, lost)).toBe("gone")
       const gone = await open(resume(lost))
       expect(await settle(gone, lost)).not.toBe("worked")

@@ -31,7 +31,10 @@ export const compatibility: Compatibility = {
   // 9: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
   // 10: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
   //     `agents.takeBack`).
-  revision: 10,
-  oldestClient: 3,
-  oldestRunner: 2,
+  // 11: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
+  // runners before it refuse; and an agent's `limited` gains reasons (outdated, unsupported),
+  // read tolerantly from here, which UIs before it don't.
+  revision: 11,
+  oldestClient: 11,
+  oldestRunner: 11,
 }

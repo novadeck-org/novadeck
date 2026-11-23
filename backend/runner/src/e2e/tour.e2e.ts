@@ -6,6 +6,7 @@ import { tourBriefMark } from "../messaging/messages.js"
 import { tourMarker } from "../tour/folder.js"
 import { tourWrites } from "../tour/launch.js"
 import { setups } from "./agents/index.js"
+import { freeModel } from "./agents/opencode.js"
 import { poll } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { asked, tool, type Call } from "./model/script.js"
@@ -70,6 +71,7 @@ for (const setup of setups) {
           ],
         }),
       )
+    if (setup.agent === "opencode") await freeModel(run.sandbox)
     return run.deck.tour.prepare(setup.agent)
   }
   describe.skipIf(!supported)(setup.name, () => {

@@ -241,7 +241,7 @@ describe("the harness registry", () => {
     expect(harnesses.codex.launch.resumed("a", seen("a", false))).toBe("worked")
   })
 
-  it("gives all three harnesses a shim on every platform", () => {
+  it("gives every harness a shim on every platform", () => {
     const withShim = (platform: NodeJS.Platform) =>
       Object.values(harnesses)
         .filter(
@@ -250,9 +250,9 @@ describe("the harness registry", () => {
               .length > 0,
         )
         .map(({ id }) => id)
-    expect(withShim("win32")).toEqual(["claude", "codex", "agy"])
-    expect(withShim("linux")).toEqual(["claude", "codex", "agy"])
-    expect(withShim("darwin")).toEqual(["claude", "codex", "agy"])
+    expect(withShim("win32")).toEqual(["claude", "codex", "agy", "opencode"])
+    expect(withShim("linux")).toEqual(["claude", "codex", "agy", "opencode"])
+    expect(withShim("darwin")).toEqual(["claude", "codex", "agy", "opencode"])
   })
 })
 

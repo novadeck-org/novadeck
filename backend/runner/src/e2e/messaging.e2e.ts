@@ -114,7 +114,7 @@ for (const setup of setups) {
     // Linux and macOS only: on Windows an agent starts the relay of the build that connected
     // it, as docs/development.md says, so a later connect by another build is that build's server.
     const unlessWindows = process.platform === "win32" ? it.skip : it
-    unlessWindows(
+    gated(unlessWindows, lacking(setup, "pluginCopy"))(
       "reaches its own Novadeck's MCP server when another build connected it last",
       async ({ e2e: run }) => {
         // Another Novadeck, as a development build beside the installed app, connecting the

@@ -29,7 +29,7 @@ const approval = (
   request: {
     id: "r",
     kind: "plan",
-    tool: { claude: "ExitPlanMode", codex: "plan", agy: "artifact" }[agent],
+    tool: { claude: "ExitPlanMode", codex: "plan", agy: "artifact", opencode: "plan_exit" }[agent],
     subject: null,
     choices: [],
     subagent,
@@ -40,7 +40,7 @@ const approval = (
 })
 
 // A plan item as the runner shows each harness's: Claude Code's plan file, Codex's plan in
-// its rollout, Antigravity's artifact in its brain folder.
+// its rollout, Antigravity's artifact in its brain folder, opencode's plan file in the project.
 const sources = {
   claude: { path: "/home/me/.claude/plans/checkout.md", source: "file", agent: "Claude Code" },
   codex: { path: "/home/me/.codex/sessions/rollout.jsonl", source: "text", agent: "Codex" },
@@ -48,6 +48,11 @@ const sources = {
     path: "/home/me/.gemini/antigravity-cli/brain/c0/implementation_plan.md",
     source: "file",
     agent: "Antigravity",
+  },
+  opencode: {
+    path: "/home/me/project/.opencode/plans/1795350000000-calm-fox.md",
+    source: "file",
+    agent: "opencode",
   },
 } as const
 
@@ -100,6 +105,11 @@ describe("the plan a plan approval asks about", () => {
     it("is Antigravity's artifact, written a while before its review shows", () => {
       const item = plan("agy", asked - 4 * 60_000)
       expect(planItemOf([item], approval("agy"), asked)).toEqual({ state: "found", item })
+    })
+
+    it("is opencode's plan file, which its plan_exit question names as it asks", () => {
+      const item = plan("opencode", asked - 20_000)
+      expect(planItemOf([item], approval("opencode"), asked)).toEqual({ state: "found", item })
     })
   })
 

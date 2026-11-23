@@ -1,0 +1,20 @@
+# transcript
+user: PING please
+user: <novadeck-messages>AT-PROMPT</novadeck-messages>
+tools: novadeck_ping [other] → 1 line: pong-from-novadeck-probe
+assistant: OK.
+user: BASH it
+tools: ran [run] · echo approved → 4 lines: approved
+assistant: OK.
+user: QUESTION now
+tools: asked [plan] · Which colour? | Call: question: 1 line: [{"question":"Which colour?","header":"Colour",… → 1 line: User has answered your questions: "Which colour…
+assistant: OK.
+user: SUBAGENT go
+subagent (Look around): <task id="ses_dfcd24411ffeG30ilIDDiDE5b9" state="completed"> ⏎ <task_result> ⏎ child says hi ⏎ </task_result> ⏎ </task>
+assistant: OK.
+user: <novadeck-messages>AT-STOP</novadeck-messages>
+assistant: OK.
+
+# child
+user: CHILD-TASK list files
+assistant: child says hi

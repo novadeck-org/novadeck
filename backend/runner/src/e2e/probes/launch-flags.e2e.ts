@@ -52,6 +52,11 @@ const base: { readonly [agent in AgentName]: Case } = {
     kept: ["--mode", "plan"],
     shows: /plan · /i,
   },
+  opencode: {
+    typed: "--agent plan",
+    kept: ["--agent", "plan"],
+    shows: /\bplan\b/i,
+  },
 }
 
 // PROBE_TYPED, PROBE_KEPT (JSON) and PROBE_SHOWS (a pattern) probe other flags than the default.

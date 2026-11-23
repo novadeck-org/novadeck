@@ -114,6 +114,20 @@ export type BoxProfile = {
    */
   readonly pastesAsKeys?: (platform?: NodeJS.Platform) => boolean
   /**
+   * Whether the screen shows a prompt just sent as taken: its first line echoed in the history,
+   * and what the program draws once it has (opencode's assistant row, or its queued badge). A
+   * program that drops what is typed for a moment after its Enter, while it takes the prompt, is
+   * given none before this says so; the wait is bounded. `before` is the screen the paste started\n   * from, so an earlier prompt with the same words is not taken for this one. Omitted where keys are never lost so.
+   */
+  readonly echoed?: (screen: ScreenText, text: string, before?: ScreenText) => boolean
+  /**
+   * Whether a text pasted after a draft is preceded by its blank line as a paste of its own: a
+   * program that drops the line breaks leading a paste it collapses to a placeholder
+   * (opencode's `[Pasted ~4 lines]`) would otherwise join the two. Omitted where the break goes
+   * in the paste itself.
+   */
+  readonly breakApart?: boolean
+  /**
    * How many columns before the end of the text a program draws its cursor there; none where
    * omitted.
    */
@@ -145,9 +159,14 @@ export type BoxProfile = {
     /**
      * The command to give the shell mode for `command` as written, where its shell runs
      * one otherwise than sh (cmd on Windows); as written where omitted, and
-     * undefined for one that can't run there as written means.
+     * undefined for one that can't run there as written means. `env` is the environment the
+     * agent's shells start from, whose PATH may pick the shell (the runner's own where omitted).
      */
-    readonly command?: (command: string, platform?: NodeJS.Platform) => string | undefined
+    readonly command?: (
+      command: string,
+      platform?: NodeJS.Platform,
+      env?: NodeJS.ProcessEnv,
+    ) => string | undefined
     /**
      * The keys that leave its shell mode, emptying the box, whether or not a turn runs, with
      * the cursor on the box's last row. Omitted where no such keys are known.
@@ -155,9 +174,10 @@ export type BoxProfile = {
     readonly leave?: (box: InputBox) => string
     /**
      * What a shell command does when Enter comes while a turn works: `queues` it until the
-     * turn ends, or `runs` it at once. Queued where omitted.
+     * turn ends, `runs` it at once, or `drops` it, the box emptied and the command never run.
+     * Queued where omitted. A command Novadeck sends is not sent mid-turn to a program that drops it.
      */
-    readonly midTurn?: "queues" | "runs"
+    readonly midTurn?: "queues" | "runs" | "drops"
   }
   /**
    * Whether the screen shows, just above the box, the program's word that whoever types
@@ -172,6 +192,19 @@ export type BoxProfile = {
    * Enter act in it.
    */
   readonly overlay: (screen: ScreenText) => boolean
+  /**
+   * Whether the screen shows the interrupt armed: for a program whose first Escape only arms
+   * it, saying so ("esc again to interrupt"), and whose second, while that shows, stops the
+   * turn. The first Escape is written alone, counting no stop; the second goes once this says so, and
+   * none where it never does (the turn ended, or the Escape closed a menu). Omitted where one Escape stops a turn.
+   */
+  readonly armed?: (screen: ScreenText) => boolean
+  /**
+   * Whether the screen shows a turn running that Escape would stop, as the program's own status
+   * row says: where `armed` is set, an interrupt whose first Escape arms nothing (the turn's row
+   * is gone) stops waiting for it at once. Omitted where `armed` is.
+   */
+  readonly working?: (screen: ScreenText) => boolean
   /**
    * Whether the screen shows messages queued behind the running turn, which the program
    * holds until the turn ends (or steers the turn with).

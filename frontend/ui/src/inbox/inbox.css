@@ -412,10 +412,10 @@
   width: auto;
   flex: 1;
 }
-/* Over the header, Windows' caption buttons hold the window's top-right corner: the Inbox starts
-   below them, as tall as the phone's header they are sized to. */
+/* Windows' caption buttons hold the window's top-right corner, over everything the page draws:
+   the Inbox's own starts below them. */
 :root[data-window-controls="end"] .inbox-fullscreen {
-  padding-top: 3.75rem;
+  padding-top: var(--window-caption-height, 0px);
 }
 
 /* The head: the kind tag, `project / title`, the handle, Show terminal and close. */

@@ -1,0 +1,123 @@
+# read
+user: Read the sample file
+tools: read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>
+assistant: OK.
+
+# read-part
+user: Read part of the sample file
+tools: read [read] · …/person/project/sample.txt | Call: read: 3 lines: filePath: /home/person/project/sample.txt → 8 lines: <path>/home/person/project/sample.txt</path>
+assistant: OK.
+
+# read-missing
+user: Read the missing file
+tools: read [read] · …/person/project/missing.txt · failed | Call: read: 1 line: /home/person/project/missing.txt → 1 line: File not found: /home/person/project/missing.txt
+assistant: OK.
+
+# command-passes
+user: Say hello in the shell
+tools: ran [run] · echo hello → 1 line: hello
+assistant: OK.
+
+# command-fails
+user: Run the failing command
+tools: ran [run] · echo boom >&2; exit 3 · exit 3 → 1 line: boom
+assistant: OK.
+
+# no-match
+user: Look for zzz with grep in the shell
+tools: ran [run] · grep -n zzz sample.txt · exit 1 → 1 line: (no output)
+assistant: OK.
+
+# not-found
+user: Run the missing program
+tools: ran [run] · no-such-program-here · exit 127 → 1 line: /usr/bin/bash: line 1: no-such-program-here: co…
+assistant: OK.
+
+# timeout
+user: Run the slow command
+tools: ran [run] · sleep 5; echo late · failed | Call: bash: 1 line: timeout: 1000 → 5 lines: (no output)
+assistant: OK.
+
+# search
+user: Search for beta
+tools: searched [search] · beta → 3 lines: Found 1 matches
+assistant: OK.
+
+# glob
+user: Find the text files
+tools: found files [search] · **/*.txt → 2 lines: /home/person/project/long.txt
+assistant: OK.
+
+# edit
+user: Change the second constant
+tools: edited [write] · …/project/src/auth.ts +2 −1 → 5 lines: 1   const a = 1
+assistant: OK.
+
+# edit-no-match
+user: Change a constant that is not there
+tools: edited [write] · …/project/src/auth.ts · failed | Call: edit: 3 lines: filePath: /home/person/project/src/auth.ts → 1 line: Could not find oldString in the file. It must m…
+assistant: OK.
+
+# new-file
+user: Write a new file
+tools: wrote [write] · …/person/project/new.txt +2 −0 → 2 lines: 1 + one
+assistant: OK.
+
+# overwrite
+user: Overwrite the legacy file
+tools: wrote [write] · …/project/src/legacy.ts | Call: write: 3 lines: filePath: /home/person/project/src/legacy.ts → 1 line: Wrote file successfully.
+assistant: OK.
+
+# long-edit
+user: Rewrite two lines of the long file
+tools: edited [write] +900 −2 | Call: edit: 1 line, shortened: {"filePath":"/home/person/project/long.txt","ol… → 41 lines: 93   line 93 xxxxxxxxxxxxxxxx
+assistant: OK.
+
+# long-write
+user: Write a big file
+tools: wrote [write] +1000 −0 | Call: write: 1 line, shortened: {"filePath":"/home/person/project/big.txt","con… → 41 lines: 1 + row 1 yyyyyyyyyyyyyyyy
+assistant: OK.
+
+# patch-add
+user: Patch in a new file
+tools: patched [write] +2 −0 | Call: apply_patch: 5 lines: *** Begin Patch → 2 lines: 1 + export const added = 1
+assistant: OK.
+
+# patch-update
+user: Patch the auth file
+tools: patched [write] +2 −1 | Call: apply_patch: 9 lines: *** Begin Patch → 5 lines: 1   const a = 1
+assistant: OK.
+
+# patch-delete
+user: Patch away the legacy file
+tools: patched [write] +0 −1 | Call: apply_patch: 3 lines: *** Begin Patch → 1 line: 1 - export const legacy = true
+assistant: OK.
+
+# patch-no-match
+user: Patch a line that is not there
+tools: patched [write] · failed | Call: apply_patch: 6 lines: *** Begin Patch → 2 lines: apply_patch verification failed: Error: Failed …
+assistant: OK.
+
+# webfetch
+user: Fetch the example page
+tools: fetched [web] · https://example.com/docs · failed | Call: webfetch: 1 line: format: markdown → 1 line: Transport error (GET https://example.com/docs)
+assistant: OK.
+
+# skill
+user: Load the demo skill
+tools: loaded a skill [read] · demo → 13 lines: <skill_content name="demo">
+assistant: OK.
+
+# skill-missing
+user: Load the absent skill
+tools: loaded a skill [read] · absent · failed → 1 line: Skill "absent" not found. Available skills: cus…
+assistant: OK.
+
+# websearch
+user: Search the web for vitest
+tools: searched the web [web] · vitest snapshots · failed → 1 line: Transport error (POST https://mcp.exa.ai/mcp)
+assistant: OK.
+
+# rejected
+user: Run the rejected command
+tools: ran [run] · echo nope · failed → 1 line: The user rejected permission to use this specif…

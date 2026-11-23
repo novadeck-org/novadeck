@@ -2,6 +2,7 @@ import { handleWords } from "../terminals/handles.js"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
+import { opencode } from "./agents/opencode.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest, text, tool, type Call } from "./model/script.js"
 import { closed, deliveries, delivered, holds, own, result, sends, start } from "./scenarios.js"
@@ -13,7 +14,7 @@ import { closed, deliveries, delivered, holds, own, result, sends, start } from 
 // leads in turn, so each one's tool schema carries `to` and each one reads the mark.
 // Files ending in `.mixed.e2e.ts` run only when every harness is selected.
 
-const team = [claude, codex, agy]
+const team = [claude, codex, agy, opencode]
 // The lead is moth, the first terminal; its teammates take the next handles, in order.
 const mates = team.map((_, index) => handleWords[index + 1]!)
 

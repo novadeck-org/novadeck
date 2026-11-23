@@ -64,6 +64,7 @@ const agentNames: { readonly [agent in AgentSetup["agent"]]: RegExp } = {
   claude: /claude/i,
   codex: /codex/i,
   agy: /agy|antigravity/i,
+  opencode: /opencode/i,
 }
 
 /** A process of the terminal, as first seen, and when it went. */

@@ -3,14 +3,15 @@ import type { Store } from "@novadeck/core/store"
 
 import type { UiState } from "./ui-store"
 
-// The window's own controls where they sit over the page, with the header standing in for the
-// window's title bar: macOS's close, minimise and zoom buttons at its start, Windows' caption
-// buttons at its end.
+// The window's own controls where they sit over the page: macOS's close, minimise and zoom
+// buttons at the header's start, with the header standing in for the window's title bar, and
+// Windows' caption buttons in the header's top-right corner, whose Search and Preferences keep
+// below them.
 
 // In Zen, which hides the header, macOS's controls hide too, and come back while the pointer is
 // in the window's top-left corner: within `reach` of it to show them, and until it leaves
 // `keep`, a wider corner, so they don't flicker at the edge, in CSS pixels. Windows' can't hide,
-// so they stay.
+// so they stay, on a strip of their own.
 export const zenCorner = {
   reach: { x: 96, y: 36 },
   keep: { x: 160, y: 72 },
@@ -18,11 +19,16 @@ export const zenCorner = {
 
 type Side = NonNullable<Backend["windowControls"]>["side"]
 
-// Where the controls sit in Zen while shown, where no window's header runs along the page's top
-// to centre them on, in CSS pixels: on a plate near the top-left corner (macOS), or in the
-// top-right corner's 32 pixels, as Windows' caption buttons run from the page's top.
-export const zenMiddles = { start: 20, end: 16 } as const satisfies Record<Side, number>
-export const zenMiddle = zenMiddles.start
+/**
+ * How tall Windows' caption buttons are, from the page's top, in CSS pixels: a Windows 11 app's
+ * standard title bar, as Explorer's and Paint's. The page's `--window-caption-height`
+ * (shell/region.css) is the same.
+ */
+export const captionHeight = 32
+
+// Where macOS's controls sit in Zen while shown, where no window's header runs along the page's
+// top to centre them on: on a plate near the top-left corner, in CSS pixels.
+export const zenMiddle = 20
 
 // What the controls centre on: the app's header, or in Zen the Focus window's, which then
 // runs along the page's top.
@@ -37,11 +43,12 @@ export const alongTop = (header: HeaderBox | undefined): number | undefined =>
   header && header.top <= 1 && header.height > 0 ? header.top + header.height / 2 : undefined
 
 /**
- * Where the controls go: centred on the header's middle while it shows; in Zen, while
- * `revealed` (always, at the `end`, whose controls can't hide), on the Focus window's header
- * where it runs along the page's top (`zenHeader`), else on the side's Zen middle, and hidden
- * (null) otherwise. Undefined where there's no header to place them on yet, which leaves them
- * where they are.
+ * Where the controls go: at the `end`, Windows' caption buttons, always half their height down,
+ * in the header's corner or in Zen on their strip, as they can't hide. At the `start`, centred on
+ * the header's middle
+ * while it shows; in Zen, while `revealed`, on the Focus window's header where it runs along the
+ * page's top (`zenHeader`), else on Zen's middle, and hidden (null) otherwise. Undefined where
+ * there's no header to place them on yet, which leaves them where they are.
  */
 export const controlsMiddle = ({
   side = "start",
@@ -56,9 +63,10 @@ export const controlsMiddle = ({
   readonly header: HeaderBox | undefined
   readonly zenHeader?: HeaderBox | undefined
 }): number | null | undefined => {
+  if (side === "end") return captionHeight / 2
   if (zen) {
-    if (!revealed && side === "start") return null
-    return alongTop(zenHeader) ?? zenMiddles[side]
+    if (!revealed) return null
+    return alongTop(zenHeader) ?? zenMiddle
   }
   if (!header || header.height <= 0) return undefined
   return header.top + header.height / 2
@@ -79,12 +87,13 @@ type PageView = Pick<
 }
 
 /**
- * Keeps the window's controls on the header, where the desktop app puts them in the page: gives
- * the page the room they take (`--window-controls-inset`) and keeps them on the header's middle
- * as the page resizes. In Zen macOS's hide, but while the pointer is in the top-left corner, and
- * Windows' stay in the top-right one; where no Focus window's header moves aside for them, the
+ * Keeps the window's controls where the desktop app puts them in the page: gives the page the
+ * room they take (`--window-controls-inset`), keeps macOS's on the header's middle as the page
+ * resizes, and Windows' in the header's top-right corner. In Zen macOS's hide, but while the
+ * pointer is in the top-left corner; where no Focus window's header moves aside for them, the
  * root's `data-window-controls-plate` puts a plate under them, so a click meant for them never
- * reaches what lies beneath. macOS's hide again once the pointer leaves the corner, the page, or
+ * reaches what lies beneath. Windows' room (`--window-caption-height`) folds away while they
+ * take no room, as in full screen. macOS's hide again once the pointer leaves the corner, the page, or
  * the window loses focus. While the window doesn't have the system's focus the root says so
  * (`data-window-inactive`), and the header quietens with the controls. The page's root says it is
  * the window's title bar (`data-window-controls`) from the start, set by the app's entry. Returns
@@ -111,6 +120,9 @@ export const watchWindowControls = (
   const stopInset = controls.onInset((next) => {
     inset = next
     root.style.setProperty("--window-controls-inset", `${next}px`)
+    // The room Windows' buttons take from the page's top goes with them, as in full screen.
+    if (!hides)
+      root.style.setProperty("--window-caption-height", `${next > 0 ? captionHeight : 0}px`)
     showPlate()
   })
   let zen = Boolean(ui.getSnapshot().shell.zen)
@@ -131,7 +143,7 @@ export const watchWindowControls = (
   const place = (): void => {
     const zenHeader = zen ? box(zenHeaderSelector) : undefined
     const middle = controlsMiddle({ side, zen, revealed, header: box(headerSelector), zenHeader })
-    plate = zen && revealed && alongTop(zenHeader) === undefined
+    plate = hides && zen && revealed && alongTop(zenHeader) === undefined
     showPlate()
     if (middle === undefined || middle === placed) return
     placed = middle
@@ -189,5 +201,6 @@ export const watchWindowControls = (
     delete root.dataset.windowControlsPlate
     delete root.dataset.windowInactive
     root.style.removeProperty("--window-controls-inset")
+    root.style.removeProperty("--window-caption-height")
   }
 }

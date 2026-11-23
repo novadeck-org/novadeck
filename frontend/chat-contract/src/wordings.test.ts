@@ -9,6 +9,7 @@ import { codex } from "@novadeck/harness-codex/index"
 import type { DialogAdapter, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hookReport } from "@novadeck/harness-core/testing/reports"
+import { opencode } from "@novadeck/harness-opencode/index"
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { harnessSources } from "./harnesses.test-support"
@@ -21,6 +22,10 @@ import { describe, expect, it } from "./test"
 // adapter no longer reads it, at any of the sizes it was recorded at. The fixtures are the
 // probes' (`ask.probe*.json`, and `tall.probe.json`'s commands taller than the screen).
 
+const askFiles = /^(ask|tall)\.probe(\..+)?\.json$/
+
+// The screen a dialog adapter may read the cells of, as its `read` takes it.
+type ScreenText = NonNullable<Parameters<DialogAdapter["read"]>[2]>
 type Scenario = Record<string, unknown>
 // The requests a scenario's hooks told, as the runner holds them for its dialog.
 type Requests = (scenario: Scenario) => readonly RequestFacts[]
@@ -35,12 +40,12 @@ const objects = (value: unknown): Record<string, unknown>[] => {
 }
 
 // Every screen a scenario recorded, anywhere in it, by where: "screens.120x40".
-type Screen = { readonly at: string; readonly rows: readonly string[] }
+type Screen = { readonly at: string; readonly rows: readonly string[]; readonly text: ScreenText }
 const screens = (value: unknown, at: readonly string[] = []): readonly Screen[] => {
   if (typeof value !== "object" || value === null) return []
   const { rows } = value as { rows?: unknown }
   if (Array.isArray(rows) && rows.every((row) => typeof row === "string"))
-    return [{ at: at.length > 0 ? at.join(".") : "its screen", rows }]
+    return [{ at: at.length > 0 ? at.join(".") : "its screen", rows, text: value as ScreenText }]
   return Object.entries(value).flatMap(([key, each]) => screens(each, [...at, key]))
 }
 
@@ -136,6 +141,56 @@ const agyUnrecorded: readonly RequestFacts[] = [
   confirming(agyRun("echo same")),
 ]
 
+// opencode's probe kept screens alone (fixtures/dialogs.probe.json, one dialog a screen), so each
+// is read with the request its `permission.asked` event would carry, as its own dialog tests give
+// them (the plugin reports a permission's name, patterns, metadata and always).
+const opencodeAsk = (
+  tool: string,
+  patterns: string[],
+  metadata: object = {},
+  always: string[] = ["*"],
+): RequestFacts => ({
+  kind: "permission",
+  tool,
+  cwd: "/home/user/project",
+  input: { patterns, metadata, always },
+})
+const opencodeBash = (command: string): RequestFacts =>
+  opencodeAsk("bash", [command], { command }, ["echo *"])
+// A unified diff as its event carries it: four header lines, then the hunk.
+const opencodeDiff = (...lines: string[]): string =>
+  ["Index: f", "=".repeat(67), "--- f", "+++ f", "@@ -1 +1 @@", ...lines].join("\n")
+const opencodeEdit = (file: string, diff: string): RequestFacts =>
+  opencodeAsk("edit", [file.slice(1)], { filepath: file, diff })
+const opencodeUnrecorded: readonly RequestFacts[] = [
+  opencodeBash("echo approved"),
+  opencodeBash("echo child"),
+  opencodeBash(`echo one && echo two && printf '%s\\n' ${"x".repeat(200)}\necho three`),
+  opencodeBash(Array.from({ length: 30 }, (_, at) => `echo line ${at}`).join("\n")),
+  opencodeEdit(
+    "/home/user/project/notes.txt",
+    opencodeDiff(" line one", "-line two", "+line 2 changed", " line three"),
+  ),
+  opencodeEdit("/home/user/project/new.txt", opencodeDiff("+hello", "+world")),
+  opencodeEdit(
+    "/home/user/project/big.txt",
+    opencodeDiff(...Array.from({ length: 60 }, (_, at) => `+row ${at} of the file`)),
+  ),
+  opencodeAsk("webfetch", ["https://example.com/page"], {
+    url: "https://example.com/page",
+    format: "text",
+  }),
+  opencodeAsk("read", ["home/user/project/notes.txt"]),
+  opencodeAsk("glob", ["*.txt"], { pattern: "*.txt" }),
+  opencodeAsk("grep", ["line"], { pattern: "line" }),
+  opencodeAsk("external_directory", ["/etc/*"], { filepath: "/etc/hostname", parentDir: "/etc" }, [
+    "/etc/*",
+  ]),
+  opencodeAsk("task", ["general"], { description: "Look around", subagent_type: "general" }),
+  opencodeAsk("theirs_ping", ["*"]),
+  opencodeAsk("theirs_say", ["*"]),
+]
+
 const profiles: Record<
   AgentName,
   {
@@ -143,11 +198,52 @@ const profiles: Record<
     readonly requests: Requests
     readonly unrecorded: readonly RequestFacts[]
     readonly folder: AgentName
+    // The probe fixtures of the dialogs, by name: `ask.probe.json` and the like, or opencode's.
+    readonly files: RegExp
+    // Whether its adapter reads the screen's cells (their background) beside its rows.
+    readonly cells: boolean
+    // The kinds of dialog it draws that the options below read.
+    readonly kinds: readonly RequestFacts["kind"][]
   }
 > = {
-  claude: { dialogs: claude.dialogs, requests: claudeRequests, unrecorded: [], folder: "claude" },
-  codex: { dialogs: codex.dialogs, requests: codexRequests, unrecorded: [], folder: "codex" },
-  agy: { dialogs: agy.dialogs, requests: agyRequests, unrecorded: agyUnrecorded, folder: "agy" },
+  claude: {
+    dialogs: claude.dialogs,
+    requests: claudeRequests,
+    unrecorded: [],
+    folder: "claude",
+    files: askFiles,
+    cells: false,
+    kinds: ["permission", "plan"],
+  },
+  codex: {
+    dialogs: codex.dialogs,
+    requests: codexRequests,
+    unrecorded: [],
+    folder: "codex",
+    files: askFiles,
+    cells: false,
+    kinds: ["permission", "plan"],
+  },
+  agy: {
+    dialogs: agy.dialogs,
+    requests: agyRequests,
+    unrecorded: agyUnrecorded,
+    folder: "agy",
+    files: askFiles,
+    cells: false,
+    kinds: ["permission", "plan"],
+  },
+  // It draws no plan dialog: its plan agent asks no more than a question (dialogs.ts, probed
+  // 2026-11-22, 1.19.6), and its permission dialog finds the selected choice by the cells' background.
+  opencode: {
+    dialogs: opencode.dialogs,
+    requests: () => [],
+    unrecorded: opencodeUnrecorded,
+    folder: "opencode",
+    files: /^dialogs\.probe\.json$/,
+    cells: true,
+    kinds: ["permission"],
+  },
 }
 
 type Read = {
@@ -168,10 +264,10 @@ const scenariosOf = (probe: Record<string, unknown>): Record<string, Scenario> =
 // dialog only for the request it asks about, so no other request reads it.
 type Seen = Map<string, Set<string>>
 const reads = (agent: AgentName): Map<string, { read: Read; seen: Seen }> => {
-  const { dialogs, requests, unrecorded, folder } = profiles[agent]
+  const { dialogs, requests, unrecorded, folder, files: wanted, cells } = profiles[agent]
   const sources = harnessSources(folder)
   const files = readdirSync(join(sources, "fixtures"))
-    .filter((file) => /^(ask|tall)\.probe(\..+)?\.json$/.test(file))
+    .filter((file) => wanted.test(file))
     .toSorted()
   const recorded = files.flatMap((file) =>
     Object.entries(scenariosOf(loadProbe(sources, file))).map(([name, scenario]) => ({
@@ -184,9 +280,9 @@ const reads = (agent: AgentName): Map<string, { read: Read; seen: Seen }> => {
   const pool = [...recorded.flatMap(({ facts }) => facts), ...unrecorded]
   const found = new Map<string, { read: Read; seen: Seen }>()
   for (const { file, name, scenario, facts } of recorded) {
-    const [, probe, version] = /^(ask|tall)\.probe(?:\.(.+))?\.json$/.exec(file)!
+    const [, probe, version] = /^(ask|tall)?\.?probe(?:\.(.+))?\.json$/.exec(file) ?? []
     const scenarioName = `${probe === "tall" ? "tall/" : ""}${name}${version ? `@${version}` : ""}`
-    for (const { at, rows } of screens(scenario)) {
+    for (const { at, rows, text } of screens(scenario)) {
       const shown = dialogs.screenRequest?.(rows)
       const candidates = [
         ...(facts.length > 0 ? facts : pool),
@@ -194,7 +290,7 @@ const reads = (agent: AgentName): Map<string, { read: Read; seen: Seen }> => {
       ]
       for (const request of candidates) {
         if (request.kind === "question") continue
-        const dialog = dialogs.read(rows, request)?.dialog
+        const dialog = dialogs.read(rows, request, cells ? text : undefined)?.dialog
         if (dialog?.type !== "choices") continue
         const read: Read = { kind: request.kind, options: dialog.options }
         const key = JSON.stringify(read)
@@ -240,9 +336,9 @@ describe("a harness's permission and plan options", () => {
       await expect(golden(agent)).toMatchFileSnapshot(`./wordings/${agent}.txt`)
     })
 
-    it(`are recorded for both a permission and a plan on ${agent}`, () => {
+    it(`are recorded for each kind of dialog ${agent} draws`, () => {
       const kinds = new Set([...reads(agent).values()].map(({ read }) => read.kind))
-      expect([...kinds].toSorted()).toEqual(["permission", "plan"])
+      expect([...kinds].toSorted()).toEqual(profiles[agent].kinds.toSorted())
     })
   }
 })

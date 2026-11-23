@@ -67,7 +67,7 @@ export const renderIndex = (atlas: Atlas): string => {
     lines.push("", `### ${top}`)
     for (const area of areas)
       lines.push(
-        `- \`${area.id}\` ${compact(area.lines)}${area.purpose ? ` — ${clip(area.purpose, 90)}` : ""}`,
+        `- \`${area.id}\` ${compact(area.lines)}${area.purpose ? ` — ${clip(area.purpose, 86)}` : ""}`,
       )
   }
   lines.push(

@@ -1,0 +1,106 @@
+# list
+user: List the source folder
+tools: read [read] · …/person/project/src | Call: read: 1 line: /home/person/project/src → 9 lines: <path>/home/person/project/src</path>
+assistant: OK.
+
+# workdir
+user: Run it in the source folder
+tools: ran [run] · ls | Call: bash: 1 line: workdir: /home/person/project/src → 3 lines: auth.ts
+assistant: OK.
+
+# long-output
+user: Print a long list of numbers
+tools: ran [run] · seq 1 4000 → 2003 lines: ...output truncated...
+assistant: OK.
+
+# todo
+user: Plan the work
+tools: updated the plan [plan] | Call: todowrite: 1 line: [{"content":"Read it","status":"completed","pri… → 17 lines: [
+assistant: OK.
+
+# parallel
+user: Check two files at once
+tools: read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>; ran [run] · echo both → 1 line: both; searched [search] · gamma → 3 lines: Found 1 matches
+assistant: OK.
+
+# many
+user: Look around thoroughly
+tools: [5 tool calls · ran, read ×2, searched, found files] ran [run] · ls → 8 lines: big.txt; read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>; read [read] · …/project/src/auth.ts | Call: read: 1 line: /home/person/project/src/auth.ts → 10 lines: <path>/home/person/project/src/auth.ts</path>; searched [search] · const → 19 lines: Found 7 matches; found files [search] · **/*.ts → 3 lines: /home/person/project/src/new.ts
+assistant: OK.
+
+# subagent
+user: Hand the search to a subagent
+subagent (Look around): <task id="ses_dfc944b6bffeEkxv1TsjzeFum3" state="completed"> ⏎ <task_result> ⏎ OK. ⏎ </task_result> ⏎ </task>
+assistant: OK.
+
+# question
+user: Ask me which colour
+tools: asked [plan] · Which colour? | Call: question: 1 line: [{"question":"Which colour?","header":"Colour",… → 1 line: User has answered your questions: "Which colour…
+assistant: OK.
+
+# unknown
+user: Call a tool that is not offered
+tools: frobnicate [other] · Model tried to call unavailable tool 'frobnicate'. Available tools: bash, edit, glob, grep, invalid, novadeck_agents, novadeck_ask, novadeck_close, novadeck_close_terminal, novadeck_close_worktree, novadeck_describe, novadeck_done, novadeck_feedback, novadeck_give_worktree, novadeck_hand_lead, novadeck_join, novadeck_lead, novadeck_leave, novadeck_look, novadeck_open_agent, novadeck_open_terminal, novadeck_open_worktree, novadeck_ping, novadeck_release, novadeck_send, novadeck_show, novadeck_showing, novadeck_take_worktree, novadeck_team, novadeck_tell, question, read, skill, task, todowrite, webfetch, write. | Call: invalid: 1 line: tool: frobnicate → 1 line: The arguments provided to the tool are invalid:…
+assistant: OK.
+
+# novadeck-terminals
+user: Use the other terminals
+tools: [9 tool calls · messaged reviewer, messaged, listed agents, checked its team] messaged reviewer [agent] · Please look | Call: novadeck_send: 1 line: to: reviewer → 1 line: Sent.; messaged [agent] · Anyone? → 1 line: Sent.; listed agents [agent] → 2 lines: reviewer (claude) idle; checked its team [agent] | Call: novadeck_team: 1 line: true → 1 line: Your team: reviewer, builder; opened an agent [agent] · opencode: Review | Call: novadeck_open_agent: 3 lines: agent: opencode → 1 line: Done.; opened an agent [agent] · claude | Call: novadeck_open_agent: 2 lines: model: opus → 1 line: Done.; opened a terminal [agent] · npm run dev → 1 line: Done.; close builder [agent] | Call: novadeck_close_terminal: 1 line: builder → 1 line: Done.; close a terminal [agent] → 1 line: Done.
+assistant: OK.
+
+# novadeck-worktrees
+user: Use the worktrees
+tools: [9 tool calls · opened a worktree, took a worktree, gave a worktree to builder, closed a worktree (forced)] opened a worktree [agent] · feat/login → 1 line: Done.; took a worktree [agent] · …/p/g/api | Call: novadeck_take_worktree: 1 line: /home/person/.novadeck/worktrees/p/g/api → 1 line: Done.; gave a worktree to builder [agent] · …/p/g/api | Call: novadeck_give_worktree: 2 lines: path: /home/person/.novadeck/worktrees/p/g/api → 1 line: Done.; closed a worktree (forced) [agent] · …/p/g/api | Call: novadeck_close_worktree: 2 lines: path: /home/person/.novadeck/worktrees/p/g/api → 1 line: Done.; asked to lead builder [agent] · Fix the tests | Call: novadeck_lead: 1 line: to: builder → 1 line: Done.; released builder [agent] | Call: novadeck_release: 1 line: builder → 1 line: Done.; join builder's team [agent] · I take the API. | Call: novadeck_join: 1 line: to: builder → 1 line: Done.; leave its team [agent] → 1 line: Done.; hand the lead to builder [agent] | Call: novadeck_hand_lead: 1 line: builder → 1 line: Done.
+assistant: OK.
+
+# novadeck-show
+user: Show things in the pane
+tools: [6 tool calls · showed ×2, closed, checked what's shown, looked at the page] showed [web] · http://localhost:5173 | Call: novadeck_show: 1 line: {"url":"http://localhost:5173"} → 1 line: Done.; showed [read] · …/person/project/sample.txt | Call: novadeck_show: 1 line: {"path":"/home/person/project/sample.txt"} → 1 line: Done.; closed [read] · …/person/project/sample.txt | Call: novadeck_close: 1 line: {"path":"/home/person/project/sample.txt"} → 1 line: Done.; checked what's shown [read] → 1 line: Nothing is shown.; looked at the page [web] · http://localhost:5173 | Call: novadeck_look: 1 line: {"url":"http://localhost:5173"} → 1 line: The page shows a login form.; described this terminal [agent] · Chat pinning | Call: novadeck_describe: 1 line: summary: Pinning the chat. → 1 line: Saved.
+assistant: OK.
+
+# novadeck-reports
+user: Wrap up the work
+tools: [7 tool calls · reported done, drafted feedback, told you, asked you] reported done [agent] · Chat contract hardened | Call: novadeck_done: 1 line: body: Fixed four findings. → 1 line: Reported.; drafted feedback [agent] · bug | Call: novadeck_feedback: 1 line: text: The pane went blank. → 1 line: Drafted.; told you [agent] · CI is green | Call: novadeck_tell: 1 line: body: All checks. → 1 line: Told.; asked you [agent] · Merge it? | Call: novadeck_ask: 1 line: body: It is ready. → 1 line: Asked.; asked you to choose [agent] · Which pick? | Call: novadeck_ask: 2 lines: body: Two ways. → 1 line: Asked.; asked you to run a command [agent] · Sign in, please | Call: novadeck_ask: 2 lines: body: It needs you. → 1 line: Asked.; withdrew an ask [agent] | Call: novadeck_ask: 1 line: 00000000-0000-4000-8000-000000000001 → 1 line: Asked.
+assistant: OK.
+
+# text
+user: Say something plain
+assistant: Here is a plain answer. ⏎ It has two paragraphs and a list: ⏎ one ⏎ two
+
+# long-a
+user: Check it all
+tools: [4 tool calls · ran, read ×2, searched] ran [run] · ls → 6 lines: long.txt; read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>; read [read] · …/project/src/auth.ts | Call: read: 1 line: /home/person/project/src/auth.ts → 9 lines: <path>/home/person/project/src/auth.ts</path>; searched [search] · TODO → 1 line: No files found
+assistant: OK.
+
+# long-b
+user: And the tests
+tools: [4 tool calls · ran, read, searched, found files] ran [run] · echo built → 1 line: built; read [read] · …/project/src/legacy.ts | Call: read: 1 line: /home/person/project/src/legacy.ts → 7 lines: <path>/home/person/project/src/legacy.ts</path>; searched [search] · FIXME → 1 line: No files found; found files [search] · **/*.ts → 3 lines: /home/person/project/src/new.ts
+assistant: OK.
+
+# short
+user: Run it
+tools: read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>; ran [run] · echo done → 1 line: done
+assistant: OK.
+
+# image-one
+user (images: Image 1): [Image 1] ONE-PICTURE what is this
+assistant: It is a red rectangle.
+
+# image-two
+user (images: Image 1, Image 2): [Image 1] [Image 2] TWO-PICTURES compare them
+assistant: One is red, the other blue.
+
+# plan-agent
+user: ONE-PICTURE first in build
+assistant: It is a red rectangle.
+note: plan mode
+user: TWO-PICTURES now in plan
+assistant: One is red, the other blue.
+note: plan mode off
+user: ONE-PICTURE back in build
+assistant: It is a red rectangle.
+
+# subagent-child
+user: CHILD-TASK list the files
+tools: read [read] · …/person/project/sample.txt | Call: read: 1 line: /home/person/project/sample.txt → 12 lines: <path>/home/person/project/sample.txt</path>
+assistant: OK.

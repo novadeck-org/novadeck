@@ -186,6 +186,13 @@ export type ActivityEvent = EventBase &
      */
     | { readonly type: "turn-lapsed" }
     /**
+     * The harness's input prompt left the root session the terminal had bound for a screen of
+     * no session, none yet made: opencode's `/new` (and its `/clear`) goes home, and a session
+     * exists only from its next prompt. Its binding ends, the prompt still shown; it names the
+     * session left in `sessionId`, and a session bound since is not the one left.
+     */
+    | { readonly type: "session-left" }
+    /**
      * The person pressed Escape while the root turn ran, as their keys tell delivery (see
      * docs/agent-messaging.md, "States"): it may have cancelled the turn, which no hook
      * says, as Claude Code's Escape before its first reply. Started when the key came.

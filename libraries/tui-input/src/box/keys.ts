@@ -5,6 +5,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import type { BoxProfile, InputBox } from "./box.js"
 import { hidesText } from "./box.js"
 import { cursorAtEnd, toEnd } from "./leftover.js"
+import { pause } from "./pause.js"
 import { sameText } from "./text.js"
 
 /** What pressing keys in a box needs of its terminal. */
@@ -34,7 +35,11 @@ export const pressKeys = async (
   reached: (screen: ScreenText) => boolean,
 ): Promise<ScreenText | undefined> => {
   host.admit()
-  if (!host.write(keys)) return undefined
+  for (const [at, part] of keys.split(pause).entries()) {
+    // eslint-disable-next-line no-await-in-loop -- Each part waits for the one before.
+    if (at > 0) await sleep(4 * timing.pollMs)
+    if (!host.write(part)) return undefined
+  }
   const until = Date.now() + timing.keysMs
   let seen = false
   while (Date.now() < until && host.holding()) {

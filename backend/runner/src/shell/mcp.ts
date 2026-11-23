@@ -464,6 +464,12 @@ const agentChoices = harnesses
   .join(", ")
   .replace(/, ([^,]*)$/, " or $1")
 
+// "claude, codex, agy or opencode": the ids alone.
+const agentIds = harnesses
+  .map(({ id }) => id)
+  .join(", ")
+  .replace(/, ([^,]*)$/, " or $1")
+
 // What an opened terminal's answer says, which an agent's opening adds its task to.
 const openedText = (answer: Opened): string =>
   answer.asked
@@ -497,10 +503,11 @@ const openTerminal: Tool<Opened> = {
   description: () =>
     "Open a new terminal in Novadeck beside this one, optionally starting a command or a " +
     "TUI there, such as a dev server. It runs no agent: a command that does, such as a " +
-    "bare claude, codex or agy, with flags, or on a prompt (claude -p, codex exec, agy -p), " +
+    "bare claude, codex, agy or opencode, with flags, or on a prompt (claude -p, codex exec, " +
+    "agy -p, opencode run), " +
     "or resuming a session, isn't opened, and every agent in a Novadeck terminal, with a " +
     "task or without, is started with open_agent. A command that runs no agent, such as " +
-    "claude mcp list, codex login or agy update, is fine. " +
+    "claude mcp list, codex login, agy update or opencode models, is fine. " +
     "A command is run only if the user approves it in " +
     "Novadeck: the call answers at once that they were asked, and a notice later tells you " +
     "their answer; " +
@@ -710,7 +717,7 @@ const openAgent: Tool<Opened> = {
     "command" in args
       ? "open_agent takes no command: leave it out, or use open_terminal to run a command."
       : typeof args.agent !== "string"
-        ? "open_agent needs agent: the agent to start (claude, codex or agy)."
+        ? `open_agent needs agent: the agent to start (${agentIds}).`
         : undefined,
   schema: async (call) => withModel(openAgent.inputSchema, await listModels(call)),
   call: "open",

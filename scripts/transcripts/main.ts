@@ -1,14 +1,15 @@
-// `pnpm transcripts:shapes [--all] [--newest N] [claude|codex|agy …]`: runs each harness's
-// decoder shape lists (harnesses/<harness>/src/shapes.ts) over the transcripts on this
-// machine, read-only: `~/.claude` (or CLAUDE_CONFIG_DIR), `~/.codex` (or CODEX_HOME) and
-// `~/.gemini/antigravity-cli`. It prints the shapes no list names, which the chat drops
+// `pnpm transcripts:shapes [--all] [--newest N] [claude|codex|agy|opencode …]`: runs each
+// harness's decoder shape lists (harnesses/<harness>/src/shapes.ts) over the transcripts on
+// this machine, read-only: `~/.claude` (or CLAUDE_CONFIG_DIR), `~/.codex` (or CODEX_HOME),
+// `~/.gemini/antigravity-cli`, and for opencode the folder Novadeck's plugin writes them in
+// (beside NOVADECK_HOOK in a Novadeck terminal, else Linux's default). It prints the shapes no list names, which the chat drops
 // without a word, with how many lines held each and the first file one was in; `--all`
 // prints every shape with its verdict. Run it before a pin bump: the e2e suite drives a fake
 // model, so the shapes only real models write (thinking, server tools, images) show only
 // here and in use. It prints keys and counts, never what the transcripts say.
 import { statSync } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 
 type Seen = {
@@ -31,6 +32,13 @@ export const homes = (env: NodeJS.ProcessEnv, home: string): Readonly<Record<str
   claude: env.CLAUDE_CONFIG_DIR || join(home, ".claude"),
   codex: env.CODEX_HOME || join(home, ".codex"),
   agy: join(home, ".gemini", "antigravity-cli"),
+  // opencode keeps its sessions in a database; Novadeck's plugin writes their transcripts in
+  // its own folder, under the shell files beside the hook launcher.
+  opencode: join(
+    env.NOVADECK_HOOK ? dirname(env.NOVADECK_HOOK) : join(home, ".config", "novadeck", "shell"),
+    "plugins",
+    "opencode",
+  ),
 })
 
 // When a file was last written, in epoch milliseconds; 0 for one gone since it was listed.

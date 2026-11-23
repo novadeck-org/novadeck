@@ -24,6 +24,7 @@ import {
   turn,
   wrappers,
   pointsBack,
+  allowLabel,
 } from "./scenarios.js"
 
 type Dialog = NonNullable<AgentDetail["requests"][number]["dialog"]>
@@ -108,7 +109,7 @@ for (const setup of setups) {
       await t1.prompt("Make the file")
       const allow = await dialogOf(t1, "choices")
       const yes = allow.dialog.options.find(
-        (each) => each.label.startsWith("Yes") && each.text === null,
+        (each) => allowLabel(setup).test(each.label) && each.text === null,
       )
       if (!yes) throw new Error(`No yes in ${JSON.stringify(allow.dialog)}`)
       await t1.answer(allow.ref, { dialog: allow.dialog.id, type: "choice", option: yes.id })
