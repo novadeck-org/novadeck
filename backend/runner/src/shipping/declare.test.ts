@@ -7,7 +7,7 @@ import { heldOptions, heldRef } from "../harnesses/detail.js"
 import { Cards } from "./cards.js"
 import { declare, type DeclareDeps } from "./declare.js"
 import { answeredCard } from "./held.js"
-import { Permits, Quotes } from "./permits.js"
+import { Declines, Permits, Quotes } from "./permits.js"
 import { readCommand, type Lookups } from "./reader.js"
 import { Shipping } from "./service.js"
 
@@ -15,24 +15,30 @@ const lookups: Lookups = {
   branch: async () => "feat/x",
   upstream: async () => undefined,
   repo: async () => "r/app",
+  ghRepo: async () => "r/app",
+  remoteRepo: async () => "r/app",
+  tag: async () => false,
   own: async () => false,
 }
 
 const deps = (agent: "claude" | "codex" = "claude", via: Lookups = lookups) => {
   const permits = new Permits()
-  const quotes = new Quotes()
+  const clock = { now: 1_000 }
+  const quotes = new Quotes(() => clock.now)
   const cards = new Cards()
+  const declines = new Declines(quotes)
   const all: DeclareDeps = {
     lookups: () => via,
     permits,
     quotes,
+    declines,
     cards,
     pull: async () => ({ base: "main", head: "feat/x" }),
     valid: async (_folder, name) => !/[\s~^:?*[\\]|\.\.|^-/.test(name),
     defaultBranch: async () => "trunk",
     agentOf: () => agent,
   }
-  return { permits, quotes, cards, all }
+  return { permits, quotes, cards, declines, clock, all }
 }
 
 describe("request_permit", () => {
@@ -84,6 +90,50 @@ describe("request_permit", () => {
     ).toMatchObject({ ok: false })
     expect(await declare(fresh, "t", "/w", { action: "merge_pr", target: "fe at" })).toMatchObject({
       ok: false,
+    })
+  })
+
+  it("takes a reply to an ask whole, even one word, and a bare word with no ask still needs two", async () => {
+    const { all, quotes, permits } = deps()
+    quotes.record("t", "s", "yes", true)
+    expect(
+      await declare(all, "t", "/w", { action: "push", target: "main", said: "Yes!" }),
+    ).toMatchObject({ ok: true, state: "permitted" })
+    expect(permits.covering("t", "push:r/app:origin/main")?.source).toEqual({
+      type: "quote",
+      quote: "yes",
+    })
+    const bare = deps()
+    bare.quotes.record("t", "s", "yes")
+    expect(
+      await declare(bare.all, "t", "/w", { action: "push", target: "main", said: "yes" }),
+    ).toMatchObject({ ok: true, state: "asked" })
+  })
+
+  it("answers declined after a Deny, with no card, until the user types again", async () => {
+    const { all, quotes, cards, declines, permits, clock } = deps()
+    quotes.record("t", "s", "yes", true)
+    clock.now += 10
+    declines.decline("t", ["push:r/app:origin/main"])
+    const again = await declare(all, "t", "/w", { action: "push", target: "main", said: "yes" })
+    expect(again).toMatchObject({ ok: true, state: "declined" })
+    expect(cards.of("t")).toEqual([])
+    expect(permits.of("t")).toEqual([])
+    // The person types: the words before the decline never count, their new ones do.
+    clock.now += 10
+    quotes.record("t", "s", "no wait")
+    expect(
+      await declare(all, "t", "/w", { action: "push", target: "main", said: "yes" }),
+    ).toMatchObject({ state: "asked" })
+    cards.forget("t")
+    clock.now += 10
+    quotes.record("t", "s", "ok push main after all", true)
+    expect(
+      await declare(all, "t", "/w", { action: "push", target: "main", said: "push main" }),
+    ).toMatchObject({ state: "permitted" })
+    // Another target was never declined.
+    expect(await declare(all, "t", "/w", { action: "push", target: "other" })).toMatchObject({
+      state: "asked",
     })
   })
 
@@ -200,6 +250,94 @@ describe("request_permit", () => {
     expect(cards.of("t")).toHaveLength(0)
     await declare(all, "t", "/w", { action: "push", target: "main", remote: "fork" })
     expect(cards.of("t")[0]!.title).toBe("Push to fork/main?")
+  })
+
+  it("asks for --auto and --admin with cards of their own, and --auto's Allow covers the plain merge", async () => {
+    const { all, cards, permits } = deps()
+    expect(
+      await declare(all, "t", "/w", { action: "merge_pr", target: "50", auto: true }),
+    ).toMatchObject({ state: "asked" })
+    const auto = cards.of("t")[0]!
+    expect(auto.title).toBe(
+      "Merge PR #50 into main by itself once its checks pass, including work added later?",
+    )
+    expect(auto.singleUse).toBe(false)
+    expect(auto.keys).toContain("pr-auto:r/app#50")
+    expect(auto.keys).toContain("pr-merge:r/app#50")
+    // A plain merge's permit never covers --auto.
+    permits.give("t", "pr-merge:r/app#51", false, { type: "quote", quote: "merge it" })
+    expect(
+      await declare(all, "t", "/w", { action: "merge_pr", target: "51", auto: true }),
+    ).toMatchObject({ state: "asked" })
+    // Admin: its own, single use.
+    await declare(all, "t", "/w", { action: "merge_pr", target: "52", admin: true })
+    const admin = cards.of("t").find((card) => card.keys.includes("pr-admin:r/app#52"))!
+    expect(admin.title).toBe("Merge PR #52 into main past its required checks?")
+    expect(admin.singleUse).toBe(true)
+    expect(admin.keys).toEqual(["pr-admin:r/app#52", "pr-admin:r/app@feat/x"])
+    expect(
+      await declare(all, "t", "/w", { action: "merge_pr", target: "53", auto: true, admin: true }),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining("refuses") })
+  })
+
+  it("gives a Codex agent that can't escalate no escalation advice", async () => {
+    const { all } = deps("codex")
+    const text = async (canEscalate: boolean) => {
+      const answer = await declare({ ...all, canEscalate: () => canEscalate }, "t", "/w", {
+        action: "land",
+        target: "main",
+        said: "land it",
+      })
+      return answer.ok ? answer.text : ""
+    }
+    all.quotes.record("t", "s", "please land it now")
+    expect(await text(true)).toContain("asking for escalation")
+    all.permits.clear()
+    const never = await text(false)
+    expect(never).not.toContain("asking for escalation")
+    expect(never).toContain("can't ask to escalate")
+  })
+
+  it("ends every target of a single-use --admin permit with its first use", async () => {
+    const { all, permits, quotes } = deps()
+    quotes.record("t", "s", "merge it past the checks")
+    await declare(all, "t", "/w", {
+      action: "merge_pr",
+      target: "52",
+      admin: true,
+      said: "past the checks",
+    })
+    expect(permits.covering("t", "pr-admin:r/app#52")).toBeDefined()
+    expect(permits.covering("t", "pr-admin:r/app@feat/x")).toBeDefined()
+    permits.used(permits.covering("t", "pr-admin:r/app#52")!)
+    expect(permits.covering("t", "pr-admin:r/app@feat/x")).toBeUndefined()
+    expect(permits.covering("t", "pr-admin:r/app#52")).toBeUndefined()
+  })
+
+  it("resolves the repository as the hook does, and asks for the name where it can't", async () => {
+    const forked: Lookups = { ...lookups, ghRepo: async () => undefined }
+    const { all, cards } = deps("claude", forked)
+    const unknown = await declare(all, "t", "/w", { action: "merge_pr", target: "5" })
+    expect(unknown).toMatchObject({ ok: false, reason: expect.stringContaining("-R") })
+    expect(await declare(all, "t", "/w", { action: "open_pr", target: "main" })).toMatchObject({
+      ok: false,
+    })
+    await declare(all, "t", "/w", { action: "merge_pr", target: "5", repo: "a/b" })
+    expect(cards.of("t")[0]!.keys[0]).toBe("pr-merge:a/b#5")
+    await declare(all, "t", "/w", {
+      action: "merge_pr",
+      target: "https://github.com/c/d/pull/6",
+    })
+    expect(cards.of("t")[1]!.keys[0]).toBe("pr-merge:c/d#6")
+    // A push goes to its remote's repository, whatever gh acts on.
+    const fork: Lookups = {
+      ...lookups,
+      remoteRepo: async () => "me/app",
+      ghRepo: async () => "up/app",
+    }
+    const pushed = deps("claude", fork)
+    await declare(pushed.all, "t", "/w", { action: "push", target: "main", remote: "origin" })
+    expect(pushed.cards.of("t")[0]!.keys).toEqual(["push:me/app:origin/main"])
   })
 
   it("gives no permit for one word or part of a word, and shows the words it went by", async () => {

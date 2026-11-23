@@ -15,7 +15,7 @@ import { leaseMargin, type Answer } from "../../messaging/hook-answers.js"
 import type { Inbox } from "../../messaging/inbox.js"
 import { byteLength, maxDeliveryBytes, type Held } from "../../messaging/messages.js"
 import type { Messaging } from "../../messaging/messaging.js"
-import type { Person } from "../../messaging/withdrawals.js"
+import type { Person, Submission } from "../../messaging/withdrawals.js"
 import type { GateCall } from "../../shell/hook.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import type { Shipping } from "../../shipping/service.js"
@@ -409,7 +409,11 @@ export class Reports {
     // The person's own prompt starting a root turn takes the session's open asks out of the
     // Inbox, as delivery judges the prompt theirs, but only once a hook acknowledges having
     // printed the notice of it (see `Withdrawals.withdrawn`).
+    let submission: Submission | undefined
     const person: Person = {
+      submitted: (turn) => {
+        submission = turn
+      },
       counts: ({ prompt }) => !this.byCommand(record, prompt),
       withdrawable: (before) => this.host.inbox().withdrawable(record.summary.id, before),
       withdraw: (asks) => this.host.inbox().withdrawReplied(record.summary.id, asks),
@@ -425,7 +429,7 @@ export class Reports {
     }
     if (deadline === undefined) {
       this.host.messaging().observe(report.terminalId, told, person)
-      this.quoted(record, told)
+      this.quoted(record, told, submission)
       this.host.bindings().escaped(record)
       this.judgeFirst(record)
       return silent
@@ -438,7 +442,7 @@ export class Reports {
       person,
       payload: report.payload,
     })
-    this.quoted(record, told)
+    this.quoted(record, told, submission)
     if (stopAsk) {
       this.continued(record, told, answer)
       this.host.bindings().publishAgent(record, moved)
@@ -477,9 +481,11 @@ export class Reports {
    * The person's own root prompt goes into the shipping gate's ring of what they typed (see
    * `Quotes`), whether it starts a turn or comes into one Novadeck continued: only what delivery
    * judges their own submission, never a doorbell or a delivery, nor the command-line prompt an
-   * agent was opened with.
+   * agent was opened with, nor an Inbox button's fixed line. `submission` says when the person
+   * submitted it and whether it answered one of the agent's open asks, so the gate takes it whole
+   * (see `Quotes.said`).
    */
-  quoted(record: Record, events: readonly HarnessEvent[]): void {
+  quoted(record: Record, events: readonly HarnessEvent[], submission?: Submission): void {
     const shipping = this.host.shipping()
     if (!shipping?.enabled()) return
     const start = events.find(
@@ -491,18 +497,28 @@ export class Reports {
     // continued, where the turn's own first prompt is still the one it started with.
     const text = this.host.messaging().personSaid(record.summary.id)
     if (text === undefined || this.byCommand(record, text)) return
-    shipping.quotes.record(record.summary.id, start.sessionId, text)
+    // An Inbox button's fixed line is an option label, never the person's words.
+    if (submission?.fixed) return
+    shipping.quotes.record(
+      record.summary.id,
+      start.sessionId,
+      text,
+      submission?.answers() ?? false,
+      submission?.submittedAt,
+      start.startedAt,
+    )
   }
 
   /**
    * The person's own words answering an ask in the Inbox join the ring too, taken from the
-   * runner's record of the answer: it reaches the agent as a doorbell, which `quoted` never takes.
+   * runner's record of the answer: it reaches the agent as a doorbell, which `quoted` never
+   * takes. It is a reply to an ask by its nature.
    */
   quotedReply(terminalId: string, text: string): void {
     const shipping = this.host.shipping()
     const sessionId = this.host.records().get(terminalId)?.bound?.binding.sessionId
     if (shipping?.enabled() && sessionId !== undefined && text !== "")
-      shipping.quotes.record(terminalId, sessionId, text)
+      shipping.quotes.record(terminalId, sessionId, text, true)
   }
 
   /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */

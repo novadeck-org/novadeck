@@ -1692,14 +1692,25 @@ only gates them (`backend/runner/src/shipping/`).
   or ref move (merge, pull, fetch into a branch, rebase, cherry-pick, reset, `branch -f`/`-m`/`-c`,
   `update-ref`, `checkout -B`, `switch -C`) whose target is not the agent's own branch: the branch
   checked out in a worktree its terminal owns in this repository (matched by its git common
-  dir), pushed to the same name, and not any worktree's home. Tags, `--all`, `--mirror`,
-  deletes, refspec globs, `gh release create` and mutating `gh api` calls (any non-GET
-  `-X`/`--method`, attached or spaced, or a field or input) can't be read and are refused. The reader
+  dir), pushed to the same name, and not any worktree's home. What the gate doesn't model it
+  leaves alone, so the harness decides: tag pushes, `--all`, `--mirror`, `--tags`,
+  `--follow-tags`, `--delete`, `--prune`, refspec globs, remote deletes, non-branch refs, an option
+  a git verb's table lacks, `gh release create` and writing `gh api` calls; and `gh pr merge
+  --disable-auto`, which ships nothing. Two things stay denied: a `gh pr create` or `gh pr merge`
+  it can't read (Antigravity's allow rules would run them unasked), and an unmodelled part that
+  comes with a guarded target (`git push --tags origin HEAD:release`: push them separately).
+  `gh pr merge --auto` and `--admin` have targets of their own (`pr-auto`, `pr-admin`; the latter
+  single use): an auto permit also covers the plain merge of that PR, a plain merge's never
+  covers `--auto`, and `--admin` with `--auto` is refused as gh refuses it. The repository of a
+  `gh pr` command is the one gh acts on, resolved with no network: `-R`, `GH_REPO` or a PR's
+  URL, else the `remote.<name>.gh-resolved` of the clone, else its only remote, else the command
+  is denied with "name the repository with -R" (`request_permit`'s `repo` names it); a push's is
+  its remote's own. The reader
   (`reader.ts`, on the shell reader `words.ts`) reads the raw command, never the pruned report.
 - **Exact allows only.** A command is allowed only when every segment is a shipping action a
   live permit covers, plus `cd X` or `git -C X`. A tail (`&& …`, `;`, a pipe, `&`), an expansion,
   a wrapper (`bash -c`, `eval`, `env`), `git -c …`, env prefixes, `--receive-pack`/`--exec`, a
-  custom merge strategy and `gh pr merge --admin` are refused, with the reason in the deny.
+  custom merge strategy are refused, with the reason in the deny.
   So is a redirect into a file (only `2>&1`, `>/dev/null`, `2>/dev/null` and input pass), and any
   flag a `gh pr` verb's table doesn't list: each verb has its own (`-r` is `--rebase` in `merge`,
   `--reviewer` in `create`), attached values (`-Rowner/repo`, `-Bmain`, `--base=x`) are read, and a
@@ -1747,7 +1758,9 @@ only gates them (`backend/runner/src/shipping/`).
   passes (nothing of the person's is written), allow or deny. Codex: PreToolUse widened to the
   shell tools, and PermissionRequest. A Codex permitted command in a restricted sandbox is denied
   once with "run it again asking for escalation; Novadeck approves it", remembered five minutes,
-  and the PermissionRequest allows the escalation. An answer's effects (a single-use permit
+  and the PermissionRequest allows the escalation; where its approval policy is `never` it can't
+  escalate, so the gate stays silent (the sandbox decides) and tells the agent once per session,
+  in a Novadeck notice. An answer's effects (a single-use permit
   used, the escalation remembered) happen only once the relay acknowledges it printed the answer
   (a lease, as messages have), and an answer not ready by the hook's own deadline is no answer,
   so the harness decides. A Codex command's `workdir` is the folder it runs in; a payload with no

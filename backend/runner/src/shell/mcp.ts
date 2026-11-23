@@ -2006,23 +2006,31 @@ const giveWorktree: Tool<Worktree> = {
 }
 
 // What the runner answers `request_permit` with, as the tool reads it.
-type Permit = { readonly state: "permitted" | "asked"; readonly text: string }
+type Permit = { readonly state: "permitted" | "asked" | "declined"; readonly text: string }
 
 const requestPermit: Tool<Permit> = {
   needs: "gate",
   name: "request_permit",
   description:
     "Declares a shipping action to Novadeck and returns whether the user's permit covers it: " +
-    "merging a PR, opening one, pushing to a branch that isn't yours, landing work on another " +
+    "merging a PR (also with --auto or --admin), opening one, pushing to a branch that isn't yours, landing work on another " +
     "branch. While the user has the shipping gate on, Novadeck's hook allows such a git or gh " +
     "command only when a live permit covers its exact target, and only as the whole command on " +
     "its own; any other is refused. Novadeck gives a permit at once when the user's own words " +
     "typed in this terminal cover the action (`said`, quoted word for word, two words at " +
     "least; Novadeck checks them against what they typed here in the last hour, and a message " +
-    "from another agent never counts). Otherwise it asks the user with a card for this action, " +
-    "Allow or Deny, and `said` isn't needed for that; their answer reaches you as a Novadeck " +
-    "notice. A permit stands for 12 hours until its first use, then ten minutes more for a " +
-    "retry, and the user sees it and can take it back. Novadeck reads the real target from " +
+    "from another agent never counts). The user's reply to one of your own Novadeck asks " +
+    "counts whole, at any length: `said` may be that reply, word for word, even one word " +
+    "(a pick among the options of your harness's own question tool doesn't count). Otherwise it " +
+    "asks the user with a card for this action, Allow or Deny, and `said` isn't needed for " +
+    "that; their answer reaches you as a Novadeck notice. After the user denies a card or takes " +
+    'a permit back, the answer for that action and target is "declined", with no card and ' +
+    "`said` ignored, until the user next types in this terminal; their earlier words never give " +
+    "it a permit again. A permit stands for 12 hours until its first use, then ten minutes more for a " +
+    "retry, and the user sees it and can take it back. A merge with --auto has a permit of its " +
+    "own, which also covers the plain merge of that PR; a plain merge's permit never covers " +
+    "--auto. A merge with --admin, past the PR's required checks, has a single-use permit of " +
+    "its own. Novadeck reads the real target from " +
     "git and gh itself and says what it went by. Returns at once. " +
     "Refused while the shipping gate is off.",
   inputSchema: {
@@ -2032,17 +2040,32 @@ const requestPermit: Tool<Permit> = {
         type: "string",
         enum: ["merge_pr", "open_pr", "push", "force_push", "land"],
         description:
-          "merge_pr: gh pr merge. open_pr: gh pr create, or gh pr edit --base. push: git push to a branch that isn't yours. force_push: the same with force. land: a merge, pull, rebase, cherry-pick or reset onto another branch.",
+          "merge_pr: gh pr merge (set auto or admin for --auto or --admin). open_pr: gh pr create, or gh pr edit --base. push: git push to a branch that isn't yours. force_push: the same with force. land: a merge, pull, rebase, cherry-pick or reset onto another branch.",
       },
       target: {
         type: "string",
         description:
           "merge_pr: the PR's number, or a branch of this terminal's own whose PR it merges, opened or not. open_pr: the base branch, if you name one. push and force_push: the branch pushed to. land: the branch landed on.",
       },
+      auto: {
+        type: "boolean",
+        description:
+          "merge_pr: true for gh pr merge --auto, which merges the PR by itself once its checks pass, work added later included.",
+      },
+      admin: {
+        type: "boolean",
+        description:
+          "merge_pr: true for gh pr merge --admin, which merges past the PR's required checks. Its permit covers one use.",
+      },
+      repo: {
+        type: "string",
+        description:
+          "merge_pr and open_pr: the repository as owner/repo, where the clone has several remotes and no default (gh repo set-default) so gh's own is unknown to Novadeck; the same one the command names with -R.",
+      },
       said: {
         type: "string",
         description:
-          "Optional: the user's own words, exactly as they typed them in this terminal, that ask for this. Where none cover it, Novadeck asks the user with a card.",
+          "Optional: the user's own words, exactly as they typed them in this terminal, that ask for this (two words at least), or their whole reply to one of your Novadeck asks. Where none cover it, Novadeck asks the user with a card.",
       },
       folder: {
         type: "string",
@@ -2059,7 +2082,8 @@ const requestPermit: Tool<Permit> = {
     additionalProperties: false,
   },
   call: "permit",
-  request: (args) => picked(args, ["action", "target", "said", "folder", "remote"]),
+  request: (args) =>
+    picked(args, ["action", "target", "said", "folder", "remote", "repo", "auto", "admin"]),
   said: (answer) => answer.text,
   failed: "Novadeck couldn't declare it.",
 }

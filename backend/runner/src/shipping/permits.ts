@@ -174,8 +174,14 @@ export class Permits {
    */
   used(permit: Permit): void {
     if (permit.singleUse) {
-      if (this.held.delete(this.id(permit.terminalId, permit.key)))
-        this.changed([permit.terminalId])
+      // One use ends every target the same declaration gave (a PR by number and by branch).
+      let ended = false
+      for (const [id, each] of this.held)
+        if (each.terminalId === permit.terminalId && each.group === permit.group) {
+          this.held.delete(id)
+          ended = true
+        }
+      if (ended) this.changed([permit.terminalId])
       return
     }
     const at = this.now()
@@ -201,11 +207,15 @@ export class Permits {
     if (!permit.singleUse) return undefined
     const id = this.id(permit.terminalId, permit.key)
     if (this.held.get(id) !== permit) return undefined
-    this.held.delete(id)
+    const taken = [...this.held].filter(
+      ([, each]) => each.terminalId === permit.terminalId && each.group === permit.group,
+    )
+    for (const [each] of taken) this.held.delete(each)
     const epoch = this.epoch
     return () => {
-      if (this.epoch === epoch && this.stands(permit, this.now()) && !this.held.has(id))
-        this.held.set(id, permit)
+      for (const [each, held] of taken)
+        if (this.epoch === epoch && this.stands(held, this.now()) && !this.held.has(each))
+          this.held.set(each, held)
     }
   }
 
@@ -307,41 +317,87 @@ export const quotedIn = (prompt: string, quote: string): string | undefined => {
  * session, so a `/clear` (a new session) starts it empty. Only the person's real
  * typing goes in: the caller records a root turn the person began, never a doorbell, a delivery
  * or a command line an agent was started with.
+ *
+ * A prompt that answered one of the agent's open asks is a reply, which `said` takes whole at any
+ * length. Each prompt is kept with when the person submitted it, so a decline can tell the
+ * prompts before it from those after (`Declines`), however late a prompt was reported.
  */
 export class Quotes {
   private readonly rings = new Map<
     string,
-    { sessionId: string; prompts: { at: number; text: string }[] }
+    {
+      sessionId: string
+      prompts: { at: number; text: string; reply: boolean; turn?: number }[]
+    }
   >()
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  /** Notes a prompt the person typed into `terminalId`'s root session. */
-  record(terminalId: string, sessionId: string, text: string): void {
+  /**
+   * Notes a prompt the person typed into `terminalId`'s root session, submitted at `at` (now when
+   * left out); `reply` where it answered an ask. `turn` names the turn it started: the same turn
+   * reported twice (a hook and a transcript) is one prompt, while the same words typed again are
+   * another.
+   */
+  record(
+    terminalId: string,
+    sessionId: string,
+    text: string,
+    reply = false,
+    at: number = this.now(),
+    turn?: number,
+  ): void {
     const ring = this.rings.get(terminalId)
     const prompts = ring?.sessionId === sessionId ? ring.prompts : []
-    // The same turn reported twice (a hook and a transcript) is one prompt.
-    if (prompts.at(-1)?.text === text) return
-    prompts.push({ at: this.now(), text })
+    const same =
+      turn === undefined
+        ? undefined
+        : prompts.find((prompt) => prompt.turn === turn && prompt.text === text)
+    if (same) {
+      if (reply) same.reply = true
+      return
+    }
+    prompts.push({ at, text, reply, ...(turn !== undefined && { turn }) })
     this.rings.set(terminalId, { sessionId, prompts: prompts.slice(-ringPrompts) })
+  }
+
+  /** The time a decline made now is held at: only prompts submitted after it are after it. */
+  mark(): number {
+    return this.now()
+  }
+
+  /** Whether the person submitted a prompt into `terminalId` after `mark`. */
+  typedSince(terminalId: string, mark: number): boolean {
+    return (this.rings.get(terminalId)?.prompts ?? []).some((prompt) => prompt.at > mark)
   }
 
   /** The prompts still in the ring, oldest first. */
   prompts(terminalId: string): readonly string[] {
+    return this.fresh(terminalId).map((prompt) => prompt.text)
+  }
+
+  private fresh(terminalId: string, since = Number.NEGATIVE_INFINITY) {
     const cutoff = this.now() - ringMs
-    return (this.rings.get(terminalId)?.prompts ?? [])
-      .filter((prompt) => prompt.at > cutoff)
-      .map((prompt) => prompt.text)
+    return (this.rings.get(terminalId)?.prompts ?? []).filter(
+      (prompt) => prompt.at > cutoff && prompt.at > since,
+    )
   }
 
   /**
    * What the person typed that `said` quotes, word for word (see `quotedIn`), in the prompts of
-   * this terminal; undefined where they didn't say it. Novadeck checks that they said it; the
-   * agent judges what it means.
+   * this terminal; or, for a reply to an ask, the whole reply, whatever its length. Undefined
+   * where they didn't say it. Only prompts after `since` count. Novadeck checks that they said
+   * it; the agent judges what it means.
    */
-  said(terminalId: string, said: string): string | undefined {
-    for (const prompt of this.prompts(terminalId).toReversed()) {
-      const found = quotedIn(prompt, said)
+  said(terminalId: string, said: string, since = Number.NEGATIVE_INFINITY): string | undefined {
+    const wanted = wordsOf(said).map((each) => each.word)
+    for (const prompt of this.fresh(terminalId, since).toReversed()) {
+      if (prompt.reply && wanted.length > 0) {
+        const have = wordsOf(prompt.text).map((each) => each.word)
+        if (have.length === wanted.length && have.every((word, at) => word === wanted[at]))
+          return prompt.text
+      }
+      const found = quotedIn(prompt.text, said)
       if (found !== undefined) return found
     }
     return undefined
@@ -349,5 +405,70 @@ export class Quotes {
 
   forget(terminalId: string): void {
     this.rings.delete(terminalId)
+  }
+}
+
+/**
+ * The actions and targets the person declined (a Deny on a card, a Take back), per terminal and
+ * agent session, in memory like permits. A declined key answers "declined" until the person next
+ * types in that terminal; after that it asks as usual, but only words typed after the decline
+ * can give its permit (`since`). It ends with the agent session, the terminal's close, the gate
+ * switched off and a restart.
+ */
+export class Declines {
+  private readonly held = new Map<
+    string,
+    { sessionId: string | null; marks: Map<string, number> }
+  >()
+
+  constructor(
+    private readonly quotes: Quotes,
+    private readonly session: (terminalId: string) => string | undefined = () => undefined,
+  ) {}
+
+  // The terminal's declines, none once another session is bound there (none bound: they wait).
+  private live(terminalId: string): Map<string, number> | undefined {
+    const held = this.held.get(terminalId)
+    if (!held) return undefined
+    const session = this.session(terminalId)
+    if (session !== undefined && session !== held.sessionId) {
+      this.held.delete(terminalId)
+      return undefined
+    }
+    return held.marks
+  }
+
+  /** The person declined these keys now. */
+  decline(terminalId: string, keys: readonly string[]): void {
+    const held = this.live(terminalId) ?? new Map<string, number>()
+    const mark = this.quotes.mark()
+    for (const key of keys) held.set(key, mark)
+    this.held.set(terminalId, {
+      sessionId: this.session(terminalId) ?? null,
+      marks: held,
+    })
+  }
+
+  /** Whether `key` is declined and the person hasn't typed in the terminal since. */
+  declined(terminalId: string, key: string): boolean {
+    const mark = this.live(terminalId)?.get(key)
+    return mark !== undefined && !this.quotes.typedSince(terminalId, mark)
+  }
+
+  /** The time before which the person's words never give any of `keys` a permit again; minus infinity for none. */
+  since(terminalId: string, keys: readonly string[]): number {
+    const marks = this.live(terminalId)
+    return Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...keys.map((key) => marks?.get(key) ?? Number.NEGATIVE_INFINITY),
+    )
+  }
+
+  forget(terminalId: string): void {
+    this.held.delete(terminalId)
+  }
+
+  clear(): void {
+    this.held.clear()
   }
 }

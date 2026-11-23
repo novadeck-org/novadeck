@@ -1929,6 +1929,27 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     }
   })
 
+  it("lists request_permit with --auto and --admin only while the gate is on, and forwards them", async () => {
+    answersBy.worktrees = { ok: true, on: true, gate: true }
+    try {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as {
+        name: string
+        description: string
+        inputSchema: { properties: { [name: string]: unknown } }
+      }[]
+      const permit = described.find((tool) => tool.name === "request_permit")!
+      expect(Object.keys(permit.inputSchema.properties)).toEqual(
+        expect.arrayContaining(["auto", "admin", "repo"]),
+      )
+      expect(permit.description).toContain("--auto")
+      expect(permit.description).toContain("--admin")
+      expect(permit.description).not.toMatch(/end your turn/i)
+    } finally {
+      delete answersBy.worktrees
+    }
+  })
+
   it("says how shipping commands are approved only where the runner says the gate covers this agent", async () => {
     const approvalText = async () => {
       const [, tools] = await session(terminal(), [initialize, list])

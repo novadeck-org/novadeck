@@ -50,6 +50,10 @@ export type Turn = {
 export type GateDeps = {
   readonly lookups: (terminalId: string) => Lookups
   readonly permits: Permits
+  /** Whether the person declined this key in the terminal and hasn't typed there since. */
+  readonly declined: (terminalId: string, key: string) => boolean
+  /** Whether a card for this key waits for the person in the terminal. */
+  readonly carded: (terminalId: string, key: string) => boolean
   /**
    * The person's allow rules for the session `agent` holds in a terminal, whose command runs in
    * `cwd`: its harness reads its project's in the folder it started in, not the command's.
@@ -61,6 +65,15 @@ export type GateDeps = {
   ) => Promise<readonly AllowRule[]>
   /** The turn Codex's rollout last started; undefined when it can't be read. */
   readonly turn: (transcript: string | undefined) => Promise<Turn | undefined>
+  /**
+   * Tells the agent in a terminal, as a Novadeck notice, that its Codex session can't escalate;
+   * `session` is the agent session it is told once for. Absent, nobody is told.
+   */
+  readonly cantEscalate?: (terminalId: string, turn: Turn) => void
+  /** A Codex turn's policy, as the gate read it: what `request_permit` and a card's answer then say. */
+  readonly turnSeen?: (terminalId: string, turn: Turn | undefined) => void
+  /** The agent session bound in a terminal now, if any. */
+  readonly session?: (terminalId: string) => string | undefined
   readonly now?: () => number
 }
 
@@ -103,16 +116,73 @@ export const describeKey = (key: string): string => {
     case "pr-create":
       return `open a PR into ${target === "@default" ? "the default branch" : target} in ${repo}`
     default: {
+      // A merge by number or by head branch; `--auto` and `--admin` merge in their own ways.
+      const how =
+        kind === "pr-auto"
+          ? " by itself once its checks pass"
+          : kind === "pr-admin"
+            ? " past its required checks"
+            : ""
       const merge = /^(.*)#(\d+)$/.exec(rest)
-      if (merge) return `merge PR #${merge[2]} in ${merge[1]}`
+      if (merge) return `merge PR #${merge[2]} in ${merge[1]}${how}`
       const branch = /^(.*)@(.*)$/.exec(rest)
-      return branch ? `merge the PR of ${branch[2]} in ${branch[1]}` : `ship ${key}`
+      return branch ? `merge the PR of ${branch[2]} in ${branch[1]}${how}` : `ship ${key}`
     }
   }
 }
 
-const declare = (keys: readonly string[]): string =>
-  `Novadeck: this ships work (${keys.map(describeKey).join("; ")}) and no permit covers it. request_permit gives a permit when the user's own words typed in this terminal cover it, and otherwise asks the user with a card for this action; their answer reaches you as a Novadeck notice, and the command can be run again after it.`
+/** The arguments of the `request_permit` call that declares a key, as the tool takes them. */
+const declaring = (key: string, folder: string): string => {
+  const kind = key.slice(0, key.indexOf(":"))
+  const rest = key.slice(key.indexOf(":") + 1)
+  const at = rest.indexOf(":")
+  const target = at < 0 ? "" : rest.slice(at + 1)
+  const args: [string, string][] = []
+  switch (kind) {
+    case "push":
+    case "push-force": {
+      const slash = target.indexOf("/")
+      args.push(
+        ["action", kind === "push" ? "push" : "force_push"],
+        ["target", target.slice(slash + 1)],
+        ["remote", target.slice(0, slash)],
+      )
+      break
+    }
+    case "land":
+      args.push(["action", "land"], ["target", target])
+      break
+    case "pr-create":
+      args.push(
+        ["action", "open_pr"],
+        ...(target === "@default" ? [] : [["target", target] as [string, string]]),
+      )
+      break
+    default: {
+      const merge = /^(.*)#(\d+)$/.exec(rest)
+      const branch = /^(.*)@(.*)$/.exec(rest)
+      args.push(["action", "merge_pr"], ["target", merge ? merge[2]! : (branch?.[2] ?? "")])
+    }
+  }
+  args.push(["folder", folder])
+  return args.map(([name, value]) => `${name}: ${JSON.stringify(value)}`).join(", ")
+}
+
+/** What the gate says of keys no permit covers: each one's case, with what it read and from where. */
+const uncovered = (
+  keys: readonly { readonly key: string; readonly case: "declined" | "card" | "declare" }[],
+  folder: string,
+): string =>
+  `Novadeck: this ships work and no permit covers it. ${keys
+    .map(({ key, case: why }) => {
+      const read = `${describeKey(key)}, read from ${folder}`
+      if (why === "declined")
+        return `Declined: the user declined it (${read}); no card opens until they next type in this terminal.`
+      if (why === "card")
+        return `A card for it (${read}) waits for the user; their answer comes as a Novadeck notice.`
+      return `Declare it first (${read}): request_permit with ${declaring(key, folder)}; it gives a permit when the user's own words typed in this terminal cover it, and otherwise asks the user with a card.`
+    })
+    .join(" ")}`
 
 const escalate =
   "Novadeck: a permit covers this command, and the sandbox may block it. Run it again asking for escalation; Novadeck approves it."
@@ -164,6 +234,8 @@ export type Covered = {
 export class Gate {
   // Commands a Codex agent was asked to escalate, by terminal and command, and until when.
   private readonly escalated = new Map<string, number>()
+  // The agent sessions told that Codex can't escalate in them (approval `never` in a sandbox).
+  private readonly told = new Set<string>()
 
   constructor(private readonly deps: GateDeps) {}
 
@@ -188,6 +260,7 @@ export class Gate {
     const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
     if (reading.kind === "none") return undefined
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
+    if (input.agent === "codex") this.deps.turnSeen?.(input.terminalId, turn)
     if (bypass(turn)) return undefined
     // Where the person's own rule allows the command, the harness had no gate there either.
     if (covered(await this.deps.rules(input.agent, input.terminalId, input.cwd), input.command))
@@ -197,16 +270,28 @@ export class Gate {
     })
     if (reading.refusal !== undefined)
       return refuse(
-        `Novadeck: this command can't be allowed, because ${reading.refusal}. Run each shipping command on its own, spelled out.`,
+        `Novadeck: this command ships work${
+          reading.actions.length > 0
+            ? ` (${reading.actions.map((action) => describeKey(action.key)).join("; ")})`
+            : ""
+        }, read from ${input.cwd}, and can't be allowed, because ${reading.refusal}. ${reading.remedy ?? "Run each shipping command on its own, spelled out."}`,
       )
     const permits: Permit[] = []
-    const missing: string[] = []
+    const missing: { key: string; case: "declined" | "card" | "declare" }[] = []
     for (const action of reading.actions) {
       const permit = this.deps.permits.covering(input.terminalId, action.key)
       if (permit) permits.push(permit)
-      else missing.push(action.key)
+      else
+        missing.push({
+          key: action.key,
+          case: this.deps.declined(input.terminalId, action.key)
+            ? "declined"
+            : this.deps.carded(input.terminalId, action.key)
+              ? "card"
+              : "declare",
+        })
     }
-    if (missing.length > 0) return refuse(declare(missing))
+    if (missing.length > 0) return refuse(uncovered(missing, input.cwd))
     // Antigravity's hook has no allow: it stays silent, its own confirmation shows, and the
     // runner answers that one (`Shipping.autoAnswer`) only for this very command.
     if (input.agent === "agy") return { stdout: "", permitted: true }
@@ -275,6 +360,20 @@ export class Gate {
       return { stdout: printed("PermissionRequest", "allow", note), commit: used }
     // No opinion is printed, so the sandbox's own decision stands: the permit is used here.
     if (!restricted(turn)) return { stdout: "", commit: used }
+    // A sandbox with approval `never`: nothing can be escalated, so no retry is asked for. No
+    // opinion is printed and the sandbox decides; the agent is told once per session.
+    if (turn?.approval === "never") {
+      const who = `${input.terminalId}\n${this.deps.session?.(input.terminalId) ?? ""}`
+      return {
+        stdout: "",
+        commit: () => {
+          used()
+          if (this.told.has(who)) return
+          this.told.add(who)
+          this.deps.cantEscalate?.(input.terminalId, turn)
+        },
+      }
+    }
     const key = this.remember(input)
     const until = this.escalated.get(key)
     if (until !== undefined && until > this.now()) return { stdout: "" }

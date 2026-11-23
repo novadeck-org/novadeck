@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { commonDir } from "../checkouts/repository.js"
 import type { WorktreeRecord } from "../worktrees/records.js"
-import { defaultOf, gitLookups, validName } from "./lookups.js"
+import { defaultOf, ghRepoOf, gitLookups, validName } from "./lookups.js"
 
 let dir: string
 const sh = (cwd: string, ...args: string[]) =>
@@ -95,5 +95,55 @@ describe("the names the gate checks", () => {
     sh(a, "update-ref", "refs/remotes/origin/trunk", "HEAD")
     sh(a, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
     expect(await defaultOf(a)).toBe("trunk")
+  })
+})
+
+describe("the repository gh acts on, from a clone's config", () => {
+  const config = (...lines: string[]) => lines.join("\n")
+
+  it("takes the only remote", () => {
+    expect(ghRepoOf("remote.origin.url git@github.com:me/app.git")).toBe("me/app")
+  })
+
+  it("cannot tell with several remotes and no default", () => {
+    expect(
+      ghRepoOf(
+        config(
+          "remote.origin.url git@github.com:me/app.git",
+          "remote.upstream.url https://github.com/up/app.git",
+        ),
+      ),
+    ).toBeUndefined()
+    expect(ghRepoOf("")).toBeUndefined()
+  })
+
+  it("follows gh-resolved: base is that remote's own repository, else a literal", () => {
+    const two = [
+      "remote.origin.url git@github.com:me/app.git",
+      "remote.upstream.url https://github.com/up/app.git",
+    ]
+    expect(ghRepoOf(config(...two, "remote.upstream.gh-resolved base"))).toBe("up/app")
+    expect(ghRepoOf(config(...two, "remote.origin.gh-resolved base"))).toBe("me/app")
+    expect(ghRepoOf(config(...two, "remote.origin.gh-resolved up/app"))).toBe("up/app")
+  })
+})
+
+describe("a clone's remotes, as git says them", () => {
+  it("resolves gh's repository, a push's remote and a tag in a real clone", async () => {
+    const path = make("fork")
+    const lookups = gitLookups("t", { ofTerminal: () => [], all: () => [] })
+    expect(await lookups.ghRepo(path)).toBeUndefined()
+    sh(path, "remote", "add", "origin", "git@github.com:me/app.git")
+    expect(await lookups.ghRepo(path)).toBe("me/app")
+    sh(path, "remote", "add", "upstream", "https://github.com/up/app.git")
+    expect(await lookups.ghRepo(path)).toBeUndefined()
+    sh(path, "config", "remote.upstream.gh-resolved", "base")
+    expect(await lookups.ghRepo(path)).toBe("up/app")
+    expect(await lookups.remoteRepo(path, "origin")).toBe("me/app")
+    expect(await lookups.remoteRepo(path, "upstream")).toBe("up/app")
+    expect(await lookups.remoteRepo(path, "nowhere")).toBeUndefined()
+    sh(path, "tag", "v1")
+    expect(await lookups.tag(path, "v1")).toBe(true)
+    expect(await lookups.tag(path, "feat")).toBe(false)
   })
 })

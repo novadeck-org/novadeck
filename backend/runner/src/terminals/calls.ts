@@ -788,13 +788,18 @@ export class Calls {
             ok: false,
             reason: "The shipping gate is off, so no shipping command needs a permit.",
           })
-        const { action, target, said, folder, remote } = call.request as { [key: string]: unknown }
+        const { action, target, said, folder, remote, repo, auto, admin } = call.request as {
+          [key: string]: unknown
+        }
         return shipping.declare(call.terminalId, {
           action: typeof action === "string" ? action : "",
           ...(typeof target === "string" && { target }),
           ...(typeof said === "string" && { said }),
           ...(typeof folder === "string" && { folder }),
           ...(typeof remote === "string" && { remote }),
+          ...(typeof repo === "string" && { repo }),
+          ...(auto === true && { auto }),
+          ...(admin === true && { admin }),
         })
       }
       case "mode": {

@@ -10,6 +10,9 @@ const lookups: Lookups = {
   branch: async (cwd) => (cwd === "/main" ? "main" : "feat/x"),
   upstream: async () => undefined,
   repo: async () => "r/app",
+  ghRepo: async () => "r/app",
+  remoteRepo: async () => "r/app",
+  tag: async () => false,
   own: async (_cwd, branch) => branch === "feat/x",
 }
 
@@ -18,9 +21,13 @@ const setup = (
   rules = [] as ReturnType<typeof claudeRule>[],
 ) => {
   const permits = new Permits()
+  const declined = new Set<string>()
+  const carded = new Set<string>()
   const gate = new Gate({
     lookups: () => lookups,
     permits,
+    declined: (_terminal, key) => declined.has(key),
+    carded: (_terminal, key) => carded.has(key),
     rules: async () => rules.filter((each) => each !== undefined),
     turn: async () => turn,
   })
@@ -32,7 +39,7 @@ const setup = (
     cwd: "/main",
     ...extra,
   })
-  return { permits, gate, input }
+  return { permits, gate, input, declined, carded }
 }
 // What the hook prints once the answer is delivered, as the lease acknowledged does.
 const deliver = async (
@@ -84,8 +91,41 @@ describe("the shipping gate", () => {
     expect(out?.permissionDecision).toBe("deny")
     expect(out?.permissionDecisionReason).toContain("request_permit")
     // It says what the tool does, as a fact: a card for the user where their words are not there.
-    expect(out?.permissionDecisionReason).toContain("asks the user with a card for this action")
+    expect(out?.permissionDecisionReason).toContain("asks the user with a card")
     expect(out?.permissionDecisionReason).toContain("merge PR #1170 in r/app")
+    // It names the folder it read and the arguments that declare the action.
+    expect(out?.permissionDecisionReason).toContain("read from /main")
+    expect(out?.permissionDecisionReason).toContain(
+      'request_permit with action: "merge_pr", target: "1170", folder: "/main"',
+    )
+  })
+
+  it("refuses with the case that applies: declined, a card waiting, or declare it first", async () => {
+    const { gate, input, declined, carded } = setup()
+    declined.add("pr-merge:r/app#1170")
+    const said = decision(await deliver(gate, input("gh pr merge 1170")))?.permissionDecisionReason
+    expect(said).toContain(
+      "Declined: the user declined it (merge PR #1170 in r/app, read from /main)",
+    )
+    expect(said).not.toContain("Declare it first")
+    declined.clear()
+    carded.add("pr-merge:r/app#1170")
+    const waiting = decision(
+      await deliver(gate, input("gh pr merge 1170")),
+    )?.permissionDecisionReason
+    expect(waiting).toContain(
+      "A card for it (merge PR #1170 in r/app, read from /main) waits for the user; their answer comes as a Novadeck notice.",
+    )
+    // Facts only: nothing tells the agent how to carry on.
+    expect(`${said}${waiting}`).not.toMatch(/end your turn|carry on/i)
+  })
+
+  it("names the action, target and folder of a refusal to run it on its own", async () => {
+    const { gate, input } = setup()
+    const out = decision(await deliver(gate, input("gh pr merge 1170 && ls", { cwd: "/main" })))
+    expect(out?.permissionDecisionReason).toContain("merge PR #1170 in r/app")
+    expect(out?.permissionDecisionReason).toContain("read from /main")
+    expect(out?.permissionDecisionReason).toContain("Run each shipping command on its own")
   })
 
   it("allows a command whose every target a live permit covers", async () => {
@@ -161,6 +201,8 @@ describe("the shipping gate", () => {
     const gate = new Gate({
       lookups: () => lookups,
       permits,
+      declined: () => false,
+      carded: () => false,
       rules: async () => [],
       turn: async () => ({ approval: "on-request", sandbox: "workspace-write" }),
       now: () => now,
@@ -242,5 +284,94 @@ describe("a standing permit's first use, in each harness", () => {
     expect(used(permits)).toBeNull()
     await deliver(gate, input("gh pr merge 5", { agent: "codex", event: "PermissionRequest" }))
     expect(used(permits)).toEqual(expect.any(Number))
+  })
+})
+
+describe("the narrower merges and Codex without approvals, in each harness", () => {
+  const agents = ["claude", "codex", "agy"] as const
+
+  it("covers --auto and --admin only by their own permits, and an auto permit also a plain merge", async () => {
+    for (const agent of agents) {
+      const { gate, input, permits } = setup({
+        approval: "on-request",
+        sandbox: "danger-full-access",
+      })
+      const run = async (command: string) => {
+        const got = await gate.decide(
+          input(command, { agent, ...(agent === "agy" && { mode: "" }) }),
+        )
+        if (got === undefined) return "silent"
+        if (got.permitted) return "permitted"
+        return got.stdout === "" ? "silent" : got.stdout.includes('"allow"') ? "allow" : "deny"
+      }
+      const allowed = { claude: "allow", codex: "silent", agy: "permitted" }[agent]
+      permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge five" })
+      expect(await run("gh pr merge 5"), agent).toBe(allowed)
+      expect(await run("gh pr merge 5 --auto"), agent).toBe("deny")
+      expect(await run("gh pr merge 5 --admin"), agent).toBe("deny")
+      permits.give("t", "pr-auto:r/app#5", false, { type: "quote", quote: "auto five" })
+      expect(await run("gh pr merge 5 --auto --squash"), agent).toBe(allowed)
+      expect(await run("gh pr merge 5 --admin"), agent).toBe("deny")
+      expect(await run("gh pr merge 5 --disable-auto"), agent).toBe("silent")
+      expect(await run("gh pr merge 5 --admin --auto"), agent).toBe("deny")
+    }
+  })
+
+  it("allows --admin once, as a force push", async () => {
+    const { gate, input, permits } = setup()
+    permits.give("t", "pr-admin:r/app#5", true, { type: "quote", quote: "past checks" })
+    const admin = input("gh pr merge 5 --admin")
+    expect(decision(await deliver(gate, admin))?.permissionDecision).toBe("allow")
+    expect(decision(await deliver(gate, admin))?.permissionDecision).toBe("deny")
+  })
+
+  it("names the action in a refusal of --auto", async () => {
+    const { gate, input } = setup()
+    const reason = decision(await deliver(gate, input("gh pr merge 5 --auto")))
+    expect(reason?.permissionDecisionReason).toContain("by itself once its checks pass")
+  })
+
+  it("never asks Codex to escalate where approvals are never, and says so once per session", async () => {
+    for (const sandbox of ["workspace-write", "read-only"]) {
+      const permits = new Permits()
+      const told: string[] = []
+      let session = "s1"
+      const gate = new Gate({
+        lookups: () => lookups,
+        permits,
+        declined: () => false,
+        carded: () => false,
+        rules: async () => [],
+        turn: async () => ({ approval: "never", sandbox }),
+        session: () => session,
+        cantEscalate: (terminal, turn) => told.push(`${terminal} ${turn.sandbox}`),
+      })
+      permits.give("t", "land:r/app:main", false, { type: "quote", quote: "land it" })
+      const merge = {
+        agent: "codex",
+        event: "PreToolUse",
+        terminalId: "t",
+        command: "git merge feat/x",
+        cwd: "/main",
+      } as const
+      for (let at = 0; at < 3; at += 1) {
+        const got = await gate.decide(merge)
+        expect(got?.stdout, sandbox).toBe("")
+        got?.commit?.()
+      }
+      expect(told, sandbox).toEqual([`t ${sandbox}`])
+      // Another agent session is told again.
+      session = "s2"
+      ;(await gate.decide(merge))?.commit?.()
+      expect(told, sandbox).toHaveLength(2)
+    }
+  })
+
+  it("leaves a never-approval turn with no notice asked for in the other rows", async () => {
+    // A sandbox that escalates is still asked once; bypass and no sandbox stay silent.
+    const { gate, input, permits } = setup({ approval: "on-failure", sandbox: "workspace-write" })
+    permits.give("t", "land:r/app:main", false, { type: "quote", quote: "land it" })
+    const first = await gate.decide(input("git merge feat/x", { agent: "codex" }))
+    expect(first?.stdout).toContain("asking for escalation")
   })
 })

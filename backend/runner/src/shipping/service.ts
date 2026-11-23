@@ -33,7 +33,7 @@ import {
 } from "./gate.js"
 import { agyPreToolUse } from "./hooks.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
-import { Permits, Quotes, type Permit } from "./permits.js"
+import { Declines, Permits, Quotes, type Permit } from "./permits.js"
 import { agyRules, claudeRules, codexRules } from "./rules.js"
 import { shipsByRule } from "./shapes.js"
 
@@ -67,9 +67,9 @@ export const ghOpen = (repo: string, pr: string): Promise<boolean | undefined> =
 /** How often standing merge permits are checked against their PR: closed or merged, they end. */
 export const sweepMs = 5 * 60_000
 
-// A merge permit's repository and PR, as its key names them (`pr-merge:<repo>#<n>` or `@<branch>`).
+// A merge permit's repository and PR, as its key names them (`pr-merge:<repo>#<n>` or `@<branch>`; `pr-auto` and `pr-admin` too).
 const mergeTarget = (key: string): { repo: string; pr: string } | undefined => {
-  const match = /^pr-merge:([^#@]+)[#@](.+)$/.exec(key)
+  const match = /^pr-(?:merge|auto|admin):([^#@]+)[#@](.+)$/.exec(key)
   return match ? { repo: match[1]!, pr: match[2]! } : undefined
 }
 
@@ -184,6 +184,7 @@ export class Shipping {
     this.records.get(terminalId)?.bound?.binding.sessionId
   readonly permits = new Permits(Date.now, { session: this.session })
   readonly quotes = new Quotes()
+  readonly declines = new Declines(this.quotes, this.session)
   readonly cards = new Cards(Date.now, { session: this.session })
   private readonly gate: Gate
   // Answers handed to a hook whose effect waits for its acknowledgement, by lease.
@@ -196,6 +197,8 @@ export class Shipping {
     this.gate = new Gate({
       lookups: (terminalId) => gitLookups(terminalId, host.owned),
       permits: this.permits,
+      declined: (terminalId, key) => this.declines.declined(terminalId, key),
+      carded: (terminalId, key) => this.cards.covering(terminalId, key) !== undefined,
       rules: (agent, terminalId, cwd) => {
         const folder = this.sessionFolder(terminalId, agent) ?? cwd
         const { env, home } = host.ruleFiles ?? {}
@@ -206,6 +209,19 @@ export class Shipping {
             : agyRules(home)
       },
       turn: turnOf,
+      session: this.session,
+      turnSeen: (terminalId, turn) => {
+        if (turn === undefined) this.turns.delete(terminalId)
+        else this.turns.set(terminalId, turn)
+      },
+      cantEscalate: (terminalId, turn) =>
+        host.notify(
+          terminalId,
+          noticeText("Shipping", {
+            facts: `This Codex session runs in a ${turn.sandbox} sandbox with approvals set to never, so it can't ask to escalate. A command a permit covers runs inside the sandbox, which decides whether it can.`,
+            actions: [],
+          }),
+        ),
     })
     // Every permit is on record: who, what, where, on whose word, and when.
     this.permits.onGiven((permit) => {
@@ -243,12 +259,14 @@ export class Shipping {
         lookups: (id) => gitLookups(id, this.host.owned),
         permits: this.permits,
         quotes: this.quotes,
+        declines: this.declines,
         cards: this.cards,
         pull: ghPull,
         valid: validName,
         defaultBranch: async (folder, repo) =>
           (await defaultOf(folder)) ?? (await ghDefault(folder, repo)),
         agentOf: (id) => this.agentOf(id),
+        canEscalate: (id) => this.canEscalate(id),
       },
       terminalId,
       cwd,
@@ -262,6 +280,7 @@ export class Shipping {
    */
   answered(card: Card, allow: boolean, client?: string): void {
     this.cards.close(card)
+    if (!allow) this.declines.decline(card.terminalId, card.keys)
     if (!allow)
       log.info("shipping.declined", `The user declined: ${card.title}`, {
         data: {
@@ -291,7 +310,9 @@ export class Shipping {
           ? [
               "run the command on its own, as declared" +
                 (this.agentOf(card.terminalId) === "codex"
-                  ? "; if the sandbox blocks it, run it again asking for escalation"
+                  ? this.canEscalate(card.terminalId)
+                    ? "; if the sandbox blocks it, run it again asking for escalation"
+                    : "; this Codex session can't escalate, so the sandbox decides whether it runs"
                   : ""),
             ]
           : [],
@@ -334,6 +355,14 @@ export class Shipping {
     const record = this.records.get(terminalId)
     if (record?.bound?.binding.agent !== agent) return undefined
     return record.agents[agent]?.cwd
+  }
+
+  // What each Codex terminal's latest turn said it runs under, as the gate read it.
+  private readonly turns = new Map<string, Turn>()
+
+  /** Whether the Codex agent in a terminal can escalate: not where its approvals are `never`. */
+  private canEscalate(terminalId: string): boolean {
+    return this.turns.get(terminalId)?.approval !== "never"
   }
 
   private agentOf(terminalId: string): "claude" | "codex" | "agy" | undefined {
@@ -647,7 +676,13 @@ export class Shipping {
   takeBack(terminalId: string, group: string, client?: string): boolean | undefined {
     if (!this.records.has(terminalId)) return undefined
     const permit = this.permits.of(terminalId).find((each) => each.group === group)
-    if (!permit || !this.permits.takeBack(terminalId, group)) return false
+    if (!permit) return false
+    const keys = this.permits
+      .of(terminalId)
+      .filter((each) => each.group === group)
+      .map((each) => each.key)
+    if (!this.permits.takeBack(terminalId, group)) return false
+    this.declines.decline(terminalId, keys)
     log.info("shipping.taken-back", `The user took back a permit: ${permit.title}`, {
       data: {
         terminalId,
@@ -711,6 +746,7 @@ export class Shipping {
   switched(): void {
     if (this.host.enabled()) return
     this.permits.clear()
+    this.declines.clear()
     for (const terminalId of this.records.keys()) {
       this.cards.forget(terminalId)
       this.quotes.forget(terminalId)
@@ -720,8 +756,10 @@ export class Shipping {
   /** A terminal closed: its permits and quotes go. */
   closed(terminalId: string): void {
     this.permits.forget(terminalId)
+    this.declines.forget(terminalId)
     this.quotes.forget(terminalId)
     this.cards.forget(terminalId)
+    this.turns.delete(terminalId)
     this.modes.delete(terminalId)
     this.pending.delete(terminalId)
     this.hooked.delete(terminalId)
