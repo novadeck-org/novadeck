@@ -3304,7 +3304,7 @@ again on each call.
      A fact not known (no plan, no folder yet, a branch not read in time) is no change.
      They are read only for an answer that delivers no messages and with time left, so a
      delivery never waits on them;
-  4. as a backstop, 5 of the person's prompts since the last `describe`, or since the
+  4. as a backstop, 10 of the person's prompts since the last `describe`, or since the
      backstop last fired (the doorbell's turns don't count);
   5. every turn's start while the terminal has no summary at all: an agent whose first prompt
      gives it no work yet (a question) puts the first nudge off, as the notice allows, and
