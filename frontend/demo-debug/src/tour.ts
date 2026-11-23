@@ -33,7 +33,7 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
       })),
       {
         label: "Answer the startup screen",
-        hint: 'The tour agent held at a startup screen goes on: it binds, works, names its terminal "Game lead" and opens its team',
+        hint: 'The tour agent held at a startup screen goes on: it binds, works, names its terminal "Game lead" asks its sheet and opens its team',
         run: () => tour.answer(),
       },
       {
@@ -47,39 +47,44 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
         run: () => tour.askPermission(),
       },
       {
-        label: "Tour story: the lead's team stays quiet until nudged",
-        hint: "The next tour lead names itself, then waits for the tour's nudge before opening its Sculptor and Score fixer",
+        label: "Tour story: the lead's sheet waits until nudged",
+        hint: "The next tour lead names itself, then waits for the tour's nudge before it asks its sheet and opens its Modeller and Builder",
         run: () => tour.goQuietTeam(),
       },
       {
-        label: "Tour story: the sculptor stays quiet until nudged",
-        hint: "In the next run the Sculptor opens but sits idle at its prompt, so no model and no question appear, until the tour nudges it",
-        run: () => tour.goQuietSculptor(),
+        label: "Tour story: the modeller stays quiet until nudged",
+        hint: "In the next run the Modeller opens but sits idle at its prompt, so no model appears, until the tour nudges it",
+        run: () => tour.goQuietModeller(),
       },
       {
-        label: "Tour story: the artist stays quiet until nudged",
-        hint: "In the next run the Cover artist, once the tour started it in a new terminal and rang its brief, stays idle: it names itself, asks the lead and draws its cover only once nudged",
-        run: () => tour.goQuietArtist(),
-      },
-      {
-        label: "Tour story: the artist never starts",
-        hint: "In the next run the tour opens the artist's terminal but no agent ever shows in it, so after the tour's wait the artist's three steps are dropped and the last one says Three agents. One game. Play it.",
-        run: () => tour.goArtistNever(),
+        label: "Tour story: the modeller asks about the hero's colour",
+        hint: "In the next run the Modeller, once it showed its model, asks in the Inbox What colour should the hero be? and waits for the answer before it reports; the tour points at the ask until it's answered",
+        run: () => tour.goMateAsks(),
       },
       {
         label: "Tour story: no page (as on a computer without Node or Python)",
-        hint: "The next run has no page: the lead opens no Game server terminal, asks for no command, and shows no page, so the tour skips those two steps and ends on the Sculptor's model",
+        hint: "The next run has no page: the lead opens no Game server terminal, asks for no command, and shows no page, so the tour skips those two steps and goes on to the Modeller's model",
         run: () => tour.goNoPage(),
       },
       {
-        label: "Tour story: answer the hero ask (A rocket)",
-        hint: "While the Sculptor's ask waits in the Inbox (Who is your game's hero?), answers it with A rocket as the person would: the row goes, the Sculptor tells the lead, and the 3D model is sculpted again",
-        run: () => tour.answerHero(0),
+        label: "Tour story: answer the sheet (Fantasy, RPG)",
+        hint: "While the lead's sheet waits in the Inbox (Which game shall we build?), answers it with its first options as the person would: the row goes, and the lead opens its Modeller and Builder",
+        run: () => tour.answerSheet(),
       },
       {
-        label: "Tour story: answer the hero ask (own words)",
-        hint: "The same ask answered in your own words, a cat named Pixel: the Sculptor sculpts a cat, and the lead names the game for it in src/config.js",
-        run: () => tour.answerHero("my cat Pixel"),
+        label: "Tour story: answer the sheet (Sci-fi, Shooter)",
+        hint: "The same sheet answered with its second options: the Modeller models a rocket, and the game is called Sci-fi Shooter",
+        run: () => tour.answerSheet({ world: 1, kind: 1 }),
+      },
+      {
+        label: "Tour story: answer the sheet (own words)",
+        hint: "The same sheet answered in your own words, Modern and Racing: the Modeller models a robot, and the game is called Modern Racing",
+        run: () => tour.answerSheet({ world: "Modern", kind: "Racing" }),
+      },
+      {
+        label: "Tour story: answer the modeller's question (Red)",
+        hint: "While the Modeller's ask waits in the Inbox (What colour should the hero be?), answers it with Red as the person would: the row goes, and the Modeller reports to the lead",
+        run: () => tour.answerMate(0),
       },
       {
         label: "Tour story: keeping fails",

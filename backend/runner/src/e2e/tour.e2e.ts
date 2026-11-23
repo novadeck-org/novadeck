@@ -3,6 +3,7 @@ import { readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { tourBriefMark } from "../messaging/messages.js"
+import { branches } from "../tour/brief.js"
 import { tourMarker } from "../tour/folder.js"
 import { tourWrites } from "../tour/launch.js"
 import { setups } from "./agents/index.js"
@@ -132,7 +133,7 @@ for (const setup of setups) {
           "README.md",
           "dev.mjs",
           "index.html",
-          "model",
+          "models",
           "src",
           "vendor",
         ]),
@@ -202,7 +203,8 @@ for (const setup of setups) {
       // script, whose first step the model follows, as an agent's task.
       const notice = deliveries(first).find((one) => one.from === "novadeck")
       expect(notice?.text).toContain("## Steps")
-      expect(notice?.text).toContain("fix-score")
+      expect(notice?.text).toContain(`branch "${branches.modeller}"`)
+      expect(notice?.text).toContain(`branch "${branches.builder}"`)
       expect(notice?.text).toContain("browser game")
       // The brief's own first step: the call to `describe`, and its greeting.
       await terminal.until("The tour has begun.", 60_000)

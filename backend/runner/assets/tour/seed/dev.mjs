@@ -28,10 +28,16 @@ const types = {
   ".wav": "audio/wav",
 }
 
+// Git only reads here, and never takes the index's lock to refresh it (`--no-optional-locks`), so
+// a commit Novadeck makes in these folders meanwhile never finds the lock held.
+const reading = ["--no-optional-locks"]
+
 // The other worktrees of this repo, as git lists them; none without git.
 const worktrees = () => {
   try {
-    const listed = execFileSync("git", ["worktree", "list", "--porcelain"], { cwd: home })
+    const listed = execFileSync("git", [...reading, "worktree", "list", "--porcelain"], {
+      cwd: home,
+    })
     return String(listed)
       .split("\n")
       .filter((line) => line.startsWith("worktree "))
@@ -78,7 +84,7 @@ const partsOf = (pathname) => {
 const git = (folder, ...args) => {
   try {
     const options = { cwd: folder, stdio: ["ignore", "pipe", "ignore"], maxBuffer: 2 ** 30 }
-    return String(execFileSync("git", args, options))
+    return String(execFileSync("git", [...reading, ...args], options))
   } catch {
     return undefined
   }

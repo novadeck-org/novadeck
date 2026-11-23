@@ -22,7 +22,7 @@ const facts = (agent: AgentName) =>
   [
     {
       icon: Clock,
-      text: `Runs four ${nameOf(agent)} agents on its cheapest model, on your own account, for about 4 minutes.`,
+      text: `Runs three ${nameOf(agent)} agents on its cheapest model, on your own account, for about 5 minutes.`,
     },
     {
       icon: FolderLock,
@@ -118,7 +118,7 @@ const TourConsentBody = ({
       <DialogDescription className="modal-description m-0 text-body leading-[1.6]">
         {agent === null
           ? "The tour runs one of your agents. Install and connect Claude Code, Codex or Antigravity in Preferences first."
-          : "Your own agent leads a small team that builds a little browser game around a hero you name. You answer one question, approve one command, and play the game at the end."}
+          : "Your own agent leads a small team that builds a little browser game you choose. You answer a question or two, approve one command, and play the game at the end."}
       </DialogDescription>
       {agent !== null && agents.length > 1 && (
         <SegmentGroup

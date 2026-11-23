@@ -8,7 +8,7 @@ import { currentBranch, keysOf } from "../checkouts/home.js"
 import { commonDir } from "../checkouts/repository.js"
 import type { WorktreeRecord } from "../worktrees/records.js"
 import { mainName } from "../worktrees/worktrees.js"
-import type { Lookups } from "./reader.js"
+import { repoNamed, type Lookups } from "./reader.js"
 
 const small = { cap: 64 * 1024 }
 
@@ -34,6 +34,38 @@ export const defaultOf = async (cwd: string): Promise<string | undefined> =>
     "",
   )
 
+// The order gh looks through remotes for the one it resolved: the conventional names first.
+const rank = (name: string): number => ["upstream", "github", "origin"].indexOf(name) >>> 0
+
+/**
+ * The repository `gh` acts on with no flag, from a clone's git config alone: a remote's
+ * `gh-resolved` (`base` for that remote's own repository, or an `owner/repo`), else the only
+ * remote's. Undefined where gh would have to ask the network or the person.
+ */
+export const ghRepoOf = (config: string): string | undefined => {
+  const urls = new Map<string, string>()
+  const resolved = new Map<string, string>()
+  for (const line of config.split("\n")) {
+    const match = /^remote\.(.+)\.(url|gh-resolved)\s(.*)$/.exec(line)
+    if (!match) continue
+    const [, name = "", key, value = ""] = match
+    const into = key === "url" ? urls : resolved
+    if (!into.has(name)) into.set(name, value.trim())
+  }
+  const names = [...resolved.keys()].toSorted((a, b) => rank(a) - rank(b))
+  for (const name of names) {
+    const value = resolved.get(name)!
+    if (value === "base") {
+      const url = urls.get(name)
+      return url === undefined ? undefined : repoOfUrl(url)
+    }
+    const literal = repoNamed(value)
+    if (literal !== undefined) return literal
+  }
+  if (urls.size !== 1) return undefined
+  return repoOfUrl([...urls.values()][0]!)
+}
+
 /** The worktrees the gate asks the runner's records about. */
 export type Owned = {
   /** The tracked worktrees of the terminal, and of every terminal. */
@@ -57,6 +89,23 @@ export const gitLookups = (terminalId: string, owned: Owned): Lookups => ({
     const common = await commonDir(cwd)
     return typeof common === "string" ? common : undefined
   },
+  ghRepo: async (cwd) => {
+    const run = await git(
+      cwd,
+      ["config", "--get-regexp", "^remote\\..*\\.(url|gh-resolved)$"],
+      small,
+    )
+    return run.ok ? ghRepoOf(run.out) : undefined
+  },
+  remoteRepo: async (cwd, remote) => {
+    const url = await out(cwd, ["remote", "get-url", "--push", "--", remote])
+    if (url !== undefined) return repoOfUrl(url)
+    // Not a configured remote: a URL or a path stands for itself.
+    return /[:/\\]/.test(remote) ? repoOfUrl(remote) : undefined
+  },
+  tag: async (cwd, name) =>
+    (await git(cwd, ["rev-parse", "--verify", "--quiet", `refs/tags/${name}`], small)).ok &&
+    !(await git(cwd, ["rev-parse", "--verify", "--quiet", `refs/heads/${name}`], small)).ok,
   own: async (cwd, branch) => {
     // Of this repository, by its git common dir: another repository's branch of the same
     // name is no worktree of the agent's here.

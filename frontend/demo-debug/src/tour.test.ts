@@ -76,40 +76,39 @@ describe("the tour the debug panel shares with the demo", () => {
     await expect(tour.prepare("claude")).resolves.toMatchObject({ model: "haiku" })
   })
 
-  it("drives the story: answers the hero ask, quiets the team, the sculptor and the artist", () => {
+  it("drives the story: answers the sheet and the modeller's question, quiets the team and the modeller", () => {
     const tour = tourOf()
     const run = runner(tour)
-    const picked: (number | string)[] = []
+    const sheets: unknown[] = []
+    const mates: (number | string)[] = []
     const stopped: string[] = []
-    tour.hero((answer) => picked.push(answer))
+    tour.sheet((answer) => sheets.push(answer))
+    tour.mate((answer) => mates.push(answer))
     tour.stopped(() => stopped.push("stop"))
-    run("Tour story: answer the hero ask (A rocket)")
-    run("Tour story: answer the hero ask (own words)")
+    run("Tour story: answer the sheet (Fantasy, RPG)")
+    run("Tour story: answer the sheet (own words)")
+    run("Tour story: answer the modeller's question (Red)")
     run("Tour agent: stop")
-    run("Tour story: the lead's team stays quiet until nudged")
-    run("Tour story: the sculptor stays quiet until nudged")
-    run("Tour story: the artist stays quiet until nudged")
-    expect(picked).toEqual([0, "my cat Pixel"])
+    run("Tour story: the lead's sheet waits until nudged")
+    run("Tour story: the modeller stays quiet until nudged")
+    run("Tour story: the modeller asks about the hero's colour")
+    expect(sheets).toEqual([
+      { world: 0, kind: 0 },
+      { world: "Modern", kind: "Racing" },
+    ])
+    expect(mates).toEqual([0])
     expect(stopped).toEqual(["stop"])
     expect(tour.take()).toEqual({
       quiet: false,
       quietTeam: true,
-      quietSculptor: true,
-      quietArtist: true,
+      quietModeller: true,
+      mateAsks: true,
     })
-    expect(tour.artistQuiet()).toBe(true)
-    tour.take()
-    expect(tour.artistQuiet()).toBe(false)
   })
 
-  it("has the artist never start, and the lead exit to its shell", () => {
+  it("has the lead exit to its shell", () => {
     const tour = tourOf()
     const run = runner(tour)
-    run("Tour story: the artist never starts")
-    tour.take()
-    expect(tour.artistNever()).toBe(true)
-    tour.take()
-    expect(tour.artistNever()).toBe(false)
     let left = 0
     tour.shelled(() => (left += 1))
     run("Tour agent: exits to its shell")

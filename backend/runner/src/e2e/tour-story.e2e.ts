@@ -2,11 +2,11 @@ import { setups } from "./agents/index.js"
 import { describe, e2e, supported } from "./fixture.js"
 import { folder, tell } from "./tour-story.js"
 
-// Novadeck's tour story (see tour-story.ts), for each harness as the tour's agent: the lead
-// opens a sculptor and a score fixer and a dev server the person approves, the sculptor asks
-// the person who the hero is, the person starts a cover artist beside them, and each works in
-// a worktree of its own; the person then keeps the project. The model is a script that follows
-// the briefs. All four agents run on the tour's harness.
+// Novadeck's tour story (see tour-story.ts), for each harness as the tour's agent: the lead asks
+// the person which game, then opens a modeller, a builder and a dev server the person approves;
+// each teammate works in a worktree of its own and asks the person one thing; the person then
+// keeps the project, and the team's work is committed on main. The model is a script that
+// follows the briefs. All three agents run on the tour's harness.
 
 const story = 360_000
 
@@ -15,7 +15,7 @@ for (const setup of setups) {
     const it = e2e.seeded({ trustedInHome: [folder] }, setup)
 
     it(
-      "tells the tour's story: four agents make the game in worktrees, the person naming the hero in their own words",
+      "tells the tour's story: three agents make the game in worktrees, the person naming the world in their own words",
       { timeout: story },
       async ({ e2e: run }) => {
         await tell(run, setup, { words: "a penguin on a skateboard" })

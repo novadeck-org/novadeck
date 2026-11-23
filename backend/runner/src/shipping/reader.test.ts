@@ -9,6 +9,9 @@ const lookups: Lookups = {
   upstream: async (_cwd, branch) =>
     branch === "main" ? { remote: "origin", branch: "main" } : undefined,
   repo: async () => "r/app",
+  ghRepo: async () => "r/app",
+  remoteRepo: async () => "r/app",
+  tag: async () => false,
   own: async (_cwd, branch) => branch === "feat/x",
 }
 const read = (command: string, cwd = "/w") => readCommand(command, cwd, lookups)
@@ -83,17 +86,11 @@ describe("what a command ships", () => {
       return reading.kind === "ships" && reading.refusal !== undefined
     }
     for (const command of [
-      "git push --mirror",
-      "git push --tags origin",
-      "git push origin :main",
-      "git push origin 'refs/heads/*:refs/heads/*'",
-      "git push --delete origin main",
       "git -c core.sshCommand=x push origin main",
       "GIT_SSH_COMMAND=x git push origin main",
       "git push --receive-pack=x origin main",
       "git merge -s custom x",
-      "gh pr merge 12 --admin",
-      "gh api -X POST repos/r/app/merges",
+      "gh pr merge 12 --admin --auto",
       "eval 'git push origin main'",
       "bash -c 'gh pr merge 1'",
       "git push origin $BRANCH",
@@ -161,9 +158,10 @@ describe("what a command ships", () => {
     expect(await keys("gh pr merge https://github.com/other/repo/pull/12 -R other/repo")).toEqual([
       "pr-merge:other/repo#12",
     ])
-    expect(await keys("gh pr merge https://github.com/other/repo/pull/12")).toMatch(
-      /names other\/repo/,
-    )
+    // With no repository of its own naming, the URL's is the one gh acts on.
+    expect(await keys("gh pr merge https://github.com/other/repo/pull/12")).toEqual([
+      "pr-merge:other/repo#12",
+    ])
     expect(await keys("gh pr merge https://github.com/other/repo/pull/12 -R r/app")).toMatch(
       /names other\/repo/,
     )
@@ -176,7 +174,6 @@ describe("what a command ships", () => {
       "gh pr create --fill --bogus=1",
       "gh pr create -Z",
       "gh pr edit 5 --base main --whatever",
-      "gh pr merge 12 --admin=true",
       "gh pr merge 12 -R",
     ]) {
       const reading = await read(command)
@@ -204,8 +201,8 @@ describe("what a command ships", () => {
       "land:r/app:main",
     ])
     expect(await keys("git update-ref -m msg refs/heads/feat/x HEAD")).toBe("none")
-    expect(await keys("git update-ref -d refs/heads/main")).toMatch(/update-ref/)
-    expect(await keys("git update-ref --stdin")).toMatch(/update-ref/)
+    // Options it doesn't model are left alone.
+    expect(await keys("git update-ref --stdin")).toBe("none")
   })
 
   it("refuses an allowed command that redirects into a file", async () => {
@@ -303,20 +300,7 @@ describe("what a command ships", () => {
   })
 
   it("refuses what it can't read of these", async () => {
-    for (const command of [
-      "git fetch . 'refs/heads/*:refs/heads/*'",
-      "git fetch . x:refs/tags/v1",
-      "git branch -f main HEAD --contains x",
-      "git rebase -x 'make' main",
-      "git rebase --exec=make main",
-      "gh release create v1.0 --notes x",
-      "gh api -XPOST repos/r/app/merges",
-      "gh api --method=PATCH repos/r/app",
-      "gh api --method DELETE repos/r/app",
-      "gh api repos/r/app -X put",
-      "gh api -X POST repos/r/app",
-      "gh api repos/r/app -f title=x",
-    ]) {
+    for (const command of ["git rebase -x 'make' main", "git rebase --exec=make main"]) {
       const reading = await read(command, "/main")
       expect(reading.kind === "ships" && reading.refusal, command).toBeTruthy()
     }
@@ -331,5 +315,131 @@ describe("what a command ships", () => {
     expect(await keys("git push --repo=upstream main", "/main")).toEqual([
       "push:r/app:upstream/main",
     ])
+  })
+
+  it("leaves alone what the gate doesn't model", async () => {
+    for (const command of [
+      "git push --mirror",
+      "git push --all",
+      "git push --tags",
+      "git push --tags origin",
+      "git push origin :main",
+      "git push origin --delete main",
+      "git push -d origin main",
+      "git push origin 'refs/heads/*:refs/heads/*'",
+      "git push origin refs/tags/v1",
+      "git push origin v1:refs/tags/v1",
+      "git fetch . 'refs/heads/*:refs/heads/*'",
+      "git fetch . x:refs/tags/v1",
+      "gh release create v1.0 --notes x",
+      "gh api -XPOST repos/r/app/merges",
+      "gh api --method DELETE repos/r/app",
+      "gh api repos/r/app -f title=x",
+      "gh pr edit 5 --whatever",
+      "gh pr merge 12 --disable-auto",
+      "gh pr merge --disable-auto -R other/repo 12",
+    ])
+      expect(await keys(command, "/main"), command).toBe("none")
+  })
+
+  it("denies an unmodelled part that comes with a guarded target, with how to split it", async () => {
+    for (const command of [
+      "git push --tags origin HEAD:release",
+      "git push origin main 'refs/heads/*:refs/heads/*'",
+      "git push origin main :old",
+      "git push --follow-tags",
+      "git push --no-such-flag origin main",
+    ]) {
+      const reading = await read(command, "/main")
+      expect(reading, command).toMatchObject({ kind: "ships", actions: [] })
+      expect(reading.kind === "ships" && reading.refusal, command).toBeTruthy()
+      expect(reading.kind === "ships" && reading.remedy, command).toMatch(/separate|without/)
+    }
+    expect(await read("git push --tags origin HEAD:release", "/main")).toMatchObject({
+      remedy: "Push the branch and the tags separately.",
+    })
+  })
+
+  it("reads a bare tag name as a tag", async () => {
+    const tagged: Lookups = { ...lookups, tag: async (_cwd, name) => name === "v1.0" }
+    expect(await readCommand("git push origin v1.0", "/main", tagged)).toEqual({ kind: "none" })
+    expect(await keys("git push origin v2.0", "/main")).toEqual(["push:r/app:origin/v2.0"])
+  })
+
+  it("gives --auto and --admin targets of their own, by number and by branch", async () => {
+    expect(await keys("gh pr merge 12 --auto --squash")).toEqual(["pr-auto:r/app#12"])
+    expect(await keys("gh pr merge --auto")).toEqual(["pr-auto:r/app@feat/x"])
+    expect(await keys("gh pr merge some-branch --auto")).toEqual(["pr-auto:r/app@some-branch"])
+    expect(await read("gh pr merge 12 --admin")).toMatchObject({
+      actions: [{ kind: "pr-admin", key: "pr-admin:r/app#12", singleUse: true }],
+    })
+    expect(await keys("gh pr merge --admin")).toEqual(["pr-admin:r/app@feat/x"])
+    expect(await keys("gh pr merge 12 --admin --auto")).toMatch(/refuses/)
+  })
+
+  it("pushes to the repository of the remote it names, not gh's", async () => {
+    const forked: Lookups = {
+      ...lookups,
+      ghRepo: async () => "up/app",
+      remoteRepo: async (_cwd, remote) => (remote === "origin" ? "me/app" : "up/app"),
+    }
+    const keyOf = async (command: string) => {
+      const reading = await readCommand(command, "/main", forked)
+      return reading.kind === "ships" ? reading.actions.map((each) => each.key) : reading
+    }
+    expect(await keyOf("git push origin HEAD:release")).toEqual(["push:me/app:origin/release"])
+    expect(await keyOf("git push upstream HEAD:release")).toEqual(["push:up/app:upstream/release"])
+    // ... while gh acts on its own: the upstream here.
+    expect(await keyOf("gh pr merge 3")).toEqual(["pr-merge:up/app#3"])
+    expect(await keyOf("gh pr merge 3 -R me/app")).toEqual(["pr-merge:me/app#3"])
+    expect(await keyOf("GH_REPO=me/app gh pr create --base main")).toEqual([
+      "pr-create:me/app:main",
+    ])
+  })
+
+  it("denies a gh pr command whose repository it can't tell, naming -R", async () => {
+    const unknown: Lookups = { ...lookups, ghRepo: async () => undefined }
+    for (const command of ["gh pr merge 3", "gh pr create --base main", "gh pr merge 3 --auto"]) {
+      const reading = await readCommand(command, "/main", unknown)
+      expect(reading, command).toMatchObject({
+        kind: "ships",
+        remedy: "Name the repository with -R owner/repo.",
+      })
+    }
+    // A PR's URL or -R names it.
+    expect(await readCommand("gh pr merge 3 -R a/b", "/main", unknown)).toMatchObject({
+      actions: [{ key: "pr-merge:a/b#3" }],
+    })
+    expect(
+      await readCommand("gh pr merge https://github.com/a/b/pull/3", "/main", unknown),
+    ).toMatchObject({ actions: [{ key: "pr-merge:a/b#3" }] })
+  })
+
+  it("denies an unknown option of branch or update-ref that comes with a guarded branch", async () => {
+    for (const command of [
+      "git branch -f -v main HEAD~1",
+      "git branch -f --no-color main HEAD~1",
+      "git branch --force --verbose main HEAD~1",
+      "git update-ref -d refs/heads/main",
+    ]) {
+      const reading = await read(command, "/main")
+      expect(reading, command).toMatchObject({ kind: "ships", actions: [] })
+      expect(reading.kind === "ships" && reading.refusal, command).toMatch(/doesn't know/)
+      expect(reading.kind === "ships" && reading.remedy, command).toMatch(/without it/)
+    }
+    // Nothing guarded, or nothing modelled: left alone.
+    expect(await keys("git branch -f -v feat/x HEAD~1", "/main")).toBe("none")
+    expect(await keys("git update-ref --stdin", "/main")).toBe("none")
+    expect(await keys("git update-ref -d refs/tags/v1", "/main")).toBe("none")
+  })
+
+  it("keys a repository by its lower case, whatever way it was written", async () => {
+    const mixed: Lookups = { ...lookups, ghRepo: async () => "Mzpk/Novadeck" }
+    const key = async (command: string) => {
+      const reading = await readCommand(command, "/main", mixed)
+      return reading.kind === "ships" ? reading.actions.map((each) => each.key) : reading
+    }
+    expect(await key("gh pr merge 3")).toEqual(["pr-merge:mzpk/novadeck#3"])
+    expect(await key("gh pr merge 3 -R mzpk/NOVADECK")).toEqual(["pr-merge:mzpk/novadeck#3"])
   })
 })

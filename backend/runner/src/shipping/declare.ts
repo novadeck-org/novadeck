@@ -12,8 +12,8 @@ import type { AgentName } from "@novadeck/protocol"
 
 import type { Cards } from "./cards.js"
 import { describeKey } from "./gate.js"
-import type { Permits, Quotes } from "./permits.js"
-import { permitKey, type Lookups } from "./reader.js"
+import type { Declines, Permits, Quotes } from "./permits.js"
+import { permitKey, repoNamed, type Lookups } from "./reader.js"
 
 export type Declared = {
   readonly action: string
@@ -22,6 +22,12 @@ export type Declared = {
   readonly folder?: string
   /** The remote a push goes to, when the agent names one; else the branch's upstream remote, else origin. */
   readonly remote?: string
+  /** merge_pr: the merge is `gh pr merge --auto`. */
+  readonly auto?: boolean
+  /** merge_pr: the merge is `gh pr merge --admin`, past the PR's required checks. */
+  readonly admin?: boolean
+  /** The repository (`owner/repo`) the command names with -R, where gh can't tell which it acts on. */
+  readonly repo?: string
 }
 
 /** What `gh pr view` said of a PR, when it could. */
@@ -31,6 +37,7 @@ export type DeclareDeps = {
   readonly lookups: (terminalId: string) => Lookups
   readonly permits: Permits
   readonly quotes: Quotes
+  readonly declines: Declines
   readonly cards: Cards
   /** A PR's base and head, from `gh` in `folder`; undefined where gh can't say. */
   readonly pull: (folder: string, repo: string, number: number) => Promise<PullRequest>
@@ -40,10 +47,12 @@ export type DeclareDeps = {
   readonly defaultBranch: (folder: string, repo: string) => Promise<string | undefined>
   /** The agent running in the terminal, if one is bound. */
   readonly agentOf: (terminalId: string) => AgentName | undefined
+  /** Whether the Codex session in the terminal can escalate a command (approval isn't `never`); true where unknown. */
+  readonly canEscalate?: (terminalId: string) => boolean
 }
 
 export type DeclareAnswer =
-  | { readonly ok: true; readonly state: "permitted" | "asked"; readonly text: string }
+  | { readonly ok: true; readonly state: "permitted" | "asked" | "declined"; readonly text: string }
   | { readonly ok: false; readonly reason: string }
 
 export const actions = ["merge_pr", "open_pr", "push", "force_push", "land"] as const
@@ -101,6 +110,8 @@ export const standing = (singleUse: boolean): string =>
 
 const escalation =
   " If the sandbox blocks the command, run it again asking for escalation; Novadeck approves it."
+const noEscalation =
+  " This Codex session can't ask to escalate (its approvals are never): the sandbox decides whether the command runs."
 
 export const declare = async (
   deps: DeclareDeps,
@@ -112,7 +123,23 @@ export const declare = async (
   const named = input.folder?.trim()
   const folder = named ? resolvePath(cwd, named) : cwd
   const lookups = deps.lookups(terminalId)
-  const repo = await lookups.repo(folder)
+  const gitRepo = await lookups.repo(folder)
+  // The repository `gh` acts on, for the `gh pr` actions: the one named, else as the hook resolves it.
+  const repoArg = input.repo?.trim()
+  const urled = /^https?:\/\/[^/]+\/([^/]+\/[^/]+)\/pull\/\d+\/?$/.exec(input.target?.trim() ?? "")
+  const ghRepo = repoArg ? repoNamed(repoArg) : (urled?.[1] ?? (await lookups.ghRepo(folder)))
+  if (input.action === "merge_pr" || input.action === "open_pr") {
+    if (repoArg && ghRepo === undefined)
+      return { ok: false, reason: `${JSON.stringify(repoArg)} isn't an owner/repo name.` }
+    if (repoArg && urled && urled[1]!.toLowerCase() !== ghRepo!.toLowerCase())
+      return { ok: false, reason: `The PR's URL names ${urled[1]}, not ${repoArg}.` }
+    if (ghRepo === undefined)
+      return {
+        ok: false,
+        reason: `Novadeck can't tell which repository gh acts on in ${folder} without the network: the clone has no default and not exactly one remote. Name the repository with repo (owner/repo), and run the command with -R owner/repo.`,
+      }
+  }
+  const repo = input.action === "merge_pr" || input.action === "open_pr" ? ghRepo : gitRepo
   if (repo === undefined)
     return { ok: false, reason: `Novadeck can't tell which repository ${folder} is in.` }
   const target = input.target?.trim() ?? ""
@@ -127,6 +154,43 @@ export const declare = async (
       : `${JSON.stringify(name)} isn't a ${what} name git accepts.`
   switch (input.action) {
     case "merge_pr": {
+      if (input.auto && input.admin)
+        return { ok: false, reason: "gh refuses `--admin` together with `--auto`: declare one." }
+      // `--auto` and `--admin` each have a target of their own; an auto permit also covers the
+      // plain merge of that PR, and nothing else covers either.
+      const keysFor = (id: { number: number } | { branch: string }): string[] => {
+        const by = "number" in id ? id.number : id.branch
+        const one = (number: (n: number) => string, branch: (b: string) => string) =>
+          typeof by === "number" ? number(by) : branch(by)
+        const plain = one(
+          (n) => permitKey.prMerge(repo, n),
+          (b) => permitKey.prMergeBranch(repo, b),
+        )
+        if (input.admin)
+          return [
+            one(
+              (n) => permitKey.prAdmin(repo, n),
+              (b) => permitKey.prAdminBranch(repo, b),
+            ),
+          ]
+        if (input.auto)
+          return [
+            one(
+              (n) => permitKey.prAuto(repo, n),
+              (b) => permitKey.prAutoBranch(repo, b),
+            ),
+            plain,
+          ]
+        return [plain]
+      }
+      singleUse = input.admin === true
+      const question = (what: string, base?: string): string => {
+        const into = base ? ` into ${base}` : ""
+        if (input.admin) return `Merge ${what}${into} past its required checks?`
+        if (input.auto)
+          return `Merge ${what}${into} by itself once its checks pass, including work added later?`
+        return `Merge ${what}${into}?`
+      }
       const numbered = /^#?(\d+)$/.exec(target)?.[1] ?? /\/pull\/(\d+)\/?$/.exec(target)?.[1]
       if (numbered === undefined && target !== "") {
         // A branch of the agent's own: its PR, opened or still to open, merged by
@@ -139,8 +203,8 @@ export const declare = async (
             ok: false,
             reason: `merge_pr takes a branch only where it is this terminal's own, checked out in a worktree it owns: ${target} isn't. Name the PR's number.`,
           }
-        keys = [permitKey.prMergeBranch(repo, target)]
-        title = `Merge the PR of ${target}?`
+        keys = keysFor({ branch: target })
+        title = question(`the PR of ${target}`)
         detail.push(`The PR whose head is ${target}, merged by its branch`)
         break
       }
@@ -148,14 +212,15 @@ export const declare = async (
       if (!Number.isSafeInteger(number) || number <= 0)
         return { ok: false, reason: "merge_pr needs target: the PR's number, or its branch." }
       const pull = await deps.pull(folder, repo, number)
-      keys = [permitKey.prMerge(repo, number)]
+      keys = keysFor({ number })
       const branch = await lookups.branch(folder)
       if (pull !== undefined && branch !== undefined && branch === pull.head)
-        keys.push(permitKey.prMergeBranch(repo, branch))
+        keys.push(...keysFor({ branch }))
       // GitHub's own words for the base count as much as an agent's: only a name git accepts is shown.
       const base =
         pull !== undefined && (await deps.valid(folder, pull.base)) ? pull.base : undefined
-      title = base ? `Merge PR #${number} into ${base}?` : `Merge PR #${number}?`
+      title = question(`PR #${number}`, base)
+      if (input.admin) detail.push("Merging past the checks the PR's branch rules require")
       if (pull && base) detail.push(`PR #${number} merges into ${base} (read from GitHub)`)
       else detail.push(`GitHub didn't say which branch PR #${number} targets.`)
       break
@@ -188,7 +253,10 @@ export const declare = async (
       const bad = (await checked(branch, "branch")) ?? (await checked(remote, "remote"))
       if (bad) return { ok: false, reason: bad }
       singleUse = input.action === "force_push"
-      keys = [permitKey.push(repo, remote, branch, singleUse)]
+      // The remote's own repository: where the push goes, whatever gh acts on.
+      const where = (await lookups.remoteRepo(folder, remote)) ?? repo
+      keys = [permitKey.push(where, remote, branch, singleUse)]
+      detail[0] = `Repository: ${where}`
       title = `${singleUse ? "Force-push" : "Push"} to ${remote}/${branch}?`
       detail.push(`Remote: ${remote}`)
       break
@@ -207,7 +275,15 @@ export const declare = async (
   }
   const sentence = keys.map(describeKey)[0]!
   const agent = deps.agentOf(terminalId)
-  const how = agent === "codex" ? escalation : ""
+  const how =
+    agent !== "codex" ? "" : (deps.canEscalate?.(terminalId) ?? true) ? escalation : noEscalation
+  // The person declined it and hasn't typed here since: no card, and nothing they said counts.
+  if (keys.some((key) => deps.declines.declined(terminalId, key)))
+    return {
+      ok: true,
+      state: "declined",
+      text: `Declined: the user declined it (${sentence}) and hasn't typed in this terminal since, so Novadeck opens no card and ignores \`said\` for it. After the user next types in this terminal, request_permit asks as usual, and only what they type then counts.`,
+    }
   // Already covered: nothing to ask.
   if (keys.every((key) => deps.permits.covering(terminalId, key) !== undefined))
     return {
@@ -218,7 +294,9 @@ export const declare = async (
   // The user's own words typed in this terminal.
   const said = input.said?.trim()
   // What of the user's own typing the quote is, as they wrote it: what the permit goes by.
-  const matched = said ? deps.quotes.said(terminalId, said)?.slice(0, quoteCut) : undefined
+  const matched = said
+    ? deps.quotes.said(terminalId, said, deps.declines.since(terminalId, keys))?.slice(0, quoteCut)
+    : undefined
   if (matched !== undefined) {
     const given = { group: randomUUID(), title: title.replace(/\?$/, "") }
     for (const key of keys)

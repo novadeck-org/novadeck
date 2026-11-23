@@ -88,13 +88,13 @@ describe("The tour", () => {
       await openWorkspace(offered)
       await offerFromHelp()
       await consentSays(
-        "Your own agent leads a small team that builds a little browser game around a hero you name.",
+        "Your own agent leads a small team that builds a little browser game you choose.",
       )
       await consentSays(
-        "You answer one question, approve one command, and play the game at the end.",
+        "You answer a question or two, approve one command, and play the game at the end.",
       )
       await consentSays(
-        "Runs four Claude Code agents on its cheapest model, on your own account, for about 4 minutes.",
+        "Runs three Claude Code agents on its cheapest model, on your own account, for about 5 minutes.",
       )
       await consentSays(
         "Works in a sandbox repo under ~/.novadeck, made fresh each time. A game you finish is yours to keep.",
@@ -106,7 +106,7 @@ describe("The tour", () => {
     it("offers a choice of agent only where more than one can run it", async () => {
       await openWorkspace(offered)
       await offerFromHelp()
-      await consentSays("Runs four Claude Code agents")
+      await consentSays("Runs three Claude Code agents")
       const picker = consent().getByRole("radiogroup", { name: "Agent for the tour" })
       expect(picker.query()).toBeNull()
       await consent().getByRole("button", { name: "Not now" }).click()

@@ -60,7 +60,7 @@ describe("The tour's driver", () => {
     await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     // Its next step is the team's: the demo's lead opens none here, so nothing is marked yet and
     // no caption shows, but the act has begun.
-    await expect.element(page.getByText(/^Act 2, The team\./), leadNamed).toBeInTheDocument()
+    await expect.element(page.getByText(/^Act 2, Your call\./), leadNamed).toBeInTheDocument()
   })
 
   it("marks the agent's window to look at while it starts, in the page's own element", async () => {
@@ -90,8 +90,6 @@ describe("The tour's driver", () => {
         entered: true,
         tabbed: false,
         doneAt: null,
-        artist: null,
-        artistBriefed: false,
         // The step it was at is another's here.
         stepId: "model",
       }),
@@ -165,7 +163,7 @@ describe("The tour's driver", () => {
         .click()
 
       await bar().getByRole("button", { name: "Back to the tour" }).click()
-      await expect.element(page.getByText(/^Act 2, The team\./), leadNamed).toBeInTheDocument()
+      await expect.element(page.getByText(/^Act 2, Your call\./), leadNamed).toBeInTheDocument()
       // The Inbox the person answered in is still open: the terminals are listed in their panel.
       await sidebarPanel("Terminals").click()
       await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")

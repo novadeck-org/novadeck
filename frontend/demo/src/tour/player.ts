@@ -79,9 +79,10 @@ type Player = {
 
 // Plays the tour's agent in its terminal: an optional startup screen, held until answered;
 // bound at the doorbell's ring where the harness waits for one (Antigravity), else at once;
-// working; describing itself (once nudged, where quiet); then, with the story on, opening its
-// sculptor and score fixer, running the game's server and showing its page, and naming the game
-// once the person has named the hero (see `story.ts`); and a finished turn. Answers a function
+// working; describing itself (once nudged, where quiet); then, with the story on, asking the
+// person what game to make, opening its modeller and builder, running the game's server and
+// showing its page, and showing it again once the team built the game (see `story.ts`); and a
+// finished turn. Answers a function
 // that stops it.
 export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, stage }: Player) => {
   const plan = tour.take()
@@ -136,9 +137,10 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
       stage,
       terminal,
       quietTeam: plan.quietTeam === true,
-      quietSculptor: plan.quietSculptor === true,
+      quietModeller: plan.quietModeller === true,
+      mateAsks: plan.mateAsks === true,
       noPage: plan.noPage === true,
-      finish: () => finish("The hero is sculpted and the score is fixed."),
+      finish: () => finish("The game is built."),
     })
     stops.add(stopStory)
   }

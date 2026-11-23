@@ -21,6 +21,7 @@ import type { OpenRequests } from "./opens.js"
 import type { Baseline, Record } from "./record.js"
 import { scheduled } from "./schedules.js"
 import type { Sleepers } from "./sleepers.js"
+import { sharesStore, type Turn } from "./store-turns.js"
 
 const log = logs.for("terminals")
 
@@ -339,6 +340,8 @@ export class Hibernation {
   private readonly born = new WeakMap<Record, number>()
   /** The terminals being stopped: their `create` waits for the end. */
   private readonly ending = new Map<string, Promise<void>>()
+  /** The wakes of an agent that shares its store, holding stops off until their agent binds. */
+  private readonly waking = new Map<string, Turn>()
   private readonly options: Required<Omit<HibernationOptions, "windowMs">> &
     Pick<HibernationOptions, "windowMs">
 
@@ -362,9 +365,28 @@ export class Hibernation {
     this.timer = undefined
   }
 
-  /** The end of a terminal being stopped, if one is, for a `create` to wait for. */
+  /**
+   * What a `create` waits for before its shell starts, if anything: the end of the terminal's
+   * own stop, if one is under way; and, for a wake of an agent that shares its store, its turn
+   * (`StoreTurns`), so it doesn't start as another's stop ends, nor another stop end before its
+   * agent bound (`look`), by which time the agent has its store open.
+   */
   settling(terminalId: string): Promise<void> | undefined {
-    return this.ending.get(terminalId)
+    const own = this.ending.get(terminalId)
+    const sleepers = this.host.sleepers()
+    const wake = () => sharesStore(sleepers.resting(terminalId)?.agent)
+    if (!own && !wake()) return undefined
+    return (async () => {
+      await own
+      // Resting by now, once its own stop ended: a rest follows its end at once.
+      if (!wake()) return
+      const turn = await sleepers.turns.wake()
+      this.waking.get(terminalId)?.end()
+      this.waking.set(terminalId, turn)
+      void turn.over.then(() => {
+        if (this.waking.get(terminalId) === turn) this.waking.delete(terminalId)
+      })
+    })()
   }
 
   /**
@@ -374,6 +396,8 @@ export class Hibernation {
    */
   look(record: Record): void {
     const { bound } = record
+    // A woken agent that shares its store bound: it has its store open, so stops may end.
+    if (bound) this.waking.get(record.summary.id)?.end()
     const instance = bound?.binding.instance
     if (!bound || instance === null || instance === undefined) return
     let baseline = record.baseline
@@ -493,20 +517,29 @@ export class Hibernation {
    */
   private async stopping(record: Record, seen: Seen, back: () => void): Promise<void> {
     await this.keepScreen(record)
-    const now = Date.now()
-    // Ignoring its own mark; the setting is read again, as a change counts at once.
-    this.minutes = { value: this.host.minutes() }
-    const veto = vetoOf(this.facts(record, now, { ...seen, resting: true }), now)
-    this.minutes = undefined
-    if (veto !== undefined || record.closed) return back()
+    // An agent that shares its store ends in its turn, once no wake of one is starting, which
+    // its end could make fail (`StoreTurns`); before the last look, as the wait may be seconds.
+    const turn = sharesStore(record.bound?.binding.agent)
+      ? await this.host.sleepers().turns.stop()
+      : undefined
     try {
-      await this.host.end(record)
-    } catch (error) {
-      log.warn("terminals.hibernate-failed", "Novadeck could not stop an idle agent", {
-        err: error,
-      })
-      // Gone all the same: the exit has been handled as a rest. Still running: it stays.
-      if (record.terminal.exit === null) back()
+      const now = Date.now()
+      // Ignoring its own mark; the setting is read again, as a change counts at once.
+      this.minutes = { value: this.host.minutes() }
+      const veto = vetoOf(this.facts(record, now, { ...seen, resting: true }), now)
+      this.minutes = undefined
+      if (veto !== undefined || record.closed) return back()
+      try {
+        await this.host.end(record)
+      } catch (error) {
+        log.warn("terminals.hibernate-failed", "Novadeck could not stop an idle agent", {
+          err: error,
+        })
+        // Gone all the same: the exit has been handled as a rest. Still running: it stays.
+        if (record.terminal.exit === null) back()
+      }
+    } finally {
+      turn?.end()
     }
   }
 

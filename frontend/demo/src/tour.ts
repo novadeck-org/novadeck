@@ -47,12 +47,11 @@ export type TourAgentPlan = {
   // Its lead asks the person's permission, as its harness's own dialog, before it goes on:
   // it waits until the person answers.
   readonly permission?: boolean | undefined
-  // The sculptor, once its lead opened it, does nothing until nudged.
-  readonly quietSculptor?: boolean | undefined
-  // The artist, once the tour rang its brief, does nothing until nudged.
-  readonly quietArtist?: boolean | undefined
-  // The artist's agent never starts: its terminal stays at a shell that shows no agent.
-  readonly artistNever?: boolean | undefined
+  // The modeller, once its lead opened it, does nothing until nudged.
+  readonly quietModeller?: boolean | undefined
+  // The modeller asks the person a question of its own after showing its model, and waits for
+  // the answer before it reports.
+  readonly mateAsks?: boolean | undefined
   // The lead's program ends once it has bound, its shell back at the prompt (as Claude Code
   // does where the person doesn't trust the folder).
   readonly shell?: boolean | undefined
@@ -77,8 +76,12 @@ export type TourShow = {
   readonly diffs?: Readonly<Record<string, ChangeFileDiff>> | undefined
 }
 
-// An agent of the story that is not on the lead's team, which the lead answers.
-export type TourMate = { readonly key: TerminalKey; readonly handle: string }
+// The person's answer to the lead's sheet: for each question the option's index, or their own
+// words. A question left out takes the first option.
+export type TourSheetAnswer = {
+  readonly world: number | string
+  readonly kind: number | string
+}
 
 // What the story needs of the backend (see `tour/story.ts`): the workspace as it is now, a new
 // terminal of the demo's numbering, the agents' messages and the Inbox where the demo has them,
@@ -109,23 +112,13 @@ export type TourStage = {
   readonly show: (key: TerminalKey, shown: TourShow) => string
   // Shows the lead's page, or, shown, loads it afresh as it now is.
   readonly page: (key: TerminalKey, content: ItemContent) => void
-  // What an item shows now, once its file changed (a model sculpted).
+  // What an item shows now, once its file changed.
   readonly update: (
     id: string,
     now: { readonly content: ItemContent; readonly bytes?: Uint8Array<ArrayBuffer> | undefined },
   ) => void
-  // The hero the person named, which the merged preview of the game's files shows.
+  // The game the person named on the sheet, which the merged preview of the game's files shows.
   readonly chose: (hero: Hero) => void
-  // The lead's handle, where a run's lead is there.
-  readonly leadHandle: () => string | undefined
-  // The artist asked the lead about the game; the lead hears it, and tells the artist once it has
-  // answered.
-  readonly askedLead: (artist: TourMate & { readonly harness: AgentName }) => void
-  readonly onArtistAsk: (
-    listener: (artist: TourMate & { readonly harness: AgentName }) => void,
-  ) => () => void
-  readonly artistAnswered: (artist: TourMate, hero: Hero) => void
-  readonly onArtistAnswered: (key: TerminalKey, listener: (hero: Hero) => void) => () => void
 }
 
 export type DemoTour = Tour & {
@@ -134,8 +127,6 @@ export type DemoTour = Tour & {
   readonly failNext: (how?: "folder" | "unlisted") => void
   // The terminals whose agent was rung the start line, oldest first.
   readonly briefed: Store<readonly string[]>
-  // The terminals whose agent was rung the artist's brief, oldest first.
-  readonly artists: Store<readonly string[]>
   // The terminals whose agent was nudged, oldest first.
   readonly nudged: Store<readonly string[]>
   // The next run's agent waits at `screen` (none: runs as usual) until it's answered.
@@ -160,16 +151,10 @@ export type DemoTour = Tour & {
   readonly askPermission: (ask?: boolean) => void
   // The next run's lead opens its team only once nudged again after it described itself.
   readonly goQuietTeam: (quiet?: boolean) => void
-  // The next run's sculptor does nothing until nudged.
-  readonly goQuietSculptor: (quiet?: boolean) => void
-  // The next run's artist does nothing, once briefed, until nudged.
-  readonly goQuietArtist: (quiet?: boolean) => void
-  // Whether the artist of the run now playing stays quiet until nudged (taken with the lead's plan).
-  readonly artistQuiet: () => boolean
-  // The next run's artist never starts: nothing of its agent shows in its terminal.
-  readonly goArtistNever: (never?: boolean) => void
-  // Whether the artist of the run now playing never starts (taken with the lead's plan).
-  readonly artistNever: () => boolean
+  // The next run's modeller does nothing until nudged.
+  readonly goQuietModeller: (quiet?: boolean) => void
+  // The next run's modeller asks the person a question of its own, and waits for it.
+  readonly goMateAsks: (asks?: boolean) => void
   // The next run's lead's program ends once it has bound, its shell back.
   readonly goShell: (shell?: boolean) => void
   // The running lead's program ends, its shell back at the prompt: "It didn't start.".
@@ -177,14 +162,16 @@ export type DemoTour = Tour & {
   readonly shelled: (listener: () => void) => () => void
   // The next run has no page, as on a computer with neither Node nor Python.
   readonly goNoPage: (none?: boolean) => void
-  // Answers the sculptor's ask as the person would, by its option or in their own words:
-  // nothing while none waits.
-  readonly answerHero: (answer?: number | string) => void
-  readonly hero: (listener: (answer: number | string) => void) => () => void
+  // Answers the lead's sheet as the person would: the first options where none is given.
+  // Nothing while none waits.
+  readonly answerSheet: (answer?: Partial<TourSheetAnswer>) => void
+  readonly sheet: (listener: (answer: TourSheetAnswer) => void) => () => void
+  // Answers the modeller's own question as the person would, by its option or in their own
+  // words: nothing while none waits.
+  readonly answerMate: (answer?: number | string) => void
+  readonly mate: (listener: (answer: number | string) => void) => () => void
   // The next keep fails, as when the folder can't be written, for the closing card to say so.
   readonly failKeep: (fail?: boolean) => void
-  // How many runs were readied, so the story tells a run's lead from its artist.
-  readonly runs: () => number
   // Where the lead's command is asked of the person: the demo's own approval dialog by default,
   // or the debug panel's.
   readonly approver: (next: TourApprover) => void
@@ -218,20 +205,17 @@ export const demoTour = (
   let workspace = initialWorkspace
   let failing: "folder" | "unlisted" | undefined
   let keepFails = false
-  let runs = 0
   const briefed = createStore<readonly string[]>([])
-  const artists = createStore<readonly string[]>([])
   const nudged = createStore<readonly string[]>([])
   let plan: TourAgentPlan = { quiet: false }
   let screenMs: number | undefined
   let story = true
-  let artistQuiet = false
-  let artistNever = false
   let approver: TourApprover = declined
   // The story's events, which its lead hears: the stop, or an answer to a held screen; and the
-  // person's answer to the sculptor's ask.
+  // person's answers to the lead's sheet and the modeller's question.
   const events = new Set<(event: "stop" | "answer" | "shell") => void>()
-  const heroes = new Set<(answer: number | string) => void>()
+  const sheets = new Set<(answer: TourSheetAnswer) => void>()
+  const mates = new Set<(answer: number | string) => void>()
   const hear = (listener: (event: "stop" | "answer" | "shell") => void) => {
     events.add(listener)
     return () => void events.delete(listener)
@@ -241,7 +225,6 @@ export const demoTour = (
       failing = how
     },
     briefed,
-    artists,
     nudged,
     holdAt: (screen) => {
       plan = { ...plan, screen }
@@ -263,34 +246,34 @@ export const demoTour = (
     goQuietTeam: (quiet = true) => {
       plan = { ...plan, quietTeam: quiet }
     },
-    goQuietSculptor: (quiet = true) => {
-      plan = { ...plan, quietSculptor: quiet }
+    goQuietModeller: (quiet = true) => {
+      plan = { ...plan, quietModeller: quiet }
     },
-    goQuietArtist: (quiet = true) => {
-      plan = { ...plan, quietArtist: quiet }
+    goMateAsks: (asks = true) => {
+      plan = { ...plan, mateAsks: asks }
     },
     goNoPage: (none = true) => {
       plan = { ...plan, noPage: none }
     },
-    artistQuiet: () => artistQuiet,
-    goArtistNever: (never = true) => {
-      plan = { ...plan, artistNever: never }
-    },
-    artistNever: () => artistNever,
     goShell: (shell = true) => {
       plan = { ...plan, shell }
     },
     exitToShell: () => events.forEach((each) => each("shell")),
     shelled: (listener) => hear((event) => event === "shell" && listener()),
-    answerHero: (answer = 0) => heroes.forEach((each) => each(answer)),
-    hero: (listener) => {
-      heroes.add(listener)
-      return () => void heroes.delete(listener)
+    answerSheet: (answer = {}) =>
+      sheets.forEach((each) => each({ world: answer.world ?? 0, kind: answer.kind ?? 0 })),
+    sheet: (listener) => {
+      sheets.add(listener)
+      return () => void sheets.delete(listener)
+    },
+    answerMate: (answer = 0) => mates.forEach((each) => each(answer)),
+    mate: (listener) => {
+      mates.add(listener)
+      return () => void mates.delete(listener)
     },
     failKeep: (fail = true) => {
       keepFails = fail
     },
-    runs: () => runs,
     approver: (next) => {
       approver = next
     },
@@ -307,8 +290,6 @@ export const demoTour = (
     take: () => {
       const taken = plan
       plan = { quiet: false }
-      artistQuiet = taken.quietArtist === true
-      artistNever = taken.artistNever === true
       return taken
     },
     screenMs: () => screenMs,
@@ -325,7 +306,6 @@ export const demoTour = (
       const removed = (workspace()?.projects ?? [])
         .filter((project) => project.directory === demoTourFolder)
         .map((project) => project.id)
-      runs += 1
       return { ...demoRun(agent), directory: demoTourFolder, removed, page: plan.noPage !== true }
     },
     brief: (terminalId) => {
@@ -334,11 +314,6 @@ export const demoTour = (
     },
     nudge: (terminalId) => {
       nudged.update((ids) => [...ids, terminalId])
-      return Promise.resolve()
-    },
-    // The terminal is the run's artist: the story's artist takes its brief.
-    artist: (terminalId) => {
-      artists.update((ids) => (ids.includes(terminalId) ? ids : [...ids, terminalId]))
       return Promise.resolve()
     },
     keep: () => {
@@ -429,9 +404,8 @@ export const withTourAgent = (
     inbox?.answer(id, answer)
   }
   const works = isDemoWorks(backend.works) ? backend.works : undefined
-  // The lead of the latest run, which the next terminal of an agent in the folder is not: that
-  // is the run's artist.
-  let lead: { readonly run: number; readonly key: TerminalKey } | undefined
+  // The lead of the latest run.
+  let lead: TerminalKey | undefined
   let hero: Hero | undefined
   // Whether a project is the tour's, by its folder.
   const isTour = (projectId: string): boolean =>
@@ -476,7 +450,7 @@ export const withTourAgent = (
         answerEntry,
         works,
         feed,
-        lead: () => lead?.key,
+        lead: () => lead,
         setHero: (next) => {
           hero = next
         },
@@ -595,7 +569,7 @@ export const withTourAgent = (
           },
         }),
   }
-  // The files the agents' works change, as they merge: `src/score.js` and `src/config.js`.
+  // The files the agents' works change, as they merge: `src/main.js`.
   const previewed: NonNullable<Backend["works"]> | undefined = backend.works && {
     ...backend.works,
     preview: async (projectId, path): Promise<WorkPreview> => {
@@ -626,14 +600,9 @@ export const withTourAgent = (
     const at = sink
     if (!harness || !at) return
     const key = { ...action.target, terminalId: action.terminal.id }
-    // The first agent of a run is its lead; any other the tour's folder starts is its artist.
-    const run = tour.runs()
-    const artist = lead?.run === run
-    if (!artist) {
-      lead = { run, key }
-      hero = undefined
-      held.clear()
-    }
+    lead = key
+    hero = undefined
+    held.clear()
     let stop: (() => void) | undefined
     let stopped = false
     const end = () => {
@@ -642,33 +611,18 @@ export const withTourAgent = (
     }
     stops.add(end)
     const terminal = () => terminalOf(latest, key)
-    void (artist
-      ? Promise.all([stageOf(), import("./tour/artist")]).then(([stage, { playTourArtist }]) => {
-          if (stopped) return
-          stop = playTourArtist({
-            key,
-            harness,
-            tour,
-            turns,
-            dispatch: at.dispatch,
-            terminal,
-            stage,
-            quiet: tour.artistQuiet(),
-            never: tour.artistNever(),
-          })
-        })
-      : Promise.all([stageOf(), import("./tour/player")]).then(([stage, { playTourAgent }]) => {
-          if (stopped) return
-          stop = playTourAgent({
-            key,
-            harness,
-            tour,
-            turns,
-            dispatch: at.dispatch,
-            terminal,
-            stage,
-          })
-        }))
+    void Promise.all([stageOf(), import("./tour/player")]).then(([stage, { playTourAgent }]) => {
+      if (stopped) return
+      stop = playTourAgent({
+        key,
+        harness,
+        tour,
+        turns,
+        dispatch: at.dispatch,
+        terminal,
+        stage,
+      })
+    })
   }
   return {
     ...backend,
