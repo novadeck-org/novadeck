@@ -113,12 +113,6 @@ export type DesktopBridge = {
    */
   showProjectWindow?(projectId: string | null, known?: readonly string[]): void
   /**
-   * Tells the app whether the person has turned project windows on, which it keeps: only with
-   * it on does quitting remember the open windows for the next launch. Absent from apps that
-   * came before it.
-   */
-  useProjectWindows?(on: boolean): void
-  /**
    * Opens a project in a new window, even when this or another window shows it already (up to
    * the most windows the app opens). Absent from apps that came before it.
    */

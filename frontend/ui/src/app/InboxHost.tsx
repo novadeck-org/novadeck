@@ -38,7 +38,7 @@ const NoticeClicks = (): null => {
         // The backend's entries, as the Inbox may hold the entry back.
         const entries = backend.inbox?.state.getSnapshot().items ?? []
         const entryId = noticeBoard(backend.notices, dingOf(backend, ui))?.entryIdOf(terminalId)
-        // With project windows on, what is about a project goes to its window, which comes
+        // Where the app opens project windows, what is about a project goes to its window, which comes
         // forward and does what a click does there; this window when it shows none.
         if (handOffTerminal(terminalId, entryOfNotice(terminalId, entries, entryId)?.id)) return
         clickNotice(

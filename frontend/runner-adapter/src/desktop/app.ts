@@ -122,11 +122,10 @@ export const desktopWindowFocus = (app: DesktopApp | undefined): Backend["window
 export const desktopProjectWindows = (app: DesktopApp | undefined): ProjectWindows | undefined => {
   const listen = app?.onProjectWindows
   const show = app?.showProjectWindow
-  const use = app?.useProjectWindows
   const open = app?.openProjectWindow
   const handOff = app?.handOffToProjectWindow
   const navigate = app?.onProjectWindowNavigate
-  if (!listen || !show || !use || !open || !handOff || !navigate) return undefined
+  if (!listen || !show || !open || !handOff || !navigate) return undefined
   return {
     onState: (listener) =>
       listen((state) => {
@@ -137,7 +136,6 @@ export const desktopProjectWindows = (app: DesktopApp | undefined): ProjectWindo
       const shown = parseProjectWindowShown({ projectId, known })
       if (shown) show(shown.projectId, shown.known)
     },
-    use: (on) => use(on === true),
     open: (projectId) => {
       if (windowIdOf(projectId) !== undefined) open(projectId)
     },

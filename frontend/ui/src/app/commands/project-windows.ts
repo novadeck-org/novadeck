@@ -1,7 +1,7 @@
 import { projectFromSeed } from "@novadeck/core/seed"
 import type { Workspace } from "@novadeck/core/types"
 
-import { currentState, projectWindowsOn, shownElsewhere } from "../selectors"
+import { currentState, shownElsewhere } from "../selectors"
 import type { CommandContext } from "./context"
 
 // How long a place handed to this window waits for a terminal this window hasn't heard of
@@ -17,9 +17,9 @@ export const projectOf = (workspace: Workspace, terminalId: string): string | un
   )?.id
 
 export type ProjectWindowCommands = {
-  // Whether project windows are on in this window.
+  // Whether the app opens project windows here (the desktop app).
   readonly windowsOn: () => boolean
-  // Whether another window shows the project and this one does not, with project windows on:
+  // Whether another window shows the project and this one does not:
   // what is about it goes there. A project this window shows is handled here, even when
   // another window shows it too.
   readonly shownElsewhere: (projectId: string) => boolean
@@ -27,7 +27,7 @@ export type ProjectWindowCommands = {
   readonly openInNewWindow: (projectId: string) => void
   // Hands the terminal, and the Inbox entry for it if one is named, to this window when it shows
   // the project, else to the window showing it that was used last, which comes forward, else to
-  // this window, which switches; with project windows on.
+  // this window, which switches; where the app opens project windows.
   // `quiet` is for what an agent did, which only goes there, never raising a window.
   // False, with nothing done, when they are off or the terminal's project is unknown.
   readonly handOffTerminal: (terminalId: string, rowId?: string, quiet?: boolean) => boolean
@@ -48,7 +48,7 @@ export type ProjectWindowCommands = {
 // rules in `workspace.ts` wrap.
 export const createProjectWindowCommands = (ctx: CommandContext): ProjectWindowCommands => {
   const { workspace, ui, windows, syncProject } = ctx
-  const on = (): boolean => projectWindowsOn(ui.getSnapshot(), windows)
+  const on = (): boolean => windows !== undefined
   const elsewhere = (projectId: string): boolean =>
     workspace.getSnapshot().activeProjectId !== projectId &&
     shownElsewhere(ui.getSnapshot(), windows, projectId)

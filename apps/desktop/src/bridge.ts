@@ -300,9 +300,6 @@ export const projectWindowsRequestChannel = "novadeck:project-windows-request"
 /** Renderer-to-main report of the project the window shows now: its id, or null for none. */
 export const projectWindowShowChannel = "novadeck:project-window-show"
 
-/** Renderer-to-main report of whether the person has project windows on, a boolean. */
-export const projectWindowsUseChannel = "novadeck:project-windows-use"
-
 /** Renderer-to-main request to open a project in a window of its own: the project's id. */
 export const projectWindowOpenChannel = "novadeck:project-window-open"
 

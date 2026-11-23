@@ -196,7 +196,6 @@ export const Preferences = ({
   systemSounds = false,
   hearSound,
   chat = false,
-  windows = false,
 }: {
   open: boolean
   // The tab to show; null for none named, which opens Agents where the backend has it, else General.
@@ -243,8 +242,6 @@ export const Preferences = ({
   }
   // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
   tour?: boolean
-  // Whether the backend can open a project in a window of its own (the desktop app).
-  windows?: boolean
   // Whether agents get git worktrees, an Experimental feature the backend keeps; absent
   // where the backend has none.
   worktrees?: {
@@ -388,16 +385,6 @@ export const Preferences = ({
       checked: value.agentAvatars,
       onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
       disabled: false,
-    },
-    {
-      id: "project-windows",
-      label: "Project windows",
-      description: windows
-        ? "Open a project in its own window, say one per monitor. Pick it to work on several projects side by side, or on one project in two windows; each window keeps its own session and view."
-        : "Not available here.",
-      checked: windows && value.projectWindows,
-      onToggle: (projectWindows: boolean) => onChange({ ...value, projectWindows }),
-      disabled: !windows,
     },
     {
       id: "onboarding-tour",

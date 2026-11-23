@@ -79,7 +79,6 @@ const setup = (initiallyWide = true) => {
         screenReader: "auto",
         chatView: false,
         agentAvatars: false,
-        projectWindows: false,
         onboardingTour: false,
         appScale: 100,
         sound: true,

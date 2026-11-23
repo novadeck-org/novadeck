@@ -89,7 +89,6 @@ import {
   projectWindowShowChannel,
   projectWindowsChannel,
   projectWindowsRequestChannel,
-  projectWindowsUseChannel,
   screenReaderChannel,
   screenReaderRequestChannel,
   tellsScreenReader,
@@ -337,9 +336,6 @@ const bridge = {
   showProjectWindow: (projectId, known = []) => {
     const shown = parseProjectWindowShown({ projectId, known })
     if (shown) ipcRenderer.send(projectWindowShowChannel, shown)
-  },
-  useProjectWindows: (on) => {
-    if (typeof on === "boolean") ipcRenderer.send(projectWindowsUseChannel, on)
   },
   openProjectWindow: (projectId) => {
     if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowOpenChannel, projectId)

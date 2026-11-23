@@ -674,7 +674,6 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(shippingGate ? { shippingGate } : {})}
           {...(worktrees ? { worktrees } : {})}
           tour={tour !== undefined}
-          windows={backend.projectWindows !== undefined}
           notices={backend.notices !== undefined}
           screenReaderKnown={backend.screenReader !== undefined}
           scalable={backend.showScale !== undefined}

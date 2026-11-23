@@ -31,8 +31,6 @@ export type ProjectWindows = {
   // Tells the app which project this window shows, as it changes (null while it shows none),
   // and the ids of the projects this page knows.
   readonly show: (projectId: string | null, known: readonly string[]) => void
-  // Tells the app whether the person has project windows on, which it keeps for the next launch.
-  readonly use: (on: boolean) => void
   // Opens a project in a new window, even when a window shows it already.
   readonly open: (projectId: string) => void
   // Sends a place in a project to this window when it shows the project, else to the window

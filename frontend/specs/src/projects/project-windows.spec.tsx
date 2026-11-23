@@ -5,12 +5,9 @@ import { workspaceSwitcher } from "../support/sessions"
 import { expectStaysAbsent, openWorkspace } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// The demo's projects with Experimental and the Project windows switch on, as a person leaves
-// them, in an app that opens windows.
+// The demo's projects, as a person leaves them, in an app that opens windows.
 const open = async (kind: "on" | "extra" = "on"): Promise<void> => {
-  const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}") as object
-  localStorage.setItem("novadeck.preferences", JSON.stringify({ ...saved, projectWindows: true }))
-  await openWorkspace(`/?channel=experimental&windows=${kind}`)
+  await openWorkspace(`/?windows=${kind}`)
 }
 
 const marks = (): HTMLElement[] =>
@@ -42,14 +39,6 @@ describe("project windows in the header", () => {
             .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()
-    })
-
-    it("marks nothing while the switch is off", async () => {
-      await openWorkspace("/?channel=experimental&windows=on")
-      projectWindows.pretend(["docs-site"])
-      await workspaceSwitcher().click()
-      await expect.element(page.getByRole("dialog", { name: "Switch workspace" })).toBeVisible()
-      await expectStaysAbsent(page.getByRole("img", { name: "Shown in another window" }))
     })
 
     it("shows it here when the person picks it, the mark staying as a hint", async () => {
@@ -94,6 +83,21 @@ describe("project windows in the header", () => {
             .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()
+    })
+  })
+
+  context("in an app that opens no windows, as a browser", () => {
+    it("offers no Open in new window and marks nothing", async () => {
+      await openWorkspace("/")
+      await workspaceSwitcher().click()
+      await userEvent.click(
+        page
+          .getByRole("dialog", { name: "Switch workspace" })
+          .getByRole("button", { name: /^docs-site/ }),
+        { button: "right" } as never,
+      )
+      await expectStaysAbsent(page.getByRole("menuitem", { name: "Open in new window" }))
+      await expectStaysAbsent(page.getByRole("img", { name: "Shown in another window" }))
     })
   })
 

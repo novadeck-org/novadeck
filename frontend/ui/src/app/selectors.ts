@@ -135,17 +135,9 @@ export const foldsOf = (
   }))
 }
 
-// Whether project windows are on in this window: a desktop app that opens them, with its
-// Experimental switch and the feature's own on.
-export const projectWindowsOn = (
-  state: Pick<UiState, "preferences" | "flags">,
-  windows: ProjectWindows | undefined,
-): boolean =>
-  windows !== undefined && state.flags.IS_EXPERIMENTAL && state.preferences.projectWindows
-
-// Whether another window shows the project, with project windows on.
+// Whether another window shows the project, in a desktop app that opens project windows.
 export const shownElsewhere = (
-  state: Pick<UiState, "preferences" | "flags" | "windows">,
+  state: Pick<UiState, "windows">,
   windows: ProjectWindows | undefined,
   projectId: string,
-): boolean => projectWindowsOn(state, windows) && state.windows.elsewhere.includes(projectId)
+): boolean => windows !== undefined && state.windows.elsewhere.includes(projectId)

@@ -2,7 +2,6 @@ import type { Workspace } from "@novadeck/core/types"
 
 import type { DemoLaunch } from "./debug-demo"
 import type { DemoProjectWindows } from "./desktop/project-windows"
-import { pageUpdateChannel } from "./desktop/updates"
 import type { DemoActionGroup } from "./types"
 
 // The projects other than the one on screen, by id.
@@ -24,17 +23,14 @@ export const projectWindowGroups = (
     title: "Project windows",
     actions: [
       {
-        label: "Offered, on Experimental",
-        hint: "Boots on the experimental channel with the app able to open windows: Preferences > Experimental has the Project windows row, which with it on gives a project's menu in the switcher and the pins bar Open in new window",
+        label: "Offered",
+        hint: "Boots with the app able to open windows: a project's menu in the switcher and the pins bar has Open in new window, and the window's title names the project",
         reboots: true,
-        run: () => {
-          pageUpdateChannel.channel = "experimental"
-          launch.setProjectWindows(true)
-        },
+        run: () => launch.setProjectWindows(true),
       },
       {
         label: "Not offered",
-        hint: "Preferences > Experimental shows the Project windows row disabled, reading Not available here, as in a browser",
+        hint: "Boots without windows, as in a browser: a project's menu has no Open in new window",
         reboots: true,
         run: () => launch.setProjectWindows(false),
       },
@@ -46,7 +42,7 @@ export const projectWindowGroups = (
       },
       {
         label: "Another window shows the next project",
-        hint: "The first project that isn't on screen shows Shown in another window in the switcher and the pins bar (turn Project windows on first); picking it shows it here all the same",
+        hint: "The first project that isn't on screen shows Shown in another window in the switcher and the pins bar; picking it shows it here all the same",
         run: (context) => {
           const [next] = others(workspace())
           if (next === undefined) return context.note("There is no other project.")

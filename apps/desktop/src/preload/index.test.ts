@@ -56,7 +56,6 @@ import {
   projectWindowShowChannel,
   projectWindowsChannel,
   projectWindowsRequestChannel,
-  projectWindowsUseChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -525,13 +524,11 @@ describe("the project windows", () => {
     const bridge = electron.exposed
     bridge.showProjectWindow!("p1", ["p1", "p2"])
     bridge.showProjectWindow!(null)
-    bridge.useProjectWindows!(true)
     bridge.openProjectWindow!("p2")
     bridge.handOffToProjectWindow!({ projectId: "p4", terminalId: "t1" })
     expect(electron.messages).toEqual([
       [projectWindowShowChannel, { projectId: "p1", known: ["p1", "p2"] }],
       [projectWindowShowChannel, { projectId: null, known: [] }],
-      [projectWindowsUseChannel, true],
       [projectWindowOpenChannel, "p2"],
       [projectWindowHandOffChannel, { projectId: "p4", terminalId: "t1" }],
     ])
@@ -540,7 +537,6 @@ describe("the project windows", () => {
   it("sends nothing for what is not", () => {
     const bridge = electron.exposed
     bridge.showProjectWindow!("")
-    bridge.useProjectWindows!("yes" as unknown as boolean)
     bridge.openProjectWindow!("a\nb")
     bridge.handOffToProjectWindow!({ terminalId: "t" } as never)
     expect(electron.sent).toEqual([])

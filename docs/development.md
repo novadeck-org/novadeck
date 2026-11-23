@@ -910,11 +910,9 @@ App:
   actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
   the Agent worktrees row disabled, reading "Not available here."; "Offered" boots
   back to normal.
-- **Project windows:** the App section's group for the desktop app's project windows
-  (Preferences > Experimental > Project windows, which needs the experimental channel and the
-  switch on). "Offered, on Experimental" boots on the experimental channel with a backend that can
-  open windows; "Not offered" boots one that can't, so the row is disabled, reading "Not available
-  here."; "A second window, not the first" boots as a window that isn't the app's first, with no
+- **Project windows:** the App section's group for the desktop app's project windows. "Offered"
+  boots with a backend that can open windows; "Not offered" boots one that can't, as a browser, so a
+  project's menu has no Open in new window; "A second window, not the first" boots as a window that isn't the app's first, with no
   welcome dialog, Agent Chat offer, voice or Murmur offer or what's-new card. The other windows
   are pretended: "Another window shows the next project" and "Other windows show every other
   project" put the quiet window mark and its "Shown in another window" tooltip on those projects in
@@ -1531,7 +1529,7 @@ terminal, and only one of them controls it: writes and resizes are its alone. Wh
 `control-else-observe` (control where it is free, else observing, also after a reconnection), and
 `@novadeck/runner-client` follows `terminals.controls` once per connection to keep each attachment's
 `mode` current (`onMode` tells a change; `take({ ifIdleMs })` moves control here). Runners without it
-keep the old behaviour: a refused attach is polled every 300 ms with project windows on, and after 4 s
+keep the old behaviour: a refused attach is polled every 300 ms in the desktop app, and after 4 s
 the terminal reads "Open in another window".
 
 An observing screen (`libraries/terminal/src/view`, shared by Focus, Grid and Canvas) is sized to the
@@ -1548,9 +1546,10 @@ still copies. A take refused with `CONTROL_BUSY` delivers nothing and keeps the 
 
 ### Project windows
 
-With Preferences > Experimental > Project windows on (`projectWindows` in the preferences; the
-desktop app only, with Experimental on), the app can open several windows, each showing one project,
-and a project may show in several windows at once; all windows are equal. Everything lives in the runner, so
+The desktop app can open several windows, each showing one project, and a project may show in
+several windows at once; all windows are equal. A browser can't, and there is no setting (earlier
+builds kept it behind Preferences > Experimental; their `projectWindows` preference is read past).
+Everything lives in the runner, so
 a window is another UI client of it. The main process keeps which window shows what
 (`apps/desktop/src/main/window/project-windows.ts`, pure over the window type, with its IPC in
 `project-windows-ipc.ts`); each page reports its project (`showProjectWindow`) and hears the
@@ -1563,8 +1562,8 @@ the UI store's `windows`); the page decides at once what an action does:
   not a window shows it already. The app opens only on a project a page has told it knows
   (`showProjectWindow`'s `known`) and at most 16 windows. There is no other way to open one.
 - **Picking a project.** Picking, in the switcher, a pin or its shortcut, a project shows it in this
-  window, even when another window shows it too; that window is never changed or brought forward. With
-  project windows on, this window first reads the project from the runner (`Backend.syncProject`, then the
+  window, even when another window shows it too; that window is never changed or brought forward. This
+  window first reads the project from the runner (`Backend.syncProject`, then the
   core's `project/sync`), for the sessions another window made or removed, and then switches. What each
   window changes in a session reaches the others live through the runner's session feed (`sessions.watch`
   in [Backend API](backend-api.md)), so nothing waits for another window's saves. The latest pick wins when
@@ -1585,8 +1584,8 @@ the UI store's `windows`); the page decides at once what an action does:
   (`clickNotice` in `window/voice.ts`). What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
   nothing changes a window on its own.
 - **Agents.** What an agent asks of the person goes to the window that shows the project of the terminal
-  that asked: the page tells the runner which project it shows (`terminals.showing`, while the switch is
-  on, lapsing with its connection) and an approval, a look at a page and `open_agent` go to that client,
+  that asked: the page tells the runner which project it shows (`terminals.showing`, lapsing with its
+  connection) and an approval, a look at a page and `open_agent` go to that client,
   else the one used last (its `terminals.active` or `showing` report came last), else the newest
   (`ClientWindows`, `Followers.newest`), which is also what a client that says nothing gets. What an agent
   does never raises a window: an `open_agent` with focus for a project another window shows is handed
@@ -1601,15 +1600,14 @@ the UI store's `windows`); the page decides at once what an action does:
   notifications and sets the badge (the main process drops the others' notices and badges and shows
   the new voice's last count when the voice moves; a closing voice's notifications go with it). The
   rules are pure in `window/voice.ts`, tested there.
-- **Restore.** With the switch on the main process keeps each window's project and bounds in
+- **Restore.** The main process keeps each window's project and bounds in
   `windows.json` of the data folder (`window/saved-windows.ts`) and reopens them at the next launch; a
   window closed while others remain leaves the list, a quit keeps the windows open at its start, and
-  the last window closing keeps the list as it stood before. Off, launch is as it was. Two windows on one
-  project are two entries, so both reopen.
+  the last window closing keeps the list as it stood before. Two windows on one project are two entries, so
+  both reopen. A file from before (with its `on`) is read past that switch: with it off it listed none.
 - **Window keys.** Each window has a key, a UUID kept in `windows.json` beside its project and bounds (an
-  older entry gets one at load, written back at once), the same across relaunches; a window created while
-  project windows are on gets a new one. With them off a window has none, so nothing keyed is written; one
-  opened before the switch went on stays keyless until the next launch. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
+  older entry gets one at load, written back at once), the same across relaunches; a new window gets a new
+  one. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
   `DesktopApp.windowKey`; a browser has none. The page keeps what is one window's own under it in
   `localStorage`: the view of a session (`novadeck:session-view:<key>:<sessionId>`, read before the device's
   `novadeck:session-view:<sessionId>`, and written to both so a new window starts from the view used last;
@@ -1624,7 +1622,7 @@ the UI store's `windows`); the page decides at once what an action does:
   the window the person focuses or types in (its `active` report, re-sent on focus and input), or last
   showed a project (`showing`); a null `active` is not use. A client that never reports (a `dev:web` tab)
   is never chosen.
-- **Title.** The document's title names the project while project windows are on, which the window shows.
+- **Title.** The document's title names the project the window shows.
 
 Preferences are one `localStorage` shared by the windows, which follow each other's changes through
 the `storage` event (`followSavedPreferences`).

@@ -564,7 +564,7 @@ export type BackendFields = {
   // Optional. Tells the backend which project this window shows (null for none), so what an
   // agent asks of the person reaches the window that shows the project of the terminal that
   // asked. Told again, with no change, only where the link to the runner came back. Called only
-  // while project windows are on. Absent where terminals run no programs, as in the demo.
+  // where the app opens project windows. Absent where terminals run no programs, as in the demo.
   // `others` says another window exists, which may take over the project this one leaves: its
   // screens are let go of at once then, else kept for when this window shows it again.
   readonly showingProject?: (projectId: string | null, others?: boolean) => void

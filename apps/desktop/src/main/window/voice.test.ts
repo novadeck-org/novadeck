@@ -83,13 +83,12 @@ describe("what only the voice window does", () => {
 })
 
 describe("a click on a notification", () => {
-  const setupClick = (windowsOn: boolean, alive = (_window: string) => true) => {
+  const setupClick = (alive = (_window: string) => true) => {
     const events: string[] = []
     let forwarded = 0
     const timers: (() => void)[] = []
     const click = (raising: string, voice?: string) =>
       clickNotice({
-        windowsOn,
         raising,
         voice,
         alive,
@@ -107,15 +106,8 @@ describe("a click on a notification", () => {
     return { events, timers, click, forwardElsewhere: () => void (forwarded += 1) }
   }
 
-  it("brings the window that raised it forward at once, and tells it, without project windows", () => {
-    const { events, click, timers } = setupClick(false)
-    click("a")
-    expect(events).toEqual(["forward a", "send a"])
-    expect(timers).toHaveLength(0)
-  })
-
-  it("only tells the page with project windows, which brings the project's window forward", () => {
-    const { events, click, timers, forwardElsewhere } = setupClick(true)
+  it("only tells the page, which brings the project's window forward", () => {
+    const { events, click, timers, forwardElsewhere } = setupClick()
     click("a")
     forwardElsewhere()
     timers.forEach((run) => run())
@@ -123,18 +115,18 @@ describe("a click on a notification", () => {
   })
 
   it("brings the raising window forward when no window did, as when the terminal is gone", () => {
-    const { events, click, timers } = setupClick(true)
+    const { events, click, timers } = setupClick()
     click("a")
     timers.forEach((run) => run())
     expect(events).toEqual(["send a", "forward a"])
   })
 
   it("goes to the voice's window when the one that raised it is gone, and to none when none is", () => {
-    const gone = setupClick(true, (window) => window !== "a")
+    const gone = setupClick((window) => window !== "a")
     gone.click("a", "b")
     gone.timers.forEach((run) => run())
     expect(gone.events).toEqual(["send b", "forward b"])
-    const none = setupClick(true, () => false)
+    const none = setupClick(() => false)
     none.click("a", "b")
     expect(none.events).toEqual([])
   })
@@ -144,7 +136,6 @@ describe("a click on a notification", () => {
     const forward = vi.fn<(window: string) => void>()
     const timers: (() => void)[] = []
     clickNotice({
-      windowsOn: true,
       raising: "a",
       voice: undefined,
       alive: () => state.alive,

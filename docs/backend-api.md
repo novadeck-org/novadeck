@@ -661,7 +661,7 @@ before, and that copy is also where the app reads the person's first, so a start
   order of the rail's panels and of the footer's subscriptions, and what they've seen once: the
   Help and feedback chips' words, the phone page's zoom hint, the Agent Chat offer.
 - **The device's:** text size, font and ligatures, the app's scale, notifications, sounds and
-  their volume, the screen reader setting, project windows, the sidebar's width and whether it
+  their volume, the screen reader setting, the sidebar's width and whether it
   is collapsed, the view and terminal in front in each session, folds, and what concerns this
   install (update chips, a portable copy's card).
 - **Still the device's for now:** which agents' messages were read (`novadeck.messages-seen`),

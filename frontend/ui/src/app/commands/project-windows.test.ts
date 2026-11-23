@@ -45,7 +45,6 @@ const recorded = () => {
   const windows: ProjectWindows = {
     onState: () => () => {},
     show: () => {},
-    use: () => {},
     open: (id) => void asked.push(["open", id]),
     handOff: (target) => void asked.push(["handOff", target]),
     onNavigate: () => () => {},
@@ -54,20 +53,20 @@ const recorded = () => {
   return { windows, asked }
 }
 
-// An app with project windows on, whose other windows show `elsewhere`.
-const opened = (elsewhere: string[], on = true, syncProject?: CommandContext["syncProject"]) => {
+// A desktop app, whose other windows show `elsewhere`; with `windows` false, a page that opens
+// no windows, as in a browser, which is told the same.
+const opened = (
+  elsewhere: string[],
+  windowsHere = true,
+  syncProject?: CommandContext["syncProject"],
+) => {
   const { windows, asked } = recorded()
   const app = openCommands({
     workspace: twoProjects(),
-    windows,
+    ...(windowsHere && { windows }),
     ...(syncProject && { syncProject }),
   })
-  app.ui.update((state) => ({
-    ...state,
-    flags: { IS_EXPERIMENTAL: on },
-    preferences: { ...state.preferences, projectWindows: on },
-    windows: { elsewhere, voice: true },
-  }))
+  app.ui.update((state) => ({ ...state, windows: { elsewhere, voice: true } }))
   return { app, asked }
 }
 
@@ -83,9 +82,9 @@ describe("project windows", () => {
       expect(asked).toEqual([])
     })
 
-    it("shows it here for a project no other window shows, or with project windows off", () => {
-      for (const on of [true, false]) {
-        const { app, asked } = opened(on ? [] : ["other"], on)
+    it("shows it here for a project no other window shows, or where the app opens no windows", () => {
+      for (const windowsHere of [true, false]) {
+        const { app, asked } = opened(windowsHere ? [] : ["other"], windowsHere)
         app.commands.switchProject(project(app, "other"))
         expect(asked).toEqual([])
         expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
@@ -193,7 +192,7 @@ describe("project windows", () => {
   })
 
   context("when the person opens a project in a new window", () => {
-    it("asks the app, with project windows on", () => {
+    it("asks the app", () => {
       const { app, asked } = opened([])
       app.commands.openInNewWindow("other")
       expect(asked).toEqual([["open", "other"]])
@@ -205,7 +204,7 @@ describe("project windows", () => {
       expect(asked).toEqual([["open", "project"]])
     })
 
-    it("asks nothing with them off", () => {
+    it("asks nothing where the app opens no windows", () => {
       const { app, asked } = opened([], false)
       app.commands.openInNewWindow("other")
       expect(asked).toEqual([])
@@ -317,7 +316,7 @@ describe("project windows", () => {
       log.mockRestore()
     })
 
-    it("does not read it with project windows off", () => {
+    it("does not read it where the app opens no windows", () => {
       const read: string[] = []
       const { app } = opened([], false, async (id) => {
         read.push(id)
