@@ -1,7 +1,7 @@
 import { longHoldMs } from "@novadeck/protocol"
 
-import type { ChatDialog } from "../conversation"
-import type { InboxTurn } from "../inbox"
+import type { ChatDialog, ChatPermit } from "../conversation"
+import { inboxType, type InboxTurn } from "../inbox"
 import {
   noMessages,
   type AgentMessage,
@@ -163,6 +163,7 @@ const inputs = (
   turns: rowsOf(workspace, unread),
   messages: noMessages,
   requests: {},
+  permits: {},
   entries: [],
   now: 10_000,
   longHoldMs,
@@ -197,6 +198,59 @@ describe("The Inbox's entries", () => {
   it("makes no entry of an agent held at its startup screen: its tab says so", () => {
     const held = workspaceOf(agentTerminal(1, { working: false, startup: "startup" }))
     expect(inboxEntries(inputs(held, { now: 60 * 60_000 }))).toEqual([])
+  })
+
+  describe("a standing permit of the shipping gate", () => {
+    const permit = (change: Partial<ChatPermit> = {}): ChatPermit => ({
+      id: "p1",
+      title: "Merge PR #1190 into main",
+      quote: "go ahead and merge it",
+      givenAt: 3000,
+      until: 9_000_000,
+      usedAt: null,
+      ...change,
+    })
+    const idle = workspaceOf(agentTerminal(1))
+
+    it("makes one entry per permit, given when it was, that asks nothing of the person", () => {
+      const entries = inboxEntries(
+        inputs(idle, { permits: { "01": [permit(), permit({ id: "p2", givenAt: 4000 })] } }),
+      )
+
+      expect(entries.map((entry) => entry.id).toSorted()).toEqual(["permit:01:p1", "permit:01:p2"])
+      expect(entries[1]).toMatchObject({
+        id: "permit:01:p1",
+        at: 3000,
+        stopped: false,
+        kind: "permit",
+        permit: { title: "Merge PR #1190 into main" },
+        source: { terminalId: "01", handle: "moth", title: "Terminal 1" },
+      })
+      expect(entries.map(inboxType)).toEqual(["update", "update"])
+    })
+
+    it("makes none where the detail says none, or the terminal has no running agent", () => {
+      expect(inboxEntries(inputs(idle))).toEqual([])
+      expect(inboxEntries(inputs(idle, { permits: { "01": [] } }))).toEqual([])
+      const asleep = workspaceOf({
+        id: "01",
+        name: "Terminal 1",
+        directory: "/work/app",
+        command: "claude",
+        handle: "moth",
+        state: "sleeping",
+        agent: "claude",
+      } as TerminalMetadata)
+      expect(inboxEntries(inputs(asleep, { permits: { "01": [permit()] } }))).toEqual([])
+    })
+
+    it("is gone from the entries once the permit no longer stands", () => {
+      const before = inboxEntries(inputs(idle, { permits: { "01": [permit()] } }))
+      const after = inboxEntries(inputs(idle, { permits: { "01": [] } }))
+
+      expect(before).toHaveLength(1)
+      expect(after).toEqual([])
+    })
   })
 
   describe("a request", () => {

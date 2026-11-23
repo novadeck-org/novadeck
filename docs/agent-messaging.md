@@ -1705,15 +1705,30 @@ only gates them (`backend/runner/src/shipping/`).
   `--reviewer` in `create`), attached values (`-Rowner/repo`, `-Bmain`, `--base=x`) are read, and a
   PR's URL must name the repository the command resolves. `gh pr edit --base X` counts as opening
   a PR into X, and once it runs the merge permits given for that PR are void.
-- **Permits** (`permits.ts`) last ten minutes per (terminal, action, target, repository), in
-  memory (a restart fails closed); a force push's is single use. They come from the user's own
+- **Permits** (`permits.ts`) stand per (terminal, action, target, repository), in memory (a
+  restart fails closed): for 12 hours from when they're given, until their first use, then ten
+  minutes more for a retry (Codex asks twice for one run, and a failed push gets retried); a
+  force push's is single use. A permit stands for the agent session it was given in, so a
+  `/clear` or another agent in the terminal ends it. A PR's closing or merging ends its merge
+  permit too (the service asks `gh` every five minutes while one stands, never from the hook),
+  as do the terminal's closing, the gate's switching off (none comes back when it's on again)
+  and the person taking it back (`agents.takeBack`); each end, its clock's included, is told at
+  once. The permits one declaration or one card gave (a PR's merge by number and by branch) are
+  one group: used, shown, voided and taken back together. `merge_pr` also takes a branch of the
+  terminal's own (checked out in a worktree it owns), whose PR, opened or not, it covers by
+  `gh pr merge <branch>`; that PR's number is another target. They come from the user's own
   words, quoted in `request_permit`'s `said` (two whole words at least, found at word boundaries,
-  case and spacing aside; the permit notice and the record show the words they matched) in the ring of the last
-  three prompts the person typed into that terminal's root session, none older than an hour (a
-  `/clear` starts a new ring; doorbells, deliveries and a command-line prompt never enter it; an
-  Inbox reply's own words enter from the runner's record of the answer, never from an option's
-  label), or from the user's answer to an action card. Every permit is logged (`shipping.permit`):
-  who, what, target, the quote or the card and the client that answered, and when.
+  case and spacing aside; the permit notice and the record show the words they matched) in the
+  ring of every prompt the person typed into that terminal's root session in the last hour,
+  however many came after (a `/clear` starts a new ring; doorbells, deliveries and a command-line
+  prompt never enter it; a prompt typed into a turn Novadeck continued enters as one starting a
+  turn does; an Inbox reply's own words enter from the runner's record of the answer, never from
+  an option's label), or from the user's answer to an action card. The standing permits are in
+  `agents.detail`'s `permits`, one for each group, with what it covers, the person's matched
+  words (null for a card's Allow) and until when; the Inbox lists each as an update with Take
+  back. Every permit is logged (`shipping.permit`), and so is each taken back
+  (`shipping.taken-back`) or ended by its PR (`shipping.ended`): who, what, target, the quote or
+  the card and the client that answered, and when.
   A permitted push or merge still runs the repository's own git hooks (`pre-push` and the like),
   as it would without Novadeck: the gate allows the command, it doesn't skip what the command runs.
 - **The card** is a request Novadeck holds on the agent's behalf (`cards.ts`): it joins the

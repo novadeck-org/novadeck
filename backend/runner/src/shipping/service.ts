@@ -3,17 +3,25 @@
  * ring of what the person typed, the decision, and the switch that turns it on. Everything is
  * in memory per terminal, so a restart fails closed.
  */
+import { execFile } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import { open } from "node:fs/promises"
 
-import type { AgentName } from "@novadeck/protocol"
+import { agentLimits, type AgentName, type StandingPermit } from "@novadeck/protocol"
 
 import { logs } from "../log.js"
 import { noticeText } from "../messaging/notice-format.js"
 import type { GateCall } from "../shell/hook.js"
 import type { Record } from "../terminals/record.js"
 import { Cards, type Card } from "./cards.js"
-import { declare, ghDefault, ghPull, type Declared, type DeclareAnswer } from "./declare.js"
+import {
+  declare,
+  ghDefault,
+  ghPull,
+  standing,
+  type Declared,
+  type DeclareAnswer,
+} from "./declare.js"
 import {
   agyBypassMode,
   describeKey,
@@ -27,7 +35,7 @@ import {
 } from "./gate.js"
 import { agyPreToolUse } from "./hooks.js"
 import { defaultOf, gitLookups, validName, type Owned } from "./lookups.js"
-import { Permits, Quotes } from "./permits.js"
+import { Permits, Quotes, type Permit } from "./permits.js"
 import { agyRules, claudeRules, codexRules } from "./rules.js"
 import { shipsByRule, shipsCoarsely } from "./shapes.js"
 
@@ -40,6 +48,31 @@ export type ShippingHost = {
   readonly notify: (terminalId: string, text: string) => boolean
   /** Where the person's rule files are: the runner's own environment and home unless given. */
   readonly ruleFiles?: { readonly env: NodeJS.ProcessEnv; readonly home: string }
+  /** Whether a PR, by its number or its head branch, is still open; `ghOpen` when left out. */
+  readonly prOpen?: (repo: string, pr: string) => Promise<boolean | undefined>
+}
+
+/**
+ * Whether `gh` says the PR (by number, or by its head branch) is open: false once it merged or
+ * closed, undefined where gh can't say, as for a branch with no PR yet. Read with no change.
+ */
+export const ghOpen = (repo: string, pr: string): Promise<boolean | undefined> =>
+  new Promise((resolve) => {
+    execFile(
+      "gh",
+      ["pr", "view", pr, "-R", repo, "--json", "state", "--jq", ".state"],
+      { timeout: 10_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } },
+      (error, out) => resolve(error ? undefined : out.trim() === "OPEN"),
+    )
+  })
+
+/** How often standing merge permits are checked against their PR: closed or merged, they end. */
+export const sweepMs = 5 * 60_000
+
+// A merge permit's repository and PR, as its key names them (`pr-merge:<repo>#<n>` or `@<branch>`).
+const mergeTarget = (key: string): { repo: string; pr: string } | undefined => {
+  const match = /^pr-merge:([^#@]+)[#@](.+)$/.exec(key)
+  return match ? { repo: match[1]!, pr: match[2]! } : undefined
 }
 
 // The tail of a rollout read for its latest turn context: a turn starts well within it.
@@ -202,12 +235,13 @@ export const pendingMs = 30_000
 const askedSlackMs = 200
 
 export class Shipping {
-  readonly permits = new Permits()
+  // A permit stands for the agent session it was given in, as the quote ring does, and a card
+  // for the session that asked.
+  private readonly session = (terminalId: string): string | undefined =>
+    this.records.get(terminalId)?.bound?.binding.sessionId
+  readonly permits = new Permits(Date.now, { session: this.session })
   readonly quotes = new Quotes()
-  // A card stands for the agent session that asked it: another one bound there, or none, ends it.
-  readonly cards = new Cards(Date.now, {
-    session: (terminalId) => this.records.get(terminalId)?.bound?.binding.sessionId,
-  })
+  readonly cards = new Cards(Date.now, { session: this.session })
   private readonly gate: Gate
   // Answers handed to a hook whose effect waits for its acknowledgement, by lease.
   private readonly leases = new Map<
@@ -307,17 +341,19 @@ export class Shipping {
       })
     if (allow)
       for (const key of card.keys)
-        this.permits.give(card.terminalId, key, card.singleUse, {
-          type: "answer",
-          card: card.id,
-          ...(client !== undefined && { client }),
-        })
+        this.permits.give(
+          card.terminalId,
+          key,
+          card.singleUse,
+          { type: "answer", card: card.id, ...(client !== undefined && { client }) },
+          { group: card.id, title: card.title.replace(/\?$/, "") },
+        )
     const what = describeKey(card.keys[0]!)
     this.host.notify(
       card.terminalId,
       noticeText("Shipping", {
         facts: allow
-          ? `The user allowed it: ${card.title} (${what}). The permit holds for ten minutes.`
+          ? `The user allowed it: ${card.title} (${what}). ${standing(card.singleUse)}`
           : `The user declined it: ${card.title} (${what}). No permit was given.`,
         actions: allow
           ? [
@@ -345,6 +381,12 @@ export class Shipping {
     this.cards.watch((terminalId) => {
       const record = records.get(terminalId)
       if (record) changed(record)
+    })
+    // A permit given, used or ended changes what the person sees stand.
+    this.permits.watch((terminalId) => {
+      const record = records.get(terminalId)
+      if (record) changed(record)
+      this.sweepWhileStanding()
     })
   }
 
@@ -374,15 +416,6 @@ export class Shipping {
   /** The cards open in a terminal, oldest first; none while the gate is off. */
   cardsOf(terminalId: string): readonly Card[] {
     return this.host.enabled() ? this.cards.of(terminalId) : []
-  }
-
-  /**
-   * The gate was switched on or off: off, every card closes, and the terminals' summaries say
-   * so, so none waits on the person meanwhile or comes back when it is on again.
-   */
-  switched(): void {
-    if (this.host.enabled()) return
-    for (const terminalId of this.records.keys()) this.cards.forget(terminalId)
   }
 
   /**
@@ -535,7 +568,9 @@ export class Shipping {
         note: covered.permits
           .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
           .join("; "),
-        done: covered.voided,
+        // Keys went: the permits are used, a standing one keeping only its retry window, and
+        // whatever the command voids ends.
+        done: covered.used,
         release: covered.restore,
       }
     } catch {
@@ -795,6 +830,108 @@ export class Shipping {
     // an acknowledgement just past it, before the timer ran, still says the hook printed, so it
     // commits (the permits stay taken either way, and the voided ones must end).
     if (lease.timer !== undefined || lease.expires > Date.now()) lease.commit()
+  }
+
+  /**
+   * What the gate holds for the person in a terminal: its open cards, and the permits that
+   * stand there, one for each declaration or card that gave them, oldest first. Nothing while
+   * the gate is off.
+   */
+  held(terminalId: string): {
+    readonly cards: readonly Card[]
+    readonly permits: StandingPermit[]
+  } {
+    if (!this.host.enabled()) return { cards: [], permits: [] }
+    const groups = new Map<string, Permit>()
+    for (const permit of this.permits.of(terminalId))
+      if (!groups.has(permit.group)) groups.set(permit.group, permit)
+    const permits = [...groups.values()].slice(0, agentLimits.permits).map((permit) => ({
+      id: permit.group,
+      title: permit.title.slice(0, agentLimits.subject),
+      quote:
+        permit.source.type === "quote" ? permit.source.quote.slice(0, agentLimits.quote) : null,
+      givenAt: permit.givenAt,
+      until: permit.until,
+      usedAt: permit.usedAt,
+    }))
+    return { cards: this.cardsOf(terminalId), permits }
+  }
+
+  /**
+   * The person took back a permit that stood in a terminal: it ends with every target it
+   * covered, and the agent is told. Whether one stood; undefined for a terminal it doesn't know.
+   */
+  takeBack(terminalId: string, group: string, client?: string): boolean | undefined {
+    if (!this.records.has(terminalId)) return undefined
+    const permit = this.permits.of(terminalId).find((each) => each.group === group)
+    if (!permit || !this.permits.takeBack(terminalId, group)) return false
+    log.info("shipping.taken-back", `The user took back a permit: ${permit.title}`, {
+      data: {
+        terminalId,
+        target: permit.key,
+        client: client ?? null,
+        at: new Date().toISOString(),
+      },
+    })
+    this.host.notify(
+      terminalId,
+      noticeText("Shipping", {
+        facts: `The user took back the permit: ${permit.title}. No permit covers it now.`,
+        actions: [],
+      }),
+    )
+    return true
+  }
+
+  private sweeper: NodeJS.Timeout | undefined
+
+  // Checks the standing merge permits while any stand, and stops once none do.
+  private sweepWhileStanding(): void {
+    const merges = [...this.records.keys()].some((terminalId) =>
+      this.permits
+        .of(terminalId)
+        .some((permit) => mergeTarget(permit.key) && permit.usedAt === null),
+    )
+    if (merges && this.sweeper === undefined) {
+      this.sweeper = setInterval(() => void this.sweep(), sweepMs)
+      this.sweeper.unref()
+    } else if (!merges && this.sweeper !== undefined) {
+      clearInterval(this.sweeper)
+      this.sweeper = undefined
+    }
+  }
+
+  /**
+   * Ends every unused merge permit whose PR merged or closed, as GitHub says now: each group
+   * once, whichever of its targets says so. A PR gh can't read keeps its permit.
+   */
+  async sweep(terminalIds: Iterable<string> = this.records.keys()): Promise<void> {
+    const isOpen = this.host.prOpen ?? ghOpen
+    for (const terminalId of terminalIds)
+      for (const permit of this.permits.of(terminalId)) {
+        // One of its group's targets may have ended it already.
+        const still = this.permits.covering(terminalId, permit.key)
+        const target = still?.usedAt === null ? mergeTarget(permit.key) : undefined
+        // eslint-disable-next-line no-await-in-loop -- One PR at a time keeps gh's load low.
+        if (target && (await isOpen(target.repo, target.pr)) === false)
+          if (this.permits.takeBack(terminalId, permit.group))
+            log.info("shipping.ended", `A permit ended, its PR closed: ${permit.title}`, {
+              data: { terminalId, target: permit.key, at: new Date().toISOString() },
+            })
+      }
+  }
+
+  /**
+   * The gate was switched on or off: off, every permit and card ends, and the summaries say so,
+   * so nothing stands on the wire meanwhile and none comes back when it is on again.
+   */
+  switched(): void {
+    if (this.host.enabled()) return
+    this.permits.clear()
+    for (const terminalId of this.records.keys()) {
+      this.cards.forget(terminalId)
+      this.quotes.forget(terminalId)
+    }
   }
 
   /** A terminal closed: its permits and quotes go. */

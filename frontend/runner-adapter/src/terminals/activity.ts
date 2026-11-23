@@ -158,6 +158,7 @@ export const terminalActivity = (
       ? {
           ...agentStatus(summary.activity),
           ...(summary.reported ? { reported: true as const } : {}),
+          ...(summary.permits ? { permits: summary.permits } : {}),
           ...(startup ? { startup: startup.screen } : {}),
         }
       : startup

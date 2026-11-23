@@ -190,6 +190,7 @@ const setup = (
   unread: Marks = {},
   messages: MessagesState = noMessages,
   options: Parameters<typeof createRunnerInbox>[2] = {},
+  more: Partial<Pick<InboxStreams, "takeBack" | "gate">> = {},
 ) => {
   const details: ReturnType<typeof channel<AgentDetail>>[] = []
   const feed = channel<InboxEntry[]>()
@@ -231,6 +232,7 @@ const setup = (
     interrupt: vi.fn<InboxStreams["interrupt"]>(async () => null),
     release: vi.fn<InboxStreams["release"]>(),
     stop: vi.fn<InboxStreams["stop"]>(),
+    ...more,
   }
   const workspaceStore = createStore(workspace)
   const messagesStore = createStore(messages)
@@ -987,6 +989,183 @@ describe("The shipping gate's cards", () => {
     workspaceStore.update(() => workspaceOf(agentTerminal(1, { working: false, lastTurn: turn() })))
     await settle()
     expect(ids()).toEqual([])
+  })
+})
+
+describe("The shipping gate's standing permits", () => {
+  // A resting agent whose summary says a permit stands there: only its detail lists them.
+  const resting = () => workspaceOf(agentTerminal(1, { working: false, permits: 1 }))
+  const standing = (...ids: string[]): AgentDetail => ({
+    ...detailOf(),
+    permits: ids.map((id) => ({
+      id,
+      title: "Merge PR #1190 into main",
+      quote: id === "p1" ? "merge it" : null,
+      givenAt: 9000,
+      until: 9000 + 12 * 60 * 60_000,
+      usedAt: null,
+    })),
+  })
+  const take = () => vi.fn<NonNullable<InboxStreams["takeBack"]>>(async () => ({ ended: true }))
+  const gated = (open = true) => createStore(open)
+
+  it("follows no resting agent's detail where its summary says no permit stands", async () => {
+    const { details } = setup(
+      workspaceOf(agentTerminal(1)),
+      {},
+      noMessages,
+      {},
+      { takeBack: take(), gate: gated() },
+    )
+    await settle()
+    expect(details).toHaveLength(0)
+  })
+
+  it("follows a resting agent's detail while the gate is on, and lists each permit", async () => {
+    const takeBack = take()
+    const { details, inbox, ids } = setup(
+      resting(),
+      {},
+      noMessages,
+      {},
+      { takeBack, gate: gated() },
+    )
+    await settle()
+    expect(details).toHaveLength(1)
+
+    details[0]!.push(standing("p1", "p2"))
+    await settle()
+
+    expect(ids().toSorted()).toEqual(["permit:01:p1", "permit:01:p2"])
+    expect(inbox.state.getSnapshot().items.find(({ id }) => id === "permit:01:p1")).toMatchObject({
+      kind: "permit",
+      at: 9000,
+      permit: { quote: "merge it", usedAt: null },
+    })
+  })
+
+  it("resolves a permit once the detail stops listing it", async () => {
+    const { details, inbox, ids, entries } = setup(
+      resting(),
+      {},
+      noMessages,
+      {},
+      { takeBack: take(), gate: gated() },
+    )
+    entries.push([])
+    await settle()
+    details[0]!.push(standing("p1"))
+    await settle()
+    details[0]!.push(standing())
+    await settle()
+
+    expect(ids()).toEqual([])
+    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      id: "permit:01:p1",
+      settled: { how: "lapsed" },
+    })
+  })
+
+  it("resolves a permit the chat took back as taken back, and one whose call failed as lapsed", async () => {
+    const { details, inbox, entries } = setup(
+      resting(),
+      {},
+      noMessages,
+      {},
+      { takeBack: take(), gate: gated() },
+    )
+    entries.push([])
+    await settle()
+    details[0]!.push(standing("p1", "p2"))
+    await settle()
+    inbox.takenBack("01", "p1")
+    inbox.takenBack("01", "p2")
+    inbox.takenBack("01", "p2", true)
+    details[0]!.push(standing())
+    await settle()
+
+    const settled = Object.fromEntries(
+      inbox.state.getSnapshot().items.map(({ id, settled: how }) => [id, how?.how]),
+    )
+    expect(settled).toEqual({ "permit:01:p1": "takenBack", "permit:01:p2": "lapsed" })
+  })
+
+  it("shows none and follows no detail where the runner can't take one back, or the gate is off", async () => {
+    const without = setup(resting(), {}, noMessages, {}, { gate: gated() })
+    const off = setup(resting(), {}, noMessages, {}, { takeBack: take(), gate: gated(false) })
+    await settle()
+
+    expect(without.details).toHaveLength(0)
+    expect(off.details).toHaveLength(0)
+    expect(without.ids()).toEqual([])
+    expect(off.ids()).toEqual([])
+  })
+
+  it("follows the detail from when the gate is turned on, and shows no permit once it is off", async () => {
+    const gate = gated(false)
+    const { details, ids } = setup(resting(), {}, noMessages, {}, { takeBack: take(), gate })
+    await settle()
+    expect(details).toHaveLength(0)
+
+    gate.update(() => true)
+    await settle()
+    details[0]!.push(standing("p1"))
+    await settle()
+    expect(ids()).toEqual(["permit:01:p1"])
+
+    gate.update(() => false)
+    await settle()
+    expect(ids()).toEqual([])
+  })
+
+  describe("taking one back", () => {
+    const listed = async (takeBack: ReturnType<typeof take>) => {
+      const made = setup(resting(), {}, noMessages, {}, { takeBack, gate: gated() })
+      made.entries.push([])
+      await settle()
+      made.details[0]!.push(standing("p1"))
+      await settle()
+      return made
+    }
+    const press = (inbox: Awaited<ReturnType<typeof listed>>["inbox"]) =>
+      inbox.answer("permit:01:p1", { kind: "permit", action: "take-back" })
+
+    it("asks the runner for that permit, and notes it was the person who ended it", async () => {
+      const takeBack = take()
+      const { inbox, details } = await listed(takeBack)
+      press(inbox)
+      await settle()
+      expect(takeBack).toHaveBeenCalledWith("01", "p1")
+      expect(inbox.state.getSnapshot().answering).toEqual({ "permit:01:p1": true })
+
+      details[0]!.push(standing())
+      await settle()
+      expect(inbox.state.getSnapshot().items[0]).toMatchObject({ settled: { how: "takenBack" } })
+    })
+
+    it("says so on the entry when the call is refused, and the permit still stands", async () => {
+      const takeBack = take()
+      takeBack.mockRejectedValueOnce(new Error("offline"))
+      const { inbox, ids } = await listed(takeBack)
+      press(inbox)
+      await settle()
+
+      expect(ids()).toEqual(["permit:01:p1"])
+      expect(inbox.state.getSnapshot()).toMatchObject({
+        answering: {},
+        failed: { "permit:01:p1": "Couldn't take it back. Try again." },
+      })
+    })
+
+    it("says so, too, when the runner answers that none stood while the entry still shows", async () => {
+      const takeBack = take()
+      takeBack.mockResolvedValueOnce({ ended: false })
+      const { inbox } = await listed(takeBack)
+      press(inbox)
+      await settle()
+
+      expect(inbox.state.getSnapshot().failed).toEqual({ "permit:01:p1": "It had already ended." })
+    })
   })
 })
 

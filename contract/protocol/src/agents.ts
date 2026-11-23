@@ -44,6 +44,8 @@ export const agentLimits = {
   subject: 1024,
   command: 4096,
   path: 4096,
+  permits: 16,
+  quote: 300,
 } as const
 
 // Fields of an agent's last turn, shared by its summary and by a stored turn entry.
@@ -289,6 +291,20 @@ export type AgentBox = z.infer<typeof agentBox>
 // `agents.prompt` in this session, oldest first. Without an agent bound, only `terminalId`,
 // and the receipts of prompts given an agent at its own prompt before its session binds.
 // Its plans are companion items (`companionItem`).
+// A permit of the shipping gate (Experimental) that stands for the terminal's agent: what the
+// person allowed, by their own words typed there (`quote`, as they wrote them) or by Allow on
+// the gate's card (`quote` null), drawn from what Novadeck resolved, never from an agent's
+// text. It stands until `until`, and once used (`usedAt`) only for a retry; the person takes
+// it back with `agents.takeBack`.
+export const standingPermit = z.strictObject({
+  id: z.string().min(1).max(64),
+  title: z.string().min(1).max(agentLimits.subject),
+  quote: z.string().max(agentLimits.quote).nullable(),
+  givenAt: z.number(),
+  until: z.number(),
+  usedAt: z.number().nullable(),
+})
+
 export const agentDetail = z.strictObject({
   terminalId: id,
   agent: agentNameRead.nullable(),
@@ -331,6 +347,9 @@ export const agentDetail = z.strictObject({
   prompts: z.array(promptReceipt).max(agentLimits.prompts).optional(),
   // Optional, as a runner from before it sends none; null while the box holds nothing to show.
   box: agentBox.nullable().optional(),
+  // The shipping gate's permits that stand for it, oldest first. Optional, as a runner from
+  // before standing permits sends none; this one sends them while the gate is on.
+  permits: z.array(standingPermit).max(agentLimits.permits).optional(),
 })
 
 // An agent Novadeck can connect: whether it is installed here, and whether Novadeck's
@@ -344,10 +363,10 @@ export const agentIntegration = z.strictObject({
   // keeps Novadeck's out, so it is never seen Ready at its first prompt; `outdated`, an agent
   // older than the release Novadeck's plugin works with (opencode's), which loads nothing of
   // Novadeck's until it is updated; `unsupported`, a release newer than Novadeck knows
-  // (opencode 2), which loads nothing of Novadeck's either. Read tolerantly from revision 10: a
+  // (opencode 2), which loads nothing of Novadeck's either. Read tolerantly from revision 11: a
   // reason a UI doesn't know is `newer`, never the agent's entry dropped from the list.
   limited: openEnum(["own-status-line", "outdated", "unsupported"], {
-    since: 10,
+    since: 11,
     unknown: "placeholder",
   }).optional(),
   // The command that installs the agent here, as a terminal runs it at its first prompt, for
@@ -467,4 +486,5 @@ export type AgentActivity = z.infer<typeof agentActivity>
 export type AgentTelemetry = z.infer<typeof agentTelemetry>
 export type AgentCoverage = z.infer<typeof agentCoverage>
 export type AgentDetail = z.infer<typeof agentDetail>
+export type StandingPermit = z.infer<typeof standingPermit>
 export type AgentIntegration = z.infer<typeof agentIntegration>

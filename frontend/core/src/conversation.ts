@@ -232,6 +232,19 @@ export type ChatRequest = {
   readonly detached?: true
 }
 
+// A permit of the shipping gate that stands for the terminal's agent: what the person allowed
+// (`title`), by their own words as they typed them (`quote`) or by Allow on the gate's card
+// (`quote` null), when it was given and until when it stands (epoch milliseconds, the runner's
+// clock), and when it was first used (`usedAt`), after which it stands only for a retry.
+export type ChatPermit = {
+  readonly id: string
+  readonly title: string
+  readonly quote: string | null
+  readonly givenAt: number
+  readonly until: number
+  readonly usedAt: number | null
+}
+
 // Whether a request is a question of the agent's own in a dialog the chat reads, not yet
 // answered, that holds the agent: the person's own Send and Stop set it aside (`setAside`)
 // rather than being refused for it, as a permission or a plan still refuses them, to be
@@ -341,6 +354,9 @@ export type Conversation = {
   readonly screen: ChatSlice | null
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
+  // The shipping gate's permits that stand for the agent, oldest first; none where the runner
+  // sends none.
+  readonly permits: readonly ChatPermit[]
   readonly prompts: readonly ChatPrompt[]
   readonly slice: ChatSlice | null
   readonly box: ChatBox | null
@@ -379,6 +395,7 @@ export const noConversation: Conversation = {
   screen: null,
   items: [],
   requests: [],
+  permits: [],
   prompts: [],
   slice: null,
   box: null,
@@ -482,6 +499,10 @@ export type Conversations = {
   // file the person can attach to a bug report, on their own action, resolving with its path
   // on the runner's machine. Rejects with why not. Absent where a backend can't.
   readonly saveDialog?: (key: TerminalKey, request: string) => Promise<string>
+  // Optional. Takes back a permit of the shipping gate that stands for the terminal's agent
+  // (`Conversation.permits`), as the person asked: it ends at once. Rejects with why not, also
+  // where the permit no longer stood. Absent where the backend can't, and the chat shows no way.
+  readonly takeBack?: (key: TerminalKey, permit: string) => Promise<void>
   // Whether `send`, or an answer's words that go on as a prompt, would be refused for the
   // text's shape, so the chat warns before it sends. Text that is nothing but white space
   // isn't refused here, though `send` refuses it: the chat sends no empty message, and an

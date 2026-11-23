@@ -1,7 +1,7 @@
 {
-  "revision": 10,
-  "oldestClient": 10,
-  "oldestRunner": 10,
+  "revision": 11,
+  "oldestClient": 11,
+  "oldestRunner": 11,
   "errors": {
     "AGENT_SETUP_FAILED": null,
     "ALREADY_ATTACHED": null,
@@ -1043,6 +1043,7 @@
                 {"type":"null"}
               ]
             },
+            "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
             "sleeping": {"type":"boolean"},
             "restingAgent": {
               "anyOf": [
@@ -1564,6 +1565,7 @@
               {"type":"null"}
             ]
           },
+          "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
           "sleeping": {"type":"boolean"},
           "restingAgent": {
             "anyOf": [
@@ -2317,6 +2319,7 @@
                       {"type":"null"}
                     ]
                   },
+                  "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
                   "sleeping": {"type":"boolean"},
                   "restingAgent": {
                     "anyOf": [
@@ -3131,6 +3134,7 @@
               {"type":"null"}
             ]
           },
+          "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
           "sleeping": {"type":"boolean"},
           "restingAgent": {
             "anyOf": [
@@ -3199,7 +3203,7 @@
             "limited": {
               "type": "string",
               "enum": ["own-status-line","outdated","unsupported","newer"],
-              "x-open": {"since":10,"unknown":"placeholder"}
+              "x-open": {"since":11,"unknown":"placeholder"}
             },
             "installer": {
               "type": "string",
@@ -3789,6 +3793,23 @@
               },
               {"type":"null"}
             ]
+          },
+          "permits": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type":"string","minLength":1,"maxLength":64},
+                "title": {"type":"string","minLength":1,"maxLength":1024},
+                "quote": {"anyOf":[{"type":"string","maxLength":300},{"type":"null"}]},
+                "givenAt": {"type":"number"},
+                "until": {"type":"number"},
+                "usedAt": {"type":["number","null"]}
+              },
+              "required": ["id","title","quote","givenAt","until","usedAt"],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -4490,6 +4511,24 @@
       },
       "output": {"x-optional":true}
     },
+    "agents.takeBack": {
+      "since": 10,
+      "input": {
+        "type": "object",
+        "properties": {
+          "terminalId": {"type":"string","format":"uuid"},
+          "permit": {"type":"string","minLength":1,"maxLength":64}
+        },
+        "required": ["terminalId","permit"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {"ended":{"type":"boolean"}},
+        "required": ["ended"],
+        "additionalProperties": false
+      }
+    },
     "agents.saveDialog": {
       "input": {
         "type": "object",
@@ -4560,7 +4599,7 @@
           "limited": {
             "type": "string",
             "enum": ["own-status-line","outdated","unsupported","newer"],
-            "x-open": {"since":10,"unknown":"placeholder"}
+            "x-open": {"since":11,"unknown":"placeholder"}
           },
           "installer": {
             "type": "string",

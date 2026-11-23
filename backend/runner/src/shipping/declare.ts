@@ -5,6 +5,7 @@
  * a permit already live, or a card for the user. The answer says what Novadeck went by.
  */
 import { execFile } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import { resolve as resolvePath } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
@@ -92,6 +93,12 @@ export const ghDefault = (folder: string, repo: string): Promise<string | undefi
 // The most of a quote a permit and its record keep.
 const quoteCut = 300
 
+/** How long a permit given now lasts, in the words its answers and notices say it. */
+export const standing = (singleUse: boolean): string =>
+  singleUse
+    ? "The permit covers one use, within 12 hours."
+    : "The permit stands for 12 hours, until its first use, and for ten minutes after that use, for a retry."
+
 const escalation =
   " If the sandbox blocks the command, run it again asking for escalation; Novadeck approves it."
 
@@ -120,9 +127,26 @@ export const declare = async (
       : `${JSON.stringify(name)} isn't a ${what} name git accepts.`
   switch (input.action) {
     case "merge_pr": {
-      const number = Number(/^#?(\d+)$/.exec(target)?.[1] ?? /\/pull\/(\d+)\/?$/.exec(target)?.[1])
+      const numbered = /^#?(\d+)$/.exec(target)?.[1] ?? /\/pull\/(\d+)\/?$/.exec(target)?.[1]
+      if (numbered === undefined && target !== "") {
+        // A branch of the agent's own: its PR, opened or still to open, merged by
+        // `gh pr merge <branch>` or a bare `gh pr merge` in its checkout. Its number, once
+        // opened, is another target, declared on its own.
+        const bad = await checked(target, "branch")
+        if (bad) return { ok: false, reason: bad }
+        if (!(await lookups.own(folder, target)))
+          return {
+            ok: false,
+            reason: `merge_pr takes a branch only where it is this terminal's own, checked out in a worktree it owns: ${target} isn't. Name the PR's number.`,
+          }
+        keys = [permitKey.prMergeBranch(repo, target)]
+        title = `Merge the PR of ${target}?`
+        detail.push(`The PR whose head is ${target}, merged by its branch`)
+        break
+      }
+      const number = Number(numbered)
       if (!Number.isSafeInteger(number) || number <= 0)
-        return { ok: false, reason: "merge_pr needs target: the PR's number." }
+        return { ok: false, reason: "merge_pr needs target: the PR's number, or its branch." }
       const pull = await deps.pull(folder, repo, number)
       keys = [permitKey.prMerge(repo, number)]
       const branch = await lookups.branch(folder)
@@ -196,12 +220,13 @@ export const declare = async (
   // What of the user's own typing the quote is, as they wrote it: what the permit goes by.
   const matched = said ? deps.quotes.said(terminalId, said)?.slice(0, quoteCut) : undefined
   if (matched !== undefined) {
+    const given = { group: randomUUID(), title: title.replace(/\?$/, "") }
     for (const key of keys)
-      deps.permits.give(terminalId, key, singleUse, { type: "quote", quote: matched })
+      deps.permits.give(terminalId, key, singleUse, { type: "quote", quote: matched }, given)
     return {
       ok: true,
       state: "permitted",
-      text: `The user's words "${matched}" are in what they typed in this terminal, so Novadeck permits it (${sentence}) for ten minutes. Run the command on its own.${how}`,
+      text: `The user's words "${matched}" are in what they typed in this terminal, so Novadeck permits it (${sentence}). ${standing(singleUse)} The user sees it and can take it back. Run the command on its own.${how}`,
     }
   }
   const asked = deps.cards.ask(terminalId, keys, singleUse, title, detail.join("\n"))

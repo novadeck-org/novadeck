@@ -19,6 +19,7 @@ import { createDemoFolders } from "./folders"
 import { createStaleMentions } from "./mentions"
 import { createNewerChat } from "./newer"
 import { createDemoNotices } from "./notices"
+import { createChatPermits } from "./permits"
 import {
   atStartupScreen,
   agentRanHere,
@@ -619,6 +620,7 @@ export const createDemoStates = (
     return Promise.reject(new Error("The runner is restarting it, so it stays where it is."))
   }
   const chat = createChatFailures()
+  const permits = createChatPermits()
   const pictures = createChatPictures()
   const mentions = createStaleMentions()
   const newerChat = createNewerChat()
@@ -1095,6 +1097,11 @@ export const createDemoStates = (
     },
     {
       section: "Agents",
+      title: "Chat: shipping permits",
+      actions: permits.actions,
+    },
+    {
+      section: "Agents",
       title: "Chat: pictures of recorded prompts",
       actions: pictures.actions,
     },
@@ -1158,7 +1165,9 @@ export const createDemoStates = (
     pickDirectory,
     moveTerminal,
     chat: (conversations) =>
-      emptyChats.wrap(newerChat.wrap(mentions.wrap(pictures.wrap(chat.wrap(conversations))))),
+      emptyChats.wrap(
+        newerChat.wrap(permits.wrap(mentions.wrap(pictures.wrap(chat.wrap(conversations))))),
+      ),
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),

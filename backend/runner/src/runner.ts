@@ -705,8 +705,9 @@ const startRunner = (options: RunnerOptions): Runner => {
       settingsSaved: () => rootFolder.ensure(),
       // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
       // hooks, so they are written again, and a Codex copy that differs is installed again.
+      shipping,
       shippingSwitched: () => {
-        // Switched off, its open cards close, and the terminals' summaries say so.
+        // Switched off, its open cards and permits end, and the terminals' summaries say so.
         shipping.switched()
         void shellFiles
           .then(() => rewriteShellFiles())

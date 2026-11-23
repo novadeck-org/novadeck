@@ -495,9 +495,10 @@ export class Reports {
   }
 
   /**
-   * The person's own prompt starting a root turn goes into the shipping gate's ring of what
-   * they typed (see `Quotes`): only what delivery judges their own submission, never a doorbell
-   * or a delivery, nor the command-line prompt an agent was opened with.
+   * The person's own root prompt goes into the shipping gate's ring of what they typed (see
+   * `Quotes`), whether it starts a turn or comes into one Novadeck continued: only what delivery
+   * judges their own submission, never a doorbell or a delivery, nor the command-line prompt an
+   * agent was opened with.
    */
   quoted(record: Record, events: readonly HarnessEvent[]): void {
     const shipping = this.host.shipping()
@@ -507,7 +508,9 @@ export class Reports {
         event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
     )
     if (!start) return
-    const text = this.host.messaging().personPrompt(record.summary.id)
+    // The prompt this report brought, whether it started a turn or came into one Novadeck
+    // continued, where the turn's own first prompt is still the one it started with.
+    const text = this.host.messaging().personSaid(record.summary.id)
     if (text === undefined || this.byCommand(record, text)) return
     shipping.quotes.record(record.summary.id, start.sessionId, text)
   }

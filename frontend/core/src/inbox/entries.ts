@@ -1,5 +1,5 @@
 import { agentWorking } from "../agents/finish"
-import type { ChatRequest } from "../conversation"
+import type { ChatPermit, ChatRequest } from "../conversation"
 import type { AgentName } from "../harnesses"
 import {
   ordered,
@@ -33,7 +33,7 @@ import { second } from "../units"
 // The Inbox's entries, as a backend that builds them from the app's own state derives them:
 // what every agent terminal waits on the person for, from the terminals' statuses (a usage
 // limit), the stored failed turns (their error), the messages held for release, the requests
-// of the agents that ask, and what agents wrote through Novadeck's MCP `ask`, `tell` and
+// of the agents that ask, the permits that stand, and what agents wrote through Novadeck's MCP `ask`, `tell` and
 // `done`. A completed turn makes no entry. The runner's Inbox and the demo's keep it current.
 
 // How long a request's dialog may stay unread before its entry shows anyway, to be answered
@@ -73,6 +73,9 @@ export type InboxInputs = {
   readonly entries: readonly WrittenEntry[]
   // The requests of each terminal whose detail is open, by terminal id, oldest first.
   readonly requests: Readonly<Record<string, readonly Asked[]>>
+  // The shipping gate's permits that stand for each terminal's agent, by terminal id, where its
+  // detail is open and the runner can take them back.
+  readonly permits: Readonly<Record<string, readonly ChatPermit[]>>
   readonly now: number
   // How long a message may wait for an idle agent before its hold is raised (the protocol's
   // `longHoldMs`); null where the backend raises none, as the demo's.
@@ -194,7 +197,7 @@ export const leadHearsOf = (workspace: Workspace, context: string, terminalId: s
 
 // Each terminal's entries.
 const candidates = (
-  { messages, requests, now, longHoldMs }: InboxInputs,
+  { messages, requests, permits, now, longHoldMs }: InboxInputs,
   here: Where,
 ): readonly InboxEntry[] => {
   const { project, session, terminal } = here
@@ -222,6 +225,10 @@ const candidates = (
           kind: "request",
           request: asked.request,
         })
+
+  // The permits of the shipping gate that stand for it: nothing waits on the person in them.
+  for (const permit of permits[terminal.id] ?? [])
+    add(`permit:${terminal.id}:${permit.id}`, permit.givenAt, false, { kind: "permit", permit })
 
   // Its messages held long, as only the person can clear what holds them: in the terminal.
   // Not while it works, as its status says, whatever the listing last said.

@@ -429,7 +429,7 @@ export class Terminals {
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
           this.typing.boxes.view(record.summary.id),
-          this.options.shipping?.cardsOf(record.summary.id) ?? [],
+          this.options.shipping?.held(record.summary.id),
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
@@ -480,6 +480,7 @@ export class Terminals {
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),
       cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
+      permits: (id) => this.options.shipping?.held(id).permits.length ?? 0,
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),

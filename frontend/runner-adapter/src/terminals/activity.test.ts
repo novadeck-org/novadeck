@@ -141,6 +141,11 @@ describe("terminal activity", () => {
         summary({ ...claude, reported: { subject: "Fixed it", at: 5 } }),
       )
       expect(standing.status).toMatchObject({ state: "running", agent: { reported: true } })
+      // The shipping gate's permits that stand there, which the Inbox then follows the detail for.
+      expect(terminalActivity(summary({ ...claude, permits: 2 })).status).toMatchObject({
+        state: "running",
+        agent: { permits: 2 },
+      })
       expect(terminalActivity(summary(claude)).status).toEqual({
         state: "running",
         agent: { working: false },

@@ -258,6 +258,32 @@ describe("the Inbox's history", () => {
     expect(settledOf(other.history.view([], facts(codex)).entries, "request:r1")?.how).toBe("ended")
   })
 
+  it("resolves a permit that stops standing as taken back, where the person took it back", () => {
+    const { history } = setup()
+    const permit = (id: string): InboxEntry => ({
+      id: `permit:01:${id}`,
+      source,
+      at: 100,
+      stopped: false,
+      seen: false,
+      kind: "permit",
+      permit: {
+        id,
+        title: "Open a PR into main",
+        quote: null,
+        givenAt: 100,
+        until: 900,
+        usedAt: null,
+      },
+    })
+    history.view([permit("p1"), permit("p2")], facts())
+    history.note("permit:01:p1", "takenBack")
+    const { entries } = history.view([], facts())
+
+    expect(settledOf(entries, "permit:01:p1")).toMatchObject({ how: "takenBack" })
+    expect(settledOf(entries, "permit:01:p2")).toMatchObject({ how: "lapsed" })
+  })
+
   it("says whether a held message was released or its thread stopped", () => {
     const first = setup()
     first.history.view([held()], facts())

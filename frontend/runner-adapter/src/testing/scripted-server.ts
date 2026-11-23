@@ -288,6 +288,7 @@ export const scriptedRunner = ({
       prompt: api.agents.prompt.handler(unplayed("agents.prompt")),
       answer: api.agents.answer.handler(unplayed("agents.answer")),
       saveDialog: api.agents.saveDialog.handler(unplayed("agents.saveDialog")),
+      takeBack: api.agents.takeBack.handler(unplayed("agents.takeBack")),
       interrupt: api.agents.interrupt.handler(unplayed("agents.interrupt")),
       keys: api.agents.keys.handler(unplayed("agents.keys")),
       takeBox: api.agents.takeBox.handler(unplayed("agents.takeBox")),

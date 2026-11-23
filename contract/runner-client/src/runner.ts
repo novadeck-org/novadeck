@@ -512,6 +512,7 @@ export type Runner = {
      * request the runner doesn't have, `CONFLICT` for one whose dialog is not raw.
      */
     saveDialog(terminalId: string, request: string): Promise<{ readonly path: string }>
+    takeBack(terminalId: string, permit: string): Promise<{ readonly ended: boolean }>
     /**
      * Presses Escape in the terminal's agent, stopping its turn; `CONFLICT` without one.
      * Resolves with the queued words the agent's box took back, cleared out of it, for the
@@ -1159,6 +1160,8 @@ export const connectRunner = async (
         call((client) => client.agents.answer({ terminalId, request, answer })),
       saveDialog: (terminalId, request) =>
         call((client) => client.agents.saveDialog({ terminalId, request })),
+      takeBack: (terminalId, permit) =>
+        call((client) => client.agents.takeBack({ terminalId, permit })),
       interrupt: (terminalId, { setAside } = {}) =>
         call((client) =>
           client.agents.interrupt({

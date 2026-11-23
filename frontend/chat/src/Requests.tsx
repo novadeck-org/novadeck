@@ -1,6 +1,7 @@
 import {
   WordsLost,
   type ChatAnswer,
+  type ChatPermit,
   type ChatRequest,
   type ChatSlice,
 } from "@novadeck/core/conversation"
@@ -19,6 +20,7 @@ import {
 } from "react"
 
 import { Fact, Since } from "./Fact"
+import { Permit } from "./Permit"
 import { LiveSlice, SliceKeys } from "./Slice"
 
 // How long after an answer took the same dialog may stay before it counts as another one,
@@ -69,6 +71,8 @@ const free = (chat: Element | null): boolean => {
     active.value !== ""
   return Boolean(chat?.contains(active)) && !active.closest(".chat-requests") && !words
 }
+
+const noPermits: readonly ChatPermit[] = []
 
 export type RequestsHandle = {
   // Brings the keyboard to the first card whose dialog never had it: true where one took it.
@@ -248,9 +252,11 @@ const Card = ({
 export const Requests = ({
   handle,
   requests,
+  permits = noPermits,
   slice,
   agent,
   harness = null,
+  onTakeBack,
   onAnswer,
   onAnswerInTerminal,
   onSettled,
@@ -265,6 +271,10 @@ export const Requests = ({
   // The chat's way to give the keyboard to a card before its box.
   readonly handle?: Ref<RequestsHandle>
   readonly requests: readonly ChatRequest[]
+  // The shipping gate's permits that stand, drawn under the requests as the settled state of the
+  // card the person answered, and the way to take one back, where the backend has it.
+  readonly permits?: readonly ChatPermit[]
+  readonly onTakeBack?: ((permit: string) => Promise<void>) | undefined
   // The terminal's own rows, for a dialog no adapter read.
   readonly slice: ChatSlice | null
   readonly agent: string
@@ -297,8 +307,11 @@ export const Requests = ({
     if (take) takers.current.set(id, take)
     else takers.current.delete(id)
   }, [])
-  return requests.length === 0 ? null : (
-    <section className="chat-requests" aria-label="Waiting for you">
+  return requests.length === 0 && permits.length === 0 ? null : (
+    <section
+      className="chat-requests"
+      aria-label={requests.length === 0 ? "Allowed" : "Waiting for you"}
+    >
       {requests.map((request) => (
         <Card
           key={request.id}
@@ -318,6 +331,9 @@ export const Requests = ({
           onSaveDialog={onSaveDialog}
           onOpenLogs={onOpenLogs}
         />
+      ))}
+      {permits.map((permit) => (
+        <Permit key={permit.id} permit={permit} agent={agent} onTakeBack={onTakeBack} />
       ))}
     </section>
   )

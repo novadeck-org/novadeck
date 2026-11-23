@@ -1224,6 +1224,63 @@ describe("the runner's conversations", () => {
       await expect(conversations.saveDialog?.(key, "r1")).rejects.toThrow("Couldn't save")
     })
 
+    it("carries the shipping gate's standing permits, and takes one back through the runner", async () => {
+      const { details, streams } = setup()
+      const takeBack = vi.fn<NonNullable<ConversationStreams["takeBack"]>>(async () => ({
+        ended: true,
+      }))
+      const conversations = createRunnerConversations({ ...streams, takeBack })
+      const store = conversations.conversation(key)
+      store.subscribe(() => {})
+      expect(store.getSnapshot().permits).toEqual([])
+      const permit = {
+        id: "p1",
+        title: "Merge PR #1190 into main",
+        quote: "merge it",
+        givenAt: 1000,
+        until: 2000,
+        usedAt: null,
+      }
+      details.push(detail({ permits: [permit] }))
+      await settle()
+      expect(store.getSnapshot().permits).toEqual([permit])
+
+      await expect(conversations.takeBack?.(key, "p1")).resolves.toBeUndefined()
+      expect(takeBack).toHaveBeenCalledWith("t", "p1")
+      // A permit that no longer stood is no success, and neither is a call the runner refused.
+      takeBack.mockResolvedValueOnce({ ended: false })
+      await expect(conversations.takeBack?.(key, "p1")).rejects.toThrow("already ended")
+      takeBack.mockRejectedValueOnce(new WireError("DISCONNECTED"))
+      await expect(conversations.takeBack?.(key, "p1")).rejects.toThrow("offline")
+      takeBack.mockRejectedValueOnce(new WireError("NOT_FOUND"))
+      await expect(conversations.takeBack?.(key, "p1")).rejects.toThrow("gone")
+      takeBack.mockRejectedValueOnce(new WireError("INTERNAL"))
+      await expect(conversations.takeBack?.(key, "p1")).rejects.toThrow("Couldn't take it back")
+    })
+
+    it("shows no permit and offers no Take back where the runner has no such call", async () => {
+      const { details, conversations, store } = setup()
+      store.subscribe(() => {})
+      details.push(
+        detail({
+          permits: [
+            {
+              id: "p1",
+              title: "Open a PR into main",
+              quote: null,
+              givenAt: 1,
+              until: 2,
+              usedAt: null,
+            },
+          ],
+        }),
+      )
+      await settle()
+
+      expect(store.getSnapshot().permits).toEqual([])
+      expect(conversations.takeBack).toBeUndefined()
+    })
+
     it("carries the terminal's doorbell, as its messages change, for as long as it's read", async () => {
       const { streams } = setup()
       const messages = createStore<MessagesState>(noMessages)

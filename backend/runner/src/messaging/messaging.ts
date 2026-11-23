@@ -444,6 +444,11 @@ export class Messaging {
     return this.deliveries.personPrompt(terminalId)
   }
 
+  /** The words of the person's own root prompt the last turn event brought, once (see `Deliveries.takeSaid`). */
+  personSaid(terminalId: string): string | undefined {
+    return this.deliveries.takeSaid(terminalId)
+  }
+
   settledSince(terminalId: string): number | undefined {
     return this.deliveries.settledSince(terminalId)
   }

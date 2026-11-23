@@ -1976,6 +1976,16 @@ one from an earlier runner.
   dialog is not raw, or the terminal is gone. The client's
   `agents.saveDialog(terminalId, request)` is that call.
 
+- `agents.takeBack({ terminalId, permit })` (since revision 10) is the person's Take back on a
+  permit of the shipping gate that stands for the terminal's agent: `permit` is an id from
+  `agents.detail`'s `permits`, whose entries say what it covers (`title`), the person's own
+  matched words (`quote`, null where they allowed it on the gate's card), when it was given and
+  until when it stands (`givenAt`, `until`) and when it was first used (`usedAt`). It ends at
+  once with every target it covered, the agent is told in a Novadeck notice, and the call
+  resolves with `{ ended }`, false where none stood by that id. `permits` is absent while the
+  gate is off and where none stand. Errors: `NOT_FOUND`, the terminal isn't open. A UI asks
+  `runner.supports("agents.takeBack")` first.
+
 - `agents.interrupt({ terminalId, setAside? })` presses Escape in the terminal's agent, which stops
   its turn in every harness, after up to 5 s where Claude Code's queued messages are still
   in their prompt hooks (the turn ends without a normal Stop: its activity is

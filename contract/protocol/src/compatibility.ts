@@ -29,10 +29,12 @@ export const compatibility: Compatibility = {
   //    `preferences.*`).
   // 8: a terminal's control moves between clients (`terminals.take`, `terminals.controls`).
   // 9: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
-  // 10: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
+  // 10: the shipping gate's standing permits (`agents.detail` `permits`, a terminal's `permits`,
+  //     `agents.takeBack`).
+  // 11: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
   // runners before it refuse; and an agent's `limited` gains reasons (outdated, unsupported),
   // read tolerantly from here, which UIs before it don't.
-  revision: 10,
-  oldestClient: 10,
-  oldestRunner: 10,
+  revision: 11,
+  oldestClient: 11,
+  oldestRunner: 11,
 }

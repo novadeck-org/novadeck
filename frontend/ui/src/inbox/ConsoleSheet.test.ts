@@ -1846,6 +1846,7 @@ describe("The Console sheet", () => {
       screen: null,
       items,
       requests: [],
+      permits: [],
       prompts: [],
       box: null,
     })

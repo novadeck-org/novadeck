@@ -15,11 +15,16 @@ import { Bindings, type BindingsHost } from "./facts.js"
  */
 const noReports = { reports: () => ({ tell: null, done: null }) }
 
-const bindings = (shown?: AgentName, cards?: BindingsHost["cards"]) => {
+const bindings = (
+  shown?: AgentName,
+  cards?: BindingsHost["cards"],
+  permits?: BindingsHost["permits"],
+) => {
   const announce = vi.fn<(record: Record) => void>()
   const detailed = vi.fn<(record: Record) => void>()
   const host = {
     cards,
+    permits,
     messaging: () => ({
       shownAgent: () => shown,
       inboxOwner: () => undefined,
@@ -678,10 +683,36 @@ describe("following a bound session's subagents in their own sources", () => {
 
 describe("the shipping gate in a terminal's summary", () => {
   const gate = () => {
-    const held = { cards: [] as unknown[] }
-    const { bindings: ends, announce, detailed } = bindings(undefined, () => held.cards.length)
+    const held = { cards: [] as unknown[], permits: [] as unknown[] }
+    const {
+      bindings: ends,
+      announce,
+      detailed,
+    } = bindings(
+      undefined,
+      () => held.cards.length,
+      () => held.permits.length,
+    )
     return { ends, held, announce, detailed }
   }
+
+  it("says how many permits stand, only where some do, and always tells the detail", () => {
+    const { ends, held, announce, detailed } = gate()
+    const shown = record()
+    ends.publishGate(shown)
+    const first = announce.mock.calls.length
+    expect(detailed).toHaveBeenCalled()
+    expect("permits" in shown.summary).toBe(false)
+    held.permits = [{}, {}]
+    ends.publishGate(shown)
+    expect(shown.summary.permits).toBe(2)
+    ends.publishGate(shown)
+    expect(announce).toHaveBeenCalledTimes(first + 1)
+    held.permits = []
+    ends.publishGate(shown)
+    expect("permits" in shown.summary).toBe(false)
+    expect(announce).toHaveBeenCalledTimes(first + 2)
+  })
 
   // The gate's card waits on the person after `request_permit` has answered, so the agent's
   // turn may well have ended: its summary still says something waits on them, which is what
