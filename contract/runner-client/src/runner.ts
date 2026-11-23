@@ -68,7 +68,13 @@ import {
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
-import { connect, serves, type Transport, type WireStatus } from "@novadeck/wire/client"
+import {
+  connect,
+  serves,
+  servesValue,
+  type Transport,
+  type WireStatus,
+} from "@novadeck/wire/client"
 
 import { lost, type RunnerErrorCode } from "./errors.js"
 import { followAll, followRestarting, followSession, type Reset } from "./follow.js"
@@ -126,8 +132,14 @@ export type Runner = {
    * asking. A UI asks before it offers what such a procedure does. While reconnecting, it
    * answers for the runner it last reached; a runner replaced since shows as a new epoch in
    * `status`, and the UI asks again.
+   *
+   * With `{ at, value }` it asks instead whether the runner takes `value` at `at` of the
+   * procedure's input, where the contract marks it new since a revision (`inputEnum`,
+   * `inputUnion`): `at` names the input's keys with `.` between them, `*` for a list's items
+   * (`"harness"`), and for a union `value` is the variant's tag value. A call holding such a
+   * value rejects with `UNSUPPORTED` without asking the runner.
    */
-  supports(path: ProcedurePath): boolean
+  supports(path: ProcedurePath, input?: { readonly at: string; readonly value: string }): boolean
   /**
    * Yields the current status, then the latest one after each change, until the runner
    * closes. Quick successive changes may be coalesced. `break` stops it at any time.
@@ -934,7 +946,10 @@ export const connectRunner = async (
       return connection.status.value
     },
     watch: () => connection.status.watch(),
-    supports: (path) => serves(contract, path.split("."), current()),
+    supports: (path, input) =>
+      serves(contract, path.split("."), current()) &&
+      (input === undefined ||
+        servesValue(contract, path.split("."), input.at, input.value, current())),
     projects: {
       list: () => call((client) => client.projects.list()),
       create: (input) => call((client) => client.projects.create(input)),

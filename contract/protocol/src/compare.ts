@@ -18,7 +18,10 @@ export type Finding = {
 export type Verdict = {
   /** What the change does to a peer from the release before. */
   readonly findings: readonly Finding[]
-  /** Procedures new since the release that a UI must check for (`since`), so older runners lack them by design. */
+  /**
+   * Procedures, and input values or variants (`x-since`, open.ts), new since the release that a
+   * UI must check for, so older runners lack them by design.
+   */
   readonly gated: readonly string[]
   /** What the window gets wrong for these findings; the check fails on any. */
   readonly problems: readonly string[]
@@ -73,6 +76,7 @@ const understood = new Set([
   "type",
   "x-optional",
   "x-open",
+  "x-since",
   "x-zod",
 ])
 
@@ -188,6 +192,18 @@ type Marks = { readonly oldestClient: number; readonly released: number }
 
 type Mark = { readonly since?: unknown }
 
+/**
+ * An input's values or variants marked `x-since` (open.ts), as the runner of the release sees
+ * them: one it lacks passes when it names a revision after `released`, and is noted in `found`
+ * by where it is and what it is, with that revision.
+ */
+type Since = { readonly released: number; readonly found: Map<string, number> }
+
+const sinceOf = (schema: Schema, value: unknown): unknown => {
+  const mark = schema["x-since"]
+  return isSchema(mark) && typeof value === "string" ? mark[value] : undefined
+}
+
 const markOf = (schema: Schema): Mark | undefined =>
   isSchema(schema["x-open"]) ? (schema["x-open"] as Mark) : undefined
 
@@ -196,8 +212,37 @@ const covers = (
   narrowRoot: Schema,
   reader: Reader,
   marks?: Marks,
+  gate?: Since,
 ): ((wide: Schema, narrow: Schema, at: string) => Problem[]) => {
   const bounds = reader === "validates"
+  // A value or variant the release lacks, which the newer schema marks as new after the release:
+  // a client sends it only to a runner that has it, so the release's runner never meets it.
+  const arrives = (narrow: Schema, at: string, value: unknown): boolean => {
+    const now = sinceOf(narrow, value)
+    if (gate === undefined || typeof now !== "number" || now <= gate.released) return false
+    // Where the value sits, without the labels of the union options on the way to it.
+    const place = at.replace(/(\/(\d+|[^/=]+=[^/]*))+$/, "")
+    gate.found.set(`${place} ${JSON.stringify(value)}`, now)
+    return true
+  }
+  // A mark on a value the release had stays as it was, and none is new on it.
+  const marksOnKnown = (wide: Schema, narrow: Schema, at: string, value: unknown): Problem[] => {
+    if (gate === undefined) return []
+    const was = sinceOf(wide, value)
+    const now = sinceOf(narrow, value)
+    if (was !== undefined && !same(was, now))
+      return [
+        { at, reason: `changed or lost the since mark a release had on ${JSON.stringify(value)}` },
+      ]
+    if (was === undefined && now !== undefined)
+      return [
+        {
+          at,
+          reason: `is marked since ${String(now)} on ${JSON.stringify(value)}, which the release already had`,
+        },
+      ]
+    return []
+  }
   // A released mark stays as it was; a new one names a revision after the release's, as the
   // release's UIs don't read it so. Compared where both sides are the marked schema itself: an
   // enum, or a discriminated union, never the union a nullable one is wrapped in.
@@ -337,10 +382,14 @@ const covers = (
         optional.push(...marksHeld(wide, bare, at))
         const match = options.find((option) => same(tag(option, key), value))
         if (match === undefined)
-          return opens(wide)
+          return arrives(bare, at, value) || opens(wide)
             ? optional
             : [...optional, ...problem(`adds the ${JSON.stringify(value)} variant of "${key}"`)]
-        return [...optional, ...check({ ...rest, ...match }, bare, at)]
+        return [
+          ...optional,
+          ...marksOnKnown(wide, bare, at, value),
+          ...check({ ...rest, ...match }, bare, at),
+        ]
       }
       // A nullable value's union reads its value as its one option would.
       const nullable =
@@ -396,8 +445,11 @@ const covers = (
         const added = narrowValues.filter(
           (value) => !wideValues.some((known) => same(known, value)),
         )
-        if (added.length > 0 && !opens(wide))
-          say(`takes ${shown(added)}, beyond ${shown(wideValues)}`)
+        const unmarked = added.filter((value) => !arrives(narrow, at, value))
+        if (unmarked.length > 0 && !opens(wide))
+          say(`takes ${shown(unmarked)}, beyond ${shown(wideValues)}`)
+        for (const value of narrowValues)
+          if (!added.includes(value)) problems.push(...marksOnKnown(wide, narrow, at, value))
       }
     }
     // A schema of known values is judged by its values alone.
@@ -515,9 +567,10 @@ const compareSchemas = (
   at: string,
   reader: Reader,
   marks?: Marks,
+  gate?: Since,
 ): Problem[] => {
   try {
-    return covers(wide, narrow, reader, marks)(wide, narrow, at)
+    return covers(wide, narrow, reader, marks, gate)(wide, narrow, at)
   } catch (error) {
     return [{ at, reason: error instanceof Error ? error.message : String(error) }]
   }
@@ -536,8 +589,23 @@ export const compareContracts = (
   before: ContractSnapshot,
   after: ContractSnapshot,
 ): { readonly findings: readonly Finding[]; readonly gated: readonly string[] } => {
+  const { findings, gated } = compareWithValues(before, after)
+  return { findings, gated }
+}
+
+// `compareContracts`, with each gated input value or variant, where it is, and the revision it
+// came in, for `judgeContract` to hold to the revision.
+const compareWithValues = (
+  before: ContractSnapshot,
+  after: ContractSnapshot,
+): {
+  readonly findings: readonly Finding[]
+  readonly gated: readonly string[]
+  readonly values: readonly { readonly label: string; readonly since: number }[]
+} => {
   const findings: Finding[] = []
   const gated: string[] = []
+  const values: { label: string; since: number }[] = []
   const found = (procedure: string, behind: Behind, problems: readonly Problem[]) =>
     findings.push(...problems.map(({ at, reason }) => ({ procedure, behind, at, reason })))
 
@@ -555,7 +623,17 @@ export const compareContracts = (
       ])
     // An input is the runner's to read, an answer the UI's.
     found(path, "ui", compareSchemas(now.input, old.input, "input", "validates"))
-    found(path, "runner", compareSchemas(old.input, now.input, "input", "validates"))
+    const since: Since = { released: before.revision, found: new Map() }
+    found(
+      path,
+      "runner",
+      compareSchemas(old.input, now.input, "input", "validates", undefined, since),
+    )
+    for (const [where, revision] of since.found) {
+      const label = `${path} ${where}`
+      values.push({ label, since: revision })
+      gated.push(`${label} since ${revision}`)
+    }
     const [oldKind, oldAnswer] = answer(old)
     const [nowKind, nowAnswer] = answer(now)
     if (oldKind !== nowKind) {
@@ -589,7 +667,7 @@ export const compareContracts = (
     if (now !== null)
       found(`errors.${code}`, "runner", compareSchemas(now, old ?? nothing, "data", "trusts"))
   }
-  return { findings, gated }
+  return { findings, gated, values }
 }
 
 const shape = ({ errors, procedures }: ContractSnapshot) => JSON.stringify({ errors, procedures })
@@ -600,7 +678,7 @@ const shape = ({ errors, procedures }: ContractSnapshot) => JSON.stringify({ err
  * that side's edge past `before`'s revision, so the handshake refuses that peer instead.
  */
 export const judgeContract = (before: ContractSnapshot, after: ContractSnapshot): Verdict => {
-  const { findings, gated } = compareContracts(before, after)
+  const { findings, gated, values } = compareWithValues(before, after)
   const problems: string[] = []
   const was = before.revision
   if (shape(before) !== shape(after) && after.revision <= was)
@@ -628,6 +706,9 @@ export const judgeContract = (before: ContractSnapshot, after: ContractSnapshot)
     if (since > after.revision)
       problems.push(`${path} is marked since: ${since}, past the revision (${after.revision}).`)
   }
+  for (const { label, since } of values)
+    if (since > after.revision)
+      problems.push(`${label} is marked since ${since}, past the revision (${after.revision}).`)
   return { findings, gated, problems }
 }
 

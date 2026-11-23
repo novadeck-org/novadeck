@@ -1,4 +1,4 @@
-import { maxVoicePartLength } from "@novadeck/protocol"
+import { compatibility, contract, maxVoicePartLength } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { ORPCError } from "@orpc/server"
 import { describe as context, describe, expect, it, onTestFinished, vi } from "vitest"
@@ -386,5 +386,42 @@ describe("the person's Send or Stop over a question", () => {
     expect(seen[1]).not.toHaveProperty("setAside")
     expect(seen[2]).toMatchObject({ setAside: ["q1q1q1q1q1q1q1q1"] })
     expect(seen[3]).not.toHaveProperty("setAside")
+  })
+})
+
+describe("supports", () => {
+  it("answers for a procedure by its path", async () => {
+    const { runner } = await fakeRunner({})
+    expect(runner.supports("projects.list")).toBe(true)
+  })
+
+  context("for a value of an input the contract marks since a revision", () => {
+    // The contract marks none yet: mark the settings' agentMode, as `inputEnum` would.
+    const markAgentMode = (since: Record<string, number>) => {
+      const shape = (
+        contract.settings.set["~orpc"].inputSchema as unknown as {
+          def: { shape: Record<string, { meta: (mark: object) => unknown }> }
+        }
+      ).def.shape
+      const original = shape.agentMode
+      shape.agentMode = original?.meta({ "x-since": since }) as never
+      onTestFinished(() => {
+        shape.agentMode = original as never
+      })
+    }
+
+    it("says no for one past the runner's revision, and yes for the rest", async () => {
+      markAgentMode({ swarm: compatibility.revision + 1 })
+      const { runner } = await fakeRunner({})
+      expect(runner.supports("settings.set", { at: "agentMode", value: "swarm" })).toBe(false)
+      expect(runner.supports("settings.set", { at: "agentMode", value: "solo" })).toBe(true)
+      expect(runner.supports("settings.set")).toBe(true)
+    })
+
+    it("says yes once the runner is at that revision", async () => {
+      markAgentMode({ swarm: compatibility.revision })
+      const { runner } = await fakeRunner({})
+      expect(runner.supports("settings.set", { at: "agentMode", value: "swarm" })).toBe(true)
+    })
   })
 })

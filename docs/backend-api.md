@@ -764,11 +764,22 @@ How each kind of change ships:
 | New output field                                          | ignored                | missing                | `.optional()`, or raise `oldestRunner`                                                                                                                                     |
 | New procedure                                             | never called           | missing                | `.meta({ since: <revision> })`, and the UI asks `runner.supports(path)` first (a call to it rejects with `UNSUPPORTED` without asking the runner); or raise `oldestRunner` |
 | New value or variant in an output                         | unknown to it          | fine                   | add it to an open schema, once every UI in the window reads it so; or mark the schema open (as of the next revision) and raise `oldestClient`                              |
-| New value, or a looser bound, in an input                 | fine                   | refused                | gate it on the runner's revision with a new procedure, or raise `oldestRunner`                                                                                             |
+| New value, or a looser bound, in an input                 | fine                   | refused                | for a new enum value or union variant, mark it since the revision (below); else gate it with a new procedure, or raise `oldestRunner`                                      |
 | Removed or renamed procedure or field, new required input | broken                 | —                      | raise `oldestClient`; better, stage it: add the new one, move the UI to it, and remove the old one once the window has passed it                                           |
 
 Raising an edge past the newest release's revision is how a change that can't be additive
 is declared: the handshake then refuses that release's peers, with the message above.
+
+A new value of an input enum, or a new variant of an input union, can name the revision it came
+in (`inputEnum(values, { since: { opencode: 7 } })`, `inputUnion(tag, options, { since: { <tag
+value>: 7 } })` in `contract/protocol/src/open.ts`; `x-since` in `contract.json`). The types stay
+the plain enum and union. The check then takes the value as additive and lists it as new, for UIs
+to ask for, without moving `oldestRunner`; it fails an unmarked new value, a mark on a value the
+release already had, a released mark changed or dropped, and a mark past the revision. A UI asks
+`runner.supports(path, { at, value })` before it offers the value: `at` names the input's keys
+with `.` between them (`*` for a list's items), and `value` is the enum value or the variant's
+tag value. A call whose input holds a value the runner predates rejects with `UNSUPPORTED`
+without asking the runner.
 
 #### Open schemas
 

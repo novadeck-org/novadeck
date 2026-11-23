@@ -39,7 +39,9 @@ code moving inside the repository.
 A change to `contract/protocol` follows docs/backend-api.md ("Versions"): it raises
 `revision` in `compatibility.ts` past main's (released or not: the next release ships it), and a
 change that can't be additive moves `oldestClient` or `oldestRunner` past the revision it
-leaves behind. An output's enum or
+leaves behind. A new value in an
+existing input's enum, or a new variant in its union, uses `inputEnum` / `inputUnion` with the
+revision it came in rather than moving `oldestRunner`. An output's enum or
 union that grows takes new values freely once it is open (`openEnum`, `openUnion`, "Open
 schemas" there), and its UI handles `newer`. Write `contract.json`
 again with `pnpm --filter @novadeck/protocol test -u`. On a conflict in it, take either side,

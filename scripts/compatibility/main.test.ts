@@ -38,6 +38,40 @@ describe("main", () => {
     expect(out).toContain("Passed.")
   })
 
+  // A new value of an input enum (`agents.set`'s agent), as `inputEnum` writes it into the JSON.
+  describe("with a new input value", () => {
+    const next = contract.revision + 1
+    const withAgent = (mark: Record<string, number> | undefined): string => {
+      const procedure = contract.procedures["agents.set"]!
+      const input = procedure.input as { properties: Record<string, Record<string, unknown>> }
+      const agent = input.properties.agent!
+      const grown = {
+        ...agent,
+        enum: [...(agent.enum as string[]), "opencode"],
+        ...(mark ? { "x-since": mark } : {}),
+      }
+      const properties = { ...input.properties, agent: grown }
+      const procedures = {
+        ...contract.procedures,
+        "agents.set": { ...procedure, input: { ...input, properties } },
+      }
+      return JSON.stringify({ ...contract, revision: next, procedures })
+    }
+
+    it("passes one marked since a later revision, and lists it for UIs to ask for", async () => {
+      const { code, out } = await check([], sources(written, withAgent({ opencode: next })))
+      expect(code).toBe(0)
+      expect(out).toContain(`agents.set input/agent "opencode" since ${next}`)
+    })
+
+    it("fails one left unmarked", async () => {
+      const { code, out } = await check([], sources(written, withAgent(undefined)))
+      expect(code).toBe(1)
+      expect(out).toContain('takes "opencode", beyond')
+      expect(out).toContain("raise oldestRunner")
+    })
+  })
+
   it("fails a change that leaves older UIs behind without moving oldestClient", async () => {
     const after = without("projects.rename", { revision: contract.revision + 1 })
     const { code, out } = await check([], sources(written, after))
