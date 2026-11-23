@@ -459,7 +459,7 @@ for await (const entries of runner.inbox.watch()) showInbox(entries)
 const entries = await runner.inbox.list()
 await runner.inbox.answer(askId, { type: "reply", option: null, text: "Use green" })
 await runner.inbox.answer(actionAskId, { type: "done" })
-// An ask of several questions, from revision 6: an answer per question, in its order.
+// An ask of several questions, from revision 7: an answer per question, in its order.
 await runner.inbox.answerQuestions(questionsAskId, [
   { options: [0], text: "" },
   { options: [0, 2], text: "but no shooters" },

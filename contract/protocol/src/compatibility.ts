@@ -25,7 +25,8 @@ export const compatibility: Compatibility = {
   // 5: clients follow the projects and sessions others make, arrange and remove
   //    (`projects.watch`, and `sessions.watch`'s `arranged`).
   // 6: each device has its own credential, revoked on its own (`devices.*`).
-  revision: 6,
+  // 7: an agent asks several questions at once (an ask's `questions` shape, `inbox.answerQuestions`).
+  revision: 7,
   oldestClient: 3,
   oldestRunner: 2,
 }
