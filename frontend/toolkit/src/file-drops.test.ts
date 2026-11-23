@@ -102,6 +102,40 @@ describe("files dragged onto the page", () => {
         vi.useRealTimers()
       }
     })
+    it("keeps them over it while the browser names where in it the pointer went", () => {
+      const { element, told } = zoneOn()
+      const part = document.createElement("span")
+      element.append(part)
+      const data = carrying(1)
+
+      drag("dragover", element, data)
+      drag("dragleave", element, data, part)
+
+      expect(told).toEqual([1])
+    })
+
+    it("tells it they left once the pointer goes into a frame, which the page hears no more of", () => {
+      for (const kind of ["iframe", "webview"]) {
+        const { element, told } = zoneOn()
+        const frame = document.createElement(kind)
+        element.append(frame)
+        const data = carrying(1)
+
+        drag("dragover", element, data)
+        drag("dragleave", element, data, frame)
+
+        expect(told).toEqual([1, null])
+      }
+    })
+
+    it("tells it they left as it is undone while they are over it", () => {
+      const { element, told, undo } = zoneOn()
+
+      drag("dragover", element, carrying(1))
+      undo()
+
+      expect(told).toEqual([1, null])
+    })
   })
 
   context("over a zone inside another", () => {
@@ -112,12 +146,13 @@ describe("files dragged onto the page", () => {
 
       drag("dragover", outer.element, data)
       drag("dragover", inner.element, data)
-      drag("drop", inner.element, data)
+      drag("dragover", outer.element, data)
+      drag("drop", outer.element, data)
 
-      expect(outer.told).toEqual([1, null])
+      expect(outer.told).toEqual([1, null, 1, null])
       expect(inner.told).toEqual([1, null])
-      expect(inner.dropped).toEqual([data])
-      expect(outer.dropped).toEqual([])
+      expect(outer.dropped).toEqual([data])
+      expect(inner.dropped).toEqual([])
     })
   })
 

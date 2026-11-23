@@ -455,6 +455,11 @@ describe("Dropping files on the chat", () => {
     await openChatDemo()
     const chat = await openChat("Build")
     await userEvent.type(composer(chat), "!ls")
+    // Said as they come over the chat, before the drop.
+    dropOn(conversation(chat), [await imageFile("shot.png")], false)
+    await expect
+      .poll(() => chat.element().querySelector(".chat-drop")?.textContent)
+      .toBe("A shell command takes text only.")
     dropOn(conversation(chat), [await imageFile("shot.png")])
     await expect
       .element(chat.getByRole("alert").getByText("A shell command takes text only."))

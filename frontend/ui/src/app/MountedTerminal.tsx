@@ -200,10 +200,11 @@ export const MountedTerminal = ({
     // Intercept before XYFlow's native listener, but let zoom gestures reach it.
     if (!event.ctrlKey && !event.metaKey) event.stopPropagation()
   }, [])
-  // Files dragged over the terminal's window, its header too: how many, while the terminal would
-  // take them. A drop pastes their paths as a paste of them does, in every view alike: the
-  // window, as Canvas lets an unselected window's body take no pointer, so a press selects it.
-  // Not while its chat covers it, whose own box takes them.
+  // Files dragged over the terminal: how many, while it would take them. A drop pastes their
+  // paths as a paste of them does, in every view alike. Its zone is the body its window holds it
+  // in (`.terminal-host`), not the companion pane beside or over it: Canvas lets an unselected
+  // window's content take no pointer, so a press selects it, and its drags reach that body. Not
+  // while its chat covers it, whose own box takes them.
   const [dropping, setDropping] = useState<number | null>(null)
   const dropZone = useFileDrop({
     accepts: () => !covered && (mount?.takesFiles?.() ?? false),
@@ -215,7 +216,7 @@ export const MountedTerminal = ({
       root.current?.removeEventListener("wheel", onWheel)
       root.current = content
       content?.addEventListener("wheel", onWheel, { passive: true })
-      dropZone(content?.closest("[data-terminal]") ?? content)
+      dropZone(content?.closest(".terminal-host") ?? content)
     },
     [onWheel, dropZone],
   )

@@ -14,7 +14,8 @@ export const currentPlatform = (): Platform =>
 
 // Files pasted into a terminal reach its programs as paths: the host saves each one on
 // its machine, and the terminal gets their paths as pasted text, as a native terminal
-// does for a dropped file. Claude Code and Codex take a pasted image's path as the image.
+// does for a dropped file. Claude Code, Codex and Antigravity take a pasted image's path as the
+// image. A drop of files goes in the same way (`pasteFiles`).
 
 // The extension for clipboard bytes of a type, which come without a name.
 const extensions: Partial<Record<string, string>> = {

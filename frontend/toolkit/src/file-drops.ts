@@ -22,7 +22,8 @@ const zones = new Map<Element, FileDropZone>()
 // The zone that says it takes the files over it now, and the count it was told.
 let shown: { readonly zone: FileDropZone; readonly count: number } | undefined
 // Set by a dragenter until its task ends: a dragleave that follows one moved within the page,
-// as the browser enters where the pointer went before it leaves where it was.
+// as the browser enters where the pointer went before it leaves where it was. Where the browser
+// names where it went (`relatedTarget`), that says it instead.
 let entering = false
 let installed: Window | undefined
 
@@ -67,9 +68,16 @@ const enter = (event: Event): void => {
   hover(event)
 }
 
+// A frame of its own, as a companion pane's page or PDF: the page hears nothing more of a drag
+// that went into one, not even its drop.
+const framed = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.matches("iframe, frame, webview, object, embed")
+
 const leave = (event: Event): void => {
-  if (!filesIn(event) || entering || (event as MouseEvent).relatedTarget) return
-  show(undefined)
+  if (!filesIn(event)) return
+  const to = (event as MouseEvent).relatedTarget
+  // Out of the page, or into a frame; anywhere else in the page, its dragover says.
+  if (framed(to) || (to === null && !entering)) show(undefined)
 }
 
 const drop = (event: Event): void => {
@@ -101,7 +109,9 @@ export const fileDropZone = (element: Element, zone: FileDropZone): (() => void)
   zones.set(element, zone)
   return () => {
     if (zones.get(element) === zone) zones.delete(element)
-    if (shown?.zone === zone) shown = undefined
+    if (shown?.zone !== zone) return
+    shown = undefined
+    zone.over(null)
   }
 }
 

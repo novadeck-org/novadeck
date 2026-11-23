@@ -174,7 +174,7 @@ for (const setup of setups) {
     // (`pasteFiles` in libraries/terminal/src/view/paste.ts, whose `shellPath` `imagePaste`
     // mirrors). A folder and a name with spaces make it a path the harness must take escaped.
     gated(it, lacking(setup, "image"))(
-      "takes an image's path pasted into its terminal, as a paste or a drop of the file types it",
+      "takes as the image its escaped path, pasted into its terminal as a paste or drop of the file types it",
       async ({ e2e: run }) => {
         run.model.use(replies("Read this", "Seen."))
         const folder = join(run.sandbox.project, "dropped here")

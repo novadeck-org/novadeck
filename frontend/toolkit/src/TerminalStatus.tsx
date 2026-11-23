@@ -43,7 +43,11 @@ export const TerminalDrop = ({ notice }: { readonly notice: string }): React.JSX
 
 // What dropping `count` files on a terminal does (0: the browser didn't say how many).
 export const terminalDropNotice = (count: number): string =>
-  count > 1 ? `Drop to paste ${count} paths` : "Drop to paste its path"
+  count > 1
+    ? `Drop to paste ${count} paths`
+    : count === 1
+      ? "Drop to paste its path"
+      : "Drop to paste the paths"
 
 // How the shell ended, along the surface's bottom edge, with the restart Enter also
 // asks for. In Canvas its right end follows the resize grip's scale so the button stays

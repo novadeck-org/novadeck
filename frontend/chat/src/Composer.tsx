@@ -27,6 +27,9 @@ import { useTransmitPulse } from "./use-transmit-pulse"
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
 
+// Why images can't join a message here at all.
+const imagesRefused = "This backend can't take images."
+
 // The keys of the box that go to a harness's menu rather than edit the text.
 const menuKeys: Readonly<Record<string, string>> = {
   Enter: "\r",
@@ -286,7 +289,7 @@ export const Composer = ({
             start: field?.selectionStart ?? draft.length,
             end: field?.selectionEnd ?? draft.length,
           })
-        : { refusal: blocked ?? "This backend can't take images.", caret: null }
+        : { refusal: blocked ?? imagesRefused, caret: null }
     if (result.caret !== null) caretAt.current = result.caret
     setError(result.refusal ? { text: result.refusal, terminal: false } : null)
   }
@@ -303,8 +306,9 @@ export const Composer = ({
       if (mounted.current && images && images.length > 0) attach(images)
     })
   }
-  // Files dragged over the chat: the box says it takes them, and a drop of them goes as their
-  // paste would, the caret in the box, so the words go on after them.
+  // Files dragged over the chat: the box says a drop adds them to the message, or why it can't,
+  // in the words a paste of them would get, and a drop goes as their paste would, the caret in
+  // the box, so the words go on after them.
   const form = useRef<HTMLFormElement>(null)
   const [dropping, setDropping] = useState(false)
   const dropped = useRef<(data: DataTransfer) => void>(() => {})
@@ -608,7 +612,7 @@ export const Composer = ({
       </div>
       {dropping && (
         <p className="chat-drop" aria-hidden>
-          Drop to add to your message
+          {pasteRefusal() ?? (onAttach ? "Drop to add to your message" : imagesRefused)}
         </p>
       )}
     </form>

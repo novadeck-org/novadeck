@@ -102,12 +102,14 @@ describe("a paste's files", () => {
 
 describe("the folders among a paste's or a drop's files", () => {
   // Items as the browser lists them, each saying whether it is a folder where it can.
-  const items = (...entries: (boolean | null)[]) => ({
-    items: entries.map((directory) => ({
-      kind: "file",
-      ...(directory !== null && { webkitGetAsEntry: () => ({ isDirectory: directory }) }),
-    })),
-  })
+  type Carried = Parameters<typeof foldersAmong>[0]
+  const items = (...entries: (boolean | null)[]): Carried =>
+    ({
+      items: entries.map((directory) => ({
+        kind: "file",
+        ...(directory !== null && { webkitGetAsEntry: () => ({ isDirectory: directory }) }),
+      })),
+    }) as unknown as Carried
   const src = new File([], "src")
   const notes = new File(["n"], "notes.txt")
 
@@ -126,7 +128,7 @@ describe("the folders among a paste's or a drop's files", () => {
       items: [
         {
           kind: "file",
-          webkitGetAsEntry: () => {
+          webkitGetAsEntry: (): FileSystemEntry | null => {
             throw new Error("gone")
           },
         },

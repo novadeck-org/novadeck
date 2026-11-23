@@ -5,6 +5,7 @@ import { onTestFinished } from "vitest"
 import { cleanup, render } from "vitest-browser-react"
 import { page } from "vitest/browser"
 
+import { companionPane, openShowcase } from "../support/companions"
 import { expectStaysTrue } from "../support/layouts"
 import {
   chooseView,
@@ -43,8 +44,9 @@ const heard = (runner: ReturnType<typeof scriptedRunner>, at: number): string =>
     .map(({ data }) => data)
     .join("")
 
-// A drag event the browser sends at the middle of `target`, carrying `files` (or text alone). A
-// page's own DataTransfer keeps no drop effect, which a real drag's does: the unit tests check it.
+// A drag event the browser sends at the middle of `target`, carrying `files` (or text alone), to
+// what is drawn there and takes the pointer, as a real drag's goes. A page's own DataTransfer
+// keeps no drop effect, which a real drag's does: the unit tests check it.
 const drag = (
   type: "dragenter" | "dragover" | "dragleave" | "drop",
   target: Element,
@@ -53,16 +55,22 @@ const drag = (
 ): DragEvent => {
   if (typeof carried === "string") data.setData("text/plain", carried)
   else if (data.items.length === 0) for (const file of carried) data.items.add(file)
+  // The middle of what is in sight of it: a Canvas window may reach past the page's edge.
   const box = target.getBoundingClientRect()
+  const left = Math.max(box.left, 0)
+  const top = Math.max(box.top, 0)
+  const right = Math.min(box.right, window.innerWidth)
+  const bottom = Math.min(box.bottom, window.innerHeight)
+  const at = { x: (left + right) / 2, y: (top + bottom) / 2 }
   const event = new DragEvent(type, {
     dataTransfer: data,
     bubbles: true,
     cancelable: true,
     composed: true,
-    clientX: box.x + box.width / 2,
-    clientY: box.y + box.height / 2,
+    clientX: at.x,
+    clientY: at.y,
   })
-  target.dispatchEvent(event)
+  ;(document.elementFromPoint(at.x, at.y) ?? target).dispatchEvent(event)
   return event
 }
 
@@ -137,6 +145,43 @@ describe("Files dropped on a runner terminal", () => {
         await expect.poll(() => highlight(target)).toBeNull()
       })
     })
+
+  context("with a companion pane in the terminal's window", () => {
+    it("takes nothing dropped on the pane beside the terminal, which takes its own", async () => {
+      // Focus's window is wide enough for the pane to sit beside the terminal.
+      await openShowcase("focus")
+      await terminalTab("Build Studio").click()
+      const pane = companionPane("Build Studio")
+      await expect.element(pane.getByRole("tab", { name: "projects.json" })).toBeVisible()
+      await screenShown("Build Studio")
+
+      const over = drag("dragover", pane.element(), [notes])
+      expect(over.defaultPrevented).toBe(true)
+      await expectStaysTrue(() => highlight("Build Studio") === null, "no highlight over the pane")
+      drag("dragover", screenOf("Build Studio"), [notes])
+      await expect.poll(() => highlight("Build Studio")?.textContent).toBe("Drop to paste its path")
+      // The tab's click left the keyboard in the terminal, which a drop on the pane doesn't give it.
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      drag("drop", pane.element(), [notes])
+      await expect.poll(() => highlight("Build Studio")).toBeNull()
+      await expectStaysTrue(
+        () => document.activeElement !== input("Build Studio").element(),
+        "the keyboard stays out of the terminal",
+      )
+    })
+
+    it("takes nothing dropped on a pane that covers the terminal, as in a narrow window", async () => {
+      await openShowcase("grid")
+      await expect
+        .element(companionPane("Build Studio").getByRole("tab", { name: "projects.json" }))
+        .toBeVisible()
+      await screenShown("Build Studio")
+
+      drag("dragover", screenOf("Build Studio"), [notes])
+
+      await expectStaysTrue(() => highlight("Build Studio") === null, "no highlight under the pane")
+    })
+  })
 
   it("takes nothing dropped off the terminals, and never leaves the page", async () => {
     const runner = await openRunner()
