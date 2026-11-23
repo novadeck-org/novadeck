@@ -112,7 +112,11 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
   const attachment = (attached: AttachedTerminal): AttachedTerminal => {
     const wrapped: AttachedTerminal = {
       id: attached.id,
-      mode: attached.mode,
+      get mode() {
+        return attached.mode
+      },
+      onMode: (listener) => attached.onMode(listener),
+      take: (options) => attached.take(options),
       [Symbol.asyncIterator]: () => wrapped,
       next: () => attached.next(),
       return: async () => {
@@ -130,7 +134,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
   }
   return {
     watch: () => runner.watch(),
-    supports: (path) => runner.supports(path),
+    supports: (path, input) => runner.supports(path, input),
     projects: {
       list: () => runner.projects.list(),
       create: (input) => note(`create project ${input.id}`, () => runner.projects.create(input)),

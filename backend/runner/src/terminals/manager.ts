@@ -56,6 +56,7 @@ import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
 import { Companion, type Checkout } from "./companion.js"
+import { Controls } from "./controls.js"
 import { conversationDetail } from "./conversation.js"
 import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
@@ -144,6 +145,12 @@ export class Terminals {
     () => this.trees,
   )
   private readonly pendingOwners = new PendingOwners()
+  /** Who controls each terminal, and how control moves between clients. */
+  readonly controls = new Controls({
+    terminals: () => [...this.records].map(([id, { terminal }]) => [id, terminal] as const),
+    terminal: (id) => this.record(id).terminal,
+    clients: () => this.options.clients,
+  })
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests(() => this.options.clients)
   /** Agents' requests to close a terminal, on their way to the client that asks the person. */
@@ -893,6 +900,7 @@ export class Terminals {
       const terminal = startedIn(started, () =>
         place.open(spec, pending.released ? undefined : ownerId),
       )
+      this.controls.watch(input.id, terminal)
       // Claimed once its shell runs, so a shell that didn't start holds no session.
       const claim = resume ? resume.key : asked
       if (claim && started.resumes) {
@@ -1063,6 +1071,7 @@ export class Terminals {
   write(input: { terminalId: string; data: string }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
+    this.controls.wrote(record.terminal, ownerId)
     // A woken shell has yet to read its resume command: keys would take its place.
     if (this.sleepers.holdsKeys(record)) return
     // While the doorbell's test paste, or an answer's keys, are on screen, the person's
@@ -1539,10 +1548,12 @@ export class Terminals {
               throw new DomainError("TERMINAL_NOT_FOUND")
           },
         },
-      ))
+      )) {
+        if (event.type === "attached") this.controls.attached(terminalId, record.terminal, ownerId)
         yield event.type === "attached"
           ? { type: "attached", terminalId, mode: event.mode }
           : { ...event, terminalId }
+      }
     } finally {
       record.attachedAt = Date.now()
       this.pendingOwners.complete(ownerId, pending)
@@ -1739,6 +1750,7 @@ export class Terminals {
   }
 
   release(ownerId: string): void {
+    this.controls.release(ownerId) // first: the client that let go is no one's successor
     this.pendingOwners.release(ownerId)
     this.host.release(ownerId)
     this.streams.release(ownerId)
@@ -1754,6 +1766,7 @@ export class Terminals {
     // what they print on the way out cannot replace it. Transcripts get a short pass (`Saves.finish`).
     const last = this.saves.shutdown()
     this.stopping = true
+    this.controls.finish()
     this.sleepers.stop()
     this.hibernation.stop()
     this.queueNotices.stop()

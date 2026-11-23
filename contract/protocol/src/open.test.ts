@@ -1,10 +1,10 @@
-import { getEventIteratorSchemaDetails } from "@orpc/contract"
+import { getEventIteratorSchemaDetails, oc } from "@orpc/contract"
 import { describe as context, describe, expect, it } from "vitest"
 import { z } from "zod"
 
 import { compatibility } from "./compatibility.js"
 import { contract } from "./contract.js"
-import { isDropped, newer, openEnum, openUnion, readerOf } from "./open.js"
+import { inputEnum, inputUnion, isDropped, newer, openEnum, openUnion, readerOf } from "./open.js"
 import { snapshotContract } from "./snapshot.js"
 
 const since = 3
@@ -194,5 +194,58 @@ describe("the contract's open schemas", () => {
       JSON.stringify(input).includes(`"${newer}"`),
     )
     expect(inputs.map(([path]) => path)).toEqual([])
+  })
+})
+
+describe("inputEnum and inputUnion", () => {
+  it("parse as the plain enum and union", () => {
+    const harness = inputEnum(["claude", "opencode"], { since: { opencode: 7 } })
+    expect(harness.parse("opencode")).toBe("opencode")
+    expect(harness.safeParse("codex").success).toBe(false)
+    const union = inputUnion(
+      "kind",
+      [z.strictObject({ kind: z.literal("a") }), z.strictObject({ kind: z.literal("b") })],
+      { since: { b: 7 } },
+    )
+    expect(union.parse({ kind: "b" })).toEqual({ kind: "b" })
+    expect(union.safeParse({ kind: "c" }).success).toBe(false)
+    const typed: z.infer<typeof harness> = "claude"
+    expect(typed).toBe("claude")
+  })
+
+  it("carry the mark into the JSON Schema", () => {
+    const schema = z.strictObject({
+      harness: inputEnum(["claude", "opencode"], { since: { opencode: 7 } }),
+      choice: inputUnion(
+        "kind",
+        [z.strictObject({ kind: z.literal("a") }), z.strictObject({ kind: z.literal("b") })],
+        { since: { b: 7 } },
+      ),
+    })
+    const written = z.toJSONSchema(schema, { io: "input" }) as {
+      properties: Record<string, Record<string, unknown>>
+    }
+    expect(written.properties.harness?.["x-since"]).toEqual({ opencode: 7 })
+    expect(written.properties.choice?.["x-since"]).toEqual({ b: 7 })
+  })
+
+  it("land in contract.json through the snapshot", () => {
+    const snapshot = snapshotContract(
+      {
+        agents: {
+          open: oc
+            .input(
+              z.strictObject({
+                harness: inputEnum(["claude", "opencode"], { since: { opencode: 7 } }),
+              }),
+            )
+            .output(z.void()),
+        },
+      } as never,
+      compatibility,
+    )
+    expect(JSON.stringify(snapshot.procedures["agents.open"]?.input)).toContain(
+      '"x-since":{"opencode":7}',
+    )
   })
 })

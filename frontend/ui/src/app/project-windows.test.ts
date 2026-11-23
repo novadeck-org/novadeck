@@ -28,7 +28,6 @@ const appWindows = () => {
     show: (id, known) => void told.push(`show ${id} of ${known.join(",")}`),
     use: (on) => void told.push(`use ${on}`),
     open: () => {},
-    swap: async () => "alone",
     handOff: () => {},
     onNavigate: () => () => {},
     extra: false,

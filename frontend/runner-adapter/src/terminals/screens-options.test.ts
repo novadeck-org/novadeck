@@ -92,6 +92,8 @@ describe("the runner's terminal screens' options", () => {
     const attached: AttachedTerminal = {
       id: "t",
       mode: "control",
+      onMode: () => () => {},
+      take: async () => {},
       [Symbol.asyncIterator]: () => attached,
       next: async () => ({ value: undefined, done: true }),
       return: async () => ({ value: undefined, done: true }),
@@ -144,6 +146,15 @@ describe("the runner's terminal screens' options", () => {
     expect(classify(new WireError("TERMINAL_LIMIT"))).toBe("fatal")
     const alone = screensOptions({ ...runtime, sharing: () => false }, { theme: noTheme })
     expect(alone.classify(new WireError("CONTROL_IN_USE"))).toBe("fatal")
+  })
+
+  it("never wait on a runner that hands control over: another window's terminal is observed", () => {
+    const { runtime } = runtimeOf({} as AttachedTerminal)
+    const { classify } = screensOptions(
+      { ...runtime, sharing: () => true, observes: () => true },
+      { theme: noTheme },
+    )
+    expect(classify(new WireError("CONTROL_IN_USE"))).toBe("fatal")
   })
 
   it("wait for Enter after an exit that can start again, not after a clean one", () => {
@@ -207,6 +218,8 @@ describe("the runner's terminal screens over a runtime", () => {
     const attached: AttachedTerminal = {
       id: "t",
       mode: "control",
+      onMode: () => () => {},
+      take: async () => {},
       [Symbol.asyncIterator]: () => attached,
       next: async () =>
         queue.length ? { value: queue.shift()!, done: false } : { value: undefined, done: true },

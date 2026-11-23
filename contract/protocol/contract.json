@@ -1,7 +1,7 @@
 {
-  "revision": 8,
-  "oldestClient": 8,
-  "oldestRunner": 8,
+  "revision": 9,
+  "oldestClient": 9,
+  "oldestRunner": 9,
   "errors": {
     "AGENT_SETUP_FAILED": null,
     "ALREADY_ATTACHED": null,
@@ -32,6 +32,7 @@
       "required": ["reason"],
       "additionalProperties": false
     },
+    "CONTROL_BUSY": null,
     "CONTROL_IN_USE": null,
     "CONTROL_REQUIRED": null,
     "DIALOG_CHANGED": null,
@@ -2555,6 +2556,42 @@
       },
       "output": {"x-optional":true}
     },
+    "terminals.take": {
+      "since": 8,
+      "input": {
+        "type": "object",
+        "properties": {
+          "terminalId": {"type":"string","format":"uuid"},
+          "ifIdleMs": {"type":"integer","minimum":0,"maximum":60000}
+        },
+        "required": ["terminalId"],
+        "additionalProperties": false
+      },
+      "output": {"x-optional":true}
+    },
+    "terminals.controls": {
+      "since": 8,
+      "input": {"x-optional":true},
+      "yields": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {"type":"string","const":"control"},
+              "terminalId": {"type":"string","format":"uuid"},
+              "holder": {
+                "type": "string",
+                "enum": ["you","other","none"],
+                "x-open": {"since":8,"unknown":"drop"}
+              }
+            },
+            "required": ["type","terminalId","holder"],
+            "additionalProperties": false
+          }
+        ],
+        "x-open": {"since":8,"unknown":"drop"}
+      }
+    },
     "terminals.active": {
       "input": {
         "type": "object",
@@ -3162,7 +3199,7 @@
             "limited": {
               "type": "string",
               "enum": ["own-status-line","outdated","unsupported","newer"],
-              "x-open": {"since":8,"unknown":"placeholder"}
+              "x-open": {"since":9,"unknown":"placeholder"}
             },
             "installer": {
               "type": "string",
@@ -4523,7 +4560,7 @@
           "limited": {
             "type": "string",
             "enum": ["own-status-line","outdated","unsupported","newer"],
-            "x-open": {"since":8,"unknown":"placeholder"}
+            "x-open": {"since":9,"unknown":"placeholder"}
           },
           "installer": {
             "type": "string",

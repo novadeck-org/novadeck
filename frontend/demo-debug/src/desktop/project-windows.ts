@@ -6,8 +6,7 @@ import type {
 
 // The page's stand-in for the desktop app's project windows, with the other windows pretended:
 // it says which projects they show and whether this window has the voice, and takes what the
-// page asks as the app would. Opening a project in a window of its own, or swapping with one,
-// moves a pretend window; a hand-off goes to the pretend window, which this page can't see,
+// page asks as the app would. Opening a project in a window of its own adds a pretend window; a hand-off goes to the pretend window, which this page can't see,
 // so it is only noted. `send` is a pretend window sending this one somewhere.
 export type DemoProjectWindows = {
   readonly windows: ProjectWindows
@@ -50,13 +49,6 @@ export const createDemoProjectWindows = ({
     open: (projectId) => {
       if (!state.elsewhere.includes(projectId))
         set({ ...state, elsewhere: [...state.elsewhere, projectId] })
-    },
-    swap: async (projectId) => {
-      // The page asks before it switches, so `shown` is still the project it leaves.
-      if (!state.elsewhere.includes(projectId)) return "alone"
-      const left = state.elsewhere.filter((id) => id !== projectId)
-      set({ ...state, elsewhere: shown === null ? left : [...left, shown] })
-      return "swapped"
     },
     handOff: (target) => {
       handed.push(target)

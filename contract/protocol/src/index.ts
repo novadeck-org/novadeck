@@ -263,6 +263,7 @@ export {
   type BusyShells,
   type TerminalAttached,
   type TerminalChange,
+  type TerminalControl,
   type TerminalEvent,
   type TerminalExit,
   type TerminalRequest,

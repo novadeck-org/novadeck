@@ -82,7 +82,12 @@ export type DictationDeps = {
   readonly voice: Voice
   // Notes that voice input was offered, as the person reached for it before it is installed.
   readonly offered: () => void
-  readonly typeInto: (key: TerminalKey, text: string) => boolean
+  // Types the words, or takes the keyboard of a terminal this window only observes first, which
+  // answers later: "busy" says another window has it and nothing was typed.
+  readonly typeInto: (
+    key: TerminalKey,
+    text: string,
+  ) => boolean | "busy" | Promise<boolean | "busy">
   readonly startCapture: (handlers: CaptureHandlers) => Promise<Capture>
   readonly now: () => number
   readonly after: (milliseconds: number, run: () => void) => () => void
@@ -279,6 +284,19 @@ export const createDictation = (deps: DictationDeps): DictationController => {
     })
   }
 
+  // The terminal went while the engine worked, or isn't taking input now: out of sight, or
+  // reconnecting. The words stay on the clipboard where that is allowed, and in the message where
+  // it is not, so they aren't lost.
+  const notTyped = (said: string, target: TerminalKey): void => {
+    const lost = "The terminal wasn't taking input when the text arrived"
+    const clipboard = navigator.clipboard?.writeText(said)
+    if (!clipboard) return notify(`${lost}: ${said}`, "error", target)
+    clipboard.then(
+      () => notify(`${lost}. The text is on your clipboard.`, "error", target),
+      () => notify(`${lost}: ${said}`, "error", target),
+    )
+  }
+
   const transcribe = (current: VoiceClip, target: TerminalKey, wanted: () => boolean): void => {
     current
       // The runner hints the engine with the words of the terminal dictated into.
@@ -287,17 +305,15 @@ export const createDictation = (deps: DictationDeps): DictationController => {
         if (!wanted()) return
         const said = text.trim()
         if (!said) return notify("Didn't catch anything.", "hint", target)
-        if (typeInto(target, said)) return notify(`Typed ${wordCount(said)}`, "done", target)
-        // The terminal went while the engine worked, or isn't taking input now: out of sight,
-        // or reconnecting. The words stay on the clipboard where that is allowed, and in the
-        // message where it is not, so they aren't lost.
-        const lost = "The terminal wasn't taking input when the text arrived"
-        const clipboard = navigator.clipboard?.writeText(said)
-        if (!clipboard) return notify(`${lost}: ${said}`, "error", target)
-        clipboard.then(
-          () => notify(`${lost}. The text is on your clipboard.`, "error", target),
-          () => notify(`${lost}: ${said}`, "error", target),
-        )
+        // Typing into a terminal this window only observes takes the keyboard first, so it
+        // answers later; what is said of it is what happened.
+        return Promise.resolve(typeInto(target, said)).then((typed) => {
+          if (!wanted()) return
+          if (typed === "busy")
+            return notify("Another window has the keyboard. Take over to dictate", "error", target)
+          if (typed) return notify(`Typed ${wordCount(said)}`, "done", target)
+          return notTyped(said, target)
+        })
       })
       .catch((failure: unknown) => {
         if (wanted())

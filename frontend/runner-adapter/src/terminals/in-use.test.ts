@@ -14,6 +14,16 @@ describe("telling the runner which terminal is in use", () => {
     expect(call.mock.calls).toEqual([["a"], ["b"], [null]])
   })
 
+  it("tells the terminal in use again when asked, as the window is used, and never none", () => {
+    const call = vi.fn<(id: string | null) => Promise<unknown>>(() => Promise.resolve())
+    const { report } = terminalInUse(call)
+    report("a")
+    report("a", true)
+    report(null, true)
+    report(null, true)
+    expect(call.mock.calls).toEqual([["a"], ["a"], [null]])
+  })
+
   it("tells the terminal again once the link is back, and nothing when none is in use", () => {
     const call = vi.fn<(id: string | null) => Promise<unknown>>(() => Promise.resolve())
     const { report, connected } = terminalInUse(call)

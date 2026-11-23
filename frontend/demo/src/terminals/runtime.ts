@@ -5,9 +5,11 @@ import type { Store } from "@novadeck/core/store"
 // visitor's and the debug layer that drives it.
 
 // What a terminal's screen is doing that its metadata doesn't say: its output still on
-// the way, as after a reconnection.
+// the way, as after a reconnection; or another window has its keyboard (`observed`), idle
+// or typing, until this one takes it.
 export type DemoScreenState = {
   readonly attaching?: true
+  readonly observed?: "idle" | "typing"
 }
 
 // The demo's screens, by `terminalKeyId`; a terminal without an entry shows its output.
@@ -26,4 +28,6 @@ export type DemoTerminalRuntime = {
   // Whether the panel set this terminal asleep: it stays so, whoever looks, until the panel
   // wakes it.
   readonly holds?: (key: TerminalKey) => boolean
+  // This window took the keyboard the panel gave another (`DemoScreenState.observed`).
+  readonly took?: (key: TerminalKey) => void
 }

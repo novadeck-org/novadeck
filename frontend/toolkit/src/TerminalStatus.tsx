@@ -78,3 +78,29 @@ export const TerminalEndingBar = ({
     </div>
   )
 }
+
+// Along the top of a terminal this window only observes, because another window or browser
+// controls it: who is typing, and the button that takes the keyboard. It is quiet, in the flow
+// above the output, so the screen scales into what is left. `busy` is the answer to a take
+// that was refused because the controller was typing: the same words, kept in sight.
+export const TerminalControlStrip = ({
+  busy,
+  onTake,
+}: {
+  readonly busy: boolean
+  readonly onTake: () => void
+}): React.JSX.Element => (
+  <div
+    className="terminal-control flex h-7 shrink-0 items-center justify-between gap-3 px-3 text-control"
+    data-terminal-control={busy ? "busy" : "observing"}
+  >
+    <span className="min-w-0 truncate font-medium">Typing in another window</span>
+    <button
+      type="button"
+      className="terminal-take flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 py-0.5 font-medium"
+      onClick={onTake}
+    >
+      Take over
+    </button>
+  </div>
+)

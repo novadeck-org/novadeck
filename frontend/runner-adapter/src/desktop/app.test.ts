@@ -251,10 +251,6 @@ describe("the desktop app's project windows", () => {
       showProjectWindow: (id: unknown, known: unknown) => void calls.push(["show", id, known]),
       useProjectWindows: (on: unknown) => void calls.push(["use", on]),
       openProjectWindow: (id: unknown) => void calls.push(["open", id]),
-      swapProjectWindow: async (id: unknown) => {
-        calls.push(["swap", id])
-        return id === "p3" ? "swapped" : "nonsense"
-      },
       handOffToProjectWindow: (target: unknown) => void calls.push(["handOff", target]),
       onProjectWindowNavigate: (listener: (target: unknown) => void) => {
         listener({ projectId: "p2", terminalId: "t" })
@@ -275,9 +271,6 @@ describe("the desktop app's project windows", () => {
     windows.show(null, [])
     windows.use(true)
     windows.open("p2")
-    await expect(windows.swap("")).resolves.toBe("alone")
-    await expect(windows.swap("p3")).resolves.toBe("swapped")
-    await expect(windows.swap("p4")).resolves.toBe("alone")
     windows.handOff({ projectId: "p3", rowId: "r" })
     stop()
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -289,8 +282,6 @@ describe("the desktop app's project windows", () => {
       ["show", null, []],
       ["use", true],
       ["open", "p2"],
-      ["swap", "p3"],
-      ["swap", "p4"],
       ["handOff", { projectId: "p3", rowId: "r" }],
       ["stop"],
     ])

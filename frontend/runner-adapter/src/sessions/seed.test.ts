@@ -8,6 +8,7 @@ import type {
   WorkspaceState,
 } from "@novadeck/core/types"
 import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
+import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import {
@@ -120,6 +121,43 @@ const seeded = (session: WorkspaceSession, terminals: TerminalSummary[]) =>
     runnerSeed([{ project: project(1), sessions: [{ session, terminals }] }]),
     defaults,
   ).projects[0]!.history[0]!
+
+afterEach(() => {
+  localStorage.clear()
+  vi.unstubAllGlobals()
+})
+
+describe("the session a window opens in a project", () => {
+  const key = "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b"
+  const listing: RunnerListing = [
+    {
+      project: project(1),
+      sessions: [
+        { session: saved(10, 100, [20]), terminals: [] },
+        { session: saved(11, 900, [21]), terminals: [] },
+      ],
+    },
+  ]
+  const opened = () => {
+    const [one] = workspaceFromSeed(runnerSeed(listing), defaults).projects
+    return one!.activeSessionId
+  }
+
+  it("is the one the window showed last, where it kept one", () => {
+    vi.stubGlobal("novadeck", { windowKey: key })
+    localStorage.setItem(`novadeck:window-session:${key}:${uuid(1)}`, uuid(10))
+    expect(opened()).toBe(uuid(10))
+  })
+
+  it("is the one visited last without one, in a browser, or for a session that is gone", () => {
+    expect(opened()).toBe(uuid(11))
+    localStorage.setItem(`novadeck:window-session:${key}:${uuid(1)}`, uuid(10))
+    expect(opened()).toBe(uuid(11))
+    vi.stubGlobal("novadeck", { windowKey: key })
+    localStorage.setItem(`novadeck:window-session:${key}:${uuid(1)}`, uuid(99))
+    expect(opened()).toBe(uuid(11))
+  })
+})
 
 describe("runner seed", () => {
   context("on a first run", () => {

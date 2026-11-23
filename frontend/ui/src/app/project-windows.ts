@@ -9,8 +9,8 @@ import type { UiState, UiStore } from "./ui-store"
 
 export { projectWindowsOn, shownElsewhere } from "./selectors"
 
-// Project windows: each window of the desktop app shows one project, and a project shows in
-// at most one window. The app (main process) knows which window shows what; this page hears
+// Project windows: each window of the desktop app shows one project, and a project may show in
+// several windows. The app (main process) knows which window shows what; this page hears
 // the projects the others show (`UiState.windows`) and tells the app what it shows.
 
 // Whether this window has the voice: it rings, raises notifications and counts on the app's

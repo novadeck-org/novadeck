@@ -77,7 +77,15 @@ export class TerminalError extends Error {
  * each as it asks for the next, and the terminal's input and size while it holds control.
  */
 export type AttachStream = AsyncIterable<TerminalEvent> & {
+  /** Where the host has put this stream now; it changes as another client takes control. */
   readonly mode: "control" | "observe"
+  /** Calls `listener` when `mode` changes; the returned function stops it. Absent: it never does. */
+  onMode?(listener: (mode: "control" | "observe") => void): () => void
+  /**
+   * Moves control to this stream, refused while the controller wrote within `ifIdleMs` (a
+   * rejection the view reads by its `code` of `CONTROL_BUSY`). Absent: the host has no such call.
+   */
+  take?(options?: { readonly ifIdleMs?: number }): Promise<void>
   /** Control only. */
   write(data: string): Promise<void>
   /** Control only; a success after a reconnect shows the stream is live. */

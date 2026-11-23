@@ -19,17 +19,20 @@ export const projectOf = (workspace: Workspace, terminalId: string): string | un
 export type ProjectWindowCommands = {
   // Whether project windows are on in this window.
   readonly windowsOn: () => boolean
-  // Whether another window shows the project, with project windows on.
+  // Whether another window shows the project and this one does not, with project windows on:
+  // what is about it goes there. A project this window shows is handled here, even when
+  // another window shows it too.
   readonly shownElsewhere: (projectId: string) => boolean
-  // Opens the project in a new window, or brings forward the window that shows it.
+  // Opens the project in a new window, whether this or another window shows it already.
   readonly openInNewWindow: (projectId: string) => void
-  // Hands the terminal, and the Inbox entry for it if one is named, to the window that shows its
-  // project, which comes forward, or to this window when none does; with project windows on.
+  // Hands the terminal, and the Inbox entry for it if one is named, to this window when it shows
+  // the project, else to the window showing it that was used last, which comes forward, else to
+  // this window, which switches; with project windows on.
   // `quiet` is for what an agent did, which only goes there, never raising a window.
   // False, with nothing done, when they are off or the terminal's project is unknown.
   readonly handOffTerminal: (terminalId: string, rowId?: string, quiet?: boolean) => boolean
-  // The same for an Inbox entry, but only when another window shows its project: the window it
-  // is listed in opens it otherwise.
+  // The same for an Inbox entry, but only when another window shows its project and this one
+  // does not: the window it is listed in opens it otherwise.
   readonly handOffEntry: (entry: { readonly id: string; readonly terminalId: string }) => boolean
   // Reads the project from the runner again and puts it in place of this window's copy, so the
   // sessions another window made or removed since are there, a project this window never heard
@@ -38,19 +41,17 @@ export type ProjectWindowCommands = {
   // Does nothing where the backend can't, or the runner no longer has the project; a project
   // that can't be read or built is logged, and the window carries on with what it has.
   readonly readProject: (projectId: string) => Promise<void>
-  // Swaps projects with the window that shows `projectId`, before this one switches to it.
-  // Neither window waits for the other's saves: what each changes reaches the other live through
-  // the runner. False when the app brought the other window forward instead, and this window
-  // stays where it is. True, with nothing done, where no other window shows the project.
-  readonly swapWith: (projectId: string) => Promise<boolean>
 }
 
-// What project windows ask of the workspace: the commands for the context menu, the swap and
-// the hand-offs. `switchHere` and `revealHere` are this window's own moves, which the routing
+// What project windows ask of the workspace: the commands for the context menu and the
+// hand-offs. `switchHere` and `revealHere` are this window's own moves, which the routing
 // rules in `workspace.ts` wrap.
 export const createProjectWindowCommands = (ctx: CommandContext): ProjectWindowCommands => {
   const { workspace, ui, windows, syncProject } = ctx
   const on = (): boolean => projectWindowsOn(ui.getSnapshot(), windows)
+  const elsewhere = (projectId: string): boolean =>
+    workspace.getSnapshot().activeProjectId !== projectId &&
+    shownElsewhere(ui.getSnapshot(), windows, projectId)
   return {
     readProject: async (projectId) => {
       if (!syncProject || workspace.getSnapshot().activeProjectId === projectId) return
@@ -73,7 +74,7 @@ export const createProjectWindowCommands = (ctx: CommandContext): ProjectWindowC
       }
     },
     windowsOn: on,
-    shownElsewhere: (projectId) => shownElsewhere(ui.getSnapshot(), windows, projectId),
+    shownElsewhere: elsewhere,
     openInNewWindow: (projectId) => {
       if (on()) windows?.open(projectId)
     },
@@ -92,14 +93,9 @@ export const createProjectWindowCommands = (ctx: CommandContext): ProjectWindowC
     handOffEntry: ({ id, terminalId }) => {
       if (!windows) return false
       const projectId = projectOf(workspace.getSnapshot(), terminalId)
-      if (projectId === undefined || !shownElsewhere(ui.getSnapshot(), windows, projectId))
-        return false
+      if (projectId === undefined || !elsewhere(projectId)) return false
       windows.handOff({ projectId, terminalId, rowId: id })
       return true
-    },
-    swapWith: async (projectId) => {
-      if (!windows || !shownElsewhere(ui.getSnapshot(), windows, projectId)) return true
-      return (await windows.swap(projectId)) !== "forwarded"
     },
   }
 }
