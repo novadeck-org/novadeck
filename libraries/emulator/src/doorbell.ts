@@ -9,7 +9,14 @@ import type {
 } from "@xterm/xterm"
 
 import { badgeOf, dimmed, legible } from "./doorbell-colour.js"
-import { layoutBlock, layoutRing, type RingPart, type Run, type Tone } from "./doorbell-layout.js"
+import {
+  blockFits,
+  layoutBlock,
+  layoutRing,
+  type RingPart,
+  type Run,
+  type Tone,
+} from "./doorbell-layout.js"
 import { cells } from "./width.js"
 
 // Draws a doorbell's ring row, and a hook's turn-end delivery block, over the cells the harness
@@ -627,8 +634,8 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     const widest = Math.min(...hit.rows.map((row, index) => row.width - pads[index]!))
     // A ring's tag a narrow terminal wrapped takes several rows, which its messages wrap over as a
     // block's do (with no rules to say), rather than one row cut short over rows left blank. Rows
-    // fewer than its messages say them on one row, as a ring row does.
-    const wraps = hit.rows.length > 1 && hit.parts.length <= hit.rows.length
+    // fewer than its messages (and their "+N more") say them on one row, as a ring row does.
+    const wraps = hit.rows.length > 1 && blockFits(hit.parts, hit.rows.length, hit.more)
     const lines =
       hit.kind === "block"
         ? layoutBlock(hit.parts, widest, hit.rows.length, { extra: hit.more })

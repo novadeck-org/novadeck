@@ -274,9 +274,13 @@ export const layoutBlock = (
   if ((options.extra ?? 0) > 0)
     tail.push([{ text: cut(`+${options.extra} more`, width), tone: dim }])
   if (rules) tail.push([{ text: cut("rules for the agent", width), tone: dim }])
+  // Notices that follow one another say one row, as on a ring row: one badge, each line once.
+  const groups = groupsOf(parts)
   const room = rows - tail.length
-  if (parts.length > 0 && room >= parts.length) {
-    const wanted = parts.map((part) => rowsWanted(part, width))
+  if (groups.length > 0 && room >= groups.length) {
+    const wanted = groups.map((group) =>
+      group[0]!.kind === "notice" ? 1 : rowsWanted(group[0]!, width),
+    )
     const given = shares(wanted, room)
     // Equal shares round down: the rows left over go, one each, to the messages still cut.
     let left = room - given.reduce((sum, each) => sum + each, 0)
@@ -286,20 +290,45 @@ export const layoutBlock = (
         left -= 1
       }
     return [
-      ...parts.flatMap((part, index) =>
-        part.kind === "notice"
-          ? [layoutRing([part], width)]
-          : wrappedRows(part, width, Math.max(given[index]!, 1)),
-      ),
+      ...groups.flatMap((group, index) => {
+        const [part] = group
+        return part!.kind === "notice"
+          ? [layoutRing(group, width)]
+          : wrappedRows(part!, width, Math.max(given[index]!, 1))
+      }),
       ...tail,
     ]
   }
-  const lines: Run[][] = [...parts.map((part) => layoutRing([part], width)), ...tail]
-  if (lines.length <= rows) return lines
-  const keep = Math.max(rows - 1, 0)
-  const hidden = lines.length - keep
-  return [...lines.slice(0, keep), [{ text: cut(`+${hidden} more`, width), tone: dim }]].slice(
-    0,
-    rows,
-  )
+  // A row per message: the rules give way first, then the messages with no row left become one
+  // count with the ones beyond, which only messages make up.
+  const lines = groups.map((group) => layoutRing(group, width))
+  const extra = options.extra ?? 0
+  if (lines.length + tail.length <= rows) return [...lines, ...tail]
+  const counted = extra > 0 || lines.length > rows
+  const shown = counted ? Math.min(lines.length, Math.max(rows - 1, 0)) : lines.length
+  const hidden = lines.length - shown + extra
+  return [
+    ...lines.slice(0, shown),
+    ...(hidden > 0 ? [[{ text: cut(`+${hidden} more`, width), tone: dim }]] : []),
+  ].slice(0, rows)
 }
+
+// The parts as the rows a block gives them: a message alone, notices that follow one another
+// together.
+const groupsOf = (parts: readonly RingPart[]): RingPart[][] => {
+  const out: RingPart[][] = []
+  for (const part of parts) {
+    const last = out.at(-1)
+    if (part.kind === "notice" && last?.[0]!.kind === "notice") last.push(part)
+    else out.push([part])
+  }
+  return out
+}
+
+/**
+ * Whether a block of `rows` rows gives each of the parts a row of its own, with a row for the
+ * "+N more" of `extra` messages beyond them: a ring's tag wrapped over that many rows says its
+ * messages there, wrapped, rather than on one row.
+ */
+export const blockFits = (parts: readonly RingPart[], rows: number, extra = 0): boolean =>
+  groupsOf(parts).length + (extra > 0 ? 1 : 0) <= rows

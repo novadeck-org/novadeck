@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { layoutBlock, layoutRing, shares, type RingPart, type Run } from "./doorbell-layout.js"
+import {
+  blockFits,
+  layoutBlock,
+  layoutRing,
+  shares,
+  type RingPart,
+  type Run,
+} from "./doorbell-layout.js"
 import { cells } from "./width.js"
 
 const hueOf = (handle: string): number | null => ({ newtz: 1, hushz: 4 })[handle] ?? null
@@ -132,10 +139,40 @@ describe("a delivery block's layout", () => {
     expect(rows.map(text)).toEqual(["@newtz: Run the snapshots.", "rules for the agent"])
   })
 
-  it("says how many it has no row for", () => {
-    const rows = layoutBlock([agent("newtz", "a"), agent("hushz", "b"), agent("pikez", "c")], 80, 3)
-    expect(rows).toHaveLength(3)
-    expect(text(rows[2]!)).toBe("+2 more")
+  it("says how many messages it has no row for, the rules not among them", () => {
+    const four = ["newtz", "hushz", "pikez", "fogz"].map((handle) => agent(handle, "a"))
+    expect(layoutBlock(four, 80, 3).map(text)).toEqual(["@newtz: a", "@hushz: a", "+2 more"])
+    // Its messages fit their rows exactly: the rules give way, and nothing is counted.
+    expect(layoutBlock(four.slice(0, 3), 80, 3).map(text)).toEqual([
+      "@newtz: a",
+      "@hushz: a",
+      "@pikez: a",
+    ])
+  })
+
+  it("counts the messages beyond the parts with the ones it has no row for", () => {
+    const two = [agent("newtz", "a"), agent("hushz", "b")]
+    expect(layoutBlock(two, 80, 2, { rules: false, extra: 3 }).map(text)).toEqual([
+      "@newtz: a",
+      "+4 more",
+    ])
+  })
+
+  it("fits a ring's rows only with a row each for its messages, its notices and its +N more", () => {
+    const two = [agent("newtz", "a"), agent("hushz", "b")]
+    expect(blockFits(two, 2)).toBe(true)
+    expect(blockFits(two, 2, 3)).toBe(false)
+    expect(blockFits([...two, notice("x"), notice("y")], 3)).toBe(true)
+  })
+
+  it("says notices that follow one another on one row, each line once", () => {
+    const rows = layoutBlock(
+      [agent("newtz", "a"), notice("Team changed."), notice("Team changed."), notice("b")],
+      80,
+      4,
+      { rules: false },
+    )
+    expect(rows.map(text)).toEqual(["@newtz: a", " novadeck  Team changed. · b"])
   })
 
   // The harness's text of a delivery, its rules included, takes rows the overlay can't give back.
