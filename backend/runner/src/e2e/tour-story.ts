@@ -6,14 +6,12 @@ import { join } from "node:path"
 import { samePath } from "@novadeck/harness-core/paths"
 import type { AgentName, Approval } from "@novadeck/protocol"
 
-import { harnesses } from "../harnesses/registry.js"
 import { tourBriefMark } from "../messaging/messages.js"
 import { branches, gameEntry, keptLine, kinds, projectNote, worlds } from "../tour/brief.js"
 import { tourMarker } from "../tour/folder.js"
 import { tourWrites } from "../tour/launch.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import type { AgentSetup } from "./agents/agent.js"
-import { freeModel } from "./agents/opencode.js"
 import { arrivals, poll, type DeckTerminal } from "./deck.js"
 import { expect, type E2E } from "./fixture.js"
 import { asked, tool, type Call, type Reply, type Rule } from "./model/script.js"
@@ -44,34 +42,60 @@ import {
 /** The tour's folder, as the sandbox's home holds it. */
 export const folder = join(".novadeck", "tour")
 
-/** The model Codex's cache lists in these runs, a "luna" as the tour's cheapest pick. */
-export const luna = "gpt-e2e-luna"
-
 /** A git name in the sandbox's config, which no brief calls the person by. */
 export const gitName = "Ada Lovelace"
 
-/** What the sandbox needs before the tour is readied: Codex's model catalog, and a git name. */
-export const seedTour = async (run: E2E, agents: readonly AgentName[]): Promise<void> => {
-  if (agents.includes("codex"))
-    await writeFile(
-      join(run.sandbox.env.CODEX_HOME ?? "", "models_cache.json"),
-      JSON.stringify({
-        models: [
-          {
-            slug: "gpt-e2e-big",
-            visibility: "list",
-            supported_reasoning_levels: [{ effort: "low" }, { effort: "high" }],
-          },
-          {
-            slug: luna,
-            visibility: "list",
-            supported_reasoning_levels: [{ effort: "low" }, { effort: "medium" }],
-          },
+/**
+ * opencode's catalog of models, which none has yet in a sandbox (its fetch of models.dev is refused):
+ * the `openrouter` provider with the one model the tour runs on, as models.dev lists them (probed
+ * 2026-11-24), so the tour's configuration finds it and its `medium` variant offline.
+ */
+const catalog = {
+  openrouter: {
+    id: "openrouter",
+    env: ["OPENROUTER_API_KEY"],
+    npm: "@openrouter/ai-sdk-provider",
+    api: "https://openrouter.ai/api/v1",
+    name: "OpenRouter",
+    models: {
+      "openai/gpt-6-luna": {
+        id: "openai/gpt-6-luna",
+        name: "GPT-6 Luna",
+        attachment: true,
+        reasoning: true,
+        reasoning_options: [
+          { type: "effort", values: ["none", "low", "medium", "high", "xhigh", "max"] },
         ],
-      }),
-    )
-  if (agents.includes("opencode")) await freeModel(run.sandbox)
+        tool_call: true,
+        temperature: false,
+        modalities: { input: ["text", "image"], output: ["text"] },
+        limit: { context: 1_050_000, input: 922_000, output: 128_000 },
+        cost: { input: 0.1, output: 0.5 },
+      },
+    },
+  },
+}
+
+/** What the sandbox needs before the tour is readied: opencode's catalog (`catalog`) and a git name. */
+export const seedTour = async (run: E2E): Promise<void> => {
+  const cache = join(run.sandbox.env.XDG_CACHE_HOME ?? join(run.sandbox.home, ".cache"), "opencode")
+  await mkdir(cache, { recursive: true })
+  await writeFile(join(cache, "models.json"), JSON.stringify(catalog))
   await writeFile(join(run.sandbox.home, ".gitconfig"), `[user]\n\tname = ${gitName}\n`)
+}
+
+/**
+ * Points the runner's tour at the fake model's own tour service (`/tour/v1/tickets` gives its one
+ * credential as the ticket, `/tour/v1/chat/completions` is its chat dialect), which the runner
+ * reads as it asks. Returns what puts the endpoint back.
+ */
+export const fakeTourService = (run: E2E): (() => void) => {
+  const before = process.env.NOVADECK_TOUR_ENDPOINT
+  process.env.NOVADECK_TOUR_ENDPOINT = `${run.model.url}/tour/v1`
+  return () => {
+    if (before === undefined) delete process.env.NOVADECK_TOUR_ENDPOINT
+    else process.env.NOVADECK_TOUR_ENDPOINT = before
+  }
 }
 
 /**
@@ -124,12 +148,6 @@ export const openings = (brief: string): Opening[] =>
       .join("\n")
       .trim(),
   }))
-
-/** The words of the model and effort flags a harness starts with, as `open_agent` gives them. */
-const flags = (agent: AgentName, { model, effort }: Opening): string =>
-  harnesses[agent].launch
-    .choose({ model, ...(effort !== undefined && { effort: effort as never }) })
-    .join(" ")
 
 // The text of a brief with its line breaks and indents as single spaces.
 const flat = (words: string): string => words.replace(/\s+/g, " ")
@@ -635,7 +653,21 @@ export const tell = async (
   answer: Answer,
   { worktreesFolder = false }: { readonly worktreesFolder?: boolean } = {},
 ): Promise<void> => {
-  await seedTour(run, [setup.agent])
+  await seedTour(run)
+  const restore = fakeTourService(run)
+  try {
+    await told(run, setup, answer, worktreesFolder)
+  } finally {
+    restore()
+  }
+}
+
+const told = async (
+  run: E2E,
+  setup: AgentSetup,
+  answer: Answer,
+  worktreesFolder: boolean,
+): Promise<void> => {
   if (worktreesFolder) await mkdir(worktreesRoot(run.sandbox.home), { recursive: true })
   const prepared = await run.deck.tour.prepare()
   // The folder's own instruction files hold no script: it reaches the lead as a notice.
@@ -783,7 +815,10 @@ const play = async (
   // Windows or macOS.
   if (process.platform === "linux")
     for (const mate of [modeller, builder]) {
-      const wanted = flags(first!.agent, first!)
+      // Its model on the line, which Novadeck's shim leaves: the effort it takes off the line (opencode's
+      // command line has no flag for it) and gives as the agents' variant, which the screen's
+      // footer shows (`GPT-6 Luna OpenRouter · medium`).
+      const wanted = `--model ${first!.model}`
       // eslint-disable-next-line no-await-in-loop -- Two terminals, one after the other.
       const argv = await poll(
         () => {
@@ -794,6 +829,12 @@ const play = async (
         45_000,
       )
       expect(argv).toContain(tourWrites.join(" "))
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await poll(
+        async () => ((await mate.screen()).includes("OpenRouter · medium") ? true : undefined),
+        `${mate.handle}'s footer to name GPT-6 Luna at medium`,
+        45_000,
+      )
     }
   await poll(
     () => (story.tasks().modeller && story.tasks().builder ? true : undefined),

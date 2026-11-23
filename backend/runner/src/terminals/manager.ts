@@ -77,6 +77,7 @@ import { OpenRequests } from "./opens.js"
 import type { TerminalOptions } from "./options.js"
 import { TerminalPeers } from "./peers-host.js"
 import { PendingOwners } from "./pending-owners.js"
+import { positive } from "./positive.js"
 import { QueueNotices, queueEntries } from "./queue-notices.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor } from "./redaction.js"
@@ -126,13 +127,6 @@ type Create = {
 }
 type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
-
-const positive = (value: number | undefined, fallback: number): number => {
-  const result = value ?? fallback
-  if (!Number.isSafeInteger(result) || result < 1)
-    throw new RangeError("Terminal limits must be positive integers.")
-  return result
-}
 
 /**
  * Owns PTYs for one runner lifetime. Exited, unattached records are retained up to a

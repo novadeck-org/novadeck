@@ -20,8 +20,11 @@ export type Call = {
   readonly side: boolean
 }
 
-/** The APIs the harnesses speak: Claude Code's, Codex's and Antigravity's, in that order. */
-export type Api = "anthropic" | "responses" | "gemini"
+/**
+ * The APIs the harnesses speak: Claude Code's, Codex's and Antigravity's, in that order, and
+ * OpenAI's chat completions, which opencode speaks to the tour's provider.
+ */
+export type Api = "anthropic" | "responses" | "gemini" | "chat"
 
 /**
  * One entry of the conversation. A user turn holds everything the harness put in it,

@@ -55,7 +55,7 @@ describe.skipIf(!supported)(opencode.name, () => {
   it("readies the tour's folder with a ticket, and a launch line on GPT-6 Luna, with its write flag for this launch only", async ({
     e2e: run,
   }) => {
-    await seedTour(run, ["opencode"])
+    await seedTour(run)
     refusal = undefined
     asked.length = 0
     const prepared = await run.deck.tour.prepare()
@@ -97,7 +97,7 @@ describe.skipIf(!supported)(opencode.name, () => {
   it("shows the service's refusal as it words it, leaving the folder as it is", async ({
     e2e: run,
   }) => {
-    await seedTour(run, ["opencode"])
+    await seedTour(run)
     refusal = undefined
     const { directory } = await run.deck.tour.prepare()
     refusal = { status: 429, error: "You've taken today's free tours." }
@@ -114,7 +114,7 @@ describe.skipIf(!supported)(opencode.name, () => {
   it("removes the first run's project and closes its terminal when the tour starts again", async ({
     e2e: run,
   }) => {
-    await seedTour(run, ["opencode"])
+    await seedTour(run)
     refusal = undefined
     const first = await run.deck.tour.prepare()
     const opened = await run.deck.openAt(first.directory, first.command)
@@ -133,7 +133,7 @@ describe.skipIf(!supported)(opencode.name, () => {
   it("leaves a kept project to the person, and takes the next folder for the next run", async ({
     e2e: run,
   }) => {
-    await seedTour(run, ["opencode"])
+    await seedTour(run)
     refusal = undefined
     const first = await run.deck.tour.prepare()
     await run.deck.tour.keep()

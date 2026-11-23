@@ -295,6 +295,14 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
       outgoing.end(JSON.stringify({ error: { type: "authentication_error", message: "foreign" } }))
       return
     }
+    // The fake tour service (the website's `/tour/v1/tickets`): a ticket is the one credential the
+    // server accepts, which the tour's provider then sends with every model call.
+    if (method === "POST" && target.split("?")[0]!.endsWith("/tour/v1/tickets")) {
+      await read(incoming)
+      outgoing.writeHead(200, { "content-type": "application/json" })
+      outgoing.end(JSON.stringify({ ticket: credential, expiresAt: "2099-01-01T00:00:00Z" }))
+      return
+    }
     const request: Request = {
       method,
       path: target,

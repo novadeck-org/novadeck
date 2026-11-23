@@ -23,12 +23,15 @@ export const tourEffort: Effort = "medium"
  * `enabled_providers` and `disabled_providers` are set too, as arrays replace the person's own:
  * the tour can't be left without its provider by their list, and spends nothing through another.
  *
- * Probed 2026-11-23 against the real opencode (1.2.10 on this machine) and a local OpenAI-compatible
- * server, with this configuration as `OPENCODE_CONFIG_CONTENT`: opencode calls
- * `POST <baseURL>/chat/completions` (so `/tour/v1/chat/completions`, never `/responses`) with
- * `Authorization: Bearer <apiKey>` and `"model": "openai/gpt-6-luna"` (the `openrouter/` prefix is
- * opencode's provider id), the effort in the main call as `"reasoning": {"effort": "medium"}`, and a
- * title call to the `small_model` with `"reasoningEffort": "minimal"` beside it.
+ * Probed 2026-11-24 against the real opencode 1.19.6 (the newest this adapter supports) and a local
+ * OpenAI-compatible server, with Novadeck's own plugin loaded as the shim loads it
+ * (`OPENCODE_CONFIG_CONTENT`'s `plugin`, `NOVADECK_HOOK` set) and this configuration in
+ * `NOVADECK_OPENCODE_CONFIG`, whatever the person's own config said (it disabled `openrouter`):
+ * opencode calls `POST <baseURL>/chat/completions` (so `/tour/v1/chat/completions`, never
+ * `/responses`) with `Authorization: Bearer <apiKey>` and `"model": "openai/gpt-6-luna"` (the
+ * `openrouter/` prefix is opencode's provider id), `"max_tokens": 32000`, and the effort in the
+ * main call as `"reasoning": {"effort": "medium"}`. Its title call goes to the `small_model`, the
+ * same model, with `"reasoning": {"effort": "none"}` (1.2.10 sent `"reasoningEffort": "minimal"`).
  */
 export const tourConfig = (endpoint: string, ticket: string): string => {
   const agent = { model: tourModel, variant: tourEffort }
