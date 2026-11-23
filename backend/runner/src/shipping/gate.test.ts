@@ -127,6 +127,45 @@ describe("the shipping gate for opencode", () => {
   })
 })
 
+describe("the shipping gate's new answers for opencode", () => {
+  const opencode = (command: string) => ({
+    agent: "opencode" as const,
+    event: "PreToolUse" as const,
+    terminalId: "t",
+    command,
+    cwd: "/main",
+  })
+
+  it("leaves unmodelled commands alone, refuses them beside a guarded target with the split remedy", async () => {
+    const { gate } = setup()
+    for (const command of [
+      "git push --tags",
+      "git push origin --delete x",
+      "gh pr merge 5 --disable-auto",
+    ])
+      expect(await gate.decide(opencode(command)), command).toBeUndefined()
+    const split = await gate.decide(opencode("git push --tags origin HEAD:release"))
+    expect(JSON.parse(split!.stdout).reason).toContain("Push the branch and the tags separately")
+  })
+
+  it("names the case of a refusal and keeps a decline sticky", async () => {
+    const { gate, declined, carded } = setup()
+    declined.add("pr-auto:r/app#5")
+    const gone = await gate.decide(opencode("gh pr merge 5 --auto"))
+    expect(JSON.parse(gone!.stdout).reason).toContain("Declined")
+    declined.clear()
+    carded.add("pr-admin:r/app#5")
+    const waits = await gate.decide(opencode("gh pr merge 5 --admin"))
+    expect(JSON.parse(waits!.stdout).reason).toContain("card")
+  })
+
+  it("says nothing of escalation, which only a Codex turn has", async () => {
+    const { gate } = setup()
+    const denied = await gate.decide(opencode("gh pr merge 5 --admin"))
+    expect(denied!.stdout).not.toContain("escalat")
+  })
+})
+
 describe("the shipping gate", () => {
   it("says nothing about commands that ship nothing", async () => {
     const { gate, input } = setup()
