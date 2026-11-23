@@ -3,6 +3,7 @@ import type { IpcMainEvent } from "electron"
 import { windowControlsChannel, windowControlsPlaceChannel } from "../../bridge.js"
 import { describe, expect, it } from "../../test"
 import {
+  captionGround,
   captionWidth,
   controlsWindowOptions,
   keepCaption,
@@ -91,10 +92,10 @@ describe("the window's options", () => {
     })
   })
 
-  it("hide the title bar and set the caption buttons over the 48px header's end, as on Windows", () => {
+  it("hide the title bar and set the caption buttons 32px tall at the top right, as on Windows", () => {
     expect(controlsWindowOptions("end", { ...first, ink: "#e6e8eb" })).toEqual({
       titleBarStyle: "hidden",
-      titleBarOverlay: { color: "#00000000", symbolColor: "#e6e8eb", height: 48 },
+      titleBarOverlay: { color: "#0f111400", symbolColor: "#e6e8eb", height: 32 },
     })
   })
 
@@ -102,7 +103,12 @@ describe("the window's options", () => {
     expect(controlsWindowOptions("end", first).titleBarOverlay?.symbolColor).toBe("#f2f2f2")
     expect(
       controlsWindowOptions("end", { zoom: 1.25, ground: "#ffffff", ink: "red" }).titleBarOverlay,
-    ).toEqual({ color: "#00000000", symbolColor: "#1a1a1a", height: 60 })
+    ).toEqual({ color: "#ffffff00", symbolColor: "#1a1a1a", height: 40 })
+  })
+
+  it("lay the caption buttons on a clear ground in the page's own colour, so a hover tints against it", () => {
+    expect(captionGround("#f7f7f5")).toBe("#f7f7f500")
+    expect(captionGround("white")).toBe("#00000000")
   })
 
   it("keep the system's title bar elsewhere", () => {
@@ -180,12 +186,12 @@ describe("keeping a window's controls", () => {
     })
 })
 
-// A Windows window as its caption buttons see it: the overlay's height and ink as last set, its
+// A Windows window as its caption buttons see it: the overlay's height, ground and ink as last set, its
 // zoom and full screen, and what its page was told.
 const captioned = () => {
   const listeners = new Map<string, () => void>()
   const state = {
-    overlays: [] as { height?: number; symbolColor?: string }[],
+    overlays: [] as { height?: number; color?: string; symbolColor?: string }[],
     zoom: 1,
     fullScreen: false,
     told: [] as number[],
@@ -223,8 +229,8 @@ describe("placing Windows' caption buttons", () => {
     })
   })
 
-  it("keeps them on the header's middle when the page asks for none, as they can't hide", () => {
-    expect(placeCaption({ middle: null, zoom: 1, fullScreen: false }).height).toBe(48)
+  it("keeps them 32px tall when the page asks for none, as they can't hide", () => {
+    expect(placeCaption({ middle: null, zoom: 1, fullScreen: false }).height).toBe(32)
   })
 
   it("keeps no room in full screen, where Windows leaves them out", () => {
@@ -274,21 +280,25 @@ describe("keeping a window's caption buttons", () => {
     expect(state.told).toEqual([captionWidth, 0, captionWidth])
   })
 
-  it("draws them in the page's ink, once per ink, and nothing that isn't one", () => {
+  it("draws them in the page's ink on its ground, once per change, and nothing that isn't one", () => {
     const { window, state } = captioned()
     const controls = keepCaption(window)
-    controls.paint("#e6e8eb")
-    controls.paint("#e6e8eb")
-    controls.paint("red")
-    expect(state.overlays).toEqual([{ symbolColor: "#e6e8eb" }])
+    controls.paint({ ground: "#0f1114", ink: "#e6e8eb" })
+    controls.paint({ ground: "#0f1114", ink: "#e6e8eb" })
+    controls.paint({ ground: "red", ink: "red" })
+    controls.paint({ ground: "#ffffff" })
+    expect(state.overlays).toEqual([
+      { color: "#0f111400", symbolColor: "#e6e8eb" },
+      { color: "#ffffff00" },
+    ])
   })
 
   for (const event of ["did-navigate", "render-process-gone"])
-    it(`puts them back on the header's middle once the page goes (${event})`, () => {
+    it(`puts them back to 32px tall once the page goes (${event})`, () => {
       const { window, state, emit } = captioned()
-      keepCaption(window).place(16)
+      keepCaption(window).place(24)
       emit(event)
-      expect(state.overlays).toEqual([{ height: 32 }, { height: 48 }])
+      expect(state.overlays).toEqual([{ height: 48 }, { height: 32 }])
     })
 })
 

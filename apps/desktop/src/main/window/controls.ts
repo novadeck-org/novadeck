@@ -3,8 +3,8 @@
 // controls sit on it, and hears how much room they take, so it keeps clear of them. On macOS
 // (the `start` side) they are the close, minimise and zoom buttons at the header's start, and the
 // page can hide them; on Windows (the `end` side) they are the caption buttons Electron draws
-// over the page's top-right corner, as tall as the header, which can't hide while the window
-// lasts, so the page always places them.
+// over the page's top-right corner, in its header, as tall as a Windows 11 app's title bar, which
+// can't hide while the window lasts, so the page always places them.
 import type { WindowControlsSide } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent } from "electron"
 
@@ -24,10 +24,11 @@ export const controlsMetrics = { left: 16, width: 54, height: 14 } as const
 export const captionWidth = 138
 
 /**
- * The middle of the page's header on each side, in CSS pixels, before the page says where it
- * is: the header is a macOS toolbar's 52 high at the start, a Windows title bar's 48 at the end.
+ * The middle of what the controls sit on, in CSS pixels, before the page says where it is: at
+ * the start the page's header, a macOS toolbar's 52 high; at the end the buttons' own band from
+ * the page's top, a Windows 11 app's standard title bar's 32, as Explorer's and Paint's.
  */
-export const headerMiddles = { start: 26, end: 24 } as const satisfies Record<
+export const headerMiddles = { start: 26, end: 16 } as const satisfies Record<
   WindowControlsSide,
   number
 >
@@ -72,7 +73,7 @@ export type CaptionPlacement = { readonly height: number; readonly inset: number
 /**
  * Windows' caption buttons for a page centring them on `middle` CSS pixels from its top at
  * `zoom`: they run from the window's top, so they are twice the middle high, in the window's
- * points. They can't hide, so a page asking for none (null) gets them on the header's middle.
+ * points. They can't hide, so a page asking for none (null) gets them 32 high.
  * In full screen Windows leaves them out, and the page keeps no room for them.
  */
 export const placeCaption = ({
@@ -90,6 +91,15 @@ export const placeCaption = ({
 
 /** The colour Windows' caption buttons draw their symbols in: the page's ink, as `#rrggbb`. */
 const symbolPattern = /^#[0-9a-f]{6}$/
+
+/**
+ * The ground Windows' caption buttons draw on: the page's `ground`, but clear, so the header under
+ * them shows through. Electron tints a hovered button against the ground's colour, alpha aside,
+ * so on a light page it darkens and on a dark one it lightens, as Windows' own buttons do; a
+ * clear black would lighten it on every page.
+ */
+export const captionGround = (ground: string): string =>
+  symbolPattern.test(ground) ? `${ground}00` : "#00000000"
 
 /** The ink for a window's caption buttons before the page says: one that reads on `ground`. */
 export const symbolOn = (ground: string): string => {
@@ -134,7 +144,7 @@ export const controlsWindowOptions = (
     return {
       titleBarStyle: "hidden",
       titleBarOverlay: {
-        color: "#00000000",
+        color: captionGround(ground),
         symbolColor: ink && symbolPattern.test(ink) ? ink : symbolOn(ground),
         height: placeCaption({ middle: headerMiddles.end, zoom, fullScreen: false }).height,
       },
@@ -171,7 +181,7 @@ export type ControlledWindow = WindowBase & {
 
 /** The part of a Windows window its caption buttons need. */
 export type CaptionWindow = WindowBase & {
-  setTitleBarOverlay(options: { height?: number; symbolColor?: string }): void
+  setTitleBarOverlay(options: { height?: number; color?: string; symbolColor?: string }): void
 }
 
 /** A window's controls: where its page last asked for them, put right again on each change. */
@@ -180,8 +190,9 @@ export type WindowControls = {
   readonly place: (middle: number | null) => void
   // Places them again, as when the page's zoom changed.
   readonly apply: () => void
-  // Draws them in the page's ink, as `#rrggbb` (Windows' caption buttons; macOS's keep theirs).
-  readonly paint: (ink: string) => void
+  // Draws them in the page's ink on its ground, each as `#rrggbb` (Windows' caption buttons;
+  // macOS's keep theirs).
+  readonly paint: (look: { readonly ground: string; readonly ink?: string | undefined }) => void
 }
 
 /**
@@ -241,8 +252,9 @@ export const keepControls = (window: ControlledWindow): WindowControls => ({
 })
 
 /**
- * Keeps a Windows window's caption buttons as tall as the header the page centres them on, at
- * its zoom, and in the page's ink. Only a changed height is set, as each repaints them.
+ * Keeps a Windows window's caption buttons twice as tall as the line the page centres them on, at its
+ * zoom, and in the page's ink on its ground. Only a changed height, ground or ink is set, as each
+ * repaints them.
  */
 export const keepCaption = (window: CaptionWindow): WindowControls => {
   let height: number | undefined
@@ -255,12 +267,21 @@ export const keepCaption = (window: CaptionWindow): WindowControls => {
     return placement.inset
   })
   let ink: string | undefined
+  let ground: string | undefined
   return {
     ...kept,
-    paint: (next) => {
-      if (!symbolPattern.test(next) || next === ink || window.isDestroyed()) return
-      ink = next
-      window.setTitleBarOverlay({ symbolColor: next })
+    paint: (look) => {
+      if (window.isDestroyed()) return
+      const color = symbolPattern.test(look.ground) ? captionGround(look.ground) : undefined
+      const symbolColor = look.ink && symbolPattern.test(look.ink) ? look.ink : undefined
+      const changed = {
+        ...(color && color !== ground ? { color } : {}),
+        ...(symbolColor && symbolColor !== ink ? { symbolColor } : {}),
+      }
+      if (!changed.color && !changed.symbolColor) return
+      ground = changed.color ?? ground
+      ink = changed.symbolColor ?? ink
+      window.setTitleBarOverlay(changed)
     },
   }
 }

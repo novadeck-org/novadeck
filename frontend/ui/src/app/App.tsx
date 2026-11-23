@@ -336,6 +336,8 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
             }
           >
             <WorkspaceEffects />
+            {/* Windows' caption buttons' strip in Zen, where the header hides (shell/region.css). */}
+            <div className="window-caption" aria-hidden="true" />
             <VisitorBar />
             <HeaderSection />
             <TabListContext.Provider value={tabList}>

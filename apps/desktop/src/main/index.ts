@@ -635,8 +635,8 @@ const launch = async (): Promise<void> => {
     show: (window, next) => {
       nativeTheme.themeSource = next.scheme
       window.setBackgroundColor(next.ground)
-      // Windows' caption buttons draw in the page's ink.
-      if (next.ink) windowControls.get(window)?.paint(next.ink)
+      // Windows' caption buttons draw in the page's ink, on its ground.
+      windowControls.get(window)?.paint(next)
       void appearance.save(next)
     },
   })

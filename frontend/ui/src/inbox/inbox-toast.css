@@ -16,25 +16,19 @@
    as the Inbox's rows have it.
    --inbox-toast-window-inset (12px): the workspace window's margin from the app's right
    edge, which the stack's right edge keeps. --inbox-toast-top (7px): its top from the
-   app's top edge, below the visitor build's strip (`--visitor-bar-offset`, set by it). */
+   app's top edge, below the visitor build's strip (`--visitor-bar-offset`, set by it) and
+   Windows' caption buttons (`--window-caption-height`, shell/region.css). */
 .toasts {
-  --toast-top: calc(var(--inbox-toast-top, 7px) + var(--visitor-bar-offset, 0px));
+  --toast-top: calc(
+    var(--inbox-toast-top, 7px) + var(--visitor-bar-offset, 0px) + var(--window-caption-height, 0px)
+  );
   --toast-right: var(--inbox-toast-window-inset, 12px);
-}
-/* Windows' caption buttons hold the window's top-right corner, over everything the page draws:
-   the stack keeps to their left, but on a phone's width, where it sits under the header. */
-@media (min-width: 702px) {
-  :root[data-window-controls="end"] .toasts {
-    --toast-right: calc(
-      var(--window-controls-inset, 138px) + var(--inbox-toast-window-inset, 12px)
-    );
-  }
 }
 /* On a phone the stack takes the width between the gutters, under the header. */
 @media (max-width: 700px) {
   .toasts {
     --toast-width: 100vw;
-    --toast-top: calc(64px + var(--visitor-bar-offset, 0px));
+    --toast-top: calc(64px + var(--visitor-bar-offset, 0px) + var(--window-caption-height, 0px));
     --toast-right: var(--toast-gutter, 12px);
   }
 }
