@@ -24,6 +24,7 @@ import {
 } from "./capture.js"
 import { hookVariables } from "./hook.js"
 import { mcpVersions } from "./mcp.js"
+import { openShims } from "./open-shims.js"
 
 // The files Novadeck puts in shells it starts, and the plugins agents install when the
 // person connects them, as text. They are written into Novadeck's own data directory;
@@ -31,7 +32,10 @@ import { mcpVersions } from "./mcp.js"
 
 /** Where each file lives under the shell directory; the shells' own as the library has them. */
 export type ShellPaths = ShellScriptPaths & {
-  /** Put first on PATH while a harness with shims is connected, as Codex's `codex`. */
+  /**
+   * Put first on PATH while a harness with shims is connected, as Codex's `codex`, and in every
+   * terminal with a scope of its own, for the shims that open apps (`openShims`).
+   */
   readonly bin: string
   /** The plugin sources each agent installs from when the person connects it. */
   readonly plugins: { readonly [agent in AgentName]: string }
@@ -298,8 +302,12 @@ export const shellFiles = (
         .map((each) => file(join(paths.plugins[agent], each.path), each.content, each.mode)),
     ),
   ]
-  // Every harness's shims, which the shells put first on PATH only while one is connected.
-  const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? [])
+  // Every harness's shims, which apply only while their harness is connected, and on Linux
+  // the shims that open apps in scopes of their own (`openShims`).
+  const shims = [
+    ...agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? []),
+    ...openShims(platform),
+  ]
   const bin = shims.map((each) =>
     file(
       join(paths.bin, each.path),

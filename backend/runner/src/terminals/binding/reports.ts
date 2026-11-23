@@ -23,6 +23,7 @@ import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
 import type { Murmur } from "../descriptions.js"
+import { agentProcess } from "../ending.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
 import {
@@ -348,6 +349,8 @@ export class Reports {
                 telemetry: null,
               }
       if (next.binding !== null) {
+        // What it starts in the terminal's scope from now is its own, to end with the terminal.
+        record.terminal.pty.agentStarted(agentProcess(record))
         // A woken agent came up: the wake worked (see `Record.woken`).
         record.woken = undefined
         // After a suspended agent, a binding is that agent back from `fg`, or another the

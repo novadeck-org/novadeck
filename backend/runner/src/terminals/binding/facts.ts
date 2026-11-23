@@ -198,6 +198,8 @@ export class Bindings {
    * (`restarted`).
    */
   private endSession(record: Record): void {
+    // What starts in the terminal's scope from now is the person's, not the agent's.
+    if (record.bound !== null) record.terminal.pty.agentEnded()
     record.bound = null
     record.resumeEnded = true
     this.unwatch(record)

@@ -147,6 +147,17 @@ move, about a quarter of a second at most on a calm machine, then runs either wa
 the person's own startup files start doesn't wait. Without a user bus (no systemd, a container, WSL without systemd),
 shells run in the app's scope as before. macOS and Windows have no scopes (see the priority below).
 
+A program started detached stays in the scope of the terminal it was started in, though it
+has left the shell's tree, so a close or a quit ends what an agent left there (see "Closing"
+in `docs/backend-api.md`): what started in the scope while an agent ran, and is not what the
+person started there before it or after it, nor its harness's shared service. An app opened
+with `xdg-open`, `gio open` or `BROWSER` gets a scope of its own through Novadeck's shims, so a
+browser window an agent opened for the person stays open. Without a user
+bus nothing changes, and such a program outlives its terminal as before. Once a terminal's
+program has exited, a scope it left empty is stopped: one whose program died as systemd moved
+it in otherwise stays active, with no process in it, for ever, as systemd collects a scope only
+once its cgroup empties (measured: 8 of 60 such moves; 272 empty scopes after 16 hours).
+
 A terminal's scope also asks for `CPUWeight=10` (`terminalCpuWeight`), a tenth of the
 app's scope's default 100. Inside the desktop's `app.slice` every thread otherwise weighs
 the same, so agents' builds and test runs in many terminals at once starved the app's

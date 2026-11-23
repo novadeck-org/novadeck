@@ -159,6 +159,11 @@ export type Terminal = {
   readonly attached: number
   /** The current run's pty. */
   readonly pty: Pty
+  /**
+   * The ptys of earlier runs before a restart in which an agent ran, so what those agents left
+   * in their scopes ends with the terminal too.
+   */
+  readonly earlier: readonly Pty[]
   /** The current run's screen; read it in `enqueue`, after the draws queued before. */
   readonly screen: Screen
   /** How the mouse is reported on the screen now. */
@@ -397,6 +402,8 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
   }
 
   let run = spawn(options.spec)
+  // Earlier runs' ptys an agent ran in, for what those agents left to end with the terminal.
+  const earlier: Pty[] = []
   const conpty = (options.pty?.platform ?? process.platform) === "win32"
 
   /**
@@ -653,6 +660,9 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     get pty() {
       return run.pty
     },
+    get earlier() {
+      return earlier
+    },
     get screen() {
       return run.screen
     },
@@ -797,6 +807,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       // A fresh run's listeners that throw are told of again.
       threw.clear()
       dispose()
+      if (run.pty.agentRan) earlier.push(run.pty)
       run = started
       size = { cols: spec.cols, rows: spec.rows }
       runs += 1

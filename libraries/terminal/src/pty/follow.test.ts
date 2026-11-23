@@ -269,7 +269,8 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
     )
   }, 60_000)
 
-  // Not what anyone wants: what the walk can't see. Its parent is gone before the hangup.
+  // What the walk can't see, its parent gone before the hangup. On Linux the terminal's scope
+  // still holds it, and the pty ends it there (left.test.ts); elsewhere it stays.
   it("leaves a daemon that left the tree before the hangup", async () => {
     const { run, said, end } = await shell()
     run(`${process.execPath} daemonizing.mjs`)

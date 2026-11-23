@@ -286,9 +286,10 @@ const harnessMembers = (tree: readonly Member[]): ReadonlySet<number> => {
  * by the rule hibernation keeps an agent awake by (`readTree`, `stray`): a process under it
  * that was not there when it came up (its tool's server, a Codex "background terminal", a
  * `nohup` command of Claude Code's or Antigravity's, while its parent lives), a job of the
- * shell's beside it, or the agent itself suspended. Undefined where the system can't tell, the
+ * shell's beside it, what it left detached in the terminal's scope (Linux), or the agent itself
+ * suspended. Undefined where the system can't tell, the
  * agent isn't found under the shell, or the processes it started with weren't recorded yet.
- * A process re-parented away from the agent (a double fork) is seen by neither.
+ * Off Linux, a process re-parented away from the agent (a double fork) is seen by neither.
  */
 const boundAgentWork = async (
   record: Record,
@@ -301,7 +302,7 @@ const boundAgentWork = async (
     hasTerminalChild(table, shell, new Set(chain)),
   )
   if (!tree?.placed) return undefined
-  if (!tree.foreground || tree.beside) return true
+  if (!tree.foreground || tree.beside || tree.detached === true) return true
   const { baseline, bound } = record
   const held = baseline?.instance === bound?.binding.instance ? baseline?.taken : undefined
   return held === undefined ? undefined : stray(tree, held) !== undefined

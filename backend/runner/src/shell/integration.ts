@@ -1,3 +1,5 @@
+import { join } from "node:path"
+
 import { shellLaunch as launch, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import type { InstalledShell } from "./install.js"
@@ -31,6 +33,9 @@ export const shellLaunch = (
   // With shims, their folder goes first on PATH, and the integration puts it back
   // there after the person's startup files. NOVADECK_SHIMS names the harnesses whose shims
   // apply; any other shim there runs its program unchanged.
+  // In a scope of its own, as on Linux with the user's systemd, what `xdg-open`, `gio open` and
+  // `BROWSER` open gets one of its own too (`openShims`): NOVADECK_SCOPED says so, and BROWSER
+  // names the shim unless the person names a browser of their own.
   launch({
     shell,
     scripts: paths,
@@ -39,8 +44,12 @@ export const shellLaunch = (
       NOVADECK_HOOK: paths.launcher,
       ...(paths.mcpLauncher !== undefined && { NOVADECK_MCP: paths.mcpLauncher }),
       ...(shims.length > 0 && { NOVADECK_SHIMS: shims.join(" ") }),
+      ...(scoped === true && {
+        NOVADECK_SCOPED: "1",
+        ...(!env.BROWSER && { BROWSER: join(paths.bin, "xdg-open") }),
+      }),
     },
-    pathFirst: shims.length > 0 ? paths.bin : undefined,
+    pathFirst: shims.length > 0 || scoped === true ? paths.bin : undefined,
     startup,
     scoped,
   })

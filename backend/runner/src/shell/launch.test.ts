@@ -44,6 +44,27 @@ describe("Novadeck's launchers in a shell", () => {
     expect(without).not.toHaveProperty("NOVADECK_SHIMS")
   })
 
+  it("puts the shims that open apps first in a terminal with a scope of its own, and names BROWSER", () => {
+    const posix: InstalledShell = {
+      ...shellPaths("/data", "linux"),
+      launcher: "/data/hook",
+      mcpLauncher: "/data/mcp",
+    }
+    expect(shellLaunch("bash", posix, { PATH: "/usr/bin" }, { scoped: true }).env).toMatchObject({
+      PATH: `${posix.bin}${delimiter}/usr/bin`,
+      NOVADECK_BIN: posix.bin,
+      NOVADECK_SCOPED: "1",
+      BROWSER: `${posix.bin}/xdg-open`,
+    })
+    // The person's own browser stands.
+    const theirs = shellLaunch("bash", posix, { BROWSER: "firefox" }, { scoped: true }).env
+    expect(theirs.BROWSER).toBe("firefox")
+    const unscoped = shellLaunch("bash", posix, { PATH: "/usr/bin" }, { scoped: false }).env
+    expect(unscoped).not.toHaveProperty("NOVADECK_SCOPED")
+    expect(unscoped).not.toHaveProperty("BROWSER")
+    expect(unscoped.PATH).toBe("/usr/bin")
+  })
+
   it("leaves out the MCP server's on Windows, whose plugins start the relay itself", () => {
     for (const shell of ["pwsh.exe", "cmd.exe"]) {
       const { env } = shellLaunch(shell, paths, {})
