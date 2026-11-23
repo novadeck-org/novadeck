@@ -75,6 +75,32 @@ export const pasteInto = async (box: Locator, files: readonly File[]): Promise<b
   return !event.defaultPrevented
 }
 
+/**
+ * Drags `files` over `target` from a file manager, then drops them there unless `drop` is false;
+ * answers whether the page took the drop from the browser.
+ */
+export const dropOn = (target: Locator, files: readonly File[], drop = true): boolean => {
+  const data = new DataTransfer()
+  for (const file of files) data.items.add(file)
+  const element = target.element()
+  const box = element.getBoundingClientRect()
+  const send = (type: string): DragEvent => {
+    const event = new DragEvent(type, {
+      dataTransfer: data,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: box.x + box.width / 2,
+      clientY: box.y + box.height / 2,
+    })
+    element.dispatchEvent(event)
+    return event
+  }
+  send("dragenter")
+  const over = send("dragover")
+  return drop ? send("drop").defaultPrevented : over.defaultPrevented
+}
+
 /** The chips of the images waiting for the next message. */
 export const attachments = (chat: Locator): Locator =>
   chat.getByRole("list", { name: "Images for the next message" })

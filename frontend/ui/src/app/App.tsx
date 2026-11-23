@@ -5,6 +5,7 @@ import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorksMade } from "@novadeck/core/works"
 import { failViewLoads } from "@novadeck/items/lazy-view"
+import { guardFileDrops } from "@novadeck/toolkit/file-drops"
 import {
   useCallback,
   useEffect,
@@ -108,6 +109,9 @@ export const App = ({
   }
   // Framed, the wheel is the framing page's until the visitor engages the app there.
   useEffect(() => (embedded ? holdInputUntilEngaged(held.current) : undefined), [embedded])
+  // Files dropped anywhere but on what takes them, as a terminal, do nothing: the page never
+  // leaves for them, as a browser's would.
+  useEffect(() => guardFileDrops(), [])
   return (
     <EmbeddedContext value={embedded}>
       <BackendGate

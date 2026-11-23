@@ -829,11 +829,20 @@ Desktop, Documents or Downloads, so a program in the terminal may need macOS's
 permission to read it, where a copy needed none. The runner saves a copy of anything else (a screenshot, an image from a
 page, any file pasted in a browser) on its own machine, readable by its owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
 folder beside its database, or a temporary folder without one; each upload removes
-those older than a week. Claude Code and Codex take a pasted
+those older than a week. Claude Code, Codex and Antigravity take a pasted
 image's path as the image. The desktop app may read the clipboard for this; in a
 browser, a paste with no text (an image, or an empty clipboard) may ask for permission.
 A paste that fails, as of a copy over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
 terminal.
+
+Dropping files from a file manager on a terminal does what pasting them does: each one's
+path, in the order they came, the same way in Focus, Grid and Canvas. While they are over a
+terminal that would take them, that terminal alone says so; the drop goes into it and the
+keyboard follows, so you can type the rest after the paths. A terminal that takes no typing
+at the moment, as while reconnecting or once its shell ended, takes no drop either, and a drop
+anywhere else does nothing. A folder goes in by its own path in the desktop app; in a browser,
+where only files can be uploaded, it can't. In a chat, images dropped anywhere on it join your
+message as pasted ones do.
 
 The new-session shortcut creates and selects an empty session in the current project
 and opens the Sessions sidebar.

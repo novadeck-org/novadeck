@@ -30,6 +30,12 @@ describe("a failed paste's notice", () => {
     ).toBe("Couldn't paste the image: it's over 32 MB")
   })
 
+  it("says a folder can go in only by its own path, which this page doesn't know", () => {
+    expect(
+      pasteNotice({ kind: "file", type: "", tooLarge: false, folder: true, error: new Error() }),
+    ).toBe("Couldn't paste the folder: only files can be uploaded")
+  })
+
   it("says only that it failed for any other reason, as a lost connection", () => {
     const failed = (type: string, error: unknown) =>
       pasteNotice({ kind: "file", type, tooLarge: false, error })

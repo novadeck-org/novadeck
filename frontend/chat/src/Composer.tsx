@@ -11,9 +11,10 @@ import { Hint } from "@novadeck/requests/Hint"
 import { submitOnEnter } from "@novadeck/requests/submit-on-enter"
 import { useMounted } from "@novadeck/requests/use-mounted"
 import { clipboardImages, pastedFiles, pastedText } from "@novadeck/terminal/view"
+import { fileDropZone } from "@novadeck/toolkit/file-drops"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { CornerDownLeft } from "lucide-react"
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
 import type { Attachment } from "./attachments"
 import { replyImagesNote, shellImagesNote } from "./commands"
@@ -65,7 +66,8 @@ export const boxNote = (label: string, box: ChatBox): string => {
 // replies to the agent's question, the answer for the agent's own field, which takes one
 // line; a message that starts with `!`, a shell command the agent runs in its shell mode.
 // Pasting images (Ctrl+V, Ctrl+Shift+V or ⌘V) adds them to the next message, which only a plain
-// message takes: the other modes refuse the paste and say why.
+// message takes: the other modes refuse the paste and say why. Dropping them anywhere on
+// `dropArea` (the whole chat) does the same.
 export const Composer = ({
   label,
   draft,
@@ -92,6 +94,7 @@ export const Composer = ({
   passing,
   onPress,
   history,
+  dropArea,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
@@ -146,6 +149,8 @@ export const Composer = ({
   readonly onPress: (keys: string) => boolean
   // The prompts the person gave this agent, oldest first, which Up and Down walk through.
   readonly history: readonly string[]
+  // Where files dropped come to the box, as pasted ones do; the box alone where absent.
+  readonly dropArea?: RefObject<HTMLElement | null> | undefined
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
   const transmit = useTransmitPulse(input)
@@ -298,14 +303,38 @@ export const Composer = ({
       if (mounted.current && images && images.length > 0) attach(images)
     })
   }
+  // Files dragged over the chat: the box says it takes them, and a drop of them goes as their
+  // paste would, the caret in the box, so the words go on after them.
+  const form = useRef<HTMLFormElement>(null)
+  const [dropping, setDropping] = useState(false)
+  const dropped = useRef<(data: DataTransfer) => void>(() => {})
+  useEffect(() => {
+    dropped.current = (data) => {
+      const files = pastedFiles(data)
+      if (files.length === 0) return
+      input.current?.focus({ preventScroll: true })
+      attach(files)
+    }
+  })
+  useEffect(() => {
+    const area = dropArea?.current ?? form.current
+    if (!area) return
+    return fileDropZone(area, {
+      accepts: () => input.current !== null && !input.current.disabled,
+      over: (count) => setDropping(count !== null),
+      drop: (data) => dropped.current(data),
+    })
+  }, [dropArea])
   const hint = useId()
   const note = useId()
   const shellNote = useId()
   const boxNoteId = useId()
   return (
     <form
+      ref={form}
       className="chat-composer nodrag nopan"
       data-mode={mode}
+      data-dropping={dropping || undefined}
       aria-label={`Message ${label}`}
       // A press anywhere on the band around the box is a press in the box, its caret after the
       // words where the box hadn't focus; the notes over it keep their text to select, and its
@@ -577,6 +606,11 @@ export const Composer = ({
           )}
         </div>
       </div>
+      {dropping && (
+        <p className="chat-drop" aria-hidden>
+          Drop to add to your message
+        </p>
+      )}
     </form>
   )
 }

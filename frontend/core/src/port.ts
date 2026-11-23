@@ -98,6 +98,12 @@ export type TerminalMount = {
   // Takes control of a terminal another client controls, as the strip's button asks. Absent
   // where a backend has no observing.
   readonly take?: () => void
+  // Whether files dropped on the terminal would go in now, as pasted ones would. Absent where a
+  // backend takes no files.
+  readonly takesFiles?: () => boolean
+  // Takes the files of a drop on the terminal as a paste of them, during the drop, and focuses
+  // it. Nothing where it doesn't take files now.
+  readonly dropFiles?: (data: DataTransfer) => void
   // Called while the element is still in the document, so focus carries to the next mount.
   // Safe twice; leaves the element's content where it is.
   readonly dispose: () => void

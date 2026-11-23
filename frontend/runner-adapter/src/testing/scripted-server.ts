@@ -274,7 +274,14 @@ export const scriptedRunner = ({
       rename: api.terminals.rename.handler(unplayed("terminals.rename")),
       resetTitle: api.terminals.resetTitle.handler(unplayed("terminals.resetTitle")),
       busy: api.terminals.busy.handler(() => ({ busy: [], unknown: [] })),
-      upload: api.terminals.upload.handler(unplayed("terminals.upload")),
+      // As the runner does: a file starts by its name, in a folder of its own, and its later
+      // parts add to it; the script keeps only the names.
+      upload: api.terminals.upload.handler(({ input: { terminalId, name, path } }) => {
+        if (path !== undefined) return { path }
+        const saved = `/uploads/${(uploads.length + 1).toString()}/${name!}`
+        uploads.push({ terminalId, path: saved })
+        return { path: saved }
+      }),
       restart: api.terminals.restart.handler(unplayed("terminals.restart")),
     },
     agents: {
@@ -413,6 +420,8 @@ export const scriptedRunner = ({
   })
   // What the app typed into the terminals.
   const typed: { terminalId: string; data: string }[] = []
+  // The files the app saved on the runner, in order, and where.
+  const uploads: { terminalId: string; path: string }[] = []
   let connections = 0
   const connect = (signal: AbortSignal, theme: ThemeSource) => {
     const [server, client] = memoryPorts()
@@ -453,6 +462,8 @@ export const scriptedRunner = ({
     written: () => written,
     // What the app typed into the terminals, in order.
     typed: (): readonly { readonly terminalId: string; readonly data: string }[] => typed,
+    // The files the app saved on the runner, in order, and where.
+    uploads: (): readonly { readonly terminalId: string; readonly path: string }[] => uploads,
     // How many terminals' streams are attached now.
     streaming: () => streaming,
     // How many streams have attached, over the runner's life.

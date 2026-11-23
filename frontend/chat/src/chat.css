@@ -43,7 +43,8 @@
    `.chat-record` with data-kind="compaction" | "gap" for a line of the record no one said;
    a request's card (`.request-card`) and its hooks are @novadeck/requests' (requests.css);
    data-working or data-ended on the status; data-terminal on an error settled in the terminal; aria-disabled
-   on Stop, :disabled on Send; data-mode on the prompt, `.chat-reply` above it while it replies
+   on Stop, :disabled on Send; data-mode on the prompt, and data-dropping while files dragged
+   over the chat would join it, which `.chat-drop` says over it, `.chat-reply` above it while it replies
    to the agent's question or holds words whose question went, `.chat-box` with data-refused
    on what the agent's own input holds.
 
@@ -1697,6 +1698,21 @@ button.chat-hold-line:focus-visible::before {
    scroll anchoring and the held prompt's measurements remain immediate. */
 .chat-composer:focus-within {
   border-top-color: color-mix(in srgb, var(--_accent) 25%, var(--_line));
+}
+/* Files dragged over the chat: the prompt says a drop adds them to the message, in a dashed
+   outline over it, as a terminal says it takes them. */
+.chat-drop {
+  position: absolute;
+  inset: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 2px dashed var(--_accent);
+  border-radius: var(--radius-control);
+  background-color: var(--_ground);
+  color: var(--_ink);
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {

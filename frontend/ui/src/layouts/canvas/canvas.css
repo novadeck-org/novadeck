@@ -40,6 +40,10 @@
   .canvas-viewport[data-has-selection="false"] .canvas-node {
     --_recede: 1;
   }
+  /* Nor the one files are dragged over, which says it takes them. */
+  .canvas-node:has([data-file-drop]) {
+    --_recede: 1;
+  }
   /* The window's own opacity is its hiding's (workspace.css), so what fades is what the
      window holds. */
   .canvas-node > .terminal-visibility > * {

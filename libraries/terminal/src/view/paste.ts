@@ -46,6 +46,30 @@ export const pastedFiles = (
     .filter((file) => file !== null)
 }
 
+// The folders among `files`, as `data` carries them beside each other: a folder copied or dropped
+// from a file manager is a `File` too, which has no bytes to read. Its item names it where the
+// browser says (`webkitGetAsEntry`); one it doesn't goes as a file.
+export const foldersAmong = (
+  data: {
+    readonly items: ArrayLike<
+      Pick<DataTransferItem, "kind"> & Partial<Pick<DataTransferItem, "webkitGetAsEntry">>
+    >
+  } | null,
+  files: readonly File[],
+): ReadonlySet<File> => {
+  const items = Array.from(data?.items ?? []).filter((item) => item.kind === "file")
+  if (items.length !== files.length) return new Set()
+  return new Set(
+    files.filter((_, at) => {
+      try {
+        return items[at]?.webkitGetAsEntry?.()?.isDirectory === true
+      } catch {
+        return false
+      }
+    }),
+  )
+}
+
 // Whether a paste carries text, which is the emulator's to paste.
 export const pastedText = (data: Pick<DataTransfer, "getData"> | null): boolean =>
   Boolean(data?.getData("text/plain"))
@@ -121,14 +145,16 @@ const imagesOf = async (items: readonly ClipboardEntry[], now: Date): Promise<Fi
 }
 
 // Why a paste failed, for the owner to word: the clipboard could not be read, or a file could
-// not be saved (`tooLarge`: it was over `maxBytes` and never read; any other reason is in
-// `error`, as the upload gave it).
+// not be saved (`tooLarge`: it was over `maxBytes` and never read; `folder`: it is a folder
+// with no own path, which can't be uploaded; any other reason is in `error`, as the upload
+// gave it).
 export type PasteFailure =
   | { readonly kind: "clipboard" }
   | {
       readonly kind: "file"
       readonly type: string
       readonly tooLarge: boolean
+      readonly folder?: boolean
       readonly error: unknown
     }
 
@@ -137,6 +163,14 @@ class FileTooLarge extends Error {
   constructor() {
     super("The file is over the size a paste may upload")
     this.name = "FileTooLarge"
+  }
+}
+
+// The failure of a folder whose own path the page doesn't know: a folder has no bytes to upload.
+class FolderNotUploaded extends Error {
+  constructor() {
+    super("A folder can't be uploaded")
+    this.name = "FolderNotUploaded"
   }
 }
 
@@ -158,10 +192,16 @@ export type PasteTarget = {
 
 // A file's path as the shell reads it: its own, as of a file or folder copied in a file
 // manager, where that is safe; otherwise a copy's, saved on the host's machine. One too
-// large to copy is never read.
-const save = async (file: File, target: PasteTarget, now: Date): Promise<string> => {
+// large to copy is never read, nor is a folder, which has nothing to copy.
+const save = async (
+  file: File,
+  target: PasteTarget,
+  now: Date,
+  folder: boolean,
+): Promise<string> => {
   const own = ownPath(target.pathOf?.(file) ?? "")
   if (own) return own
+  if (folder) throw new FolderNotUploaded()
   if (file.size > target.maxBytes) throw new FileTooLarge()
   const path = await target.upload({
     name: uploadName(file, now),
@@ -174,25 +214,32 @@ const save = async (file: File, target: PasteTarget, now: Date): Promise<string>
   return shellPath(path)
 }
 
-// Saves the files one after another, pasting the path of each one as it is,
+// Saves the files one after another, in their order, pasting the path of each one as it is,
 // followed by a space, as a paste of its own: Codex takes a paste for an image only when
 // it is one path. A file the host could not save is left out, and the first of them
-// told of. Answers how many went in.
-const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<number> => {
+// told of. `folders` names the folders among them. Answers how many went in. A paste and a
+// drop of files both go in this way.
+export const pasteFiles = async (
+  files: readonly File[],
+  target: PasteTarget,
+  folders: ReadonlySet<File> = new Set(),
+): Promise<number> => {
   const now = new Date()
   let notice: string | undefined
   let pasted = 0
   for (const file of files) {
     try {
       // eslint-disable-next-line no-await-in-loop -- One file in memory and in flight at a time.
-      target.paste(`${await save(file, target, now)} `)
+      target.paste(`${await save(file, target, now, folders.has(file))} `)
       pasted += 1
     } catch (error) {
-      console.error("Could not save a pasted file on the host:", error)
+      if (!(error instanceof FolderNotUploaded))
+        console.error("Could not save a pasted file on the host:", error)
       notice ??= target.notice({
         kind: "file",
         type: file.type,
         tooLarge: error instanceof FileTooLarge,
+        ...(error instanceof FolderNotUploaded && { folder: true }),
         error,
       })
     }
@@ -214,7 +261,7 @@ export const takeFilePastes = (container: HTMLElement, target: PasteTarget): (()
     if (files.length > 0) {
       event.preventDefault()
       event.stopPropagation()
-      void pasteFiles(files, target)
+      void pasteFiles(files, target, foldersAmong(event.clipboardData, files))
       return
     }
     event.preventDefault()

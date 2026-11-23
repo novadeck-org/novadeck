@@ -30,6 +30,21 @@ export const TerminalLock = ({ notice }: { readonly notice: string }): React.JSX
   </div>
 )
 
+// Over the whole surface while files dragged over it would go in as they are dropped: what the
+// drop does, in a notice, inside an outline.
+export const TerminalDrop = ({ notice }: { readonly notice: string }): React.JSX.Element => (
+  <div
+    data-file-drop
+    className="terminal-drop pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-3"
+  >
+    <TerminalNotice notice={notice} />
+  </div>
+)
+
+// What dropping `count` files on a terminal does (0: the browser didn't say how many).
+export const terminalDropNotice = (count: number): string =>
+  count > 1 ? `Drop to paste ${count} paths` : "Drop to paste its path"
+
 // How the shell ended, along the surface's bottom edge, with the restart Enter also
 // asks for. In Canvas its right end follows the resize grip's scale so the button stays
 // clear of it (terminal-status.css). Restart waits while typing is paused, as a restart

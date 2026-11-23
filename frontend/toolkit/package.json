@@ -16,6 +16,7 @@
     "./drag-pull": "./src/drag-pull.ts",
     "./drag-pull.css": "./src/drag-pull.css",
     "./field.css": "./src/field.css",
+    "./file-drops": "./src/file-drops.ts",
     "./handle-chip.css": "./src/handle-chip.css",
     "./HandleChip": "./src/HandleChip.tsx",
     "./HoverCard": "./src/HoverCard.tsx",
