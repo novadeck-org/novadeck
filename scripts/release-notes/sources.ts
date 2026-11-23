@@ -2,6 +2,7 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 
 import { type RawCommit } from "./commits.ts"
+import { experimentalPath } from "./experimental.ts"
 
 const run = promisify(execFile)
 
@@ -21,6 +22,8 @@ export type Sources = {
   readonly ref: (tag: string) => Promise<string>
   /** The tag of the latest stable release, or `undefined` before there is one. */
   readonly stable: () => Promise<string | undefined>
+  /** experimental.json's text as `tag` holds it, or `undefined` for a tag from before it. */
+  readonly experimental: (tag: string) => Promise<string | undefined>
 }
 
 const fieldEnd = "\u001f"
@@ -129,6 +132,24 @@ export const makeGitSources = (cwd?: string): Sources => ({
     } catch (error) {
       // A tag without a release is the one failure that is an answer: `gh` says so on stderr.
       if (/release not found/i.test(String((error as { stderr?: string }).stderr))) return undefined
+      throw error
+    }
+  },
+  experimental: async (tag) => {
+    try {
+      const { stdout } = await run(
+        "git",
+        ["show", `${await refOf(tag, cwd)}:${experimentalPath}`],
+        {
+          cwd,
+          maxBuffer: 1024 * 1024,
+        },
+      )
+      return stdout
+    } catch (error) {
+      // A tag from before the list has no such file, which git says on stderr.
+      const stderr = String((error as { stderr?: string }).stderr)
+      if (/does not exist in|exists on disk, but not in/.test(stderr)) return undefined
       throw error
     }
   },

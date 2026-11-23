@@ -13,10 +13,11 @@ const plural = (count: number, one: string, many: string): string =>
 
 /** The short account of a run that wrote notes, for the log and the job's summary. */
 export const summaryOf = (mode: string, tag: string, generated: Generated): string => {
-  const { notes, considered, outputTokens, model, dropped } = generated
+  const { notes, considered, outputTokens, model, dropped, held } = generated
   const lines = notes.highlights.length + notes.changes.length
   return [
     `Release notes for ${tag} (${mode}): ${plural(lines, "line", "lines")} from ${plural(considered, "change", "changes")}, ${plural(notes.fixes, "smaller fix", "smaller fixes")} counted. Model ${model}, ${outputTokens} output tokens.`,
+    ...(held.length > 0 ? [`Left out as still Experimental: ${held.join(", ")}.`] : []),
     ...droppedLines(dropped),
     "",
   ].join("\n")

@@ -1,6 +1,7 @@
 import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
 import { checkOutput } from "./check.ts"
-import { parseCommits } from "./commits.ts"
+import { parseCommits, type RawCommit } from "./commits.ts"
+import { checkoutExperimental, holdBack, parseExperimental } from "./experimental.ts"
 import { commitItem, type Item } from "./items.ts"
 import { parseOutput, type Answer } from "./model.ts"
 import { originalOf } from "./render.ts"
@@ -29,6 +30,8 @@ export type Generated = {
   readonly dropped: readonly string[]
   /** How many items the model was asked about. */
   readonly considered: number
+  /** The commits left out as still Experimental at the tag, as `#123 (onboarding-tour)`. */
+  readonly held: readonly string[]
 }
 
 /** `[major, minor, patch]` of a `vX.Y.Z` tag, or `undefined` for any other tag. */
@@ -58,6 +61,30 @@ const requireStableBefore = async (
   const stable = await viaGh("look up the latest stable release", sources.stable())
   if (stable && versionOf(stable) && compare(stable, tag) < 0 && !tags.includes(stable))
     throw new Error(unmarked(stable, tag))
+}
+
+/**
+ * The range's commits for everyone, and the ones held back as Experimental at `tag`: by the
+ * list as the tag holds it, which is what its build shows, or as this checkout holds it for a
+ * tag from before the list.
+ */
+const forEveryone = async (
+  raws: readonly RawCommit[],
+  tag: string,
+  sources: Sources,
+): Promise<{ readonly kept: RawCommit[]; readonly held: string[] }> => {
+  const text = await sources.experimental(tag)
+  const { kept, held } = holdBack(
+    raws,
+    text === undefined ? checkoutExperimental() : parseExperimental(text),
+  )
+  return {
+    kept,
+    held: held.map(({ raw, feature }) => {
+      const pr = /\(#(\d+)\)$/.exec(raw.subject.trim())?.[1]
+      return `${pr ? `#${pr}` : raw.sha.slice(0, 9)} (${feature})`
+    }),
+  }
 }
 
 /**
@@ -126,7 +153,8 @@ export const generateRelease = async (
   // of history took it out of reach without a marker (see sources.ts), the range would list
   // history that was released long ago.
   await requireStableBefore(tag, tags, sources)
-  const items = parseCommits(await sources.commits(tags[at - 1], tag)).map(commitItem)
+  const { kept, held } = await forEveryone(await sources.commits(tags[at - 1], tag), tag, sources)
+  const items = parseCommits(kept).map(commitItem)
   const release = await viaGh(`read ${tag}'s release`, sources.release(tag))
   if (!release) throw new Skip(`${tag} has no release to write notes on`)
   if (!release.prerelease) throw new Skip(`${tag} is no longer a prerelease`)
@@ -136,6 +164,7 @@ export const generateRelease = async (
     ...(await compose("release", tag, items, ask)),
     original: originalOf(release.body),
     compare: undefined,
+    held,
   }
 }
 
@@ -177,7 +206,8 @@ export const generatePromote = async (
   const known = stable && versionOf(stable) ? stable : undefined
   // Every commit of the range goes to the model as it is, not through what a prerelease's
   // own run made of it: the model that picks the highlights judges every change itself.
-  const items = parseCommits(await sources.commits(known, tag)).map(commitItem)
+  const { kept, held } = await forEveryone(await sources.commits(known, tag), tag, sources)
+  const items = parseCommits(kept).map(commitItem)
   const found = await viaGh(`read ${tag}'s release`, sources.release(tag))
   if (!found) throw new Skip(`${tag} has no release to write notes on`)
   const own = originalOf(found.body)
@@ -188,5 +218,6 @@ export const generatePromote = async (
     compare: known
       ? `https://github.com/${repo}/compare/${await sources.ref(known)}...${tag}`
       : `https://github.com/${repo}/commits/${tag}`,
+    held,
   }
 }

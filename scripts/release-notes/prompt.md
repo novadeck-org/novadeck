@@ -21,7 +21,9 @@ demo and the try.novadeck.dev deploy, docs, and tooling for contributors. If a c
 visible effect, leave it out. If every change is like that, answer with empty lists. Early and experimental builds
 and the update channels are for contributors only: describe updates without naming them. So are
 Preferences' Experimental switch, its Experimental tab and every feature behind them: leave
-them out.
+them out. A change that takes a feature out of Experimental is the day the reader gets it:
+tell the feature as new, from what that change and any others you are given about it say,
+and never mention that it was Experimental.
 
 A later change you are given can take back all or part of an earlier one you are given,
 without being a revert: it removes what the earlier one added, or puts back what the earlier

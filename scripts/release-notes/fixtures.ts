@@ -25,6 +25,8 @@ export const fakeSources = (options: {
   /** Tags whose releases are stable; the rest are prereleases. */
   stables?: string[]
   stable?: string | undefined
+  /** experimental.json's text at every tag; a tag from before the list when left out. */
+  experimental?: string
 }): Sources & { readonly ranges: string[] } => {
   const ranges: string[] = []
   return {
@@ -41,5 +43,6 @@ export const fakeSources = (options: {
       return body === undefined ? undefined : { body, prerelease: !options.stables?.includes(tag) }
     },
     stable: async () => options.stable,
+    experimental: async () => options.experimental,
   }
 }

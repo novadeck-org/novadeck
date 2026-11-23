@@ -1,0 +1,11 @@
+{
+  "why": "The features still behind Preferences > Experimental, by their row's id there, each with the commit scopes that are only about it. The notes leave out a commit in one of those scopes, or whose pull request says `Experimental: <id>` on a line of its own, while its feature is listed here at the release's tag. The pull request that takes a feature out of Experimental is a feat and removes its entry, so the next notes tell the feature as new, with every change to it since the last stable release.",
+  "features": {
+    "agent-avatars": [],
+    "onboarding-tour": ["tour"],
+    "agent-worktrees": ["worktrees", "works"],
+    "agent-modes": [],
+    "shipping-gate": ["shipping"],
+    "forges": ["forges"]
+  }
+}
