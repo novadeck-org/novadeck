@@ -1540,6 +1540,16 @@ export const runnerBackend = (
       if (request) inbox.answered(requestId, request, answer)
       return conversations.answer(key, requestId, answer)
     },
+    // A permit the chat takes back resolves its Inbox entry as taken back, not as lapsed.
+    ...(conversations.takeBack && {
+      takeBack: (key, permit) => {
+        inbox.takenBack(key.terminalId, permit)
+        return conversations.takeBack!(key, permit).catch((error: unknown) => {
+          inbox.takenBack(key.terminalId, permit, true)
+          throw error
+        })
+      },
+    }),
   }
   // The person's order of the Inbox's entries and their snoozes: shown at once, kept by the
   // runner (`fitted`).

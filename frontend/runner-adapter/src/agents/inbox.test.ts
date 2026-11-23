@@ -994,6 +994,30 @@ describe("The shipping gate's standing permits", () => {
     })
   })
 
+  it("resolves a permit the chat took back as taken back, and one whose call failed as lapsed", async () => {
+    const { details, inbox, entries } = setup(
+      resting(),
+      {},
+      noMessages,
+      {},
+      { takeBack: take(), gate: gated() },
+    )
+    entries.push([])
+    await settle()
+    details[0]!.push(standing("p1", "p2"))
+    await settle()
+    inbox.takenBack("01", "p1")
+    inbox.takenBack("01", "p2")
+    inbox.takenBack("01", "p2", true)
+    details[0]!.push(standing())
+    await settle()
+
+    const settled = Object.fromEntries(
+      inbox.state.getSnapshot().items.map(({ id, settled: how }) => [id, how?.how]),
+    )
+    expect(settled).toEqual({ "permit:01:p1": "takenBack", "permit:01:p2": "lapsed" })
+  })
+
   it("shows none and follows no detail where the runner can't take one back, or the gate is off", async () => {
     const without = setup(resting(), {}, noMessages, {}, { gate: gated() })
     const off = setup(resting(), {}, noMessages, {}, { takeBack: take(), gate: gated(false) })

@@ -1701,12 +1701,15 @@ only gates them (`backend/runner/src/shipping/`).
 - **Permits** (`permits.ts`) stand per (terminal, action, target, repository), in memory (a
   restart fails closed): for 12 hours from when they're given, until their first use, then ten
   minutes more for a retry (Codex asks twice for one run, and a failed push gets retried); a
-  force push's is single use. A PR's closing or merging ends its merge permit too (the service
-  asks `gh` every five minutes while one stands, never from the hook), as do the terminal's
-  closing and the person taking it back (`agents.takeBack`). The permits one declaration or one
-  card gave (a PR's merge by number and by branch) are one group: used, shown and taken back
-  together. `merge_pr` also takes a branch, whose PR, opened or not, it covers, and a later
-  declaration by that PR's number shares the group. They come from the user's own
+  force push's is single use. A permit stands for the agent session it was given in, so a
+  `/clear` or another agent in the terminal ends it. A PR's closing or merging ends its merge
+  permit too (the service asks `gh` every five minutes while one stands, never from the hook),
+  as do the terminal's closing, the gate's switching off (none comes back when it's on again)
+  and the person taking it back (`agents.takeBack`); each end, its clock's included, is told at
+  once. The permits one declaration or one card gave (a PR's merge by number and by branch) are
+  one group: used, shown, voided and taken back together. `merge_pr` also takes a branch of the
+  terminal's own (checked out in a worktree it owns), whose PR, opened or not, it covers by
+  `gh pr merge <branch>`; that PR's number is another target. They come from the user's own
   words, quoted in `request_permit`'s `said` (two whole words at least, found at word boundaries,
   case and spacing aside; the permit notice and the record show the words they matched) in the
   ring of every prompt the person typed into that terminal's root session in the last hour,

@@ -90,6 +90,9 @@ export type RunnerInbox = Inbox & {
   // Says what the person answered a dialog with, which a chat answers too, for the entry it
   // resolves.
   readonly answered: (requestId: string, request: ChatRequest, answer: ChatAnswer) => void
+  // Says the person took a permit back from the chat, for the entry it resolves; `failed` when
+  // the call did not end it, which forgets that again.
+  readonly takenBack: (terminalId: string, permit: string, failed?: true) => void
   // Ends every stream it opened; the backend is stopping.
   readonly end: () => void
   // Opens them again, for the binding there is; the backend started again after `end`.
@@ -589,6 +592,11 @@ export const createRunnerInbox = (
     turns,
     answered: (requestId, request, chat) => {
       endings.note(`request:${requestId}`, "answered", answerLine(request, chat))
+    },
+    takenBack: (terminalId, permit, failed) => {
+      const id = `permit:${terminalId}:${permit}`
+      if (failed) endings.forget(id)
+      else endings.note(id, "takenBack")
     },
     readFinishes: (finishes: readonly InboxFinish[]) => {
       if (!listed) return

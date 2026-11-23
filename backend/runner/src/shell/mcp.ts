@@ -1982,7 +1982,7 @@ const requestPermit: Tool<Permit> = {
       target: {
         type: "string",
         description:
-          "merge_pr: the PR's number, or the branch whose PR it merges, opened or not. open_pr: the base branch, if you name one. push and force_push: the branch pushed to. land: the branch landed on.",
+          "merge_pr: the PR's number, or a branch of this terminal's own whose PR it merges, opened or not. open_pr: the base branch, if you name one. push and force_push: the branch pushed to. land: the branch landed on.",
       },
       said: {
         type: "string",

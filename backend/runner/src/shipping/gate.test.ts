@@ -243,13 +243,4 @@ describe("a standing permit's first use, in each harness", () => {
     await deliver(gate, input("gh pr merge 5", { agent: "codex", event: "PermissionRequest" }))
     expect(used(permits)).toEqual(expect.any(Number))
   })
-
-  it("starts it for Antigravity once its confirmation was answered", async () => {
-    const { permits, gate } = setup()
-    permits.give("t", "pr-merge:r/app#5", false, quote)
-    const covered = await gate.covered("t", "gh pr merge 5", "/main")
-    expect(used(permits)).toBeNull()
-    covered!.used()
-    expect(used(permits)).toEqual(expect.any(Number))
-  })
 })

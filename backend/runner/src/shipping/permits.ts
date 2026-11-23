@@ -28,11 +28,13 @@ export type Permit = {
   readonly key: string
   /**
    * The permits one declaration or one card gave together (a PR's merge by its number and by
-   * its branch): used, shown and taken back as one.
+   * its branch): used, shown, voided and taken back as one.
    */
   readonly group: string
   /** What it permits, in Novadeck's own words: "Merge PR #1170 into main". */
   readonly title: string
+  /** The agent session it was given in: a permit stands for that session only. */
+  readonly sessionId: string | null
   readonly givenAt: number
   readonly until: number
   /** When it was first used; its retry window runs from there. */
@@ -45,15 +47,31 @@ export type Permit = {
 /** What a permit stands for, as one declaration or card gave it. */
 export type Given = { readonly group?: string; readonly title?: string }
 
-/** The permits of every terminal, each for one target, standing until used or `standingMs`. */
+export type PermitsOptions = {
+  /**
+   * The agent session bound in a terminal now: a permit given in another one, as before a
+   * `/clear` or another agent started there, no longer stands. Without it, sessions aren't told.
+   */
+  readonly session?: (terminalId: string) => string | undefined
+}
+
+/**
+ * The permits of every terminal, each for one target, standing until used or `standingMs`, for
+ * the agent session they were given in. Whatever ends one, its clock included, tells `watch`.
+ */
 export class Permits {
   private readonly held = new Map<string, Permit>()
-  // Counts what ended permits other than their use: a revoke, a terminal's close.
+  // Counts what ended permits other than their use: a revoke, a take back, a terminal's close.
   private epoch = 0
   private readonly listeners = new Set<(permit: Permit) => void>()
   private readonly changes = new Set<(terminalId: string) => void>()
+  // Ends the permits whose time is up when it comes, so their end is told, not only found.
+  private timer: NodeJS.Timeout | undefined
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly now: () => number = Date.now,
+    private readonly options: PermitsOptions = {},
+  ) {}
 
   private id(terminalId: string, key: string): string {
     return `${terminalId}\n${key}`
@@ -62,6 +80,38 @@ export class Permits {
   private changed(terminalIds: Iterable<string>): void {
     for (const terminalId of new Set(terminalIds))
       for (const listener of this.changes) listener(terminalId)
+    this.schedule()
+  }
+
+  // Whether a permit still stands: within its time, for the session bound now.
+  private stands(permit: Permit, now: number): boolean {
+    if (permit.until <= now) return false
+    if (!this.options.session) return true
+    return (this.options.session(permit.terminalId) ?? null) === permit.sessionId
+  }
+
+  /**
+   * Ends what no longer stands, telling `watch` once the caller's own work is done (a read may
+   * come while a terminal's detail is being drawn).
+   */
+  private sweep(): void {
+    const now = this.now()
+    const ended: string[] = []
+    for (const [id, permit] of this.held)
+      if (!this.stands(permit, now)) {
+        this.held.delete(id)
+        ended.push(permit.terminalId)
+      }
+    if (ended.length > 0) queueMicrotask(() => this.changed(ended))
+  }
+
+  private schedule(): void {
+    clearTimeout(this.timer)
+    this.timer = undefined
+    const next = Math.min(...[...this.held.values()].map((permit) => permit.until))
+    if (!Number.isFinite(next)) return
+    this.timer = setTimeout(() => this.sweep(), Math.max(0, next - this.now()) + 1)
+    this.timer.unref?.()
   }
 
   /** Gives a terminal the permit for `key`, replacing one it held. */
@@ -78,6 +128,7 @@ export class Permits {
       key,
       group: given.group ?? randomUUID(),
       title: given.title ?? key,
+      sessionId: this.options.session?.(terminalId) ?? null,
       givenAt: at,
       until: at + standingMs,
       usedAt: null,
@@ -94,9 +145,8 @@ export class Permits {
   covering(terminalId: string, key: string): Permit | undefined {
     const permit = this.held.get(this.id(terminalId, key))
     if (!permit) return undefined
-    if (permit.until <= this.now()) {
-      this.held.delete(this.id(terminalId, key))
-      this.changed([terminalId])
+    if (!this.stands(permit, this.now())) {
+      this.sweep()
       return undefined
     }
     return permit
@@ -104,9 +154,9 @@ export class Permits {
 
   /** The terminal's live permits, oldest first. */
   of(terminalId: string): readonly Permit[] {
-    const now = this.now()
+    this.sweep()
     return [...this.held.values()]
-      .filter((permit) => permit.terminalId === terminalId && permit.until > now)
+      .filter((permit) => permit.terminalId === terminalId)
       .toSorted((one, other) => one.givenAt - other.givenAt)
   }
 
@@ -146,46 +196,56 @@ export class Permits {
     this.held.delete(id)
     const epoch = this.epoch
     return () => {
-      if (this.epoch === epoch && permit.until > this.now() && !this.held.has(id))
+      if (this.epoch === epoch && this.stands(permit, this.now()) && !this.held.has(id))
         this.held.set(id, permit)
     }
   }
 
-  /** Ends every terminal's permit for `key`: the target it was given for has changed. */
-  revoke(key: string): void {
-    this.epoch += 1
+  /**
+   * Ends the permits `ends` picks, with every other of their groups; whether any stood. `always`
+   * counts it as an end even where none stood here, as a single-use permit taken for a dialog
+   * (out of the map) mustn't come back after its target changed or its terminal closed.
+   */
+  private end(ends: (permit: Permit) => boolean, always = false): boolean {
+    if (always) this.epoch += 1
+    const groups = new Set(
+      [...this.held.values()]
+        .filter(ends)
+        .map(({ terminalId, group }) => `${terminalId}\n${group}`),
+    )
     const ended: string[] = []
     for (const [id, permit] of this.held)
-      if (permit.key === key) {
+      if (groups.has(`${permit.terminalId}\n${permit.group}`)) {
         this.held.delete(id)
         ended.push(permit.terminalId)
       }
+    if (ended.length === 0) return false
+    if (!always) this.epoch += 1
     this.changed(ended)
+    return true
+  }
+
+  /**
+   * Ends every terminal's permit for `key`, and the others its declaration gave with it: the
+   * target it was given for has changed, as a PR's base.
+   */
+  revoke(key: string): void {
+    this.end((permit) => permit.key === key, true)
   }
 
   /** Ends a terminal's permits of one group: the person took them back. Whether any stood. */
   takeBack(terminalId: string, group: string): boolean {
-    this.epoch += 1
-    let ended = false
-    for (const [id, permit] of this.held)
-      if (permit.terminalId === terminalId && permit.group === group) {
-        this.held.delete(id)
-        ended = true
-      }
-    if (ended) this.changed([terminalId])
-    return ended
+    return this.end((permit) => permit.terminalId === terminalId && permit.group === group)
   }
 
   /** Ends every permit of a terminal, as it closes. */
   forget(terminalId: string): void {
-    this.epoch += 1
-    let ended = false
-    for (const [id, permit] of this.held)
-      if (permit.terminalId === terminalId) {
-        this.held.delete(id)
-        ended = true
-      }
-    if (ended) this.changed([terminalId])
+    this.end((permit) => permit.terminalId === terminalId, true)
+  }
+
+  /** Ends every permit, as the gate is switched off: switched on again, none comes back. */
+  clear(): void {
+    this.end(() => true, true)
   }
 
   /** Calls `listener` whenever a permit is given, to withdraw a card another source answered. */

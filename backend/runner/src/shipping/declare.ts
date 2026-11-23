@@ -127,13 +127,19 @@ export const declare = async (
     case "merge_pr": {
       const numbered = /^#?(\d+)$/.exec(target)?.[1] ?? /\/pull\/(\d+)\/?$/.exec(target)?.[1]
       if (numbered === undefined && target !== "") {
-        // A branch: its PR, opened or still to open, merged by `gh pr merge <branch>` or a bare
-        // `gh pr merge` in its checkout.
+        // A branch of the agent's own: its PR, opened or still to open, merged by
+        // `gh pr merge <branch>` or a bare `gh pr merge` in its checkout. Its number, once
+        // opened, is another target, declared on its own.
         const bad = await checked(target, "branch")
         if (bad) return { ok: false, reason: bad }
+        if (!(await lookups.own(folder, target)))
+          return {
+            ok: false,
+            reason: `merge_pr takes a branch only where it is this terminal's own, checked out in a worktree it owns: ${target} isn't. Name the PR's number.`,
+          }
         keys = [permitKey.prMergeBranch(repo, target)]
         title = `Merge the PR of ${target}?`
-        detail.push(`The PR whose head is ${target}, whatever its number`)
+        detail.push(`The PR whose head is ${target}, merged by its branch`)
         break
       }
       const number = Number(numbered)
@@ -144,19 +150,6 @@ export const declare = async (
       const branch = await lookups.branch(folder)
       if (pull !== undefined && branch !== undefined && branch === pull.head)
         keys.push(permitKey.prMergeBranch(repo, branch))
-      // The PR of a branch the person already permitted merging is that permit's target too.
-      const byBranch =
-        pull === undefined
-          ? undefined
-          : deps.permits.covering(terminalId, permitKey.prMergeBranch(repo, pull.head))
-      if (byBranch !== undefined) {
-        const key = permitKey.prMerge(repo, number)
-        if (deps.permits.covering(terminalId, key) === undefined)
-          deps.permits.give(terminalId, key, false, byBranch.source, {
-            group: byBranch.group,
-            title: byBranch.title,
-          })
-      }
       // GitHub's own words for the base count as much as an agent's: only a name git accepts is shown.
       const base =
         pull !== undefined && (await deps.valid(folder, pull.base)) ? pull.base : undefined

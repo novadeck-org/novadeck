@@ -176,7 +176,10 @@ export const pendingMs = 30_000
 const askedSlackMs = 200
 
 export class Shipping {
-  readonly permits = new Permits()
+  // A permit stands for the agent session it was given in, as the quote ring does.
+  readonly permits = new Permits(Date.now, {
+    session: (terminalId) => this.records.get(terminalId)?.bound?.binding.sessionId,
+  })
   readonly quotes = new Quotes()
   readonly cards = new Cards()
   private readonly gate: Gate
@@ -465,7 +468,9 @@ export class Shipping {
         note: covered.permits
           .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
           .join("; "),
-        done: covered.voided,
+        // Keys went: the permits are used, a standing one keeping only its retry window, and
+        // whatever the command voids ends.
+        done: covered.used,
         release: covered.restore,
       }
     } catch {
@@ -672,6 +677,19 @@ export class Shipping {
               data: { terminalId, target: permit.key, at: new Date().toISOString() },
             })
       }
+  }
+
+  /**
+   * The gate was switched on or off: off, every permit and card ends, and the summaries say so,
+   * so nothing stands on the wire meanwhile and none comes back when it is on again.
+   */
+  switched(): void {
+    if (this.host.enabled()) return
+    this.permits.clear()
+    for (const terminalId of this.records.keys()) {
+      this.cards.forget(terminalId)
+      this.quotes.forget(terminalId)
+    }
   }
 
   /** A terminal closed: its permits and quotes go. */

@@ -438,6 +438,16 @@ describe("Antigravity's answers", () => {
     auto!.done()
   })
 
+  it("uses a standing permit once its confirmation was answered, keeping only its retry window", async () => {
+    const shipping = service()
+    permitted(shipping, pushKey, false)
+    await hooked(shipping, push)
+    const auto = await shipping.autoAnswer("t", "agy", dialog(push, push))
+    expect(shipping.permits.covering("t", pushKey)?.usedAt).toBeNull()
+    auto!.done()
+    expect(shipping.permits.covering("t", pushKey)?.usedAt).toEqual(expect.any(Number))
+  })
+
   it("covers Antigravity only where its PreToolUse hook is registered", () => {
     expect(service().covers("agy")).toBe(true)
     setAgyPreToolUse(false)
@@ -636,5 +646,32 @@ describe("the gate while off", () => {
     expect(shipping.held("t").permits).toHaveLength(1)
     on = false
     expect(shipping.held("t")).toEqual({ cards: [], permits: [] })
+  })
+})
+
+describe("switching the gate off", () => {
+  it("ends every permit and card, and tells each terminal, so none comes back when it's on again", () => {
+    let on = true
+    const shipping = new Shipping({
+      enabled: () => on,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    const changed: string[] = []
+    const records = new Map([["t", { summary: { id: "t" }, bound: undefined }]]) as never
+    shipping.attach(records, (record: { summary: { id: string } }) =>
+      changed.push(record.summary.id),
+    )
+    shipping.permits.give("t", "land:r/app:main", false, { type: "quote", quote: "land it" })
+    shipping.cards.ask("t", ["push:r/app:origin/main"], false, "Push to origin/main?", "")
+    changed.length = 0
+    shipping.switched()
+    expect(shipping.permits.of("t")).toHaveLength(1)
+    on = false
+    shipping.switched()
+    on = true
+    expect(shipping.permits.of("t")).toEqual([])
+    expect(shipping.cards.of("t")).toEqual([])
+    expect(changed).toContain("t")
   })
 })

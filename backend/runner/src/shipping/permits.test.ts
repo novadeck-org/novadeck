@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { Permits, permitMs, Quotes, quotedIn, ringMs, standingMs } from "./permits.js"
 
@@ -71,6 +71,74 @@ describe("permits", () => {
     permits.onGiven((permit) => seen.push(permit.key))
     permits.give("a", "x", false, { type: "quote", quote: "q" })
     expect(seen).toEqual(["x"])
+  })
+})
+
+describe("what ends a standing permit", () => {
+  const quote = { type: "quote", quote: "merge stuff" } as const
+
+  it("stands for the agent session it was given in only: a /clear or another agent ends it", async () => {
+    const session = new Map([["t", "s1"]])
+    const permits = new Permits(Date.now, { session: (id) => session.get(id) })
+    const changed: string[] = []
+    permits.watch((id) => changed.push(id))
+    permits.give("t", "merge:5", false, quote)
+    expect(permits.covering("t", "merge:5")?.sessionId).toBe("s1")
+    session.set("t", "s2")
+    expect(permits.covering("t", "merge:5")).toBeUndefined()
+    expect(permits.of("t")).toEqual([])
+    // Told once the read is done, as a read may come while a detail is drawn.
+    await Promise.resolve()
+    expect(changed).toEqual(["t", "t"])
+    // Nor while no session is bound.
+    session.set("t", "s2")
+    permits.give("t", "merge:6", false, quote)
+    session.delete("t")
+    expect(permits.covering("t", "merge:6")).toBeUndefined()
+  })
+
+  it("tells its end when its time is up, with no read to find it", async () => {
+    vi.useFakeTimers()
+    try {
+      const permits = new Permits()
+      const changed: string[] = []
+      permits.watch((id) => changed.push(id))
+      const permit = permits.give("t", "merge:5", false, quote)
+      vi.advanceTimersByTime(60_000)
+      permits.used(permit)
+      expect(changed).toEqual(["t", "t"])
+      vi.advanceTimersByTime(permitMs + 1)
+      await Promise.resolve()
+      expect(changed).toEqual(["t", "t", "t"])
+      expect(permits.of("t")).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ends a whole group when one of its targets changed, and every permit as the gate goes off", () => {
+    const permits = new Permits()
+    const given = { group: "g", title: "Merge PR #5 into main" }
+    permits.give("t", "pr-merge:r#5", false, quote, given)
+    permits.give("t", "pr-merge:r@feat/x", false, quote, given)
+    permits.give("t", "land:r:main", false, quote)
+    permits.revoke("pr-merge:r#5")
+    expect(permits.of("t").map(({ key }) => key)).toEqual(["land:r:main"])
+    permits.clear()
+    expect(permits.of("t")).toEqual([])
+  })
+
+  it("lets a taken single-use permit back after a take back that ended nothing, never after a revoke", () => {
+    const permits = new Permits()
+    const once = permits.give("t", "force", true, quote)
+    const restore = permits.take(once)!
+    expect(permits.takeBack("t", "none")).toBe(false)
+    restore()
+    expect(permits.covering("t", "force")).toBeDefined()
+    const again = permits.take(once)!
+    permits.revoke("force")
+    again()
+    expect(permits.covering("t", "force")).toBeUndefined()
   })
 })
 

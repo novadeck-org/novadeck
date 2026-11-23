@@ -697,7 +697,8 @@ const startRunner = (options: RunnerOptions): Runner => {
         // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
         // hooks, so they are written again, and a Codex copy that differs is installed again.
         shipping,
-        shippingSwitched: () =>
+        shippingSwitched: () => {
+          shipping.switched()
           void shellFiles
             .then(() => rewriteShellFiles())
             .then(() => agents.refresh(true))
@@ -705,7 +706,8 @@ const startRunner = (options: RunnerOptions): Runner => {
               log.error("shipping.rewrite-failed", "Novadeck could not write the gate's hooks", {
                 err: error,
               }),
-            ),
+            )
+        },
         tour,
         activity,
         clients,

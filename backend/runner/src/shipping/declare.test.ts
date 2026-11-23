@@ -53,11 +53,12 @@ describe("request_permit", () => {
     expect(permits.covering("t", "pr-merge:r/app@feat/x")).toBeDefined()
   })
 
-  it("gives one standing permit for a branch's PR, opened or not, which its number then shares", async () => {
+  it("gives one standing permit for the PR of a branch of its own, opened or not, and never its number", async () => {
     let now = 0
     const permits = new Permits(() => now)
     const quotes = new Quotes(() => now)
-    const { all } = deps()
+    const own: Lookups = { ...lookups, own: async (_folder, branch) => branch === "feat/x" }
+    const { all, cards } = deps("claude", own)
     const fresh = { ...all, permits, quotes }
     quotes.record("t", "s", "feel free to merge stuff when green")
     const branch = await declare(fresh, "t", "/w", {
@@ -69,12 +70,18 @@ describe("request_permit", () => {
     expect(permits.of("t").map(({ key, title }) => [key, title])).toEqual([
       ["pr-merge:r/app@feat/x", "Merge the PR of feat/x"],
     ])
-    // Hours later, CI green, the PR open as #1190: its number is the same target, with no new words.
+    // Its number is another target: a PR of that name may be a fork's, or into another base.
     now += 4 * 60 * 60_000
-    const numbered = await declare(fresh, "t", "/w", { action: "merge_pr", target: "1190" })
-    expect(numbered).toMatchObject({ ok: true, state: "permitted" })
-    const [first, second] = permits.of("t")
-    expect(second).toMatchObject({ key: "pr-merge:r/app#1190", group: first!.group })
+    expect(await declare(fresh, "t", "/w", { action: "merge_pr", target: "1190" })).toMatchObject({
+      ok: true,
+      state: "asked",
+    })
+    expect(permits.covering("t", "pr-merge:r/app#1190")).toBeUndefined()
+    expect(cards.of("t")).toHaveLength(1)
+    // A branch that isn't its own, or isn't a branch name, isn't one.
+    expect(
+      await declare(fresh, "t", "/w", { action: "merge_pr", target: "main", said: "merge stuff" }),
+    ).toMatchObject({ ok: false })
     expect(await declare(fresh, "t", "/w", { action: "merge_pr", target: "fe at" })).toMatchObject({
       ok: false,
     })
