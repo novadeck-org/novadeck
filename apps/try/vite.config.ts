@@ -42,7 +42,8 @@ export default defineConfig({
       // and raised to 1.3 MB in #439, when main sat about 100 bytes under it, to 1.31 MB
       // for the terminal font list and the app's scale (1,300,591 bytes on CI then), and to
       // 1.311 MB for the shipping gate's standing permits, their chat card and the Inbox's
-      // Take back (about 900 bytes; 1,310,139 bytes on CI, main 1,309,217 locally). The
+      // Take back (about 900 bytes; 1,310,139 bytes on CI, main 1,309,217 locally), and to
+      // 1.312 MB for files dropped on terminals and the chat (1,311,340 bytes on CI). The
       // demo's was
       // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then), and
       // to 205 kB for the changes pane's layers and the small git its samples come from
@@ -50,7 +51,7 @@ export default defineConfig({
       // demo's Inbox keeps (206,351 bytes then), and to 250 kB, by the owner's choice, when main
       // reached it (about 210,000 bytes on CI, and the folder path field's 4 bytes over it).
       budgets: {
-        first: 1_311_000,
+        first: 1_312_000,
         demo: 250_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },
