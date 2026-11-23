@@ -79,10 +79,10 @@ export const noticeBody = (text: string): string => {
 // What the person is told of an event notice, by the family of its kind: a short line in a
 // game log's voice, the agent's. "You" is only the agent noticing it, and the rest names things
 // plainly (the terminal, an ask, the user, never "your" or "you" again), so the person reading it
-// never takes it as about them. The kinds earlier builds wrote (Host load, CI queue, Page, Lead,
+// never takes it as about them. No line names Novadeck: its mark is beside every one. The kinds earlier builds wrote (Host load, CI queue, Page, Lead,
 // Move, Close, Run) are in transcripts a resumed session holds, and map to their family's line.
 const seen: Readonly<Record<string, string>> = {
-  Restart: "You notice Novadeck restarted.",
+  Restart: "You notice a restart.",
   Terminals: "You notice terminals open and close.",
   Team: "You notice news about the team.",
   Worktrees: "You notice news about a worktree.",
@@ -92,7 +92,7 @@ const seen: Readonly<Record<string, string>> = {
   Show: "You notice problems in a shown page.",
   Shipping: "You notice news about a permit.",
   Messages: "You notice a message still on its way.",
-  Notices: "You notice a note from Novadeck.",
+  Notices: "You notice a note.",
   Describe: "You notice the terminal needs a title.",
 }
 const seenOldKinds: Readonly<Record<string, string>> = {
@@ -112,16 +112,16 @@ const seenStanding: Readonly<Record<string, string>> = {
   Inbox: "You notice questions go to the Inbox too.",
   Show: "You notice where to show work.",
   Worktrees: "You notice agent worktrees are on.",
-  Messages: "You notice Novadeck check for messages.",
+  Messages: "You notice a check for messages.",
 }
 // The standing notices that say how a part of Novadeck works, which a session's first prompt
 // carries together.
 const setUpKinds = new Set(["Describe", "Inbox", "Show", "Worktrees"])
 const seenUnknown = "You notice something."
 // A message from Novadeck with no header is a brief it hands the agent, such as the tour's task.
-const seenBrief = "You notice Novadeck hand over a task."
+const seenBrief = "You notice a new task."
 // Several standing notices at once, as a session's first prompt carries them.
-const seenSetUp = "You notice a briefing from Novadeck."
+const seenSetUp = "You notice a briefing."
 const seenWorktreesOff = "You notice agent worktrees are off."
 
 // What a notice on the prompt's hook is: how a part of Novadeck works (its kind), worktrees
@@ -151,8 +151,7 @@ export const noticeSeen = (text: string, { standing = false } = {}): string => {
 /**
  * The one line the person is told of notices delivered together (a ring's, or a prompt's hook's):
  * each one's line once, in order, joined by ` · `, and where more than one is a standing notice of
- * how Novadeck works (the bar, the Inbox, the title, worktrees on), those as a briefing from
- * Novadeck.
+ * how Novadeck works (the bar, the Inbox, the title, worktrees on), those as one briefing.
  */
 export const noticesSeen = (
   notices: readonly { readonly text: string; readonly standing?: boolean }[],

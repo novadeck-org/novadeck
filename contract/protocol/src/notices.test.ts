@@ -99,7 +99,7 @@ describe("noticeSeen", () => {
   const of = (kind: string): string => noticeSeen(`Novadeck · ${kind}\nSomething happened.`)
 
   it("says one line for each family", () => {
-    expect(of("Restart")).toBe("You notice Novadeck restarted.")
+    expect(of("Restart")).toBe("You notice a restart.")
     expect(of("Terminals")).toBe("You notice terminals open and close.")
     expect(of("Team")).toBe("You notice news about the team.")
     expect(of("Worktrees")).toBe("You notice news about a worktree.")
@@ -109,7 +109,7 @@ describe("noticeSeen", () => {
     expect(of("Show")).toBe("You notice problems in a shown page.")
     expect(of("Shipping")).toBe("You notice news about a permit.")
     expect(of("Messages")).toBe("You notice a message still on its way.")
-    expect(of("Notices")).toBe("You notice a note from Novadeck.")
+    expect(of("Notices")).toBe("You notice a note.")
     expect(of("Describe")).toBe("You notice the terminal needs a title.")
   })
 
@@ -139,7 +139,7 @@ describe("noticeSeen", () => {
       "You notice something.",
     )
     expect(noticeSeen("This is the artist's brief for Novadeck's tour.")).toBe(
-      "You notice Novadeck hand over a task.",
+      "You notice a new task.",
     )
   })
 })
@@ -154,12 +154,12 @@ describe("noticesSeen", () => {
     )
   })
 
-  it("says several standing notices as a briefing from Novadeck, where the first was", () => {
+  it("says several standing notices as one briefing, where the first was", () => {
     expect(noticesSeen([standing("Show"), standing("Inbox"), standing("Describe")])).toBe(
-      "You notice a briefing from Novadeck.",
+      "You notice a briefing.",
     )
     expect(noticesSeen([event("Restart"), standing("Show"), standing("Inbox")])).toBe(
-      "You notice Novadeck restarted. · You notice a briefing from Novadeck.",
+      "You notice a restart. · You notice a briefing.",
     )
     expect(noticesSeen([standing("Worktrees")])).toBe("You notice agent worktrees are on.")
   })
@@ -182,7 +182,7 @@ describe("noticesSeen", () => {
 
   it("says a hook's line on the prompt's messages as Novadeck checking, never as setting up", () => {
     expect(noticesSeen([standing("Messages"), standing("Describe")])).toBe(
-      "You notice Novadeck check for messages. · You notice the terminal needs a title.",
+      "You notice a check for messages. · You notice the terminal needs a title.",
     )
   })
 })

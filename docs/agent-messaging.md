@@ -2319,37 +2319,35 @@ step lines are no notices and keep their own forms, as do tool results and refus
 **What the person sees.** A notice is never shown by its facts; the agent's text never changes.
 `noticeSeen` in `@novadeck/protocol/notices` is the one map from a notice's kind to the line the
 person reads, shared by the chat and the terminal overlay. Each line is in the agent's voice: "You
-notice" is the agent noticing it, and the rest names things plainly (the terminal, an ask, the
-user, never "your" or "you" again), so the person reading it never takes it as about them. An
-event notice (one the runner delivered as a message from `novadeck`, with a ring, a prompt or tool
-call's hook, or a Stop's continuation) says its family's line: `Restart` "You notice Novadeck
-restarted.", `Terminals` "You notice terminals open and close.", `Team` "You notice news about
-the team.", `Worktrees` "You notice news about a worktree.", `Inbox` "You notice an ask leave the
-Inbox.", `Inbox answers` "You notice answers from the Inbox.", `Resources` "You notice shared
-resources are busy.", `Show` "You notice problems in a shown page.", `Shipping` "You notice news
-about a permit.", `Messages` "You notice a message still on its way.", `Notices` "You notice a note
-from Novadeck.", `Describe` "You notice the terminal needs a title." A standing notice says what it
-is about: `Show` "You notice where to show work.", `Inbox` "You notice questions go to the Inbox
-too.", `Describe` "You notice the terminal needs a title.", `Worktrees` "You notice agent worktrees
-are on.", else its family's line. Two notices ride the hook with a standing one of their kind and
-are told apart by how their facts start (`pageTroubleLead`, `worktreesOffLead`, which the runner
-writes them with): a shown page's problems say Show's event line, and worktrees turned off read
-"You notice agent worktrees are off."; neither is part of a briefing. A hook's own line on how the
-prompt's messages came (`Messages`, as "No agent messages are waiting any more.") reads "You notice
-Novadeck check for messages." The
-kinds earlier builds wrote map to their family (`Host load` and `CI queue` to Resources, `Page` to
-Show, `Lead` and `Move` to Team, `Close` and `Run` to Terminals), as a resumed session's old
-transcript holds them. A message from Novadeck with no header is a brief it hands the agent, such as
-the tour's, and reads "You notice Novadeck hand over a task."; one of no known kind, or with the
-legacy prefix, reads "You notice something." (`readNotice` there strips the header and splits the
-facts from the `→` actions.)
+notice" is the agent noticing it, and the rest names things plainly (the terminal, an ask, the user,
+never "your" or "you" again), so the person reading it never takes it as about them. No line names
+Novadeck: its mark is beside every one. An event notice (one the runner delivered as a message from
+`novadeck`, with a ring, a prompt or tool call's hook, or a Stop's continuation) says its family's
+line: `Restart` "You notice a restart.", `Terminals` "You notice terminals open and close.", `Team`
+"You notice news about the team.", `Worktrees` "You notice news about a worktree.", `Inbox` "You
+notice an ask leave the Inbox.", `Inbox answers` "You notice answers from the Inbox.", `Resources`
+"You notice shared resources are busy.", `Show` "You notice problems in a shown page.", `Shipping`
+"You notice news about a permit.", `Messages` "You notice a message still on its way.", `Notices`
+"You notice a note.", `Describe` "You notice the terminal needs a title." A standing notice says
+what it is about: `Show` "You notice where to show work.", `Inbox` "You notice questions go to the
+Inbox too.", `Describe` "You notice the terminal needs a title.", `Worktrees` "You notice agent
+worktrees are on.", else its family's line. Two notices ride the hook with a standing one of their
+kind and are told apart by how their facts start (`pageTroubleLead`, `worktreesOffLead`, which the
+runner writes them with): a shown page's problems say Show's event line, and worktrees turned off
+read "You notice agent worktrees are off."; neither is part of a briefing. A hook's own line on how
+the prompt's messages came (`Messages`, as "No agent messages are waiting any more.") reads "You
+notice a check for messages." The kinds earlier builds wrote map to their family (`Host load` and
+`CI queue` to Resources, `Page` to Show, `Lead` and `Move` to Team, `Close` and `Run` to Terminals),
+as a resumed session's old transcript holds them. A message from Novadeck with no header is a brief
+it hands the agent, such as the tour's, and reads "You notice a new task."; one of no known kind, or
+with the legacy prefix, reads "You notice something." (`readNotice` there strips the header and
+splits the facts from the `→` actions.)
 
-Notices delivered together are one line (`noticesSeen`): a ring's, and those outside a ring
-recorded at the same moment with nothing between them, as one hook prints them (each harness's
-decoder dates a hook's notices alike). The line says each one's line once, in order, joined by
-`·`; where more than one is a standing notice of how Novadeck works (the bar, the Inbox, the title,
-worktrees), as a session's first prompt carries them, those read once as "You notice a briefing from
-Novadeck."
+Notices delivered together are one line (`noticesSeen`): a ring's, and those outside a ring recorded
+at the same moment with nothing between them, as one hook prints them (each harness's decoder dates
+a hook's notices alike). The line says each one's line once, in order, joined by `·`; where more
+than one is a standing notice of how Novadeck works (the bar, the Inbox, the title, worktrees), as a
+session's first prompt carries them, those read once as "You notice a briefing."
 
 Agent Chat shows that line as a quiet bell line, as the doorbell's own line is: Novadeck's mark
 (the `NovaMark` of the toasts, muted, as tall as a prompt's mark and centred on it) in the gutter, the words

@@ -688,9 +688,7 @@ context("Novadeck's own notices", () => {
   it("tells a kind an earlier build wrote by its family, a brief from Novadeck as a task, and an old notice as something", () => {
     const line = (text: string) => said(show([ring([text])]), "n0")
     expect(line("Novadeck · Host load\nCPU at 90%.")).toBe("You notice shared resources are busy.")
-    expect(line("This is the artist's brief for Novadeck's tour.")).toBe(
-      "You notice Novadeck hand over a task.",
-    )
+    expect(line("This is the artist's brief for Novadeck's tour.")).toBe("You notice a new task.")
     expect(line("Novadeck: automatic notice, not from the user: the user is away.")).toBe(
       "You notice something.",
     )
@@ -762,7 +760,7 @@ context("Novadeck's own notices", () => {
     expect(show([ring([host])]).querySelector(".chat-ring .chat-note")).toBeNull()
   })
 
-  it("says the standing notices a prompt carried as one line: a briefing from Novadeck", () => {
+  it("says the standing notices a prompt carried as one line: a briefing", () => {
     const container = show([
       words("u", "user", "Tell moth the news"),
       outside("s1", [
@@ -777,12 +775,12 @@ context("Novadeck's own notices", () => {
         (each) => each.getAttribute("data-notice") ?? "prompt",
       ),
     ).toEqual(["prompt", "s1"])
-    expect(said(container, "s1")).toBe("You notice a briefing from Novadeck.")
+    expect(said(container, "s1")).toBe("You notice a briefing.")
     act(() => key(container, "s1").click())
     expect(container.querySelectorAll(".chat-notice-body > .chat-notice-one")).toHaveLength(4)
   })
 
-  it("says an event among standing notices after a briefing from Novadeck", () => {
+  it("says an event among standing notices after a briefing", () => {
     const container = show([
       {
         kind: "notice",
@@ -795,9 +793,7 @@ context("Novadeck's own notices", () => {
         ],
       },
     ])
-    expect(said(container, "s1")).toBe(
-      "You notice a briefing from Novadeck. · You notice Novadeck restarted.",
-    )
+    expect(said(container, "s1")).toBe("You notice a briefing. · You notice a restart.")
   })
 
   it("is drawn again, handles and all, as the app comes to know the agent", () => {

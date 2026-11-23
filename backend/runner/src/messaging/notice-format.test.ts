@@ -137,9 +137,7 @@ describe("every notice Novadeck words", () => {
     expect(hook(worktreesOffNotice)).toBe("You notice agent worktrees are off.")
     expect(hook(worktreesOnNotice)).toBe("You notice agent worktrees are on.")
     expect(hook(worktreesEarlyNotice)).toBe("You notice agent worktrees are on.")
-    expect(hook(companionNotice, inboxNotice, worktreesOnNotice)).toBe(
-      "You notice a briefing from Novadeck.",
-    )
+    expect(hook(companionNotice, inboxNotice, worktreesOnNotice)).toBe("You notice a briefing.")
   })
 
   it("splits a hook's text back into the notices it joined, a blank line apart", () => {
