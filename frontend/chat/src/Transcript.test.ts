@@ -659,7 +659,7 @@ context("Novadeck's own notices", () => {
   it("tells an event notice as its family's line with Novadeck's mark, never its facts", () => {
     const container = show([ring([worktrees])])
     const line = container.querySelector('[data-notice="n0"]')!
-    expect(said(container, "n0")).toBe("You notice a worktree handover.")
+    expect(said(container, "n0")).toBe("You notice news about a worktree.")
     expect(container.textContent).not.toContain("gave you its worktree")
     expect(container.textContent).not.toContain("Novadeck ·")
     expect(line.getAttribute("aria-label")).toBe("Novadeck notice, Worktrees")
@@ -673,7 +673,7 @@ context("Novadeck's own notices", () => {
     const container = show([ring([worktrees])])
     act(() => key(container, "n0").click())
     expect(key(container, "n0").getAttribute("aria-expanded")).toBe("true")
-    expect(said(container, "n0")).toBe("You notice a worktree handover.")
+    expect(said(container, "n0")).toBe("You notice news about a worktree.")
     const body = container.querySelector(".chat-notice-body")!
     expect(body.textContent).toBe(
       "@thorn gave you its worktree on fix/x.\n  /home/me/work\n→ Work there with absolute paths.\n→ Don't close it.",
@@ -700,7 +700,7 @@ context("Novadeck's own notices", () => {
     const container = show([ring([worktrees, host, worktrees])])
     expect(container.querySelectorAll("[data-notice]")).toHaveLength(1)
     expect(said(container, "n0")).toBe(
-      "You notice a worktree handover. · You notice shared resources are busy.",
+      "You notice news about a worktree. · You notice shared resources are busy.",
     )
     expect(container.querySelector('[data-notice="n0"]')?.getAttribute("aria-label")).toBe(
       "Novadeck notices, Worktrees, Resources",
@@ -717,7 +717,7 @@ context("Novadeck's own notices", () => {
     const container = show([outside("h1", [worktrees], true)])
     const line = container.querySelector('[data-notice="h1"]')!
     expect(line.hasAttribute("data-event")).toBe(true)
-    expect(said(container, "h1")).toBe("You notice a worktree handover.")
+    expect(said(container, "h1")).toBe("You notice news about a worktree.")
   })
 
   it("tells a standing notice by what it is about, in the same quiet style, opening under it", () => {
@@ -762,7 +762,7 @@ context("Novadeck's own notices", () => {
     expect(show([ring([host])]).querySelector(".chat-ring .chat-note")).toBeNull()
   })
 
-  it("says the standing notices a prompt carried as one line: Novadeck set the agent up", () => {
+  it("says the standing notices a prompt carried as one line: a briefing from Novadeck", () => {
     const container = show([
       words("u", "user", "Tell moth the news"),
       outside("s1", [
@@ -782,7 +782,7 @@ context("Novadeck's own notices", () => {
     expect(container.querySelectorAll(".chat-notice-body > .chat-notice-one")).toHaveLength(4)
   })
 
-  it("says an event among standing notices after Novadeck setting the agent up", () => {
+  it("says an event among standing notices after a briefing from Novadeck", () => {
     const container = show([
       {
         kind: "notice",

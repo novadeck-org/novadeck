@@ -1,4 +1,10 @@
-import { noticeBody, noticeOneLine, readNotice, splitHookText } from "@novadeck/protocol/notices"
+import {
+  noticeBody,
+  noticeOneLine,
+  noticesSeen,
+  readNotice,
+  splitHookText,
+} from "@novadeck/protocol/notices"
 import { describe, expect, it } from "vitest"
 
 import { closeNotice } from "../terminals/closes.js"
@@ -122,6 +128,18 @@ describe("every notice Novadeck words", () => {
       expect(noticeOneLine(text)).not.toMatch(/\n|Novadeck · /)
       for (const action of actions) expect(text).toContain(`\n→ ${action}`)
     }
+  })
+
+  // On the hook, worktrees going off is the same kind as their standing notice: the person's line
+  // tells it apart by its facts.
+  it("reads worktrees turned off to the person as off, never on or a briefing", () => {
+    const hook = (...each: string[]) => noticesSeen(each.map((text) => ({ text, standing: true })))
+    expect(hook(worktreesOffNotice)).toBe("You notice agent worktrees are off.")
+    expect(hook(worktreesOnNotice)).toBe("You notice agent worktrees are on.")
+    expect(hook(worktreesEarlyNotice)).toBe("You notice agent worktrees are on.")
+    expect(hook(companionNotice, inboxNotice, worktreesOnNotice)).toBe(
+      "You notice a briefing from Novadeck.",
+    )
   })
 
   it("splits a hook's text back into the notices it joined, a blank line apart", () => {

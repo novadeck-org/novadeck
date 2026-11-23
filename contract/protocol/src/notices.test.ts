@@ -101,8 +101,8 @@ describe("noticeSeen", () => {
   it("says one line for each family", () => {
     expect(of("Restart")).toBe("You notice Novadeck restarted.")
     expect(of("Terminals")).toBe("You notice terminals open and close.")
-    expect(of("Team")).toBe("You notice the team change.")
-    expect(of("Worktrees")).toBe("You notice a worktree handover.")
+    expect(of("Team")).toBe("You notice news about the team.")
+    expect(of("Worktrees")).toBe("You notice news about a worktree.")
     expect(of("Inbox")).toBe("You notice an ask leave the Inbox.")
     expect(of("Inbox answers")).toBe("You notice answers from the Inbox.")
     expect(of("Resources")).toBe("You notice shared resources are busy.")
@@ -116,11 +116,11 @@ describe("noticeSeen", () => {
   it("says what a standing notice is about, and an event's line for a kind with none of its own", () => {
     const standing = (kind: string): string =>
       noticeSeen(`Novadeck · ${kind}\nHow it works.`, { standing: true })
-    expect(standing("Show")).toBe("You notice the Companion Pane.")
+    expect(standing("Show")).toBe("You notice where to show work.")
     expect(standing("Inbox")).toBe("You notice questions go to the Inbox too.")
     expect(standing("Describe")).toBe("You notice the terminal needs a title.")
     expect(standing("Worktrees")).toBe("You notice agent worktrees are on.")
-    expect(standing("Team")).toBe("You notice the team change.")
+    expect(standing("Team")).toBe("You notice news about the team.")
   })
 
   it("maps the kinds earlier builds wrote to their family", () => {
@@ -150,11 +150,11 @@ describe("noticesSeen", () => {
 
   it("joins the lines of notices delivered together, each once", () => {
     expect(noticesSeen([event("Team"), event("Resources"), event("Team")])).toBe(
-      "You notice the team change. · You notice shared resources are busy.",
+      "You notice news about the team. · You notice shared resources are busy.",
     )
   })
 
-  it("says several standing notices as Novadeck setting the agent up, where the first was", () => {
+  it("says several standing notices as a briefing from Novadeck, where the first was", () => {
     expect(noticesSeen([standing("Show"), standing("Inbox"), standing("Describe")])).toBe(
       "You notice a briefing from Novadeck.",
     )
@@ -162,6 +162,22 @@ describe("noticesSeen", () => {
       "You notice Novadeck restarted. · You notice a briefing from Novadeck.",
     )
     expect(noticesSeen([standing("Worktrees")])).toBe("You notice agent worktrees are on.")
+  })
+
+  it("says news that rides the hook by its own line, never as how Novadeck works", () => {
+    const page = {
+      text: "Novadeck · Show\nThe page you showed, Shop (http://x/), had problems.",
+      standing: true,
+    }
+    const off = { text: "Novadeck · Worktrees\nAgent worktrees are off now.", standing: true }
+    expect(noticesSeen([page])).toBe("You notice problems in a shown page.")
+    expect(noticesSeen([page, standing("Describe")])).toBe(
+      "You notice problems in a shown page. · You notice the terminal needs a title.",
+    )
+    expect(noticesSeen([off])).toBe("You notice agent worktrees are off.")
+    expect(noticesSeen([off, standing("Describe")])).toBe(
+      "You notice agent worktrees are off. · You notice the terminal needs a title.",
+    )
   })
 
   it("says a hook's line on the prompt's messages as Novadeck checking, never as setting up", () => {

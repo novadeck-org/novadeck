@@ -1,3 +1,5 @@
+import { worktreesOffLead } from "@novadeck/protocol/notices"
+
 import { digestOf } from "../messaging/messages.js"
 import { noticeText } from "../messaging/notice-format.js"
 import { shorten } from "../text.js"
@@ -441,7 +443,7 @@ export const worktreesGitlessNotice = noticeText("Worktrees", {
 
 /** What a session that was told of worktrees hears when the setting goes off. */
 export const worktreesOffNotice = noticeText("Worktrees", {
-  facts: "Agent worktrees are off now. Worktrees you already have stay as they are.",
+  facts: `${worktreesOffLead} now. Worktrees you already have stay as they are.`,
   actions: ["Work in your terminal's own checkout."],
 })
 

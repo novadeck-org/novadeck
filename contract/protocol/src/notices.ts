@@ -16,6 +16,14 @@
 /** What starts every notice's first line, up to its kind. */
 export const noticePrefix = "Novadeck · "
 
+/**
+ * How the facts of the two notices that share a kind with a standing one, and ride the same
+ * hook, start: a shown page's problems (Show) and worktrees turned off (Worktrees). The runner
+ * writes them with these, and the person's line tells them apart by them.
+ */
+export const pageTroubleLead = "The page you showed"
+export const worktreesOffLead = "Agent worktrees are off"
+
 // The header notices had before they shared one shape: one run-on sentence behind this. A
 // transcript written by an earlier build holds them, and reads the same way.
 const legacyPrefix = "Novadeck: automatic notice, not from the user: "
@@ -76,8 +84,8 @@ export const noticeBody = (text: string): string => {
 const seen: Readonly<Record<string, string>> = {
   Restart: "You notice Novadeck restarted.",
   Terminals: "You notice terminals open and close.",
-  Team: "You notice the team change.",
-  Worktrees: "You notice a worktree handover.",
+  Team: "You notice news about the team.",
+  Worktrees: "You notice news about a worktree.",
   Inbox: "You notice an ask leave the Inbox.",
   "Inbox answers": "You notice answers from the Inbox.",
   Resources: "You notice shared resources are busy.",
@@ -102,7 +110,7 @@ const seenOldKinds: Readonly<Record<string, string>> = {
 const seenStanding: Readonly<Record<string, string>> = {
   Describe: "You notice the terminal needs a title.",
   Inbox: "You notice questions go to the Inbox too.",
-  Show: "You notice the Companion Pane.",
+  Show: "You notice where to show work.",
   Worktrees: "You notice agent worktrees are on.",
   Messages: "You notice Novadeck check for messages.",
 }
@@ -114,6 +122,17 @@ const seenUnknown = "You notice something."
 const seenBrief = "You notice Novadeck hand over a task."
 // Several standing notices at once, as a session's first prompt carries them.
 const seenSetUp = "You notice a briefing from Novadeck."
+const seenWorktreesOff = "You notice agent worktrees are off."
+
+// What a notice on the prompt's hook is: how a part of Novadeck works (its kind), worktrees
+// turned off, or news that rides the hook too (a shown page's problems), which says its family's
+// event line.
+const standingAbout = (kind: string, facts: readonly string[]): string | null => {
+  const first = facts[0] ?? ""
+  if (kind === "Show" && first.startsWith(pageTroubleLead)) return null
+  if (kind === "Worktrees" && first.startsWith(worktreesOffLead)) return "Worktrees off"
+  return kind
+}
 
 /**
  * The one line the person is told of a notice: its family's, for an event; for a `standing` one
@@ -121,24 +140,27 @@ const seenSetUp = "You notice a briefing from Novadeck."
  * handed over a task.
  */
 export const noticeSeen = (text: string, { standing = false } = {}): string => {
-  const { kind } = readNotice(text)
+  const { kind, facts } = readNotice(text)
   if (kind === null) return text.trimStart().startsWith(legacyPrefix) ? seenUnknown : seenBrief
   const family = seenOldKinds[kind] ?? kind
-  return (standing ? seenStanding[family] : undefined) ?? seen[family] ?? seenUnknown
+  const about = standing ? standingAbout(family, facts) : null
+  if (about === "Worktrees off") return seenWorktreesOff
+  return (about === null ? undefined : seenStanding[about]) ?? seen[family] ?? seenUnknown
 }
 
 /**
  * The one line the person is told of notices delivered together (a ring's, or a prompt's hook's):
  * each one's line once, in order, joined by ` · `, and where more than one is a standing notice of
- * how Novadeck works (the bar, the Inbox, the title, worktrees), those as Novadeck setting the
- * agent up.
+ * how Novadeck works (the bar, the Inbox, the title, worktrees on), those as a briefing from
+ * Novadeck.
  */
 export const noticesSeen = (
   notices: readonly { readonly text: string; readonly standing?: boolean }[],
 ): string => {
-  const setUp = notices.filter(
-    ({ text, standing }) => standing === true && setUpKinds.has(readNotice(text).kind ?? ""),
-  )
+  const setUp = notices.filter(({ text, standing }) => {
+    const { kind, facts } = readNotice(text)
+    return standing === true && setUpKinds.has(standingAbout(kind ?? "", facts) ?? "")
+  })
   const lines = notices.flatMap((notice) =>
     setUp.length > 1 && setUp.includes(notice)
       ? notice === setUp[0]

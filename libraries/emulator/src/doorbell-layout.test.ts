@@ -61,11 +61,11 @@ describe("a ring row's layout", () => {
 
   it("draws notices alone as one badge, then their lines italic and dim", () => {
     const runs = layoutRing(
-      [notice("You notice the team change."), notice("You notice a worktree handover.")],
+      [notice("You notice news about the team."), notice("You notice news about a worktree.")],
       80,
     )
     expect(text(runs)).toBe(
-      " novadeck  You notice the team change. · You notice a worktree handover.",
+      " novadeck  You notice news about the team. · You notice news about a worktree.",
     )
     expect(runs[0]).toEqual({ text: " novadeck ", tone: { ink: true }, badge: true })
     expect(runs.slice(1).every((run) => "dim" in run.tone)).toBe(true)
@@ -73,9 +73,9 @@ describe("a ring row's layout", () => {
   })
 
   it("says each line of a badge group once", () => {
-    const shift = notice("You notice the team change.")
+    const shift = notice("You notice news about the team.")
     expect(text(layoutRing([shift, notice("You notice something."), shift], 80))).toBe(
-      " novadeck  You notice the team change. · You notice something.",
+      " novadeck  You notice news about the team. · You notice something.",
     )
   })
 
@@ -83,14 +83,14 @@ describe("a ring row's layout", () => {
     const runs = layoutRing(
       [
         agent("newtz", "hi"),
-        notice("You notice the team change."),
+        notice("You notice news about the team."),
         notice("You notice something."),
         { kind: "person", text: "ok" },
       ],
       120,
     )
     expect(text(runs)).toBe(
-      "@newtz: hi  ·   novadeck  You notice the team change. · You notice something.  ·  you: ok",
+      "@newtz: hi  ·   novadeck  You notice news about the team. · You notice something.  ·  you: ok",
     )
     expect(runs.filter((run) => run.badge)).toHaveLength(1)
     expect(runs.find((run) => run.text === "hi")?.tone).toEqual({ ink: true })
@@ -212,8 +212,12 @@ describe("a delivery block's layout", () => {
   })
 
   it("starts a narrow row's wrapped words at its edge, and draws a notice on its one row", () => {
-    const rows = layoutBlock([notice("You notice the team change."), agent("newtz", long)], 26, 5)
-    expect(text(rows[0]!)).toBe(" novadeck  You notice the…")
+    const rows = layoutBlock(
+      [notice("You notice news about the team."), agent("newtz", long)],
+      26,
+      5,
+    )
+    expect(text(rows[0]!)).toBe(" novadeck  You notice new…")
     expect(text(rows[1]!).startsWith("@newtz: ")).toBe(true)
     // Beside the 8 cells of "@newtz: " are fewer than 20 left: the words start at the edge.
     expect(text(rows[2]!).startsWith(" ")).toBe(false)

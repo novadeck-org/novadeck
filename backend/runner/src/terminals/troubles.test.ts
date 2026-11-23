@@ -1,10 +1,12 @@
 import { hasControlCharacters, type PageTrouble } from "@novadeck/protocol"
+import { noticesSeen } from "@novadeck/protocol/notices"
 
 import { harnesses } from "../harnesses/registry.js"
 import { byteLength } from "../messaging/messages.js"
 import { describe, expect, it } from "../test.js"
 import {
   afterSummary,
+  companionNotice,
   fired,
   noNudges,
   noticesAt,
@@ -49,6 +51,21 @@ describe("a page's notice", () => {
     const notice = pageNotice(entryOf(held))
     expect(notice).not.toContain(key)
     expect(notice).toContain("login failed")
+  })
+
+  // It rides the prompt's hook with the bar's standing notice, of the same kind: the person's
+  // line tells them apart by its facts.
+  it("reads to the person as a page's problems, never as the bar or a briefing", () => {
+    const notice = pageNotice(entryOf(troubled(noTroubles, page, [error("a")])))
+    expect(noticesSeen([{ text: notice, standing: true }])).toBe(
+      "You notice problems in a shown page.",
+    )
+    expect(
+      noticesSeen([
+        { text: notice, standing: true },
+        { text: companionNotice, standing: true },
+      ]),
+    ).toBe("You notice problems in a shown page. · You notice where to show work.")
   })
 })
 
