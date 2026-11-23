@@ -2,7 +2,7 @@ import type { ChatPermit } from "@novadeck/core/conversation"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement, StrictMode } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, onTestFinished, vi } from "vitest"
 
 import { Requests } from "./Requests"
 import { describe, expect, it } from "./test"
@@ -52,6 +52,12 @@ const take = (container: HTMLElement): HTMLButtonElement =>
 
 describe("A standing permit in the chat", () => {
   it("shows as the gate card's settled state: Allowed, what it covers, whose words, until when", () => {
+    // At midday, so its hour from now is still today, which the card names by its time alone.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    vi.setSystemTime(new Date(2026, 10, 23, 12, 0))
     const container = show([permit()], async () => {})
 
     const card = container.querySelector(".request-card")!
