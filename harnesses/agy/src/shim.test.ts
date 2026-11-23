@@ -71,14 +71,33 @@ describe("where Antigravity gets a shim", () => {
     const root = "C:\\Users\\x\\.novadeck\\worktrees"
     const cmd = makeCmdShim({ cmdShimDir: dir, root })
     expect(cmd).toContain(`set "novadeck_root=${root}"`)
-    expect(cmd).toContain(
-      'if exist "%novadeck_root%\\" set novadeck_add=--add-dir="%novadeck_root%"',
-    )
+    expect(cmd).toContain('if exist "%novadeck_root%\\" ')
+    expect(cmd).toContain(' set novadeck_add=--add-dir="%novadeck_root%"')
     expect(cmd).toContain('"%novadeck_real%" %novadeck_add% %novadeck_with% %*')
     const posix = posixShim("/home/it's/.novadeck/worktrees")
     expect(posix).toContain(`novadeck_root='/home/it'\\''s/.novadeck/worktrees'`)
     expect(posix).toContain('[ -d "$novadeck_root" ]')
     expect(posixShim()).toContain("novadeck_root=\n")
+  })
+
+  // Antigravity works in the first of its workspaces by path, and a folder sorts before what it
+  // holds (e2e/probes/agy-worktrees-folder.e2e.ts).
+  it("passes it only where it sorts after the folder agy starts in, which it never does from inside it", () => {
+    // cmd orders strings by the locale's rules, so the relay beside the shims answers, byte for
+    // byte (backend/relay/src/order.rs); where it can't, nothing is added.
+    const line = makeCmdShim({ root: "C:\\Users\\x\\.novadeck\\worktrees" })
+      .split("\n")
+      .find((each) => each.includes("set novadeck_add=--add-dir="))
+    expect(line).toBe(
+      'if exist "%novadeck_root%\\" "%~dp0..\\novadeck-relay.exe" after "%novadeck_root%" "%CD%" >nul 2>nul && set novadeck_add=--add-dir="%novadeck_root%"',
+    )
+    const posix = posixShim("/home/x/.novadeck/worktrees")
+    expect(posix).toContain('[ "$PWD" != "$novadeck_root" ]')
+    expect(posix).toContain(
+      `[ "$(printf '%s\\n%s\\n' "$PWD" "$novadeck_root" | LC_ALL=C sort | head -n 1)" = "$PWD" ]`,
+    )
+    // Only the folder of Antigravity's PreToolUse hook moves the shim's own folder's case.
+    expect(makeCmdShim({ root: "C:\\w" })).not.toContain("cd /d")
   })
 })
 

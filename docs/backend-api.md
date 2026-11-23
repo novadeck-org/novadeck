@@ -1052,7 +1052,10 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   front after the user's startup files.
 - `bin/agy` (`agy.cmd`), which shells get first on `PATH` while Antigravity is connected: it passes
   the person's allow rules with Novadeck's own tools added, which the relay (`novadeck-relay allow`)
-  writes to `allow/<terminal id>.json`, a folder the runner empties as it starts.
+  writes to `allow/<terminal id>.json`, a folder the runner empties as it starts, and the folder of
+  agents' worktrees only where it sorts after the folder agy starts in (on Windows as
+  `novadeck-relay after <folder> <cwd>` answers, by its exit code; see harness-adapters.md, "Shims
+  and the worktrees folder").
 - On Linux, `open/xdg-open` and `open/gio`, each written only where its program is on the
   runner's `PATH`, in a folder that shells get first on `PATH` whenever the terminal has a
   scope of its own (`NOVADECK_OPEN` names it), with `BROWSER` naming the `xdg-open` one where

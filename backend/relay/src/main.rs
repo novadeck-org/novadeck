@@ -15,6 +15,7 @@ mod idle;
 #[cfg(windows)]
 mod job;
 mod mcp;
+mod order;
 #[cfg(windows)]
 mod processes;
 #[cfg(windows)]
@@ -48,6 +49,7 @@ pub fn epoch_ms() -> Option<f64> {
 const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-version>...
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
        novadeck-relay allow <settings.json> <rule> <file> [<extra rule>... -- <agent's arguments>...]
+       novadeck-relay after <folder> <working directory>
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
@@ -108,6 +110,15 @@ fn main() -> ExitCode {
                 rules.extend(extra.iter().map(String::as_str));
             }
             if allow::write_with(Path::new(settings), &rules, Path::new(file)) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        // A shim's: succeeds where `folder` sorts after the agent's working directory, so adding it
+        // leaves that directory first among Antigravity's workspaces (`order.rs`).
+        Some((mode, [folder, cwd])) if mode == "after" => {
+            if order::sorts_after(folder, cwd, cfg!(windows)) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::FAILURE

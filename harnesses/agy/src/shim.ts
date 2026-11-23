@@ -144,14 +144,16 @@ export const lowerDrive = (path: string): string =>
 
 const drives = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].join(" ")
 
-// The lines of the cmd shim that set `novadeck_hooks` to the option adding `folder`, its drive
-// letter in lower case, and give the shim's own folder its drive letter in upper case: `%CD%` is
-// read as the line is, so a failed second `cd` goes back to where it was.
+// The line of the cmd shim that gives its own folder, which agy inherits, its drive letter in
+// upper case: through the drive's root, as a `cd` to the same folder keeps its case. `%CD%` is
+// read as the line is, so a failed second `cd` goes back where it was, and `setlocal` gives the
+// terminal its folder back after.
+const cmdUpperDrive = `for %%d in (${drives}) do if /i "%CD:~0,1%"=="%%d" if not "%CD:~0,1%"=="%%d" cd /d %%d:\\ 2>nul && cd /d "%%d%CD:~1%" 2>nul || cd /d "%CD%"`
+
+// The line of the cmd shim that sets `novadeck_hooks` to the option adding `folder`, its drive
+// letter in lower case, so it sorts after the shim's own folder (`cmdUpperDrive`).
 const cmdHooks = (folder: string): string =>
-  [
-    `set novadeck_hooks=--add-dir="${cmdValue(lowerDrive(folder))}"`,
-    `for %%d in (${drives}) do if /i "%CD:~0,1%"=="%%d" if not "%CD:~0,1%"=="%%d" cd /d %%d:\\ 2>nul && cd /d "%%d%CD:~1%" 2>nul || cd /d "%CD%"`,
-  ].join("\n")
+  `set novadeck_hooks=--add-dir="${cmdValue(lowerDrive(folder))}"`
 
 // Where cmd's AutoRun prints, Antigravity's hooks (which it runs as "cmd /c <command>" through
 // whatever "cmd" PATH names first; Go does not read ComSpec, and adds no "/d") stand behind
@@ -180,8 +182,10 @@ const cmdHooks = (folder: string): string =>
 // Antigravity orders its workspaces by path, case and all, and tells the model the first is its
 // commands' working directory, where a command that names none runs (probed 2026-11-23, 1.5.13,
 // e2e/probes/agy-settings-hooks): the folder goes in with its drive letter in lower case, and the
-// shim gives its own folder's drive letter in upper case, through the drive's root, as a `cd` to
-// the same folder keeps its case; `setlocal` gives the terminal its folder back after.
+// shim first gives its own folder's drive letter in upper case (`cmdUpperDrive`), which then
+// sorts first. Nothing is written in the folder, so its case matters to nothing else. (The
+// worktrees' folder keeps its case, and goes in only where it sorts after: harness-core's
+// shim-root.ts.)
 export const makeCmdShim = ({
   cmdShimDir,
   hooksFolder,
@@ -207,7 +211,7 @@ if not defined novadeck_real (
 if not defined NOVADECK_TERMINAL_ID goto plain
 rem Only while Antigravity is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" agy " >nul || goto plain
-${cmdAdd(root)}${cmdShimDir === undefined ? "" : `\nset "PATH=${cmdShimDir};%PATH%"`}${
+${hooksFolder === undefined ? "" : `${cmdUpperDrive}\n`}${cmdAdd(root)}${cmdShimDir === undefined ? "" : `\nset "PATH=${cmdShimDir};%PATH%"`}${
   hooksFolder === undefined ? "" : `\n${cmdHooks(hooksFolder)}`
 }
 set "novadeck_settings=%~dp0..\\${allowFolder}\\%NOVADECK_TERMINAL_ID%.json"

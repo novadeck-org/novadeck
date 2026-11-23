@@ -21,6 +21,8 @@ import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-sup
 
 type Fixture = {
   readonly shim: string
+  /** The folder of agents' worktrees the shim was written with, not made. */
+  readonly worktrees: string
   readonly real: string
   /** Installs the relay beside the shim, as the runner does. */
   readonly relay: () => void
@@ -94,6 +96,7 @@ const prepared = async (
   }
   return {
     shim: written.path,
+    worktrees: join(root, "worktrees"),
     real,
     relay: () => copyFileSync(relayPath, paths.relay),
     settings: join(profile, ".gemini", "antigravity-cli", "settings.json"),
@@ -143,6 +146,40 @@ describe.runIf(process.platform === "win32")("agy shim", { timeout: 60_000 }, ()
     // Settings it can't read: none passed, so none of the person's rules is lost.
     writeFileSync(fixture.settings, "{ not json")
     expect(fixture.launch(fixture.shim, ["fix a b"]).received).toEqual(["fix a b"])
+  })
+
+  // Antigravity works in the first of its workspaces by path, case and all, and a folder sorts
+  // before what it holds (e2e/probes/agy-worktrees-folder.e2e.ts).
+  it("adds the worktrees' folder only where it sorts after the folder agy starts in, as the relay says", ({
+    fixture,
+  }) => {
+    fixture.relay()
+    const worktree = join(fixture.worktrees, "project", "fix")
+    mkdirSync(worktree, { recursive: true })
+    const before = join(fixture.worktrees, "..", "project")
+    const after = join(fixture.worktrees, "..", "zz-project")
+    mkdirSync(before)
+    mkdirSync(after)
+    const added = (where: string) =>
+      fixture
+        .launch(fixture.shim, ["fix"], where)
+        .received?.filter((arg) => arg.startsWith("--add-dir"))
+    const from = fixture.launch(fixture.shim, ["fix"], before)
+    expect(from.result.stderr).toBe("")
+    expect(from.received?.[0]).toBe(`--add-dir=${fixture.worktrees}`)
+    expect(from.received?.at(-1)).toBe("fix")
+    expect(from.started).toBe(before)
+    // Case and all: a drive letter in lower case sorts after the folder's.
+    const lower = before.replace(/^[A-Z]:/, (drive) => drive.toLowerCase())
+    for (const where of [after, lower, worktree, fixture.worktrees])
+      expect(added(where), where).toEqual([])
+  })
+
+  it("adds no worktrees' folder where the relay can't say where it sorts", ({ fixture }) => {
+    mkdirSync(join(fixture.worktrees, "..", "project"), { recursive: true })
+    mkdirSync(fixture.worktrees)
+    const from = join(fixture.worktrees, "..", "project")
+    expect(fixture.launch(fixture.shim, ["fix"], from).received).toEqual(["fix"])
   })
 
   // Help that printed would also page at a console, and wait there for a key.
