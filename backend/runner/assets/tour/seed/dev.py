@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from socketserver import TCPServer
@@ -96,10 +97,11 @@ def git(folder, *args):
 
 def changed_since(folder, base):
     """The files a folder changed since `base`: those that differ from that commit, and those
-    git doesn't track yet. As git names them, from the top of the project, with "/" between
-    parts."""
+    git doesn't track, ignored ones too (what a build wrote is that folder's own). As git names
+    them, from the top of the project, with "/" between parts. Not vendor/, which `pick` serves
+    from this folder alone."""
     printed = (git(folder, "diff", "--name-only", "-z", base) or "") + (
-        git(folder, "ls-files", "--others", "--exclude-standard", "-z") or ""
+        git(folder, "ls-files", "--others", "-z", "--", ".", ":(exclude)vendor") or ""
     )
     return {name for name in printed.split("\0") if name}
 
@@ -110,23 +112,41 @@ def changes():
     share none, a worktree's changes are those since its own last commit. A worktree's file
     that nobody touched there is not its work, however far this folder has moved on since."""
     head = (git(HOME, "rev-parse", "HEAD") or "").strip()
+    # This folder's changes are asked once for each commit worktrees parted at, often one.
+    ours = {}
     listed = []
-    for folder in worktrees():
+    for folder in others(True):
         base = (head and (git(folder, "merge-base", "HEAD", head) or "").strip()) or "HEAD"
-        listed.append((folder, changed_since(folder, base), changed_since(HOME, base)))
+        if base not in ours:
+            ours[base] = changed_since(HOME, base)
+        listed.append((folder, changed_since(folder, base), ours[base]))
     return listed
 
 
+LISTED = {}
+
+
+def others(fresh=False):
+    """The other worktrees as git last listed them: asked again when `fresh`, and after two
+    seconds. Every request needs them, and git is slow to start on some computers."""
+    if fresh or "at" not in LISTED or time.monotonic() - LISTED["at"] > 2:
+        LISTED.update(at=time.monotonic(), folders=worktrees())
+    return LISTED["folders"]
+
+
 KEPT = {}
+READING = threading.Lock()
 
 
 def current():
     """The changes as of now: read again when a file changed anywhere, and every two seconds
     for what changes no file (a commit, a merge)."""
-    now = version()
-    if KEPT.get("version") != now or time.monotonic() - KEPT.get("at", 0.0) > 2:
-        KEPT.update(version=now, at=time.monotonic(), listed=changes())
-    return KEPT["listed"]
+    # One request at a time: those that arrive together after a change read it once.
+    with READING:
+        now = version()
+        if KEPT.get("version") != now or time.monotonic() - KEPT.get("at", 0.0) > 2:
+            KEPT.update(version=now, at=time.monotonic(), listed=changes())
+        return KEPT["listed"]
 
 
 def pick(path):
@@ -146,10 +166,10 @@ def pick(path):
     return copies[0] if copies else None
 
 
-def version():
+def version(fresh=False):
     """When anything the page could show last changed, in any worktree."""
     latest = 0.0
-    for root in [HOME, *worktrees()]:
+    for root in [HOME, *others(fresh)]:
         for folder, folders, files in os.walk(root):
             folders[:] = [n for n in folders if n not in SKIPPED and not n.startswith(".")]
             for name in files:
@@ -183,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.send(404, "text/plain", b"Not found.")
         if route == "/__version":
-            return self.send(200, "text/plain", version().encode())
+            return self.send(200, "text/plain", version(True).encode())
         parts = parts_of(route)
         if parts is None:
             return self.send(404, "text/plain", b"Not found.")

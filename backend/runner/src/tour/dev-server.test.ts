@@ -57,6 +57,7 @@ for (const kind of ["node", "python"] as const) {
       }
       await put(home, "src/a.js", "a: committed\n")
       await put(home, "src/b.js", "b: committed\n")
+      await put(home, ".gitignore", "build/\n")
       git(home, "init", "-q", "-b", "main")
       git(home, "add", "-A")
       git(home, "commit", "-q", "-m", "A project")
@@ -174,6 +175,41 @@ for (const kind of ["node", "python"] as const) {
         // As it does where this folder changes it last, too.
         await run.put(run.home, "src/b.js", "b: this folder's\n")
         expect(await run.get("src/b.js")).toBe("b: this folder's\n")
+      },
+      patient,
+    )
+
+    it(
+      "serves a file git ignores from the folder that has it, the newest first",
+      async ({ resources, skip }) => {
+        const run = await served(resources)
+        if (!run) return skip("No Python 3 here.")
+        // What a build wrote in a worktree: git carries it nowhere, so it is that worktree's own.
+        const one = run.worktree("one")
+        await run.put(one, "build/out.js", "out: one's\n")
+        expect(await run.get("build/out.js")).toBe("out: one's\n")
+        await run.put(run.home, "build/out.js", "out: this folder's\n")
+        expect(await run.get("build/out.js")).toBe("out: this folder's\n")
+      },
+      patient,
+    )
+
+    it(
+      "serves a worktree's new file beside more untracked files than a megabyte names",
+      async ({ resources, skip }) => {
+        // Paths this long don't fit a Windows folder.
+        if (process.platform === "win32") return skip("Paths too long for Windows.")
+        const run = await served(resources)
+        if (!run) return skip("No Python 3 here.")
+        // Installed packages nobody told git to ignore, say: 2000 names of some 620 letters.
+        const one = run.worktree("one")
+        const deep = join(one, "deps", "d".repeat(200), "e".repeat(200), "f".repeat(200))
+        await mkdir(deep, { recursive: true })
+        await Promise.all(
+          Array.from({ length: 2000 }, (_, at) => writeFile(join(deep, `${at}.txt`), "")),
+        )
+        await run.put(one, "src/new.js", "new: one's\n")
+        expect(await run.get("src/new.js")).toBe("new: one's\n")
       },
       patient,
     )

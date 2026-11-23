@@ -74,21 +74,25 @@ const partsOf = (pathname) => {
 }
 
 // Runs git in a folder: what it prints, or undefined where it fails (no git, no repo, no commit).
+// However much it prints: a folder of installed packages that git doesn't track is a long list.
 const git = (folder, ...args) => {
   try {
-    return String(execFileSync("git", args, { cwd: folder, stdio: ["ignore", "pipe", "ignore"] }))
+    const options = { cwd: folder, stdio: ["ignore", "pipe", "ignore"], maxBuffer: 2 ** 30 }
+    return String(execFileSync("git", args, options))
   } catch {
     return undefined
   }
 }
 
 // The files a folder changed since `base`: those that differ from that commit, and those git
-// doesn't track yet. As git names them, from the top of the project, with "/" between parts.
+// doesn't track, ignored ones too (what a build wrote is that folder's own). As git names
+// them, from the top of the project, with "/" between parts. Not vendor/, which `pick` serves
+// from this folder alone.
 const changedSince = (folder, base) => {
   const names = (printed) => (printed ?? "").split("\0").filter(Boolean)
   return new Set([
     ...names(git(folder, "diff", "--name-only", "-z", base)),
-    ...names(git(folder, "ls-files", "--others", "--exclude-standard", "-z")),
+    ...names(git(folder, "ls-files", "--others", "-z", "--", ".", ":(exclude)vendor")),
   ])
 }
 
@@ -98,17 +102,29 @@ const changedSince = (folder, base) => {
 // nobody touched there is not its work, however far this folder has moved on since.
 const changes = () => {
   const head = git(home, "rev-parse", "HEAD")?.trim()
-  return worktrees().map((folder) => {
+  // This folder's changes are asked once for each commit worktrees parted at, often one.
+  const ours = new Map()
+  return others(true).map((folder) => {
     const base = (head && git(folder, "merge-base", "HEAD", head)?.trim()) || "HEAD"
-    return { folder, theirs: changedSince(folder, base), ours: changedSince(home, base) }
+    if (!ours.has(base)) ours.set(base, changedSince(home, base))
+    return { folder, theirs: changedSince(folder, base), ours: ours.get(base) }
   })
+}
+
+// The other worktrees as git last listed them: asked again when `fresh`, and after two seconds.
+// Every request needs them, and git is slow to start on some computers.
+let listed
+const others = (fresh) => {
+  if (fresh || !listed || Date.now() - listed.at > 2000)
+    listed = { at: Date.now(), folders: worktrees() }
+  return listed.folders
 }
 
 // The changes as of now: read again when a file changed anywhere, and every two seconds for
 // what changes no file (a commit, a merge).
 let kept
 const current = () => {
-  const now = version()
+  const now = version(false)
   if (!kept || kept.version !== now || Date.now() - kept.at > 2000)
     kept = { version: now, at: Date.now(), list: changes() }
   return kept.list
@@ -146,7 +162,7 @@ const newest = (folder) => {
   }
   return latest
 }
-const version = () => String(Math.max(...[home, ...worktrees()].map(newest)))
+const version = (fresh) => String(Math.max(...[home, ...others(fresh)].map(newest)))
 
 const reload = `<script>
   // Added by dev.mjs: reload when a file changes.
@@ -170,7 +186,7 @@ createServer((request, response) => {
   try {
     if (!hosts.has(request.headers.host)) return send(403, "text/plain", "No.")
     const url = new URL(request.url, "http://localhost")
-    if (url.pathname === "/__version") return send(200, "text/plain", version())
+    if (url.pathname === "/__version") return send(200, "text/plain", version(true))
     const parts = partsOf(url.pathname)
     if (!parts) return send(404, "text/plain", "Not found.")
     const path = parts.join(sep)
