@@ -225,6 +225,8 @@ describe("The tour's story", () => {
       await expect.element(closing()).not.toBeInTheDocument()
       // The lead's terminal is in view in Focus, for the person to tell it what to build next.
       await expect.element(view("Focus")).toBeChecked()
+      // The Files panel the tour showed is still open: the terminals are listed in their panel.
+      await sidebarPanel("Terminals").click()
       await expectSelected("Game lead")
       // The project stays.
       await expect.poll(() => workspaceSwitcher().element().textContent ?? "").toContain("Tour")
