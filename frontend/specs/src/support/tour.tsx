@@ -141,12 +141,20 @@ export const touchStep = async (
     )
     .toBe(true)
   const marked = clicked()[0]!
-  // In its middle, as into a page or a model; where its window takes the press there (on Canvas,
-  // a window not selected takes it, to select itself), pressed all the same, as a person would.
+  // On its window's header, on the app's own page, as the tour counts a press anywhere in the
+  // window: never in a page or a model's frame, which the tour hears by the app's page losing the
+  // focus, which a page sharing its browser with other specs may not have to lose; and on no
+  // control of the pane's (its tab's open button opens it over everything). Where the window takes
+  // the press itself (on Canvas, a window not selected takes it, to select itself), pressed all the
+  // same, as a person would.
+  const header =
+    marked
+      .closest<HTMLElement>('[data-terminal]:not([data-terminal="true"])')
+      ?.querySelector<HTMLElement>(".terminal-header") ?? marked
   await page
-    .elementLocator(marked)
+    .elementLocator(header)
     .click({ timeout: 3_000 })
-    .catch(() => page.elementLocator(marked).click({ force: true }))
+    .catch(() => page.elementLocator(header).click({ force: true }))
   if (stays) return
   await expect
     .poll(
