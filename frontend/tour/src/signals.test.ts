@@ -67,16 +67,19 @@ describe("The tour's lead, once its program ended", () => {
     ).toMatchObject({ kind: "agent" })
   })
 
-  it("is told of a teammate or the artist that left", () => {
-    const workspace = teamWorkspace()
-    const roster = workspace.projects[0]!.history[0]!.state.roster
-    Object.assign(roster, {
-      terminals: roster.terminals.map((each) =>
-        each.id === "04" ? { ...each, state: "running", agentRan: true } : each,
-      ),
-    })
-    expect(tourSignals(workspace, "01").teamLeft).toBeNull()
-    expect(tourSignals(workspace, "01", { artist: "04" }).teamLeft).toEqual({ terminalId: "04" })
+  it("is told of a teammate that left, not of a terminal outside the team", () => {
+    const left = (id: string) => {
+      const workspace = teamWorkspace()
+      const roster = workspace.projects[0]!.history[0]!.state.roster
+      Object.assign(roster, {
+        terminals: roster.terminals.map((each) =>
+          each.id === id ? { ...each, state: "running", agentRan: true } : each,
+        ),
+      })
+      return tourSignals(workspace, "01").teamLeft
+    }
+    expect(left("04")).toBeNull()
+    expect(left("03")).toEqual({ terminalId: "03" })
   })
 })
 
@@ -164,11 +167,17 @@ describe("The tour's story signals", () => {
     expect(tourSignals(teamWorkspace(), "01").team).toMatchObject({ count: 2, named: 1 })
   })
 
-  it("see the person's answer delivered to a teammate, through a reload", () => {
-    const answer = { ...message("a1", "02", "02"), inbox: "answer", from: { kind: "person" } }
+  it("see the person's answer to the lead's sheet, delivered to the lead, through a reload", () => {
+    const answer = { ...message("a1", "01", "01"), inbox: "answer", from: { kind: "person" } }
     const messages = messagesOf([answer as AgentMessage])
-    expect(tourSignals(teamWorkspace(), "01", { messages }).answered).toBe(true)
-    expect(tourSignals(teamWorkspace(), "01").answered).toBe(false)
+    expect(tourSignals(teamWorkspace(), "01", { messages }).sheet.answered).toBe(true)
+    expect(tourSignals(teamWorkspace(), "01").sheet.answered).toBe(false)
+    // An answer to a teammate's question is not the sheet's.
+    const toMate = { ...answer, to: agentParty("02") }
+    expect(
+      tourSignals(teamWorkspace(), "01", { messages: messagesOf([toMate as AgentMessage]) }).sheet
+        .answered,
+    ).toBe(false)
   })
 
   it("name a teammate holding at a screen of its own agent's", () => {
@@ -197,16 +206,10 @@ describe("The tour's story signals", () => {
     const asking = { items: [askRow("02")] } as unknown as InboxState
     const elsewhere = { items: [askRow("04")] } as unknown as InboxState
     const unblock = { items: [askRow("02", "action")] } as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox: asking })).toMatchObject({
-      asking: true,
-      // Its own entry, which the stage marks to press: never another project's question.
-      askingRow: "ask-02",
-    })
-    expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere })).toMatchObject({
-      asking: false,
-      askingRow: null,
-    })
-    expect(tourSignals(teamWorkspace(), "01", { inbox: unblock }).asking).toBe(false)
+    // Its own entry, which the stage marks to press: never another project's question.
+    expect(tourSignals(teamWorkspace(), "01", { inbox: asking }).askingRow).toBe("ask-02")
+    expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere }).askingRow).toBeNull()
+    expect(tourSignals(teamWorkspace(), "01", { inbox: unblock }).askingRow).toBeNull()
   })
 
   it("see an agent of the team waiting on the person's yes, from a dialog or a held message", () => {
@@ -243,13 +246,14 @@ describe("The tour's story signals", () => {
     expect(none(entry({}, "04"))).toBeNull()
   })
 
-  it("leave out a question of the lead's own, and an answer to it", () => {
+  it("see the lead's own question as its sheet, apart from a teammate's", () => {
     const asking = { items: [askRow("01")] } as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox: asking }).asking).toBe(false)
-    const settled = {
-      items: [{ ...askRow("01"), settled: { how: "answered", at: 1 } }],
-    } as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox: settled }).answered).toBe(false)
+    expect(tourSignals(teamWorkspace(), "01", { inbox: asking })).toMatchObject({
+      sheet: { asking: true, row: "ask-01", answered: false },
+      askingRow: null,
+    })
+    const mate = { items: [askRow("02")] } as unknown as InboxState
+    expect(tourSignals(teamWorkspace(), "01", { inbox: mate }).sheet.asking).toBe(false)
   })
 
   it("see a teammate's question asked with its harness's own tool", () => {
@@ -264,24 +268,25 @@ describe("The tour's story signals", () => {
       request: { kind: "permission" },
     } as unknown as InboxEntry
     const ask = (entry: InboxEntry) => ({ items: [entry] }) as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox: ask(question) }).asking).toBe(true)
-    expect(tourSignals(teamWorkspace(), "01", { inbox: ask(permission) }).asking).toBe(false)
+    expect(tourSignals(teamWorkspace(), "01", { inbox: ask(question) }).askingRow).toBe("ask-02")
+    expect(tourSignals(teamWorkspace(), "01", { inbox: ask(permission) }).askingRow).toBeNull()
   })
 
-  it("see a question the person answered or dismissed as dealt with, from its settled entry", () => {
-    const settled = (how: string) =>
-      ({ items: [{ ...askRow("02"), settled: { how, at: 1 } }] }) as unknown as InboxState
+  it("see the sheet the person answered or dismissed as dealt with, from its settled entry", () => {
+    const settled = (how: string, id = "01") =>
+      ({ items: [{ ...askRow(id), settled: { how, at: 1 } }] }) as unknown as InboxState
     for (const how of ["answered", "dismissed", "terminal"]) {
       const signals = tourSignals(teamWorkspace(), "01", { inbox: settled(how) })
-      expect(signals).toMatchObject({ asking: false, answered: true })
+      expect(signals.sheet).toEqual({ asking: false, row: null, answered: true })
     }
     // Its agent's session ending took it away, not the person.
-    expect(tourSignals(teamWorkspace(), "01", { inbox: settled("ended") }).answered).toBe(false)
-    // Nor does one from outside the team count.
-    const elsewhere = {
-      items: [{ ...askRow("04"), settled: { how: "answered", at: 1 } }],
-    } as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox: elsewhere }).answered).toBe(false)
+    expect(tourSignals(teamWorkspace(), "01", { inbox: settled("ended") }).sheet.answered).toBe(
+      false,
+    )
+    // Nor does a teammate's count.
+    expect(
+      tourSignals(teamWorkspace(), "01", { inbox: settled("answered", "02") }).sheet.answered,
+    ).toBe(false)
   })
 
   it("count the lead's teammates by id, not the shell it opened for the game's server", () => {
@@ -341,48 +346,52 @@ describe("The tour's signals of the game story", () => {
     expect(tourSignals(page, "01")).toMatchObject({ served: true, shown: { page: "game" } })
   })
 
-  it("find the sculptor by its model's work or its model shown or its question, never by title", () => {
+  it("find the modeller by its model shown or its work on the models, never by title", () => {
     const by = (parts: Parameters<typeof tourSignals>[2], workspace = teamWorkspace()) =>
       tourSignals(workspace, "01", parts).roles
-    expect(by({}).sculptor).toBeUndefined()
-    expect(by({ works: [work("03", "worktrees/hero/model/hero.gltf")] }).sculptor).toBe("03")
-    expect(by({ works: [work("03", "C:\\w\\hero\\model\\hero.gltf")] }).sculptor).toBe("03")
-    expect(by({ works: [work("03", "other/model/hero.gltf.bak")] }).sculptor).toBeUndefined()
+    expect(by({}).modeller).toBeUndefined()
+    expect(by({ works: [work("03", "worktrees/models/models/hero.gltf")] }).modeller).toBe("03")
+    expect(by({ works: [work("03", "C:\\w\\a\\models\\hero.gltf")] }).modeller).toBe("03")
+    expect(by({ works: [work("03", "other/notmodels/hero.gltf")] }).modeller).toBeUndefined()
     const shown = withItems(teamWorkspace(), itemFixture("hero", "02", { kind: "model" }))
-    expect(by({}, shown).sculptor).toBe("02")
-    const asking = { items: [askRow("03")] } as unknown as InboxState
-    expect(by({ inbox: asking }).sculptor).toBe("03")
+    expect(by({}, shown).modeller).toBe("02")
   })
 
-  it("find the fixer as another teammate, by the score's work or its changes shown", () => {
-    const hero = work("02", "model/hero.gltf")
+  it("find the builder as another teammate, by its work on the game or its changes shown", () => {
+    const models = work("02", "models/hero.gltf")
     const roles = (parts: Parameters<typeof tourSignals>[2]) =>
       tourSignals(teamWorkspace(), "01", parts).roles
-    expect(roles({ works: [hero, work("03", "src/score.js")] })).toMatchObject({
+    expect(roles({ works: [models, work("03", "src/main.js")] })).toMatchObject({
       lead: "01",
-      sculptor: "02",
-      fixer: "03",
+      modeller: "02",
+      builder: "03",
     })
     // One teammate never plays both.
-    expect(roles({ works: [work("02", "model/hero.gltf", "src/score.js")] }).fixer).toBeUndefined()
+    expect(
+      roles({ works: [work("02", "models/hero.gltf", "src/main.js")] }).builder,
+    ).toBeUndefined()
     const shown = withItems(teamWorkspace(), itemFixture("diff", "03", { kind: "changes" }))
-    expect(tourSignals(shown, "01").roles.fixer).toBe("03")
+    expect(tourSignals(shown, "01").roles.builder).toBe("03")
   })
 
-  it("say which files were changed, whichever teammate's work did", () => {
-    const works = [work("02", "model/hero.gltf")]
+  it("say which folders were changed, whichever teammate's work did", () => {
+    const works = [work("02", "models/hero.gltf")]
     expect(tourSignals(teamWorkspace(), "01", { works }).changed).toEqual({
-      hero: true,
-      score: false,
+      models: true,
+      game: false,
     })
-    const both = [...works, work("03", "src/score.js")]
+    const both = [...works, work("03", "src/main.js")]
     expect(tourSignals(teamWorkspace(), "01", { works: both }).changed).toEqual({
-      hero: true,
-      score: true,
+      models: true,
+      game: true,
     })
-    const removed = [{ ...work("03"), files: [{ path: "src/score.js", status: "deleted" }] }]
+    const removed = [{ ...work("03"), files: [{ path: "src/main.js", status: "deleted" }] }]
     expect(
-      tourSignals(teamWorkspace(), "01", { works: removed as unknown as Work[] }).changed.score,
+      tourSignals(teamWorkspace(), "01", { works: removed as unknown as Work[] }).changed.game,
+    ).toBe(false)
+    // The lead's own work is no teammate's.
+    expect(
+      tourSignals(teamWorkspace(), "01", { works: [work("01", "src/main.js")] }).changed.game,
     ).toBe(false)
   })
 
@@ -391,109 +400,36 @@ describe("The tour's signals of the game story", () => {
       teamWorkspace(),
       itemFixture("model", "02", { kind: "model" }),
       itemFixture("diff", "03", { kind: "changes" }),
-      itemFixture("cover", "04", { kind: "image" }),
-      // Another's image on the lead's bar is no one's cover.
-      itemFixture("elsewhere", "01", { kind: "image" }),
+      // A model on the lead's bar is no one's.
+      itemFixture("elsewhere", "01", { kind: "model" }),
     )
-    const works = [work("02", "model/hero.gltf"), work("03", "src/score.js")]
-    expect(tourSignals(workspace, "01", { works, artist: "04" }).shown).toEqual({
+    expect(tourSignals(workspace, "01").shown).toEqual({
       page: null,
       model: "model",
       changes: "diff",
-      cover: "cover",
     })
-    expect(tourSignals(workspace, "01", { works }).shown.cover).toBeNull()
-  })
-
-  it("take the terminal the tour opened as the artist, and where its agent stands", () => {
-    const workspace = teamWorkspace()
-    const roster = workspace.projects[0]!.history[0]!.state.roster
-    Object.assign(roster, {
-      terminals: roster.terminals.map((each) =>
-        each.id === "04"
-          ? {
-              ...each,
-              state: "running",
-              agent: { working: false },
-              titleSource: { kind: "agent", by: "pixel" },
-            }
-          : each,
-      ),
-    })
-    expect(tourSignals(workspace, "01").artist).toBeNull()
-    const signals = tourSignals(workspace, "01", { artist: "04" })
-    expect(signals.roles.artist).toBe("04")
-    expect(signals.artist).toMatchObject({ kind: "agent", named: true })
-    // It is on no team.
-    expect(signals.team.ids).toEqual(["02", "03"])
-  })
-
-  it("say whether the artist and the lead have written to each other", () => {
-    const said = (id: string, from: string, to: string) => message(id, from, to)
-    const talk = (...list: AgentMessage[]) =>
-      tourSignals(teamWorkspace(), "01", { artist: "04", messages: messagesOf(list) }).talk
-    expect(talk()).toEqual({ toLead: false, fromLead: false })
-    expect(talk(said("m1", "04", "01"))).toEqual({ toLead: true, fromLead: false })
-    expect(talk(said("m1", "04", "01"), said("m2", "01", "04"))).toEqual({
-      toLead: true,
-      fromLead: true,
-    })
-    // A teammate's message to the artist is not the lead's answer.
-    expect(talk(said("m3", "02", "04")).fromLead).toBe(false)
-  })
-
-  it("name the artist holding at a screen of its own, and its permission waits, like a teammate's", () => {
-    const workspace = teamWorkspace()
-    const roster = workspace.projects[0]!.history[0]!.state.roster
-    Object.assign(roster, {
-      terminals: roster.terminals.map((each) =>
-        each.id === "04"
-          ? {
-              ...each,
-              process: "claude",
-              state: "running",
-              agent: { working: false, startup: "startup" },
-            }
-          : each,
-      ),
-    })
-    expect(tourSignals(workspace, "01", { artist: "04" }).teamScreen).toEqual({
-      terminalId: "04",
-      screen: "startup",
-      program: "claude",
-    })
-    const permission = {
-      ...askRow("04"),
-      kind: "request",
-      request: { kind: "permission" },
-    } as unknown as InboxEntry
-    const inbox = { items: [permission] } as unknown as InboxState
-    expect(tourSignals(teamWorkspace(), "01", { inbox, artist: "04" }).permission).toEqual({
-      terminalId: "04",
-    })
-    expect(tourSignals(teamWorkspace(), "01", { inbox }).permission).toBeNull()
   })
 
   it("say what each role's pane shows: its open top tab, by what it is", () => {
     const workspace = withItems(
       teamWorkspace(),
       itemFixture("model", "02", { kind: "model" }),
-      itemFixture("cover", "04", { kind: "image" }),
+      itemFixture("diff", "03", { kind: "changes" }),
     )
     const state = workspace.projects[0]!.history[0]!.state
     Object.assign(state, {
       bars: {
         "02": { order: ["model"], hidden: [], stack: ["model"], open: true },
-        "04": {
-          order: ["messages", "cover"],
+        "03": {
+          order: ["messages", "diff"],
           hidden: [],
-          stack: ["cover", "messages"],
+          stack: ["diff", "messages"],
           open: false,
         },
         "01": { order: ["messages"], hidden: [], stack: ["messages"], open: true },
       },
     })
-    const open = tourSignals(workspace, "01", { artist: "04" }).open
-    expect(open).toMatchObject({ sculptor: "model", lead: "messages", artist: null })
+    const open = tourSignals(workspace, "01").open
+    expect(open).toMatchObject({ modeller: "model", lead: "messages", builder: null })
   })
 })
