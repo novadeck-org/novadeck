@@ -429,7 +429,7 @@ export class Terminals {
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
           this.typing.boxes.view(record.summary.id),
-          this.options.shipping?.enabled() ? this.options.shipping.cards.of(record.summary.id) : [],
+          this.options.shipping?.cardsOf(record.summary.id) ?? [],
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
@@ -442,7 +442,7 @@ export class Terminals {
         ),
     })
     // An action card opened, answered or withdrawn changes what the terminal's agent asks.
-    this.options.shipping?.attach(this.records, (record) => this.streams.detailed(record))
+    this.options.shipping?.attach(this.records, (record) => this.bindings.publishGate(record))
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
       records: () => this.records.values(),
@@ -479,6 +479,7 @@ export class Terminals {
       announce: (record) => this.announce(record),
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),
+      cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
@@ -605,6 +606,7 @@ export class Terminals {
         opens: () => this.opens,
         sleepers: () => this.sleepers,
         detailWatched: (id) => this.streams.detailWatched(id),
+        cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
         trees: () => this.trees,
         boxHolds: (record) => this.typing.boxHolds(record.summary.id),
         save: (record) => this.saves.saveNow(record),
@@ -710,6 +712,7 @@ export class Terminals {
       former: (sessionId, handle, before) =>
         this.history.lastHolder(this.projectOf(sessionId), handle, before),
       hostLoad: this.load.listing,
+      cards: (id) => this.options.shipping?.cardsOf(id) ?? [],
     })
     this.murmur = options.describer
       ? new Murmur(

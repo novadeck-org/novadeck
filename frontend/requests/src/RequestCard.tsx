@@ -62,10 +62,13 @@ const titles: Readonly<Record<ChatRequest["kind"], string>> = {
 
 // Whether the card already shows the request's subject, in its dialog. A question tool's subject
 // is its first question, which the dialog's own page shows, and over the other pages it would
-// name the wrong one. Once answered the dialog goes, and the subject says what was asked.
+// name the wrong one. A choice's dialog says it as its detail, or as its title, as the shipping
+// gate's card asks its question. Once answered the dialog goes, and the subject says what was
+// asked.
 const saysSubject = ({ dialog, answered, subject }: ChatRequest): boolean =>
   !answered &&
-  (dialog?.type === "questions" || (dialog?.type === "choices" && dialog.detail === subject))
+  (dialog?.type === "questions" ||
+    (dialog?.type === "choices" && (dialog.detail === subject || dialog.title === subject)))
 
 // What keeps the focus a click gives it: a control, or a field.
 const controls =

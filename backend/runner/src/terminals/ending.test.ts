@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
-import { agentProcess } from "./ending.js"
+import { describe, expect, it, onTestFinished } from "vitest"
+
+import { agentProcess, apartOf } from "./ending.js"
 
 const bound = (instance: string | null) =>
   ({ bound: { binding: { instance } } }) as Parameters<typeof agentProcess>[0]
@@ -19,5 +23,42 @@ describe("the agent a terminal's end follows", () => {
   it("is none for what can't be a process of its own", () => {
     for (const instance of ["", "abc", "1", "0", "-5", "1.5"])
       expect(agentProcess(bound(instance))).toBeUndefined()
+  })
+})
+
+describe("what a terminal's harnesses run apart from it", () => {
+  // A Claude Code configuration folder whose background service's lock names pid 4242.
+  const claudeHome = () => {
+    const home = mkdtempSync(join(tmpdir(), "ending-apart-"))
+    onTestFinished(() => rmSync(home, { recursive: true, force: true }))
+    mkdirSync(join(home, "projects", "p"), { recursive: true })
+    writeFileSync(join(home, "daemon.lock"), JSON.stringify({ pid: 4242, procStart: "777" }))
+    return { transcript: join(home, "projects", "p", "s1.jsonl") }
+  }
+
+  it("is the bound session's harness's, found by its transcript", async () => {
+    const { transcript } = claudeHome()
+    const record = {
+      bound: { binding: { agent: "claude", sessionId: "s1", instance: "41" } },
+      agents: { claude: { sessionId: "s1", seq: 1, transcript } },
+    } as unknown as Parameters<typeof apartOf>[0]
+    expect(await apartOf(record)).toEqual([{ pid: 4242, start: "777" }])
+  })
+
+  it("is each harness's latest session's once its agent has left, as its service still runs", async () => {
+    const { transcript } = claudeHome()
+    const record = {
+      bound: null,
+      agents: {
+        claude: { sessionId: "s1", seq: 1, transcript },
+        codex: { sessionId: "c1", seq: 2 },
+      },
+    } as unknown as Parameters<typeof apartOf>[0]
+    expect(await apartOf(record)).toEqual([{ pid: 4242, start: "777" }])
+  })
+
+  it("is nothing with no record or no session", async () => {
+    expect(await apartOf(undefined)).toEqual([])
+    expect(await apartOf({ bound: null, agents: {} })).toEqual([])
   })
 })

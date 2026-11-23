@@ -38,6 +38,8 @@ export type ShippingHost = {
   readonly owned: Owned
   /** Tells the agent in a terminal something, as a Novadeck notice; whether it was queued. */
   readonly notify: (terminalId: string, text: string) => boolean
+  /** Where the person's rule files are: the runner's own environment and home unless given. */
+  readonly ruleFiles?: { readonly env: NodeJS.ProcessEnv; readonly home: string }
 }
 
 // The tail of a rollout read for its latest turn context: a turn starts well within it.
@@ -202,7 +204,10 @@ const askedSlackMs = 200
 export class Shipping {
   readonly permits = new Permits()
   readonly quotes = new Quotes()
-  readonly cards = new Cards()
+  // A card stands for the agent session that asked it: another one bound there, or none, ends it.
+  readonly cards = new Cards(Date.now, {
+    session: (terminalId) => this.records.get(terminalId)?.bound?.binding.sessionId,
+  })
   private readonly gate: Gate
   // Answers handed to a hook whose effect waits for its acknowledgement, by lease.
   private readonly leases = new Map<
@@ -220,17 +225,20 @@ export class Shipping {
     this.gate = new Gate({
       lookups: (terminalId) => gitLookups(terminalId, host.owned),
       permits: this.permits,
-      rules: (agent, cwd) =>
-        agent === "claude"
-          ? claudeRules(cwd)
+      rules: (agent, terminalId, cwd) => {
+        const folder = this.sessionFolder(terminalId, agent) ?? cwd
+        const { env, home } = host.ruleFiles ?? {}
+        return agent === "claude"
+          ? claudeRules(folder, env, home)
           : agent === "codex"
-            ? codexRules()
+            ? codexRules(folder, env, home)
             : agent === "agy"
-              ? agyRules()
+              ? agyRules(home)
               : // opencode's merged configuration can't be read exactly (global, project, agents,
                 // environment), so its person's own allow rules never lift the gate: its deny
                 // comes before opencode's permission check, and an unknown case is gated.
-                Promise.resolve([]),
+                Promise.resolve([])
+      },
       turn: turnOf,
     })
     // Every permit is on record: who, what, where, on whose word, and when.
@@ -323,13 +331,13 @@ export class Shipping {
     )
   }
 
-  private records: ReadonlyMap<string, Pick<Record, "summary" | "bound">> = new Map()
+  private records: ReadonlyMap<string, Pick<Record, "summary" | "bound" | "agents">> = new Map()
 
   /**
    * Joins the runner's terminals: the folder each shell is in and the agent it runs, which the
    * gate reads, and what to publish when a terminal's open cards change.
    */
-  attach<R extends Pick<Record, "summary" | "bound">>(
+  attach<R extends Pick<Record, "summary" | "bound" | "agents">>(
     records: ReadonlyMap<string, R>,
     changed: (record: R) => void,
   ): void {
@@ -344,6 +352,16 @@ export class Shipping {
     return this.records.get(terminalId)?.summary.cwd
   }
 
+  /**
+   * The folder the session `agent` holds in a terminal started in, where its harness reads its
+   * project's files: where it bound, which stays its folder whatever a later command `cd`s to.
+   */
+  private sessionFolder(terminalId: string, agent: AgentName): string | undefined {
+    const record = this.records.get(terminalId)
+    if (record?.bound?.binding.agent !== agent) return undefined
+    return record.agents[agent]?.cwd
+  }
+
   private agentOf(terminalId: string): AgentName | undefined {
     return this.records.get(terminalId)?.bound?.binding.agent
   }
@@ -351,6 +369,20 @@ export class Shipping {
   /** Whether the gate is on. */
   enabled(): boolean {
     return this.host.enabled()
+  }
+
+  /** The cards open in a terminal, oldest first; none while the gate is off. */
+  cardsOf(terminalId: string): readonly Card[] {
+    return this.host.enabled() ? this.cards.of(terminalId) : []
+  }
+
+  /**
+   * The gate was switched on or off: off, every card closes, and the terminals' summaries say
+   * so, so none waits on the person meanwhile or comes back when it is on again.
+   */
+  switched(): void {
+    if (this.host.enabled()) return
+    for (const terminalId of this.records.keys()) this.cards.forget(terminalId)
   }
 
   /**

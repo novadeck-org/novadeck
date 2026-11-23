@@ -8,12 +8,18 @@ import { nativeStandIn } from "../testing.js"
 import { spawnPty, type PtyExit } from "./pty.js"
 import {
   killsSince,
+  parseGroup,
+  parseProcs,
+  scopeGroup,
   scopePrefix,
   setScopeWeight,
   startScope,
+  stopScope,
+  unitPath,
   userBus,
   userScopes,
   UserScopes,
+  type ReadGroup,
   type RunTool,
 } from "./scopes.js"
 
@@ -390,6 +396,8 @@ describe("a pty in a scope", () => {
             return signal === "SIGKILL" ? Promise.resolve(cause) : undefined
           },
           weigh: () => Promise.resolve(),
+          members: () => Promise.resolve(undefined),
+          exited: () => Promise.resolve(),
         }
       },
     }
@@ -451,6 +459,8 @@ describe("a pty in a scope", () => {
       contain: () => ({
         cause: () => new Promise<"out-of-memory" | undefined>((resolve) => (answer = resolve)),
         weigh: () => Promise.resolve(),
+        members: () => Promise.resolve(undefined),
+        exited: () => Promise.resolve(),
       }),
     }
     const { pty, stand, exits } = start(scopes)
@@ -486,5 +496,111 @@ describe("a pty in a scope", () => {
     await ended
     expect(exits).toEqual([{ code: null, signal: "SIGKILL" }])
     expect(asked).toEqual([])
+  })
+})
+
+describe("a scope's members", () => {
+  // busctl answering the move, and the scope's cgroup as `group` says.
+  const answering =
+    (group: string): RunTool =>
+    (file, args) => {
+      if (file !== "busctl") return Promise.reject(new Error("no such tool"))
+      if (args.includes("get-property")) return Promise.resolve(`s "${group}"\n`)
+      return Promise.resolve("")
+    }
+
+  it("names its object as systemd's bus does", () => {
+    expect(unitPath("app-dev.mzpk.novadeck-term42.scope")).toBe(
+      "/org/freedesktop/systemd1/unit/app_2ddev_2emzpk_2enovadeck_2dterm42_2escope",
+    )
+    expect(unitPath("1a_b")).toBe("/org/freedesktop/systemd1/unit/_31a_5fb")
+    expect(scopeGroup("u.scope")).toContain("ControlGroup")
+  })
+
+  it("reads the cgroup systemd names, none for a unit that has gone", () => {
+    expect(parseGroup('s "/user.slice/app.slice/u.scope"\n')).toBe("/user.slice/app.slice/u.scope")
+    expect(parseGroup('s ""')).toBeUndefined()
+    expect(parseGroup("garbage")).toBeUndefined()
+    expect(parseProcs("12\n13\n\nx\n")).toEqual([12, 13])
+  })
+
+  it("are the pids its cgroup lists, however each got there", async () => {
+    const read = vi.fn<ReadGroup>((path) =>
+      Promise.resolve(path === "/app.slice/u.scope/cgroup.procs" ? "42\n77\n" : ""),
+    )
+    const scope = new UserScopes("p", answering("/app.slice/u.scope"), 0, read).contain(42)
+    expect(await scope.members()).toEqual([42, 77])
+    // The cgroup is asked once.
+    expect(await scope.members()).toEqual([42, 77])
+    expect(read).toHaveBeenCalledTimes(2)
+  })
+
+  it("are unknown for a program that never got a scope, or a cgroup that can't be read", async () => {
+    const refused = new UserScopes(
+      "p",
+      () => Promise.reject(new Error("No such process")),
+      0,
+      () => Promise.resolve("42\n"),
+    ).contain(42)
+    expect(await refused.members()).toBeUndefined()
+    const unreadable = new UserScopes("p", answering("/u.scope"), 0, () =>
+      Promise.reject(new Error("EACCES")),
+    ).contain(42)
+    expect(await unreadable.members()).toBeUndefined()
+  })
+})
+
+describe("a scope whose program has exited", () => {
+  const recorded = (group: string, procs: () => Promise<string>) => {
+    const runs: (readonly string[])[] = []
+    const run: RunTool = (_file, args) => {
+      runs.push(args)
+      return Promise.resolve(args.includes("get-property") ? `s "${group}"` : "")
+    }
+    const scope = new UserScopes("p", run, 0, procs).contain(42)
+    const stopped = () => runs.some((args) => args.includes("StopUnit"))
+    return { scope, runs, stopped }
+  }
+
+  it("is stopped when nothing is left in it, as one its program was moved into as it died", async () => {
+    const { scope, runs, stopped } = recorded("/u.scope", () => Promise.resolve(""))
+    await scope.exited()
+    expect(stopped()).toBe(true)
+    expect(runs.at(-1)).toEqual(stopScope("p-term42.scope"))
+  })
+
+  it("is left alone where its cgroup can't be read, as where the cgroups aren't systemd's", async () => {
+    const { scope, stopped } = recorded("/u.scope", () =>
+      Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" })),
+    )
+    await scope.exited()
+    expect(stopped()).toBe(false)
+  })
+
+  it("is left to systemd while anything runs in it", async () => {
+    const { scope, stopped } = recorded("/u.scope", () => Promise.resolve("77\n"))
+    await scope.exited()
+    expect(stopped()).toBe(false)
+  })
+
+  it("is left alone where it has gone, or its cgroup can't be read", async () => {
+    const gone = recorded("", () => Promise.resolve(""))
+    await gone.scope.exited()
+    expect(gone.stopped()).toBe(false)
+    const unreadable = recorded("/u.scope", () => Promise.reject(new Error("EACCES")))
+    await unreadable.scope.exited()
+    expect(unreadable.stopped()).toBe(false)
+  })
+
+  it("is tried for a move that was refused, which may have made the scope all the same", async () => {
+    const runs: (readonly string[])[] = []
+    const run: RunTool = (_file, args) => {
+      runs.push(args)
+      if (args.includes("StartTransientUnit"))
+        return Promise.reject(new Error("Failed to set unit properties: No such process"))
+      return Promise.resolve(args.includes("get-property") ? 's "/u.scope"' : "")
+    }
+    await new UserScopes("p", run, 0, () => Promise.resolve("")).contain(42).exited()
+    expect(runs.some((args) => args.includes("StopUnit"))).toBe(true)
   })
 })

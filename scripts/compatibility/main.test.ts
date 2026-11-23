@@ -197,6 +197,8 @@ describe("main", () => {
       writeFileSync(join(directory, contractPath), content)
     }
 
+    // Windows runners spawn git about 17 times slower than Linux, past the 5 s default, so this
+    // test gets a minute, like the repo's other git tests.
     it("reads the newest release's contract, and a release from before one as none", async () => {
       git("init", "--quiet", "--initial-branch=main")
       writeFileSync(join(directory, "README"), "before\n")
@@ -214,6 +216,6 @@ describe("main", () => {
       const code = await main([], gitSources(directory), (line) => lines.push(line))
       expect(code).toBe(1)
       expect(lines.join("\n")).toContain("Contract compared with v1.1.0")
-    })
+    }, 60_000)
   })
 })

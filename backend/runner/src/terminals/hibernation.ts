@@ -11,12 +11,12 @@ import {
   type ProcessTrees,
 } from "@novadeck/terminal/pty"
 
-import { summary as activitySummary } from "../harnesses/activity.js"
+import { summary as activitySummary, withCards } from "../harnesses/activity.js"
 import { logs } from "../log.js"
 import type { Inbox } from "../messaging/inbox.js"
 import type { Messaging } from "../messaging/messaging.js"
 import type { Approvals } from "./approvals.js"
-import { agentProcess } from "./ending.js"
+import { agentProcess, apartOf } from "./ending.js"
 import type { OpenRequests } from "./opens.js"
 import type { Baseline, Record } from "./record.js"
 import { scheduled } from "./schedules.js"
@@ -48,6 +48,12 @@ export type Tree = {
   readonly lineage: ReadonlyMap<string, string>
   /** The shell started something besides the agent's own chain: a job, a server. */
   readonly beside: boolean
+  /**
+   * An agent left something running in the terminal's scope outside the shell's tree, as a
+   * server it started detached (`nohup`, `setsid`): the terminal's end would end it (see the
+   * pty's `endLeft`). Linux only; none where it can't be told.
+   */
+  readonly detached?: boolean
 }
 
 /** What hibernation needs to know of the processes: the read, and the baseline to compare with. */
@@ -119,13 +125,15 @@ export type Veto =
   | "unbaselined"
   | "stray"
   | "beside"
+  | "detached"
 
 /**
  * What keeps an agent from being stopped at `now`, or undefined when nothing does. An agent
  * rests only when its terminal is quiet and nothing it started would die with it: no turn,
  * subagent, background job or wake-up, nothing waiting on the person or on it, no draft, no
- * client, a wait of the setting's length since its last turn end, key, client or start, and
- * the processes under it and beside it only those it started with.
+ * client, a wait of the setting's length since its last turn end, key, client or start, the
+ * processes under it and beside it only those it started with, and nothing an agent left
+ * running detached in the terminal's scope, which the rest would end and no resume restarts.
  */
 export const vetoOf = (facts: Facts, now: number): Veto | undefined => {
   const { windowMs, activity } = facts
@@ -161,6 +169,7 @@ export const vetoOf = (facts: Facts, now: number): Veto | undefined => {
   if (processes.baseline === undefined) return "unbaselined"
   if (stray(processes.tree, processes.baseline) !== undefined) return "stray"
   if (processes.tree.beside) return "beside"
+  if (processes.tree.detached === true) return "detached"
   return undefined
 }
 
@@ -253,6 +262,12 @@ export const readTree = async (
     }
   // Anything else on the shell's terminal: `npm run dev &` before the agent started.
   const beside = await jobs(shell, found.chain)
+  // What an agent left in the scope, by the same listing; where it can't be read, the rest
+  // can't end it either.
+  const { pty } = record.terminal
+  const left = pty.agentRan
+    ? await pty.leftovers({ listing: () => Promise.resolve(rows), apart: await apartOf(record) })
+    : []
   return {
     placed: true,
     foreground: found.foreground,
@@ -260,6 +275,7 @@ export const readTree = async (
     lineage: found.lineage,
     // Where the system can't tell, nothing is assumed gone.
     beside: beside !== false,
+    detached: (left?.length ?? 0) > 0,
   }
 }
 
@@ -277,6 +293,8 @@ export type HibernationHost = {
   readonly sleepers: () => Sleepers
   /** Whether anyone reads the terminal's chat. */
   readonly detailWatched: (terminalId: string) => boolean
+  /** How many of the shipping gate's cards wait on the person there; none without the gate. */
+  readonly cards?: (terminalId: string) => number
   readonly trees: () => ProcessTrees
   /**
    * Whether the agent's box holds text, read from the screen as the doorbell reads it;
@@ -525,7 +543,10 @@ export class Hibernation {
     const agent = bound?.binding.agent ?? null
     const sessionId = bound?.binding.sessionId
     const report = agent === null ? undefined : record.agents[agent]
-    const activity = bound ? activitySummary(bound.activity) : null
+    // A card the shipping gate holds open waits on the person as a dialog does.
+    const activity = bound
+      ? withCards(activitySummary(bound.activity), host.cards?.(id) ?? 0)
+      : null
     const last = bound?.activity.lastTurn
     const ended = Math.max(last?.at ?? 0, report?.endedAt ?? 0)
     const delivery = host.messaging().delivery(id)

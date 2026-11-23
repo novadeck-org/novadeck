@@ -63,8 +63,11 @@ export type Turn = {
 export type GateDeps = {
   readonly lookups: (terminalId: string) => Lookups
   readonly permits: Permits
-  /** The person's allow rules for `agent` in `cwd`. */
-  readonly rules: (agent: GatedAgent, cwd: string) => Promise<readonly AllowRule[]>
+  /**
+   * The person's allow rules for the session `agent` holds in a terminal, whose command runs in
+   * `cwd`: its harness reads its project's in the folder it started in, not the command's.
+   */
+  readonly rules: (agent: GatedAgent, terminalId: string, cwd: string) => Promise<readonly AllowRule[]>
   /** The turn Codex's rollout last started; undefined when it can't be read. */
   readonly turn: (transcript: string | undefined) => Promise<Turn | undefined>
   readonly now?: () => number
@@ -241,7 +244,8 @@ export class Gate {
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
     if (bypass(turn)) return undefined
     // Where the person's own rule allows the command, the harness had no gate there either.
-    if (covered(await this.deps.rules(input.agent, input.cwd), input.command)) return undefined
+    if (covered(await this.deps.rules(input.agent, input.terminalId, input.cwd), input.command))
+      return undefined
     const refuse = (reason: string): Decision => ({
       stdout:
         input.agent === "agy" || input.agent === "opencode"

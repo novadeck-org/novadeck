@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { readFileSync } from "node:fs"
 
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
@@ -577,5 +578,133 @@ describe("a terminal host's shutdown", () => {
     host.remove("a")
     expect(host.draining("a")).toBe(false)
     expect(() => host.reserve("c")).toThrow(expect.objectContaining({ code: "CLOSING" }))
+  })
+})
+
+// What an agent left in its terminal's scope, as the scope lists it: real processes of the
+// test's own, each in a group of its own, that ignore the hangup.
+describe.skipIf(process.platform !== "linux")("what agents left in a terminal's scope", () => {
+  const left = () => {
+    const child = spawn(
+      process.execPath,
+      ["-e", 'process.on("SIGHUP", () => {}); console.log("up"); setInterval(() => {}, 1000)'],
+      { detached: true, stdio: ["ignore", "pipe", "ignore"] },
+    )
+    onTestFinished(() => void child.kill("SIGKILL"))
+    const gone = new Promise<NodeJS.Signals | null>((end) =>
+      child.once("exit", (_code, signal) => end(signal)),
+    )
+    return new Promise<{ pid: number; gone: typeof gone }>((resolve) => {
+      child.stdout.once("data", () => resolve({ pid: child.pid!, gone }))
+    })
+  }
+
+  // A host whose terminals' scopes hold `members`, by their pids.
+  const scopedHost = (members: number[], apart: TerminalHostOptions["apart"] = undefined) => {
+    const programs: Program[] = []
+    const native: NativeSpawn = (...args) => {
+      const program = nativeStandIn({ pid: shellPid })
+      programs.push(program)
+      return program.spawn(...args)
+    }
+    const host = createTerminalHost({
+      eventBytes: () => 1,
+      limits: {
+        historyBytes: 1024 * 1024,
+        subscriberBytes: 4 * 1024 * 1024,
+        ackWindowBytes: 256 * 1024,
+        snapshotBytes: 32 * 1024 * 1024,
+        maxTerminals: 8,
+        maxRetained: 8,
+      },
+      scrollback: 1000,
+      kill: { graceMs: 1000, treeGraceMs: 300, shutdownTreesMs: 1000, shutdownTreeGraceMs: 100 },
+      trees: noTrees,
+      ...(apart && { apart }),
+      pty: {
+        native,
+        platform: "linux",
+        scopes: {
+          active: () => true,
+          contain: () => ({
+            cause: () => undefined,
+            weigh: () => Promise.resolve(),
+            members: () => Promise.resolve(members),
+            exited: () => Promise.resolve(),
+          }),
+        },
+      },
+    })
+    onTestFinished(async () => {
+      const done = host.shutdown()
+      for (const program of programs) program.exit(0)
+      await done
+    })
+    const place = host.reserve("a")
+    const terminal = place.open(spec, undefined)
+    place.done()
+    return { host, programs, terminal }
+  }
+
+  it("ends them as a terminal whose shell exited by itself closes", async () => {
+    const members: number[] = []
+    const { host, programs, terminal } = scopedHost(members)
+    terminal.pty.agentStarted(undefined)
+    const tool = await left()
+    members.push(tool.pid)
+    programs[0]!.exit(0)
+    await terminal.exited
+    await host.terminate("a")
+    expect(await tool.gone).toBe("SIGTERM")
+  })
+
+  it("ends them for each run an agent had, before a restart too, and leaves what the harness runs apart", async () => {
+    const members: number[] = []
+    let service: ApartProcess | undefined
+    const { host, programs, terminal } = scopedHost(members, () =>
+      Promise.resolve(service ? [service] : []),
+    )
+    terminal.pty.agentStarted(undefined)
+    const [tool, kept] = await Promise.all([left(), left()])
+    members.push(tool.pid, kept.pid)
+    const stat = readFileSync(`/proc/${kept.pid}/stat`, "utf8")
+    service = { pid: kept.pid, start: stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19]! }
+    programs[0]!.exit(0)
+    await terminal.exited
+    await host.restart("a", "owner", {
+      check: () => {},
+      prepare: async () => (restart) => restart(spec, "owner", () => {}),
+    })
+    expect(terminal.earlier).toHaveLength(1)
+    const closing = host.terminate("a")
+    programs[1]!.exit(0)
+    await closing
+    expect(await tool.gone).toBe("SIGTERM")
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(() => process.kill(kept.pid, 0)).not.toThrow()
+  })
+
+  it("ends them as the host shuts down", async () => {
+    const members: number[] = []
+    const { host, programs, terminal } = scopedHost(members)
+    terminal.pty.agentStarted(undefined)
+    const tool = await left()
+    members.push(tool.pid)
+    programs[0]!.exit(0)
+    await terminal.exited
+    await host.shutdown()
+    expect(await tool.gone).toBe("SIGTERM")
+  })
+
+  it("leaves them where no agent ran", async () => {
+    const members: number[] = []
+    const { host, programs, terminal } = scopedHost(members)
+    const tool = await left()
+    members.push(tool.pid)
+    programs[0]!.exit(0)
+    await terminal.exited
+    await host.terminate("a")
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(() => process.kill(tool.pid, 0)).not.toThrow()
   })
 })

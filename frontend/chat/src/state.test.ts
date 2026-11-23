@@ -131,6 +131,18 @@ describe("watching the workspace", () => {
     stop()
   })
 
+  // The shipping gate's card asks without waiting, and stays open while the dialog is answered.
+  it("drops it once the dialog is answered, though a card that asks without waiting stands", () => {
+    const { workspace, chat, stop } = open()
+    workspace.dispatch(running({ working: true, attention: { kind: "permission", count: 2 } }))
+    answerInTerminal(chat, context, "01")
+    workspace.dispatch(
+      running({ working: false, attention: { kind: "permission", count: 1, detached: true } }),
+    )
+    expect(chat.store.getSnapshot().answering).toEqual({})
+    stop()
+  })
+
   it("keeps a draft past the agent, holds a reply, and drops both once the terminal closes", () => {
     const { workspace, chat, stop } = open()
     workspace.dispatch(running({ working: false }))

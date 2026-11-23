@@ -577,6 +577,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     rewriteShellFiles,
     agents,
     terminals,
+    shipping,
     items,
     projects,
     works,
@@ -661,6 +662,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     shellFiles,
     rewriteShellFiles,
     terminals,
+    shipping,
     items,
     agents,
     projects,
@@ -703,7 +705,9 @@ const startRunner = (options: RunnerOptions): Runner => {
       settingsSaved: () => rootFolder.ensure(),
       // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
       // hooks, so they are written again, and a Codex copy that differs is installed again.
-      shippingSwitched: () =>
+      shippingSwitched: () => {
+        // Switched off, its open cards close, and the terminals' summaries say so.
+        shipping.switched()
         void shellFiles
           .then(() => rewriteShellFiles())
           .then(() => agents.refresh(true))
@@ -711,7 +715,8 @@ const startRunner = (options: RunnerOptions): Runner => {
             log.error("shipping.rewrite-failed", "Novadeck could not write the gate's hooks", {
               err: error,
             }),
-          ),
+          )
+      },
       tour,
       activity,
       clients,

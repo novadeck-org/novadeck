@@ -1240,3 +1240,20 @@ export const summary = ({
           },
   }
 }
+
+/**
+ * The activity a terminal's summary shows: its agent's, with each card the shipping gate holds
+ * open there as one more request waiting on the person. A card asks without waiting, as
+ * `request_permit` answers at once and the agent's turn may end while it stays open.
+ */
+export const withCards = (activity: AgentActivity, cards: number): AgentActivity =>
+  cards === 0
+    ? activity
+    : {
+        ...activity,
+        attention: {
+          pending: activity.attention.pending + cards,
+          kind: activity.attention.kind ?? "permission",
+          detached: (activity.attention.detached ?? 0) + cards,
+        },
+      }

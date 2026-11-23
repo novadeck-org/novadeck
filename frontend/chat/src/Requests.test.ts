@@ -1080,6 +1080,45 @@ describe("a dialog of questions", () => {
     expect(container.querySelector(".request-subject")?.textContent).toBe("Keep the grace?")
   })
 
+  // The shipping gate's card asks its question as its dialog's title, which is its subject too.
+  it("asks the shipping gate's card's question once", () => {
+    const card: ChatDialog = {
+      type: "choices",
+      id: "permit-c1",
+      title: "Land work on main?",
+      detail: "Repository: /r/.git",
+      options: [
+        { id: "allow", label: "Allow", text: null },
+        { id: "deny", label: "Deny", text: null },
+      ],
+    }
+    const { container, unmount } = render(
+      createElement(Requests, {
+        requests: [
+          {
+            ...request(card),
+            tool: "request_permit",
+            subject: "Land work on main?",
+            detached: true as const,
+          },
+        ],
+        slice: null,
+        agent: "Claude",
+        onAnswer: async () => {},
+        onAnswerInTerminal: () => {},
+        onSettled,
+        replying: null,
+        replySending: false,
+        onReply,
+        refused: refusing("/tmp is full", "x @a "),
+        onSubmitted,
+      }),
+    )
+    unmounts.push(unmount)
+    expect(container.querySelector(".request-subject")).toBeNull()
+    expect(container.textContent?.split("Land work on main?")).toHaveLength(2)
+  })
+
   it("keeps every page in its cell, one of them shown, so turning one moves nothing", () => {
     const { container } = show(dialog, async () => {})
     expect(container.querySelectorAll(".request-pages > .request-page")).toHaveLength(3)

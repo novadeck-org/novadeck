@@ -919,6 +919,77 @@ const entry = (change: Partial<InboxEntry> = {}): InboxEntry => ({
 const told = (id = "told-1"): InboxEntry =>
   entry({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
 
+// `request_permit` answers at once, so an agent's turn ends while the gate's card waits on the
+// person: the runner's summary counts each card as a request asked without waiting.
+describe("The shipping gate's cards", () => {
+  const ended = (count: number) =>
+    workspaceOf(
+      agentTerminal(1, {
+        working: false,
+        attention: { kind: "permission", count, detached: true },
+        lastTurn: turn(),
+      }),
+    )
+  const cards = (...titles: string[]): AgentDetail => {
+    const base = detailOf()
+    return {
+      ...base,
+      requests: titles.map((title, index) => ({
+        ref: `held-c${index + 1}`,
+        actor: "rootrootrootroot",
+        kind: "permission" as const,
+        tool: "request_permit",
+        subject: title,
+        choices: ["Allow", "Deny"],
+        dialog: {
+          type: "choices" as const,
+          id: `permit-c${index + 1}`,
+          title,
+          detail: "PR #1189, on main",
+          options: [
+            { id: "allow", label: "Allow", text: null },
+            { id: "deny", label: "Deny", text: null },
+          ],
+        },
+        answered: false,
+        askedAt: 9000 + index,
+        detached: true as const,
+      })),
+    }
+  }
+
+  it("lists each open card of an agent whose turn ended, and answers one through its dialog", async () => {
+    const { details, inbox, streams, ids } = setup(ended(2))
+    expect(details).toHaveLength(1)
+    details[0]!.push(cards("Merge PR #1189?", "Merge PR #1191?"))
+    await settle()
+
+    expect(ids().toSorted()).toEqual(["request:held-c1", "request:held-c2"])
+    const answer = { type: "choice", dialog: "permit-c1", option: "allow" } as const
+    inbox.answer("request:held-c1", { kind: "request", answer })
+    expect(streams.answer).toHaveBeenCalledWith(
+      { projectId: "p", workspaceSessionId: "s", terminalId: "01" },
+      "held-c1",
+      answer,
+    )
+  })
+
+  it("drops a card once the runner no longer holds it: answered, given by words, or closed", async () => {
+    const { details, workspaceStore, ids } = setup(ended(2))
+    details[0]!.push(cards("Merge PR #1189?", "Merge PR #1191?"))
+    await settle()
+
+    details[0]!.push(cards("Merge PR #1189?"))
+    workspaceStore.update(() => ended(1))
+    await settle()
+    expect(ids()).toEqual(["request:held-c1"])
+
+    workspaceStore.update(() => workspaceOf(agentTerminal(1, { working: false, lastTurn: turn() })))
+    await settle()
+    expect(ids()).toEqual([])
+  })
+})
+
 describe("Inbox entries", () => {
   it("are core's written entries once their finished turns and session id are left out", () => {
     type Written = Omit<InboxEntry, "sessionId" | "content"> & {

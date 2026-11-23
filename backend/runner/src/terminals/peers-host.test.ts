@@ -59,6 +59,22 @@ describe("what peers learn of a request waiting on the person", () => {
     expect(subject({ kind: "question", subject: "Which database?" })).toBe("Which database?")
     expect(subject({ kind: "plan", subject: "plan.md" })).toBe("plan.md")
   })
+  // A card waits on the person after `request_permit` answered, the agent's turn ended or not.
+  it("counts the shipping gate's open cards, after the harness's own requests", () => {
+    const cards = [{ askedAt: 7 }, { askedAt: 9 }]
+    expect(waitingOf({ pending: [] }, cards)).toEqual({
+      kind: "permission",
+      tool: "request_permit",
+      subject: null,
+      more: 1,
+      since: 7,
+    })
+    expect(waitingOf(null, cards.slice(1))).toMatchObject({ more: 0, since: 9 })
+    expect(waitingOf({ pending: [request({ toolName: "Edit" })] }, cards)).toMatchObject({
+      tool: "Edit",
+      more: 2,
+    })
+  })
 })
 
 const file = (path: string, secret = false) => ({ kind: "file" as const, path, secret })

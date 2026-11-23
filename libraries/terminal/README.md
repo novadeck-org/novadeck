@@ -97,7 +97,11 @@ resolve it.
     program's own exit may never come, as for a Windows kill queued until the first draw, the
     pty takes it as ended. `platform` decides all of this, so a test can play a ConPTY with a
     stand-in `native` on any system. `userScopes()` keeps each Linux program in a systemd scope
-    of its own, so an out-of-memory kill takes only it.
+    of its own, so an out-of-memory kill takes only it, and stops one its program left empty.
+    Told when an agent runs there (`agentStarted`, `agentEnded`), a pty ends what the agent left
+    in its scope as `end` runs (`left`), or by `endLeft` once its shell has exited: each tree of
+    the scope whose root started during an agent's run, but for what `apart` names
+    (`leftovers`).
   - `sampleForeground(child, last)` names the program in a terminal's foreground, cheaply
     enough to sample, from `/proc` on Linux and `ps` on macOS (Windows can't tell).
     `terminalForeground`, `processGroup`, `foregroundProcess`, `foregroundRuns`, `openFiles`,

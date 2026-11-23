@@ -116,7 +116,7 @@ describe("the seed project's files", () => {
     expect(real.seed).toContain("assets")
     // A copy without the seed's dotfile still keeps the libraries out of the repo.
     expect(Buffer.from(files[".gitignore"]!).toString()).toBe("vendor/\n")
-    // Nor does it lose the line endings' rule, which the dev server's overlay relies on.
+    // Nor does it lose the line endings' rule, which keeps a worktree's files as committed.
     expect(Buffer.from(files[".gitattributes"]!).toString()).toBe("* text=auto eol=lf\n")
   })
 

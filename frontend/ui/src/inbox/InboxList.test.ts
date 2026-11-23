@@ -260,7 +260,8 @@ describe("The Inbox's list", () => {
       inbox.arrive(permission("c", 3))
 
       expect(inbox.subjects()).toHaveLength(2)
-      expect(inbox.pill()?.textContent).toBe("1 new · show")
+      expect(inbox.pill()?.textContent).toBe("1 new")
+      expect(inbox.pill()?.getAttribute("aria-label")).toBe("Show 1 new")
       await nextFrame()
       inbox.view.unmount()
     })

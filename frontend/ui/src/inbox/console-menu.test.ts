@@ -126,6 +126,28 @@ describe("A request's receipt", () => {
     },
   )
 
+  it("names the shipping gate's card by what it asks, not the tool that raised it", () => {
+    const card: ChatRequest = {
+      ...request({
+        type: "choices",
+        id: "d",
+        title: "Land work on main?",
+        detail: "Repository: /r/.git",
+        options: [
+          { id: "allow", label: "Allow", text: null },
+          { id: "deny", label: "Deny", text: null },
+        ],
+      }),
+      tool: "request_permit",
+      subject: "Land work on main?",
+      detached: true,
+    }
+    expect(requestReceipt(card, "aster", picked("allow"))).toBe(
+      "Allowed @aster: Land work on main.",
+    )
+    expect(requestReceipt(card, "aster", picked("deny"))).toBe("Denied @aster: Land work on main.")
+  })
+
   it.each(plans)("says what %s's plan answers did", (_, options) => {
     const asked = choices(options, "plan")
     expect(requestReceipt(asked, "moth", picked(options[0]!.id))).toMatch(

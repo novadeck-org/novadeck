@@ -5,6 +5,7 @@ import { describe, expect, it } from "../test.js"
 import {
   Hibernation,
   mayHibernate,
+  readTree,
   vetoOf,
   windowsTree,
   type Facts,
@@ -121,6 +122,8 @@ describe("when an agent may be stopped to rest", () => {
     ["unbaselined", { processes: { tree: quiet().processes!.tree, baseline: undefined } }],
     ["stray", { processes: processes({ below: new Set(["20:1", "99:5"]) }) }],
     ["beside", { processes: processes({ beside: true }) }],
+    // A server it started detached, which the rest's end would end and no resume restarts.
+    ["detached", { processes: processes({ detached: true }) }],
   ]
 
   for (const [veto, change] of vetoes)
@@ -221,7 +224,11 @@ describe("an agent's place in a Windows terminal's tree", () => {
 
 /** A running terminal with an idle agent bound, as the sweep sees it, and a host that notes what it is asked. */
 const resting = (
-  change: { occupied?: () => boolean; end?: (record: Record) => Promise<void> } = {},
+  change: {
+    occupied?: () => boolean
+    end?: (record: Record) => Promise<void>
+    cards?: () => number
+  } = {},
 ) => {
   const record = {
     summary: { id: "t", handle: "moth", lastProgram: "bash" },
@@ -250,6 +257,7 @@ const resting = (
     opens: () => ({ asked: () => false }),
     sleepers: () => ({ restable: () => true }),
     detailWatched: () => false,
+    cards: change.cards,
     trees: () => ({}),
     boxHolds: async () => false,
     save: async () => void calls.push("save"),
@@ -273,6 +281,18 @@ const resting = (
     })
   return { record, calls, hibernation, rest }
 }
+
+describe("an agent the shipping gate's card waits on", () => {
+  // `request_permit` answers at once, so the agent's turn ends while the card waits: a rested
+  // terminal leaves the Inbox, and the card with it.
+  it("stays awake while a card is open, and may rest once none is", () => {
+    let cards = 1
+    const { record, hibernation } = resting({ cards: () => cards })
+    expect(vetoOf(hibernation.facts(record, 10_000), 10_000)).toBe("attention")
+    cards = 0
+    expect(vetoOf(hibernation.facts(record, 10_000), 10_000)).not.toBe("attention")
+  })
+})
 
 describe("stopping an agent that looked idle", () => {
   it("saves the screen, ends the agent, and lets the terminal rest, pinning what resumes", async () => {
@@ -328,3 +348,46 @@ describe("stopping an agent that looked idle", () => {
     expect(calls).toEqual(["save", "end"])
   })
 })
+
+describe.skipIf(process.platform === "win32")(
+  "what an agent left detached, as hibernation reads it",
+  () => {
+    // A shell 10 whose agent 20 holds its foreground, as one listing shows them.
+    const rows = [
+      { pid: 10, parent: 1, group: 10, foreground: 20, started: "100", zombie: false },
+      { pid: 20, parent: 10, group: 20, foreground: 20, started: "200", zombie: false },
+    ]
+    const recordWith = (
+      leftovers: () => Promise<readonly { pid: number; started: string }[] | undefined>,
+    ) =>
+      ({
+        terminal: { pty: { pid: 10, agentRan: true, leftovers } },
+        bound: { binding: { agent: "codex", sessionId: "s1", instance: "20" } },
+        agents: {},
+      }) as unknown as Parameters<typeof readTree>[0]
+
+    it("is told where the terminal's scope holds what its agent left", async () => {
+      const tree = await readTree(
+        recordWith(() => Promise.resolve([{ pid: 30, started: "300" }])),
+        undefined,
+        () => Promise.resolve(rows),
+        () => false,
+      )
+      expect(tree).toMatchObject({ placed: true, foreground: true, beside: false, detached: true })
+    })
+
+    it("isn't, where nothing is left or the scope can't be read, which the rest couldn't end either", async () => {
+      const trees = await Promise.all(
+        [[], undefined].map((found) =>
+          readTree(
+            recordWith(() => Promise.resolve(found)),
+            undefined,
+            () => Promise.resolve(rows),
+            () => false,
+          ),
+        ),
+      )
+      expect(trees.map((tree) => tree?.detached)).toEqual([false, false])
+    })
+  },
+)

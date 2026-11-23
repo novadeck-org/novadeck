@@ -25,6 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const reaching = [
   "chat.e2e.ts",
   "deck.ts",
+  "detached.e2e.ts",
   "doorbell.e2e.ts",
   "listing.mixed.e2e.ts",
   "person.e2e.ts",
@@ -163,6 +164,16 @@ describe("the e2e reach-ins", () => {
     // Undefined on Windows until the shell has drawn: that it's there is what counts.
     expect("pid" in inside.records.get(id)!.terminal.pty).toBe(true)
     expect(inside.trees.end).toBeTypeOf("function")
+  })
+
+  it("detached's: records, a bound session's binding and a live terminal's shell", async ({
+    resources,
+  }) => {
+    const { inside, id } = await running(resources)
+    const record = inside.records.get(id)!
+    expect(record).toHaveProperty("bound", null)
+    // Undefined on Windows until the shell has drawn: that it's there is what counts.
+    expect("pid" in record.terminal.pty).toBe(true)
   })
 
   it("scope's: records and a live terminal's shell", async ({ resources }) => {

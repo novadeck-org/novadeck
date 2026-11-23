@@ -5,9 +5,9 @@
  * `prefix_rule(... decision="allow")` lines of its rules files, Antigravity's `command(...)`
  * entries of its settings file.
  */
-import { readFile, readdir } from "node:fs/promises"
+import { readFile, readdir, stat } from "node:fs/promises"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 
 import { parseShell } from "./words.js"
 
@@ -41,20 +41,44 @@ const readJson = async (path: string): Promise<unknown> => {
   }
 }
 
-/** The allow rules Claude Code reads for a project at `cwd`, from the person's settings files. */
+/**
+ * The folders whose project files a harness started in `folder` reads: it and each folder above
+ * it up to its repository's top, the first with a `.git`; only `folder` outside a repository.
+ * Claude Code and Codex both read them so (probed 2.1.330 and 0.171.0: a rule in the launch
+ * folder's own files and one in its repository's top both count), and both read them where
+ * they started, never where a command runs.
+ */
+export const projectFolders = async (folder: string): Promise<string[]> => {
+  const start = resolve(folder)
+  const folders: string[] = []
+  for (let at = start; ; at = dirname(at)) {
+    folders.push(at)
+    // eslint-disable-next-line no-await-in-loop -- Each folder is looked at in turn, upwards.
+    const top = await stat(join(at, ".git")).then(
+      () => true,
+      () => false,
+    )
+    if (top) return folders
+    if (dirname(at) === at) return [start]
+  }
+}
+
+/** The allow rules Claude Code reads for a session started in `folder`, from the person's settings files. */
 export const claudeRules = async (
-  cwd: string,
+  folder: string,
   env: NodeJS.ProcessEnv = process.env,
   home = homedir(),
 ): Promise<AllowRule[]> => {
   const config = env.CLAUDE_CONFIG_DIR || join(home, ".claude")
   const files = [
     join(config, "settings.json"),
-    join(cwd, ".claude", "settings.json"),
-    join(cwd, ".claude", "settings.local.json"),
+    ...(await projectFolders(folder)).flatMap((each) => [
+      join(each, ".claude", "settings.json"),
+      join(each, ".claude", "settings.local.json"),
+    ]),
   ]
   const rules: AllowRule[] = []
-  for (const file of await Promise.all(files.map(readJson))) {
+  for (const file of await Promise.all([...new Set(files)].map(readJson))) {
     const allow = (file as { permissions?: { allow?: unknown } } | undefined)?.permissions?.allow
     if (!Array.isArray(allow)) continue
     for (const entry of allow) {
@@ -80,18 +104,30 @@ export const codexRulesOf = (text: string): AllowRule[] => {
   return rules
 }
 
+/**
+ * The allow rules Codex reads for a session started in `folder`: its home's rules files, and
+ * those of the project's `.codex/rules` folders.
+ */
 export const codexRules = async (
+  folder: string,
   env: NodeJS.ProcessEnv = process.env,
   home = homedir(),
 ): Promise<AllowRule[]> => {
-  const folder = join(env.CODEX_HOME || join(home, ".codex"), "rules")
-  const names = await readdir(folder).catch(() => [] as string[])
+  const folders = [
+    join(env.CODEX_HOME || join(home, ".codex"), "rules"),
+    ...(await projectFolders(folder)).map((each) => join(each, ".codex", "rules")),
+  ]
   const texts = await Promise.all(
-    names
-      .filter((name) => name.endsWith(".rules"))
-      .map((name) => readFile(join(folder, name), "utf8").catch(() => "")),
+    [...new Set(folders)].map(async (rules) => {
+      const names = await readdir(rules).catch(() => [] as string[])
+      return Promise.all(
+        names
+          .filter((name) => name.endsWith(".rules"))
+          .map((name) => readFile(join(rules, name), "utf8").catch(() => "")),
+      )
+    }),
   )
-  return texts.flatMap(codexRulesOf)
+  return texts.flat().flatMap(codexRulesOf)
 }
 
 /**

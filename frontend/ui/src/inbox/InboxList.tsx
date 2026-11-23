@@ -325,13 +325,19 @@ const InboxCountView = (): string | null => {
   return waiting === 0 ? null : `${waiting} waiting`
 }
 
-// The pill beside the title while rows wait to join the list.
+// The pill beside the title while rows wait to join the list: short, so it fits beside the
+// title and its count at the sidebar's usual width; its name says what pressing it does.
 const HeldPillView = (): React.JSX.Element | null => {
   const { held, showHeld } = useInboxContext()
   if (held.length === 0) return null
   return (
-    <button type="button" className="inbox-held text-caption" onClick={showHeld}>
-      {held.length} new · show
+    <button
+      type="button"
+      className="inbox-held text-caption"
+      aria-label={`Show ${held.length} new`}
+      onClick={showHeld}
+    >
+      {held.length} new
     </button>
   )
 }

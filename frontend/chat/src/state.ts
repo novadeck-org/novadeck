@@ -172,15 +172,17 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
       return to?.startsWith(project) ? to : undefined
     }
     const earlier = held.answering === noTerminalAnswers ? undefined : terminalsOf(before)
-    // Answered: its agent waited on the person a moment ago, and no longer does.
+    // Answered: its agent waited on the person a moment ago, and no longer does, or a dialog
+    // held it and none does now while only requests that ask without waiting stand, as the
+    // shipping gate's cards.
     const answered = (context: string, id: string): boolean => {
       const was = earlier?.get(`${context}/${id}`)
       const now = terminals.get(`${context}/${id}`)
+      if (was?.state !== "running" || was.agent?.attention === undefined) return false
+      if (now?.state !== "running") return false
       return (
-        was?.state === "running" &&
-        was.agent?.attention !== undefined &&
-        now?.state === "running" &&
-        now.agent?.attention === undefined
+        now.agent?.attention === undefined ||
+        (was.agent.attention.detached !== true && now.agent.attention.detached === true)
       )
     }
     chat.update((state) => {
