@@ -20,10 +20,17 @@ describe("classifying the input of an observed terminal", () => {
     ["a Ctrl chord", "\u0004", "key"],
     ["Ctrl+C", "\u0003", "key"],
     ["an Alt chord", "\u001bb", "key"],
+    ["a paste that starts with a tab", "\tdef f():\r\treturn 1", "text"],
+    ["a paste that starts with a line break", "\nfoo", "text"],
+    ["Alt+Shift+P", "\u001bP", "key"],
+    ["Alt+]", "\u001b]", "key"],
+    ["Shift+F3, taken for a cursor position answer", "\u001b[1;2R", "report"],
     ["a mouse report", "\u001b[<0;10;5M", "report"],
     ["a focus report", "\u001b[I", "report"],
     ["a cursor position answer", "\u001b[12;40R", "report"],
     ["a colour answer", "\u001b]10;rgb:ffff/ffff/ffff\u001b\\", "report"],
+    ["a BEL-ended OSC answer", "\u001b]11;rgb:0000/0000/0000\u0007", "report"],
+    ["a DCS answer", "\u001bP1$r0m\u001b\\", "report"],
   ])("takes %s as %s", (_name, data, kind) => {
     expect(classifyInput(data)).toBe(kind)
   })

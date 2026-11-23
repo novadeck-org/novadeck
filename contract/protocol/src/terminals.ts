@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { agentActivity, agentNameRead, agentTelemetry } from "./agents.js"
 import { directory, id } from "./fields.js"
-import { openUnion } from "./open.js"
+import { openEnum, openUnion } from "./open.js"
 import { asLine, singleLine } from "./text.js"
 
 /** The largest file a client may paste into a terminal, in bytes. */
@@ -335,7 +335,7 @@ export const terminalControl = openUnion(
     z.strictObject({
       type: z.literal("control"),
       terminalId: id,
-      holder: z.enum(["you", "other", "none"]),
+      holder: openEnum(["you", "other", "none"], { since: 6, unknown: "drop" }),
     }),
   ],
   { since: 6, unknown: "drop" },

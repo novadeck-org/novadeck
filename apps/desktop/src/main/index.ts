@@ -355,10 +355,18 @@ const windowsSaveDelayMs = 400
 let windowsTimer: ReturnType<typeof setTimeout> | undefined
 // Each window's key (see `DesktopApp.windowKey`), which it keeps for as long as it lives.
 const windowKeys = new WeakMap<BrowserWindow, string>()
+// A key for a window that has none, only while project windows are on.
+const keyWhileOn = (window: BrowserWindow): string | undefined => {
+  if (!savedWindows.current().on) return undefined
+  const key = randomUUID()
+  windowKeys.set(window, key)
+  return key
+}
 // The open windows that show a project, as they stand.
 const openWindows = (): SavedWindow[] =>
   projectWindows.list().flatMap(({ window, projectId }): SavedWindow[] => {
-    const key = windowKeys.get(window)
+    // A window opened before the switch went on gets its key here, which its page learns at the next launch.
+    const key = windowKeys.get(window) ?? keyWhileOn(window)
     return projectId === undefined || key === undefined || window.isDestroyed()
       ? []
       : [{ key, projectId, bounds: window.getNormalBounds(), maximized: window.isMaximized() }]
@@ -453,7 +461,8 @@ const createWindow = (
   } = {},
 ): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
-  const key = options.key ?? randomUUID()
+  // Only while project windows are on: with them off nothing keyed is kept.
+  const key = options.key ?? (savedWindows.current().on ? randomUUID() : undefined)
   const window = openAppWindow({
     ground: appearance.current()?.ground ?? "#ffffff",
     ink: appearance.current()?.ink,
@@ -463,7 +472,7 @@ const createWindow = (
       webglContextsArgument(webglContexts),
       ...(feedbackTo ? [`${feedbackArgumentPrefix}1`] : []),
       ...(options.extra ? [`${extraWindowArgumentPrefix}1`] : []),
-      `${windowKeyArgumentPrefix}${key}`,
+      ...(key ? [`${windowKeyArgumentPrefix}${key}`] : []),
     ],
     ...(options.bounds
       ? {
@@ -479,7 +488,7 @@ const createWindow = (
       ? { route: `/projects/${encodeURIComponent(options.projectId)}/sessions/_/_` }
       : {}),
   })
-  windowKeys.set(window, key)
+  if (key) windowKeys.set(window, key)
   projectWindows.add(window, options.projectId)
   window.on("focus", () => projectWindows.used(window))
   window.on("move", rememberWindowsSoon)

@@ -132,6 +132,32 @@ describe("a client's control of a terminal", () => {
     expect(() => app.write("second")).not.toThrow()
   })
 
+  it("is not taken straight back by the controller it was taken from", async ({ resources }) => {
+    const app = await fixture(resources)
+    await app.attach("first", "control")
+    app.follow("first")
+    await app.attach("second")
+    app.follow("second")
+    app.manager.controls.take({ terminalId: app.id }, "second")
+    // `second` hasn't written yet, but the take counts as its act.
+    expect(() =>
+      app.manager.controls.take({ terminalId: app.id, ifIdleMs: 60_000 }, "first"),
+    ).toThrow(expect.objectContaining({ code: "CONTROL_BUSY" }))
+  })
+
+  it("is taken from a creator that never attached, whether or not it follows", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources, {}, true)
+    await app.attach("viewer")
+    app.follow("viewer")
+    app.manager.controls.take({ terminalId: app.id }, "viewer")
+    expect(() => app.write("viewer")).not.toThrow()
+    expect(() => app.write("creator")).toThrow(
+      expect.objectContaining({ code: "CONTROL_REQUIRED" }),
+    )
+  })
+
   it("is taken at once from a controller that never wrote, or that is no one", async ({
     resources,
   }) => {

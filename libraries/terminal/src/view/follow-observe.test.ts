@@ -84,7 +84,29 @@ describe("following a terminal this client only observes", () => {
     const stream = observer()
     const { followed, log } = await followObserver(stream)
     stream.set("control")
-    expect(log.slice(-3)).toEqual(["strip:null", "observe:off", "resize:100x30"])
+    expect(log.slice(-2)).toEqual(["strip:null", "observe:off"])
+    await vi.waitFor(() => expect(stream.resized).toEqual(["100x30"]))
+    expect(log).toContain("resize:100x30")
+    followed.stop()
+  })
+
+  it("sends one size when it takes control, fitted once the strip is gone", async () => {
+    const stream = observer()
+    const { log, screen: base } = watching()
+    // The strip takes room until React removes it, a moment after it is told to go.
+    let stripShown = true
+    const screen: Screen = {
+      ...base,
+      fit: () => ({ cols: 100, rows: stripShown ? 29 : 30 }),
+      strip: (state) => {
+        base.strip?.(state)
+        if (state === null) setTimeout(() => (stripShown = false), 20)
+      },
+    }
+    const followed = followTerminal(optionsOf({ attach: async () => stream.attached }), key, screen)
+    await vi.waitFor(() => expect(log).toContain("write:$ "))
+    stream.set("control")
+    await new Promise((resolve) => setTimeout(resolve, 500))
     expect(stream.resized).toEqual(["100x30"])
     followed.stop()
   })
@@ -138,6 +160,36 @@ describe("following a terminal this client only observes", () => {
       followed.input(data)
       await vi.waitFor(() => expect(stream.written).toEqual([data]))
       expect(stream.taken).toEqual([2000])
+      followed.stop()
+    })
+
+    it("keeps what is typed in order when it is typed after control came but writes still wait", async () => {
+      const base = streamOf([snapshot("$ ")])
+      let mode: "control" | "observe" = "observe"
+      const listeners = new Set<(mode: "control" | "observe") => void>()
+      const attached: AttachStream = {
+        ...base.attached,
+        get mode() {
+          return mode
+        },
+        onMode: (listener) => {
+          listeners.add(listener)
+          return () => void listeners.delete(listener)
+        },
+        // Control is ours at once, but the call answers after the link's delay.
+        take: async () => {
+          mode = "control"
+          listeners.forEach((listener) => listener(mode))
+          await new Promise((resolve) => setTimeout(resolve, 60))
+        },
+      }
+      const { log, screen } = watching()
+      const followed = followTerminal(optionsOf({ attach: async () => attached }), key, screen)
+      await vi.waitFor(() => expect(log).toContain("write:$ "))
+      followed.input("h")
+      await vi.waitFor(() => expect(attached.mode).toBe("control"))
+      for (const letter of "ello") followed.input(letter)
+      await vi.waitFor(() => expect(base.written).toEqual(["h", "e", "l", "l", "o"]))
       followed.stop()
     })
 

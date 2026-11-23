@@ -2563,7 +2563,11 @@
             "properties": {
               "type": {"type":"string","const":"control"},
               "terminalId": {"type":"string","format":"uuid"},
-              "holder": {"type":"string","enum":["you","other","none"]}
+              "holder": {
+                "type": "string",
+                "enum": ["you","other","none"],
+                "x-open": {"since":6,"unknown":"drop"}
+              }
             },
             "required": ["type","terminalId","holder"],
             "additionalProperties": false

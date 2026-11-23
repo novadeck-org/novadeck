@@ -289,6 +289,71 @@ describe("an attached terminal's control", () => {
     expect(heard.slice(-3)).toEqual(["control", "observe", "control"])
   })
 
+  it("follows the control news from connect, before anything is attached", async () => {
+    let opened = 0
+    const { runner } = await fakeRunner({
+      terminals: {
+        controls: api.terminals.controls.handler(async function* () {
+          opened += 1
+          yield* []
+          await never
+        }),
+      },
+    })
+    expect(runner.supports("terminals.controls")).toBe(true)
+    await vi.waitFor(() => expect(opened).toBe(1))
+  })
+
+  it("takes control at once when the news says nobody holds it, and lives with a refusal", async () => {
+    const terminalId = crypto.randomUUID()
+    const taken: unknown[] = []
+    let refuse = false
+    let tell: (who: "other" | "none") => void = () => {}
+    const { runner } = await fakeRunner({
+      terminals: {
+        attach: api.terminals.attach.handler(async function* ({ input }) {
+          yield { terminalId, type: "attached", mode: input.mode ?? "control" } as const
+          await never
+        }),
+        ack: api.terminals.ack.handler(() => {}),
+        controls: api.terminals.controls.handler(async function* () {
+          const queue: ReturnType<typeof holder>[] = []
+          let wake = () => {}
+          tell = (who) => {
+            queue.push(holder(terminalId, who))
+            wake()
+          }
+          while (true) {
+            if (queue.length) yield queue.shift()!
+            // eslint-disable-next-line no-await-in-loop -- Waits for the test's next news.
+            else await new Promise<void>((resolve) => (wake = resolve))
+          }
+        }),
+        take: api.terminals.take.handler(({ input }) => {
+          taken.push(input)
+          if (refuse) throw new ORPCError("CONTROL_BUSY", { status: 409 })
+        }),
+      },
+    })
+    const terminal = await runner.terminals.attach(terminalId, { mode: "control-else-observe" })
+    onTestFinished(() => terminal.detach())
+    await vi.waitFor(() => expect(tell).not.toBe(undefined))
+    tell("other")
+    await vi.waitFor(() => expect(terminal.mode).toBe("observe"))
+    expect(taken).toEqual([])
+    tell("none")
+    await vi.waitFor(() => expect(terminal.mode).toBe("control"))
+    // No idle limit.
+    expect(taken).toEqual([{ terminalId }])
+
+    refuse = true
+    tell("other")
+    await vi.waitFor(() => expect(terminal.mode).toBe("observe"))
+    tell("none")
+    await vi.waitFor(() => expect(taken).toHaveLength(2))
+    expect(terminal.mode).toBe("observe")
+  })
+
   it("keeps the take refusal's code, and stays observing", async () => {
     const terminalId = crypto.randomUUID()
     const { runner } = await fakeRunner({

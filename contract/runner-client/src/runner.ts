@@ -927,8 +927,14 @@ export const connectRunner = async (
   // runner tells (`terminals.controls`): one stream for the connection, which opens again after
   // each reconnection and sets the mode of the attachments it names.
   const supportsControls = (): boolean => serves(contract, ["terminals", "controls"], current())
-  const joined = new Map<string, Set<(mode: TerminalMode) => void>>()
-  const latest = new Map<string, { readonly mode: TerminalMode; readonly at: number }>()
+  const joined = new Map<
+    string,
+    Set<(mode: TerminalMode, holder: "you" | "other" | "none") => void>
+  >()
+  const latest = new Map<
+    string,
+    { readonly mode: TerminalMode; readonly holder: "you" | "other" | "none"; readonly at: number }
+  >()
   let controlEvents = 0
   let controlling = false
   const followControls = (): void => {
@@ -943,8 +949,8 @@ export const connectRunner = async (
           if (event.type !== "control") continue
           controlEvents += 1
           const mode = event.holder === "you" ? "control" : "observe"
-          latest.set(event.terminalId, { mode, at: controlEvents })
-          for (const set of joined.get(event.terminalId) ?? []) set(mode)
+          latest.set(event.terminalId, { mode, holder: event.holder, at: controlEvents })
+          for (const set of joined.get(event.terminalId) ?? []) set(mode, event.holder)
         }
       } catch {
         // The connection ended for good: modes stay as they were.
@@ -961,13 +967,16 @@ export const connectRunner = async (
       joined.set(id, members)
       // News that came while the attachment was being granted.
       const known = latest.get(id)
-      if (known && known.at > since) set(known.mode)
+      if (known && known.at > since) set(known.mode, known.holder)
       return () => {
         members.delete(set)
         if (members.size === 0 && joined.get(id) === members) joined.delete(id)
       }
     },
   }
+  // Control-aware from the start, so a client that makes a terminal before attaching anything is
+  // handed control when another lets go.
+  if (supportsControls()) followControls()
   return {
     get status() {
       return connection.status.value

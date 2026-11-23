@@ -1334,6 +1334,17 @@ describe("control of a terminal between clients", () => {
       ).rejects.toMatchObject({ code: "CONTROL_REQUIRED" })
     })
 
+    it("is not changed by a client saying it uses no terminal, as a window losing focus does", async ({
+      resources,
+    }) => {
+      const { terminal, older, used, viewing, feeds } = await trio(resources)
+      await older.client.terminals.active({ terminalId: null })
+      await viewing.stream.return()
+      expect(await feeds.used.next()).toEqual(control(terminal.id, "you"))
+      expect(await feeds.older.next()).toEqual(control(terminal.id, "other"))
+      await print(used.client, terminal.id, "HANDED_", "BLUR")
+    })
+
     it("on disconnecting, goes the same way", async ({ resources }) => {
       const { terminal, first, used, feeds } = await trio(resources)
       await first.disconnect()

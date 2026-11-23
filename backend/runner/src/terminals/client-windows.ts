@@ -12,6 +12,8 @@ export type Choose = (owners: readonly string[]) => string | undefined
 export class ClientWindows {
   /** Each reporting client's project and when it was last used. */
   private readonly clients = new Map<string, { projectId: string; usedAt: number }>()
+  /** Clients used before their first report, which then counts as use. */
+  private readonly early = new Set<string>()
   /** Counts uses, so "last" needs no clock. */
   private uses = 0
 
@@ -24,14 +26,21 @@ export class ClientWindows {
    * from now on, as a client does with project windows off.
    */
   report(client: string, projectId: string | null): void {
-    if (projectId === null) this.clients.delete(client)
-    else this.clients.set(client, { projectId, usedAt: this.clients.has(client) ? ++this.uses : 0 })
+    if (projectId === null) {
+      this.clients.delete(client)
+      this.early.delete(client)
+      return
+    }
+    // A client used before it reported (the adapter sends `active` first) was used.
+    const used = this.clients.has(client) || this.early.delete(client)
+    this.clients.set(client, { projectId, usedAt: used ? ++this.uses : 0 })
   }
 
   /** A reporting client was used, as when it says which terminal its person uses. */
   touch(client: string): void {
     const known = this.clients.get(client)
     if (known) known.usedAt = ++this.uses
+    else this.early.add(client)
   }
 
   /**
@@ -51,6 +60,7 @@ export class ClientWindows {
   /** The client has gone. */
   release(client: string): void {
     this.clients.delete(client)
+    this.early.delete(client)
   }
 
   /** The choice for a request made by a terminal of `sessionId`. */

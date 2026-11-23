@@ -66,12 +66,16 @@ export class Controls {
     if (!terminal.attachment(owner)) throw new DomainError("CONFLICT")
     const { controller } = terminal
     if (controller !== undefined && controller !== owner) {
-      if (!this.follows(controller)) throw new DomainError("CONTROL_IN_USE")
+      // A controller with no attachment of its own, a creator not yet attached, can be taken from.
+      if (terminal.attachment(controller) && !this.follows(controller))
+        throw new DomainError("CONTROL_IN_USE")
       const last = this.writes.get(terminal)
       if (ifIdleMs !== undefined && last?.owner === controller && Date.now() - last.at < ifIdleMs)
         throw new DomainError("CONTROL_BUSY")
     }
     terminal.take(owner)
+    // A take is the new controller's act: the one before may not take it straight back.
+    if (controller !== owner) this.wrote(terminal, owner)
   }
 
   /**

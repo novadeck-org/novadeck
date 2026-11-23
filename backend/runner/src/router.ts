@@ -313,7 +313,7 @@ export const createRouter = (options: {
         terminals.controls.follow(context.session.id, signal),
       ),
       active: api.terminals.active.handler(({ input, context }) => {
-        options.clients?.touch(context.session.id)
+        if (input.terminalId !== null) options.clients?.touch(context.session.id)
         options.activity?.report(context.session.id, input.terminalId)
       }),
       showing: api.terminals.showing.handler(({ input, context }) =>

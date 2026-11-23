@@ -176,6 +176,25 @@ describe("a client's use", () => {
     expect(clients.lastUsed(["stranger"])).toBeUndefined()
   })
 
+  it("counts a use from before its first report, as the adapter sends `active` first", () => {
+    const clients = windows()
+    clients.report("steady", "p1")
+    clients.touch("steady")
+    clients.touch("early")
+    clients.report("early", "p1")
+    expect(clients.lastUsed(["steady", "early"])).toBe("early")
+    // A background client reports null instead, and starts least used.
+    clients.touch("background")
+    clients.report("background", null)
+    clients.report("background", "p1")
+    expect(clients.lastUsed(["early", "background"])).toBe("early")
+    // The early use lapses with the client.
+    clients.touch("gone")
+    clients.release("gone")
+    clients.report("gone", "p1")
+    expect(clients.lastUsed(["early", "gone"])).toBe("early")
+  })
+
   it("starts over once the client said nothing of any project", () => {
     const clients = windows()
     clients.report("a", "p1")

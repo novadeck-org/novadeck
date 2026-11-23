@@ -118,6 +118,10 @@ const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 // How long an attach refused as busy is asked for before the owner is told it waits.
 export const busyToldMs = 4_000
 
+// How long a client that just became the controller waits for its frame to settle (the strip
+// unmounting resizes it, which fits again after the screens' own settle of 120 ms).
+const becomingMs = 200
+
 const redrawMs = { first: 250, most: 5_000, apart: 60_000 }
 
 // Attaches to the terminal, draws what it sends, and passes input and size back until
@@ -138,6 +142,8 @@ export const followTerminal = <K>(
     stop = resolve
   })
   let attachment: AttachStream | undefined
+  // The wait before a new controller fits its frame.
+  let becoming: ReturnType<typeof setTimeout> | undefined
   let sent: string | undefined
   // Resolves once the stream may attach, as it may unless parked.
   let unparked: Promise<void> | undefined
@@ -254,6 +260,7 @@ export const followTerminal = <K>(
     // The stream's mode is live: control passes between clients while it is followed.
     const syncMode = (): void => {
       if (attachment !== attached) return
+      clearTimeout(becoming)
       if (attached.mode === "observe") {
         screen.strip?.(busy ? "busy" : "observing")
         if (ptySize) drawAt(ptySize)
@@ -261,9 +268,14 @@ export const followTerminal = <K>(
       }
       screen.strip?.(null)
       screen.observe?.(null)
-      // The new controller fits the frame and says so, whatever size it last sent.
+      // The new controller fits the frame and says so, whatever size it last sent: once the
+      // strip is gone from it and the frame has settled, not while the strip still takes its
+      // room, which would send a size and then another. The frame's own resize, when it comes
+      // first, sends the same size, so this one finds nothing more to send.
       sent = undefined
-      refit()
+      becoming = setTimeout(() => {
+        if (attachment === attached && attached.mode === "control") refit()
+      }, becomingMs)
     }
     const unwatchMode = attached.onMode?.(() => {
       busy = false
@@ -344,6 +356,7 @@ export const followTerminal = <K>(
     } finally {
       release?.()
       unwatchMode?.()
+      clearTimeout(becoming)
       attachment = undefined
       screen.strip?.(null)
       screen.observe?.(null)
@@ -423,37 +436,46 @@ export const followTerminal = <K>(
     previous = state
     if (back && attachment) void resume(attachment)
   })
-  // Input that asks for the keyboard waits its turn, so what is typed lands in order.
+  // Input that asks for the keyboard waits its turn, and so does whatever is typed while any of it
+  // is still waiting, even after control has come, so what is typed lands in order.
   let queue: Promise<void> = Promise.resolve()
-  const takeover = (stream: AttachStream, data: string): void => {
+  let waiting = 0
+  const enqueue = (stream: AttachStream, data: string): void => {
     const kind = classifyInput(data)
-    if (kind === "report") return
+    // The emulator's own reports go to a controller alone.
+    if (kind === "report" && stream.mode === "observe") return
+    waiting += 1
     queue = queue.then(async () => {
-      if (attachment !== stream) return
-      let took = false
-      if (stream.mode === "observe") {
-        try {
-          await stream.take?.({ ifIdleMs: takeIdleMs })
-        } catch {
-          // The controller is typing, or can't be told: nothing is delivered.
-          busy = true
-          if (attachment === stream) screen.strip?.("busy")
-          return
+      try {
+        if (attachment !== stream) return
+        let took = false
+        if (stream.mode === "observe") {
+          if (kind === "report") return
+          try {
+            await stream.take?.({ ifIdleMs: takeIdleMs })
+          } catch {
+            // The controller is typing, or can't be told: nothing is delivered.
+            busy = true
+            if (attachment === stream) screen.strip?.("busy")
+            return
+          }
+          // The mode changes as the take lands, out of this function's sight.
+          if ((stream.mode as string) !== "control") return
+          took = true
         }
-        // The mode changes as the take lands, out of this function's sight.
-        if ((stream.mode as string) !== "control") return
-        took = true
+        // A key that took control is not delivered; the next one goes through.
+        if (took && kind === "key") return screen.took?.()
+        await stream.write(data).catch(() => {})
+      } finally {
+        waiting -= 1
       }
-      // A key that took control is not delivered; the next one goes through.
-      if (took && kind === "key") return screen.took?.()
-      await stream.write(data).catch(() => {})
     })
   }
   return {
     input: (data) => {
       const entry = lifecycle(key)
       if (!attachment || !entry || entry.closed) return
-      if (attachment.mode === "observe") return takeover(attachment, data)
+      if (attachment.mode === "observe" || waiting > 0) return enqueue(attachment, data)
       void attachment.write(data).catch(() => {})
     },
     take: () => {
@@ -483,6 +505,7 @@ export const followTerminal = <K>(
     },
     stop: () => {
       unsubscribe()
+      clearTimeout(becoming)
       stopped = true
       stop?.()
       const attached = attachment

@@ -1612,8 +1612,9 @@ the UI store's `windows`); the page decides at once what an action does:
   the last window closing keeps the list as it stood before. Off, launch is as it was. Two windows on one
   project are two entries, so both reopen.
 - **Window keys.** Each window has a key, a UUID kept in `windows.json` beside its project and bounds (an
-  older entry gets one at load, written back at once), the same across relaunches; a new window gets a new
-  one. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
+  older entry gets one at load, written back at once), the same across relaunches; a window created while
+  project windows are on gets a new one. With them off a window has none, so nothing keyed is written; one
+  opened before the switch went on stays keyless until the next launch. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as
   `DesktopApp.windowKey`; a browser has none. The page keeps what is one window's own under it in
   `localStorage`: the view of a session (`novadeck:session-view:<key>:<sessionId>`, read before the device's
   `novadeck:session-view:<sessionId>`, and written to both so a new window starts from the view used last;
@@ -1624,9 +1625,10 @@ the UI store's `windows`); the page decides at once what an action does:
 - **Use.** The page tells the runner which terminal the window uses (`terminals.active`, which counts as the
   window used last) as the terminal changes, and again, at most once a second, when the window gains focus and
   on keys and pointer presses (`watchActiveTerminal`).
-- **Known limit.** "The window used last" (what a request with no window for its project goes to) moves
-  with the runner's `showing` and `active` reports, not with focus: a background window that reconnects
-  and reports becomes the last used, and a client that never reports (a `dev:web` tab) is never chosen.
+- **Known limit.** "The window used last" (what a request with no window for its project goes to) follows
+  the window the person focuses or types in (its `active` report, re-sent on focus and input), or last
+  showed a project (`showing`); a null `active` is not use. A client that never reports (a `dev:web` tab)
+  is never chosen.
 - **Title.** The document's title names the project while project windows are on, which the window shows.
 
 Preferences are one `localStorage` shared by the windows, which follow each other's changes through

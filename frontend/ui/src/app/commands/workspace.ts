@@ -82,11 +82,11 @@ export type WorkspaceCommands = ShellCommands &
     // What another client removed. Where it was the session or project on screen, the person
     // moves on as their own removal would take them, and is told what went and where they are.
     readonly removedElsewhere: (actions: readonly RemovedElsewhere[]) => void
-    // Shows a project: the person's pick. With project windows on, one another window shows is
-    // swapped with this window's.
+    // Shows a project: the person's pick. Even one another window shows is shown here, and
+    // that window stays as it is.
     readonly switchProject: (next: Project) => void
     // Goes where another window sent this one: the project, and its terminal when it names one,
-    // as they are now, with no swap and no hand-off, which only the person's own action makes.
+    // as they are now, with no hand-off back, which only the person's own action makes.
     readonly showProjectHere: (target: ProjectWindowTarget) => Promise<void>
     // Asks the backend for a folder and opens it as a new project; no-op without one.
     readonly openFolder: () => Promise<void>

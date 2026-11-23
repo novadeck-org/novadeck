@@ -344,7 +344,7 @@ const bridge = {
   openProjectWindow: (projectId) => {
     if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowOpenChannel, projectId)
   },
-  // Only one of the three answers comes back.
+  // Only a valid place goes to the app, which routes it to the window that takes it.
   handOffToProjectWindow: (target) => {
     const place = parseProjectWindowTarget(target)
     if (place) ipcRenderer.send(projectWindowHandOffChannel, place)

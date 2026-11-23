@@ -17,7 +17,11 @@ export type AttachMode = TerminalMode | "control-else-observe"
 /** Where the runner's `terminals.controls` news reaches the attachments of one connection. */
 export type ControlHub = {
   /** Registers an attachment; the returned function removes it. */
-  readonly join: (id: string, since: number, set: (mode: TerminalMode) => void) => () => void
+  readonly join: (
+    id: string,
+    since: number,
+    set: (mode: TerminalMode, holder: "you" | "other" | "none") => void,
+  ) => () => void
   /** What `join` takes as `since`: a count that rises with each control event. */
   readonly now: () => number
 }
@@ -131,7 +135,7 @@ export const attachTerminal = async (
   const granted = await read()
   if (granted.done) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
   if (granted.value.type === "attached") mode = granted.value.mode
-  const leave = hub?.join(id, since, (next) => setMode(next))
+  let leave: (() => void) | undefined
   // The session to send input on, or why this attachment may not send any.
   const inputSession = (requireControl = true): Session<typeof contract> => {
     if (stream.finished === "ended") throw new WireError<RunnerErrorCode>("TERMINAL_EXITED")
@@ -209,5 +213,12 @@ export const attachTerminal = async (
       await stream.return()
     },
   }
+  // Where the runner tells who controls, nobody doing so is the moment to take it: a controller
+  // lost to a slow link, or one that let go between the refused control attach and the observe
+  // attach. A refusal (someone took it first) leaves the attachment observing.
+  leave = hub?.join(id, since, (next, holder) => {
+    setMode(next)
+    if (holder === "none" && wanted === "control-else-observe") void terminal.take().catch(() => {})
+  })
   return terminal
 }
