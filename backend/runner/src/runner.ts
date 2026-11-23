@@ -707,6 +707,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       // hooks, so they are written again, and a Codex copy that differs is installed again.
       shipping,
       shippingSwitched: () => {
+        // Switched off, its open cards and permits end, and the terminals' summaries say so.
         shipping.switched()
         void shellFiles
           .then(() => rewriteShellFiles())

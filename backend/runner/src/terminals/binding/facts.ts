@@ -61,13 +61,10 @@ export type BindingsHost = {
   readonly save: (record: Record) => void
   /** Tells the terminal's detail readers of a change. */
   readonly detailed: (record: Record) => void
-  /**
-   * What the shipping gate holds in a terminal: its cards open there and its permits standing;
-   * none without the gate.
-   */
-  readonly held?: (
-    terminalId: string,
-  ) => { readonly cards: readonly unknown[]; readonly permits: readonly unknown[] } | undefined
+  /** How many of the shipping gate's cards are open in a terminal; none without the gate. */
+  readonly cards?: (terminalId: string) => number
+  /** How many of the shipping gate's permits stand in a terminal; none without the gate. */
+  readonly permits?: (terminalId: string) => number
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (
     record: Record,
@@ -712,11 +709,9 @@ export class Bindings {
         : signedOutEnded
           ? null
           : record.summary.startup
-    const held = this.host.held?.(record.summary.id)
-    const activity = bound
-      ? withCards(activitySummary(bound.activity), held?.cards.length ?? 0)
-      : null
-    const permits = held?.permits.length ?? 0
+    const cards = this.host.cards?.(record.summary.id) ?? 0
+    const activity = bound ? withCards(activitySummary(bound.activity), cards) : null
+    const permits = this.host.permits?.(record.summary.id) ?? 0
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
     // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended
@@ -761,8 +756,9 @@ export class Bindings {
 
   /**
    * The shipping gate's cards or permits changed in the terminal: its detail lists them, and its
-   * summary counts each open card as a request waiting on the person and says how many permits
-   * stand, so a client follows the detail where either is.
+   * summary counts each open card as a request waiting on the person, which is what a client
+   * follows to read the detail, list the card in the Inbox and mark the tab, and says how many
+   * permits stand, so a client follows the detail where some do.
    */
   publishGate(record: Record): void {
     this.publishAgent(record, false)

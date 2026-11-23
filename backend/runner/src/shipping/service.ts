@@ -326,6 +326,11 @@ export class Shipping {
     return this.host.enabled()
   }
 
+  /** The cards open in a terminal, oldest first; none while the gate is off. */
+  cardsOf(terminalId: string): readonly Card[] {
+    return this.host.enabled() ? this.cards.of(terminalId) : []
+  }
+
   /**
    * Whether the gate is on and covers `agent`'s harness: all three, but for Antigravity where it
    * has no PreToolUse hook (Windows, where cmd prints before hooks): nothing is refused there, so
@@ -613,7 +618,7 @@ export class Shipping {
       until: permit.until,
       usedAt: permit.usedAt,
     }))
-    return { cards: this.cards.of(terminalId), permits }
+    return { cards: this.cardsOf(terminalId), permits }
   }
 
   /**

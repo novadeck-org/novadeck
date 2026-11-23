@@ -479,7 +479,8 @@ export class Terminals {
       announce: (record) => this.announce(record),
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),
-      held: (id) => this.options.shipping?.held(id),
+      cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
+      permits: (id) => this.options.shipping?.held(id).permits.length ?? 0,
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
@@ -606,7 +607,7 @@ export class Terminals {
         opens: () => this.opens,
         sleepers: () => this.sleepers,
         detailWatched: (id) => this.streams.detailWatched(id),
-        cards: (id) => this.options.shipping?.held(id).cards.length ?? 0,
+        cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
         trees: () => this.trees,
         boxHolds: (record) => this.typing.boxHolds(record.summary.id),
         save: (record) => this.saves.saveNow(record),
@@ -711,7 +712,7 @@ export class Terminals {
       former: (sessionId, handle, before) =>
         this.history.lastHolder(this.projectOf(sessionId), handle, before),
       hostLoad: this.load.listing,
-      cards: (id) => this.options.shipping?.held(id).cards ?? [],
+      cards: (id) => this.options.shipping?.cardsOf(id) ?? [],
     })
     this.murmur = options.describer
       ? new Murmur(

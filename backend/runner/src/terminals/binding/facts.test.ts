@@ -15,11 +15,16 @@ import { Bindings, type BindingsHost } from "./facts.js"
  */
 const noReports = { reports: () => ({ tell: null, done: null }) }
 
-const bindings = (shown?: AgentName, held?: BindingsHost["held"]) => {
+const bindings = (
+  shown?: AgentName,
+  cards?: BindingsHost["cards"],
+  permits?: BindingsHost["permits"],
+) => {
   const announce = vi.fn<(record: Record) => void>()
   const detailed = vi.fn<(record: Record) => void>()
   const host = {
-    held,
+    cards,
+    permits,
     messaging: () => ({
       shownAgent: () => shown,
       inboxOwner: () => undefined,
@@ -675,7 +680,15 @@ describe("following a bound session's subagents in their own sources", () => {
 describe("the shipping gate in a terminal's summary", () => {
   const gate = () => {
     const held = { cards: [] as unknown[], permits: [] as unknown[] }
-    const { bindings: ends, announce, detailed } = bindings(undefined, () => held)
+    const {
+      bindings: ends,
+      announce,
+      detailed,
+    } = bindings(
+      undefined,
+      () => held.cards.length,
+      () => held.permits.length,
+    )
     return { ends, held, announce, detailed }
   }
 
@@ -759,7 +772,7 @@ describe("the shipping gate in a terminal's summary", () => {
       owned: { ofTerminal: () => [], all: () => [] },
       notify: () => true,
     })
-    const { bindings: ends, announce } = bindings(undefined, (id) => shipping.held(id))
+    const { bindings: ends, announce } = bindings(undefined, (id) => shipping.cardsOf(id).length)
     const shown = record()
     shipping.attach(new Map([["t1", shown]]), (each) => ends.publishGate(each))
     const waiting = () => shown.summary.activity?.attention.pending ?? 0
@@ -790,7 +803,7 @@ describe("the shipping gate in a terminal's summary", () => {
       owned: { ofTerminal: () => [], all: () => [] },
       notify: () => true,
     })
-    const { bindings: ends } = bindings(undefined, (id) => shipping.held(id))
+    const { bindings: ends } = bindings(undefined, (id) => shipping.cardsOf(id).length)
     const shown = record()
     shipping.attach(new Map([["t1", shown]]), (each) => ends.publishGate(each))
     const waiting = () => shown.summary.activity?.attention.pending ?? 0
@@ -803,10 +816,35 @@ describe("the shipping gate in a terminal's summary", () => {
     expect(waiting()).toBe(0)
     expect(shipping.cards.find("t1", card.id)).toBeUndefined()
 
-    // An agent that left takes its card with it.
+    // Suspended (Ctrl+Z) or disconnected, no session is bound: the card waits for it to come
+    // back, hidden as the summary shows no agent, and another session ends it.
     shipping.cards.ask("t1", ["land:r/app:main"], false, "Land work on main?", "")
-    expect(shipping.held("t1").cards).toHaveLength(1)
+    const bound = shown.bound!
     shown.bound = null
-    expect(shipping.held("t1").cards).toHaveLength(0)
+    expect(shipping.cardsOf("t1")).toHaveLength(1)
+    shown.bound = bound
+    expect(shipping.cardsOf("t1")).toHaveLength(1)
+    shown.bound = { ...bound, binding: { ...bound.binding, sessionId: "s3" } }
+    expect(shipping.cardsOf("t1")).toHaveLength(0)
+  })
+
+  it("closes every card as the gate is switched off, so none waits or comes back", () => {
+    let enabled = true
+    const shipping = new Shipping({
+      enabled: () => enabled,
+      owned: { ofTerminal: () => [], all: () => [] },
+      notify: () => true,
+    })
+    const { bindings: ends } = bindings(undefined, (id) => shipping.cardsOf(id).length)
+    const shown = record()
+    shipping.attach(new Map([["t1", shown]]), (each) => ends.publishGate(each))
+    shipping.cards.ask("t1", ["land:r/app:main"], false, "Land work on main?", "")
+    expect(shown.summary.activity?.attention.pending).toBe(1)
+
+    enabled = false
+    shipping.switched()
+    expect(shown.summary.activity?.attention.pending).toBe(0)
+    enabled = true
+    expect(shipping.cardsOf("t1")).toEqual([])
   })
 })
