@@ -15,3 +15,7 @@ export const pasteNotice =
 
 // What a copy from a terminal tells the person once it is on the clipboard.
 export const copiedNotice = "Copied"
+
+// What a key that took control of an observed terminal tells the person, as the key itself was
+// not sent.
+export const tookNotice = "You have the keyboard now"

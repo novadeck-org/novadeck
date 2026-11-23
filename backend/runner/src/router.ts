@@ -306,6 +306,12 @@ export const createRouter = (options: {
           signal,
         ),
       ),
+      take: api.terminals.take.handler(({ input, context }) =>
+        terminals.controls.take(input, context.session.id),
+      ),
+      controls: api.terminals.controls.handler(({ context, signal }) =>
+        terminals.controls.follow(context.session.id, signal),
+      ),
       active: api.terminals.active.handler(({ input, context }) => {
         options.clients?.touch(context.session.id)
         options.activity?.report(context.session.id, input.terminalId)

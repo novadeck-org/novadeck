@@ -1,9 +1,23 @@
-import { afterEach } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { deviceView, keepDeviceView, withDeviceView } from "./views"
+import {
+  deviceView,
+  keepDeviceView,
+  keepWindowSession,
+  windowSession,
+  withDeviceView,
+} from "./views"
 
-afterEach(() => localStorage.clear())
+afterEach(() => {
+  localStorage.clear()
+  vi.unstubAllGlobals()
+})
+
+const keyA = "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b"
+const keyB = "9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
+// As the desktop app gives a window its key.
+const inWindow = (key: string): void => void vi.stubGlobal("novadeck", { windowKey: key })
 
 const saved = {
   state: {
@@ -41,5 +55,69 @@ describe("a device's own view of a session", () => {
     expect(deviceView("s3")).toBeUndefined()
     localStorage.setItem("novadeck:session-view:s4", "nope")
     expect(deviceView("s4")).toBeUndefined()
+  })
+
+  it("keeps a browser's view under the device's key alone", () => {
+    keepDeviceView("s5", { view: "grid", windowedView: "grid", selected: "a" })
+    expect(Object.keys(localStorage)).toEqual(["novadeck:session-view:s5"])
+  })
+})
+
+describe("a window's own view of a session", () => {
+  const grid = { view: "grid", windowedView: "grid", selected: "a" } as const
+  const canvas = { view: "canvas", windowedView: "canvas", selected: "b" } as const
+
+  it("is written with the device's, so a new window starts from the view used last", () => {
+    inWindow(keyA)
+    keepDeviceView("s1", canvas)
+    expect(localStorage.getItem(`novadeck:session-view:${keyA}:s1`)).toContain("canvas")
+    expect(localStorage.getItem("novadeck:session-view:s1")).toContain("canvas")
+    inWindow(keyB)
+    expect(deviceView("s1")).toEqual(canvas)
+  })
+
+  it("is read before the device's, and each window keeps its own", () => {
+    inWindow(keyA)
+    keepDeviceView("s1", grid)
+    inWindow(keyB)
+    keepDeviceView("s1", canvas)
+    inWindow(keyA)
+    expect(deviceView("s1")).toEqual(grid)
+    inWindow(keyB)
+    expect(deviceView("s1")).toEqual(canvas)
+    expect(withDeviceView("s1", saved)?.state).toMatchObject({ view: "canvas", selected: "b" })
+  })
+
+  it("falls back to the device's view, then the shared state's", () => {
+    keepDeviceView("s1", grid)
+    inWindow(keyB)
+    expect(deviceView("s1")).toEqual(grid)
+    expect(withDeviceView("s9", saved)).toBe(saved)
+  })
+
+  it("ignores a key that is not one", () => {
+    vi.stubGlobal("novadeck", { windowKey: "../x" })
+    keepDeviceView("s1", grid)
+    expect(Object.keys(localStorage)).toEqual(["novadeck:session-view:s1"])
+  })
+})
+
+describe("the session a window shows in a project", () => {
+  it("is kept per window and project, and read back", () => {
+    inWindow(keyA)
+    keepWindowSession("p1", "s1")
+    inWindow(keyB)
+    keepWindowSession("p1", "s2")
+    expect(windowSession("p1")).toBe("s2")
+    expect(windowSession("p2")).toBeUndefined()
+    inWindow(keyA)
+    expect(windowSession("p1")).toBe("s1")
+    expect(localStorage.getItem(`novadeck:window-session:${keyA}:p1`)).toBe("s1")
+  })
+
+  it("is kept by no window without a key, as in a browser", () => {
+    keepWindowSession("p1", "s1")
+    expect(windowSession("p1")).toBeUndefined()
+    expect(localStorage.length).toBe(0)
   })
 })

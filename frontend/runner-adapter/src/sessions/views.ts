@@ -1,5 +1,6 @@
 import type { RestoredView } from "@novadeck/core/seed"
 import type { ViewMode, WindowedView } from "@novadeck/core/types"
+import { desktopApp, windowKeyOf } from "@novadeck/protocol/bridge"
 
 import type { SavedSession } from "./state"
 
@@ -8,14 +9,23 @@ import type { SavedSession } from "./state"
 // these apart, so one's selection never moves another's; this page keeps them, by session,
 // in its storage. Saves go on writing them into the shared state too, for builds that read
 // them from there, and a device with none of its own reads those.
+//
+// A desktop window has a key (see `DesktopApp.windowKey`), and two windows may show one
+// session, so each keeps its own view under its key as well, which it reads first; the device's
+// is the one used last, where a new window starts from. Without a key (a browser) only the
+// device's is kept.
 export type DeviceView = Pick<RestoredView, "view" | "windowedView" | "selected">
 
 /** The fields of a saved state's `state` that are a device's own. */
 export const viewKeys = ["view", "windowedView", "selected"] as const
 
 const prefix = "novadeck:session-view:"
+const windowSessionPrefix = "novadeck:window-session:"
 const views: ReadonlySet<unknown> = new Set(["focus", "grid", "canvas"])
 const windowed: ReadonlySet<unknown> = new Set(["grid", "canvas"])
+
+/** This window's key, where the desktop app gave it one. */
+const windowKey = (): string | undefined => windowKeyOf(desktopApp()?.windowKey)
 
 const storage = (): Storage | undefined => {
   try {
@@ -39,25 +49,58 @@ export const viewOf = (saved: unknown): DeviceView | undefined =>
     ? readView((saved as { readonly state?: unknown }).state)
     : undefined
 
-/** This device's view of the session, if it kept one. */
-export const deviceView = (sessionId: string): DeviceView | undefined => {
+const readStored = (key: string): DeviceView | undefined => {
   try {
-    const text = storage()?.getItem(prefix + sessionId)
+    const text = storage()?.getItem(key)
     return text ? readView(JSON.parse(text)) : undefined
   } catch {
     return undefined
   }
 }
 
-/** Keeps this device's view of the session, as a save writes it. */
+/** This window's view of the session if it kept one, else this device's. */
+export const deviceView = (sessionId: string): DeviceView | undefined => {
+  const key = windowKey()
+  return (key && readStored(`${prefix}${key}:${sessionId}`)) || readStored(prefix + sessionId)
+}
+
+/** Keeps this window's view of the session, and the device's, as a save writes it. */
 export const keepDeviceView = (sessionId: string, view: DeviceView): void => {
+  const text = JSON.stringify({
+    view: view.view,
+    windowedView: view.windowedView,
+    selected: view.selected,
+  })
+  const key = windowKey()
+  for (const name of key
+    ? [`${prefix}${key}:${sessionId}`, prefix + sessionId]
+    : [prefix + sessionId]) {
+    try {
+      storage()?.setItem(name, text)
+    } catch {
+      // Storage refused, as a private window may: the shared state's view stands in.
+    }
+  }
+}
+
+/** The session this window showed last in the project, if it has a key and kept one. */
+export const windowSession = (projectId: string): string | undefined => {
+  const key = windowKey()
   try {
-    storage()?.setItem(
-      prefix + sessionId,
-      JSON.stringify({ view: view.view, windowedView: view.windowedView, selected: view.selected }),
-    )
+    return (key && storage()?.getItem(`${windowSessionPrefix}${key}:${projectId}`)) || undefined
   } catch {
-    // Storage refused, as a private window may: the shared state's view stands in.
+    return undefined
+  }
+}
+
+/** Keeps the session this window shows in the project; nothing without a window key. */
+export const keepWindowSession = (projectId: string, sessionId: string): void => {
+  const key = windowKey()
+  if (!key) return
+  try {
+    storage()?.setItem(`${windowSessionPrefix}${key}:${projectId}`, sessionId)
+  } catch {
+    // Storage refused: the project opens on the session visited last.
   }
 }
 

@@ -119,30 +119,19 @@ export type DesktopBridge = {
    */
   useProjectWindows?(on: boolean): void
   /**
-   * Opens a project in a new window, or brings forward the window that shows it already.
-   * Absent from apps that came before it.
+   * Opens a project in a new window, even when this or another window shows it already (up to
+   * the most windows the app opens). Absent from apps that came before it.
    */
   openProjectWindow?(projectId: string): void
   /**
-   * Swaps this window's project with another window's: the window that shows `projectId` shows
-   * what this window showed until now, and this window shows `projectId`. The page has sent
-   * what it changed in its own project first, and the app has the other window do the same
-   * before it answers, so the page may read `projectId` as soon as the answer comes: `swapped`
-   * when it did (the page switches), `forwarded` when this window hadn't said what it shows,
-   * so nothing could be given the other and that window came forward instead (the page stays
-   * where it is), `alone` when no other window shows it (the page just switches). Absent from
-   * apps that came before it.
-   */
-  swapProjectWindow?(projectId: string): Promise<ProjectWindowSwap>
-  /**
-   * Brings forward the window that shows `target.projectId`, and tells it to go to the project and
-   * its terminal. When no other window shows the project, this window is told instead. Absent
-   * from apps that came before it.
+   * Sends a place in a project to a window: this one when it shows the project, else the window
+   * showing it that the person used last (brought forward, unless the hand-off is quiet), else
+   * this window, which switches. Absent from apps that came before it.
    */
   handOffToProjectWindow?(target: ProjectWindowTarget): void
   /**
    * Calls `listener` with each place the app tells this window to go, as when another window
-   * handed it a terminal or swapped its project; the person's own action brought it. Returns a
+   * handed it a terminal; the person's own action brought it. Returns a
    * function that stops listening. Absent from apps that came before it.
    */
   onProjectWindowNavigate?(listener: (target: ProjectWindowTarget) => void): () => void
@@ -806,13 +795,6 @@ export type ProjectWindowTarget = {
   readonly quiet?: true
 }
 
-/** How a swap went: see `DesktopBridge.swapProjectWindow`. */
-export type ProjectWindowSwap = "swapped" | "forwarded" | "alone"
-
-/** A `ProjectWindowSwap` when `value` is one; otherwise `alone`, which asks nothing of the page. */
-export const projectWindowSwapOf = (value: unknown): ProjectWindowSwap =>
-  value === "swapped" || value === "forwarded" ? value : "alone"
-
 /** What a window tells the app of its project, and the projects its page knows. */
 export type ProjectWindowShown = {
   readonly projectId: string | null
@@ -837,6 +819,13 @@ export const parseProjectWindowShown = (value: unknown): ProjectWindowShown | un
 
 // The longest id of a project or a terminal the windows pass on.
 const windowIdLength = 200
+
+/** A window's key when `value` is a UUID, which is all a key is; otherwise undefined. */
+export const windowKeyOf = (value: unknown): string | undefined =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : undefined
 
 /** A project or terminal id the windows may pass on: a short line without control characters. */
 export const windowIdOf = (value: unknown): string | undefined =>
@@ -898,6 +887,13 @@ export type DesktopApp = DesktopBridge & {
    * before it.
    */
   readonly extraWindow?: true
+  /**
+   * This window's key, a UUID the app keeps with the window's project and bounds across
+   * launches, so a window's own choices (the view of a session, the session it shows in a
+   * project) are told apart from another window's on the same project. Absent in a browser and
+   * from apps that came before it.
+   */
+  readonly windowKey?: string
 }
 
 /** `window.novadeck` where the page runs in a desktop app; undefined where it runs without one. */

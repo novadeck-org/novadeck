@@ -774,6 +774,22 @@ see them change.
   write or resize. Another connection can attach with `mode: "observe"`.
   There is one attachment per terminal per connection. Cancelling a controlling
   attachment or disconnecting releases control, but leaves the shell running.
+  A client attached to a terminal can `take` it: its attachment controls from then
+  on, and the one that controlled stays attached as an observer, its `write` and `resize`
+  refused with `CONTROL_REQUIRED`. With `ifIdleMs` the take succeeds only where the
+  controller hasn't written for that long (`write` by the controller counts; the
+  runner's own typing, such as a prompt or keys an agent is sent, does not), else
+  `CONTROL_BUSY`. A client follows `terminals.controls` to learn who controls each
+  terminal it is attached to (`you`, `other` or `none`), once as each attachment starts and
+  again at every change: a take, a hand-over, a release, a restart. A controller that
+  doesn't follow it couldn't learn it lost control, so `take` refuses it with
+  `CONTROL_IN_USE`, as an older client that never follows gets today. When a
+  controller lets go of a running terminal, by ending its attachment or closing its
+  connection, the runner hands control to one of the terminal's observers that follow
+  `controls`: the one whose client the person used last (a `showing` report after the
+  first, or `active`), else the one that attached last. A client that fails
+  `SLOW_CONSUMER` hands nothing over, as it attaches again at once. The client handed
+  control resizes the terminal itself.
 - Events carry `terminalId` and an increasing `sequence`. Initial attachment emits
   a serialized screen snapshot with dimensions and `exit`, null while the shell
   runs. Output, resize, and exit events follow in order. A snapshot replaces the old
@@ -2304,7 +2320,7 @@ one from an earlier runner.
   step has waited on the agent past its patience. Refused as `tour.brief` is.
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
-`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
+`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`, `CONTROL_BUSY`,
 `INVALID_CURSOR`, `UPLOAD_TOO_LARGE`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
 `TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. A
 `CONFLICT` about typing into an agent's terminal (`agents.prompt`, `agents.answer`,

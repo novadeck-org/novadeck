@@ -306,7 +306,12 @@ export type SurfaceRuntime = {
   // The surface's attachment, until the returned release; releasing leaves one that
   // took its place, as another surface's, alone.
   readonly attached: (key: TerminalKey, attachment: AttachedTerminal) => () => void
+  // Attaches taking control where it is free, else observing, where the runner supports it
+  // (`terminals.controls`); otherwise as control alone.
   readonly attach: (terminalId: string) => Promise<AttachedTerminal>
+  // Whether the runner hands control between clients (`terminals.controls`): a terminal another
+  // client controls is observed, never refused as in use.
+  readonly observes?: () => boolean
   // Saves a file pasted into a terminal on the runner's machine; resolves with its path.
   readonly upload: Runner["terminals"]["upload"]
   // Resolves once the runner is reachable again, or closed for good.
@@ -1868,7 +1873,12 @@ export const runnerBackend = (
         if (entry?.attachment === attachment) entry.attachment = undefined
       }
     },
-    attach: (terminalId) => runner.terminals.attach(terminalId),
+    attach: (terminalId) =>
+      runner.terminals.attach(
+        terminalId,
+        runner.supports("terminals.controls") ? { mode: "control-else-observe" } : undefined,
+      ),
+    observes: () => runner.supports("terminals.controls"),
     upload: (terminalId, file) => track(runner.terminals.upload(terminalId, file)),
     connected,
     lost: (key, error) => {

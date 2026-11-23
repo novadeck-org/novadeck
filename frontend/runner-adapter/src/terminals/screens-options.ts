@@ -9,7 +9,11 @@ import { hasCode, type AttachedTerminal } from "@novadeck/runner-client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
 import { openEmulator } from "@novadeck/terminal-views/emulator"
 import { screenMarkup } from "@novadeck/terminal-views/mount"
-import { copiedNotice, pasteNotice as sharedNotice } from "@novadeck/terminal-views/paste-notice"
+import {
+  copiedNotice,
+  pasteNotice as sharedNotice,
+  tookNotice,
+} from "@novadeck/terminal-views/paste-notice"
 import { pageRendererPool } from "@novadeck/terminal-views/renderer-pool"
 import { ringRows, type RingFeed } from "@novadeck/terminal-views/rings"
 import { terminalTheme } from "@novadeck/terminal-views/theme"
@@ -28,7 +32,12 @@ export const retainMs = 30 * 60 * 1000
 const attachments = new WeakMap<AttachStream, AttachedTerminal>()
 const streamOf = (attached: AttachedTerminal): AttachStream => {
   const stream: AttachStream = {
-    mode: attached.mode,
+    // Live: control passes between clients while the screen follows it.
+    get mode() {
+      return attached.mode
+    },
+    onMode: (listener) => attached.onMode(listener),
+    take: (options) => attached.take(options),
     [Symbol.asyncIterator]: () => attached[Symbol.asyncIterator](),
     write: (data) => attached.write(data),
     resize: (cols, rows) => attached.resize({ cols, rows }),
@@ -98,9 +107,12 @@ export const screensOptions = (
   reconnected: () => runtime.connected(),
   classify: (error) =>
     hasCode(error, "RESOURCE_LIMIT") ||
-    // With project windows, the window that showed the project lets go of the terminal a moment
-    // after this one asks for it: ask again until it has.
-    (hasCode(error, "CONTROL_IN_USE") && runtime.sharing?.() === true)
+    // On a runner that can't hand control over (no `terminals.controls`), with project windows
+    // the window that showed the project lets go of the terminal a moment after this one asks
+    // for it: ask again until it has. Where it can, an attach observes instead of failing.
+    (hasCode(error, "CONTROL_IN_USE") &&
+      runtime.sharing?.() === true &&
+      runtime.observes?.() !== true)
       ? "busy"
       : hasCode(error, "DISCONNECTED")
         ? "offline"
@@ -111,6 +123,7 @@ export const screensOptions = (
   park: { afterMs: parkMs, keep: cap },
   retain: { afterMs: retainMs, shown: (key) => runtime.shown(key) },
   copied: copiedNotice,
+  took: tookNotice,
   paste: {
     upload: (key, file) => runtime.upload(key.terminalId, file),
     // The desktop app's runner is on this machine, so a copied file's own path names it.

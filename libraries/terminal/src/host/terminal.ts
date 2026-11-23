@@ -146,6 +146,13 @@ type Listeners = {
   reset: () => void
   /** Keys that count as the person's, just before they are written (see `input`). */
   keys: (keys: string) => void
+  /**
+   * Who controls it changed, after the change. `letGo` says the controller let go of a
+   * running terminal (its attachment ended, or its owner released it); not a terminal's
+   * exit or restart, nor an attachment that failed `SLOW_CONSUMER`, which attaches again at
+   * once. A listener may `take` for an attached owner in answer, as a hand-over does.
+   */
+  control: (letGo: boolean) => void
 }
 
 /**
@@ -157,6 +164,8 @@ export type Terminal = {
   readonly controller: string | undefined
   /** How many attachments are live. */
   readonly attached: number
+  /** The owners attached, the one that attached first first. */
+  readonly owners: readonly string[]
   /** The current run's pty. */
   readonly pty: Pty
   /** The current run's screen; read it in `enqueue`, after the draws queued before. */
@@ -187,6 +196,11 @@ export type Terminal = {
   forgo(owner: string): void
   /** Ends `owner`'s attachment and its control. */
   release(owner: string): void
+  /**
+   * Gives control to `owner`, which must be attached (else `CONFLICT`): whoever controlled
+   * keeps its attachment, as an observer. Taking what `owner` controls changes nothing.
+   */
+  take(owner: string): void
   /** `owner` read up to `sequence`; an attachment already ended ignores it. */
   ack(owner: string, sequence: number): void
   /** `owner`'s live attachment, to tell whether it's still the same one. */
@@ -285,6 +299,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     launched: new Set(),
     reset: new Set(),
     keys: new Set(),
+    control: new Set(),
   }
   const failed =
     options.failed ??
@@ -531,10 +546,18 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     return eventOf(data)
   }
 
+  // Who controls changes: tells `control` listeners, unless it is the same.
+  const control = (next: string | undefined, letGo = false) => {
+    if (controller === next) return
+    controller = next
+    fire("control", letGo && live())
+  }
+
+  // An attachment the subscription ended itself, as one too slow: it attaches again.
   const detach = (owner: string, subscription: Subscription) => {
     if (subscribers.get(owner) !== subscription) return
     subscribers.delete(owner)
-    if (controller === owner) controller = undefined
+    if (controller === owner) control(undefined)
   }
 
   const cancelAll = () => {
@@ -650,6 +673,9 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     get attached() {
       return subscribers.size
     },
+    get owners() {
+      return [...subscribers.keys()]
+    },
     get pty() {
       return run.pty
     },
@@ -687,8 +713,8 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
         eventBytes,
       )
       subscribers.set(owner, subscription)
-      if (mode === "control") controller = owner
-      else if (controller === owner) controller = undefined
+      if (mode === "control") control(owner)
+      else if (controller === owner) control(undefined)
       const first = history[0]?.event.sequence ?? sequence + 1
       const replayed =
         after !== undefined && after >= first - 1
@@ -711,12 +737,18 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       return subscription
     },
     forgo: (owner) => {
-      if (!subscribers.has(owner) && controller === owner) controller = undefined
+      if (!subscribers.has(owner) && controller === owner) control(undefined, true)
     },
     release: (owner) => {
       subscribers.get(owner)?.cancel()
       subscribers.delete(owner)
-      if (controller === owner) controller = undefined
+      if (controller === owner) control(undefined, true)
+    },
+    take: (owner) => {
+      if (!subscribers.has(owner)) throw new TerminalError("CONFLICT")
+      // What the earlier controller's window asked for is not the new one's.
+      if (held?.size && held.size.owner !== owner) held.size = null
+      control(owner)
     },
     ack: (owner, acknowledged) => {
       if (!Number.isSafeInteger(acknowledged) || acknowledged < 0)
@@ -793,7 +825,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       sequence += 1
       history = []
       historyBytes = 0
-      controller = next
+      control(next)
       // A fresh run's listeners that throw are told of again.
       threw.clear()
       dispose()

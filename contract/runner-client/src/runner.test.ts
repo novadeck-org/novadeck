@@ -198,6 +198,118 @@ describe("an attached terminal", () => {
   })
 })
 
+describe("an attached terminal's control", () => {
+  const holder = (terminalId: string, who: "you" | "other" | "none") =>
+    ({ type: "control", terminalId, holder: who }) as const
+
+  it("takes control where it is free, else observes, also after a reconnection", async () => {
+    const terminalId = crypto.randomUUID()
+    const asked: string[] = []
+    let held = false
+    const { runner, drop } = await fakeRunner({
+      terminals: {
+        attach: api.terminals.attach.handler(async function* ({ input }) {
+          asked.push(input.mode ?? "none")
+          if (input.mode === "control" && held)
+            throw new ORPCError("CONTROL_IN_USE", { status: 409 })
+          yield { terminalId, type: "attached", mode: input.mode ?? "control" } as const
+          await never
+        }),
+        ack: api.terminals.ack.handler(() => {}),
+        controls: api.terminals.controls.handler(async function* () {
+          yield* []
+          await never
+        }),
+      },
+    })
+    const first = await runner.terminals.attach(terminalId, { mode: "control-else-observe" })
+    onTestFinished(() => first.detach())
+    expect(first.mode).toBe("control")
+    const heard: string[] = []
+    first.onMode((mode) => heard.push(mode))
+
+    // Another client took control while the link was down: this one observes, not fails.
+    held = true
+    // Reading is what carries the attachment through the reconnection.
+    void first.next().catch(() => {})
+    drop()
+    await vi.waitFor(() => expect(first.mode).toBe("observe"))
+    expect(heard).toEqual(["observe"])
+    expect(asked).toEqual(["control", "control", "observe"])
+    await expect(failure(first.write("x"))).resolves.toSatisfy((error) =>
+      hasCode(error, "CONTROL_REQUIRED"),
+    )
+  })
+
+  it("follows the runner's control news, and takes control on request", async () => {
+    const terminalId = crypto.randomUUID()
+    const taken: unknown[] = []
+    let tell: (holder: "you" | "other" | "none") => void = () => {}
+    const { runner } = await fakeRunner({
+      terminals: {
+        attach: api.terminals.attach.handler(async function* ({ input }) {
+          yield { terminalId, type: "attached", mode: input.mode ?? "control" } as const
+          await never
+        }),
+        ack: api.terminals.ack.handler(() => {}),
+        controls: api.terminals.controls.handler(async function* () {
+          yield holder(terminalId, "other")
+          const queue: ReturnType<typeof holder>[] = []
+          let wake = () => {}
+          tell = (who) => {
+            queue.push(holder(terminalId, who))
+            wake()
+          }
+          while (true) {
+            if (queue.length) yield queue.shift()!
+            // eslint-disable-next-line no-await-in-loop -- Waits for the test's next news.
+            else await new Promise<void>((resolve) => (wake = resolve))
+          }
+        }),
+        take: api.terminals.take.handler(({ input }) => {
+          taken.push(input)
+        }),
+      },
+    })
+    const terminal = await runner.terminals.attach(terminalId, { mode: "control-else-observe" })
+    onTestFinished(() => terminal.detach())
+    const heard: string[] = []
+    terminal.onMode((mode) => heard.push(mode))
+    await vi.waitFor(() => expect(terminal.mode).toBe("observe"))
+
+    await terminal.take({ ifIdleMs: 2000 })
+    expect(taken).toEqual([{ terminalId, ifIdleMs: 2000 }])
+    expect(terminal.mode).toBe("control")
+
+    // Another client took it back, then let go and it came here.
+    tell("other")
+    await vi.waitFor(() => expect(terminal.mode).toBe("observe"))
+    tell("you")
+    await vi.waitFor(() => expect(terminal.mode).toBe("control"))
+    expect(heard.slice(-3)).toEqual(["control", "observe", "control"])
+  })
+
+  it("keeps the take refusal's code, and stays observing", async () => {
+    const terminalId = crypto.randomUUID()
+    const { runner } = await fakeRunner({
+      terminals: {
+        attach: api.terminals.attach.handler(async function* () {
+          yield { terminalId, type: "attached", mode: "observe" } as const
+          await never
+        }),
+        ack: api.terminals.ack.handler(() => {}),
+        take: api.terminals.take.handler(() => {
+          throw new ORPCError("CONTROL_BUSY", { status: 409 })
+        }),
+      },
+    })
+    const terminal = await runner.terminals.attach(terminalId, { mode: "observe" })
+    onTestFinished(() => terminal.detach())
+    expect(hasCode(await failure(terminal.take({ ifIdleMs: 2000 })), "CONTROL_BUSY")).toBe(true)
+    expect(terminal.mode).toBe("observe")
+  })
+})
+
 describe("History", () => {
   const row = {
     id: "11111111-1111-4111-8111-111111111111",

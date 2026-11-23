@@ -11,6 +11,7 @@ import { copyOnSelect, readClipboard, takeClipboardWrites } from "./copy.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import { takeClipboardKeys, takeFilePastes, type PasteFailure, type PasteTarget } from "./paste.js"
 import { silenceQueries } from "./queries.js"
+import { scaleToFit } from "./scale.js"
 import {
   createStore,
   nextViewState,
@@ -39,6 +40,11 @@ export const clampSize = (size: {
 const resizeSettleMs = 120
 // How long the notice of a failed paste stays.
 export const pasteNoticeMs = 4_000
+// How long the notice of a takeover stays.
+export const tookNoticeMs = 2_500
+// How long after a wheel turn arrow keys the emulator makes of it (in a full-screen program that
+// takes no mouse) are still the wheel's: they are not the person asking for the keyboard.
+const wheelKeysMs = 120
 // How long the notice of a copy stays: long enough to see, short enough to be out of the
 // way of the output under it.
 export const copyNoticeMs = 1_200
@@ -88,6 +94,9 @@ export type TerminalScreensOptions<K> = FollowOptions<K> & {
   // The wording of the notice that tells the person a copy from the terminal reached the
   // clipboard: a selection, Ctrl+C's or a program's own. None shows without one.
   readonly copied?: string
+  // The wording of the notice that tells the person this client has the keyboard now, after a
+  // key that took control of an observed terminal was not delivered. None shows without one.
+  readonly took?: string
   readonly paste: {
     // Saves a file on the host's machine and resolves with its path there.
     readonly upload: (
@@ -184,6 +193,8 @@ export type Hold = {
   }) => void
   // Focuses the input, and says whether the focus landed in the screen.
   readonly focus: () => boolean
+  // Takes control of an observed terminal, as the person's Take over does.
+  readonly take: () => void
   // Lets the screen go, once. With `unmount`, focus the screen holds is left for the next
   // mount to restore; without it (out of sight, staying mounted) none is.
   readonly release: (options?: { readonly unmount?: boolean }) => void
@@ -331,9 +342,44 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       for (const wake of paceWaiters) wake()
       paceWaiters.clear()
     }
+    // While this client only observes: the pty's size the screen is drawn at, scaled to fit.
+    let observed: { readonly cols: number; readonly rows: number } | null = null
+    const scales = ["transform", "transform-origin", "width", "height"] as const
+    const rescale = (): void => {
+      const element = xterm.element
+      if (!element) return
+      if (!observed) {
+        for (const property of scales) element.style.removeProperty(property)
+        container.style.removeProperty("overflow")
+        return
+      }
+      // The layout size, which neither Canvas's zoom nor this scale changes.
+      const screen = element.querySelector<HTMLElement>(".xterm-screen")
+      const natural = { width: screen?.offsetWidth ?? 0, height: screen?.offsetHeight ?? 0 }
+      const factor = scaleToFit(natural, {
+        width: container.clientWidth,
+        height: container.clientHeight,
+      })
+      if (factor === undefined) return
+      container.style.overflow = "hidden"
+      element.style.width = `${natural.width}px`
+      element.style.height = `${natural.height}px`
+      element.style.transformOrigin = "0 0"
+      element.style.transform = factor < 1 ? `scale(${factor})` : ""
+    }
     const drawn: Screen = {
       exited: () => {},
       live: () => {},
+      observe: (size) => {
+        observed = size
+        rescale()
+        // The renderer measures its cells after the resize that came with it.
+        if (size) requestAnimationFrame(() => observed === size && rescale())
+      },
+      strip: (control) => refresh({ control }),
+      took: () => {
+        if (o.took) say(o.took, tookNoticeMs)
+      },
       write: (data) => writeTo(xterm, data),
       // xterm's reset leaves its parser as it was, which a stream cut short or a write that
       // failed may have left inside a sequence: a CAN ends any, before the screen that follows.
@@ -414,7 +460,21 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     // Whether the shell takes input; one that exited or failed to start only listens for
     // Enter, to start again.
     const taking = (): boolean => screen.phase !== "ended" && !state.getSnapshot().waits
+    // When the wheel last turned over the screen.
+    let wheeled = 0
+    const onWheel = (): void => {
+      wheeled = Date.now()
+    }
+    container.addEventListener("wheel", onWheel, { capture: true, passive: true })
     const deliver = (data: string): void => {
+      // Arrow keys the emulator makes of the wheel, in a terminal this client doesn't control,
+      // are scrolling: they never ask for the keyboard.
+      if (
+        state.getSnapshot().control !== null &&
+        data.startsWith("\u001b") &&
+        Date.now() - wheeled < wheelKeysMs
+      )
+        return
       if (taking()) return followed.input(data)
       if (data.includes("\r")) screen.restart()
     }
@@ -525,6 +585,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       selections()
       writes.dispose()
       container.removeEventListener("copy", browserCopy)
+      container.removeEventListener("wheel", onWheel, { capture: true })
       clearTimeout(noticed)
       queries.dispose()
       followed.stop()
@@ -683,6 +744,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
           screen.xterm.focus()
           return screen.container.contains(document.activeElement)
         },
+        take: () => screen.followed.take(),
         release: ({ unmount = false } = {}) => {
           if (released) return
           released = true

@@ -143,3 +143,46 @@ describe("a look at a page's client", () => {
     looks.finish()
   })
 })
+
+describe("a client's use", () => {
+  const pick = (clients: ClientWindows, ...owners: string[]) => clients.choosing("s1")(owners)
+
+  it("starts at its first report, which doesn't count: it is the least recent", () => {
+    const clients = windows()
+    clients.report("used", "p1")
+    clients.touch("used")
+    clients.report("late", "p1")
+    expect(pick(clients, "used", "late")).toBe("used")
+    expect(clients.lastUsed(["used", "late"])).toBe("used")
+  })
+
+  it("counts from its later reports and its touches", () => {
+    const clients = windows()
+    clients.report("first", "p1")
+    clients.report("second", "p1")
+    clients.report("first", "p1")
+    expect(clients.lastUsed(["first", "second"])).toBe("first")
+    clients.touch("second")
+    expect(clients.lastUsed(["first", "second"])).toBe("second")
+    expect(pick(clients, "first", "second")).toBe("second")
+  })
+
+  it("names, of equal use, the later in the list, and none that no one reports", () => {
+    const clients = windows()
+    clients.report("a", "p1")
+    clients.report("b", "p1")
+    expect(clients.lastUsed(["a", "b"])).toBe("b")
+    expect(clients.lastUsed(["b", "a"])).toBe("a")
+    expect(clients.lastUsed(["stranger"])).toBeUndefined()
+  })
+
+  it("starts over once the client said nothing of any project", () => {
+    const clients = windows()
+    clients.report("a", "p1")
+    clients.touch("a")
+    clients.report("a", null)
+    clients.report("b", "p1")
+    clients.report("a", "p1")
+    expect(clients.lastUsed(["a", "b"])).toBe("b")
+  })
+})

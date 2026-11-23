@@ -13,7 +13,7 @@ import type {
 import { itemOf, windowOf } from "../companions/content"
 import { defaultQuickExitMs, restartable, terminalActivity } from "../terminals/activity"
 import { decodeSession } from "./state"
-import { withDeviceView } from "./views"
+import { windowSession, withDeviceView } from "./views"
 
 // What a session's terminals' companions hold: the items agents showed and the person
 // attached, and the windows undocked from them.
@@ -216,13 +216,21 @@ export const runnerSeed = (
     (best, item) => (best?.last && later(item.last, best.last) <= 0 ? best : item),
     undefined,
   )
-  const projects = ranked.map(({ project, sessions }) => ({
-    id: project.id,
-    name: project.name,
-    directory: project.cwd,
-    pinned: project.pinned,
-    sessions: sessions.map((session) => session.seed),
-  }))
+  const projects = ranked.map(({ project, sessions }) => {
+    // The session this window showed in the project, where it kept one: two windows on one
+    // project each reopen their own. Else the session visited last opens.
+    const own = windowSession(project.id)
+    return {
+      id: project.id,
+      name: project.name,
+      directory: project.cwd,
+      pinned: project.pinned,
+      sessions: sessions.map((session) => session.seed),
+      ...(own !== undefined && sessions.some((session) => session.seed.id === own)
+        ? { openSessionId: own }
+        : {}),
+    }
+  })
   return latest?.last && latest.last.visitedAt !== null
     ? { projects, activeProjectId: latest.project.id }
     : { projects }

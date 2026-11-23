@@ -1,5 +1,6 @@
 import type { AttachStream, Exit, TerminalEvent } from "../contract.js"
-import type { Store, ViewLink } from "./view-state.js"
+import { classifyInput, takeIdleMs } from "./takeover.js"
+import type { ControlStrip, Store, ViewLink } from "./view-state.js"
 
 // A terminal's shell as following it needs to know it: when it is ready to attach to, when
 // a fresh one replaces it, and whether it is gone. The fields are read as they stand, so an
@@ -74,6 +75,14 @@ export type Screen = {
   // Called once the host's snapshot of the screen is drawn, which is the whole screen and
   // scrollback again: on opening, and on every reattach.
   readonly restored?: () => void
+  // While this client only observes the terminal: the screen draws at the pty's size, scaled
+  // down to fit its frame and anchored top left, and is not fitted to it. `null` is the
+  // frame's fit again, as when this client controls.
+  readonly observe?: (size: { readonly cols: number; readonly rows: number } | null) => void
+  // What the person is told of who has the keyboard while observing; `null` says nothing.
+  readonly strip?: (strip: ControlStrip | null) => void
+  // This client took control with a key that was not delivered: say that it has the keyboard.
+  readonly took?: () => void
 }
 
 // The most output a paced screen gathers before drawing it: a flood draws in steps, and what
@@ -84,8 +93,12 @@ export type FollowedTerminal = {
   // Sends typed input; dropped while there is no attachment.
   readonly input: (data: string) => void
   // Tells the owner the size that fits now, and the stream if it changed. Whether it sent
-  // the stream a size it had not sent before.
+  // the stream a size it had not sent before. While the stream only observes, it sends
+  // nothing and draws the pty's size scaled into the frame instead.
   readonly refit: () => boolean
+  // Asks for control, as the person's button does (no idle limit). Does nothing unless the
+  // stream observes.
+  readonly take: () => void
   // Lets go of the stream while no view shows the terminal, so its output costs nothing
   // here while the screen keeps what it last drew; `unpark` attaches again, and the
   // host's fresh screen brings it up to date. A fresh shell started meanwhile waits
@@ -135,7 +148,22 @@ export const followTerminal = <K>(
   // The failures to draw in a row, and when the last was.
   let failures = 0
   let failedAt = 0
+  // The pty's size, as the host last said it, which an observing screen draws at.
+  let ptySize: { readonly cols: number; readonly rows: number } | undefined
+  // A take was refused, and the strip says so, until the mode changes or a take lands.
+  let busy = false
+  const observing = (): boolean => attachment?.mode === "observe"
+  // Draws at the pty's size; an observer scales it into the frame.
+  const drawAt = (size: { readonly cols: number; readonly rows: number }): void => {
+    screen.resize(size)
+    if (observing()) screen.observe?.(size)
+  }
   const refit = (): boolean => {
+    if (observing()) {
+      // The frame never decides the size of a terminal this client doesn't control.
+      if (ptySize) drawAt(ptySize)
+      return false
+    }
     const size = screen.fit()
     if (size) on?.resized?.(key, size)
     if (!size || !attachment) return false
@@ -156,7 +184,8 @@ export const followTerminal = <K>(
   const apply = async (event: TerminalEvent): Promise<void> => {
     if (event.type === "snapshot") {
       screen.reset()
-      screen.resize(event)
+      ptySize = { cols: event.cols, rows: event.rows }
+      drawAt(ptySize)
       sent = `${event.cols}x${event.rows}`
       await screen.write(event.data)
       screen.restored?.()
@@ -174,7 +203,8 @@ export const followTerminal = <K>(
       screen.exited(options.waitsAfter(event.exit))
     } else if (event.type === "resized") {
       sent = `${event.cols}x${event.rows}`
-      screen.resize(event)
+      ptySize = { cols: event.cols, rows: event.rows }
+      drawAt(ptySize)
     }
   }
   const wanted = (entry: Lifecycle): boolean => !stopped && !unparked && !entry.closed
@@ -219,6 +249,27 @@ export const followTerminal = <K>(
   // Follows the stream until it ends; whether the screen failed to draw it.
   const follow = async (attached: AttachStream): Promise<boolean> => {
     attachment = attached
+    ptySize = undefined
+    busy = false
+    // The stream's mode is live: control passes between clients while it is followed.
+    const syncMode = (): void => {
+      if (attachment !== attached) return
+      if (attached.mode === "observe") {
+        screen.strip?.(busy ? "busy" : "observing")
+        if (ptySize) drawAt(ptySize)
+        return
+      }
+      screen.strip?.(null)
+      screen.observe?.(null)
+      // The new controller fits the frame and says so, whatever size it last sent.
+      sent = undefined
+      refit()
+    }
+    const unwatchMode = attached.onMode?.(() => {
+      busy = false
+      syncMode()
+    })
+    if (attached.mode === "observe") screen.strip?.("observing")
     const release = on?.attached?.(key, attached)
     let failed = false
     try {
@@ -292,7 +343,10 @@ export const followTerminal = <K>(
       if (!stopped) on?.lost?.(key, error)
     } finally {
       release?.()
+      unwatchMode?.()
       attachment = undefined
+      screen.strip?.(null)
+      screen.observe?.(null)
       screen.live(false)
     }
     if (failed) attached.close()
@@ -345,6 +399,11 @@ export const followTerminal = <K>(
     const current = (): boolean =>
       !stopped && !unparked && attachment === attached && turn === resumes
     while (current()) {
+      // An observer can't send a size: its stream is as live as its events say.
+      if (attached.mode === "observe") {
+        screen.live(true)
+        return
+      }
       const size = lifecycle(key)?.size ?? screen.fit()
       try {
         // eslint-disable-next-line no-await-in-loop -- One probe at a time.
@@ -364,11 +423,46 @@ export const followTerminal = <K>(
     previous = state
     if (back && attachment) void resume(attachment)
   })
+  // Input that asks for the keyboard waits its turn, so what is typed lands in order.
+  let queue: Promise<void> = Promise.resolve()
+  const takeover = (stream: AttachStream, data: string): void => {
+    const kind = classifyInput(data)
+    if (kind === "report") return
+    queue = queue.then(async () => {
+      if (attachment !== stream) return
+      let took = false
+      if (stream.mode === "observe") {
+        try {
+          await stream.take?.({ ifIdleMs: takeIdleMs })
+        } catch {
+          // The controller is typing, or can't be told: nothing is delivered.
+          busy = true
+          if (attachment === stream) screen.strip?.("busy")
+          return
+        }
+        // The mode changes as the take lands, out of this function's sight.
+        if ((stream.mode as string) !== "control") return
+        took = true
+      }
+      // A key that took control is not delivered; the next one goes through.
+      if (took && kind === "key") return screen.took?.()
+      await stream.write(data).catch(() => {})
+    })
+  }
   return {
     input: (data) => {
       const entry = lifecycle(key)
       if (!attachment || !entry || entry.closed) return
+      if (attachment.mode === "observe") return takeover(attachment, data)
       void attachment.write(data).catch(() => {})
+    },
+    take: () => {
+      const stream = attachment
+      if (stream?.mode !== "observe") return
+      void stream.take?.().catch(() => {
+        busy = true
+        if (attachment === stream) screen.strip?.("busy")
+      })
     },
     refit,
     park: () => {

@@ -71,7 +71,13 @@ import { connect, serves, type Transport, type WireStatus } from "@novadeck/wire
 import { lost, type RunnerErrorCode } from "./errors.js"
 import { followAll, followRestarting, followSession, type Reset } from "./follow.js"
 import { base64Parts } from "./parts.js"
-import { attachTerminal, type AttachedTerminal, type TerminalMode } from "./terminal.js"
+import {
+  attachTerminal,
+  type AttachedTerminal,
+  type AttachMode,
+  type ControlHub,
+  type TerminalMode,
+} from "./terminal.js"
 
 export type ConnectOptions = {
   /** Cancels the initial connection. Afterwards, use `runner.close()`. */
@@ -394,11 +400,13 @@ export type Runner = {
       terminalId: string,
       options: { readonly cols: number; readonly rows: number; readonly resume?: AgentName },
     ): Promise<TerminalSummary>
-    /** Resolves once the runner has granted the attachment; `control` is the default mode. */
-    attach(
-      terminalId: string,
-      options?: { readonly mode?: TerminalMode },
-    ): Promise<AttachedTerminal>
+    /**
+     * Resolves once the runner has granted the attachment; `control` is the default mode.
+     * `control-else-observe` takes control where it is free and observes where another client
+     * has it, also after a reconnection (an observer then learns of a change of control from
+     * the attachment's `onMode`, where the runner supports `terminals.controls`).
+     */
+    attach(terminalId: string, options?: { readonly mode?: AttachMode }): Promise<AttachedTerminal>
   }
   readonly agents: {
     /**
@@ -915,6 +923,51 @@ export const connectRunner = async (
       throw lost(error, session)
     }
   }
+  // Who holds each terminal this connection is attached to, once an attachment asks and the
+  // runner tells (`terminals.controls`): one stream for the connection, which opens again after
+  // each reconnection and sets the mode of the attachments it names.
+  const supportsControls = (): boolean => serves(contract, ["terminals", "controls"], current())
+  const joined = new Map<string, Set<(mode: TerminalMode) => void>>()
+  const latest = new Map<string, { readonly mode: TerminalMode; readonly at: number }>()
+  let controlEvents = 0
+  let controlling = false
+  const followControls = (): void => {
+    if (controlling) return
+    controlling = true
+    const events = followSession(connection, (client, signal) =>
+      client.terminals.controls(undefined, { signal }),
+    )
+    void (async () => {
+      try {
+        for await (const event of events) {
+          if (event.type !== "control") continue
+          controlEvents += 1
+          const mode = event.holder === "you" ? "control" : "observe"
+          latest.set(event.terminalId, { mode, at: controlEvents })
+          for (const set of joined.get(event.terminalId) ?? []) set(mode)
+        }
+      } catch {
+        // The connection ended for good: modes stay as they were.
+      } finally {
+        controlling = false
+      }
+    })()
+  }
+  const controlHub: ControlHub = {
+    now: () => controlEvents,
+    join: (id, since, set) => {
+      const members = joined.get(id) ?? new Set()
+      members.add(set)
+      joined.set(id, members)
+      // News that came while the attachment was being granted.
+      const known = latest.get(id)
+      if (known && known.at > since) set(known.mode)
+      return () => {
+        members.delete(set)
+        if (members.size === 0 && joined.get(id) === members) joined.delete(id)
+      }
+    },
+  }
   return {
     get status() {
       return connection.status.value
@@ -1003,8 +1056,10 @@ export const connectRunner = async (
         call((client) =>
           client.terminals.restart({ terminalId, cols, rows, ...(resume && { resume }) }),
         ),
-      attach: (terminalId, { mode = "control" } = {}) =>
-        attachTerminal(connection, terminalId, mode),
+      attach: (terminalId, { mode = "control" } = {}) => {
+        if (supportsControls()) followControls()
+        return attachTerminal(connection, terminalId, mode, controlHub)
+      },
     },
     agents: {
       list: (look) => call((client) => client.agents.list(look)),

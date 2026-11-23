@@ -11,7 +11,7 @@ export const retryMs = 1_000
 export const terminalInUse = (
   call: (terminalId: string | null) => Promise<unknown>,
 ): {
-  readonly report: (terminalId: string | null) => void
+  readonly report: (terminalId: string | null, again?: boolean) => void
   readonly connected: () => void
 } => {
   let wanted: string | null = null
@@ -30,9 +30,9 @@ export const terminalInUse = (
     })
   }
   return {
-    report: (terminalId) => {
+    report: (terminalId, again = false) => {
       wanted = terminalId
-      if (wanted !== sent) send(true)
+      if (wanted !== sent || (again && wanted !== null)) send(true)
     },
     connected: () => {
       // A runner that knows none of this window yet needs only a terminal in use.

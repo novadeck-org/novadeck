@@ -386,7 +386,7 @@ const PinButton = ({
   const shortcut = pinnedProjectShortcut(index)
   const inAnotherWindow = useProjectWindows()?.elsewhere.has(project.id) === true
   return (
-    <ProjectWindowMenu project={project} current={current} contents>
+    <ProjectWindowMenu project={project} contents>
       <Tooltip content={`${project.directory} · ${shortcut.display.join(" ")}`} disabled={dragging}>
         <button
           ref={(node) => {

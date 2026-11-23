@@ -1,8 +1,4 @@
-import type {
-  ProjectWindows,
-  ProjectWindowSwap,
-  ProjectWindowTarget,
-} from "@novadeck/core/desktop/project-windows"
+import type { ProjectWindows, ProjectWindowTarget } from "@novadeck/core/desktop/project-windows"
 import type { TerminalRequest } from "@novadeck/core/port"
 import type { ProjectSeed } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
@@ -44,17 +40,13 @@ const twoProjects = (): Workspace => {
 }
 
 // What the page asks of the app's windows, recorded.
-const recorded = (swapped: () => Promise<ProjectWindowSwap> = async () => "swapped") => {
+const recorded = () => {
   const asked: [string, ...unknown[]][] = []
   const windows: ProjectWindows = {
     onState: () => () => {},
     show: () => {},
     use: () => {},
     open: (id) => void asked.push(["open", id]),
-    swap: (id) => {
-      asked.push(["swap", id])
-      return swapped()
-    },
     handOff: (target) => void asked.push(["handOff", target]),
     onNavigate: () => () => {},
     extra: false,
@@ -63,13 +55,8 @@ const recorded = (swapped: () => Promise<ProjectWindowSwap> = async () => "swapp
 }
 
 // An app with project windows on, whose other windows show `elsewhere`.
-const opened = (
-  elsewhere: string[],
-  on = true,
-  syncProject?: CommandContext["syncProject"],
-  more: { swapped?: () => Promise<ProjectWindowSwap> } = {},
-) => {
-  const { windows, asked } = recorded(more.swapped)
+const opened = (elsewhere: string[], on = true, syncProject?: CommandContext["syncProject"]) => {
+  const { windows, asked } = recorded()
   const app = openCommands({
     workspace: twoProjects(),
     windows,
@@ -89,25 +76,20 @@ const project = (app: ReturnType<typeof openCommands>, id: string) =>
 
 describe("project windows", () => {
   context("when the person picks a project another window shows", () => {
-    it("swaps the two windows' projects: the app is told, and this window shows the pick", async () => {
+    it("shows it here, asks the app nothing, and leaves the other window alone", async () => {
       const { app, asked } = opened(["other"])
       app.commands.switchProject(project(app, "other"))
       await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
-      expect(asked).toEqual([["swap", "other"]])
+      expect(asked).toEqual([])
     })
 
-    it("only switches for a project no other window shows", () => {
-      const { app, asked } = opened([])
-      app.commands.switchProject(project(app, "other"))
-      expect(asked).toEqual([])
-      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
-    })
-
-    it("only switches while project windows are off", () => {
-      const { app, asked } = opened(["other"], false)
-      app.commands.switchProject(project(app, "other"))
-      expect(asked).toEqual([])
-      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
+    it("shows it here for a project no other window shows, or with project windows off", () => {
+      for (const on of [true, false]) {
+        const { app, asked } = opened(on ? [] : ["other"], on)
+        app.commands.switchProject(project(app, "other"))
+        expect(asked).toEqual([])
+        expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
+      }
     })
   })
 
@@ -134,7 +116,14 @@ describe("project windows", () => {
       expect(asked).toEqual([["handOff", { projectId: "other", terminalId: "07", rowId: "row-1" }]])
     })
 
-    it("hands over an entry only when another window shows its project", () => {
+    it("keeps what is about the project this window shows here, even when another shows it too", () => {
+      const { app, asked } = opened(["project"])
+      app.commands.reveal("01")
+      expect(app.commands.handOffEntry({ id: "row-1", terminalId: "01" })).toBe(false)
+      expect(asked).toEqual([])
+    })
+
+    it("hands over an entry only when another window shows its project and this one does not", () => {
       const { app, asked } = opened(["other"])
       expect(app.commands.handOffEntry({ id: "row-1", terminalId: "07" })).toBe(true)
       expect(app.commands.handOffEntry({ id: "row-2", terminalId: "01" })).toBe(false)
@@ -210,6 +199,12 @@ describe("project windows", () => {
       expect(asked).toEqual([["open", "other"]])
     })
 
+    it("asks the app for the project this window shows too", () => {
+      const { app, asked } = opened(["project"])
+      app.commands.openInNewWindow("project")
+      expect(asked).toEqual([["open", "project"]])
+    })
+
     it("asks nothing with them off", () => {
       const { app, asked } = opened([], false)
       app.commands.openInNewWindow("other")
@@ -234,51 +229,19 @@ describe("project windows", () => {
       ],
     })
 
-    it("swaps at once, and reads the project only once the swap has answered", async () => {
-      const order: string[] = []
-      let answer!: (result: ProjectWindowSwap) => void
-      const { app } = opened(
-        ["other"],
-        true,
-        async (id) => {
-          order.push(`read ${id}`)
-          return reread()
-        },
-        {
-          swapped: () => {
-            order.push("swap")
-            return new Promise((resolve) => (answer = resolve))
-          },
-        },
-      )
+    it("reads the project another window shows too, and then shows it", async () => {
+      const read: string[] = []
+      const { app, asked } = opened(["other"], true, async (id) => {
+        read.push(id)
+        return reread()
+      })
       app.commands.switchProject(project(app, "other"))
-      await vi.waitFor(() => expect(order).toEqual(["swap"]))
-      // The app hasn't answered: nothing read, nothing switched.
-      expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
-      answer("swapped")
       await vi.waitFor(() => expect(app.workspace.getSnapshot().activeProjectId).toBe("other"))
-      expect(order).toEqual(["swap", "read other"])
+      expect(read).toEqual(["other"])
+      expect(asked).toEqual([])
       expect(
         project(app, "other").history[0]!.state.roster.terminals.map((each) => each.id),
       ).toEqual(["09"])
-    })
-
-    it("stays where it is when the app brought the other window forward instead", async () => {
-      const read: string[] = []
-      const { app, asked } = opened(
-        ["other"],
-        true,
-        async (id) => {
-          read.push(id)
-          return reread()
-        },
-        { swapped: async () => "forwarded" },
-      )
-      app.commands.switchProject(project(app, "other"))
-      await vi.waitFor(() => expect(asked).toEqual([["swap", "other"]]))
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      expect(read).toEqual([])
-      expect(app.workspace.getSnapshot().activeProjectId).toBe("project")
     })
 
     it("ends on the latest pick when an earlier pick's reading finishes last", async () => {

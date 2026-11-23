@@ -52,7 +52,7 @@ describe("project windows in the header", () => {
       await expectStaysAbsent(page.getByRole("img", { name: "Shown in another window" }))
     })
 
-    it("swaps when the person picks it: this window shows it", async () => {
+    it("shows it here when the person picks it, the mark staying as a hint", async () => {
       await open()
       projectWindows.pretend(["docs-site"])
       await workspaceSwitcher().click()
@@ -62,13 +62,12 @@ describe("project windows in the header", () => {
         .click()
 
       await expect.element(workspaceSwitcher()).toHaveTextContent("docs-site")
-      // The project this window left shows in the other window now.
       await workspaceSwitcher().click()
       await expect
         .element(
           page
             .getByRole("dialog", { name: "Switch workspace" })
-            .getByRole("button", { name: /^storefront/ })
+            .getByRole("button", { name: /^docs-site/ })
             .getByRole("img", { name: "Shown in another window" }),
         )
         .toBeVisible()

@@ -37,6 +37,7 @@ import {
   apiUrlArgumentPrefix,
   directoryPickerChannel,
   extraWindowArgumentPrefix,
+  windowKeyArgumentPrefix,
   feedbackArgumentPrefix,
   noticeClickChannel,
   portableStateChannel,
@@ -352,15 +353,16 @@ const portableCopies = portableLaunch({ copies, exitApp, log: warnings("portable
 const savedWindows = keepWindows(join(app.getPath("userData"), "windows.json"))
 const windowsSaveDelayMs = 400
 let windowsTimer: ReturnType<typeof setTimeout> | undefined
+// Each window's key (see `DesktopApp.windowKey`), which it keeps for as long as it lives.
+const windowKeys = new WeakMap<BrowserWindow, string>()
 // The open windows that show a project, as they stand.
 const openWindows = (): SavedWindow[] =>
-  projectWindows
-    .list()
-    .flatMap(({ window, projectId }): SavedWindow[] =>
-      projectId === undefined || window.isDestroyed()
-        ? []
-        : [{ projectId, bounds: window.getNormalBounds(), maximized: window.isMaximized() }],
-    )
+  projectWindows.list().flatMap(({ window, projectId }): SavedWindow[] => {
+    const key = windowKeys.get(window)
+    return projectId === undefined || key === undefined || window.isDestroyed()
+      ? []
+      : [{ key, projectId, bounds: window.getNormalBounds(), maximized: window.isMaximized() }]
+  })
 // Keeps the open windows as they stand (see `windowsToKeep`: nothing once a quit is under way,
 // whose closes are no one leaving a window, `before-quit` having kept them before it closes
 // them, and none when the last window closed, which keeps the windows as they stood before it).
@@ -444,11 +446,14 @@ const createWindow = (
   options: {
     readonly projectId?: string
     readonly extra?: boolean
+    /** The key a reopened window had; a new window gets a new one. */
+    readonly key?: string
     readonly bounds?: SavedWindow["bounds"]
     readonly maximized?: boolean
   } = {},
 ): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
+  const key = options.key ?? randomUUID()
   const window = openAppWindow({
     ground: appearance.current()?.ground ?? "#ffffff",
     ink: appearance.current()?.ink,
@@ -458,6 +463,7 @@ const createWindow = (
       webglContextsArgument(webglContexts),
       ...(feedbackTo ? [`${feedbackArgumentPrefix}1`] : []),
       ...(options.extra ? [`${extraWindowArgumentPrefix}1`] : []),
+      `${windowKeyArgumentPrefix}${key}`,
     ],
     ...(options.bounds
       ? {
@@ -473,6 +479,7 @@ const createWindow = (
       ? { route: `/projects/${encodeURIComponent(options.projectId)}/sessions/_/_` }
       : {}),
   })
+  windowKeys.set(window, key)
   projectWindows.add(window, options.projectId)
   window.on("focus", () => projectWindows.used(window))
   window.on("move", rememberWindowsSoon)
@@ -538,8 +545,8 @@ const openFirstWindows = (origin: string, kept: SavedWindows): void => {
     createWindow(origin)
     return
   }
-  reopened.forEach(({ projectId, bounds, maximized }, index) =>
-    createWindow(origin, { projectId, bounds, maximized, extra: index > 0 }),
+  reopened.forEach(({ key, projectId, bounds, maximized }, index) =>
+    createWindow(origin, { key, projectId, bounds, maximized, extra: index > 0 }),
   )
 }
 
@@ -702,8 +709,8 @@ const launch = async (): Promise<void> => {
       voiceBook.counted(window, badge)
     },
   })
-  // The pages' project windows: what each shows, opening one for a project, swapping two
-  // windows' projects, and handing a place in a project to its window.
+  // The pages' project windows: what each shows, opening one for a project, and
+  // handing a place in a project to the window that takes it.
   registerProjectWindowsIpc(ipcMain, {
     window: appWindow,
     ask: (window) => projectWindows.tell(window),
@@ -713,11 +720,6 @@ const launch = async (): Promise<void> => {
     },
     use: (on) => void savedWindows.use(on).then(rememberWindows),
     open: (window, projectId) => projectWindows.open(window, projectId),
-    swap: (window, projectId) => {
-      const result = projectWindows.swap(window, projectId)
-      rememberWindowsSoon()
-      return result
-    },
     handOff: (window, target) => projectWindows.handOff(window, target),
   })
   // The page asks for its window's focus when it starts listening, as when it loads again.

@@ -258,6 +258,13 @@ export const scriptedRunner = ({
         })
       }),
       ack: api.terminals.ack.handler(() => {}),
+      // No other client attaches in a script: it controls every terminal it attaches to, and
+      // hears no news of control.
+      take: api.terminals.take.handler(() => {}),
+      controls: api.terminals.controls.handler(async function* ({ signal }) {
+        await nextOrAbort(new Promise<never>(() => {}), signal)
+        yield* []
+      }),
       // As the runner does: a terminal it has goes, and watchers hear of it; one it doesn't
       // is not found.
       close: api.terminals.close.handler(({ input: { terminalId } }) => {
