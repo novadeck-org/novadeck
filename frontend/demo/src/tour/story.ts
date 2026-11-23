@@ -77,6 +77,8 @@ export const openedTeammate = (
   type: "terminal/add",
   target: target(key),
   terminal: { ...terminal, ledBy: lead, openedBy: lead },
+  // As the runner opens an agent's terminal: beside the person's, not over it.
+  select: false,
 })
 
 // A terminal the lead opened with `open_terminal`: its own, led by no one, titled by the lead.
@@ -94,6 +96,7 @@ export const openedShell = (
     titleSource: { kind: "agent", by },
     openedBy: lead,
   },
+  select: false,
 })
 
 // An agent's describe: its terminal takes the name, as the agent's own, by its handle.

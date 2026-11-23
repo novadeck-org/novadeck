@@ -536,6 +536,8 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           <TourStage
             {...driver.shown}
             onCaption={driver.captioned}
+            onTouch={driver.touched}
+            onShow={driver.show}
             onEnd={driver.end}
             onBack={driver.back}
           />

@@ -142,6 +142,11 @@ export type WorkspaceCommands = ShellCommands &
     // it in the same step. With project windows on, a terminal of a project another window
     // shows goes to that window, which comes forward; this window stays as it is.
     readonly reveal: (terminalId: string, panel?: SidebarPanel) => void
+    // Brings a terminal of the session on screen into view for a guided look (the tour): selected,
+    // with the sidebar left as it is, and on Canvas the camera moved only where its window isn't
+    // on screen at a size to read, out to every window first and then in to it, so the person
+    // sees where it goes. A terminal elsewhere is revealed as `reveal` does.
+    readonly travel: (terminalId: string) => void
     // Brings a closed terminal back from History as a new terminal in the session on
     // screen, selected; its row leaves the list when the backend says it is restored.
     readonly restoreClosed: (row: ClosedTerminal) => void
@@ -373,6 +378,22 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       return
     }
     revealHere(terminalId, panel)
+  }
+
+  const travel = (terminalId: string): void => {
+    const snapshot = workspace.getSnapshot()
+    const found = holding(snapshot, terminalId)
+    if (
+      !found ||
+      !sameTarget(
+        { projectId: found.project.id, workspaceSessionId: found.session.id },
+        currentTarget(snapshot),
+      )
+    )
+      return reveal(terminalId)
+    recent.setSwitcher(null)
+    go({ terminal: terminalId, dialog: null })
+    pulse("travel")
   }
 
   // Where another window sent this one. The project is read from the runner first, as it may
@@ -793,6 +814,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       go({ dialog: "preferences", section: "agents" })
     },
     reveal,
+    travel,
     close: (terminalId) => {
       const snapshot = workspace.getSnapshot()
       const closing = currentState(snapshot).roster.terminals.find(

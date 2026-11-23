@@ -185,6 +185,11 @@
   );
 }
 /* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
+/* "Show me", where what the step is about is out of sight: the one part of the box that takes a
+   press besides its note. */
+.tour-caption > .tour-button {
+  pointer-events: auto;
+}
 .tour-caption-note {
   margin: 4px 0 0;
   max-width: 44ch;

@@ -1,13 +1,17 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
-import { firstTarget, targetElements, windowSelector, type TargetsOf } from "./anchors"
+import { firstTarget, outOfSight, targetElements, windowSelector, type TargetsOf } from "./anchors"
 import { captionDelayMs, hasPointed } from "./caption"
 import { placeBox, sameBox, type Box } from "./place"
 import { tourActs, type Coach, type TourAct } from "./steps"
 
 import "./print.css"
+
+// How long what a step is about stays out of the person's sight before its caption box offers to
+// bring it back ("Show me").
+const lostMs = 2_500
 
 // How often the stage looks for the footer's middle, which comes and goes with Zen.
 const lookMs = 120
@@ -36,11 +40,15 @@ type Scene = {
   readonly windows: readonly Box[]
   // The modal dialogs open now, which the caption box never lies over.
   readonly dialogs: readonly Box[]
+  // Nothing it marks is in sight now, though it's there (off screen, or behind what the person
+  // opened): the caption box offers to bring it back.
+  readonly lost: boolean
 }
 
-const noScene: Scene = { subject: null, area: null, windows: [], dialogs: [] }
+const noScene: Scene = { subject: null, area: null, windows: [], dialogs: [], lost: false }
 
 const sameScene = (a: Scene, b: Scene): boolean =>
+  a.lost === b.lost &&
   sameBox(a.subject, b.subject) &&
   sameBox(a.area, b.area) &&
   sameBoxes(a.windows, b.windows) &&
@@ -191,16 +199,88 @@ const unmark = (element: HTMLElement, mark: string): void => {
   release(made.place)
 }
 
-// What a coach marks now: where to look, and the first of its targets to press that's drawn.
+// What a coach marks now: where to look, and the first of its targets to press that's drawn,
+// and whether that is its first target, the subject of a step that waits on the person's touch.
 const marksOf = (
   coach: Coach | null,
   where: TargetsOf,
-): { readonly look: HTMLElement[]; readonly click: HTMLElement[] } => {
+): {
+  readonly look: HTMLElement[]
+  readonly click: HTMLElement[]
+  readonly subject: boolean
+  readonly lost: boolean
+} => {
+  const click = coach?.click ? firstTarget(coach.click, where) : { elements: [], index: -1 }
+  const look = coach?.look ? targetElements(coach.look, where) : []
+  const targets = [...(coach?.look ? [coach.look] : []), ...(coach?.click ?? [])]
   return {
-    look: coach?.look ? targetElements(coach.look, where) : [],
-    click: coach?.click ? firstTarget(coach.click, where) : [],
+    look,
+    click: click.elements,
+    subject: click.index === 0,
+    lost:
+      look.length === 0 &&
+      click.elements.length === 0 &&
+      targets.length > 0 &&
+      outOfSight(targets, where),
   }
 }
+
+/**
+ * Tells `onTouch` when the person touches one of `subject`'s elements: a press in it, or the focus
+ * leaving the app's page for a frame in it, as a click into a page or a model in a frame of its
+ * own does without a press the app sees. Never the focus moving within the app's page: selecting
+ * a terminal (as the tour's own travel does) focuses its input, which is no touch. A part of a window counts with its whole window: on Canvas a
+ * window not selected takes the press itself, to select it, whatever part is pressed. Where the
+ * coach says so (`opened`), a press on what opens the subject counts too.
+ */
+const useTouch = (marked: { readonly current: Marked }, onTouch: () => void, on: boolean): void => {
+  useEffect(() => {
+    if (!on) return
+    const within = (elements: readonly HTMLElement[], node: unknown): boolean =>
+      node instanceof Node &&
+      elements.some((element) => (element.closest(windowSelector) ?? element).contains(node))
+    const inSubject = (node: unknown): boolean => within(marked.current.subject, node)
+    const pressed = (event: Event): void => {
+      if (
+        inSubject(event.target) ||
+        (marked.current.opened && within(marked.current.opener, event.target))
+      )
+        onTouch()
+    }
+    // A frame taking the focus blurs the page's window first; the focus is on it a moment later.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const blurred = (): void => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        // Only into a frame of its own: the app's whole window losing the focus (to another app)
+        // leaves it where it was, as on a terminal's input in the subject's window.
+        const focused = document.activeElement
+        if (
+          (focused instanceof HTMLIFrameElement || focused?.tagName === "WEBVIEW") &&
+          inSubject(focused)
+        )
+          onTouch()
+      })
+    }
+    document.addEventListener("pointerdown", pressed, true)
+    window.addEventListener("blur", blurred)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener("pointerdown", pressed, true)
+      window.removeEventListener("blur", blurred)
+    }
+  }, [marked, onTouch, on])
+}
+
+// What the stage marks to press now: the subject of the coach's step, or what opens it, and
+// whether a press on that counts as touching the subject.
+type Marked = {
+  readonly subject: readonly HTMLElement[]
+  readonly opener: readonly HTMLElement[]
+  readonly opened: boolean
+}
+
+const noneMarked: Marked = { subject: [], opener: [], opened: false }
 
 // Puts `mark` on `next` and takes it off whatever had it before and doesn't now.
 const remark = (mark: string, before: Set<HTMLElement>, next: readonly HTMLElement[]): void => {
@@ -229,6 +309,7 @@ const lookAt = (subject: HTMLElement | undefined): Scene => {
     dialogs: [...document.querySelectorAll('[role="alertdialog"], [role="dialog"]')]
       .map(boxOf)
       .filter(drawn),
+    lost: false,
   }
 }
 
@@ -246,6 +327,8 @@ const useMarks = (
   coach: Coach | null,
   where: Omit<TargetsOf, "terminalId" | "tab">,
   looking: boolean,
+  // Kept as the stage marks the coach's step's subject, or what opens it, now.
+  marked: { current: Marked },
 ): Scene => {
   const [read, setRead] = useState<{ readonly coach: Coach | null; readonly scene: Scene }>({
     coach: null,
@@ -263,7 +346,12 @@ const useMarks = (
       })
       remark(lookMark, looked, marks.look)
       remark(clickMark, clicked, marks.click)
-      const next = lookAt(marks.look[0] ?? marks.click[0])
+      marked.current = {
+        subject: marks.subject ? marks.click : [],
+        opener: marks.subject ? [] : marks.click,
+        opened: coach?.opened === true,
+      }
+      const next = { ...lookAt(marks.look[0] ?? marks.click[0]), lost: marks.lost }
       setRead((current) =>
         current.coach === coach && sameScene(current.scene, next)
           ? current
@@ -277,8 +365,9 @@ const useMarks = (
       clearInterval(timer)
       remark(lookMark, looked, [])
       remark(clickMark, clicked, [])
+      marked.current = noneMarked
     }
-  }, [coach, where, looking])
+  }, [coach, where, looking, marked])
   return looking && read.coach === coach ? read.scene : noScene
 }
 
@@ -351,6 +440,8 @@ export const TourStage = ({
   askingRow,
   away,
   onCaption,
+  onTouch,
+  onShow,
   onEnd,
   onBack,
 }: {
@@ -368,11 +459,21 @@ export const TourStage = ({
   readonly away: boolean
   // Told, with its line, when the step's caption box shows: the step's hold counts from then.
   readonly onCaption: (line: string) => void
+  // Told, with its line, when the person touches what the step's caption marks as its subject.
+  readonly onTouch: (line: string) => void
+  // Brings what the step is about back into view, as the person asks where it's out of sight.
+  readonly onShow: () => void
   readonly onEnd: () => void
   readonly onBack: () => void
 }): React.JSX.Element => {
   const where = useMemo(() => ({ roles, team, askingRow, open }), [roles, team, askingRow, open])
-  const scene = useMarks(coach, where, !away)
+  const marked = useRef<Marked>(noneMarked)
+  const scene = useMarks(coach, where, !away, marked)
+  const line = coach?.line
+  const touch = useCallback((): void => {
+    if (line !== undefined) onTouch(line)
+  }, [line, onTouch])
+  useTouch(marked, touch, !away && line !== undefined)
   const slot = useFooterSlot(!away)
   const wiping = useWipe(act)
   // What else the caption box keeps clear of, kept while the same, so its placing isn't redone
@@ -405,11 +506,12 @@ export const TourStage = ({
           tilt={act % 2 === 0 ? "right" : "left"}
           clear={clear}
           onShown={onCaption}
+          onShow={onShow}
         />
       )}
       {/* What the person hears: one region for the whole run, its act and words. */}
       <p aria-live="polite" className="sr-only">
-        {`Act ${act}, ${tourActs[act - 1]}.${coach ? ` ${coach.line}` : ""}${coach?.note ? ` ${coach.note}` : ""}`}
+        {`Act ${act}, ${tourActs[act - 1]}.${coach ? ` ${coach.line}` : ""}${coach?.note ? ` ${coach.note}` : ""}${scene.lost ? " It's out of sight: Show me, in the tour step, brings it back." : ""}`}
       </p>
       {area &&
         (slot ? (
@@ -466,6 +568,7 @@ const CaptionBox = ({
   tilt,
   clear,
   onShown,
+  onShow,
 }: {
   readonly coach: Coach
   readonly scene: Scene
@@ -475,6 +578,7 @@ const CaptionBox = ({
   // What else it keeps clear of beside the windows.
   readonly clear: readonly Box[]
   readonly onShown: (line: string) => void
+  readonly onShow: () => void
 }): React.JSX.Element => {
   const box = useRef<HTMLElement>(null)
   // Shown a moment after what the step marks first shows on the page (a moment after it comes,
@@ -484,12 +588,22 @@ const CaptionBox = ({
   const [pointedOnce, setPointedOnce] = useState(false)
   const pointed = hasPointed(pointedOnce, marks, scene.subject !== null)
   if (pointed !== pointedOnce) setPointedOnce(pointed)
+  // What it's about has been out of the person's sight a while (they went elsewhere, or opened
+  // something over it): the box shows all the same, offering to bring it back.
+  const [lostLong, setLostLong] = useState(false)
+  if (!scene.lost && lostLong) setLostLong(false)
+  useEffect(() => {
+    if (!scene.lost) return
+    const timer = setTimeout(() => setLostLong(true), lostMs)
+    return () => clearTimeout(timer)
+  }, [scene.lost])
+  const showing = pointedOnce || lostLong
   const [shown, setShown] = useState(false)
   useEffect(() => {
-    if (shown || !pointedOnce) return
+    if (shown || !showing) return
     const timer = setTimeout(() => setShown(true), captionDelayMs)
     return () => clearTimeout(timer)
-  }, [pointedOnce, shown])
+  }, [showing, shown])
   // Said once it shows, for the step's hold to count from.
   useEffect(() => {
     if (shown) onShown(coach.line)
@@ -497,7 +611,7 @@ const CaptionBox = ({
   const [place, setPlace] = useState<{ readonly left: number; readonly top: number } | null>(null)
   useLayoutEffect(() => {
     const element = box.current
-    if (!element || !pointedOnce) return
+    if (!element || !showing) return
     const placeNow = (): void => {
       const { width, height } = element.getBoundingClientRect()
       const keepClear = coach.overWindows ? clear : [...scene.windows, ...clear]
@@ -510,9 +624,9 @@ const CaptionBox = ({
     const sized = new ResizeObserver(placeNow)
     sized.observe(element)
     return () => sized.disconnect()
-  }, [scene, area, clear, coach.overWindows, pointedOnce])
+  }, [scene, area, clear, coach.overWindows, showing])
   // No box on screen while its step has nothing to point at.
-  if (!pointedOnce) return <></>
+  if (!showing) return <></>
   return (
     <section
       ref={box}
@@ -525,6 +639,11 @@ const CaptionBox = ({
         <p className="tour-caption-line">{coach.line}</p>
       </div>
       {coach.note && <p className="tour-caption-note">{coach.note}</p>}
+      {lostLong && (
+        <button type="button" className="tour-button tour-button-go" onClick={onShow}>
+          Show me
+        </button>
+      )}
     </section>
   )
 }

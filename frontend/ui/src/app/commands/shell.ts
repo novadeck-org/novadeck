@@ -21,6 +21,9 @@ export type ShellCommands = {
   readonly showSessions: () => void
   readonly showTerminals: () => void
   readonly showInbox: () => void
+  // Shows a sidebar panel, leaving Zen, as its rail button would (the tour's "Show me" where the
+  // rail is hidden).
+  readonly showPanel: (panel: SidebarPanel) => void
   // Shows a panel for a moment, as a click on a toast shows the Inbox for one row, in place of
   // the page the person was on rather than as a step Back goes through. Returns what puts the
   // sidebar back as it was: the same panel, hidden, or Zen, with typing back in the selected
@@ -114,6 +117,7 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
     showSessions: () => show("sessions"),
     showTerminals: () => show("terminals"),
     showInbox: () => show("inbox"),
+    showPanel: (next) => show(next),
     peek,
     peekInbox: () => peek("inbox"),
     hideSidebar: hide,

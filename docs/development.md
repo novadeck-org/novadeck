@@ -851,14 +851,25 @@ App:
   marks the page's own elements, `data-tour-look` where to look (a magenta line) and
   `data-tour-click` what to press (a slowly breathing yellow one), each drawn by a mark a little
   way out from the element, and, a second after a mark shows, letters one caption box beside
-  them in space no window takes. A step that holds once done (`holdMs`: 3 s for the first and
-  the team's, 5 s for the page, the model, the Files panel and the diff, 25 s for the game, 8 s
-  for the model where there is no page) holds that long from when its caption box is shown
-  (`onCaption`, the reducer's `caption` event); a caption that hasn't shown `captionWaitMs`
-  (8 s) after the step was done on screen is given up on, and the hold counts from then. Its
+  them in space no window takes. The tour opens no sidebar panel and moves the camera only to
+  bring the window a step is about into view (`travel`, the app's `travel` command): on Canvas
+  the camera stays where that window is on screen at a size to read, and otherwise zooms out to
+  every window first and then flies in to it; the team step zooms out only where a teammate
+  lands out of sight. A step that shows the person something waits for them (`person`): once
+  done, it marks its subject to press, or what opens it first (the rail's Inbox or Files button,
+  a window whose pane isn't showing), and moves on only when they press in it or click into it
+  (a page or a model takes the focus: `useTouch` in `Stage.tsx`, the reducer's `touched` event),
+  however long they take; the last step holds 20 s from that press before the closing card (8 s
+  on the model, where there is no page). The tour never moves the view again by itself: where
+  what a step marks is there but has been out of sight 2.5 s (the person went elsewhere, opened a
+  file over it, or is in Zen with the rail hidden), its caption box shows all the same with
+  Show me, which takes the same calm way back (`showAgain`), or opens the panel the rail would. A step the agents end holds a while once done
+  (`holdMs`: 3 s, the first and the finish) from when its caption box is shown (`onCaption`, the
+  reducer's `caption` event); a caption that hasn't shown `captionWaitMs` (8 s) after the step
+  was done on screen is given up on, and the hold counts from then. Its
   steps (`frontend/tour/src/steps.ts`), in Nyx's voice: "That's your agent. It runs this job."
-  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the lead's sheet in the
-  Inbox, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
+  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the Inbox's button,
+  then the lead's sheet in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
   approval's Run command is marked, and the step waits on the person: the lead hires no one
   before they answer, so the approval has the screen to itself); "The game. Live. Empty, for
   now." (`page`, the lead's page tab); "Look. It hired its own help." (`team`, both teammates
@@ -867,8 +878,9 @@ App:
   wrote. Line by line." (`diff`, the Builder's changes tab); and "Three agents. Your game. Go
   play." (`play`, the lead's page, a while, then the closing card: "It's yours now."). A
   teammate's own question to the person is no step: while one waits in the Inbox the coach says
-  "A teammate has a question for you." and points at it until it is answered or dismissed, and
-  no step makes its moves meanwhile (a panel or the camera would take the Inbox away). The
+  "A teammate has a question for you." and points at it (or the Inbox's button) until it is
+  answered or dismissed, and no step makes its moves meanwhile (the camera would take the person
+  away from the Inbox). The
   UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
   to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
   Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run

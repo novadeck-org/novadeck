@@ -33,6 +33,9 @@ export type CanvasProps = {
   fitAllOnNavigate?: boolean | undefined
   // Navigation flies the camera in to the selection, as a header's double-click does.
   flyOnNavigate: boolean
+  // Navigation brings the selection into view for a guided look: the camera stays where its
+  // window is on screen at a size to read, and goes out to every window, then in to it, where not.
+  travelOnNavigate?: boolean | undefined
   // The session's terminals and windows, in the sidebar's order.
   terminals: readonly Tile[]
   hidden: Record<string, boolean>

@@ -1,10 +1,12 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
+import { allInSight } from "./anchors"
 import {
   beginRun,
   coachNow,
   nextTick,
+  showAgain,
   stepRun,
   stepsFor,
   type TourEvent,
@@ -64,6 +66,7 @@ export const readTourRun = (): TourRun | null => {
     return {
       ...stored,
       captionAt: null,
+      touched: null,
       approvalSeen: false,
       approvalGoneAt: null,
     }
@@ -122,6 +125,10 @@ export type TourDriver = {
   readonly begin: (agent: AgentName, started: TourStarted) => void
   // The step's caption box came on screen, with its line: a held step holds from then.
   readonly captioned: (line: string) => void
+  // The person touched what the caption with this line marks as its step's subject.
+  readonly touched: (line: string) => void
+  // Brings what the tour is about now back into view, as the person asks.
+  readonly show: () => void
   // The run followed now, with what it shows; null while none runs.
   readonly shown: {
     readonly terminalId: string
@@ -243,11 +250,9 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     (moves: readonly TourMade[]): void => {
       for (const move of moves)
         if (move.kind === "view") commands.changeView(move.view)
-        else if (move.kind === "reveal") commands.reveal(move.terminalId, move.panel)
+        else if (move.kind === "travel") commands.travel(move.terminalId)
         // A frame later: the view just changed, and Canvas hears a framing only once it's there.
-        else if (move.kind === "fit-all")
-          requestAnimationFrame(() => requestAnimationFrame(() => commands.frameAll()))
-        else commands.showInbox()
+        else requestAnimationFrame(() => requestAnimationFrame(() => commands.frameAll()))
     },
     [commands],
   )
@@ -342,13 +347,14 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     return () => clearTimeout(timer)
   }, [tickAt, signals, dispatch])
 
-  // The step's caption box showed: the run is told, with the signals as they are now.
-  const captioned = useCallback(
-    (line: string): void => {
+  // The step's caption box showed, or the person touched what it marks: the run is told, with
+  // the signals as they are now.
+  const told = useCallback(
+    (type: "caption" | "touched", line: string): void => {
       const now = current.current
       if (!now) return
       dispatch({
-        type: "caption",
+        type,
         line,
         signals: tourSignals(workspace.getSnapshot(), now.terminalId, sources.current),
         now: Date.now(),
@@ -356,6 +362,8 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     },
     [dispatch, workspace],
   )
+  const captioned = useCallback((line: string): void => told("caption", line), [told])
+  const touched = useCallback((line: string): void => told("touched", line), [told])
 
   const begin = useCallback(
     (agent: AgentName, started: TourStarted): void => {
@@ -374,10 +382,16 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     [dropRetry, setClosing],
   )
 
-  // While a step frames the team, each window the team gains is framed with the rest, a moment
-  // after it lands: Canvas sets its camera afresh as a window comes, and drops a framing asked
-  // before it settles. Only a new window: coming back to the tour, the person's own framing stays.
+  // While a step frames the team, a window the team gains out of sight has every window framed, a
+  // moment after it lands (Canvas sets its camera afresh as a window comes, and drops a framing
+  // asked before it settles): the camera goes out to show it, never across, and stays where all
+  // are in sight. Only a new window: coming back to the tour, the person's own framing stays.
   const framing = run && steps[run.step]?.frameTeam && signals.onScreen ? signals.team.count : null
+  // The team's windows as they are when the framing looks.
+  const teamIds = useRef(signals.team.ids)
+  useEffect(() => {
+    teamIds.current = signals.team.ids
+  }, [signals.team.ids])
   const framingFor = run?.terminalId
   // The most windows framed so far, for the run it was for: another run starts from none.
   const framed = useRef({ terminalId: framingFor, count: 0 })
@@ -386,13 +400,15 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
       framed.current = { terminalId: framingFor, count: 0 }
     if (framing === null || framing <= framed.current.count) return
     framed.current = { terminalId: framingFor, count: framing }
-    const timer = setTimeout(() => commands.frameAll(), frameSettleMs)
+    const timer = setTimeout(() => {
+      if (!allInSight(current.current ? teamIds.current : [])) commands.frameAll()
+    }, frameSettleMs)
     return () => clearTimeout(timer)
   }, [framing, framingFor, commands])
 
   // A teammate held at its own agent's screen (its own question, as folder trust or sign-in), or
-  // an agent asking the person's permission, waits on them in its terminal, which isn't on
-  // screen: brought there once per hold, for the coach to point at.
+  // an agent asking the person's permission, waits on them in its terminal, which may not be on
+  // screen: brought into view once per hold, the calm way, for the coach to point at.
   const held =
     run && signals.onScreen
       ? (signals.teamScreen?.terminalId ??
@@ -404,19 +420,29 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     if (!held) revealed.current = null
     if (!held || revealed.current === held) return
     revealed.current = held
-    commands.reveal(held)
+    commands.travel(held)
   }, [held, commands])
 
-  // A teammate's own question to the person waits in the Inbox: it is opened once per question,
-  // for the coach to point at its row.
-  const question = run && signals.onScreen && !held ? signals.askingRow : null
-  const questioned = useRef<string | null>(null)
-  useEffect(() => {
-    if (!question) questioned.current = null
-    if (!question || questioned.current === question) return
-    questioned.current = question
-    commands.showInbox()
-  }, [question, commands])
+  // What "Show me" brings back: a terminal held at something of its own, or the step's subject.
+  const show = useCallback((): void => {
+    const now = current.current
+    if (!now) return
+    const state = tourSignals(workspace.getSnapshot(), now.terminalId, sources.current)
+    const waiting =
+      state.teamScreen?.terminalId ?? state.teamLeft?.terminalId ?? state.permission?.terminalId
+    if (waiting) return commands.travel(waiting)
+    // A panel the coach points to open by its rail button, where the rail is hidden (Zen).
+    const click = coachNow(now, stepsFor(now), state)?.click ?? []
+    const panel = click.includes("inbox-button")
+      ? "inbox"
+      : click.includes("files-button")
+        ? "files"
+        : null
+    if (panel) return commands.showPanel(panel)
+    const again = showAgain(now, stepsFor(now), state)
+    make(again.moves)
+    if (again.tab) commands.openBarTab(again.tab.terminalId, again.tab.key)
+  }, [workspace, commands, make])
 
   const projectOf = useSelected(
     workspace,
@@ -452,6 +478,8 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     () => ({
       begin,
       captioned,
+      touched,
+      show,
       shown,
       closing: closing && { ...closing, keepError },
       retryKeep: keep,
@@ -464,6 +492,8 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     [
       begin,
       captioned,
+      touched,
+      show,
       shown,
       dispatch,
       run,

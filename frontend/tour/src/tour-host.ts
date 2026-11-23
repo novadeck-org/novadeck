@@ -18,14 +18,17 @@ export type TourHost = {
 
 export type TourCommands = Pick<TourEffects, "openTour" | "add"> & {
   readonly changeView: (next: ViewMode) => void
-  // Brings a terminal into view and selects it (in Canvas the camera flies to it), with a
-  // sidebar panel opened where one is named.
-  readonly reveal: (terminalId: string, panel?: SidebarPanel) => void
+  // Brings a terminal of the session on screen into view for a look and selects it, leaving the
+  // sidebar as it is: in Canvas the camera moves only where its window isn't on screen at a size
+  // to read, out to every window first and then in to it.
+  readonly travel: (terminalId: string) => void
   // Brings back a terminal of another project, switching to it.
   readonly revealTerminal: (terminalId: string, projectId: string) => void
   // Opens a tab of a terminal's side pane by its item id, or `messages`.
   readonly openBarTab: (terminalId: string, key: BarKey) => void
-  readonly showInbox: () => void
+  // Shows a sidebar panel, as its rail button would: only where the person asks ("Show me") and
+  // the rail is hidden, as in Zen.
+  readonly showPanel: (panel: SidebarPanel) => void
   // Frames every window (Canvas).
   readonly frameAll: () => void
 }

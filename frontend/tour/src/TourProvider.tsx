@@ -34,6 +34,8 @@ const nothing = (): void => {}
 const idle = (begin: TourDriver["begin"]): TourDriver => ({
   begin,
   captioned: nothing,
+  touched: nothing,
+  show: nothing,
   shown: null,
   closing: null,
   retryKeep: nothing,
