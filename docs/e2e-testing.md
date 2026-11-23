@@ -428,7 +428,7 @@ network:
 
 Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
 an agent starting another with a task, or closing another's terminal, in
-`tasks.e2e.ts`, what a quit or a close leaves of an agent's tools in `quit.e2e.ts`, and of what it started detached on Linux in `detached.e2e.ts`, an agent's look at a page it showed (the picture reaches each harness's model) in `look.e2e.ts`, the person typing around messages in `person.e2e.ts`, Novadeck's own tools running unasked however a session started (typed, opened by an agent,
+`tasks.e2e.ts`, what a quit or a close leaves of an agent's tools in `quit.e2e.ts`, and of what it started detached on Linux and macOS in `detached.e2e.ts`, an agent's look at a page it showed (the picture reaches each harness's model) in `look.e2e.ts`, the person typing around messages in `person.e2e.ts`, Novadeck's own tools running unasked however a session started (typed, opened by an agent,
 resumed at a restart, resumed from History) in `tools-unasked.e2e.ts`, messages that come while
 the agent waits on the person (a
 permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run of the

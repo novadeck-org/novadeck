@@ -101,7 +101,10 @@ resolve it.
     Told when an agent runs there (`agentStarted`, `agentEnded`), a pty ends what the agent left
     in its scope as `end` runs (`left`), or by `endLeft` once its shell has exited: each tree of
     the scope whose root started during an agent's run, but for what `apart` names
-    (`leftovers`).
+    (`leftovers`). On macOS, `taggedScopes()` gives each pty the scope of the processes that
+    started with its terminal's variable in their environment, as the caller's relay lists them
+    (`TaggedScopes`), with each start to the microsecond, the clock its runs are kept in
+    (`wallClock`; Linux's is `tickClock`).
   - `sampleForeground(child, last)` names the program in a terminal's foreground, cheaply
     enough to sample, from `/proc` on Linux and `ps` on macOS (Windows can't tell).
     `terminalForeground`, `processGroup`, `foregroundProcess`, `foregroundRuns`, `openFiles`,

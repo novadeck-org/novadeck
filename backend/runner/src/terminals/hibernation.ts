@@ -52,7 +52,7 @@ export type Tree = {
   /**
    * An agent left something running in the terminal's scope outside the shell's tree, as a
    * server it started detached (`nohup`, `setsid`): the terminal's end would end it (see the
-   * pty's `endLeft`). Linux only; none where it can't be told.
+   * pty's `endLeft`). Linux and macOS; none where it can't be told.
    */
   readonly detached?: boolean
 }

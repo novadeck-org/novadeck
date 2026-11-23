@@ -839,7 +839,12 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       // A fresh run's listeners that throw are told of again.
       threw.clear()
       dispose()
-      if (run.pty.agentRan) earlier.push(run.pty)
+      if (run.pty.agentRan) {
+        // What starts from now is no agent's of that run's: on macOS the next run's processes
+        // name the same terminal, as its scope.
+        run.pty.agentEnded()
+        earlier.push(run.pty)
+      }
       run = started
       size = { cols: spec.cols, rows: spec.rows }
       runs += 1

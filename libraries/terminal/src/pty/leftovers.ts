@@ -8,11 +8,13 @@ import {
   type Listed,
   type Listing,
 } from "./descendants.js"
+import type { ScopeMember } from "./scopes.js"
+import { parseLstart } from "./spawned.js"
 
 /**
- * An agent's run in a terminal, in Linux's clock ticks since boot, as /proc/<pid>/stat gives a
- * process's start: from the agent's own process's start (`runStart`), or the time it bound where
- * that can't be read, until its session ended, or still open while it runs.
+ * An agent's run in a terminal, in its platform's `RunClock`: from the agent's own process's
+ * start (`runStart`), or the time it bound where that can't be read, until its session ended,
+ * or still open while it runs.
  */
 export type AgentRun = { readonly since: number; readonly until?: number }
 
@@ -44,15 +46,62 @@ const ticks = (row: Listed): number | undefined => {
   return /^\d+$/.test(row.started) && Number.isSafeInteger(value) ? value : undefined
 }
 
+/** The clock an agent's runs and the starts of what it left are compared in. */
+export type RunClock = {
+  /** Now; undefined where it can't be read. */
+  now(): number | undefined
+  /**
+   * When `row` started, by its scope's word (`member`) where that gives one; undefined where
+   * neither tells, or where they tell of two processes, a pid taken between the two reads.
+   */
+  start(row: Listed, member?: ScopeMember): number | undefined
+}
+
+/**
+ * Linux's: clock ticks since boot, as /proc/<pid>/stat gives a process's start and
+ * /proc/uptime counts on through suspend.
+ */
+export const tickClock: RunClock = { now: () => ticksNow(), start: (row) => ticks(row) }
+
+/**
+ * macOS's: milliseconds since the epoch, the wall clock a process's start is read in, as the
+ * scope gives it to the microsecond. The listing's `lstart` gives only its second, which
+ * would count what the person started in the second an agent started or ended as the agent's;
+ * it is taken only where the scope gives none.
+ */
+export const wallClock: RunClock = {
+  now: () => Date.now(),
+  start: (row, member) => {
+    const listed = parseLstart(row.started)
+    if (member?.startedMs === undefined) return listed
+    return listed === undefined || Math.floor(member.startedMs / 1000) * 1000 === listed
+      ? member.startedMs
+      : undefined
+  },
+}
+
+/** The clock `platform`'s runs are kept in. */
+export const runClock = (platform: NodeJS.Platform): RunClock =>
+  platform === "darwin" ? wallClock : tickClock
+
 /**
  * Where the agent `agent` began: its own start, which is its shell's where it took the shell's
  * place (`exec codex`). Never a wrapper's or a shell's it runs under, which may have started
  * long before and what the person ran there with it. Undefined where the listing doesn't show
  * it, as for a pid of a sandbox's own namespace.
  */
-export const runStart = (rows: readonly Listed[], agent: number): number | undefined => {
+export const runStart = (
+  rows: readonly Listed[],
+  agent: number,
+  clock: RunClock = tickClock,
+  members: readonly ScopeMember[] = [],
+): number | undefined => {
   const lead = rows.find((row) => row.pid === agent)
-  return lead && !lead.zombie ? ticks(lead) : undefined
+  if (!lead || lead.zombie) return undefined
+  return clock.start(
+    lead,
+    members.find((member) => member.pid === agent),
+  )
 }
 
 const during = (start: number, runs: readonly AgentRun[]): boolean =>
@@ -64,8 +113,9 @@ const during = (start: number, runs: readonly AgentRun[]): boolean =>
  * while an agent ran there (`runs`), with all under it. A program the agent started detached is
  * such a root, adopted outside the scope once its launching shell exited.
  *
- * Spared, with all under each: the shell's own tree while it runs, which its hangup and the
- * agent's follow (`agentProcesses`) end; trees whose root started before any agent or after its
+ * Spared, with all under each: the shell's own tree while it runs, by the listing's parents, as
+ * macOS's scope never holds an Apple shell, which its hangup and the agent's follow
+ * (`agentProcesses`) end; trees whose root started before any agent or after its
  * session ended, as what the person started there by hand; and `apart`, what the agent's
  * harness runs apart from the terminal, as Claude Code's background service, found in the scope
  * of the terminal that started it. A process that has left the scope, as one `systemd-run` or D-Bus
@@ -79,18 +129,24 @@ export const leftovers = ({
   shell,
   apart = [],
   skip = new Set(),
+  clock = tickClock,
 }: {
   readonly rows: readonly Listed[]
-  readonly members: readonly number[]
+  readonly members: readonly ScopeMember[]
   readonly runs: readonly AgentRun[]
   readonly shell?: number | undefined
   readonly apart?: readonly Followed[]
   readonly skip?: ReadonlySet<string>
+  readonly clock?: RunClock
 }): readonly Followed[] => {
   if (runs.length === 0) return []
-  const inside = new Set(members)
+  const inside = new Map(members.map((member) => [member.pid, member]))
   const scoped = rows.filter((row) => inside.has(row.pid) && !row.zombie && row.pid > 1)
   const byPid = new Map(scoped.map((row) => [row.pid, row]))
+  const running = shell === undefined ? undefined : rows.find((row) => row.pid === shell)
+  const underShell = new Set(
+    running && !running.zombie ? withBelow(rows, [running]).map((row) => row.pid) : [],
+  )
   const kept = new Set(
     withBelow(
       scoped,
@@ -116,10 +172,11 @@ export const leftovers = ({
   }
   return scoped
     .filter((row) => {
-      if (kept.has(row.pid) || row.pid === shell || skip.has(processKey(row))) return false
+      if (kept.has(row.pid) || row.pid === shell || underShell.has(row.pid)) return false
+      if (skip.has(processKey(row))) return false
       const root = rootOf(row)
       if (root.pid === shell) return false
-      const start = ticks(root)
+      const start = clock.start(root, inside.get(root.pid))
       return start !== undefined && during(start, runs)
     })
     .map(({ pid, started }) => ({ pid, started }))
@@ -189,8 +246,8 @@ export const endLeftovers = async (
 /** The listing and the scope's members together, for `leftovers`; undefined where either fails. */
 export const readScope = async (
   listing: Listing,
-  members: () => Promise<readonly number[] | undefined>,
-): Promise<{ rows: readonly Listed[]; members: readonly number[] } | undefined> => {
+  members: () => Promise<readonly ScopeMember[] | undefined>,
+): Promise<{ rows: readonly Listed[]; members: readonly ScopeMember[] } | undefined> => {
   // Members first: what joins the scope after is listed, and what leaves it isn't a member.
   const inside = await members()
   if (!inside || inside.length === 0) return undefined

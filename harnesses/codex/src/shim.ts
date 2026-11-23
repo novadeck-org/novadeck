@@ -25,6 +25,8 @@ import { titleSetting } from "./title.js"
 // environment their shell starts with (BASH_ENV, ZDOTDIR, with the person's own passed on), on
 // Windows through Novadeck's PowerShell first on PATH, as Codex finds its shell there. As a
 // session starts, with or without --no-daemon, it tells Novadeck so (`posixLaunch`, `cmdLaunch`).
+// Where the person's Codex sets its commands' environment itself, the POSIX shim has it give them
+// the terminal's name again (`posixTerminal`), which macOS ends what an agent left detached by.
 
 /**
  * What lets a session run Novadeck's own tools without asking, a word for `-c`: its plugin's
@@ -62,6 +64,22 @@ if [ -n "\${NOVADECK_CAPTURE:-}" ] &&
     -c "${commandsGet("NOVADECK_USER_ZDOTDIR", "${ZDOTDIR:-}")}" "$@"
 fi`
 
+/**
+ * What the POSIX shim adds ahead of Codex's own words where the person's Codex sets its
+ * commands' environment (\`shell_environment_policy\`, in their config, the project's or a
+ * \`-c\` of theirs): the terminal's name, which an \`inherit = "core"\` drops and macOS finds
+ * what an agent left detached by (the terminal library's \`TaggedScopes\`). Probed with Codex
+ * 0.171.0 (2026-11-23): with \`inherit = "core"\` a detached command no longer named its
+ * terminal; with this it did. Codex's own default passes it on, so nothing is added then; an
+ * \`include_only\` of theirs that leaves it out still does, as before.
+ */
+const posixTerminal = `
+# Codex's commands name this terminal, also where the person's Codex sets their environment.
+grep -qs shell_environment_policy "\${CODEX_HOME:-$HOME/.codex}/config.toml" .codex/config.toml &&
+  novadeck_policy=1
+[ -z "$novadeck_policy" ] ||
+  set -- -c "${commandsGet("NOVADECK_TERMINAL_ID", '\\"$NOVADECK_TERMINAL_ID\\"')}" "$@"`
+
 export const posixShim = (root?: string, capture?: Machine["capture"]): string => `#!/bin/sh
 ${header("#", "shim for codex")}
 # Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session runs
@@ -94,6 +112,7 @@ fi
 case " \${NOVADECK_SHIMS:-} " in *" codex "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 novadeck_daemon=--no-daemon
 novadeck_roots=
+novadeck_policy=
 novadeck_file=$(dirname "$0")/../plugins/codex/${rootsFile}
 [ -n "$novadeck_root" ] && [ -d "$novadeck_root" ] && [ -f "$novadeck_file" ] &&
   novadeck_roots=$(cat "$novadeck_file")
@@ -104,8 +123,10 @@ for novadeck_arg in "$@"; do
     --no-daemon) novadeck_daemon= ;;
     # A profile's own roots stand, which the setting would replace.
     -p* | --profile | --profile=*) novadeck_roots= ;;
+    # The person's own setting of its commands' environment (\`posixTerminal\`).
+    *shell_environment_policy*) novadeck_policy=1 ;;
   esac
-done${capture ? posixCapture(capture) : ""}
+done${capture ? posixCapture(capture) : ""}${posixTerminal}
 ${posixLaunch("codex")}
 exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_roots:+-c} \${novadeck_roots:+"$novadeck_roots"} -c "${titleSetting}" -c ${approveNovadeck} "$@"
 `

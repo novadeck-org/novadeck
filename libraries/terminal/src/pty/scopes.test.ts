@@ -521,7 +521,7 @@ describe("a scope's members", () => {
     expect(parseGroup('s "/user.slice/app.slice/u.scope"\n')).toBe("/user.slice/app.slice/u.scope")
     expect(parseGroup('s ""')).toBeUndefined()
     expect(parseGroup("garbage")).toBeUndefined()
-    expect(parseProcs("12\n13\n\nx\n")).toEqual([12, 13])
+    expect(parseProcs("12\n13\n\nx\n")).toEqual([{ pid: 12 }, { pid: 13 }])
   })
 
   it("are the pids its cgroup lists, however each got there", async () => {
@@ -529,9 +529,9 @@ describe("a scope's members", () => {
       Promise.resolve(path === "/app.slice/u.scope/cgroup.procs" ? "42\n77\n" : ""),
     )
     const scope = new UserScopes("p", answering("/app.slice/u.scope"), 0, read).contain(42)
-    expect(await scope.members()).toEqual([42, 77])
+    expect(await scope.members()).toEqual([{ pid: 42 }, { pid: 77 }])
     // The cgroup is asked once.
-    expect(await scope.members()).toEqual([42, 77])
+    expect(await scope.members()).toEqual([{ pid: 42 }, { pid: 77 }])
     expect(read).toHaveBeenCalledTimes(2)
   })
 

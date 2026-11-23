@@ -629,7 +629,7 @@ describe.skipIf(process.platform !== "linux")("what agents left in a terminal's 
           contain: () => ({
             cause: () => undefined,
             weigh: () => Promise.resolve(),
-            members: () => Promise.resolve(members),
+            members: () => Promise.resolve(members.map((pid) => ({ pid }))),
             exited: () => Promise.resolve(),
           }),
         },

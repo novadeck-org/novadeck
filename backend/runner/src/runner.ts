@@ -4,8 +4,9 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { compatibility, errors } from "@novadeck/protocol"
+import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
-import { terminalPriorities, userScopes } from "@novadeck/terminal/pty"
+import { taggedScopes, terminalPriorities, userScopes } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions, type Verdict } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
@@ -359,8 +360,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   murmur.start()
   started.push(murmur)
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
-  // takes down its terminal, not the app.
-  const scopes = userScopes()
+  // takes down its terminal, not the app. On macOS a terminal's processes are those that
+  // started with it named in their environment, as every shell starts (`launching.ts`), read
+  // through the relay; so on both, what an agent left detached there ends with it.
+  const scopes =
+    userScopes() ??
+    taggedScopes(() => Promise.resolve(options.relay ?? relayPath), "NOVADECK_TERMINAL_ID")
   // On macOS and Windows each shell and what it starts run below the window's priority.
   const priority = terminalPriorities()
   // The terminal the person uses in each window keeps the normal share of both.

@@ -3,7 +3,16 @@ import { spawn } from "node:child_process"
 import { describe as context, describe, expect, it, onTestFinished } from "vitest"
 
 import { processListing, type Listed } from "./descendants.js"
-import { endLeftovers, leftovers, readScope, runStart, ticksNow } from "./leftovers.js"
+import {
+  endLeftovers,
+  leftovers,
+  readScope,
+  runClock,
+  runStart,
+  tickClock,
+  ticksNow,
+  wallClock,
+} from "./leftovers.js"
 
 // A process as a listing shows it, started at `started` clock ticks.
 const row = (
@@ -25,6 +34,8 @@ const row = (
 const shell = row(10, 5, 100)
 const runs = [{ since: 500, until: 900 }]
 const pids = (found: readonly { pid: number }[]) => found.map(({ pid }) => pid).toSorted()
+// A scope's members by their pids, as Linux's cgroups tell them, with no start.
+const inside = (...members: number[]) => members.map((pid) => ({ pid }))
 
 describe("what an agent left in its terminal's scope", () => {
   context("while the shell runs", () => {
@@ -36,20 +47,27 @@ describe("what an agent left in its terminal's scope", () => {
         row(31, 30, 950), // that server's worker, started after the agent left
         row(40, 2000, 700), // one adopted by a subreaper outside the scope
       ]
-      const found = leftovers({ rows, members: [10, 20, 30, 31, 40], runs, shell: 10 })
+      const found = leftovers({ rows, members: inside(10, 20, 30, 31, 40), runs, shell: 10 })
       expect(pids(found)).toEqual([30, 31, 40])
     })
 
     it("leaves the shell's own tree to its hangup and the agent's follow", () => {
       const rows = [shell, row(20, 10, 500), row(21, 20, 600), row(22, 21, 700)]
-      expect(leftovers({ rows, members: [10, 20, 21, 22], runs, shell: 10 })).toEqual([])
+      expect(leftovers({ rows, members: inside(10, 20, 21, 22), runs, shell: 10 })).toEqual([])
+    })
+
+    it("leaves the shell's tree by the listing, where the scope doesn't hold the shell", () => {
+      // macOS's: an Apple shell's environment is hidden, so only what it started is a member.
+      const rows = [shell, row(20, 10, 500), row(21, 20, 600), row(30, 1, 650)]
+      const found = leftovers({ rows, members: inside(20, 21, 30), runs, shell: 10 })
+      expect(pids(found)).toEqual([30])
     })
 
     it("leaves out what a follow still waits on", () => {
       const rows = [shell, row(30, 1, 600), row(31, 1, 610)]
       const found = leftovers({
         rows,
-        members: [10, 30, 31],
+        members: inside(10, 30, 31),
         runs,
         shell: 10,
         skip: new Set(["30:600"]),
@@ -61,7 +79,7 @@ describe("what an agent left in its terminal's scope", () => {
   context("once the shell has gone", () => {
     it("is what the agent started, whatever it was under", () => {
       const rows = [row(20, 1, 500), row(21, 1, 600), row(22, 21, 700)]
-      expect(pids(leftovers({ rows, members: [20, 21, 22], runs }))).toEqual([20, 21, 22])
+      expect(pids(leftovers({ rows, members: inside(20, 21, 22), runs }))).toEqual([20, 21, 22])
     })
 
     it("spares what the person started before the agent, or after it left, with all under each", () => {
@@ -72,13 +90,13 @@ describe("what an agent left in its terminal's scope", () => {
         row(61, 60, 1100),
         row(30, 1, 600), // the agent's
       ]
-      expect(pids(leftovers({ rows, members: [50, 51, 60, 61, 30], runs }))).toEqual([30])
+      expect(pids(leftovers({ rows, members: inside(50, 51, 60, 61, 30), runs }))).toEqual([30])
     })
 
     it("counts what started during any of several runs, and all of a run still open", () => {
       const twice = [{ since: 200, until: 300 }, { since: 800 }]
       const rows = [row(30, 1, 250), row(31, 1, 500), row(32, 1, 5000)]
-      expect(pids(leftovers({ rows, members: [30, 31, 32], runs: twice }))).toEqual([30, 32])
+      expect(pids(leftovers({ rows, members: inside(30, 31, 32), runs: twice }))).toEqual([30, 32])
     })
   })
 
@@ -91,7 +109,7 @@ describe("what an agent left in its terminal's scope", () => {
     ]
     const found = leftovers({
       rows,
-      members: [70, 71, 72, 30],
+      members: inside(70, 71, 72, 30),
       runs,
       apart: [{ pid: 70, started: "600" }],
     })
@@ -100,25 +118,30 @@ describe("what an agent left in its terminal's scope", () => {
 
   it("never names one apart by its pid alone", () => {
     const rows = [row(70, 1, 600)]
-    const found = leftovers({ rows, members: [70], runs, apart: [{ pid: 70, started: "601" }] })
+    const found = leftovers({
+      rows,
+      members: inside(70),
+      runs,
+      apart: [{ pid: 70, started: "601" }],
+    })
     expect(pids(found)).toEqual([70])
   })
 
   it("is never a process outside the scope, as one `systemd-run` moved to a scope of its own", () => {
     const rows = [row(30, 1, 600), row(31, 30, 650)]
     // 31 started under 30, then was moved to a scope of its own.
-    expect(pids(leftovers({ rows, members: [30], runs }))).toEqual([30])
+    expect(pids(leftovers({ rows, members: inside(30), runs }))).toEqual([30])
   })
 
   it("is nothing where no agent ran, and never a zombie or init", () => {
     const rows = [row(30, 1, 600), row(31, 1, 600, { zombie: true }), row(1, 0, 0)]
-    expect(leftovers({ rows, members: [30, 31, 1], runs: [] })).toEqual([])
-    expect(pids(leftovers({ rows, members: [30, 31, 1], runs }))).toEqual([30])
+    expect(leftovers({ rows, members: inside(30, 31, 1), runs: [] })).toEqual([])
+    expect(pids(leftovers({ rows, members: inside(30, 31, 1), runs }))).toEqual([30])
   })
 
   it("is nothing for a start that isn't Linux's clock ticks", () => {
     const rows = [{ ...row(30, 1, 600), started: "Mon Nov 23 01:00:00 2026" }]
-    expect(leftovers({ rows, members: [30], runs })).toEqual([])
+    expect(leftovers({ rows, members: inside(30), runs })).toEqual([])
   })
 })
 
@@ -131,6 +154,73 @@ describe("where an agent's run begins", () => {
   it("is unknown for a pid the listing doesn't show, as a sandbox's own", () => {
     expect(runStart([row(10, 5, 100)], 3)).toBeUndefined()
     expect(runStart([row(20, 5, 100, { zombie: true })], 20)).toBeUndefined()
+  })
+})
+
+// macOS's `ps -o lstart` of local time `at`, as the listing gives it under LC_ALL=C.
+const lstart = (at: number): string => {
+  const date = new Date(at)
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()]
+  const month = date.toLocaleString("en-US", { month: "short" })
+  const time = [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":")
+  return `${day} ${month} ${String(date.getDate()).padStart(2)} ${time} ${date.getFullYear()}`
+}
+
+describe("macOS's clock", () => {
+  // A second on the wall clock, and processes started in it as the listing shows them.
+  const second = new Date(2026, 10, 23, 15, 20, 1).getTime()
+  const at = (pid: number, parent: number, ms: number): Listed => ({
+    ...row(pid, parent, 0),
+    started: lstart(ms),
+  })
+
+  it("is the scope's start to the microsecond, where it is the listed process's", () => {
+    const listed = at(30, 1, second)
+    expect(wallClock.start(listed, { pid: 30, startedMs: second + 359.651 })).toBe(second + 359.651)
+    // The listing's own second where the scope gives none.
+    expect(wallClock.start(listed)).toBe(second)
+    expect(wallClock.start(listed, { pid: 30 })).toBe(second)
+  })
+
+  it("is unknown where the scope and the listing tell of two processes, a pid taken between", () => {
+    expect(
+      wallClock.start(at(30, 1, second), { pid: 30, startedMs: second + 2_100 }),
+    ).toBeUndefined()
+  })
+
+  it("counts what the person started in the second the agent started as theirs", () => {
+    // In the same second: the person's server at .100, the agent at .400, its server at .700.
+    const rows = [
+      at(10, 5, second - 60_000),
+      at(20, 10, second),
+      at(30, 1, second),
+      at(31, 1, second),
+    ]
+    const members = [
+      { pid: 10, startedMs: second - 60_000 },
+      { pid: 20, startedMs: second + 400 },
+      { pid: 30, startedMs: second + 100 },
+      { pid: 31, startedMs: second + 700 },
+    ]
+    const since = runStart(rows, 20, wallClock, members)
+    expect(since).toBe(second + 400)
+    const found = leftovers({
+      rows,
+      members,
+      runs: [{ since: since!, until: second + 900 }],
+      shell: 10,
+      clock: wallClock,
+    })
+    expect(pids(found)).toEqual([31])
+  })
+
+  it("is the clock of macOS's runs, Linux's ticks elsewhere", () => {
+    expect(runClock("darwin")).toBe(wallClock)
+    expect(runClock("linux")).toBe(tickClock)
+    const before = Date.now()
+    expect(wallClock.now()).toBeGreaterThanOrEqual(before)
   })
 })
 
@@ -178,17 +268,17 @@ describe("reading a scope", () => {
     expect(
       await readScope(
         () => Promise.resolve(undefined),
-        () => Promise.resolve([1]),
+        () => Promise.resolve(inside(1)),
       ),
     ).toBe(undefined)
     expect(
       await readScope(
         () => Promise.resolve(rows),
-        () => Promise.resolve([1]),
+        () => Promise.resolve(inside(1)),
       ),
     ).toEqual({
       rows,
-      members: [1],
+      members: inside(1),
     })
   })
 })

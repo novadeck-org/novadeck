@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -8,10 +9,45 @@ import { describe as context, describe, expect, it, onTestFinished } from "vites
 
 import { processListing } from "./descendants.js"
 import { spawnPty, type Pty } from "./pty.js"
-import { UserScopes, userScopes } from "./scopes.js"
+import { UserScopes, userScopes, type Scopes } from "./scopes.js"
+import { parseLstart } from "./spawned.js"
+import { TaggedScopes } from "./tagged.js"
+import type { RunRelay } from "./trees.js"
 
-// Real shells in real systemd scopes of their own, named apart from the app's own terminals.
+const macOS = process.platform === "darwin"
+// Real shells in real systemd scopes of their own, named apart from the app's own terminals;
+// on macOS, each named in its environment, as the runner names every terminal.
 const prefix = `app-novadeck-lefttest${process.pid}`
+const variable = "NOVADECK_TERMINAL_ID"
+
+/**
+ * The relay's `tagged`, played by `ps -E`, which shows the environment each of the user's
+ * processes started with as the relay reads it, but its start only to the second: so on macOS
+ * what is told apart by its start is a second apart. The relay's own reading is its test's.
+ */
+const psTagged: RunRelay = async (_relay, args) => {
+  const name = args[1]!
+  const { stdout } = await promisify(execFile)("ps", ["-axEww", "-o", "pid=,lstart=,command="], {
+    env: { ...process.env, LC_ALL: "C" },
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  return stdout
+    .split("\n")
+    .flatMap((line) => {
+      const match = /^\s*(\d+)\s+(\w+\s+\w+\s+\d+\s+\d+:\d+:\d+\s+\d+)\s+(.*)$/.exec(line)
+      const value = match && new RegExp(`(?:^|\\s)${name}=(\\S+)`).exec(match[3]!)?.[1]
+      const started = match && parseLstart(match[2]!)
+      return value && started !== undefined && started !== null
+        ? [JSON.stringify({ pid: Number(match[1]), startedUs: started * 1000, value })]
+        : []
+    })
+    .join("\n")
+}
+
+/** How long apart two starts are to be told apart: Linux's clock ticks, macOS's `ps` seconds. */
+const distinct = macOS ? 1_100 : 50
+/** Detaches a command into a session of its own: macOS has no `setsid` program. */
+const setsid = macOS ? `perl -MPOSIX -e 'fork and exit; POSIX::setsid(); exec @ARGV'` : "setsid"
 const noTrees = { read: () => Promise.resolve(undefined), end: () => Promise.resolve() }
 const listing = processListing(process.platform, 0, 10_000)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -50,7 +86,7 @@ setInterval(() => {}, 1000)
 const variants: Record<string, string> = {
   subshell: `(${process.execPath} server.mjs subshell >/dev/null 2>&1 &)`,
   nohup: `nohup ${process.execPath} server.mjs nohup >/dev/null 2>&1 &`,
-  setsid: `setsid ${process.execPath} server.mjs setsid >/dev/null 2>&1 &`,
+  setsid: `${setsid} ${process.execPath} server.mjs setsid >/dev/null 2>&1 &`,
   disown: `${process.execPath} server.mjs disown >/dev/null 2>&1 & disown`,
 }
 
@@ -90,7 +126,11 @@ const unitState = async (unit: string): Promise<string> =>
   ).stdout.trim()
 
 // A real shell on a real terminal, with job control, in a scope of its own once it is there.
-const terminal = async (scopes = new UserScopes(prefix)) => {
+const terminal = async (
+  scopes: Scopes = macOS
+    ? new TaggedScopes(() => Promise.resolve("ps"), variable, psTagged)
+    : new UserScopes(prefix),
+) => {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), "terminal-left-")))
   onTestFinished(() => rmSync(root, { recursive: true, force: true }))
   writeFileSync(join(root, "server.mjs"), server)
@@ -99,7 +139,7 @@ const terminal = async (scopes = new UserScopes(prefix)) => {
     file: "bash",
     args: ["--norc", "--noprofile", "-i"],
     cwd: root,
-    env: { PATH: process.env.PATH, HOME: root, TERM: "dumb" },
+    env: { PATH: process.env.PATH, HOME: root, TERM: "dumb", [variable]: `left-${randomUUID()}` },
     cols: 200,
     rows: 24,
     scopes,
@@ -121,10 +161,11 @@ const terminal = async (scopes = new UserScopes(prefix)) => {
       }
   })
   const unit = `${prefix}-term${pty.pid}.scope`
-  await eventually(
-    () => readFileSync(`/proc/${pty.pid}/cgroup`, "utf8").includes(unit),
-    "the shell to be in its scope",
-  )
+  if (!macOS)
+    await eventually(
+      () => readFileSync(`/proc/${pty.pid}/cgroup`, "utf8").includes(unit),
+      "the shell to be in its scope",
+    )
   const run = (line: string) => pty.write(`${line}\r`)
   const said = async (pattern: RegExp): Promise<RegExpExecArray> => {
     await eventually(() => pattern.test(screen), `${pattern} in: ${screen}`)
@@ -139,7 +180,7 @@ const terminal = async (scopes = new UserScopes(prefix)) => {
     const servers = told(root)
     ended.push(pid, ...servers.values())
     // The agent's own start, read back by a listing.
-    await sleep(100)
+    await sleep(macOS ? 500 : 100)
     return { pid, servers }
   }
   const end = (
@@ -160,15 +201,23 @@ const terminal = async (scopes = new UserScopes(prefix)) => {
   return { pty, root, unit, run, said, startAgent, end, own }
 }
 
-const scoped = process.platform === "linux" && userScopes() !== undefined
+const scoped = (process.platform === "linux" && userScopes() !== undefined) || macOS
 
 describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
-  it("is in the scope, though it has left the shell's tree", async () => {
+  it.skipIf(macOS)("is in the scope, though it has left the shell's tree", async () => {
     const { pty, startAgent } = await terminal()
     const { servers } = await startAgent()
     const scope = readFileSync(`/proc/${pty.pid}/cgroup`, "utf8")
     for (const pid of servers.values())
       expect(readFileSync(`/proc/${pid}/cgroup`, "utf8")).toBe(scope)
+  })
+
+  it.runIf(macOS)("names its terminal, though it has left the shell's tree", async () => {
+    const scopes = new TaggedScopes(() => Promise.resolve("ps"), variable, psTagged)
+    const { pty, startAgent } = await terminal(scopes)
+    const { servers } = await startAgent()
+    const members = await pty.leftovers({ listing })
+    expect(members?.map(({ pid }) => pid).toSorted()).toEqual([...servers.values()].toSorted())
   })
 
   context("as its terminal closes", () => {
@@ -211,14 +260,14 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
       await eventually(() => told(root).has("before"), "the person's first server")
       own(told(root).get("before")!)
       // In the clock's own ticks, it started before the agent.
-      await sleep(50)
+      await sleep(distinct)
       const { pid } = await startAgent(["setsid"])
       process.kill(pid, "SIGKILL")
       pty.agentEnded()
-      await sleep(50)
+      await sleep(distinct)
       run("echo BACK=$((40+2))=")
       await said(/BACK=42=/)
-      run(`setsid ${process.execPath} server.mjs after >/dev/null 2>&1 &`)
+      run(`${setsid} ${process.execPath} server.mjs after >/dev/null 2>&1 &`)
       await eventually(() => told(root).has("after"), "the person's second server")
       const servers = told(root)
       own(servers.get("after")!)
@@ -241,7 +290,7 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
 
     it("leaves a plain terminal's as it was: no agent ran there", async () => {
       const { root, run, end, own } = await terminal()
-      run(`setsid ${process.execPath} server.mjs plain >/dev/null 2>&1 &`)
+      run(`${setsid} ${process.execPath} server.mjs plain >/dev/null 2>&1 &`)
       await eventually(() => told(root).has("plain"), "the person's server")
       const plain = told(root).get("plain")!
       own(plain)
@@ -258,7 +307,7 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
       setInterval(() => {}, 1000)`
     const { root, startAgent, end } = await terminal()
     writeFileSync(join(root, "stubborn.cjs"), stubborn)
-    variants.stubborn = `setsid ${process.execPath} stubborn.cjs >/dev/null 2>&1 &`
+    variants.stubborn = `${setsid} ${process.execPath} stubborn.cjs >/dev/null 2>&1 &`
     onTestFinished(() => {
       delete (variants as { stubborn?: string }).stubborn
     })
@@ -270,7 +319,7 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
   })
 })
 
-describe.skipIf(!scoped)("a terminal's scope once its program has exited", () => {
+describe.skipIf(!scoped || macOS)("a terminal's scope once its program has exited", () => {
   it("never stays behind empty, however soon the program ended", async () => {
     const scopes = new UserScopes(prefix)
     const units: string[] = []

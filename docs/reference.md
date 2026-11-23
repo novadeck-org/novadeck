@@ -145,7 +145,8 @@ down: the app's own processes, and anything a shell started in the few milliseco
 before its move. A startup command, as an agent opened in a terminal is, waits for the
 move, about a quarter of a second at most on a calm machine, then runs either way; what
 the person's own startup files start doesn't wait. Without a user bus (no systemd, a container, WSL without systemd),
-shells run in the app's scope as before. macOS and Windows have no scopes (see the priority below).
+shells run in the app's scope as before. macOS and Windows have no scopes (see the priority below);
+on macOS a terminal's processes are told instead by the terminal its environment names (below).
 
 A program started detached stays in the scope of the terminal it was started in, though it
 has left the shell's tree, so a close or a quit ends what an agent left there (see "Closing"
@@ -157,6 +158,15 @@ bus nothing changes, and such a program outlives its terminal as before. Once a 
 program has exited, a scope it left empty is stopped: one whose program died as systemd moved
 it in otherwise stays active, with no process in it, for ever, as systemd collects a scope only
 once its cgroup empties (measured: 8 of 60 such moves; 272 empty scopes after 16 hours).
+
+On macOS a close or a quit ends what an agent left detached too. Each shell starts with
+`NOVADECK_TERMINAL_ID` naming its terminal, and a program started detached keeps that
+environment, so the relay finds it by it among the app's own processes. An app an agent opens
+(`open`, `osascript`) gets the terminal's environment too, but launchd starts it apart from the
+app, so it stays open, as does a launchd job. Not found, so it outlives its
+terminal as before: a detached Apple program (`caffeinate`, `tail -f`, `ssh -fN`, a `bash`
+loop), whose environment macOS hides from other programs, an app with restricted entitlements
+started by its binary, and a daemon that writes over its own environment (redis, postgres).
 
 A terminal's scope also asks for `CPUWeight=10` (`terminalCpuWeight`), a tenth of the
 app's scope's default 100. Inside the desktop's `app.slice` every thread otherwise weighs

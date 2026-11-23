@@ -276,12 +276,47 @@ for (const pwsh of [false, true])
           ...env,
           CODEX_HOME: home,
         })
+        // Its commands still name the terminal, which an `inherit = "core"` would drop.
+        const named =
+          'shell_environment_policy.set.NOVADECK_TERMINAL_ID="00000000-0000-4000-8000-000000000001"'
         expect(own.received).toEqual([
           "--no-daemon",
           "-c",
           "tui.terminal_title=['status','thread-id']",
           "-c",
           approve,
+          "-c",
+          named,
+          "exec",
+          "hi",
+        ])
+      },
+    )
+
+    it.skipIf(windows)(
+      "names the terminal to Codex's commands only where the person's Codex sets their environment",
+      ({ shim }) => {
+        const named =
+          'shell_environment_policy.set.NOVADECK_TERMINAL_ID="00000000-0000-4000-8000-000000000001"'
+        const ours = [
+          "--no-daemon",
+          "-c",
+          "tui.terminal_title=['status','thread-id']",
+          "-c",
+          approve,
+        ]
+        // Codex's own policy passes the environment on: nothing to add.
+        expect(shim.run(["exec", "hi"])).toEqual([...ours, "exec", "hi"])
+        // A policy of the person's own on the command line, as in their config.
+        const policy = ["-c", "shell_environment_policy.inherit=core", "exec", "hi"]
+        expect(shim.run(policy)).toEqual([...ours, "-c", named, ...policy])
+        const home = join(shim.root, "policy-home")
+        mkdirSync(home)
+        writeFileSync(join(home, "config.toml"), '[shell_environment_policy]\ninherit = "core"\n')
+        expect(shim.run(["exec", "hi"], { CODEX_HOME: home })).toEqual([
+          ...ours,
+          "-c",
+          named,
           "exec",
           "hi",
         ])

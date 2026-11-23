@@ -50,7 +50,8 @@ export type RunRelay = (
 /** A run's bound unless its callers ask for less, as a host shutting down does. */
 export const relayMs = 4_000
 
-const runRelay: RunRelay = async (relay, args, timeoutMs) =>
+/** Runs the relay with `args` for its output, within `timeoutMs`. */
+export const runRelay: RunRelay = async (relay, args, timeoutMs) =>
   (await promisify(execFile)(relay, [...args], { windowsHide: true, timeout: timeoutMs })).stdout
 
 /** How a tree is named to the relay: a process by its pid, or one read before by its start too. */

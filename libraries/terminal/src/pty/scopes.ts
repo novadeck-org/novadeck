@@ -10,6 +10,12 @@ export type ExitCause = "out-of-memory"
 /** Runs `file` with `args` for its output; rejects where it can't run or fails. */
 export type RunTool = (file: string, args: readonly string[]) => Promise<string>
 
+/**
+ * A process in a scope: its pid, and where the scope tells it, when it started, in
+ * milliseconds since the Unix epoch, to the microsecond (macOS's; Linux's cgroups tell none).
+ */
+export type ScopeMember = { readonly pid: number; readonly startedMs?: number }
+
 /** A program's own scope, asked for as it started. */
 export type Scope = {
   /**
@@ -25,12 +31,13 @@ export type Scope = {
    */
   weigh(weight: number): Promise<void>
   /**
-   * The pids in the scope now, as its cgroup lists them, however each got there: a program
-   * started detached (`setsid`, `nohup`, a daemon that forked twice) stays in the scope of
-   * the terminal it was started in, though it has left the shell's tree. Undefined where it
-   * can't be told, as with no scope; it never rejects.
+   * The processes in the scope now, however each got there: a program started detached
+   * (`setsid`, `nohup`, a daemon that forked twice) stays in the scope of the terminal it was
+   * started in, though it has left the shell's tree. On Linux as its cgroup lists them, on
+   * macOS as the environment they started with names the terminal (see `TaggedScopes`).
+   * Undefined where it can't be told, as with no scope; it never rejects.
    */
-  members(): Promise<readonly number[] | undefined>
+  members(): Promise<readonly ScopeMember[] | undefined>
   /**
    * Its program has exited: a scope left empty is stopped. A scope whose program was moved in
    * as it died stays active with nothing in it for ever, as systemd collects a scope only once
@@ -42,8 +49,12 @@ export type Scope = {
 
 /** Where each pty's program is kept apart from the app's own processes. */
 export type Scopes = {
-  contain(pid: number): Scope
-  /** Whether a program started now is on its way to a scope of its own. */
+  /** The scope of the program `pid`, started with `env` where it is known. */
+  contain(pid: number, env?: NodeJS.ProcessEnv): Scope
+  /**
+   * Whether a program started now is on its way to a scope it is moved into, so its shell waits
+   * for the move before it starts anything (Linux's); never for a scope it starts in.
+   */
   active(): boolean
 }
 
@@ -236,14 +247,15 @@ const groupRoot = (): string =>
 const readGroup: ReadGroup = (path) => readFile(posix.join(groupRoot(), path), "utf8")
 
 /** The pids a `cgroup.procs` lists. */
-export const parseProcs = (procs: string): number[] =>
+export const parseProcs = (procs: string): ScopeMember[] =>
   procs
     .split("\n")
     .map((line) => Number.parseInt(line, 10))
     .filter((pid) => Number.isSafeInteger(pid) && pid > 0)
+    .map((pid) => ({ pid }))
 
 /** A program left in the app's scope, as where systemd can't give it one. */
-const unscoped: Scope = {
+export const unscoped: Scope = {
   cause: () => undefined,
   weigh: () => Promise.resolve(),
   members: () => Promise.resolve(undefined),

@@ -1,6 +1,14 @@
 import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
@@ -18,13 +26,21 @@ import { allowLabel, lacking, own, prompted, replies, result, start, turn } from
 // How long a quit may take in all: the five seconds the app gives the runner.
 const quitMs = 5_000
 
+const macOS = process.platform === "darwin"
+
+/** Detaches a command into a session of its own: macOS has no `setsid` program. */
+const setsid = macOS ? `perl -MPOSIX -e 'fork and exit; POSIX::setsid(); exec @ARGV'` : "setsid"
+
 /** The ways a program leaves its shell's tree as the shell exits, each once. */
 const variants = ["subshell", "nohup", "setsid", "disown"] as const
 
-/** A program that runs until it is ended, and says it is up by its name and pid. */
+/**
+ * A program that runs until it is ended, and says it is up by its name and pid, beside itself
+ * whatever folder it runs in, as an app launchd starts runs in `/`.
+ */
 const server = `
 import { appendFileSync } from "node:fs"
-appendFileSync("detached.pids", process.argv[2] + " " + process.pid + "\\n")
+appendFileSync(new URL("detached.pids", import.meta.url), process.argv[2] + " " + process.pid + "\\n")
 setInterval(() => {}, 1000)
 `
 
@@ -35,7 +51,7 @@ const script = (word: string): string => {
   return `#!/bin/bash
 (${run("subshell")} &)
 nohup ${run("nohup")} &
-setsid ${run("setsid")} &
+${setsid} ${run("setsid")} &
 ${run("disown")} & disown
 sleep 1; echo launched
 `
@@ -94,14 +110,39 @@ const shellOf = (run: E2E, terminal: Pick<DeckTerminal, "id">): number => {
   return shell
 }
 
-/** A process's start, as /proc/<pid>/stat holds it; undefined once it has gone. */
-const startOf = (pid: number): string | undefined => {
+/**
+ * A process's start, as /proc/<pid>/stat holds it, or macOS's `ps -o lstart` in UTC, as Claude
+ * Code's lock records it; undefined once it has gone.
+ */
+const startOf = async (pid: number): Promise<string | undefined> => {
   try {
+    if (macOS)
+      return (
+        (
+          await promisify(execFile)("ps", ["-o", "lstart=", "-p", String(pid)], {
+            env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+          })
+        ).stdout
+          .trim()
+          .replace(/\s+/g, " ") || undefined
+      )
     const stat = readFileSync(`/proc/${pid}/stat`, "utf8")
     return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19]
   } catch {
     return undefined
   }
+}
+
+/** The `caffeinate` programs right under `pid`, by their pids. */
+const caffeinated = async (pid: number): Promise<readonly number[]> => {
+  if (!macOS) return []
+  const { stdout } = await promisify(execFile)("ps", ["-axo", "pid=,ppid=,comm="], {
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  return stdout.split("\n").flatMap((line) => {
+    const [child, parent, command] = line.trim().split(/\s+/)
+    return Number(parent) === pid && command?.endsWith("caffeinate") ? [Number(child)] : []
+  })
 }
 
 /** Has the agent run the script; allows it once where its harness asks, in that harness's words. */
@@ -156,15 +197,16 @@ const scripted = (run: E2E, setup: AgentSetup, word: string, ran = script(word))
 // Each terminal runs in a systemd scope of its own on Linux, which a program that left its
 // shell's tree stays in: an agent's servers started detached used to outlive its terminal and
 // Novadeck itself (#751's "What stays, not by choice"). Without the user's bus there are no
-// scopes and nothing changes; CI has one, and may not skip this for want of it.
-const scoping = userScopes() !== undefined || process.env.GITHUB_ACTIONS === "true"
+// scopes and nothing changes; CI has one, and may not skip this for want of it. On macOS each
+// such program names its terminal in the environment it started with, which the relay reads.
+const scoping = macOS || userScopes() !== undefined || process.env.GITHUB_ACTIONS === "true"
 
 // Codex runs its commands in a sandbox of its own by default, which ends what they start as
 // each command ends; without it they run as any harness's do.
 const unsandboxed = "codex --dangerously-bypass-approvals-and-sandbox"
 
 for (const setup of setups) {
-  describe.skipIf(!supported || process.platform !== "linux" || !scoping)(setup.name, () => {
+  describe.skipIf(!supported || process.platform === "win32" || !scoping)(setup.name, () => {
     const it = e2e(setup)
     const opens: readonly (string | undefined)[] =
       setup.agent === "codex" ? [undefined, unsandboxed] : [undefined]
@@ -219,18 +261,28 @@ for (const setup of setups) {
         expect(agent).toBeDefined()
         // The agent dies without a word, as one killed or crashed: nothing of its own ends what
         // it started, and its session ends as its process goes. (Ending itself, as on a hangup,
-        // Claude Code ends what it started detached too.)
+        // Claude Code ends what it started detached too.) On macOS Claude Code keeps the Mac
+        // awake while it works with Apple's `caffeinate`, which no listing of Novadeck's sees and
+        // the kill leaves it no chance to end: the test ends it, as the kill is the test's.
+        const awake = await caffeinated(agent!)
         process.kill(agent!, "SIGKILL")
+        for (const pid of awake)
+          try {
+            process.kill(pid, "SIGTERM")
+          } catch {
+            // Gone with it.
+          }
         await terminal.poll(
           () => (agentOf(run, terminal) === undefined ? true : undefined),
           "the agent's session to end",
           30_000,
         )
         await new Promise((resolve) => setTimeout(resolve, 500))
-        // Antigravity ends its command's own group a moment after the command, so only what
-        // left its session is still there under it; under the others, all of it.
+        // Antigravity ends its command's own group a moment after the command, so what left
+        // its session is still there under it (on macOS a `nohup` too); under the others, all.
         const survivors = await left(word)
-        expect(survivors).toEqual(setup.agent === "agy" ? ["setsid"] : variants.toSorted())
+        if (setup.agent === "agy") expect(survivors).toContain("setsid")
+        else expect(survivors).toEqual(variants.toSorted())
         // Short, as a command the screen wraps never shows once more as typed.
         writeFileSync(
           join(run.sandbox.project, "person.sh"),
@@ -251,56 +303,114 @@ for (const setup of setups) {
     // An app the agent opens for the person, as `xdg-open` starts a browser's first window,
     // outlives the terminal: Novadeck's shim gives it a scope of its own. A stand-in plays the
     // real xdg-open, later on PATH than the shim and ahead of the system's, so no real app opens.
-    for (const end of ["close", "quit"] as const)
-      gated(it, lacking(setup, "shell"))(
-        `leaves an app its agent opened as ${end === "quit" ? "Novadeck quits" : "its terminal closes"}`,
-        async ({ e2e: run, onTestFinished }) => {
-          const word = randomUUID()
-          onTestFinished(() => endServers(word))
-          const node = process.execPath
-          const runtime = process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid!()}`
-          const fake = join(run.sandbox.project, "fake")
-          mkdirSync(fake, { recursive: true })
-          // As a launcher starts an app: apart from itself, which exits at once.
-          writeFileSync(
-            join(fake, "xdg-open"),
-            `#!/bin/sh\nsetsid ${node} detached-server.mjs app ${word} >/dev/null 2>&1 &\nexit 0\n`,
-          )
-          chmodSync(join(fake, "xdg-open"), 0o755)
-          scripted(
-            run,
-            setup,
-            word,
-            // The sandbox gives its terminals a runtime folder and a bus of their own, which no
-            // systemd answers on; a desktop's terminal reaches the person's, as this does.
-            `#!/bin/bash\nXDG_RUNTIME_DIR=${runtime} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime}/bus PATH="$NOVADECK_OPEN:$PWD/fake:$PATH" xdg-open "https://example.com/${word}"\nsleep 1; echo opened\n`,
-          )
-          const terminal = await run.deck.open(setup.agent === "codex" ? unsandboxed : setup.agent)
-          await terminal.reached("ready", { timeoutMs: 60_000 })
-          await prompted(terminal, setup)
-          await turn(terminal, "Say ok", "Okay then.")
-          await launch(run, setup, terminal, 1)
-          const [app] = readFileSync(join(run.sandbox.project, "detached.pids"), "utf8")
-            .trim()
-            .split(" ")
-            .slice(1)
-            .map(Number)
-          // In a scope of its own, not its terminal's.
-          const scope = readFileSync(`/proc/${shellOf(run, terminal)}/cgroup`, "utf8")
-          expect(readFileSync(`/proc/${app}/cgroup`, "utf8")).not.toBe(scope)
+    if (!macOS)
+      for (const end of ["close", "quit"] as const)
+        gated(it, lacking(setup, "shell"))(
+          `leaves an app its agent opened as ${end === "quit" ? "Novadeck quits" : "its terminal closes"}`,
+          async ({ e2e: run, onTestFinished }) => {
+            const word = randomUUID()
+            onTestFinished(() => endServers(word))
+            const node = process.execPath
+            const runtime = process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid!()}`
+            const fake = join(run.sandbox.project, "fake")
+            mkdirSync(fake, { recursive: true })
+            // As a launcher starts an app: apart from itself, which exits at once.
+            writeFileSync(
+              join(fake, "xdg-open"),
+              `#!/bin/sh\nsetsid ${node} detached-server.mjs app ${word} >/dev/null 2>&1 &\nexit 0\n`,
+            )
+            chmodSync(join(fake, "xdg-open"), 0o755)
+            scripted(
+              run,
+              setup,
+              word,
+              // The sandbox gives its terminals a runtime folder and a bus of their own, which no
+              // systemd answers on; a desktop's terminal reaches the person's, as this does.
+              `#!/bin/bash\nXDG_RUNTIME_DIR=${runtime} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime}/bus PATH="$NOVADECK_OPEN:$PWD/fake:$PATH" xdg-open "https://example.com/${word}"\nsleep 1; echo opened\n`,
+            )
+            const terminal = await run.deck.open(
+              setup.agent === "codex" ? unsandboxed : setup.agent,
+            )
+            await terminal.reached("ready", { timeoutMs: 60_000 })
+            await prompted(terminal, setup)
+            await turn(terminal, "Say ok", "Okay then.")
+            await launch(run, setup, terminal, 1)
+            const [app] = readFileSync(join(run.sandbox.project, "detached.pids"), "utf8")
+              .trim()
+              .split(" ")
+              .slice(1)
+              .map(Number)
+            // In a scope of its own, not its terminal's.
+            const scope = readFileSync(`/proc/${shellOf(run, terminal)}/cgroup`, "utf8")
+            expect(readFileSync(`/proc/${app}/cgroup`, "utf8")).not.toBe(scope)
 
-          await run.model.ending(() =>
-            end === "quit"
-              ? run.deck.terminals.shutdown()
-              : run.deck.terminals.close({ terminalId: terminal.id }),
-          )
-          await new Promise((resolve) => setTimeout(resolve, 1_500))
-          expect(await left(word)).toEqual(["app"])
-          // The test's own app, which the leftover check would rightly count.
-          await endServers(word)
-          await run.deck.restart()
-        },
-      )
+            await run.model.ending(() =>
+              end === "quit"
+                ? run.deck.terminals.shutdown()
+                : run.deck.terminals.close({ terminalId: terminal.id }),
+            )
+            await new Promise((resolve) => setTimeout(resolve, 1_500))
+            expect(await left(word)).toEqual(["app"])
+            // The test's own app, which the leftover check would rightly count.
+            await endServers(word)
+            await run.deck.restart()
+          },
+        )
+
+    // On macOS an app the agent opens is launchd's, in a coalition of its own, though `open`
+    // gives it the caller's environment, the terminal named in it: it outlives the terminal. A
+    // bundle of the test's own plays the app, node its program, with no window or Dock icon.
+    if (macOS)
+      for (const end of ["close", "quit"] as const)
+        gated(it, lacking(setup, "shell"))(
+          `leaves an app its agent opened as ${end === "quit" ? "Novadeck quits" : "its terminal closes"}`,
+          async ({ e2e: run, onTestFinished }) => {
+            const word = randomUUID()
+            onTestFinished(() => endServers(word))
+            const { project } = run.sandbox
+            const app = join(project, `Detached ${word}.app`)
+            mkdirSync(join(app, "Contents", "MacOS"), { recursive: true })
+            writeFileSync(
+              join(app, "Contents", "Info.plist"),
+              `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>run</string>
+<key>CFBundleIdentifier</key><string>dev.novadeck.e2e.detached-${word}</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSUIElement</key><true/>
+</dict></plist>
+`,
+            )
+            // LaunchServices starts no script, so node is the app's program.
+            symlinkSync(process.execPath, join(app, "Contents", "MacOS", "run"))
+            const serverFile = join(project, "detached-server.mjs")
+            scripted(
+              run,
+              setup,
+              word,
+              `#!/bin/bash\nopen -g -j ${JSON.stringify(app)} --args ${JSON.stringify(serverFile)} app ${word}\nsleep 1; echo opened\n`,
+            )
+            const terminal = await run.deck.open(
+              setup.agent === "codex" ? unsandboxed : setup.agent,
+            )
+            await terminal.reached("ready", { timeoutMs: 60_000 })
+            await prompted(terminal, setup)
+            await turn(terminal, "Say ok", "Okay then.")
+            await launch(run, setup, terminal, 1)
+
+            await run.model.ending(() =>
+              end === "quit"
+                ? run.deck.terminals.shutdown()
+                : run.deck.terminals.close({ terminalId: terminal.id }),
+            )
+            await new Promise((resolve) => setTimeout(resolve, 1_500))
+            expect(await left(word)).toEqual(["app"])
+            // The test's own app, which the leftover check would rightly count.
+            await endServers(word)
+            await run.deck.restart()
+          },
+        )
 
     // Claude Code's background service, which its agents view (←) starts detached, sits in the
     // scope of the terminal that started it, and the person's other sessions share it.
@@ -325,13 +435,15 @@ for (const setup of setups) {
           30_000,
         )
         // In the scope of the terminal that started it, among what its agent left there.
-        const scope = readFileSync(`/proc/${shellOf(run, terminal)}/cgroup`, "utf8")
-        expect(readFileSync(`/proc/${lock.pid}/cgroup`, "utf8")).toBe(scope)
-        expect(startOf(lock.pid)).toBe(lock.start)
+        if (!macOS) {
+          const scope = readFileSync(`/proc/${shellOf(run, terminal)}/cgroup`, "utf8")
+          expect(readFileSync(`/proc/${lock.pid}/cgroup`, "utf8")).toBe(scope)
+        }
+        expect(await startOf(lock.pid)).toBe(lock.start)
         await run.deck.terminals.close({ terminalId: terminal.id })
         await new Promise((resolve) => setTimeout(resolve, 1_000))
         // The same process, still running, which the fixture then ends as a logout would.
-        expect(startOf(lock.pid)).toBe(lock.start)
+        expect(await startOf(lock.pid)).toBe(lock.start)
       })
   })
 }

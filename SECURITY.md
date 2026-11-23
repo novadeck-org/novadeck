@@ -343,7 +343,15 @@ the terminal's foreground, then the shell, and once the shell has exited resumes
 program's process group with SIGCONT, so a program the shell's exit left stopped by job
 control can still exit. This is not a process-tree kill guarantee; daemonized or
 hangup-ignoring descendants may survive. Use service-level process isolation and
-cleanup if that guarantee is required.
+cleanup if that guarantee is required. Where an agent ran, a close or a quit also ends what it
+left detached in the terminal: on Linux what its systemd scope holds, on macOS what started
+with the terminal's `NOVADECK_TERMINAL_ID` in its environment, in the app's own coalition
+(docs/backend-api.md, "Closing").
+To find those on macOS the relay reads the starting environment of each of the user's own
+processes, as `ps -E` can, and prints only that variable's value, never the rest. A process of
+the user's can name any terminal there, or none: it can have itself ended with another
+terminal, or escape its own, which it could do anyway, and the runner signals only the user's
+own processes, each right after a listing shows it to be the one found.
 Replay stays in memory. Unless turned off in Preferences (`settings.set`), the runner
 keeps each terminal's transcript, its serialized screen and scrollback capped at 256 KiB,
 in the SQLite metadata file so a restored terminal can show it again. It is saved about
