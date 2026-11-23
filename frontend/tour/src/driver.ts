@@ -230,9 +230,12 @@ const entering = (
   step: TourStep,
   signals: TourSignals,
 ): Pick<TourOutcome, "moves" | "tab"> & { readonly run: TourRun } => {
+  // Never while a teammate's question waits on the person: the tour opened the Inbox for it, and
+  // a step's moves (a sidebar panel, the camera) would take it away while they answer.
   const enter =
     !run.entered &&
     signals.onScreen &&
+    signals.askingRow === null &&
     rolesOf(step).every((role) => terminalOf(run, signals, role))
   const entered = run.entered || enter
   const { open } = step
@@ -330,8 +333,8 @@ const reshape = (
   const played = stepsFor(next)
   const index = played.findIndex(({ id }) => id === here)
   if (index >= 0) return { run: { ...next, step: index }, steps: played }
-  // Its step dropped: on to the first the story still plays after it.
-  const after = here === "run" || here === "page" ? "shape" : "play"
+  // Its step dropped: on to the first the story still plays after it, the team.
+  const after = here === "run" || here === "page" ? "team" : "play"
   return {
     run: {
       ...next,

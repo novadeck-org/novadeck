@@ -134,26 +134,14 @@ export const askStep: TourStep = {
   wait: ({ asked }) => (asked ? "patient" : "nudge"),
 }
 
-// Act 3: with the answer, the lead opens its two teammates, which come up on the canvas, wired
-// to it, and name themselves; the camera pulls back to frame them as they come. Done, it stays a
-// moment (`lineMs`), as they name themselves in seconds, for its line to be read.
-export const teamStep: TourStep = {
-  id: "team",
-  act: 3,
-  enter: [{ kind: "fit-all" }],
-  frameTeam: true,
-  holdMs: lineMs,
-  coach: { look: "team", line: "Look. It hired its own help." },
-  done: ({ team }) => team.count >= 2 && team.named >= 2,
-  wait: "nudge",
-}
-
-// Still act 3: the lead asks to run the game's server in a new terminal, which Novadeck asks the
-// person to allow. It waits on the agent until the question shows, then on the person. Done once
-// it was allowed (the lead opened a terminal) or the page is shown.
+// Still act 2, the person's second call: with the answer, the lead asks to run the game's server
+// in a new terminal, which Novadeck asks the person to allow, and opens nobody before they have
+// answered: the approval has the screen to itself. It waits on the agent until the question
+// shows, then on the person. Done once it was allowed (the lead opened a terminal) or the page is
+// shown.
 export const runStep: TourStep = {
   id: "run",
-  act: 3,
+  act: 2,
   enter: [],
   coach: {
     click: ["approve"],
@@ -165,15 +153,30 @@ export const runStep: TourStep = {
   wait: (_, { approving }) => (approving ? "patient" : "nudge"),
 }
 
-// Still act 3: the lead shows the game's page in its pane, which fills in as the team writes.
+// Act 3: allowed, the lead shows the game's page in its pane, a blank start the team fills in.
+// It is on screen while the lead writes its teammates' tasks.
 export const pageStep: TourStep = {
   id: "page",
   act: 3,
   enter: [{ kind: "reveal" }],
   open: { role: "lead", tab: "page" },
   holdMs: 5_000,
-  coach: { look: "lead-pane", tab: "page", line: "The game. Live. It fills in as they write." },
+  coach: { look: "lead-pane", tab: "page", line: "The game. Live. Empty, for now." },
   done: ({ shown }) => shown.page !== null,
+  wait: "nudge",
+}
+
+// Still act 3: the lead opens its two teammates, which come up on the canvas, wired to it, and
+// name themselves; the camera pulls back to frame them as they come. Done, it stays a moment
+// (`lineMs`), as they name themselves in seconds, for its line to be read.
+export const teamStep: TourStep = {
+  id: "team",
+  act: 3,
+  enter: [{ kind: "fit-all" }],
+  frameTeam: true,
+  holdMs: lineMs,
+  coach: { look: "team", line: "Look. It hired its own help." },
+  done: ({ team }) => team.count >= 2 && team.named >= 2,
   wait: "nudge",
 }
 
@@ -276,9 +279,9 @@ const played = {
   page: [
     startStep,
     askStep,
-    teamStep,
     runStep,
     pageStep,
+    teamStep,
     shapeStep,
     filesStep,
     diffStep,

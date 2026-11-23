@@ -22,9 +22,10 @@ import {
 } from "./content"
 
 // The story of the tour, as a runner would report it once the lead described itself: the lead
-// asks the person what game to make, on one sheet of two questions; with the answers it opens a
-// modeller and a builder, asks to run the game's server and shows its page; the modeller shows
-// the hero's model, the builder shows its changes to the game, and the lead shows the page again.
+// asks the person what game to make, on one sheet of two questions; with the answers it asks to
+// run the game's server, and once the person has answered that, shows its page and opens a
+// modeller and a builder; the modeller shows the hero's model, the builder shows its changes to
+// the game, and the lead shows the page again.
 // Every step reaches the UI as the real thing does: terminals the lead leads, messages between
 // them, an Inbox ask, works that change files, items on the agents' bars, writes in the Files
 // panel.
@@ -37,11 +38,10 @@ export const tourStoryMs = {
   work: 300,
   talk: 300,
   show: 400,
-  // How long after its team is opened the lead asks to run the server: the team step's line has
-  // its moment first. The tour comes to that step only once its first line has been read (shown
-  // a second or so after the lead named itself, then held 3 s), and shows the team's line a
-  // second after that, which it holds 3 s.
-  serve: 7_800,
+  // How long after its page shows the lead opens its team: the page step's line has its moment
+  // first (shown a second after the page, then held 5 s), as a real lead takes about as long to
+  // write its teammates' tasks.
+  hire: 6_000,
 } as const
 
 export const modellerName = "Modeller"
@@ -507,13 +507,15 @@ export const playTourStory = ({
       })
     })
 
-  // The lead asks to run the game's server in a new terminal, which waits on the person's yes;
-  // allowed, a terminal of its own opens and the lead shows the game's page.
-  const serve = () => {
+  // The lead asks to run the game's server in a new terminal, which waits on the person's yes,
+  // and opens nobody before they answer; allowed, a terminal of its own opens and the lead shows
+  // the game's page, then opens its team; declined, it opens its team at once.
+  const serve = (chosen: Hero) => {
     const found = lead()
     if (!found) return
     void stage.approve(key, serverCommand, demoTourFolder).then((approved) => {
-      if (over || !approved || !lead()) return
+      if (over || !lead()) return
+      if (!approved) return team(chosen)
       const base = stage.newTerminal({
         target: sessionTarget,
         directory: demoTourFolder,
@@ -521,10 +523,11 @@ export const playTourStory = ({
       })
       dispatch([openedShell(key, base, found.id, handleOf(found, harness))])
       later(tourStoryMs.show, showPage)
+      later(tourStoryMs.show + tourStoryMs.hire, () => team(chosen))
     })
   }
 
-  // With the sheet answered, the lead opens its team.
+  // The lead opens its team.
   const team = (chosen: Hero) => {
     const first = hire("modeller")
     if (first && quietModeller) {
@@ -548,7 +551,6 @@ export const playTourStory = ({
     later(tourStoryMs.open, () => {
       const second = hire("builder")
       if (second) builder(second, chosen)
-      if (!noPage) later(tourStoryMs.serve, serve)
       // Its steps so far done, the lead ends its turn: its team is at work, and each message
       // that comes back wakes it. A lead at rest is what the tour's wait on it counts.
       later(tourStoryMs.show, () =>
@@ -560,8 +562,8 @@ export const playTourStory = ({
     })
   }
 
-  // The lead asks the person what game to make, and waits as long as they take; then it opens
-  // its team for the game they named.
+  // The lead asks the person what game to make, and waits as long as they take; then it asks to
+  // run the game's server, or, where there is none, opens its team for the game they named.
   const begin = () => {
     const found = lead()
     if (!found) return
@@ -577,7 +579,8 @@ export const playTourStory = ({
         (given) => {
           hero = chosenHero(given)
           stage.chose(hero)
-          team(hero)
+          if (noPage) team(hero)
+          else serve(hero)
         },
       )
     })

@@ -14,8 +14,9 @@ import { tourBriefMark } from "../messaging/messages.js"
  * models' names written in by the lead.
  *
  * The story they play, in the seed project (`seed.ts`), a blank start for a browser game: the
- * lead asks the person which game to make (a world and a kind), then opens a modeller and a
- * builder and asks to run the game's dev server, whose page it shows. The modeller makes the
+ * lead asks the person which game to make (a world and a kind), then asks to run the game's dev
+ * server and, once the person has answered that, shows its page and opens a modeller and a
+ * builder. The modeller makes the
  * game's three models (glTF, in `models/`) and shows them; the builder writes the game in `src/`
  * to load them by name and shows its changes. Each puts one question of its own to the person.
  * Each writes in a worktree of its own, and the dev server lays them all over the page; once
@@ -182,20 +183,46 @@ read it.
 /** What the lead is rung once the tour is over and the project is the person's: the tour's rules no longer hold. */
 export const keptLine = `Novadeck's tour is over, and this project is now the person's to build on. The tour brief's rules and steps no longer apply: from now on work as you normally would, on whatever the person asks. Novadeck committed the team's work on main in this folder ("The team's game"), and its worktrees hold nothing more.`
 
-// The lead's steps for the dev server, where this computer can run one.
-const servingSteps = ({ command, url }: Serving): string => `
-6. Call \`open_terminal\` with \`command\` "${command}" and \`title\` "Game server". Then say
-   in one sentence that the team is at work and the game starts once the person approves it,
-   and end your turn.
-7. When Novadeck tells you the person approved it, call \`show\` with \`page\`
-   {"url": "${url}"} and \`open\` true, and end your turn. If they declined, carry on without it.`
+// How the lead names the game's models, which its team's tasks take, then runs its turn on to
+// the team: `verb` is the sentence's first word.
+const names = (
+  verb: string,
+) => `${verb} three lowercase one-word names for the game's models, fitting the picks: the player,
+   an enemy, and one thing more (a unit, a building or an item), as knight, goblin, chest.
+   From here your turn runs to the second \`open_agent\`: no sentence, no end of turn before it.`
 
-const noServingSteps = `
-6. Say in one sentence that the team is at work, and end your turn.`
+// The lead's steps from the person's answer to its team: where this computer can run the dev
+// server, it asks to run it first and opens its team only once the person has answered that, so
+// the approval has the screen to itself and the page is live before the team is hired.
+const teamSteps = (mate: Teammate, lead: string, serving: Serving | null): string => {
+  const first = serving ? 5 : 4
+  const opening = `${first}. Call \`open_agent\` with ${openArguments(mate)}, and as \`message\` this text, each [[name]]
+   replaced: [[world]] and [[kind]] by the picks, [[one]], [[two]], [[three]] by the names:
 
-// The call the lead's second turn runs to: said by name, as the tasks it quotes number their own steps.
-const secondTurnEnds = (serving: Serving | null): string =>
-  serving ? "`open_terminal`" : "the second `open_agent`"
+${indent(modellerTask(lead, mate.agent))}
+
+${first + 1}. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` this text, replaced
+   the same way:
+
+${indent(builderTask(lead, mate.agent))}
+
+${first + 2}. Say in one sentence that the team is at work, and end your turn.`
+  if (!serving)
+    return `3. ${answerLine}
+   ${names("Pick")}
+${opening}`
+  return `3. ${answerLine}
+   Call \`open_terminal\` with \`command\` "${serving.command}" and \`title\` "Game server". Then say
+   in one sentence that the game starts once the person approves it, and end your turn.
+4. When Novadeck says the command started, call \`show\` with \`page\` {"url": "${serving.url}"}
+   and \`open\` true; if it says anything else, don't ask again. Then
+   ${names("pick")}
+${opening}`
+}
+
+// How the lead takes the person's answer to its sheet.
+const answerLine = `The answer arrives as a message: the world and the kind picked, or the person's own words.
+   If they dismissed it, take ${defaultPicks.world} and ${defaultPicks.kind}. A message with no words isn't the answer.`
 
 // The lead's sheet: the world and the kind, as `ask`'s questions shape.
 const sheet = JSON.stringify({
@@ -241,21 +268,7 @@ chooses, in a sandbox repo Novadeck made for the tour: a blank start (README.md)
    ${sheet}
    Then say in one sentence that you're their own agent and your team builds what they pick,
    and end your turn.
-3. The answer arrives as a message: the world and the kind picked, or the person's own words.
-   If they dismissed it, take ${defaultPicks.world} and ${defaultPicks.kind}. A message with no words isn't the answer.
-   Pick three lowercase one-word names for the game's models, fitting the picks: the player,
-   an enemy, and one thing more (a unit, a building or an item), as knight, goblin, chest.
-   From here your turn runs to ${secondTurnEnds(serving)}: no sentence, no end of turn before it.
-4. Call \`open_agent\` with ${openArguments(mate)}, and as \`message\` this text, each [[name]]
-   replaced: [[world]] and [[kind]] by the picks, [[one]], [[two]], [[three]] by the names:
-
-${indent(modellerTask(lead, mate.agent))}
-
-5. Call \`open_agent\` again with ${openArguments(mate)}, and as \`message\` this text, replaced
-   the same way:
-
-${indent(builderTask(lead, mate.agent))}
-${serving ? servingSteps(serving) : noServingSteps}
+${teamSteps(mate, lead, serving)}
 
 ## Messages
 

@@ -108,6 +108,13 @@ const answerSheet = async (world: string, kind: string): Promise<void> => {
   await expect.element(sheet).not.toBeInTheDocument()
 }
 
+// The person lets the lead run the game's server, which it asks for before it hires anyone.
+const allowRun = async (): Promise<void> => {
+  await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
+  await approval().getByRole("button", { name: "Run command" }).click()
+  await expect.element(approval()).not.toBeInTheDocument()
+}
+
 // Plays the story from the start to the closing card, with the person's answer and yes, checking
 // what each step marks.
 const playToClosing = async (name: string, address?: string): Promise<void> => {
@@ -123,25 +130,29 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
   await expect.element(page.getByText(/^Act 2, Your call\./)).toBeInTheDocument()
   await answerSheet("Sci-fi", "Shooter")
 
-  // Act 3: it hires a team, wired to it, and the camera frames them.
-  await coachSays("Look. It hired its own help.")
-  await expect.element(page.getByText(/^Act 3, The team\./)).toBeInTheDocument()
-  await expectLookAtWindows("Modeller", "Builder")
-  expect(windowNamed("Game lead")).toBeDefined()
-
-  // It asks to run the game, which only the person allows.
+  // Still the person's call: it asks to run the game, which only the person allows, and hires no
+  // one before they have: the approval has the screen to itself.
   await coachSays("It wants to run the game. Fine. Say yes.")
+  await expect.element(page.getByText(/^Act 2, Your call\./)).toBeInTheDocument()
   await expect.element(approval()).toBeVisible()
+  expect(windowNamed("Modeller")).toBeUndefined()
+  expect(windowNamed("Builder")).toBeUndefined()
   const run = approval().getByRole("button", { name: "Run command" })
   await expect.poll(() => clicked()).toEqual([run.element()])
   await run.click()
   await expect.element(approval()).not.toBeInTheDocument()
 
-  // A terminal of its own opens, and the lead shows the game: its pane is what to look at.
+  // Act 3: a terminal of its own opens, and the lead shows the game: its pane is what to look at.
   await expect.poll(() => windowNamed("Game server"), { timeout: 15_000 }).toBeDefined()
-  await coachSays("The game. Live. It fills in as they write.")
+  await coachSays("The game. Live. Empty, for now.")
+  await expect.element(page.getByText(/^Act 3, The team\./)).toBeInTheDocument()
   await expectLookAt(() => paneOf("Game lead"))
   await expect.poll(() => topTab(paneOf("Game lead"))).toContain("127.0.0.1")
+
+  // Then it hires a team, wired to it, and the camera frames them.
+  await coachSays("Look. It hired its own help.", 20_000)
+  await expectLookAtWindows("Modeller", "Builder")
+  expect(windowNamed("Game lead")).toBeDefined()
 
   // The Modeller's model, in 3D.
   await coachSays("A model. From scratch. Go on, spin it.")
@@ -185,6 +196,7 @@ describe("The tour's story", () => {
     expect(sidebarPanel("Worktrees").query()).toBeNull()
     await beginTour()
     await answerSheet("Fantasy", "RPG")
+    await allowRun()
     // The teammates open their worktrees: the panel is there to show them.
     await coachSays("Look. It hired its own help.", 20_000)
     await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
@@ -244,7 +256,9 @@ describe("The tour's story", () => {
       await answerSheet("Modern", "Strategy")
       await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
       await approval().getByRole("button", { name: "Don't run" }).click()
-      // Within seconds, with no terminal opened and no page shown, the story goes on without them.
+      // Within seconds, with no terminal opened and no page shown, the story goes on without
+      // them: the lead hires its team all the same.
+      await coachSays("Look. It hired its own help.", 40_000)
       await coachSays("A model. From scratch. Go on, spin it.", 40_000)
       expect(windowNamed("Game server")).toBeUndefined()
       await coachSays("Three agents. Your game. Yours.", 120_000)
@@ -274,7 +288,7 @@ describe("The tour's story", () => {
       .getByText("RPG")
       .click()
     await sheet.getByRole("button", { name: "Submit answers" }).click()
-    await coachSays("Look. It hired its own help.", 30_000)
+    await coachSays("It wants to run the game. Fine. Say yes.", 30_000)
   })
 
   it(
@@ -300,11 +314,10 @@ describe("The tour's story", () => {
   it("nudges a modeller gone quiet, which then shows its model", walks, async () => {
     await startTour("Claude Code", "/?channel=experimental&tourModeller=quiet&tourPatienceMs=1500")
     await answerSheet("Sci-fi", "RPG")
-    await coachSays("Look. It hired its own help.")
-    // Silent, it never names itself; the tour rings the lead after its wait, and the team goes on
-    // to the game's command, which the person allows.
-    await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
-    await approval().getByRole("button", { name: "Run command" }).click()
+    await allowRun()
+    // Silent, it never names itself; the tour rings the lead after its wait, and the story goes
+    // on.
+    await coachSays("Look. It hired its own help.", 30_000)
     await expect.poll(() => windowNamed("Modeller"), { timeout: 20_000 }).toBeDefined()
     await coachSays("A model. From scratch. Go on, spin it.", 30_000)
   })
@@ -315,6 +328,7 @@ describe("The tour's story", () => {
     async () => {
       await startTour("Claude Code", "/?channel=experimental&tourMate=asks")
       await answerSheet("Fantasy", "Shooter")
+      await allowRun()
       // The Modeller asks as soon as its first model is up: the tour points at the question,
       // whatever step it is at, until the person answers it.
       await coachSays("A teammate has a question for you.", 40_000)
@@ -327,8 +341,6 @@ describe("The tour's story", () => {
       await standsStill(pick)
       await pick.click()
       // Answered, the story goes on where it was.
-      await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
-      await approval().getByRole("button", { name: "Run command" }).click()
       await coachSays("Three agents. Your game. Go play.", 60_000)
     },
   )

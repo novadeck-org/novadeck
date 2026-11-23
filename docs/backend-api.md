@@ -2439,17 +2439,18 @@ one from an earlier runner.
   tells every agent never to use their name, even one it knows. It has the lead describe itself
   and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
   Sci-fi, Modern) and "The kind" (RPG, Shooter, Strategy), own words allowed (dismissed, it takes
-  Fantasy and RPG). With the answer it names the game's three models (the player, an enemy, one
-  more) and, in that one turn (a sentence in between ends a cheap model's turn), opens two
-  teammates with `open_agent` on the lead's own harness and its cheapest model, at its lowest
+  Fantasy and RPG). With the answer, where `page` is true, it first asks to `open_terminal` the
+  dev server's command (`node dev.mjs <port>`, say, which the person approves in the app's usual
+  dialog) and ends its turn, opening no one while the approval is on screen; told the outcome, it
+  `show`s the page where they approved it. Then (with the answer, where `page` is false) it
+  names the game's three models (the player, an enemy, one more) and, in that one turn (a
+  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on the lead's own harness and its cheapest model, at its lowest
   effort as above, each with its task as the message, the picks and the names written in for the
   task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
   three models in a worktree on `models`, shows the first as soon as it exists, asks the person
   one thing about their look, then makes the other two; the Builder writes the game in `src/` in
   a worktree on `game`, loading the models by name, shows its changes, asks the person one thing
-  it should get next and makes that change; each tells the lead when done), and, where `page` is
-  true, `open_terminal` the dev server's command (`node dev.mjs <port>`, say, which the person
-  approves in the app's usual dialog) and `show` its page. No agent runs git. The texts are tuned
+  it should get next and makes that change; each tells the lead when done). No agent runs git. The texts are tuned
   on Codex (its `*-luna`, low effort) alone; the other harnesses run them untuned. What each
   agent is told of the shell follows its harness (`shellRule`, in the lead's script, both tasks
   and the folder's note): Claude Code, Antigravity and opencode, which read and write files with

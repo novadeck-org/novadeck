@@ -287,9 +287,9 @@ describe("The tour's story", () => {
     expect(tourSteps.map(({ id, act }) => [id, act])).toEqual([
       ["start", 1],
       ["ask", 2],
-      ["team", 3],
-      ["run", 3],
+      ["run", 2],
       ["page", 3],
+      ["team", 3],
       ["shape", 3],
       ["files", 3],
       ["diff", 3],
@@ -349,10 +349,10 @@ describe("The tour's story", () => {
       {},
       sheet(true),
       sheet(false, true),
-      named,
       { approving: true },
       { approving: false, served: true },
       showing({ page: item("page") }),
+      named,
       showing({ page: item("page"), model: item("model") }),
       { changed: { models: true, game: false } },
       { changed: { models: true, game: true } },
@@ -363,10 +363,10 @@ describe("The tour's story", () => {
     expect(after).toEqual([
       "ask",
       "ask",
-      "team",
       "run",
       "run",
       "page",
+      "team",
       "shape",
       "files",
       "files",
@@ -397,7 +397,7 @@ describe("The tour's story", () => {
     const all = world(everything)
     const caption = (run: TourRun, line: string, now: number) =>
       stepRun(run, stepsFor(run), { type: "caption", line, signals: all, now }, patience)
-    const line = "The game. Live. It fills in as they write."
+    const line = "The game. Live. Empty, for now."
     const playLine = "Three agents. Your game. Go play."
     // The page step, done at 100 with no caption yet.
     const done = () => feed(atStep("page"), all, 100).run!
@@ -407,14 +407,14 @@ describe("The tour's story", () => {
       expect(shown).toMatchObject({ doneAt: 100, captionAt: 3_000 })
       expect(nextTick(shown, tourSteps, all, patience)).toBe(8_000)
       expect(idAt(tick(shown, all, 7_999).run!)).toBe("page")
-      expect(idAt(tick(shown, all, 8_000).run!)).toBe("shape")
+      expect(idAt(tick(shown, all, 8_000).run!)).toBe("team")
     })
 
     it("waits for the caption, up to the cap, then holds from there", () => {
       const waiting = done()
       expect(nextTick(waiting, tourSteps, all, patience)).toBe(100 + captionWaitMs + 5_000)
       expect(idAt(tick(waiting, all, 100 + captionWaitMs + 4_999).run!)).toBe("page")
-      expect(idAt(tick(waiting, all, 100 + captionWaitMs + 5_000).run!)).toBe("shape")
+      expect(idAt(tick(waiting, all, 100 + captionWaitMs + 5_000).run!)).toBe("team")
     })
 
     it("ignores a caption that comes after the wait for it ran out", () => {
@@ -470,7 +470,7 @@ describe("The tour's story", () => {
       expect(nextTick(again, tourSteps, all, patience)).toBe(20_000 + captionWaitMs + 5_000)
       const reshown = caption(again, line, 21_500).run!
       expect(nextTick(reshown, tourSteps, all, patience)).toBe(26_500)
-      expect(idAt(tick(reshown, all, 26_500).run!)).toBe("shape")
+      expect(idAt(tick(reshown, all, 26_500).run!)).toBe("team")
     })
   })
 
@@ -505,11 +505,11 @@ describe("The tour's story", () => {
     it("takes the sheet gone from the Inbox, once seen, as the person's answer", () => {
       const asking = feed(atStep("ask"), world(sheet(true)))
       expect(asking.run).toMatchObject({ step: 1, asked: true })
-      expect(idAt(feed(asking.run!, world(sheet(false))).run!)).toBe("team")
+      expect(idAt(feed(asking.run!, world(sheet(false))).run!)).toBe("run")
     })
 
     it("is done once answered, even before the tour came to it", () => {
-      expect(idAt(feed(atStep("ask"), world(sheet(false, true))).run!)).toBe("team")
+      expect(idAt(feed(atStep("ask"), world(sheet(false, true))).run!)).toBe("run")
     })
 
     it("nudges no one while the person has the sheet to answer", () => {
@@ -548,12 +548,12 @@ describe("The tour's story", () => {
       expect(nextTick(run, stepsFor(run), world(), patience)).toBe(patience)
       const asking = world({ approving: true })
       expect(nextTick(run, stepsFor(run), asking, patience)).toBeNull()
-      expect(tick(run, asking, patience * 10)).toMatchObject({ nudge: null, run: { step: 3 } })
+      expect(tick(run, asking, patience * 10)).toMatchObject({ nudge: null, run: { step: 2 } })
     })
 
     it("is done once allowed, or once the page shows, with no mind to who was quicker", () => {
-      expect(feed(run, world({ served: true })).run).toMatchObject({ step: 4 })
-      expect(feed(run, world()).run?.step).toBe(3)
+      expect(feed(run, world({ served: true })).run).toMatchObject({ step: 3 })
+      expect(feed(run, world()).run?.step).toBe(2)
     })
 
     it("points at the approval dialog's button", () => {
@@ -651,6 +651,17 @@ describe("The tour's story", () => {
       expect(coachNow({ ...held, doneAt: null }, tourSteps, asking)?.line).toBe(
         "A teammate has a question for you.",
       )
+    })
+
+    it("makes no step's moves while it waits, so the Inbox stays open for the person to answer", () => {
+      // The Files panel would take the Inbox's place in the sidebar.
+      const waiting = feed({ ...atStep("files"), entered: false }, asking)
+      expect(waiting.moves).toEqual([])
+      expect(waiting.run?.entered).toBe(false)
+      // Answered, the step makes its moves.
+      expect(feed(waiting.run!, world(), 2).moves).toEqual([
+        { kind: "reveal", terminalId: "t2", panel: "files" },
+      ])
     })
 
     it("lets a permission come first", () => {
@@ -995,7 +1006,8 @@ describe("The tour's parts that drop out", () => {
       expect(nextTick(run, stepsOfRun(run), world(), 1e9)).toBe(100 + declineMs)
       const after = feed(run, world(), 100 + declineMs)
       expect(after.run).toMatchObject({ declined: true })
-      expect(stepsOfRun(after.run!)[after.run!.step]?.id).toBe("shape")
+      // The lead opens its team whether or not the person let it run the server.
+      expect(stepsOfRun(after.run!)[after.run!.step]?.id).toBe("team")
       expect(ids(after.run!)).not.toContain("page")
       expect(ids(after.run!)).not.toContain("run")
     })

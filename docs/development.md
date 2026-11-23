@@ -858,15 +858,17 @@ App:
   (8 s) after the step was done on screen is given up on, and the hold counts from then. Its
   steps (`frontend/tour/src/steps.ts`), in Nyx's voice: "That's your agent. It runs this job."
   (`start`, the lead describes itself); "Your call. What game?" (`ask`, the lead's sheet in the
-  Inbox, until it is answered); "Look. It hired its own help." (`team`, both teammates there and
-  named); "It wants to run the game. Fine. Say yes." (`run`, the approval's Run command is
-  marked, and the step waits on the person); "The game. Live. It fills in as they write."
-  (`page`, the lead's page tab); "A model. From scratch. Go on, spin it." (`shape`, the
+  Inbox, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
+  approval's Run command is marked, and the step waits on the person: the lead hires no one
+  before they answer, so the approval has the screen to itself); "The game. Live. Empty, for
+  now." (`page`, the lead's page tab); "Look. It hired its own help." (`team`, both teammates
+  there and named); "A model. From scratch. Go on, spin it." (`shape`, the
   Modeller's model tab); "Every blink? An agent. Writing." (`files`, the Files panel); "What it
   wrote. Line by line." (`diff`, the Builder's changes tab); and "Three agents. Your game. Go
   play." (`play`, the lead's page, a while, then the closing card: "It's yours now."). A
   teammate's own question to the person is no step: while one waits in the Inbox the coach says
-  "A teammate has a question for you." and points at it until it is answered or dismissed. The
+  "A teammate has a question for you." and points at it until it is answered or dismissed, and
+  no step makes its moves meanwhile (a panel or the camera would take the Inbox away). The
   UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
   to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
   Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run
