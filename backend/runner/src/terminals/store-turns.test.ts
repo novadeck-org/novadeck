@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { sharesStore, StoreTurns, turnMs } from "./store-turns.js"
+import { sharesStore, startMs, StoreTurns, turnMs } from "./store-turns.js"
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -29,10 +29,10 @@ describe("StoreTurns", () => {
 
   it("starts a wake once the stop under way ended", async () => {
     const turns = new StoreTurns()
-    const ended = await turns.stop()
+    const stop = await turns.stop()
     const wake = turns.wake()
     expect(await settledAfter(wake, 1000)).toBe(false)
-    ended()
+    stop.end()
     expect(await settledAfter(wake)).toBe(true)
   })
 
@@ -44,19 +44,39 @@ describe("StoreTurns", () => {
     expect(await settledAfter(wake, 1)).toBe(true)
   })
 
-  it("ends an agent once the wake starting meanwhile had its turn", async () => {
+  it("ends an agent once the wake starting meanwhile said its agent started", async () => {
+    const turns = new StoreTurns()
+    const wake = await turns.wake()
+    const stop = turns.stop()
+    expect(await settledAfter(stop, turnMs)).toBe(false)
+    wake.end()
+    expect(await settledAfter(stop)).toBe(true)
+  })
+
+  it("ends an agent once a wake that never says so held it for its own, longer turn", async () => {
     const turns = new StoreTurns()
     await turns.wake()
     const stop = turns.stop()
-    expect(await settledAfter(stop, turnMs - 1)).toBe(false)
+    expect(await settledAfter(stop, startMs - 1)).toBe(false)
     expect(await settledAfter(stop, 1)).toBe(true)
+  })
+
+  it("settles a turn's over once it is given back, early or at its cap", async () => {
+    const turns = new StoreTurns()
+    const early = await turns.stop()
+    early.end()
+    expect(await settledAfter(early.over)).toBe(true)
+    const capped = await turns.stop()
+    expect(await settledAfter(capped.over, turnMs - 1)).toBe(false)
+    expect(await settledAfter(capped.over, 1)).toBe(true)
   })
 
   it("lets wakes start together, and stops end together", async () => {
     const turns = new StoreTurns()
-    await turns.wake()
+    const first = await turns.wake()
     expect(await settledAfter(turns.wake())).toBe(true)
-    await vi.advanceTimersByTimeAsync(turnMs)
+    first.end()
+    await vi.advanceTimersByTimeAsync(startMs)
     await turns.stop()
     expect(await settledAfter(turns.stop())).toBe(true)
   })
@@ -67,10 +87,10 @@ describe("StoreTurns", () => {
     const wake = turns.wake()
     // Asked as the first ends, before the wake had its turn: no wake is starting, so it ends
     // its agent, and the wake waits for it too, never starting as either ends.
-    first()
+    first.end()
     const second = await turns.stop()
     expect(await settledAfter(wake, 1000)).toBe(false)
-    second()
+    second.end()
     expect(await settledAfter(wake)).toBe(true)
   })
 })
