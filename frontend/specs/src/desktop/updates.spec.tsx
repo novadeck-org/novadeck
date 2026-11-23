@@ -158,6 +158,15 @@ describe("restarting to update", () => {
     expect(restartChip().query()).toBeNull()
   })
 
+  it("opens its card from the chip while the finished download's bar still shows", async () => {
+    await openWorkspace("/?update=download")
+    await expect.element(finished(), slow).toBeVisible()
+    await restartChip().click()
+    await expect.element(page.getByText("Restart · 0.0.80")).toBeVisible()
+    expect(bar()).toBeNull()
+    await expect.element(page.getByRole("button", { name: "Restart now" })).toBeEnabled()
+  })
+
   it("leaves a quiet chip once an update is downloaded, which opens its card and restarts on a press", async () => {
     await openWorkspace("/?update=ready")
     await expect.element(restartChip()).toBeVisible()

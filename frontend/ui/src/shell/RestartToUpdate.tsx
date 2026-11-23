@@ -1,7 +1,7 @@
 import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowRight, CircleHelp, CircleStop, RotateCw, X } from "lucide-react"
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import { blockingOverlayOpen } from "../interaction/dom"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
@@ -28,8 +28,9 @@ export type RestartUpdateProps = {
   readonly onRestart: () => void
   // Brings a terminal into view and puts typing focus in it; the card stays open.
   readonly onGoTo: (terminalId: string) => void
-  // Whether another notice holds the corner: a dialog, the sandbox notice, a download's bar
-  // or the what's-new card. The card waits, and comes back when it ends.
+  // Whether another notice holds the corner: a dialog, the sandbox notice, Murmur's sheet or
+  // the what's-new card. The card waits, and comes back when it ends. A download's bar
+  // doesn't: the card opened from the chip ends it (WorkspaceFooter.tsx).
   readonly blocked: boolean
 }
 
@@ -108,7 +109,8 @@ export const RestartToUpdate = ({
   const blocked = (restart?.blocked ?? false) || overlay
   const visible = open && restart !== undefined && !hidden && !blocked
   const onShownChange = restart?.onShownChange
-  useEffect(() => {
+  // Before paint, so the download's finished bar, which the card ends, never shares its frame.
+  useLayoutEffect(() => {
     onShownChange?.(visible)
     return () => onShownChange?.(false)
   }, [visible, onShownChange])

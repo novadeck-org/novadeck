@@ -27,17 +27,22 @@ export const watchedAfter = (
 // An update downloading, as a bar floating above the footer's right end: what is happening
 // and how far along, nothing to press. It never takes keys, focus or clicks, so the corner
 // it covers stays usable, and it waits out Zen mode with the footer, and any notice open in
-// the same corner. A finished download says it installs on the next restart (on macOS,
+// the same corner. The restart card, which the person opens from the chip a finished download
+// leaves, ends it (`dismissed`): the bar only said what the card now shows. A finished download says it installs on the next restart (on macOS,
 // where closing the window doesn't quit, when the person quits) and fades; a failed one
 // (`retrying`) drops the bar at once, as the desktop app tries again by itself.
 export const UpdateProgress = ({
   offer,
   hidden,
+  dismissed = false,
   onActive,
   platform = currentPlatform(),
 }: {
   readonly offer: UpdateOffer | null
   readonly hidden: boolean
+  // The person opened what the finished bar points to (the restart card): a finished bar goes
+  // at once, without its farewell, and one still downloading waits hidden until it ends.
+  readonly dismissed?: boolean
   // Told whether the bar has a download to show, hidden or not: from the download's start
   // until its finished bar has faded. The what's-new card waits for it (WorkspaceFooter.tsx).
   readonly onActive?: (active: boolean) => void
@@ -45,17 +50,23 @@ export const UpdateProgress = ({
 }): React.JSX.Element => {
   // The version this page saw downloading, and the moment its bar is at.
   const [watched, setWatched] = useState<Watched>()
-  const next = watchedAfter(watched, offer)
+  const heard = watchedAfter(watched, offer)
+  const next =
+    dismissed && heard !== undefined && heard.moment !== "progress"
+      ? { ...heard, moment: "gone" as const }
+      : heard
   if (next?.version !== watched?.version || next?.moment !== watched?.moment) setWatched(next)
   const moment = watched?.moment ?? "gone"
-  useLinger(moment, !hidden, (to) => setWatched((current) => current && { ...current, moment: to }))
+  useLinger(moment, !hidden && !dismissed, (to) =>
+    setWatched((current) => current && { ...current, moment: to }),
+  )
   const active = moment !== "gone"
   // Before paint, so the card never shares a frame with a bar that is just starting.
   useLayoutEffect(() => {
     onActive?.(active)
   }, [active, onActive])
   const percent = moment === "progress" && offer?.kind === "downloading" ? offer.percent : 100
-  const shown = moment !== "gone" && !hidden
+  const shown = moment !== "gone" && !hidden && !dismissed
   const when = platform === "mac" ? "when you quit Novadeck" : "on the next restart"
   return (
     <>

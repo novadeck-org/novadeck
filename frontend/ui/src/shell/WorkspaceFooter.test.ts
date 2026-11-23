@@ -1262,6 +1262,42 @@ describe("Agent Chat's offer in the footer's corner", () => {
       expect(restartCard(page)).toBeNull()
       expect(cards(page).offer).toBe(true)
     })
+
+    it("opens from its chip while the finished download's bar still shows, which then goes", () => {
+      vi.useFakeTimers()
+      const restart = {
+        offer: ready,
+        check: nothingToCheck,
+        answer: "known" as const,
+        onRestart: () => {},
+        onGoTo: () => {},
+        blocked: false,
+      }
+      const footer = (progress: UpdateOffer, withRestart: boolean) =>
+        createElement(WorkspaceFooter, {
+          hidden: false,
+          count: 2,
+          running: 1,
+          progress,
+          ...(withRestart ? { restart } : {}),
+        })
+      const bar = () => page.container.querySelector(".update-progress")
+      const page = render(footer(downloading, false))
+      mounted.push(page)
+      page.rerender(footer(ready, true))
+      expect(bar()?.textContent).toContain("Update ready")
+      act(() => chip(page).click())
+      expect(restartCard(page)).not.toBeNull()
+      expect(bar()).toBeNull()
+      act(() =>
+        page.container
+          .querySelector<HTMLButtonElement>(".restart-card .update-card-close")!
+          .click(),
+      )
+      act(() => vi.advanceTimersByTime(finishedForMs + fadeMs))
+      expect(restartCard(page)).toBeNull()
+      expect(bar()).toBeNull()
+    })
   })
 
   it("waits out Zen mode with the footer", () => {

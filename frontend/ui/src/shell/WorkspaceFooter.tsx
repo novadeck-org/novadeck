@@ -175,16 +175,20 @@ export const WorkspaceFooter = ({
               restart && {
                 ...restart,
                 onShownChange: onRestartShown,
-                blocked: restart.blocked || noticeOpen || murmurSheet || barActive || whatsNewShown,
+                // Not the download's bar, which only points at this chip: a press on the chip
+                // opens the card and ends the bar (`dismissed` below).
+                blocked: restart.blocked || noticeOpen || murmurSheet || whatsNewShown,
               }
             }
             hidden={hidden}
           />
           <UpdateAvailable available={available} />
-          {/* A download has the corner from its start until its bar fades; the card waits. */}
+          {/* A download has the corner from its start until its bar fades; the cards wait,
+              but the restart card the person opens from its chip ends it. */}
           <UpdateProgress
             offer={progress}
             hidden={hidden || noticeOpen || murmurSheet}
+            dismissed={restartShown}
             onActive={setBarActive}
           />
           {feedback}
