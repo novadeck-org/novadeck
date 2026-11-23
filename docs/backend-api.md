@@ -663,7 +663,8 @@ window, and are refused at the handshake once one isn't: never later, with a cal
 to decode or validate. Each build carries three numbers (`compatibility` in
 `contract/protocol/src/compatibility.ts`):
 
-- `revision`, the contract it speaks, raised once in each release whose contract changed;
+- `revision`, the contract it speaks, which a change to the contract raises past both the newest
+  release's and its pull request's base's (a release may be cut after any merge);
 - `oldestClient`, the oldest UI a runner of this build serves;
 - `oldestRunner`, the oldest runner a UI of this build works with.
 
@@ -759,7 +760,10 @@ writes it again), and a pull request shows a contract change as a change to it.
 `node scripts/compatibility/main.ts` compares it with the newest release's, and with each older
 release's still in the window, one per revision (Quality's Contract job, and the release
 workflow before it publishes): what passes against one release needn't against an older one,
-as an optional field gone and back with another type passes each step. It fails when the
+as an optional field gone and back with another type passes each step. Quality's job also
+judges it against the pull request's base (`--peer`) as against the newest release: a merged
+contract change no release holds yet still ships with the next, so a change that fits the
+releases but leaves the base's peers behind fails there, not at the release. It fails when the
 contract changed and `revision` didn't rise past the newest release's, when a change leaves
 the UIs or runners of a release in the window behind and that side's edge didn't move past
 its revision, or when an edge falls back. It

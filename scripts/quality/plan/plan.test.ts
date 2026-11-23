@@ -702,10 +702,12 @@ describe("Quality's workflow", () => {
     expect(job("test")).toContain("needs: [plan, quality, windows, macos, contract]")
   })
 
-  // The tags the check compares with are only in the whole history.
-  it("checks the contract against the newest release with the whole history", () => {
+  // The tags the check compares with are only in the whole history; the base, as the next
+  // release ships it, is compared too.
+  it("checks the contract against the newest release and the base with the whole history", () => {
     expect(job("contract")).toContain("fetch-depth: 0")
-    expect(job("contract")).toContain("run: node scripts/compatibility/main.ts")
+    expect(job("contract")).toContain('base="$(git merge-base HEAD "$BASE_SHA")"')
+    expect(job("contract")).toContain('node scripts/compatibility/main.ts --peer "$base"')
   })
 
   it("takes Windows's and macOS's rows and packages from the plan", () => {

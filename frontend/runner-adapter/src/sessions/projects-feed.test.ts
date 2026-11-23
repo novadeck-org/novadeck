@@ -3,6 +3,8 @@ import { workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import type { ProjectsChange } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
+import { WireError } from "@novadeck/wire"
+import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
@@ -26,7 +28,11 @@ const listed = (...ids: string[]): ProjectsChange => ({
   })),
 })
 
-const follow = (holding: () => boolean, removedHere: (id: string) => boolean = () => false) => {
+const follow = (
+  holding: () => boolean,
+  removedHere: (id: string) => boolean = () => false,
+  read: (projectId: string) => Promise<undefined> = async () => undefined,
+) => {
   const feed = channel<ProjectsChange>()
   const dispatched: BackendAction[] = []
   const sessions: [string, readonly string[]][] = []
@@ -38,7 +44,7 @@ const follow = (holding: () => boolean, removedHere: (id: string) => boolean = (
     latest: workspace,
     dispatch: (actions) => dispatched.push(...actions),
     now: () => 1,
-    read: async () => undefined,
+    read,
     removedHere,
     holding,
     arranged: () => {},
@@ -58,6 +64,27 @@ describe("a project's sessions another client arranged", () => {
     await lists({ type: "arranged", projectId: "project", order: ["b", "a"] })
     expect(sessions).toEqual([["project", ["b", "a"]]])
     expect(dispatched).toEqual([])
+  })
+})
+
+describe("a project another client made", () => {
+  it("is read quietly to no end once the link has closed for good", async () => {
+    const reported = vi.fn<(error: unknown) => void>()
+    vi.stubGlobal("reportError", reported)
+    try {
+      const { lists, dispatched } = follow(
+        () => false,
+        () => false,
+        async () => {
+          throw new WireError("CLOSED", "The connection is closed.")
+        },
+      )
+      await lists(listed("project", "other", "made"))
+      expect(reported).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 
