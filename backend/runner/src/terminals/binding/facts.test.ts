@@ -669,3 +669,30 @@ describe("following a bound session's subagents in their own sources", () => {
     expect(since(bound)).toEqual({})
   })
 })
+
+describe("the shipping gate's permits in a terminal's summary", () => {
+  it("says how many stand, only where some do, and always tells the detail", () => {
+    let standing = 0
+    const announce = vi.fn<(record: Record) => void>()
+    const detailed = vi.fn<(record: Record) => void>()
+    const ends = new Bindings({
+      announce,
+      detailed,
+      permits: () => standing,
+    } as unknown as BindingsHost)
+    const shown = record()
+    ends.publishPermits(shown)
+    expect(announce).not.toHaveBeenCalled()
+    expect(detailed).toHaveBeenCalledTimes(1)
+    expect("permits" in shown.summary).toBe(false)
+    standing = 2
+    ends.publishPermits(shown)
+    expect(shown.summary.permits).toBe(2)
+    ends.publishPermits(shown)
+    expect(announce).toHaveBeenCalledTimes(1)
+    standing = 0
+    ends.publishPermits(shown)
+    expect("permits" in shown.summary).toBe(false)
+    expect(announce).toHaveBeenCalledTimes(2)
+  })
+})

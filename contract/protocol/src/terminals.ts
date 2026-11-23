@@ -186,6 +186,9 @@ export const terminalSummary = z.strictObject({
   // or a message delivered to it came after. The terminal's done mark follows it, not
   // the person looking; null without one.
   reported: z.strictObject({ subject: z.string().max(256), at: z.number() }).nullable(),
+  // How many of the shipping gate's permits stand for its agent (Experimental), as
+  // `agents.detail`'s `permits` lists them: absent where none does, and while the gate is off.
+  permits: z.number().int().positive().optional(),
   // Whether the terminal is asleep: saved, with no shell, its agent's session to resume
   // when someone needs it. A client that sees it wanted creates the terminal as a restore
   // of that agent; one whose wake the runner already asked for is not asleep, as a `create`

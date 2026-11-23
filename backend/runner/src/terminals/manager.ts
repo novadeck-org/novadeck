@@ -435,7 +435,7 @@ export class Terminals {
         ),
     })
     // An action card opened, answered or withdrawn changes what the terminal's agent asks.
-    this.options.shipping?.attach(this.records, (record) => this.streams.detailed(record))
+    this.options.shipping?.attach(this.records, (record) => this.bindings.publishPermits(record))
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
       records: () => this.records.values(),
@@ -472,6 +472,7 @@ export class Terminals {
       announce: (record) => this.announce(record),
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),
+      permits: (id) => this.options.shipping?.held(id).permits.length ?? 0,
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),

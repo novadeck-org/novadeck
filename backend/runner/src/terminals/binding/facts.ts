@@ -60,6 +60,8 @@ export type BindingsHost = {
   readonly save: (record: Record) => void
   /** Tells the terminal's detail readers of a change. */
   readonly detailed: (record: Record) => void
+  /** How many of the shipping gate's permits stand in a terminal; none without the gate. */
+  readonly permits?: (terminalId: string) => number
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (
     record: Record,
@@ -732,6 +734,19 @@ export class Bindings {
     )
       return
     record.summary = { ...summary, agentRan, agent, ready, startup, activity, telemetry, reported }
+    this.host.announce(record)
+  }
+
+  /**
+   * The shipping gate's permits changed in the terminal: its detail lists them, and its summary
+   * says how many stand, so a client follows the detail only where some do.
+   */
+  publishPermits(record: Record): void {
+    this.host.detailed(record)
+    const count = this.host.permits?.(record.summary.id) ?? 0
+    if ((record.summary.permits ?? 0) === count) return
+    const { permits: _was, ...rest } = record.summary
+    record.summary = { ...rest, ...(count > 0 && { permits: count }) }
     this.host.announce(record)
   }
 

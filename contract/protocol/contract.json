@@ -1026,6 +1026,7 @@
                 {"type":"null"}
               ]
             },
+            "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
             "sleeping": {"type":"boolean"},
             "restingAgent": {
               "anyOf": [
@@ -1547,6 +1548,7 @@
               {"type":"null"}
             ]
           },
+          "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
           "sleeping": {"type":"boolean"},
           "restingAgent": {
             "anyOf": [
@@ -2300,6 +2302,7 @@
                       {"type":"null"}
                     ]
                   },
+                  "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
                   "sleeping": {"type":"boolean"},
                   "restingAgent": {
                     "anyOf": [
@@ -3078,6 +3081,7 @@
               {"type":"null"}
             ]
           },
+          "permits": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
           "sleeping": {"type":"boolean"},
           "restingAgent": {
             "anyOf": [
