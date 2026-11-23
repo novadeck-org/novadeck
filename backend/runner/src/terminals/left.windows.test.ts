@@ -12,7 +12,12 @@ const supported = process.platform === "win32" && existsSync(relay)
 const trees = new Trees(async () => relay)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const eventually = async (check: () => boolean | Promise<boolean>, what: string, ms = 15_000) => {
+/** Waits for `check`; `what` is said as it gives up, so a screen in it is the one then. */
+const eventually = async (
+  check: () => boolean | Promise<boolean>,
+  what: string | (() => string),
+  ms = 15_000,
+) => {
   const by = Date.now() + ms
   while (Date.now() < by) {
     // eslint-disable-next-line no-await-in-loop -- Waits for it.
@@ -20,7 +25,7 @@ const eventually = async (check: () => boolean | Promise<boolean>, what: string,
     // eslint-disable-next-line no-await-in-loop -- Waits for it.
     await sleep(50)
   }
-  throw new Error(`Timed out waiting for ${what}`)
+  throw new Error(`Timed out waiting for ${typeof what === "string" ? what : what()}`)
 }
 
 const running = (pid: number): boolean => {
@@ -147,8 +152,12 @@ const terminal = async () => {
   // Its prompt, `$G`: what is typed before cmd reads its input is lost, as on a cold machine.
   await eventually(() => /^>/m.test(screen), "the shell's prompt")
   const run = (line: string) => pty.write(`${line}\r`)
-  const said = async (pattern: RegExp): Promise<RegExpExecArray> => {
-    await eventually(() => pattern.test(screen), `${pattern} in: ${screen}`)
+  const said = async (pattern: RegExp, ms?: number): Promise<RegExpExecArray> => {
+    await eventually(
+      () => pattern.test(screen),
+      () => `${pattern} in: ${screen}`,
+      ms,
+    )
     return pattern.exec(screen)!
   }
   /** Starts the stand-in agent with `names`' variants, told to the pty as the runner tells it. */
@@ -156,7 +165,8 @@ const terminal = async () => {
     const before = told(root).size
     writeFileSync(join(root, "variants.json"), JSON.stringify(names.map((name) => variants[name])))
     run(`"${node}" agent.mjs`)
-    const pid = Number((await said(/AGENT=(\d+)=/))[1])
+    // Its servers up first: a cold PowerShell's Start-Process takes seconds on CI's Windows.
+    const pid = Number((await said(/AGENT=(\d+)=/, 45_000))[1])
     pty.agentStarted(pid)
     ended.push(pid)
     await eventually(() => told(root).size >= before + names.length, "the agent's servers")
@@ -202,7 +212,7 @@ describe.skipIf(!supported)("what an agent left detached in a Windows terminal's
     expect(left?.map((one) => one.pid).toSorted()).toEqual(expect.arrayContaining(pids.toSorted()))
     await close()
     await eventually(() => stillRunning(servers()).length === 0, "the leftovers to end")
-  }, 60_000)
+  }, 120_000)
 
   it("spares what the person left there before the agent and after its session", async () => {
     const { startAgent, leaveOwn, close, servers, pty } = await terminal()
@@ -216,7 +226,7 @@ describe.skipIf(!supported)("what an agent left detached in a Windows terminal's
     await close()
     await eventually(() => !stillRunning(servers()).includes("start"), "the agent's to end")
     expect(stillRunning(servers())).toEqual(["before", "after"])
-  }, 60_000)
+  }, 120_000)
 
   it("leaves a plain terminal's detached programs as they were", async () => {
     const { leaveOwn, close, servers, pty } = await terminal()
@@ -225,7 +235,7 @@ describe.skipIf(!supported)("what an agent left detached in a Windows terminal's
     await close()
     await sleep(500)
     expect(stillRunning(servers())).toEqual(["own"])
-  }, 60_000)
+  }, 120_000)
 
   it("ends them once the shell has exited by itself, as the terminal closes", async () => {
     const { startAgent, servers, pty } = await terminal()
@@ -238,5 +248,5 @@ describe.skipIf(!supported)("what an agent left detached in a Windows terminal's
     expect(stillRunning(servers())).toEqual(["detached"])
     await pty.endLeft({ listing: () => Promise.resolve(undefined) })
     await eventually(() => stillRunning(servers()).length === 0, "the leftover to end")
-  }, 60_000)
+  }, 120_000)
 })
