@@ -90,11 +90,18 @@ describe("what ends a standing permit", () => {
     // Told once the read is done, as a read may come while a detail is drawn.
     await Promise.resolve()
     expect(changed).toEqual(["t", "t"])
-    // Nor while no session is bound.
+    // Nor while no session is bound, as while its agent is suspended (Ctrl+Z); it waits for
+    // that session to come back, and another one ends it.
     session.set("t", "s2")
     permits.give("t", "merge:6", false, quote)
     session.delete("t")
     expect(permits.covering("t", "merge:6")).toBeUndefined()
+    expect(permits.of("t")).toHaveLength(1)
+    session.set("t", "s2")
+    expect(permits.covering("t", "merge:6")?.sessionId).toBe("s2")
+    session.set("t", "s3")
+    expect(permits.covering("t", "merge:6")).toBeUndefined()
+    expect(permits.of("t")).toEqual([])
   })
 
   it("tells its end when its time is up, with no read to find it", async () => {

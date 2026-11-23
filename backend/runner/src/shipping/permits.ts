@@ -83,9 +83,17 @@ export class Permits {
     this.schedule()
   }
 
-  // Whether a permit still stands: within its time, for the session bound now.
+  // Whether a permit still stands: within its time, and no other session is bound in its
+  // terminal. With none bound, as while its agent is suspended (Ctrl+Z) or its harness
+  // disconnects, it waits for the session to come back; another one ends it.
   private stands(permit: Permit, now: number): boolean {
     if (permit.until <= now) return false
+    const session = this.options.session?.(permit.terminalId)
+    return session === undefined || session === permit.sessionId
+  }
+
+  // Whether a permit covers a command now: it stands, and its own session is the one bound.
+  private usable(permit: Permit): boolean {
     if (!this.options.session) return true
     return (this.options.session(permit.terminalId) ?? null) === permit.sessionId
   }
@@ -149,7 +157,7 @@ export class Permits {
       this.sweep()
       return undefined
     }
-    return permit
+    return this.usable(permit) ? permit : undefined
   }
 
   /** The terminal's live permits, oldest first. */
