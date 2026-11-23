@@ -297,7 +297,28 @@ describe("The tour's story signals", () => {
         each.id === "04" ? { ...each, openedBy: "01" } : each,
       ),
     })
-    expect(tourSignals(workspace, "01").team).toEqual({ count: 2, named: 1, ids: ["02", "03"] })
+    expect(tourSignals(workspace, "01").team).toEqual({
+      count: 2,
+      named: 1,
+      ids: ["02", "03"],
+      // With no messages to read, every teammate counts as reported.
+      reported: 2,
+      working: false,
+    })
+  })
+
+  it("count the teammates that reported to the lead, and say whether any is at work", () => {
+    const messages = messagesOf([message("m1", "03", "01"), message("m2", "02", "04")])
+    expect(tourSignals(teamWorkspace(), "01", { messages }).team.reported).toBe(1)
+    const workspace = teamWorkspace()
+    const roster = workspace.projects[0]!.history[0]!.state.roster
+    Object.assign(roster, {
+      terminals: roster.terminals.map((each) =>
+        each.id === "02" ? { ...each, state: "running", agent: { working: true } } : each,
+      ),
+    })
+    expect(tourSignals(workspace, "01").team.working).toBe(true)
+    expect(tourSignals(teamWorkspace(), "01").team.working).toBe(false)
   })
 })
 

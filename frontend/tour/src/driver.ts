@@ -30,6 +30,9 @@ export type TourRun = {
   readonly command: string
   readonly page: boolean
   readonly step: number
+  // When the step on now began, for its cap (`capMs`): not kept through a reload, which begins
+  // its count again.
+  readonly stepAt: number
   readonly waitingSince: number
   readonly nudged: boolean
   readonly briefed: boolean
@@ -112,6 +115,7 @@ export const beginRun = (
 ): TourRun => ({
   ...start,
   step: 0,
+  stepAt: now,
   waitingSince: now,
   nudged: false,
   briefed: start.brief === "launch",
@@ -141,6 +145,7 @@ const nextStep = (run: TourRun, steps: readonly TourStep[], now: number): TourOu
   return still({
     ...run,
     step,
+    stepAt: now,
     waitingSince: now,
     nudged: false,
     entered: false,
@@ -331,6 +336,7 @@ const reshape = (
     run: {
       ...next,
       step: played.findIndex(({ id }) => id === after),
+      stepAt: now,
       waitingSince: now,
       nudged: false,
       entered: false,
@@ -358,6 +364,14 @@ const follow = (
   // backend refused is tried again first.
   if (!step)
     return brief || !run.briefed ? { ...still(briefed), brief } : { ...still(null), end: "done" }
+  // Waited its longest: on to the next step, done or not, held or not.
+  if (step.capMs !== undefined && now - run.stepAt >= step.capMs) {
+    const next = nextStep(brief ? seen : briefed, steps, now)
+    const following = next.run && { ...next.run, briefed: briefed.briefed }
+    if (!following || following.step >= steps.length) return { ...next, run: following, brief }
+    const begun = follow(following, steps, signals, now, patienceMs)
+    return { ...begun, brief: brief || begun.brief }
+  }
   // Done: on to the next step, which begins with these same signals at once (its moves made
   // now, not at some later change), but never ended in the event that rings its first line.
   if (typeof run.doneAt === "number" || step.done(signals, briefed)) {
@@ -416,6 +430,8 @@ export const nextTick = (
   if (typeof end === "number") times.push(end)
   else if (step && waitOf(step, run, signals) === "nudge" && counting(step, signals))
     times.push(run.waitingSince + patienceMs)
+  // The step's cap.
+  if (step?.capMs !== undefined) times.push(run.stepAt + step.capMs)
   // The decline of the lead's run.
   if (run.approvalGoneAt !== null && !run.declined) times.push(run.approvalGoneAt + declineMs)
   return times.length > 0 ? Math.min(...times) : null
@@ -452,7 +468,10 @@ export const coachNow = (
   // An agent of the team asking the person's permission (its harness's own dialog): they answer
   // it in the Inbox or in that agent's terminal, which the tour points at.
   if (signals.permission) return permissionCoach(signals.permission.terminalId)
-  // A teammate's own question to the person, in the Inbox, whenever it comes.
-  if (signals.askingRow !== null) return questionCoach
-  return steps[run.step]?.coach ?? null
+  // A teammate's own question to the person, in the Inbox, whenever it comes: after the caption
+  // of a step that holds, done, for its subject to be seen first.
+  const step = steps[run.step]
+  const showing = typeof run.doneAt === "number" && step?.holdMs !== undefined
+  if (signals.askingRow !== null && !showing) return questionCoach
+  return step?.coach ?? null
 }

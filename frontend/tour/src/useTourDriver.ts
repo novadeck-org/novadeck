@@ -194,7 +194,14 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
   const [run, setRun] = useState<TourRun | null>(() => {
     const stored = readTourRun()
     const now = Date.now()
-    return stored && { ...stored, waitingSince: now, doneAt: stored.doneAt === null ? null : now }
+    return (
+      stored && {
+        ...stored,
+        stepAt: now,
+        waitingSince: now,
+        doneAt: stored.doneAt === null ? null : now,
+      }
+    )
   })
   const steps = run ? stepsFor(run) : stepsOf(true)
   const following = run !== null

@@ -252,7 +252,7 @@ describe("The tour's story", () => {
   const world = (story: Partial<TourSignals> = {}): TourSignals =>
     signals(quiet, true, {
       roles: cast,
-      team: { count: 0, named: 0, ids: [] },
+      team: { count: 0, named: 0, ids: [], reported: 0, working: false },
       ...story,
     })
   const bare = (story: Partial<TourSignals> = {}): TourSignals =>
@@ -293,6 +293,7 @@ describe("The tour's story", () => {
       ["shape", 3],
       ["files", 3],
       ["diff", 3],
+      ["finish", 3],
       ["play", 4],
     ])
   })
@@ -306,6 +307,7 @@ describe("The tour's story", () => {
       "shape",
       "files",
       "diff",
+      "finish",
       "play",
     ])
   })
@@ -335,7 +337,8 @@ describe("The tour's story", () => {
     }
     return { after, end }
   }
-  const named = { team: { count: 2, named: 2, ids: ["t2", "t3"] } }
+  const named = { team: { count: 2, named: 2, ids: ["t2", "t3"], reported: 0, working: false } }
+  const reported = { team: { count: 2, named: 2, ids: ["t2", "t3"], reported: 2, working: false } }
   const showing = (part: Partial<TourSignals["shown"]>): Partial<TourSignals> => ({
     shown: { ...world().shown, ...part },
   })
@@ -354,6 +357,7 @@ describe("The tour's story", () => {
       { changed: { models: true, game: false } },
       { changed: { models: true, game: true } },
       showing({ page: item("page"), model: item("model"), changes: item("diff") }),
+      reported,
       {},
     ])
     expect(after).toEqual([
@@ -367,6 +371,7 @@ describe("The tour's story", () => {
       "files",
       "files",
       "diff",
+      "finish",
       "play",
       "end",
     ])
@@ -521,12 +526,17 @@ describe("The tour's story", () => {
 
   context("at the team", () => {
     it("waits for both teammates to be there and named", () => {
-      const one = bare({ team: { count: 1, named: 1, ids: ["t2"] } })
+      const one = bare({ team: { count: 1, named: 1, ids: ["t2"], reported: 0, working: false } })
       expect(feed(atStep("team"), one).run?.doneAt).toBeNull()
-      const unnamed = bare({ team: { count: 2, named: 1, ids: ["t2", "t3"] } })
+      const unnamed = bare({
+        team: { count: 2, named: 1, ids: ["t2", "t3"], reported: 0, working: false },
+      })
       expect(feed(atStep("team"), unnamed).run?.doneAt).toBeNull()
       expect(
-        feed(atStep("team"), bare({ team: { count: 2, named: 2, ids: [] } })).run?.doneAt,
+        feed(
+          atStep("team"),
+          bare({ team: { count: 2, named: 2, ids: [], reported: 0, working: false } }),
+        ).run?.doneAt,
       ).toBe(1)
     })
   })
@@ -635,9 +645,46 @@ describe("The tour's story", () => {
       expect(tick(run, asking, patience * 3)).toMatchObject({ nudge: null, run: { step: 5 } })
     })
 
+    it("lets a step that holds, done, show its own caption first", () => {
+      const held = { ...atStep("shape"), doneAt: 100 }
+      expect(coachNow(held, tourSteps, asking)?.line).toBe("A model. From scratch. Go on, spin it.")
+      expect(coachNow({ ...held, doneAt: null }, tourSteps, asking)?.line).toBe(
+        "A teammate has a question for you.",
+      )
+    })
+
     it("lets a permission come first", () => {
       const both = world({ askingRow: "q1", permission: { terminalId: "t3" } })
       expect(coachNow(atStep("shape"), tourSteps, both)?.line).toBe("It's asking your permission.")
+    })
+  })
+
+  context("at the finish", () => {
+    const team = (part: Partial<TourSignals["team"]>): Partial<TourSignals> => ({
+      team: { count: 2, named: 2, ids: ["t2", "t3"], reported: 2, working: false, ...part },
+    })
+
+    it("waits for every teammate to report, quiet, with nothing asked of the person", () => {
+      const done = (story: Partial<TourSignals>) => feed(atStep("finish"), world(story)).run?.doneAt
+      expect(done(team({ reported: 1 }))).toBeNull()
+      expect(done(team({ working: true }))).toBeNull()
+      expect(done({ ...team({}), askingRow: "q1" })).toBeNull()
+      expect(done({ ...team({}), permission: { terminalId: "t2" } })).toBeNull()
+      expect(done(team({}))).toBe(1)
+    })
+
+    it("moves on after its cap, whatever the team is doing", () => {
+      const busy = world(team({ working: true }))
+      const run = { ...atStep("finish"), stepAt: 0, waitingSince: 0 }
+      expect(nextTick(run, stepsFor(run), busy, patience)).toBe(5 * 60_000)
+      expect(idAt(tick(run, busy, 5 * 60_000 - 1).run!)).toBe("finish")
+      expect(idAt(tick(run, busy, 5 * 60_000).run!)).toBe("play")
+    })
+
+    it("keeps the closing card back while a teammate's question waits", () => {
+      const asking = feed({ ...atStep("play"), entered: false }, world({ askingRow: "q1" }), 100)
+      expect(asking.run?.doneAt).toBeNull()
+      expect(tick(asking.run!, world({ askingRow: "q1" }), 1e9).run).not.toBeNull()
     })
   })
 
@@ -648,7 +695,12 @@ describe("The tour's story", () => {
     }
 
     it("go to the lead by default", () => {
-      expect(patient("team", world({ team: { count: 1, named: 1, ids: ["t2"] } })).nudge).toBe("t1")
+      expect(
+        patient(
+          "team",
+          world({ team: { count: 1, named: 1, ids: ["t2"], reported: 0, working: false } }),
+        ).nudge,
+      ).toBe("t1")
     })
 
     it("go to the lead in a teammate's place while it isn't found", () => {
@@ -659,7 +711,7 @@ describe("The tour's story", () => {
       const run = { ...atStep("diff"), waitingSince: 0 }
       const nudged = tick(run, world(), patience)
       expect(nudged).toMatchObject({ nudge: "t3", run: { nudged: true } })
-      expect(idAt(tick(nudged.run!, world(), 2 * patience).run!)).toBe("play")
+      expect(idAt(tick(nudged.run!, world(), 2 * patience).run!)).toBe("finish")
     })
   })
 
@@ -702,9 +754,20 @@ describe("The tour's story", () => {
         showing({ model: item("model") }),
         { changed: { models: true, game: true } },
         showing({ model: item("model"), changes: item("diff") }),
+        reported,
         {},
       ])
-      expect(after).toEqual(["ask", "ask", "team", "shape", "files", "diff", "play", "end"])
+      expect(after).toEqual([
+        "ask",
+        "ask",
+        "team",
+        "shape",
+        "files",
+        "diff",
+        "finish",
+        "play",
+        "end",
+      ])
       expect(end).toBe("done")
     })
   })

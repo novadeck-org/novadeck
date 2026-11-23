@@ -159,6 +159,9 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
   await expectLookAt(() => paneOf("Builder"))
   await expect.poll(() => topTab(paneOf("Builder"))).toContain("build-game")
 
+  // The team finishes what it started, and reports: only then does the story end.
+  await coachSays("They're finishing it.", 60_000)
+
   // Act 4: the game in the lead's pane, and then the closing card.
   await coachSays("Three agents. Your game. Go play.")
   await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()

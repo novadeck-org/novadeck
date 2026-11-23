@@ -59,6 +59,10 @@ export type TourSignals = {
     readonly count: number
     readonly named: number
     readonly ids: readonly string[]
+    // How many have written to the lead, as each reports once its part is done (all of them
+    // where the backend has no messages to read), and whether any is at work on a turn now.
+    readonly reported: number
+    readonly working: boolean
   }
   // Whether the lead's request to run a command in a new terminal waits for the person's yes.
   readonly approving: boolean
@@ -141,7 +145,7 @@ export const noTeam: Pick<
   | "mates"
 > = {
   roles: {},
-  team: { count: 0, named: 0, ids: [] },
+  team: { count: 0, named: 0, ids: [], reported: 0, working: false },
   approving: false,
   served: false,
   sheet: { asking: false, row: null, answered: false },
@@ -187,6 +191,16 @@ const everyMessage = (messages: MessagesState | undefined) => {
       for (const message of thread.messages) seen.set(message.id, message)
   return [...seen.values()]
 }
+
+// Whether `from` wrote to `to`, in the agents' threads.
+const wrote = (messages: MessagesState | undefined, from: string, to: string): boolean =>
+  everyMessage(messages).some(
+    (message) =>
+      message.from.kind === "agent" &&
+      message.from.terminalId === from &&
+      message.to.kind === "agent" &&
+      message.to.terminalId === to,
+  )
 
 // A path with forward slashes, as Windows' are written with the other.
 const slashed = (path: string): string => path.replaceAll("\\", "/")
@@ -343,6 +357,13 @@ export const tourSignals = (
           count: teammates.length,
           named: teammates.filter(({ titleSource }) => titleSource?.kind === "agent").length,
           ids: teammates.map(({ id }) => id),
+          reported: sources.messages
+            ? teammates.filter(({ id }) => wrote(sources.messages, id, lead)).length
+            : teammates.length,
+          working: teammates.some((each) => {
+            const state = leadState(each)
+            return state.kind === "agent" && state.working
+          }),
         },
         approving: (sources.approvals ?? []).some(
           ({ from, action }) => action.type === "run" && from === lead,

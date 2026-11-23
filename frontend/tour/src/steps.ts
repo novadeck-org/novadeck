@@ -81,6 +81,9 @@ export type TourStep = {
   // How long the step's caption stays on screen once done, for the person to look at what it
   // shows, before the run moves on: counted from when the caption is shown.
   readonly holdMs?: number
+  // How long the step waits at most, from when it began, before the run moves on all the same:
+  // for a step that waits on agents at work, which no nudge counts.
+  readonly capMs?: number
   readonly coach: Coach
   readonly done: (signals: TourSignals, memory: TourMemory) => boolean
   readonly wait: TourWait | ((memory: TourMemory, signals: TourSignals) => TourWait)
@@ -219,6 +222,27 @@ export const diffStep: TourStep = {
   nudges: "builder",
 }
 
+// Still act 3: the team finishes what it started, its answers to the person's questions taken
+// in; the story ends only then, so the project keeps the whole game. Done once every teammate
+// has reported to the lead and none is at work or waits on the person, and held a moment, as a
+// teammate may take up a new turn right after. A run that never settles ends all the same.
+export const finishStep: TourStep = {
+  id: "finish",
+  act: 3,
+  enter: [],
+  holdMs: lineMs,
+  capMs: 5 * 60_000,
+  coach: { look: "team", line: "They're finishing it." },
+  done: ({ team, askingRow, permission }) =>
+    team.count > 0 &&
+    team.reported >= team.count &&
+    !team.working &&
+    askingRow === null &&
+    permission === null,
+  // No nudge while a teammate is at work: the lead is rung only once all are quiet.
+  wait: (_, { team }) => (team.working ? "patient" : "nudge"),
+}
+
 // Act 4: the result's wipe, then the game in the lead's pane, for the person to play, a while;
 // then the story ends and the closing card comes.
 export const playStep: TourStep = {
@@ -233,7 +257,8 @@ export const playStep: TourStep = {
     line: "Three agents. Your game. Go play.",
     note: "It's live in the pane: click it.",
   },
-  done: () => true,
+  // Never while a teammate's question waits: the closing card waits for the person's answer.
+  done: ({ askingRow }) => askingRow === null,
   wait: "patient",
 }
 
@@ -248,8 +273,19 @@ const modelPlayStep: TourStep = {
 }
 
 const played = {
-  page: [startStep, askStep, teamStep, runStep, pageStep, shapeStep, filesStep, diffStep, playStep],
-  noPage: [startStep, askStep, teamStep, shapeStep, filesStep, diffStep, modelPlayStep],
+  page: [
+    startStep,
+    askStep,
+    teamStep,
+    runStep,
+    pageStep,
+    shapeStep,
+    filesStep,
+    diffStep,
+    finishStep,
+    playStep,
+  ],
+  noPage: [startStep, askStep, teamStep, shapeStep, filesStep, diffStep, finishStep, modelPlayStep],
 } as const
 
 // The tour's steps, in order: the story the briefs ask the agents to play.
