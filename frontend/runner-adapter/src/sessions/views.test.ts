@@ -3,6 +3,7 @@ import { afterEach, vi } from "vitest"
 import { context, describe, expect, it } from "../test"
 import {
   deviceView,
+  forgetClosedWindows,
   keepDeviceView,
   keepWindowSession,
   windowSession,
@@ -119,5 +120,43 @@ describe("the session a window shows in a project", () => {
     keepWindowSession("p1", "s1")
     expect(windowSession("p1")).toBeUndefined()
     expect(localStorage.length).toBe(0)
+  })
+})
+
+describe("what windows gone for good kept", () => {
+  const keyC = "4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b"
+  const view = { view: "canvas", windowedView: "canvas", selected: "b" } as const
+
+  it("goes, while the windows the app still has and this one keep theirs, and the device's stays", () => {
+    for (const key of [keyA, keyB, keyC]) {
+      inWindow(key)
+      keepDeviceView("s1", view)
+      keepWindowSession("p1", "s1")
+    }
+    localStorage.setItem("novadeck.preferences", "{}")
+    inWindow(keyA)
+    forgetClosedWindows([keyB])
+    expect(Object.keys(localStorage).toSorted()).toEqual(
+      [
+        `novadeck:session-view:${keyA}:s1`,
+        `novadeck:session-view:${keyB}:s1`,
+        "novadeck:session-view:s1",
+        `novadeck:window-session:${keyA}:p1`,
+        `novadeck:window-session:${keyB}:p1`,
+        "novadeck.preferences",
+      ].toSorted(),
+    )
+  })
+
+  it("leaves everything where storage can't be read", () => {
+    keepDeviceView("s1", view)
+    vi.stubGlobal("localStorage", {
+      get length(): number {
+        throw new Error("refused")
+      },
+    })
+    expect(() => forgetClosedWindows([])).not.toThrow()
+    vi.unstubAllGlobals()
+    expect(Object.keys(localStorage)).toEqual(["novadeck:session-view:s1"])
   })
 })

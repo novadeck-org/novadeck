@@ -130,6 +130,12 @@ export type DesktopBridge = {
    */
   onProjectWindowNavigate?(listener: (target: ProjectWindowTarget) => void): () => void
   /**
+   * The keys (`windowKey`) of the windows the app keeps for the next launch or has open, each a
+   * UUID; undefined when the app can't say. A page clears what it kept under any other key: the
+   * window that kept it is gone for good. Absent from apps that came before it.
+   */
+  windowKeys?(): Promise<readonly string[] | undefined>
+  /**
    * Calls `listener` with whether a screen reader or other assistive technology is running,
    * as the system tells Chromium: at once with the current state, and again on each change.
    * Returns a function that stops listening. Absent from apps that came before it.

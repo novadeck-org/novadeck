@@ -315,5 +315,11 @@ export const projectWindowNavigateChannel = "novadeck:project-window-navigate"
  */
 export const extraWindowArgumentPrefix = "--novadeck-extra-window="
 
+/**
+ * Renderer-to-main request for the keys of the windows the app keeps for the next launch or has
+ * open, answered with their UUIDs (see `DesktopBridge.windowKeys`).
+ */
+export const windowKeysChannel = "novadeck:window-keys"
+
 /** Given to the page's preload: the window's key, a UUID (see `DesktopApp.windowKey`). */
 export const windowKeyArgumentPrefix = "--novadeck-window-key="

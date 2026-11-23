@@ -48,6 +48,7 @@ import {
   feedbackAboutChannel,
   extraWindowArgumentPrefix,
   windowKeyArgumentPrefix,
+  windowKeysChannel,
   feedbackArgumentPrefix,
   feedbackSendChannel,
   installAppChannel,
@@ -336,6 +337,16 @@ const bridge = {
   showProjectWindow: (projectId, known = []) => {
     const shown = parseProjectWindowShown({ projectId, known })
     if (shown) ipcRenderer.send(projectWindowShowChannel, shown)
+  },
+  // Only a list of keys comes back; anything else, or a failure, is no answer.
+  windowKeys: async () => {
+    try {
+      const keys: unknown = await ipcRenderer.invoke(windowKeysChannel)
+      if (!Array.isArray(keys)) return undefined
+      return keys.flatMap((key: unknown) => windowKeyOf(key) ?? [])
+    } catch {
+      return undefined
+    }
   },
   openProjectWindow: (projectId) => {
     if (windowIdOf(projectId) !== undefined) ipcRenderer.send(projectWindowOpenChannel, projectId)

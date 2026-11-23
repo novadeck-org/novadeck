@@ -20,6 +20,7 @@ import {
   noticeChannel,
   noticeClickChannel,
   notificationsQuietChannel,
+  windowKeysChannel,
   noticeCloseChannel,
   dismissWhatsNewChannel,
   whatsNewChannel,
@@ -469,6 +470,18 @@ describe("the sound a notice names", () => {
       noticeChannel,
       { id: "01", title: "t", body: "", silent: undefined, sound: "afterglow" },
     ])
+  })
+})
+
+describe("asking for the keys of the app's windows", () => {
+  const key = "0b0f6a5e-1c3d-4e8f-9a7b-2d4c6e8f0a1b"
+
+  it("passes the keys that are keys, and no answer for anything but a list", async () => {
+    electron.answer = [key, "not a key", 7]
+    expect(await electron.exposed.windowKeys?.()).toEqual([key])
+    electron.answer = null
+    expect(await electron.exposed.windowKeys?.()).toBeUndefined()
+    expect(electron.sent.filter((channel) => channel === windowKeysChannel)).toHaveLength(2)
   })
 })
 

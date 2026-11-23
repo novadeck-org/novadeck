@@ -38,6 +38,7 @@ import {
   directoryPickerChannel,
   extraWindowArgumentPrefix,
   windowKeyArgumentPrefix,
+  windowKeysChannel,
   feedbackArgumentPrefix,
   noticeClickChannel,
   portableStateChannel,
@@ -880,6 +881,18 @@ const launch = async (): Promise<void> => {
   pages.registerIpc((event) => appWindow(event) !== undefined)
   // And pictures of its own companion panes, to stand in while each builds again.
   registerPanePictureIpc(ipcMain, (event) => appWindow(event) !== undefined)
+  // The keys of the windows kept for the next launch or open: a page clears what it kept under
+  // any other, whose window is gone for good.
+  ipcMain.handle(windowKeysChannel, (event) =>
+    appWindow(event)
+      ? [
+          ...new Set([
+            ...savedWindows.current().windows.map(({ key }) => key),
+            ...appWindows().flatMap((window) => windowKeys.get(window) ?? []),
+          ]),
+        ]
+      : null,
+  )
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {

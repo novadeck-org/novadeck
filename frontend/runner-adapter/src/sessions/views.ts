@@ -104,6 +104,29 @@ export const keepWindowSession = (projectId: string, sessionId: string): void =>
   }
 }
 
+// What a window kept under its key: `<prefix><key>:<id>`.
+const keptByWindow = /^novadeck:(?:session-view|window-session):([0-9a-f-]{36}):/i
+
+/**
+ * Clears what windows that are gone for good kept under their keys, which nothing reads again:
+ * every keyed view and session but those of `live`, the windows the app keeps or has open, and
+ * this window's own. The device's own views stay.
+ */
+export const forgetClosedWindows = (live: readonly string[]): void => {
+  const keep = new Set([...live, windowKey()].filter((key) => key !== undefined))
+  try {
+    const store = storage()
+    if (!store) return
+    const names = Array.from({ length: store.length }, (_, index) => store.key(index))
+    for (const name of names) {
+      const key = name ? windowKeyOf(keptByWindow.exec(name)?.[1]) : undefined
+      if (name && key && !keep.has(key)) store.removeItem(name)
+    }
+  } catch {
+    // Storage refused: what is kept stays, as before.
+  }
+}
+
 /** A saved session with this device's own view in place of the shared state's, where it has one. */
 export const withDeviceView = (
   sessionId: string,
