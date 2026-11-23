@@ -56,6 +56,30 @@ describe("what an agent left in its terminal's scope", () => {
       expect(leftovers({ rows, members: inside(10, 20, 21, 22), runs, shell: 10 })).toEqual([])
     })
 
+    context("where the scope leaves out processes it holds, as macOS's every Apple program", () => {
+      it("judges a member by the start of the ancestor it runs under, never its own", () => {
+        // The person's `bash` loop 50, started before the agent, restarts node 51 during the run.
+        const rows = [shell, row(50, 1, 300), row(51, 50, 600)]
+        expect(leftovers({ rows, members: inside(51), runs, shell: 10, partial: true })).toEqual([])
+        // A scope that holds every process judges by what it holds.
+        expect(pids(leftovers({ rows, members: inside(51), runs, shell: 10 }))).toEqual([51])
+      })
+
+      it("still names what runs under an ancestor the agent started", () => {
+        const rows = [shell, row(60, 1, 600), row(61, 60, 700)]
+        const found = leftovers({ rows, members: inside(61), runs, shell: 10, partial: true })
+        expect(pids(found)).toEqual([61])
+      })
+
+      it("leaves what lies under the harness's own service, through what it doesn't hold", () => {
+        // The service 70, an Apple `sh` 71 it started, and its node 72.
+        const rows = [shell, row(70, 1, 600), row(71, 70, 610), row(72, 71, 620)]
+        const apart = [{ pid: 70, started: "600" }]
+        const found = leftovers({ rows, members: inside(70, 72), runs, apart, partial: true })
+        expect(found).toEqual([])
+      })
+    })
+
     it("leaves the shell's tree by the listing, where the scope doesn't hold the shell", () => {
       // macOS's: an Apple shell's environment is hidden, so only what it started is a member.
       const rows = [shell, row(20, 10, 500), row(21, 20, 600), row(30, 1, 650)]
@@ -182,6 +206,12 @@ describe("macOS's clock", () => {
     // The listing's own second where the scope gives none.
     expect(wallClock.start(listed)).toBe(second)
     expect(wallClock.start(listed, { pid: 30 })).toBe(second)
+  })
+
+  it("is the scope's start whatever zone the listing read it in, as after a trip", () => {
+    const startedMs = second + 359.651
+    for (const moved of [60, -60, 30, 345, -570].map((minutes) => minutes * 60_000))
+      expect(wallClock.start(at(30, 1, second + moved), { pid: 30, startedMs })).toBe(startedMs)
   })
 
   it("is unknown where the scope and the listing tell of two processes, a pid taken between", () => {

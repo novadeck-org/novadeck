@@ -841,8 +841,8 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       dispose()
       if (run.pty.agentRan) {
         // What starts from now is no agent's of that run's: on macOS the next run's processes
-        // name the same terminal, as its scope.
-        run.pty.agentEnded()
+        // name the same terminal, as its scope. Linux gives each run a scope of its own.
+        if ((options.pty?.platform ?? process.platform) === "darwin") run.pty.agentEnded()
         earlier.push(run.pty)
       }
       run = started

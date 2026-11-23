@@ -63,6 +63,23 @@ export type RunClock = {
  */
 export const tickClock: RunClock = { now: () => ticksNow(), start: (row) => ticks(row) }
 
+/** A quarter of an hour, which every time zone's offset, and its daylight saving, is a multiple of. */
+const zoneStepMs = 15 * 60 * 1000
+/** The farthest apart two zones' clocks are. */
+const zoneSpanMs = 26 * 60 * 60 * 1000
+
+/**
+ * Whether `listed`, a listing's `lstart` read in this process's zone, is the second
+ * `startedMs` began in, in whatever zone the listing gave it: `ps` reads the system's zone as
+ * it runs, and this process keeps the one it started with, which a trip or daylight saving
+ * may since have moved by whole quarters of an hour. A pid taken by another process between
+ * the scope's read and the listing's is told apart by its start's own seconds and minutes.
+ */
+const sameSecond = (startedMs: number, listed: number): boolean => {
+  const apart = listed - Math.floor(startedMs / 1000) * 1000
+  return Math.abs(apart) <= zoneSpanMs && apart % zoneStepMs === 0
+}
+
 /**
  * macOS's: milliseconds since the epoch, the wall clock a process's start is read in, as the
  * scope gives it to the microsecond. The listing's `lstart` gives only its second, which
@@ -74,7 +91,7 @@ export const wallClock: RunClock = {
   start: (row, member) => {
     const listed = parseLstart(row.started)
     if (member?.startedMs === undefined) return listed
-    return listed === undefined || Math.floor(member.startedMs / 1000) * 1000 === listed
+    return listed === undefined || sameSecond(member.startedMs, listed)
       ? member.startedMs
       : undefined
   },
@@ -130,6 +147,7 @@ export const leftovers = ({
   apart = [],
   skip = new Set(),
   clock = tickClock,
+  partial = false,
 }: {
   readonly rows: readonly Listed[]
   readonly members: readonly ScopeMember[]
@@ -138,19 +156,29 @@ export const leftovers = ({
   readonly apart?: readonly Followed[]
   readonly skip?: ReadonlySet<string>
   readonly clock?: RunClock
+  /**
+   * Whether the scope may leave out processes it holds, as macOS's leaves out every Apple
+   * program (`TaggedScopes`): then a tree's root, and what lies under `apart`, are found by
+   * the whole listing's parents, so a member under a person's own `bash` loop or `make` that
+   * started before the agent is judged by that ancestor's start, never by its own. Only
+   * members are ever named.
+   */
+  readonly partial?: boolean
 }): readonly Followed[] => {
   if (runs.length === 0) return []
   const inside = new Map(members.map((member) => [member.pid, member]))
   const scoped = rows.filter((row) => inside.has(row.pid) && !row.zombie && row.pid > 1)
-  const byPid = new Map(scoped.map((row) => [row.pid, row]))
+  // Where the scope may leave processes out, its members' parents are followed through all.
+  const tree = partial ? rows.filter((row) => !row.zombie && row.pid > 1) : scoped
+  const byPid = new Map(tree.map((row) => [row.pid, row]))
   const running = shell === undefined ? undefined : rows.find((row) => row.pid === shell)
   const underShell = new Set(
     running && !running.zombie ? withBelow(rows, [running]).map((row) => row.pid) : [],
   )
   const kept = new Set(
     withBelow(
-      scoped,
-      scoped.filter((row) =>
+      tree,
+      tree.filter((row) =>
         apart.some(({ pid, started }) => pid === row.pid && started === row.started),
       ),
     ).map((row) => row.pid),

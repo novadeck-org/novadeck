@@ -289,7 +289,8 @@ const harnessMembers = (tree: readonly Member[]): ReadonlySet<number> => {
  * shell's beside it, what it left detached in the terminal's scope (Linux, macOS), or the agent itself
  * suspended. Undefined where the system can't tell, the
  * agent isn't found under the shell, or the processes it started with weren't recorded yet.
- * On Windows, a process re-parented away from the agent (a double fork) is seen by neither.
+ * Where the terminal's scope can't tell (Windows, Linux without the user's systemd, an Apple
+ * program on macOS), a process re-parented away from the agent (a double fork) is seen by neither.
  */
 const boundAgentWork = async (
   record: Record,

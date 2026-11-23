@@ -404,7 +404,8 @@ export const spawnPty = (
   })
   // Agents' runs in the terminal, kept where its scope can say what they left (Linux, macOS),
   // in the clock its platform tells processes' starts in.
-  const runs: { since: number; until?: number }[] = []
+  // `agent` is the agent whose own start `since` has been read as, once.
+  const runs: { since: number; until?: number; agent?: number }[] = []
   const tracksRuns = (platform === "linux" || platform === "darwin") && scope !== undefined
   const clock = runClock(platform)
   const closeRun = (): void => {
@@ -447,6 +448,8 @@ export const spawnPty = (
         apart: listedApart(read.rows, left.apart ?? [], platform),
         ...(skip && { skip }),
         clock,
+        // macOS's scope leaves out every Apple program it holds.
+        partial: platform === "darwin",
       })
     }
   const endLeft = async (left: LeftOptions, by?: () => number): Promise<void> => {
@@ -604,14 +607,17 @@ export const spawnPty = (
       // From the agent's own start where the listing shows it, as it may have started its
       // helpers before it bound; the time it bound stands only where it can't be read. macOS's
       // scope gives that start to the microsecond, the listing to the second.
-      if (agent === undefined || !options.listing) return
+      if (agent === undefined || !options.listing || run.agent === agent) return
       const open = run
       const { listing } = options
       void (async () => {
         const members = platform === "darwin" ? await scope?.members() : undefined
         const rows = await listing()
         const start = rows && runStart(rows, agent, clock, members)
-        if (start !== undefined && open.until === undefined) open.since = start
+        if (start === undefined || open.until !== undefined) return
+        open.since = start
+        // Read once a run: an agent's harness may tell of its session at every turn.
+        open.agent = agent
       })().catch(() => {})
     },
     agentEnded: closeRun,

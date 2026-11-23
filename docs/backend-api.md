@@ -1028,8 +1028,10 @@ see them change.
   id, in the app's own resource coalition, which a process keeps however it detached, as the
   relay lists them (`novadeck-relay tagged`, under "Relay protocol"). Runs and
   starts are in the wall clock, to the microsecond, as the relay reads a process's start;
-  `ps` gives only its second. The shell itself is an Apple program, never a member, so its
-  tree while it runs is told by the listing's parents. Spared as on Linux, and what launchd
+  `ps` gives only its second. An Apple shell (macOS's bash and zsh) is never a member,
+  so the shell's tree while it runs is told by the listing's parents, and so is the root of a
+  tree whose members run under another Apple program, as a `bash` loop or `make` the person
+  started before the agent, whose own start decides. Spared as on Linux, and what launchd
   started, in a coalition of its own: an app the agent opens, with `open`, `osascript` or any
   LaunchServices call, which passes the app the caller's environment, the terminal's id in it
   (measured 2026-11-23), so no shim is needed as on Linux; and a launchd job (`launchctl`,

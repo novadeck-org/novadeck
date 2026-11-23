@@ -281,8 +281,9 @@ for (const setup of setups) {
         // Antigravity ends its command's own group a moment after the command, so what left
         // its session is still there under it (on macOS a `nohup` too); under the others, all.
         const survivors = await left(word)
-        if (setup.agent === "agy") expect(survivors).toContain("setsid")
-        else expect(survivors).toEqual(variants.toSorted())
+        if (setup.agent !== "agy") expect(survivors).toEqual(variants.toSorted())
+        else if (macOS) expect(survivors).toContain("setsid")
+        else expect(survivors).toEqual(["setsid"])
         // Short, as a command the screen wraps never shows once more as typed.
         writeFileSync(
           join(run.sandbox.project, "person.sh"),
