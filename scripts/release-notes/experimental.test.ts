@@ -28,7 +28,8 @@ describe("the features still behind Preferences > Experimental", () => {
     const preferences = readFileSync(
       join(import.meta.dirname, "../../frontend/ui/src/preferences/Preferences.tsx"),
       "utf8",
-    )
+      // A Windows checkout has CRLF endings.
+    ).replaceAll("\r\n", "\n")
     const rows = /const experimentalToggles = \[(?<rows>[\s\S]*?)\n {2}\]\n/.exec(preferences)
     expect(rows).not.toBeNull()
     const ids = [...rows!.groups!["rows"]!.matchAll(/^ {6}id: "(?<id>[a-z-]+)",$/gm)].map(
