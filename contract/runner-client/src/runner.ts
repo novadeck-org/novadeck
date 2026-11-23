@@ -781,7 +781,7 @@ export type Runner = {
     answer(id: string, answer: AskAnswer): Promise<void>
     /**
      * Answers an agent's ask of several questions, one answer per question in its order. Only a
-     * runner from revision 8 on asks those (`supports("inbox.answerQuestions")`).
+     * runner from revision 9 on asks those (`supports("inbox.answerQuestions")`).
      */
     answerQuestions(id: string, answers: QuestionsAnswer): Promise<void>
     /**

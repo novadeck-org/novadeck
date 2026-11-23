@@ -922,7 +922,7 @@ export const contract = {
     answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
     // Answers an ask of several questions, all at once; errors as `answer` does.
     answerQuestions: procedure
-      .meta({ since: 8 })
+      .meta({ since: 9 })
       .input(z.strictObject({ id, answers: questionsAnswer }))
       .output(z.void()),
     // Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
