@@ -83,7 +83,9 @@ export const requestReceipt = (
   handle: string,
   answer: ChatAnswer,
 ): string => {
-  const who = `@${handle}'s ${thing(request)}`
+  // A request Novadeck holds, as the shipping gate's card, is named by what it asks.
+  const asks = request.detached && request.dialog?.type === "choices" ? request.dialog.title : null
+  const who = asks ? `@${handle}: ${asks.replace(/\?$/, "")}` : `@${handle}'s ${thing(request)}`
   const plan = actionOf(request) === "plan"
   const { dialog } = request
   switch (answer.type) {
