@@ -48,11 +48,16 @@ RELOAD = b"""<script>
 </script>"""
 
 
+# Git only reads here, and never takes the index's lock to refresh it (`--no-optional-locks`), so
+# a commit Novadeck makes in these folders meanwhile never finds the lock held.
+GIT = ["git", "--no-optional-locks"]
+
+
 def worktrees():
     """The other worktrees of this repo, as git lists them; none without git."""
     try:
         listed = subprocess.run(
-            ["git", "worktree", "list", "--porcelain"], cwd=HOME, capture_output=True, text=True
+            [*GIT, "worktree", "list", "--porcelain"], cwd=HOME, capture_output=True, text=True
         ).stdout
     except OSError:
         return []
@@ -89,7 +94,7 @@ def parts_of(route):
 def git(folder, *args):
     """Runs git in a folder: what it prints, or None where it fails (no git, no repo, no commit)."""
     try:
-        ran = subprocess.run(["git", *args], cwd=folder, capture_output=True)
+        ran = subprocess.run([*GIT, *args], cwd=folder, capture_output=True)
     except OSError:
         return None
     return ran.stdout.decode("utf-8", "surrogateescape") if ran.returncode == 0 else None
