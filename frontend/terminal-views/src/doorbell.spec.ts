@@ -244,7 +244,7 @@ describe.each(["dom", "webgl"] as const)(
               {
                 parts: [
                   agent("newtz", "Start on the parser tests", 1),
-                  { kind: "notice", text: "You notice the team shift." },
+                  { kind: "notice", text: "You notice the team change." },
                   { kind: "notice", text: "You notice shared resources are busy." },
                 ],
               },
@@ -289,7 +289,7 @@ describe.each(["dom", "webgl"] as const)(
           (span) => getComputedStyle(span).fontStyle === "italic",
         )
         expect(leaning.map((span) => span.textContent).join("")).toContain(
-          "You notice the team shift.",
+          "You notice the team change.",
         )
         // The words are the tag's own white, not the scheme's dark ink.
         const words = spans.find((span) => span.textContent === "S")!
@@ -364,8 +364,8 @@ for (const [renderer, available] of renderers)
 
       // Novadeck's own notices: a badge and the family lines, alone and beside an agent's message.
       const lines: readonly RingPart[] = [
-        { kind: "notice", text: "You notice the team shift." },
-        { kind: "notice", text: "You notice a worktree change hands." },
+        { kind: "notice", text: "You notice the team change." },
+        { kind: "notice", text: "You notice a worktree handover." },
       ]
       for (const harness of harnesses) {
         it(`draws a ring of notices alone: ${harness} at 120 columns`, async () => {

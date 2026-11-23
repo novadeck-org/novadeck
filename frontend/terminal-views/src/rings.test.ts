@@ -89,7 +89,7 @@ describe("what the overlay is told of rings and deliveries", () => {
 
   it("tells a notice as its family's line, never its facts", () => {
     const { parts } = contentOf(rings, deliveries, hueOf).rings.get("n7Q2xk")!
-    expect(parts[1]).toEqual({ kind: "notice", text: "You notice a worktree change hands." })
+    expect(parts[1]).toEqual({ kind: "notice", text: "You notice a worktree handover." })
   })
 
   it("gives each delivery with the ids of all its messages, apart from the others that share some", () => {
