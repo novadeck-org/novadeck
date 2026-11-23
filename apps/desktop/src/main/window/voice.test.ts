@@ -83,12 +83,13 @@ describe("what only the voice window does", () => {
 })
 
 describe("a click on a notification", () => {
-  const setupClick = (alive = (_window: string) => true) => {
+  const setupClick = (alive = (_window: string) => true, alone = false) => {
     const events: string[] = []
     let forwarded = 0
     const timers: (() => void)[] = []
     const click = (raising: string, voice?: string) =>
       clickNotice({
+        alone,
         raising,
         voice,
         alive,
@@ -106,7 +107,14 @@ describe("a click on a notification", () => {
     return { events, timers, click, forwardElsewhere: () => void (forwarded += 1) }
   }
 
-  it("only tells the page, which brings the project's window forward", () => {
+  it("brings the only window forward at once, and tells it", () => {
+    const { events, click, timers } = setupClick(undefined, true)
+    click("a")
+    expect(events).toEqual(["forward a", "send a"])
+    expect(timers).toHaveLength(0)
+  })
+
+  it("only tells the page among several windows, which brings the project's window forward", () => {
     const { events, click, timers, forwardElsewhere } = setupClick()
     click("a")
     forwardElsewhere()
@@ -136,6 +144,7 @@ describe("a click on a notification", () => {
     const forward = vi.fn<(window: string) => void>()
     const timers: (() => void)[] = []
     clickNotice({
+      alone: false,
       raising: "a",
       voice: undefined,
       alive: () => state.alive,

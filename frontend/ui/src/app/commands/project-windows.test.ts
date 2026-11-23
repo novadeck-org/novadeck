@@ -53,8 +53,9 @@ const recorded = () => {
   return { windows, asked }
 }
 
-// A desktop app, whose other windows show `elsewhere`; with `windows` false, a page that opens
-// no windows, as in a browser, which is told the same.
+// A desktop app whose other windows show `elsewhere`, in a window that has shared the app with
+// others since it loaded; with `windowsHere` false, a page that opens no windows, as in a
+// browser, which is told the same.
 const opened = (
   elsewhere: string[],
   windowsHere = true,
@@ -66,7 +67,11 @@ const opened = (
     ...(windowsHere && { windows }),
     ...(syncProject && { syncProject }),
   })
-  app.ui.update((state) => ({ ...state, windows: { elsewhere, voice: true } }))
+  app.ui.update((state) => ({
+    ...state,
+    windows: { elsewhere, voice: true },
+    windowsShared: windowsHere,
+  }))
   return { app, asked }
 }
 
@@ -110,9 +115,15 @@ describe("project windows", () => {
     })
 
     it("hands over a terminal with the Inbox entry for it", () => {
-      const { app, asked } = opened([])
+      const { app, asked } = opened(["project"])
       expect(app.commands.handOffTerminal("07", "row-1")).toBe(true)
       expect(asked).toEqual([["handOff", { projectId: "other", terminalId: "07", rowId: "row-1" }]])
+    })
+
+    it("hands nothing over while no other window shows a project: this window does it", () => {
+      const { app, asked } = opened([])
+      expect(app.commands.handOffTerminal("07", "row-1")).toBe(false)
+      expect(asked).toEqual([])
     })
 
     it("keeps what is about the project this window shows here, even when another shows it too", () => {
@@ -314,6 +325,18 @@ describe("project windows", () => {
       await app.commands.showProjectHere({ projectId: "other" })
       expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
       log.mockRestore()
+    })
+
+    it("does not read it in a window that has always been alone, which has the live copy", () => {
+      const read: string[] = []
+      const { app } = opened([], true, async (id) => {
+        read.push(id)
+        return reread()
+      })
+      app.ui.update((state) => ({ ...state, windowsShared: false }))
+      app.commands.switchProject(project(app, "other"))
+      expect(read).toEqual([])
+      expect(app.workspace.getSnapshot().activeProjectId).toBe("other")
     })
 
     it("does not read it where the app opens no windows", () => {

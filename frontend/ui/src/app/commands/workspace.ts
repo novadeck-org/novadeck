@@ -294,10 +294,10 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   const switchProject = (next: Project): void => {
     if (next.id === workspace.getSnapshot().activeProjectId) return
     const pick = ++latestMove
-    // Where the app opens project windows, a project is read from the runner as it is shown: another
-    // window may have changed it since this one loaded it, and the latest pick wins however
+    // Once another window has shown a project, a project is read from the runner as it is shown:
+    // that window may have changed it since this one loaded it, and the latest pick wins however
     // long its reading took.
-    if (!ctx.syncProject || !windows.windowsOn()) return switchHere(next)
+    if (!ctx.syncProject || !windows.windowsShared()) return switchHere(next)
     void (async () => {
       await windows.readProject(next.id)
       if (pick === latestMove) switchHere(next)

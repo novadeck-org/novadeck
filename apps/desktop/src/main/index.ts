@@ -638,6 +638,7 @@ const launch = async (): Promise<void> => {
     create: (notice) => new Notification(notificationOptions(notice, process.platform)),
     clicked: (window: BrowserWindow, id) =>
       clickNotice({
+        alone: projectWindows.size() <= 1,
         raising: window,
         voice: projectWindows.voice(),
         alive: (each) => !each.isDestroyed(),
@@ -950,9 +951,9 @@ app.on("second-instance", () => {
   quitting.reopenWanted = rememberReopen(quitting.reopenWanted, quitting.stopping)
   const window = projectWindows.voice() ?? appWindows()[0]
   if (window) bringForward(window)
-  // On macOS the app lives on with no window, so a second launch has none to show; one
-  // that is quitting opens none.
-  else if (server && !quitting.stopping) createWindow(server.origin)
+  // On macOS the app lives on with no window, so a second launch has none to show: the windows
+  // kept open again, under their keys, as at a launch. One that is quitting opens none.
+  else if (server && !quitting.stopping) openFirstWindows(server.origin, savedWindows.current())
   if (process.platform === "darwin") app.focus({ steal: true })
 })
 
@@ -995,7 +996,7 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     quitting.reopenWanted = rememberReopen(quitting.reopenWanted, quitting.stopping)
     if (appWindows().length === 0) {
-      if (server && !quitting.stopping) createWindow(server.origin)
+      if (server && !quitting.stopping) openFirstWindows(server.origin, savedWindows.current())
     }
   })
 })

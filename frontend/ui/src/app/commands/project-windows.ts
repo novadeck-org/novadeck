@@ -17,8 +17,9 @@ export const projectOf = (workspace: Workspace, terminalId: string): string | un
   )?.id
 
 export type ProjectWindowCommands = {
-  // Whether the app opens project windows here (the desktop app).
-  readonly windowsOn: () => boolean
+  // Whether a project is read from the runner as it is shown: another window has shown one since
+  // this page loaded (`UiState.windowsShared`).
+  readonly windowsShared: () => boolean
   // Whether another window shows the project and this one does not:
   // what is about it goes there. A project this window shows is handled here, even when
   // another window shows it too.
@@ -29,7 +30,8 @@ export type ProjectWindowCommands = {
   // the project, else to the window showing it that was used last, which comes forward, else to
   // this window, which switches; where the app opens project windows.
   // `quiet` is for what an agent did, which only goes there, never raising a window.
-  // False, with nothing done, when they are off or the terminal's project is unknown.
+  // False, with nothing done, while no other window shows a project (this window does it, as
+  // a browser does), or when the terminal's project is unknown.
   readonly handOffTerminal: (terminalId: string, rowId?: string, quiet?: boolean) => boolean
   // The same for an Inbox entry, but only when another window shows its project and this one
   // does not: the window it is listed in opens it otherwise.
@@ -73,13 +75,13 @@ export const createProjectWindowCommands = (ctx: CommandContext): ProjectWindowC
         console.error("Could not read the project again", error)
       }
     },
-    windowsOn: on,
+    windowsShared: () => on() && ui.getSnapshot().windowsShared,
     shownElsewhere: elsewhere,
     openInNewWindow: (projectId) => {
       if (on()) windows?.open(projectId)
     },
     handOffTerminal: (terminalId, rowId, quiet = false) => {
-      if (!windows || !on()) return false
+      if (!windows || ui.getSnapshot().windows.elsewhere.length === 0) return false
       const projectId = projectOf(workspace.getSnapshot(), terminalId)
       if (projectId === undefined) return false
       windows.handOff({

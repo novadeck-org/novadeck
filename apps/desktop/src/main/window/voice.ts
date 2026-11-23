@@ -52,12 +52,14 @@ export const createVoice = <Window>(host: {
 export const noticeClickWaitMs = 400
 
 /**
- * What a click on a notification does. The page hands the click to the window of the project
- * it is about, which comes forward; should none have by `noticeClickWaitMs`, as when the
- * terminal is gone, the raising window comes forward, or the voice's if it went away. Nothing
- * when no window is left.
+ * What a click on a notification does. With one window it comes forward at once and its page
+ * is told. With several the page hands the click to the window of the project it is about,
+ * which comes forward; should none have by `noticeClickWaitMs`, as when the terminal is gone,
+ * the raising window comes forward, or the voice's if it went away. Nothing when no window is
+ * left.
  */
 export const clickNotice = <Window>({
+  alone,
   raising,
   voice,
   alive,
@@ -66,6 +68,8 @@ export const clickNotice = <Window>({
   forwards,
   later,
 }: {
+  /** Whether the app has one window open. */
+  readonly alone: boolean
   readonly raising: Window
   readonly voice: Window | undefined
   readonly alive: (window: Window) => boolean
@@ -78,6 +82,11 @@ export const clickNotice = <Window>({
 }): void => {
   const target = alive(raising) ? raising : voice !== undefined && alive(voice) ? voice : undefined
   if (target === undefined) return
+  if (alone) {
+    forward(target)
+    send(target)
+    return
+  }
   const before = forwards()
   send(target)
   later(() => {

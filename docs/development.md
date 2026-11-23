@@ -1562,8 +1562,9 @@ the UI store's `windows`); the page decides at once what an action does:
   not a window shows it already. The app opens only on a project a page has told it knows
   (`showProjectWindow`'s `known`) and at most 16 windows. There is no other way to open one.
 - **Picking a project.** Picking, in the switcher, a pin or its shortcut, a project shows it in this
-  window, even when another window shows it too; that window is never changed or brought forward. This
-  window first reads the project from the runner (`Backend.syncProject`, then the
+  window, even when another window shows it too; that window is never changed or brought forward. Once
+  another window has shown a project since this page loaded (`UiState.windowsShared`; from the start in a
+  window that isn't the app's first), this window first reads the project from the runner (`Backend.syncProject`, then the
   core's `project/sync`), for the sessions another window made or removed, and then switches. What each
   window changes in a session reaches the others live through the runner's session feed (`sessions.watch`
   in [Backend API](backend-api.md)), so nothing waits for another window's saves. The latest pick wins when
@@ -1579,13 +1580,15 @@ the UI store's `windows`); the page decides at once what an action does:
   (`handOffToProjectWindow`): `reveal` (an Inbox entry's "Go to terminal", a message link, a toast),
   an Inbox entry's sheet (`InboxProvider`'s `routeAway`), and a notification's click. The target is the
   window acted in when it shows the project, else the window showing it that the person used last, else, with
-  none showing it, the window acted in, which switches to it. A notification's click
-  always brings some window forward: the project's, else the one that raised it, else the voice's
-  (`clickNotice` in `window/voice.ts`). What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
+  none showing it, the window acted in, which switches to it. While no other window shows a project, the
+  window acted in does it all itself, as a browser does. A notification's click always brings some window
+  forward: with one window open, that one at once; else the project's, else the one that raised it, else
+  the voice's (`clickNotice` in `window/voice.ts`). What isn't about a project (Preferences, search, dialogs) stays in the window acted in;
   nothing changes a window on its own.
 - **Agents.** What an agent asks of the person goes to the window that shows the project of the terminal
-  that asked: the page tells the runner which project it shows (`terminals.showing`, lapsing with its
-  connection) and an approval, a look at a page and `open_agent` go to that client,
+  that asked: while another window shows a project, the page tells the runner which project it shows
+  (`terminals.showing`, lapsing with its connection; `null` once it is alone again, so a lone window
+  says nothing, as a browser doesn't) and an approval, a look at a page and `open_agent` go to that client,
   else the one used last (its `terminals.active` or `showing` report came last), else the newest
   (`ClientWindows`, `Followers.newest`), which is also what a client that says nothing gets. What an agent
   does never raises a window: an `open_agent` with focus for a project another window shows is handed
@@ -1604,7 +1607,9 @@ the UI store's `windows`); the page decides at once what an action does:
   `windows.json` of the data folder (`window/saved-windows.ts`) and reopens them at the next launch; a
   window closed while others remain leaves the list, a quit keeps the windows open at its start, and
   the last window closing keeps the list as it stood before. Two windows on one project are two entries, so
-  both reopen. A file from before (with its `on`) is read past that switch: with it off it listed none.
+  both reopen. On macOS, where the app lives on with no window, the Dock or a second launch reopens the
+  kept windows the same way. A file from before (with its `on`) is read past that switch: with it off it
+  listed none.
 - **Window keys.** Each window has a key, a UUID kept in `windows.json` beside its project and bounds (an
   older entry gets one at load, written back at once), the same across relaunches; a new window gets a new
   one. The main process passes it to the page's preload (`--novadeck-window-key=`), which exposes it as

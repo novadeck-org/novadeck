@@ -79,23 +79,31 @@ describe("another window's project", () => {
 })
 
 describe("following the app's windows", () => {
-  it("keeps what the other windows show, and says what this one shows", () => {
+  it("keeps what the other windows show, says what this one shows, and that it has shared", () => {
     const { backend, told, say } = appWindows()
     const app = openCommands()
     const stop = watchProjectWindows(backend, app.workspace, app.ui)
-    expect(told).toEqual(["show project of project", "showing project"])
+    expect(told).toEqual(["show project of project"])
+    expect(app.ui.getSnapshot().windowsShared).toBe(false)
     say({ elsewhere: ["other"], voice: false })
     expect(app.ui.getSnapshot().windows).toEqual({ elsewhere: ["other"], voice: false })
+    expect(told).toEqual(["show project of project", "showing project"])
+    say({ elsewhere: [], voice: true })
+    expect(app.ui.getSnapshot().windowsShared).toBe(true)
     stop()
   })
 
-  it("tells the app and the runner when the project on screen changes", () => {
-    const { backend, told } = appWindows()
+  it("tells the app when the project on screen changes, and the runner only while another window shows one", () => {
+    const { backend, told, say } = appWindows()
     const app = openCommands({ workspace: twoProjects() })
     const stop = watchProjectWindows(backend, app.workspace, app.ui)
     told.length = 0
     app.commands.switchProject(other(app))
+    expect(told).toEqual(["show other of project,other"])
+    say({ elsewhere: ["project"], voice: true })
     expect(told).toEqual(["show other of project,other", "showing other"])
+    say({ elsewhere: [], voice: true })
+    expect(told).toEqual(["show other of project,other", "showing other", "showing null"])
     stop()
   })
 
@@ -110,9 +118,11 @@ describe("following the app's windows", () => {
     const stop = watchProjectWindows(watched, app.workspace, app.ui)
     say({ elsewhere: ["project"], voice: true })
     app.commands.switchProject(other(app))
+    say({ elsewhere: [], voice: true })
     expect(shown).toEqual([
-      ["project", false],
+      ["project", true],
       ["other", true],
+      [null, false],
     ])
     stop()
   })

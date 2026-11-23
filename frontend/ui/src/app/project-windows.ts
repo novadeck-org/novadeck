@@ -39,14 +39,20 @@ export const watchProjectWindows = (
       current.windows.elsewhere.length === state.elsewhere.length &&
       current.windows.elsewhere.every((id, index) => id === state.elsewhere[index])
         ? current
-        : { ...current, windows: state },
+        : {
+            ...current,
+            windows: state,
+            windowsShared: current.windowsShared || state.elsewhere.length > 0,
+          },
     ),
   )
   let shown: string | undefined
   let known = ""
-  // The runner is told which project this window shows, so what an agent asks of the person
-  // reaches the window that shows its project. Every window saves what it changes in any
-  // project: the runner merges the windows' changes and feeds them to each.
+  // While another window shows a project, the runner is told which project this one shows, so
+  // what an agent asks of the person reaches the window that shows its project. A window alone
+  // says nothing, as a browser doesn't, so the client the person used last gets it. Every window
+  // saves what it changes in any project: the runner merges the windows' changes and feeds them
+  // to each.
   let scoped: string | null = null
   const showProject = (): void => {
     const snapshot = workspace.getSnapshot()
@@ -57,16 +63,19 @@ export const watchProjectWindows = (
       known = ids.join("\n")
       windows.show(id ?? null, ids)
     }
-    const scope = id ?? null
+    const others = ui.getSnapshot().windows.elsewhere.length > 0
+    const scope = others ? (id ?? null) : null
     if (scope === scoped) return
     scoped = scope
-    backend.showingProject?.(scope, ui.getSnapshot().windows.elsewhere.length > 0)
+    backend.showingProject?.(scope, others)
   }
   showProject()
   const stopWorkspace = workspace.subscribe(showProject)
+  const stopUi = ui.subscribe(showProject)
   return () => {
     stopState()
     stopWorkspace()
+    stopUi()
   }
 }
 

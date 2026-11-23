@@ -114,6 +114,11 @@ export type UiState = {
   // is the window the person used last, the only one that rings (`watchProjectWindows`);
   // never persisted.
   readonly windows: ProjectWindowsState
+  // Whether another window has shown a project since this page loaded, or this window is not the
+  // app's first: from then on a project is read from the runner as it is shown, as another window
+  // may have made or removed its sessions. A window that was always alone has the live copy
+  // (`watchProjectWindows`); never persisted.
+  readonly windowsShared: boolean
   // How many new Inbox entries that need the person the bell has rung for in this run
   // (`watchBellRings`): its dot rings with each; never persisted.
   readonly bellRings: number
@@ -222,6 +227,7 @@ export const initialUi = ({
   portable: null,
   pageFocused: true,
   windows: aloneInWindows,
+  windowsShared: extraWindow,
   bellRings: 0,
   historyDrops: 0,
   lastDrop: null,

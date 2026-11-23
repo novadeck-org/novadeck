@@ -87,16 +87,15 @@ describe("project windows in the header", () => {
   })
 
   context("in an app that opens no windows, as a browser", () => {
-    it("offers no Open in new window and marks nothing", async () => {
+    it("has no project menu to open one, and marks nothing", async () => {
       await openWorkspace("/")
       await workspaceSwitcher().click()
-      await userEvent.click(
-        page
-          .getByRole("dialog", { name: "Switch workspace" })
-          .getByRole("button", { name: /^docs-site/ }),
-        { button: "right" } as never,
-      )
-      await expectStaysAbsent(page.getByRole("menuitem", { name: "Open in new window" }))
+      const row = page
+        .getByRole("dialog", { name: "Switch workspace" })
+        .getByRole("button", { name: /^docs-site/ })
+      await expect.element(row).toBeVisible()
+      await userEvent.click(row, { button: "right" } as never)
+      await expectStaysAbsent(page.getByRole("menu", { name: "docs-site actions" }))
       await expectStaysAbsent(page.getByRole("img", { name: "Shown in another window" }))
     })
   })
