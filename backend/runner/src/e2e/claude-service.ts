@@ -101,13 +101,23 @@ export const endClaudeService = async (
   },
 ): Promise<string[]> => {
   const lock = await readLock(home)
-  if (!lock) return []
+  if (!lock) {
+    if (process.platform === "win32")
+      console.info(`Claude Code's background service has no lock to name it in ${home}`)
+    return []
+  }
   if (process.platform === "win32") {
     const started = lock.startFt === undefined ? undefined : filetimeMs(lock.startFt)
     const tree = started === undefined ? undefined : await trees.read(lock.pid)
     const root = tree?.find((member) => member.pid === lock.pid)
     // Only the very process the lock names, to the millisecond, with what it started.
-    if (!tree || root?.startedAt !== started) return []
+    if (!tree || root?.startedAt !== started) {
+      // Said, as a service it can't name is left for the leftover check to report.
+      console.info(
+        `Claude Code's background service isn't the lock's: the lock names ${lock.pid} started ${lock.startFt ?? "?"} (${started ?? "?"} ms), ${tree ? `which started ${root?.startedAt ?? "never"}, with ${tree.map((member) => `${member.name ?? "?"} (${member.pid})`).join(", ")}` : "whose tree can't be read"}`,
+      )
+      return []
+    }
     await trees.end(tree)
     return tree.map((member) => `${member.name ?? "?"} (${member.pid})`)
   }
