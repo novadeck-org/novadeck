@@ -1009,6 +1009,7 @@ export class Terminals {
         this.sleepers.failedStart(input.id, error instanceof Error ? error.message : "start failed")
       throw error
     } finally {
+      if (opener) this.opens.created(input.requestId, this.records.has(input.id) ? input.id : null)
       place.done()
       created()
       this.pendingOwners.complete(ownerId, pending)

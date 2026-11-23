@@ -890,7 +890,13 @@ with every safety check again at that time:
   `command` and the request's `requestId`, from which the runner names it as the agent
   asked, as that agent's title, never the person's, and replies with
   `terminals.answerRequest`: the new terminal, or why not.
-  Without a client, or past the deadline, the agent hears so. The command runs once
+  Without a client, or past the deadline, the agent hears so. The runner knows the terminal
+  as soon as `terminals.create` makes it for the request, before the client confirms it
+  (which waits for its shell to start, slow on some Windows machines): `open_agent`'s task
+  waits there from then, before the agent's start prompt asks for it, and a terminal made
+  but confirmed past the deadline (or being made as it passes, up to 30 seconds more) is
+  answered as opened, its late confirmation no error. With no terminal made in time, the
+  agent hears that its task wasn't sent. The command runs once
   through the same file the shell integration resumes agents from, so it leaves no
   history entry; a shell without the integration, or with configured arguments, can't
   run one, and the terminal does not open rather than start a plain shell.
