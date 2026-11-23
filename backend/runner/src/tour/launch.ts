@@ -14,6 +14,10 @@ const cheapest: Readonly<Record<AgentName, (models: readonly Model[]) => Model |
   claude: (models) => models.find(({ id }) => id === "haiku"),
   codex: (models) => models.find(({ id }) => id.endsWith("-luna")) ?? models.at(-1),
   agy: (models) => models.find(({ id }) => id === "gemini-3.8-flash-low"),
+  // One of opencode's own free models where its list holds one (`opencode/<name>-free`), which
+  // spends nothing of the person's; else none, and `Tour.ready` refuses the tour (MODELS_UNLISTED)
+  // before anything is removed or started: the tour never runs on the person's own default model.
+  opencode: (models) => models.find(({ id }) => /^opencode\/.+-free$/.test(id)),
 }
 
 /** The cheapest model of `models` for `agent`, at the least effort it takes; none if none fits. */
@@ -32,11 +36,14 @@ export const tourChoice = (agent: AgentName, models: readonly Model[]): Choice =
  * - Claude Code: `--permission-mode acceptEdits`.
  * - Codex: its workspace-write sandbox, asking only where the model asks to go past it.
  * - Antigravity: `--mode accept-edits`.
+ * - opencode: its build agent, which edits without asking unless the person's rules say so;
+ *   its plan agent may not edit at all.
  */
 export const tourWrites: Readonly<Record<AgentName, readonly string[]>> = {
   claude: ["--permission-mode", "acceptEdits"],
   codex: ["--sandbox", "workspace-write", "--ask-for-approval", "on-request"],
   agy: ["--mode", "accept-edits"],
+  opencode: ["--agent", "build"],
 }
 
 /**

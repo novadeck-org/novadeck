@@ -391,6 +391,54 @@ export const openCodex = (
   )
 }
 
+const opencodeBash = (command: string): ToolCall => ({ name: "bash", input: { command } })
+
+const opencodeSteps: Variant["steps"] = (path) => [
+  {
+    name: "read",
+    call: () => ({ name: "read", input: { filePath: path("sample.txt") } }),
+    expected: { failed: false },
+  },
+  {
+    name: "tool-error",
+    call: () => ({ name: "read", input: { filePath: path("missing.txt") } }),
+    expected: { failed: true },
+  },
+  { name: "command-passes", call: () => opencodeBash("echo hello"), expected: { failed: false } },
+  // One that every shell its bash tool may run reads alike: on Windows it takes PowerShell first,
+  // then Git Bash, then cmd (core/src/shell.ts, 1.19.6), where `;` and `>&2` are another
+  // language's.
+  {
+    name: "command-fails",
+    call: () => opencodeBash("exit 3"),
+    expected: { failed: true },
+  },
+  { name: "no-match", call: () => opencodeBash("grep -n zzz sample.txt") },
+  { name: "not-found", call: () => opencodeBash("no-such-program-here") },
+  {
+    name: "read-before-edit",
+    call: () => ({ name: "read", input: { filePath: path("src/auth.ts") } }),
+    expected: { failed: false },
+  },
+  {
+    name: "edit",
+    call: () => ({
+      name: "edit",
+      input: {
+        filePath: path("src/auth.ts"),
+        oldString: "const b = 2\n",
+        newString: "const b = 20\nconst bb = 21\n",
+      },
+    }),
+    expected: { failed: false, added: 2, removed: 1 },
+  },
+  {
+    name: "write",
+    call: () => ({ name: "write", input: { filePath: path("new.txt"), content: "one\ntwo\n" } }),
+    expected: { failed: false, added: 2 },
+  },
+]
+
 export const variants: readonly Variant[] = [
   { agent: "claude", name: "claude", prepare: allowClaude, steps: claudeSteps },
   {
@@ -413,6 +461,7 @@ export const variants: readonly Variant[] = [
     steps: codexScriptSteps,
   },
   { agent: "agy", name: "agy", prepare: () => undefined, steps: agySteps },
+  { agent: "opencode", name: "opencode", prepare: () => undefined, steps: opencodeSteps },
 ]
 
 export const setupOf = (variant: Variant): AgentSetup =>

@@ -14,10 +14,16 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 const rows = (change: SliceChange | undefined): string =>
   change?.slice?.rows.map((row) => row.map(({ text }) => text).join("")).join("\n") ?? ""
 
+// The rows with their styles: a harness that marks its selected row by colour alone (opencode's
+// menus) moves the mark with no change of text.
+const styled = (change: SliceChange | undefined): string =>
+  JSON.stringify(change?.slice?.rows ?? [])
+
 for (const setup of setups) {
   describe.skipIf(!supported)(`live slice of ${setup.name}`, () => {
     const it = e2e(setup)
     it("shows a menu and a command's view, and clears with them", async ({ e2e: run }) => {
+      const view = setup.view ?? "/permissions"
       run.model.use(() => undefined)
       const t = await start(run, setup)
       const { terminals } = run.deck
@@ -39,15 +45,16 @@ for (const setup of setups) {
       keys("/")
       await until("the / menu", (latest) => latest?.slice?.reason === "menu")
       const menu = rows(seen.at(-1))
+      const marked = styled(seen.at(-1))
       expect(menu).toMatch(/\/[a-z-]+/)
       expect(seen.at(-1)?.slice?.columns).toBe(terminals.get(t.id).cols)
       keys("\x1b[B")
-      await until("the mark move", (latest) => rows(latest) !== menu)
+      await until("the mark move", (latest) => styled(latest) !== marked)
       keys("\x15")
       await until("the menu close", (latest) => latest?.slice === null)
       await sleep(300)
-      keys("/permissions")
-      await until("the filtered menu", (latest) => rows(latest).includes("/permissions"))
+      keys(view)
+      await until("the filtered menu", (latest) => rows(latest).includes(view))
       await sleep(300)
       keys("\r")
       await until("the command's view", (latest) => latest?.slice?.reason === "view")
@@ -57,18 +64,18 @@ for (const setup of setups) {
 
       // As the chat does: the person's keys through `agents.keys`, Enter on its own.
       const pass = (data: string) => terminals.keys({ terminalId: t.id, keys: data })
-      for (const key of "/perm") {
+      for (const key of view.slice(0, 5)) {
         pass(key)
         await sleep(90)
       }
-      await until("the menu, by keys", (latest) => rows(latest).includes("/permissions"))
+      await until("the menu, by keys", (latest) => rows(latest).includes(view))
       pass("\x1b[B")
       await sleep(300)
       pass("\x1b[A")
       await sleep(300)
       pass("\x7f\x7f\x7f\x7f")
       await sleep(300)
-      for (const key of "perm") {
+      for (const key of view.slice(1, 5)) {
         pass(key)
         await sleep(90)
       }

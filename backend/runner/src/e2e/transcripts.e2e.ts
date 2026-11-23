@@ -12,7 +12,7 @@ import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { installHarness } from "./install.js"
 import { asked, tool, type Call, type Reply } from "./model/script.js"
-import { own, start } from "./scenarios.js"
+import { allowLabel, own, start } from "./scenarios.js"
 
 // The chat's contract with each harness's transcript, the latest half (docs: the chat
 // contract test). The pinned half replays recorded transcripts through the decoders; this
@@ -192,10 +192,49 @@ const agySteps: Steps = (project) => [
   send,
 ]
 
+const opencodeSteps: Steps = (project) => [
+  {
+    marker: "transcripts-bash",
+    kinds: ["run"],
+    title: /^Ran$/,
+    reply: () => ({
+      calls: [
+        {
+          name: "bash",
+          input: { command: "echo transcripts-bash", description: "Prints a word" },
+        },
+      ],
+    }),
+  },
+  {
+    marker: "transcripts-read.txt",
+    kinds: ["read"],
+    title: /^Read$/,
+    reply: () => ({
+      calls: [{ name: "read", input: { filePath: join(project, "transcripts-read.txt") } }],
+    }),
+  },
+  {
+    marker: "transcripts-write.txt",
+    kinds: ["write"],
+    title: /^Wrote$/,
+    reply: () => ({
+      calls: [
+        {
+          name: "write",
+          input: { filePath: join(project, "transcripts-write.txt"), content: "written\n" },
+        },
+      ],
+    }),
+  },
+  send,
+]
+
 const stepsOf: Readonly<Record<AgentSetup["agent"], Steps>> = {
   claude: claudeSteps,
   codex: codexSteps,
   agy: agySteps,
+  opencode: opencodeSteps,
 }
 
 /** Reads the root actor's transcript, or none yet: the agent has not opened it. */
@@ -212,14 +251,14 @@ const items = async (terminal: DeckTerminal): Promise<readonly TranscriptItem[]>
  * Lets the turn of `done` run to its end: whatever the harness asks the person before the
  * tool runs is allowed through the chat's answer, as the chat does.
  */
-const allowing = (terminal: DeckTerminal, done: string): Promise<string> =>
+const allowing = (setup: AgentSetup, terminal: DeckTerminal, done: string): Promise<string> =>
   terminal.poll(
     async () => {
       const request = (await terminal.detail()).requests.find(
         (each) => !each.answered && each.dialog?.type === "choices",
       )
       if (request?.dialog?.type === "choices") {
-        const yes = request.dialog.options.find((each) => each.label.startsWith("Yes"))
+        const yes = request.dialog.options.find((each) => allowLabel(setup).test(each.label))
         if (!yes) throw new Error(`No yes in ${JSON.stringify(request.dialog)}`)
         await terminal.answer(request.ref, {
           dialog: request.dialog.id,
@@ -265,6 +304,9 @@ const stores: Readonly<Record<AgentSetup["agent"], readonly string[]>> = {
   claude: [".claude/projects"],
   codex: [".codex/sessions"],
   agy: [".gemini/antigravity-cli/brain", ".gemini/antigravity-cli/conversations"],
+  // Its sessions are in SQLite (a binary file, never copied as text): the file the decoder
+  // reads is the plugin's own JSONL, in Novadeck's folder, not under the home.
+  opencode: [".local/share/opencode"],
 }
 
 /** Copies the raw transcript of the run to `NOVADECK_E2E_TRACES`, the next pinned fixture. */
@@ -319,7 +361,7 @@ for (const setup of setups) {
         for (const [index] of steps.entries()) {
           const began = Date.now()
           await t1.prompt(tag(index))
-          await allowing(t1, `Finished ${tag(index)}.`)
+          await allowing(setup, t1, `Finished ${tag(index)}.`)
           // The next prompt is refused while the turn or a request is pending, so this waits
           // for the turn to be recorded as completed after the prompt, then for its requests
           // to clear: Codex's shell patch settles only through its rollout, a moment behind

@@ -86,7 +86,11 @@ export type FolderQuestion = {
   readonly probe?: { readonly away: string; readonly moved: RegExp }
 }
 
-/** The traits a scenario may need of a setup, which a harness may not have. */
+/**
+ * The traits a scenario may need of a setup, which a harness may not have. `pluginCopy` is
+ * the one a harness has unless its `absent` says otherwise: it installs a copy of Novadeck's
+ * plugin in its home, which another build's connect can rewrite.
+ */
 export type Trait =
   | "approval"
   | "background"
@@ -104,6 +108,7 @@ export type Trait =
   | "fork.picker"
   | "fork.inPlace"
   | "image"
+  | "pluginCopy"
 
 /**
  * How a scenario makes the harness ask the person before a tool runs, and what that
@@ -117,6 +122,13 @@ export type Approval = {
   readonly request: (call: Call) => Reply
   /** Text the question shows while it waits, for `confirm` and for telling it is up. */
   readonly shows: RegExp
+  /**
+   * The labels, in the chat's choices, of the option that allows the tool this once and of
+   * the one that refuses it: `^Yes` and `^No` unless the harness words them otherwise
+   * (opencode's are "Allow once" and "Reject").
+   */
+  readonly yes?: RegExp
+  readonly no?: RegExp
   /** The keys that refuse it, pressed without Enter. */
   readonly deny: string
   /** What the screen shows once it is refused, the harness's own account of the refusal. */
@@ -288,6 +300,23 @@ export type AgentSetup = {
    * turn with what is queued: one model call then holds both prompts.
    */
   readonly steers?: true
+  /**
+   * Why a Stop gives back nothing queued behind a running turn, where what is queued is the
+   * agent's already: Codex steers the turn with it, and opencode adds it to the session's
+   * messages as it is sent, where the next turn's model call reads it. Undefined where the
+   * queue waits, as words a Stop gives back to the person.
+   */
+  readonly queuedTaken?: string
+  /**
+   * How many Escapes a person presses to stop a turn: 2 where the first only arms the interrupt
+   * (opencode's `esc again to interrupt`, which lapses in about 5 s), 1 where omitted.
+   */
+  readonly stops?: 2
+  /**
+   * A slash command of the harness that opens a view of its own (the live slice's test types it
+   * and closes the view): `/permissions` where omitted.
+   */
+  readonly view?: string
   /**
    * Whether prompts queued behind a running turn reach its agent as one message, their
    * texts joined by line breaks, as Antigravity sends them to its model as one input step:

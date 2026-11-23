@@ -1,0 +1,170 @@
+{
+  "opencode": {
+    "id": "opencode",
+    "name": "OpenCode",
+    "env": ["OPENCODE_API_KEY"],
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "claude-opus-5": {
+        "id": "claude-opus-5",
+        "name": "Claude Opus 5",
+        "reasoning": true,
+        "release_date": "2026-07-24",
+        "cost": {
+          "input": 5,
+          "output": 25
+        },
+        "reasoning_options": [
+          {
+            "type": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ]
+      },
+      "hy4-flash-free": {
+        "id": "hy4-flash-free",
+        "name": "Hy4 flash Free",
+        "reasoning": true,
+        "release_date": "2026-11-16",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "reasoning_options": [
+          {
+            "type": "effort",
+            "values": ["none", "high"]
+          }
+        ]
+      },
+      "glm-4.7-free": {
+        "id": "glm-4.7-free",
+        "name": "GLM-4.7 Free",
+        "reasoning": true,
+        "release_date": "2025-12-22",
+        "status": "deprecated",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "reasoning_options": [
+          {
+            "type": "toggle"
+          }
+        ]
+      },
+      "big-pickle": {
+        "id": "big-pickle",
+        "name": "Big Pickle",
+        "reasoning": true,
+        "release_date": "2025-10-17",
+        "cost": {
+          "input": 0,
+          "output": 0
+        },
+        "reasoning_options": []
+      },
+      "gpt-5-nano": {
+        "id": "gpt-5-nano",
+        "name": "GPT-5 Nano",
+        "reasoning": true,
+        "release_date": "2025-08-07",
+        "cost": {
+          "input": 0.05,
+          "output": 0.4
+        },
+        "reasoning_options": [
+          {
+            "type": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ]
+      }
+    }
+  },
+  "anthropic": {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "env": ["ANTHROPIC_API_KEY"],
+    "npm": "@ai-sdk/anthropic",
+    "models": {
+      "claude-opus-4-8": {
+        "id": "claude-opus-4-8",
+        "name": "Claude Opus 4.8",
+        "reasoning": true,
+        "release_date": "2026-05-28",
+        "cost": {
+          "input": 5,
+          "output": 25
+        },
+        "reasoning_options": [
+          {
+            "type": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ]
+      },
+      "claude-sonnet-4-5": {
+        "id": "claude-sonnet-4-5",
+        "name": "Claude Sonnet 4.5 (latest)",
+        "reasoning": true,
+        "release_date": "2025-09-29",
+        "status": "deprecated",
+        "cost": {
+          "input": 3,
+          "output": 15
+        },
+        "reasoning_options": [
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      },
+      "claude-sonnet-4-6": {
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "reasoning": true,
+        "release_date": "2026-02-17",
+        "cost": {
+          "input": 3,
+          "output": 15
+        },
+        "reasoning_options": [
+          {
+            "type": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    }
+  },
+  "openai": {
+    "id": "openai",
+    "name": "OpenAI",
+    "env": ["OPENAI_API_KEY"],
+    "npm": "@ai-sdk/openai",
+    "models": {
+      "gpt-5.4": {
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "reasoning": true,
+        "release_date": "2026-03-05",
+        "cost": {
+          "input": 2.5,
+          "output": 15
+        },
+        "reasoning_options": [
+          {
+            "type": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh"]
+          }
+        ]
+      }
+    }
+  }
+}

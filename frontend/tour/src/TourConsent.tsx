@@ -3,6 +3,7 @@ import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog
 import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
+import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
 import { brandName, NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
@@ -11,7 +12,7 @@ import { useState } from "react"
 
 import type { TourConsent } from "./consent"
 
-const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: AntigravityIcon }
+const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: AntigravityIcon, opencode: OpencodeIcon }
 const nameOf = (agent: AgentName): string => harnesses.find(({ id }) => id === agent)?.name ?? agent
 
 export const tourHeading = "Take the tour"

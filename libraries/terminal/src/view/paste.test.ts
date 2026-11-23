@@ -1,6 +1,7 @@
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
+  foldersAmong,
   ownPath,
   pastedFiles,
   pastedText,
@@ -96,6 +97,44 @@ describe("a paste's files", () => {
     expect(pastedFiles(transfer({ text: "ls" }))).toEqual([])
     expect(pastedText(transfer({ text: "ls" }))).toBe(true)
     expect(pastedText(transfer({}))).toBe(false)
+  })
+})
+
+describe("the folders among a paste's or a drop's files", () => {
+  // Items as the browser lists them, each saying whether it is a folder where it can.
+  type Carried = Parameters<typeof foldersAmong>[0]
+  const items = (...entries: (boolean | null)[]): Carried =>
+    ({
+      items: entries.map((directory) => ({
+        kind: "file",
+        ...(directory !== null && { webkitGetAsEntry: () => ({ isDirectory: directory }) }),
+      })),
+    }) as unknown as Carried
+  const src = new File([], "src")
+  const notes = new File(["n"], "notes.txt")
+
+  it("are those whose item names a folder", () => {
+    expect([...foldersAmong(items(true, false), [src, notes])]).toEqual([src])
+  })
+
+  it("are none where the browser doesn't say, or lists other items than the files", () => {
+    expect(foldersAmong(items(null, null), [src, notes]).size).toBe(0)
+    expect(foldersAmong(items(true), [src, notes]).size).toBe(0)
+    expect(foldersAmong(null, [src]).size).toBe(0)
+  })
+
+  it("are none where asking throws, as once the drop is over", () => {
+    const data = {
+      items: [
+        {
+          kind: "file",
+          webkitGetAsEntry: (): FileSystemEntry | null => {
+            throw new Error("gone")
+          },
+        },
+      ],
+    }
+    expect(foldersAmong(data, [src]).size).toBe(0)
   })
 })
 

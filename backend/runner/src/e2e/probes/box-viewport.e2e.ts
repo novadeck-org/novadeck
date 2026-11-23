@@ -10,6 +10,7 @@ import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
+import { box as opencodeBox } from "@novadeck/harness-opencode/box"
 
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
@@ -17,7 +18,7 @@ import { gate, type Call } from "../model/script.js"
 import { answers, own, result, start } from "../scenarios.js"
 import { paste, probing, sleep } from "./support.js"
 
-const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox }
+const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox, opencode: opencodeBox }
 const heights = [14, 15, 18, 23, 24, 25, 26, 31, 33, 40, 41, 47, 50, 51, 60, 61]
 const outDir = process.env.PROBE_OUT ?? join(process.cwd(), "probe-out")
 

@@ -22,12 +22,24 @@ import { covered, type AllowRule } from "./rules.js"
 export type Decision = {
   readonly stdout: string
   readonly commit?: () => void
-  /** Antigravity's hook stays silent because a permit covers the command: its confirmation follows. */
+  /**
+   * Antigravity's or opencode's hook stays silent because a permit covers the command: its own
+   * confirmation follows, which the runner answers for this very call (`Shipping`).
+   */
   readonly permitted?: true
+  /**
+   * opencode's permitted command, as the reading that allowed it holds it: opencode's default
+   * asks nothing, so its hook has to spend the permits itself (`Shipping.spend`), not wait for a
+   * dialog that may never come.
+   */
+  readonly covered?: Covered
 }
 
+/** The harnesses the gate answers for. */
+export type GatedAgent = "claude" | "codex" | "agy" | "opencode"
+
 export type GateInput = {
-  readonly agent: "claude" | "codex" | "agy"
+  readonly agent: GatedAgent
   readonly event: "PreToolUse" | "PermissionRequest"
   readonly terminalId: string
   readonly command: string
@@ -35,6 +47,7 @@ export type GateInput = {
   /**
    * Claude Code's permission mode, as its hook says. Antigravity's hook names none: its is the
    * mode its status line last said, else the launch's (`--mode`), as the runner reads them.
+   * opencode's is `bypass` where its launch skips every permission, else none.
    */
   readonly mode?: string
   /** Codex's rollout, which says what the turn's sandbox and approval policy are. */
@@ -59,7 +72,7 @@ export type GateDeps = {
    * `cwd`: its harness reads its project's in the folder it started in, not the command's.
    */
   readonly rules: (
-    agent: "claude" | "codex" | "agy",
+    agent: GatedAgent,
     terminalId: string,
     cwd: string,
   ) => Promise<readonly AllowRule[]>
@@ -96,6 +109,14 @@ const bypass = (turn: Turn | undefined): boolean =>
  * dialog decides what a permit covers.
  */
 export const agyBypassMode = "bypass"
+
+/**
+ * The same word for opencode, in an explicit bypass: a launch with `--auto`, `--yolo` or
+ * `--dangerously-skip-permissions` (one flag, three names: cli/cmd/tui.ts, 1.19.6), which has its
+ * interface answer every permission it is asked. A person's own `permission: "allow"` is not one:
+ * the gate's deny comes before opencode's permission check, so it holds there too.
+ */
+export const opencodeBypassMode = "bypass"
 
 const restricted = (turn: Turn | undefined): boolean =>
   turn?.sandbox === "workspace-write" || turn?.sandbox === "read-only"
@@ -211,7 +232,10 @@ export const printed = (
         },
   )}\n`
 
-/** What Antigravity's hook prints to refuse a tool, as its PreToolUse answers read it (probed 1.5.14). */
+/**
+ * What Antigravity's hook prints to refuse a tool, as its PreToolUse answers read it (probed
+ * 1.5.14). opencode's plugin reads the same words (`decision` and `reason`) and throws the reason.
+ */
 export const printedAgy = (reason: string): string =>
   `${JSON.stringify({ decision: "deny", reason })}\n`
 
@@ -225,10 +249,43 @@ export type Covered = {
    * Takes the single-use permits now, before the command is let run, so no other answer can
    * use them too; `restore` gives them back where it wasn't (never a standing permit, nor one a
    * revoke ended meanwhile), and `voided` ends the merge permits the command voids, once it was.
+   * False, with nothing taken, where a permit no longer covers it (another call took a
+   * single-use one, or a revoke or a close ended it since it was read).
    */
-  readonly take: () => void
+  readonly take: () => boolean
   readonly restore: () => void
   readonly voided: () => void
+}
+
+/** What a reading's permits give: see `Covered`. */
+const coveredOf = (
+  held: Permits,
+  terminalId: string,
+  actions: readonly Action[],
+  permits: readonly Permit[],
+): Covered => {
+  let restores: (() => void)[] = []
+  const voided = () => {
+    for (const action of actions) for (const key of action.voids ?? []) held.revoke(key)
+  }
+  return {
+    permits,
+    actions,
+    used: () => {
+      for (const permit of permits) held.used(permit)
+      voided()
+    },
+    take: () => {
+      // Every permit must still be the live one, checked before any is taken, in one tick.
+      if (permits.some((permit) => held.covering(terminalId, permit.key) !== permit)) return false
+      restores = permits.flatMap((permit) => held.take(permit) ?? [])
+      return true
+    },
+    restore: () => {
+      for (const restore of restores) restore()
+    },
+    voided,
+  }
 }
 
 export class Gate {
@@ -257,6 +314,7 @@ export class Gate {
     if (input.agent === "claude" && input.mode === "bypassPermissions") return undefined
     // Antigravity told to skip every permission: nothing to replace.
     if (input.agent === "agy" && input.mode === agyBypassMode) return undefined
+    if (input.agent === "opencode" && input.mode === opencodeBypassMode) return undefined
     const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
     if (reading.kind === "none") return undefined
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
@@ -266,7 +324,10 @@ export class Gate {
     if (covered(await this.deps.rules(input.agent, input.terminalId, input.cwd), input.command))
       return undefined
     const refuse = (reason: string): Decision => ({
-      stdout: input.agent === "agy" ? printedAgy(reason) : printed(input.event, "deny", reason),
+      stdout:
+        input.agent === "agy" || input.agent === "opencode"
+          ? printedAgy(reason)
+          : printed(input.event, "deny", reason),
     })
     if (reading.refusal !== undefined)
       return refuse(
@@ -295,6 +356,14 @@ export class Gate {
     // Antigravity's hook has no allow: it stays silent, its own confirmation shows, and the
     // runner answers that one (`Shipping.autoAnswer`) only for this very command.
     if (input.agent === "agy") return { stdout: "", permitted: true }
+    if (input.agent === "opencode")
+      return {
+        stdout: "",
+        permitted: true,
+        ...(reading.actions.length > 0 && {
+          covered: coveredOf(this.deps.permits, input.terminalId, reading.actions, permits),
+        }),
+      }
     return this.allowed(input, permits, reading.actions, turn)
   }
 
@@ -313,26 +382,7 @@ export class Gate {
       if (!permit) return undefined
       permits.push(permit)
     }
-    let restores: (() => void)[] = []
-    const voided = () => {
-      for (const action of reading.actions)
-        for (const key of action.voids ?? []) this.deps.permits.revoke(key)
-    }
-    return {
-      permits,
-      actions: reading.actions,
-      used: () => {
-        for (const permit of permits) this.deps.permits.used(permit)
-        voided()
-      },
-      take: () => {
-        restores = permits.flatMap((permit) => this.deps.permits.take(permit) ?? [])
-      },
-      restore: () => {
-        for (const restore of restores) restore()
-      },
-      voided,
-    }
+    return coveredOf(this.deps.permits, terminalId, reading.actions, permits)
   }
 
   private allowed(

@@ -160,7 +160,13 @@ export class Reports {
       if (record && !record.terminal.exiting && sameToken(record.token, report.token) && shipping) {
         // Raced against the hook's own deadline: an answer that comes later is no answer.
         const given = await shipping.answer(report.terminalId, report.agent, gate, deadline)
-        if (given !== undefined) return given
+        if (given !== undefined) {
+          // opencode's plugin reports every shell call, and a permitted one is answered with a
+          // lease that spends its permit: the call is still reported, as when it had no answer.
+          if (report.agent === "opencode" && report.event === "PreToolUse" && given.leaseId)
+            this.queueReport(report)
+          return given
+        }
       }
       // An event that is only the gate's has no ask of its own: it reports as any hook does.
       if (!askOf(report.agent, report.event)) {
@@ -303,6 +309,21 @@ export class Reports {
     // could take the prompt as theirs (pinned by the integration test "applies a draft
     // typed while asked before the prompt that clears the request").
     for (const event of events) {
+      // The harness's prompt went to a screen of no session (opencode's `/new`): the session
+      // it had bound ends, and the next one binds with its first prompt.
+      if (event.type === "session-left") {
+        if (this.host.bindings().endBinding(record, event.sessionId)) {
+          changed = true
+          // Its prompt shows, with no session bound: messages wait for the next one.
+          this.host.shown().showPrompt(record, {
+            type: "prompt-shown",
+            agent: event.agent,
+            instance: event.instance,
+            startedAt: event.startedAt,
+          })
+        }
+        continue
+      }
       if (event.type !== "session-observed") {
         this.host.bindings().applyFact(record, event)
         continue

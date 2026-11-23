@@ -1,3 +1,4 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { DialogAdapter, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { explain } from "@novadeck/harness-core/dialogs"
 import type { Log } from "@novadeck/log"
@@ -18,6 +19,8 @@ export type Subject = {
   readonly adapter: DialogAdapter | undefined
   /** The screen the dialog was looked for on. */
   readonly rows: readonly string[]
+  /** The whole screen, where known: an adapter may read more than its text. */
+  readonly screen?: ScreenText
   readonly columns: number
 }
 
@@ -75,7 +78,8 @@ export class DialogDiagnostics {
   refusals(subject: Subject): string[] {
     if (!subject.adapter) return []
     try {
-      return explain(() => subject.adapter!.read(subject.rows, subject.facts)).refusals
+      return explain(() => subject.adapter!.read(subject.rows, subject.facts, subject.screen))
+        .refusals
     } catch {
       // An adapter that throws on a screen is logged as `dialogs.read-failed`; what it noted
       // before the throw goes with it, so the line says only that it threw.

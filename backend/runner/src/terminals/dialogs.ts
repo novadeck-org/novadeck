@@ -223,6 +223,8 @@ type State = {
   text: string
   since: number
   rows: readonly string[]
+  /** The whole screen those rows were read from. */
+  screen: ScreenText | undefined
   columns: number
   /** Where its cursor was on that screen, which tells a split screen's pane in focus. */
   cursor: { readonly row: number; readonly column: number } | undefined
@@ -393,6 +395,7 @@ export class Dialogs {
     if (!screen) throw new DomainError("CONFLICT", "The terminal went away.")
     const subject = {
       ...this.subject(terminalId, state, ref, screen.rows)!,
+      screen,
       columns: screen.columns,
     }
     return this.saves.save({
@@ -402,6 +405,7 @@ export class Dialogs {
       refusals: this.diagnostics.refusals(subject),
       request: request.facts,
       rows: screen.rows,
+      lit: screen.lit,
       columns: screen.columns,
     })
   }
@@ -453,6 +457,7 @@ export class Dialogs {
       askedAt: request.askedAt,
       adapter: this.host.adapter(info.agent),
       rows,
+      ...(rows === state.rows && state.screen && { screen: state.screen }),
       columns: state.columns,
     }
   }
@@ -471,6 +476,7 @@ export class Dialogs {
         text: "",
         since: this.now(),
         rows: [],
+        screen: undefined,
         columns: 80,
         cursor: undefined,
         announced: new Map(),
@@ -534,8 +540,8 @@ export class Dialogs {
     // waiting there quietly while the error goes only to the log. One that throws telling
     // a request from the screen tells nothing either way: what it raised stays.
     const adapter = found && {
-      read: (rows: readonly string[], facts: Waiting["facts"]) =>
-        attempt(state, () => found.read(rows, facts)),
+      read: (rows: readonly string[], facts: Waiting["facts"], whole?: ScreenText) =>
+        attempt(state, () => found.read(rows, facts, whole)),
       ...(found.screenRequest && {
         screenRequest: (rows: readonly string[]) =>
           attempt(state, () => ({ seen: found.screenRequest!(rows) })),
@@ -551,6 +557,7 @@ export class Dialogs {
       state.since = now
     }
     state.rows = rows
+    state.screen = screen
     state.columns = screen.columns
     state.cursor = screen.cursor
     if (state.answering > 0) return
@@ -594,7 +601,7 @@ export class Dialogs {
     for (const request of requests) {
       const entry = state.entries.get(request.ref)
       if (entry?.locked || entry?.done) continue
-      const read: DialogRead | undefined = adapter?.read(rows, request.facts)
+      const read: DialogRead | undefined = adapter?.read(rows, request.facts, screen)
       // A read from the facts alone names no dialog on screen: it counts for the only request.
       // Requests answered already are gone from the screen, as the answer driver counts them.
       const sole =
@@ -608,7 +615,7 @@ export class Dialogs {
     const ghosts: { request: Waiting; read: DialogRead }[] = []
     for (const request of requests) {
       if (state.entries.get(request.ref)?.locked && !state.entries.get(request.ref)?.done) {
-        const read = adapter?.read(rows, request.facts)
+        const read = adapter?.read(rows, request.facts, screen)
         // One held out of view is not on screen to be mistaken for.
         if (read && read.reveal === undefined && identified(read.dialog))
           ghosts.push({ request, read })

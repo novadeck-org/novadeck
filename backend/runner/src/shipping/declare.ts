@@ -8,6 +8,8 @@ import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { resolve as resolvePath } from "node:path"
 
+import type { AgentName } from "@novadeck/protocol"
+
 import type { Cards } from "./cards.js"
 import { describeKey } from "./gate.js"
 import type { Declines, Permits, Quotes } from "./permits.js"
@@ -44,7 +46,7 @@ export type DeclareDeps = {
   /** The repository's default branch, from `origin/HEAD` or else `gh repo view`; undefined where neither says. */
   readonly defaultBranch: (folder: string, repo: string) => Promise<string | undefined>
   /** The agent running in the terminal, if one is bound. */
-  readonly agentOf: (terminalId: string) => "claude" | "codex" | "agy" | undefined
+  readonly agentOf: (terminalId: string) => AgentName | undefined
   /** Whether the Codex session in the terminal can escalate a command (approval isn't `never`); true where unknown. */
   readonly canEscalate?: (terminalId: string) => boolean
 }

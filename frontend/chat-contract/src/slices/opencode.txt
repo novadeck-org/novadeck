@@ -1,0 +1,99 @@
+# home
+start: none
+/: menu 9-18
+  |                        ┃ /agents     Switch agent                                                ┃
+  |                        ┃ /connect    Connect provider                                            ┃
+  |                        ┃ /debug      View debug info                                             ┃
+  |                        ┃ /diff       Open diff viewer                                            ┃
+  |                        ┃ /editor     Open editor                                                 ┃
+  |                        ┃ /exit       Exit the app                                                ┃
+  |                        ┃ /help       Help                                                        ┃
+  |                        ┃ /init       guided AGENTS.md setup                                      ┃
+  |                        ┃ /mcps       Toggle MCPs                                                 ┃
+  |                        ┃ /models     Switch model                                                ┃
+start again: none
+@: menu 17-18
+  |                        ┃ @explore                                                                ┃
+  |                        ┃ @general                                                                ┃
+models: view 1-38
+  |   ┃
+  |   ┃  hello
+  |   ┃
+  | 
+  |      OK.
+  | 
+  |      ▣  Build · Fake Sonnet · 584ms
+  | 
+  | 
+  | 
+  |                                   Select model                                     esc
+  | 
+  |                                   Search
+  | 
+  |                                   Iceman Free                                     Free
+  |                                   Inkling 2 Small Free                            Free
+  |                                   LongCat 2.5 Free                                Free
+  |                                   Flint 40B Free                                  Free
+  |                                   DeepSeek V4.1 Flash Free                        Free
+  |                                   Nemotron 3.5 Super VL Free                      Free
+  |                                   Beam Free                                       Free
+  |                                   MiMo-V2.6-Flash Free                            Free
+  |                                   GLM-5.3-Flash Free                              Free
+  |                                   Nemotron 3.5 Lightning Free                     Free
+  |                                   Big Pickle                                      Free
+  | 
+  |                                   Fake
+  |                                 ● Fake Sonnet
+  | 
+  |                                   Connect provider ctrl+a  Favorite ctrl+f
+  | 
+  |   ┃
+  |   ┃
+  |   ┃
+  |   ┃  Build · Fake Sonnet Fake
+  |   ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+  |    ~/project
+  |                                                                                                          commands
+
+# session
+idle: none
+/: menu 22-31
+  |   ┃ /agents       Switch agent                                                                                       ┃
+  |   ┃ /compact      Compact session                                                                                    ┃
+  |   ┃ /connect      Connect provider                                                                                   ┃
+  |   ┃ /copy         Copy session transcript                                                                            ┃
+  |   ┃ /debug        View debug info                                                                                    ┃
+  |   ┃ /diff         Open diff viewer                                                                                   ┃
+  |   ┃ /editor       Open editor                                                                                        ┃
+  |   ┃ /exit         Exit the app                                                                                       ┃
+  |   ┃ /export       Export session transcript                                                                          ┃
+  |   ┃ /fork         Fork session                                                                                       ┃
+idle again: none
+@: menu 30-31
+  |   ┃ @explore                                                                                                         ┃
+  |   ┃ @general                                                                                                         ┃
+
+# busy
+busy: none
+/: menu 23-32
+  |   ┃ /agents       Switch agent                                                                                       ┃
+  |   ┃ /compact      Compact session                                                                                    ┃
+  |   ┃ /connect      Connect provider                                                                                   ┃
+  |   ┃ /copy         Copy session transcript                                                                            ┃
+  |   ┃ /debug        View debug info                                                                                    ┃
+  |   ┃ /diff         Open diff viewer                                                                                   ┃
+  |   ┃ /editor       Open editor                                                                                        ┃
+  |   ┃ /exit         Exit the app                                                                                       ┃
+  |   ┃ /export       Export session transcript                                                                          ┃
+  |   ┃ /fork         Fork session                                                                                       ┃
+
+# narrow
+start: none
+/: menu 0-5
+  |   ┃ /agents     Switch agent                             ┃
+  |   ┃ /connect    Connect provider                         ┃
+  |   ┃ /debug      View debug info                          ┃
+  |   ┃ /diff       Open diff viewer                         ┃
+  |   ┃ /editor     Open editor                              ┃
+  |   ┃ /exit       Exit the app                             ┃
+

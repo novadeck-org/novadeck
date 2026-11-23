@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
-import { readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import type { Command, Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
@@ -347,7 +347,15 @@ export const createHarnesses = (
     // Its own settings go back before its plugin does, so nothing names a missing hook.
     if (!connected) await settle("revert")
     const before = connected && (await harness.connected(where))
+    // A harness connected by a file of Novadeck's own (`Harness.marker`): written before its
+    // commands, removed after them, so what reads it never names a plugin half set up.
+    const connection = harness.marker?.(where)
+    if (connection !== undefined && connected) {
+      await mkdir(dirname(connection), { recursive: true })
+      await writeFile(connection, "connected\n")
+    }
     await steps(harness, where, connected ? harness.connect(where) : harness.disconnect, settings)
+    if (connection !== undefined && !connected) await rm(connection, { force: true })
     const after = await state(harness, where)
     if (after.connected !== connected)
       throw new DomainError(

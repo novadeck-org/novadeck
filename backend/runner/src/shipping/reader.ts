@@ -122,8 +122,23 @@ const wrappers = new Set([
 ])
 
 // Anything that moves a ref or the remote, as a verb of git or gh, wherever it is written.
-const shippingText =
-  /\b(?:git|gh)\b[^|;&\n]*?\b(?:push|merge|rebase|pull|cherry-pick|reset|checkout|switch|branch|update-ref|pr|api|release|workflow)\b/
+export const shippingVerbs = [
+  "push",
+  "merge",
+  "rebase",
+  "pull",
+  "cherry-pick",
+  "reset",
+  "checkout",
+  "switch",
+  "branch",
+  "update-ref",
+  "pr",
+  "api",
+  "release",
+  "workflow",
+]
+const shippingText = new RegExp(`\\b(?:git|gh)\\b[^|;&\\n]*?\\b(?:${shippingVerbs.join("|")})\\b`)
 
 const base = (program: string): string => program.replace(/^.*[\\/]/, "").replace(/\.exe$/i, "")
 

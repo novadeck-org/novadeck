@@ -973,6 +973,7 @@ const ChatBody = ({
           refused={(text, options) => !passing.on && refused(text, options)}
           passing={passing.on}
           history={history}
+          dropArea={chatSection}
           onPress={(keys) => {
             const went = passing.press(keys)
             if (went && keys === "\r" && draft.startsWith("/")) echoes.echo(draft.trim())

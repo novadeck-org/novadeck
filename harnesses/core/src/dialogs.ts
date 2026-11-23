@@ -1,3 +1,4 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { RequestAnswer, RequestDialog } from "@novadeck/protocol"
 
 /**
@@ -116,9 +117,15 @@ export type DialogAdapter = {
   /**
    * The dialog on screen for this request, recognised in full and agreeing with what the
    * request asks; undefined when the screen shows none, or one the adapter can't vouch
-   * for. `rows` are the visible screen's rows as text, top to bottom.
+   * for. `rows` are the visible screen's rows as text, top to bottom. `screen` is the
+   * whole screen they were read from, where the caller has it, for an adapter that needs more
+   * than the text: the cells a dialog marks only by their background (`ScreenText.lit`).
    */
-  readonly read: (rows: readonly string[], request: RequestFacts) => DialogRead | undefined
+  readonly read: (
+    rows: readonly string[],
+    request: RequestFacts,
+    screen?: ScreenText,
+  ) => DialogRead | undefined
   /**
    * Requests the screen alone tells, which no hook reports (Codex's plan prompt): what
    * the current screen asks, or undefined. Absent where hooks report them all.

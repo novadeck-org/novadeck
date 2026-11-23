@@ -1,0 +1,74 @@
+# read
+Read · …/person/project/sample.txt → failed false
+
+# read-part
+Read · …/person/project/sample.txt → failed false
+
+# read-missing
+Read · …/person/project/missing.txt → failed true
+
+# command-passes
+Ran · echo hello → failed false, exit 0
+
+# command-fails
+Ran · echo boom >&2; exit 3 → failed true, exit 3
+
+# no-match
+Ran · grep -n zzz sample.txt → failed true, exit 1
+
+# not-found
+Ran · no-such-program-here → failed true, exit 127
+
+# timeout
+Ran · sleep 5; echo late → failed true
+
+# search
+Searched · beta → failed false
+
+# glob
+Found files · **/*.txt → failed false
+
+# edit
+Edited · …/project/src/auth.ts → failed false, +2 -1 [5 lines: 1 const a = 1 | 2-const b = 2 | 2+const b = 20]
+
+# edit-no-match
+Edited · …/project/src/auth.ts → failed true
+
+# new-file
+Wrote · …/person/project/new.txt → failed false, +2 -0 [2 lines: 1+one | 2+two]
+
+# overwrite
+Wrote · …/project/src/legacy.ts → failed false
+
+# long-edit
+Edited ·  → failed false, +900 -2 [40 lines: 93 line 93 xxxxxxxxxxxxxxxx | 94 line 94 xxxxxxxxxxxxxxxx | 95 line 95 xxxxxxxxxxxxxxxx]
+
+# long-write
+Wrote ·  → failed false, +1000 -0 [40 lines: 1+row 1 yyyyyyyyyyyyyyyy | 2+row 2 yyyyyyyyyyyyyyyy | 3+row 3 yyyyyyyyyyyyyyyy]
+
+# patch-add
+Patched ·  → failed false, +2 -0 [2 lines: 1+export const added = 1 | 2+export const again = 2]
+
+# patch-update
+Patched ·  → failed false, +2 -1 [5 lines: 1 const a = 1 | 2-const b = 2 | 2+const b = 20]
+
+# patch-delete
+Patched ·  → failed false, +0 -1 [1 lines: 1-export const legacy = tr]
+
+# patch-no-match
+Patched ·  → failed true
+
+# webfetch
+Fetched · https://example.com/docs → failed true
+
+# skill
+Loaded a skill · demo → failed false
+
+# skill-missing
+Loaded a skill · absent → failed true
+
+# websearch
+Searched the web · vitest snapshots → failed true
+
+# rejected
+Ran · echo nope → failed true

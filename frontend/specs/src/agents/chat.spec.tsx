@@ -7,6 +7,7 @@ import {
   chatOf,
   composer,
   conversation,
+  dropOn,
   imageFile,
   openChat,
   openChatDemo,
@@ -426,6 +427,55 @@ describe("Pasting an image into the chat", () => {
     })
     composer(chat).element().dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
+  })
+})
+
+describe("Dropping files on the chat", () => {
+  it("says the message takes them while they're over the chat", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    dropOn(conversation(chat), [await imageFile("shot.png")], false)
+    await expect.element(chat.getByText("Drop to add to your message")).toBeVisible()
+    dropOn(conversation(chat), [await imageFile("shot.png")])
+    await expect.element(chat.getByText("Drop to add to your message")).not.toBeInTheDocument()
+  })
+
+  it("adds an image dropped anywhere on it to the next message, as a paste of it", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    expect(dropOn(conversation(chat), [await imageFile("shot.png")])).toBe(true)
+    const chip = attachments(chat).getByRole("listitem")
+    await expect.element(chip.getByRole("img", { name: "shot.png" })).toBeVisible()
+    await expect.element(composer(chat)).toHaveValue("[Image #1] ")
+    // The words go on after it.
+    await expect.element(composer(chat)).toHaveFocus()
+  })
+
+  it("refuses them where a paste of them is refused, in its words", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "!ls")
+    // Said as they come over the chat, before the drop.
+    dropOn(conversation(chat), [await imageFile("shot.png")], false)
+    await expect
+      .poll(() => chat.element().querySelector(".chat-drop")?.textContent)
+      .toBe("A shell command takes text only.")
+    dropOn(conversation(chat), [await imageFile("shot.png")])
+    await expect
+      .element(chat.getByRole("alert").getByText("A shell command takes text only."))
+      .toBeVisible()
+    await expect.element(attachments(chat)).not.toBeInTheDocument()
+  })
+
+  it("takes no file but an image, and says so", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    dropOn(conversation(chat), [new File(["notes"], "notes.txt", { type: "text/plain" })])
+    await expect
+      .element(
+        chat.getByRole("alert").getByText("Only PNG, JPEG, GIF or WebP images can be attached."),
+      )
+      .toBeVisible()
   })
 })
 

@@ -623,6 +623,22 @@ describe("a line taller than its box", () => {
     return { delivered, written }
   }
 
+  it("presses Enter where the program collapsed the line to a placeholder alone in its box", async () => {
+    const collapsing = {
+      collapses: () => true,
+      collapsed: ({ text }: { text: string }) => /^\[Pasted ~\d+ lines?\]$/.test(text),
+    }
+    const { delivered, written } = await deliverTo(["> [Pasted ~1 lines]"], collapsing)
+    expect(delivered).toMatchObject({ entered: true })
+    expect(written.at(-1)).toBe("\r")
+    // Where it does not certainly collapse, a placeholder is not the line.
+    const wrong = await deliverTo(["> [Pasted ~1 lines]"], {
+      ...collapsing,
+      collapses: () => false,
+    })
+    expect(wrong.written).not.toContain("\r")
+  })
+
   it("presses Enter where the box, as tall as it gets, shows the line's end", async () => {
     const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, end.slice(20)])
     expect(delivered).toMatchObject({ entered: true })

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 
@@ -11,3 +12,7 @@ const require = createRequire(import.meta.url)
  */
 export const harnessSources = (harness: AgentName | "core"): string =>
   join(dirname(require.resolve(`@novadeck/harness-${harness}/package.json`)), "src")
+
+/** A recording this package made of a harness's own transcript (`src/recorded/<file>`), as the JSON it holds. */
+export const recordedFile = <T>(file: string): T =>
+  JSON.parse(readFileSync(join(import.meta.dirname, "recorded", file), "utf8")) as T

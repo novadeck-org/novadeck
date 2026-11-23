@@ -78,6 +78,55 @@ describe("the shipping gate for Antigravity", () => {
   })
 })
 
+describe("the shipping gate for opencode", () => {
+  const opencode = (command: string, mode?: string) => ({
+    agent: "opencode" as const,
+    event: "PreToolUse" as const,
+    terminalId: "t",
+    command,
+    cwd: "/main",
+    ...(mode !== undefined && { mode }),
+  })
+
+  it("marks a permitted command, which its own permission then asks about, and denies an unpermitted one in request_permit's words", async () => {
+    const permitted = setup()
+    permitted.permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge it" })
+    const allowed = await permitted.gate.decide(opencode("gh pr merge 5"))
+    expect(allowed).toMatchObject({ stdout: "", permitted: true })
+    // The reading that allowed it comes with it, for its hook to spend the permits.
+    expect(allowed?.covered?.permits.map((permit) => permit.key)).toEqual(["pr-merge:r/app#5"])
+    const denied = await setup().gate.decide(opencode("gh pr merge 5"))
+    expect(JSON.parse(denied!.stdout)).toMatchObject({ decision: "deny" })
+    expect(JSON.parse(denied!.stdout).reason).toContain("request_permit")
+    expect(denied?.permitted).toBeUndefined()
+  })
+
+  it("takes a single-use permit once, and gives it back only while nothing ended it", async () => {
+    const { gate, permits } = setup()
+    permits.give("t", "push-force:r/app:origin/main", true, { type: "quote", quote: "force it" })
+    const first = (await gate.decide(opencode("git push -f origin main")))?.covered
+    const second = (await gate.decide(opencode("git push -f origin main")))?.covered
+    expect(first?.take()).toBe(true)
+    expect(permits.covering("t", "push-force:r/app:origin/main")).toBeUndefined()
+    // The other call read it too, but the permit is no longer there to take.
+    expect(second?.take()).toBe(false)
+    first?.restore()
+    expect(permits.covering("t", "push-force:r/app:origin/main")).toBeDefined()
+    // A revoke between the reading and the take ends it.
+    permits.revoke("push-force:r/app:origin/main")
+    expect(first?.take()).toBe(false)
+  })
+
+  it("has no opinion where its launch skips every permission, and of a command that ships nothing", async () => {
+    expect(await setup().gate.decide(opencode("gh pr merge 5", "bypass"))).toBeUndefined()
+    expect(await setup().gate.decide(opencode("git status"))).toBeUndefined()
+    // A mode it doesn't know is gated.
+    expect(await setup().gate.decide(opencode("gh pr merge 5", "plan"))).toMatchObject({
+      stdout: expect.stringContaining("deny"),
+    })
+  })
+})
+
 describe("the shipping gate", () => {
   it("says nothing about commands that ship nothing", async () => {
     const { gate, input } = setup()
@@ -288,7 +337,7 @@ describe("a standing permit's first use, in each harness", () => {
 })
 
 describe("the narrower merges and Codex without approvals, in each harness", () => {
-  const agents = ["claude", "codex", "agy"] as const
+  const agents = ["claude", "codex", "agy", "opencode"] as const
 
   it("covers --auto and --admin only by their own permits, and an auto permit also a plain merge", async () => {
     for (const agent of agents) {
@@ -298,13 +347,18 @@ describe("the narrower merges and Codex without approvals, in each harness", () 
       })
       const run = async (command: string) => {
         const got = await gate.decide(
-          input(command, { agent, ...(agent === "agy" && { mode: "" }) }),
+          input(command, {
+            agent,
+            ...(agent === "agy" || agent === "opencode" ? { mode: "" } : {}),
+          }),
         )
         if (got === undefined) return "silent"
         if (got.permitted) return "permitted"
         return got.stdout === "" ? "silent" : got.stdout.includes('"allow"') ? "allow" : "deny"
       }
-      const allowed = { claude: "allow", codex: "silent", agy: "permitted" }[agent]
+      const allowed = { claude: "allow", codex: "silent", agy: "permitted", opencode: "permitted" }[
+        agent
+      ]
       permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge five" })
       expect(await run("gh pr merge 5"), agent).toBe(allowed)
       expect(await run("gh pr merge 5 --auto"), agent).toBe("deny")

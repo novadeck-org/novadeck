@@ -3,6 +3,7 @@ import { box as claudeBox, slice as claudeSlice } from "@novadeck/harness-claude
 import { box as codexBox, slice as codexSlice } from "@novadeck/harness-codex/box"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { replaySlices, type SliceFixture } from "@novadeck/harness-core/testing/slices"
+import { box as opencodeBox, slice as opencodeSlice } from "@novadeck/harness-opencode/box"
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { harnessSources } from "./harnesses.test-support"
@@ -17,6 +18,7 @@ const profiles = {
   claude: { box: claudeBox, slice: claudeSlice, folder: "claude" },
   codex: { box: codexBox, slice: codexSlice, folder: "codex" },
   agy: { box: agyBox, slice: agySlice, folder: "agy" },
+  opencode: { box: opencodeBox, slice: opencodeSlice, folder: "opencode" },
 } as const satisfies Record<AgentName, unknown>
 
 const golden = (agent: AgentName): string => {

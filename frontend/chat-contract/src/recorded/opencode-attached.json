@@ -1,0 +1,148 @@
+{
+  "probed": "2026-11-22",
+  "version": "1.19.6",
+  "how": "The same rig: a prompt that referenced a file with @ (opencode adds the file as synthetic parts of the prompt). Paths are made generic.",
+  "scenarios": {
+    "file-attached": [
+      {
+        "type": "prompt",
+        "info": {
+          "id": "msg_2035fdd63001DsuhIEqZyxSmPm",
+          "role": "user",
+          "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+          "time": {
+            "created": 1795352943971
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fake",
+            "modelID": "fake-sonnet"
+          }
+        },
+        "parts": [
+          {
+            "type": "text",
+            "text": "Look at @sample.txt  ONE-PICTURE what is in it",
+            "messageID": "msg_2035fdd63001DsuhIEqZyxSmPm",
+            "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+            "id": "prt_2035fdd6d001hUIZx99RaEyFU0"
+          },
+          {
+            "messageID": "msg_2035fdd63001DsuhIEqZyxSmPm",
+            "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+            "type": "text",
+            "synthetic": true,
+            "text": "Called the Read tool with the following input: {\"filePath\":\"/home/person/project/sample.txt\"}",
+            "id": "prt_2035fdd6d002yR9xCQWYsr7BIs"
+          },
+          {
+            "messageID": "msg_2035fdd63001DsuhIEqZyxSmPm",
+            "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+            "type": "text",
+            "synthetic": true,
+            "text": "<path>/home/person/project/sample.txt</path>\n<type>file</type>\n<content>\n1: alpha\n2: beta\n3: gamma\n4: delta\n5: epsilon\n6: zeta\n\n(End of file - total 6 lines)\n</content>",
+            "id": "prt_2035fdd6d003XkYfzf5Ahpoktf"
+          },
+          {
+            "type": "file",
+            "mime": "text/plain",
+            "filename": "sample.txt",
+            "url": "file:///home/person/project/sample.txt",
+            "source": {
+              "text": {
+                "value": "@sample.txt",
+                "start": 8,
+                "end": 19
+              },
+              "type": "file",
+              "path": "sample.txt"
+            },
+            "messageID": "msg_2035fdd63001DsuhIEqZyxSmPm",
+            "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+            "id": "prt_2035fdd6d004ym7m3Wlvo71kIH"
+          }
+        ]
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_2035fe0c4001elST9lN7ANJlmT",
+          "messageID": "msg_2035fdd80001yoHM72MmEMsznT",
+          "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+          "type": "step-start"
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_2035fe0c60014Nvl4osMqw5SYx",
+          "messageID": "msg_2035fdd80001yoHM72MmEMsznT",
+          "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+          "type": "text",
+          "text": "It is a red rectangle.",
+          "time": {
+            "start": 1795352944838,
+            "end": 1795352944841
+          }
+        }
+      },
+      {
+        "type": "part",
+        "role": "assistant",
+        "part": {
+          "id": "prt_2035fe0cc001jDTFb2Wm8BWrWE",
+          "reason": "stop",
+          "messageID": "msg_2035fdd80001yoHM72MmEMsznT",
+          "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+          "type": "step-finish",
+          "tokens": {
+            "total": 138,
+            "input": 137,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        }
+      },
+      {
+        "type": "message",
+        "info": {
+          "id": "msg_2035fdd80001yoHM72MmEMsznT",
+          "parentID": "msg_2035fdd63001DsuhIEqZyxSmPm",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/home/person/project",
+            "root": "/"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 138,
+            "input": 137,
+            "output": 1,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fake-sonnet",
+          "providerID": "fake",
+          "time": {
+            "created": 1795352944000,
+            "completed": 1795352944870
+          },
+          "sessionID": "ses_dfca022acffe3mhZQgY6HDP1x5",
+          "finish": "stop"
+        }
+      }
+    ]
+  }
+}

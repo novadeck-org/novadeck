@@ -792,6 +792,33 @@ describe("delivery through hooks", () => {
     expect(prompt("B", codex).leaseId).toEqual(expect.any(String))
   })
 
+  it("starts opencode's next turn with a Stop's messages, and rings nothing more in the turn it started", () => {
+    const { messaging, send, prompt, stop, follow } = create()
+    const opencode = binding("opencode", "ses_oc", "5")
+    follow("B", opencode)
+    prompt("B", opencode)
+    sent(send("A", "fox", "hello"))
+    const answer = stop("B", opencode)
+    expect(answer.leaseId).toEqual(expect.any(String))
+    expect(JSON.parse(answer.stdout!)).toEqual({ deliver: expect.stringContaining("hello") })
+    messaging.acknowledge("B", answer.leaseId!)
+    // The turn that delivery started ends with nothing new: it rings nothing more.
+    prompt("B", opencode, "harness")
+    expect(stop("B", opencode)).toEqual({ leaseId: null, stdout: "{}\n" })
+  })
+
+  it("gives opencode's messages at its Stop over a draft, as every harness's, its turn starting through its API", () => {
+    const { messaging, send, prompt, stop, follow } = create()
+    const opencode = binding("opencode", "ses_oc", "5")
+    follow("B", opencode)
+    prompt("B", opencode)
+    messaging.keys("B", ["content"], false)
+    sent(send("A", "fox", "hello"))
+    // The plugin prompts the session through its API, which types nothing in the box: the
+    // draft stays as it was (the e2e scenarios "gives the reply at the Stop over a draft").
+    expect(stop("B", opencode).leaseId).toEqual(expect.any(String))
+  })
+
   it("still continues a Stop after an answer to a request during the turn", () => {
     const { messaging, send, prompt, stop, codex } = create()
     prompt("B", codex)

@@ -54,8 +54,8 @@ describe("answerReaders", () => {
   it("reads an agent of a harness it doesn't know as `newer` wherever a terminal names it", () => {
     const summary = {
       id: "t",
-      agent: "opencode",
-      ready: "opencode",
+      agent: "grok",
+      ready: "grok",
       restingAgent: null,
       startup: null,
     }

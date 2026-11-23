@@ -13,6 +13,11 @@
       "types": "./dist/conversation.d.ts",
       "default": "./dist/conversation.js"
     },
+    "./cmd-lines": {
+      "development": "./src/cmd-lines.ts",
+      "types": "./dist/cmd-lines.d.ts",
+      "default": "./dist/cmd-lines.js"
+    },
     "./decode": {
       "development": "./src/decode.ts",
       "types": "./dist/decode.d.ts",

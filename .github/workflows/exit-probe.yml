@@ -38,7 +38,8 @@ jobs:
           - { name: Claude Code, agents: claude }
           - { name: Codex, agents: codex }
           - { name: Antigravity, agents: agy }
-          - { name: Mixed, agents: "claude,codex,agy", only: every harness at once }
+          - { name: opencode, agents: opencode }
+          - { name: Mixed, agents: "claude,codex,agy,opencode", only: every harness at once }
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
       NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
@@ -95,6 +96,13 @@ jobs:
         with:
           cache: ${{ env.NOVADECK_E2E_CACHE }}
           harness: agy
+
+      - name: Restore opencode
+        if: contains(matrix.setup.agents, 'opencode')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: opencode
 
       - name: Build Protocol and Relay
         run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build

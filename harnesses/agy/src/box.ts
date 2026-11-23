@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { cmdJoined } from "@novadeck/harness-core/cmd-lines"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
@@ -28,41 +29,12 @@ export const shellFooter = (rows: readonly string[]): boolean => {
 
 /**
  * On Windows its shell mode runs a command in cmd (probed 2026-10-10, 1.2.14), which runs
- * only its first line: the lines are joined with `&`, which runs each after the one before
- * whatever that returned, as sh runs lines. A blank line joins nothing. Undefined for one
- * whose lines can't be joined so and mean the same: a remark (`rem`, `@rem`, `rem.`, one
- * after an `&` mid-line or as what `if`, `else` or `do` runs, or behind the `;`, `,`, `=`
- * and spaces cmd skips) or a label (`:x`, `::`, at a line's start or after an `&`) would
- * swallow every line after it, a `%` be expanded across the whole joined line before any
- * of it runs (`set N=1` then `echo %N%`, `%ERRORLEVEL%`), an odd `"` quote the joining
- * `&`, a trailing `^` escape it, a block (`if x (` … `)`) or a line ending or starting in
- * `&`, `&&`, `|` or `||` become a syntax error, and a continued line's indent be lost.
- * `if` refuses a `rem` anywhere after it, its argument as well as its body: refusing
- * asks for one line, which runs as written.
+ * only its first line: its lines are joined as cmd runs them (`cmdJoined`), or refused.
  */
 export const shellCommandOf = (
   command: string,
   platform: NodeJS.Platform = process.platform,
-): string | undefined => {
-  if (platform !== "win32") return command
-  const lines = command.split("\n").filter((line) => line.trim() !== "")
-  if (lines.length < 2) return command.trim()
-  const unjoinable = lines.some((line, at) => {
-    const text = line.trim()
-    return (
-      /(^|[&|(])[\s;,=@]*(rem(\W|$)|:)/i.test(text) ||
-      /\b(else|do)[\s;,=@]+rem(\W|$)/i.test(text) ||
-      /(^|[&|(])[\s;,=@]*if\b.*[\s;,=@]rem(\W|$)/i.test(text) ||
-      text.includes("%") ||
-      // A `^"` is a quote cmd prints, which opens nothing.
-      (text.replaceAll('^"', "").match(/"/g) ?? []).length % 2 === 1 ||
-      /[\^(&|]$/.test(text) ||
-      /^[)&|]/.test(text) ||
-      (at > 0 && lines[at - 1]!.trimEnd().endsWith("^"))
-    )
-  })
-  return unjoinable ? undefined : lines.map((line) => line.trim()).join(" & ")
-}
+): string | undefined => (platform === "win32" ? cmdJoined(command) : command)
 
 /**
  * Where it draws its panel of running subagents, between rules under its box, a row each

@@ -33,6 +33,7 @@ import {
   through,
   turn,
   unrung,
+  allowLabel,
 } from "./scenarios.js"
 
 // The person's controls over a running agent, and seeds that leave something untrusted,
@@ -151,76 +152,83 @@ const leave = async (
   throw new Error(`${terminal.handle} still shows ${String(shows)} after ${skip} pressed 10 times`)
 }
 
+// Anthropic's refusal of a request over the account's usage limit.
+const anthropicLimit = {
+  type: "error",
+  error: { type: "rate_limit_error", message: "This request would exceed your usage limit." },
+}
+
 // The refusal each harness's API gives a plan out of quota: Claude Code's subscription
 // limit (without a retry, as it would otherwise wait out its backoff), Codex's
-// `usage_limit_reached`, and the quota error Antigravity's backend answers.
+// `usage_limit_reached`, and the quota error Antigravity's backend answers; opencode, on
+// Anthropic's API here, has Claude Code's.
 const limitRefusal = (agent: AgentName): Refusal =>
   agent === "claude"
-    ? new Refusal(
-        429,
-        {
-          type: "error",
-          error: {
-            type: "rate_limit_error",
-            message: "This request would exceed your usage limit.",
-          },
-        },
-        { "x-should-retry": "false", "anthropic-ratelimit-unified-status": "rejected" },
-      )
-    : agent === "codex"
-      ? new Refusal(429, {
-          error: {
-            type: "usage_limit_reached",
-            message: "The usage limit has been reached",
-            plan_type: "plus",
-            resets_in_seconds: 3600,
-          },
-        })
-      : new Refusal(429, {
-          error: {
-            code: 429,
-            message:
-              "You have exhausted your capacity on this model. Your quota will reset after 59m30s.",
-            status: "RESOURCE_EXHAUSTED",
-            // Antigravity retries by the delay it names, for minutes if it is long.
-            details: [
-              {
-                "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-                reason: "QUOTA_EXHAUSTED",
-                domain: "cloudcode-pa.googleapis.com",
-                metadata: { model: "gemini-3.1-pro", quotaResetDelay: "59m30s" },
-              },
-              { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "1s" },
-            ],
-          },
-        })
+    ? new Refusal(429, anthropicLimit, {
+        "x-should-retry": "false",
+        "anthropic-ratelimit-unified-status": "rejected",
+      })
+    : // opencode retries any 429 five times, by the delay a `retry-after-ms` names, else
+      // backing off from 2 s, a minute in all, before the turn fails with it (session/retry.ts,
+      // `RETRY_MAX_RETRIES`; 1.19.6): a short delay keeps the test from waiting it out.
+      agent === "opencode"
+      ? new Refusal(429, anthropicLimit, { "retry-after-ms": "50" })
+      : agent === "codex"
+        ? new Refusal(429, {
+            error: {
+              type: "usage_limit_reached",
+              message: "The usage limit has been reached",
+              plan_type: "plus",
+              resets_in_seconds: 3600,
+            },
+          })
+        : new Refusal(429, {
+            error: {
+              code: 429,
+              message:
+                "You have exhausted your capacity on this model. Your quota will reset after 59m30s.",
+              status: "RESOURCE_EXHAUSTED",
+              // Antigravity retries by the delay it names, for minutes if it is long.
+              details: [
+                {
+                  "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                  reason: "QUOTA_EXHAUSTED",
+                  domain: "cloudcode-pa.googleapis.com",
+                  metadata: { model: "gemini-3.1-pro", quotaResetDelay: "59m30s" },
+                },
+                { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "1s" },
+              ],
+            },
+          })
 
 // A reply that has the agent write `path` with its harness's own tool.
 const writing = (agent: AgentName, path: string): Reply =>
   agent === "claude"
     ? { calls: [{ name: "Write", input: { file_path: path, content: "x\n" } }] }
-    : agent === "codex"
-      ? {
-          // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
-          // runs the program through its shell, which Codex takes as the same patch.
-          calls: [
-            {
-              name: "exec_command",
-              input: {
-                cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
-                yield_time_ms: 5000,
+    : agent === "opencode"
+      ? { calls: [{ name: "write", input: { filePath: path, content: "x\n" } }] }
+      : agent === "codex"
+        ? {
+            // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
+            // runs the program through its shell, which Codex takes as the same patch.
+            calls: [
+              {
+                name: "exec_command",
+                input: {
+                  cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
+                  yield_time_ms: 5000,
+                },
               },
-            },
-          ],
-        }
-      : {
-          calls: [
-            {
-              name: "write_file",
-              input: { Path: path, Overwrite: true, Content: "x\n" },
-            },
-          ],
-        }
+            ],
+          }
+        : {
+            calls: [
+              {
+                name: "write_file",
+                input: { Path: path, Overwrite: true, Content: "x\n" },
+              },
+            ],
+          }
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
@@ -334,6 +342,8 @@ for (const setup of setups) {
       await t1.reached("working", { after: mark })
       if (setup.running) await t1.until(setup.running)
       await t1.escape()
+      // Where the first only arms the interrupt, the person presses it again.
+      if (setup.stops === 2) await t1.escape()
 
       const ended = await t1.reached("unknown", { after: mark })
       held.open()
@@ -782,7 +792,7 @@ for (const setup of setups) {
           const request = (await t1.detail()).requests.find((each) => !each.answered)
           const { dialog } = request ?? {}
           const yes = dialog?.type === "choices" ? dialog.options[0] : undefined
-          if (request && dialog?.type === "choices" && yes && yes.label.startsWith("Yes"))
+          if (request && dialog?.type === "choices" && yes && allowLabel(setup).test(yes.label))
             await t1.answer(request.ref, { dialog: dialog.id, type: "choice", option: yes.id })
           return t1.summary().activity?.lastTurn?.outcome === "completed" ? true : undefined
         },

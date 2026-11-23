@@ -20,6 +20,8 @@ const planLeadMs: Readonly<Record<AgentName, number>> = {
   claude: 30 * second,
   codex: minute,
   agy: 15 * minute,
+  // opencode's plan_exit asks once the plan file is written, at the end of its turn.
+  opencode: minute,
 }
 
 // How long after its dialog a plan may still come: the hook or rollout line that shows it

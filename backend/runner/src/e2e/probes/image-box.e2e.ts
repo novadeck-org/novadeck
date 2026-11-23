@@ -11,13 +11,14 @@ import { box as agyBox } from "@novadeck/harness-agy/box"
 import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
+import { box as opencodeBox } from "@novadeck/harness-opencode/box"
 
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { start } from "../scenarios.js"
 import { paste, probing, sleep } from "./support.js"
 
-const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox }
+const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox, opencode: opencodeBox }
 
 const picture = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",

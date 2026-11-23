@@ -1,5 +1,5 @@
 /** The placeholder a harness shows for a pasted image, `[Image #N]`. */
-const mark = /\[Image #\d+\]/g
+const mark = /\[Image #?\d+\]/g
 
 /** A text without its white space: where a mark stood is told by what came before it, so that a box's own spacing around one doesn't count. */
 export const compactLength = (text: string): number => text.replace(/\s+/g, "").length

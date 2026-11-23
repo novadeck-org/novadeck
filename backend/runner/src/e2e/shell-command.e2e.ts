@@ -1,7 +1,30 @@
+import { writeFileSync } from "node:fs"
+import { join } from "node:path"
+
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import type { DeckTerminal } from "./deck.js"
+import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { asked, gate } from "./model/script.js"
 import { start } from "./scenarios.js"
+
+// A wait for the summary's command that, where it never shows, says what the agent's chat holds
+// of the command's run: its result, as the program printed it, tells a command that never ran from
+// one that ran and ended at once.
+const reported = async <T>(t: DeckTerminal, wait: () => Promise<T>): Promise<T> => {
+  try {
+    return await wait()
+  } catch (error) {
+    const items = await t.transcript().catch(() => [])
+    const tail = items
+      .slice(-4)
+      .map(
+        (item) => `${item.role}/${item.kind}: ${JSON.stringify((item.text ?? "").slice(0, 400))}`,
+      )
+      .join("\n")
+    throw new Error(`${String(error)}\nThe chat's last items:\n${tail}`, { cause: error })
+  }
+}
 
 // A command the person runs in the harness's own shell mode (`!sleep 8`) is no turn and no
 // hook tells it, yet the terminal's summary reports it as `shellCommand` while the process
@@ -17,12 +40,17 @@ const seconds = 5
 const longer = 8
 // Antigravity runs a command in cmd on Windows, which has no `sleep`; node is on every
 // sandbox's PATH, and a command without `>` or `&` reads the same in cmd, PowerShell and sh.
+// It runs a script in the project, so the command has no quotes: opencode (Bun) passes a `"`
+// inside a command to cmd as `\"`, which cmd keeps, so `node -e "setTimeout(...)"` evaluates a
+// string and ends at once (opencode's own: the same command typed into its shell mode by hand
+// does so too).
+const script = "sleep.cjs"
+const sleeper = (project: string) =>
+  writeFileSync(join(project, script), "setTimeout(() => {}, Number(process.argv[2]) * 1000)\n")
 const sleeping = (long: number) =>
-  process.platform === "win32"
-    ? `node -e "setTimeout(function(){},${long * 1000})"`
-    : `sleep ${long}`
+  process.platform === "win32" ? `node ${script} ${long}` : `sleep ${long}`
 const command = sleeping(seconds)
-const needleOf = (long: string) => (process.platform === "win32" ? "setTimeout" : long)
+const needleOf = (long: string) => (process.platform === "win32" ? script : long)
 const needle = needleOf(command)
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -38,6 +66,7 @@ for (const setup of setups) {
         e2e: run,
       }) => {
         run.model.use((call) => (asked(call, "Say hi") ? { text: "Hi there." } : undefined))
+        sleeper(run.sandbox.project)
         const t = await start(run, setup)
         if (bound) {
           await t.submit("Say hi")
@@ -58,14 +87,16 @@ for (const setup of setups) {
         raw("\r")
 
         const seen: (string | null)[] = []
-        const shell = await t.poll(
-          () => {
-            const found = t.summary().shellCommand
-            seen.push(t.summary().activity?.state ?? null)
-            return found ?? undefined
-          },
-          "its summary to report the shell command",
-          6000,
+        const shell = await reported(t, () =>
+          t.poll(
+            () => {
+              const found = t.summary().shellCommand
+              seen.push(t.summary().activity?.state ?? null)
+              return found ?? undefined
+            },
+            "its summary to report the shell command",
+            6000,
+          ),
         )
         expect(shell.command).toContain(needle)
         expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)
@@ -92,51 +123,62 @@ for (const setup of setups) {
       })
     }
 
-    it("reports a command entered while a turn works once the turn has ended, then drops it", async ({
-      e2e: run,
-    }) => {
-      const held = gate()
-      run.model.use(async (call) => {
-        if (!asked(call, "Hold on")) return undefined
-        await held.opened
-        return { text: "Held." }
-      })
-      const t = await start(run, setup)
-      const raw = (data: string) => run.deck.terminals.write({ terminalId: t.id, data }, "e2e")
-      await t.submit("Hold on")
-      await t.reached("working")
+    // opencode drops a command entered while a turn works: its box empties and it never runs
+    // (probed 2026-11-22, 1.19.6, harnesses/opencode box fixture `shellMid`), so none is reported.
+    gated(
+      it,
+      harnesses[setup.agent].box.shell.midTurn === "drops"
+        ? "its shell mode drops a command entered while a turn works"
+        : undefined,
+    )(
+      "reports a command entered while a turn works once the turn has ended, then drops it",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Held." }
+        })
+        sleeper(run.sandbox.project)
+        const t = await start(run, setup)
+        const raw = (data: string) => run.deck.terminals.write({ terminalId: t.id, data }, "e2e")
+        await t.submit("Hold on")
+        await t.reached("working")
 
-      raw("!")
-      await wait(800)
-      raw(paste(sleeping(longer)))
-      await wait(800)
-      const entered = Date.now()
-      raw("\r")
-      await wait(1000)
-      held.open()
-      await t.until("Held.")
+        raw("!")
+        await wait(800)
+        raw(paste(sleeping(longer)))
+        await wait(800)
+        const entered = Date.now()
+        raw("\r")
+        await wait(1000)
+        held.open()
+        await t.until("Held.")
 
-      // Codex shows it from its Enter; the others from the turn's end, a second or so after.
-      const shell = await t.poll(
-        () => t.summary().shellCommand ?? undefined,
-        "its summary to report the shell command after the turn",
-        longer * 1000,
-      )
-      expect(shell.command).toContain(needleOf(sleeping(longer)))
-      expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)
+        // Codex shows it from its Enter; the others from the turn's end, a second or so after.
+        const shell = await reported(t, () =>
+          t.poll(
+            () => t.summary().shellCommand ?? undefined,
+            "its summary to report the shell command after the turn",
+            longer * 1000,
+          ),
+        )
+        expect(shell.command).toContain(needleOf(sleeping(longer)))
+        expect(shell.since).toBeGreaterThanOrEqual(entered - 1000)
 
-      await t.poll(
-        () => (t.summary().shellCommand === null ? true : undefined),
-        "its summary to drop the shell command once the process ended",
-        longer * 1000 + 6000,
-      )
-      // The turn's activity is its own: working through it (Claude Code, which takes a
-      // queued command's output as a turn of its own, stays so a while longer), then idle.
-      await t.poll(
-        () => (t.summary().activity?.state === "idle" ? true : undefined),
-        "its agent to be idle",
-        15_000,
-      )
-    })
+        await t.poll(
+          () => (t.summary().shellCommand === null ? true : undefined),
+          "its summary to drop the shell command once the process ended",
+          longer * 1000 + 6000,
+        )
+        // The turn's activity is its own: working through it (Claude Code, which takes a
+        // queued command's output as a turn of its own, stays so a while longer), then idle.
+        await t.poll(
+          () => (t.summary().activity?.state === "idle" ? true : undefined),
+          "its agent to be idle",
+          15_000,
+        )
+      },
+    )
   })
 }

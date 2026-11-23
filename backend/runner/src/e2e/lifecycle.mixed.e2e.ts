@@ -1,6 +1,7 @@
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
+import { opencode } from "./agents/opencode.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import type { Call } from "./model/script.js"
 import {
@@ -24,7 +25,7 @@ import {
 // lifecycle.e2e.ts, where the same harness starts anew, and `handing` in scenarios.ts).
 // Every harness leaves with `/exit`, typed at its prompt.
 
-const order = [claude, codex, agy]
+const order = [claude, codex, agy, opencode]
 
 /** Whether the call is of t2's turn asking t1 once more. */
 const again = (call: Call): boolean =>

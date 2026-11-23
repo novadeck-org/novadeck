@@ -241,6 +241,21 @@ describe("the agent switches", () => {
     app.stop()
   })
 
+  it("keep an agent whose limit a newer runner names as no limit this UI can show", async () => {
+    const found = [
+      { agent: "opencode", available: true, connected: true, limited: "newer" },
+      { agent: "agy", available: true, connected: true, limited: "own-status-line" },
+    ]
+    const app = scripted({ shown: [], listAgents: async () => found })
+    const agents = app.backend.agents!
+    await agents.refresh()
+    expect(agents.state.getSnapshot()).toEqual([
+      { agent: "opencode", available: true, connected: true, busy: false },
+      { agent: "agy", available: true, connected: true, limited: "own-status-line", busy: false },
+    ])
+    app.stop()
+  })
+
   it("asks for a fresh look only when told to", async () => {
     const asked: unknown[] = []
     const app = scripted({

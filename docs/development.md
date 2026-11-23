@@ -653,7 +653,8 @@ Agents:
   projects have no preview, so they open as main's copy.
 - **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
   connect Antigravity with the note Preferences shows where its own status line keeps
-  Novadeck's out, as on Windows.
+  Novadeck's out, as on Windows, or opencode with the note for a release too old for Novadeck's
+  plugin, or for an opencode 2, which Novadeck doesn't know yet.
 
 App:
 
@@ -1159,6 +1160,7 @@ atlas.
 | `harnesses/claude`        | The Claude Code adapter: hooks, transcripts, dialogs, input box.                           |
 | `harnesses/codex`         | The Codex adapter, same shape.                                                             |
 | `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
+| `harnesses/opencode`      | The opencode adapter: the plugin its shim loads per launch, transcripts, dialogs, box.     |
 | `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
 | `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
 | `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |

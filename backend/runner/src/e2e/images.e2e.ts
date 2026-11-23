@@ -1,6 +1,10 @@
 /* eslint-disable no-await-in-loop -- A scenario's steps run in order, each after the one before. */
+import { mkdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { box as codexBox } from "@novadeck/harness-codex/box"
 
+import { imagePaste } from "../terminals/image-paste.js"
 import { setups } from "./agents/index.js"
 import { item, prompted } from "./chat-prompts.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
@@ -56,7 +60,8 @@ for (const setup of setups) {
           ).toBe(images.length)
           // The record keeps each image's place in the words, or beside them.
           const record = await item(t1, "user", (text) => text.includes(words))
-          if (setup.image!.inline) expect(record).toContain(`[Image #${images.length}]`)
+          if (setup.image!.inline)
+            expect(record).toMatch(new RegExp(`\\[Image #?${images.length}\\]`))
         },
       )
 
@@ -113,8 +118,8 @@ for (const setup of setups) {
             text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")
           const placed = new RegExp(
             held
-              ? pieces.map(flat).join("\\s*\\[Image #\\d+\\]\\s*")
-              : `(?:\\s*\\[Image #\\d+\\])+\\s*${flat(pieces.filter(Boolean).join(" "))}`,
+              ? pieces.map(flat).join("\\s*\\[Image #?\\d+\\]\\s*")
+              : `(?:\\s*\\[Image #?\\d+\\])+\\s*${flat(pieces.filter(Boolean).join(" "))}`,
           )
           const call = await run.model.waitFor(
             (each) =>
@@ -162,6 +167,42 @@ for (const setup of setups) {
         )
         expect(user?.role === "user" ? (user.images ?? 0) : -1).toBe(1)
         expect(user?.text).toContain("line19\nline20")
+      },
+    )
+
+    // A file pasted into the agent's own terminal, or dropped on it: the screen types its path as
+    // a shell reads it as one word, then a space, in a bracketed paste of its own
+    // (`pasteFiles` in libraries/terminal/src/view/paste.ts, whose `shellPath` `imagePaste`
+    // mirrors). A folder and a name with spaces make it a path the harness must take escaped.
+    gated(it, lacking(setup, "image"))(
+      "takes as the image its escaped path, pasted into its terminal as a paste or drop of the file types it",
+      async ({ e2e: run }) => {
+        run.model.use(replies("Read this", "Seen."))
+        const folder = join(run.sandbox.project, "dropped here")
+        mkdirSync(folder, { recursive: true })
+        const path = join(folder, "my shot.png")
+        writeFileSync(path, picture)
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const type = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+
+        type(`\x1b[200~${imagePaste(path)} \x1b[201~`)
+        await t1.until(setup.image!.shows)
+        type("Read this")
+        await t1.until("Read this")
+        type("\r")
+        await t1.until("Seen.")
+
+        const call = await run.model.waitFor(
+          (each) =>
+            !each.side &&
+            each.turns.some((one) => one.role === "user" && one.text.includes("Read this")),
+          { after: calls },
+        )
+        const user = call.turns.findLast(
+          (one) => one.role === "user" && one.text.includes("Read this"),
+        )
+        expect(user?.role === "user" ? (user.images ?? 0) : -1, "the image it passed").toBe(1)
       },
     )
 

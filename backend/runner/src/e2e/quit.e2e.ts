@@ -6,10 +6,11 @@ import { promisify } from "node:util"
 
 import { anyRunning } from "@novadeck/terminal/pty"
 
+import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked } from "./model/script.js"
-import { lacking, own, replies, result, start, turn } from "./scenarios.js"
+import { allowLabel, lacking, own, replies, result, start, turn } from "./scenarios.js"
 
 // How long a quit may hold a terminal's agent and its tools: the five seconds the app gives it,
 // which a close, with its own 3 s, keeps to as well.
@@ -51,6 +52,7 @@ const toolLeft = async (word: string, told: readonly number[]): Promise<readonly
 // Codex's sandbox runs it unasked.
 const running = async (
   run: E2E,
+  setup: AgentSetup,
   terminal: Awaited<ReturnType<typeof start>>,
 ): Promise<readonly number[]> => {
   const up = join(run.sandbox.project, "quit-tool.up")
@@ -76,7 +78,9 @@ const running = async (
   )
   if (asking !== "running") {
     const { ref, dialog } = asking
-    const yes = dialog.options.find((each) => each.label.startsWith("Yes") && each.text === null)
+    const yes = dialog.options.find(
+      (each) => allowLabel(setup).test(each.label) && each.text === null,
+    )
     if (!yes) throw new Error(`No yes in ${JSON.stringify(dialog)}`)
     await terminal.answer(ref, { dialog: dialog.id, type: "choice", option: yes.id })
     await terminal.poll(() => (started() ? true : undefined), "its tool to start", 60_000)
@@ -112,7 +116,7 @@ for (const setup of setups) {
         const terminal = await start(run, setup)
         // Past a first turn, which binds every harness to its terminal.
         await turn(terminal, "Say ok", "Okay then.")
-        const told = await running(run, terminal)
+        const told = await running(run, setup, terminal)
         expect((await toolLeft(word, told)).length).toBeGreaterThanOrEqual(2)
 
         const began = performance.now()

@@ -8,9 +8,12 @@ import type {
 } from "@novadeck/core/port"
 import { endingText, terminalEnding, terminalPhase } from "@novadeck/core/terminals/ending"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
+import { useFileDrop } from "@novadeck/toolkit/file-drops"
 import { useShown } from "@novadeck/toolkit/shown"
 import {
   TerminalControlStrip,
+  TerminalDrop,
+  terminalDropNotice,
   TerminalEndingBar,
   TerminalLock,
   TerminalNotice,
@@ -197,13 +200,25 @@ export const MountedTerminal = ({
     // Intercept before XYFlow's native listener, but let zoom gestures reach it.
     if (!event.ctrlKey && !event.metaKey) event.stopPropagation()
   }, [])
+  // Files dragged over the terminal: how many, while it would take them. A drop pastes their
+  // paths as a paste of them does, in every view alike. Its zone is the body its window holds it
+  // in (`.terminal-host`), not the companion pane beside or over it: Canvas lets an unselected
+  // window's content take no pointer, so a press selects it, and its drags reach that body. Not
+  // while its chat covers it, whose own box takes them.
+  const [dropping, setDropping] = useState<number | null>(null)
+  const dropZone = useFileDrop({
+    accepts: () => !covered && (mount?.takesFiles?.() ?? false),
+    over: setDropping,
+    drop: (data) => mount?.dropFiles?.(data),
+  })
   const onRoot = useCallback(
     (content: HTMLDivElement | null): void => {
       root.current?.removeEventListener("wheel", onWheel)
       root.current = content
       content?.addEventListener("wheel", onWheel, { passive: true })
+      dropZone(content?.closest(".terminal-host") ?? content)
     },
-    [onWheel],
+    [onWheel, dropZone],
   )
   // Where the content remounts, the element moves into the new slot, and takes the focus it
   // held in the old.
@@ -263,6 +278,7 @@ export const MountedTerminal = ({
           ) : (
             lock && <TerminalLock notice={lockNotices[lock]} />
           )}
+          {dropping !== null && <TerminalDrop notice={terminalDropNotice(dropping)} />}
         </div>,
       )}
       {/* Announced from outside the window: the bar is inert while hidden, the content

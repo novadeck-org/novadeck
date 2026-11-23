@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
+    "customConditions": ["development"],
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

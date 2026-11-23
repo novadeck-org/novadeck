@@ -32,6 +32,8 @@ const recorded = () => {
       update: (change) => void asked.push(change),
       focus: () => true,
       take: () => void calls.push("take"),
+      takesFiles: () => true,
+      dropFiles: () => void calls.push("drop"),
       release: ({ unmount = false } = {}) => void calls.push(unmount ? "unmount" : "release"),
     }
   }

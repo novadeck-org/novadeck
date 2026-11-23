@@ -43,6 +43,8 @@ export type DialogRecordInput = {
   readonly refusals: readonly string[]
   readonly request: RequestFacts
   readonly rows: readonly string[]
+  /** The screen's lit rows (`ScreenText.lit`), which an adapter may read a selection from. */
+  readonly lit?: readonly string[] | undefined
   readonly columns: number
 }
 
@@ -73,7 +75,16 @@ export const dialogRecord = (given: DialogRecordInput): DialogRecord => {
               payload: { tool_name: request.tool, tool_input: request.input },
             },
       ],
-      screens: { [size]: screenRecord(given.rows.join("\n"), { columns }) },
+      screens: {
+        [size]: {
+          ...screenRecord(given.rows.join("\n"), { columns }),
+          ...(given.lit?.some((row) => row.trim() !== "") && {
+            lit: Object.fromEntries(
+              given.lit.flatMap((row, at) => (row.trim() === "" ? [] : [[String(at), row]])),
+            ),
+          }),
+        },
+      },
     },
   }
 }
@@ -92,8 +103,13 @@ export const readRecord = (
   adapter: DialogAdapter,
   record: DialogRecord,
 ): { read: DialogRead | undefined; refusals: string[] } => {
+  const [shown] = Object.values(record.scenario.screens)
   const { result, refusals } = explain(() =>
-    adapter.read(rowsOfRecord(record), { ...record.request }),
+    adapter.read(
+      rowsOfRecord(record),
+      { ...record.request },
+      shown && shown.lit ? screenOf(shown) : undefined,
+    ),
   )
   return { read: result, refusals }
 }

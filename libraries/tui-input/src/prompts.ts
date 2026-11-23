@@ -133,6 +133,8 @@ export type PromptHost = {
    * session its first prompt starts (see `admit`).
    */
   readonly bound: (terminalId: string) => boolean
+  /** Whether the program's turn works, where the host knows it. */
+  readonly working?: (terminalId: string) => boolean
   /** The nonce of the line being delivered there, if any. */
   readonly ringing: (terminalId: string) => string | undefined
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
@@ -190,6 +192,8 @@ export type PromptOptions = {
   readonly ringMs?: number
   /** How long after its Enter the window's resizes stay held, in milliseconds. */
   readonly settleMs?: number
+  /** How long a sent prompt waits for the program to show it as taken (`BoxProfile.echoed`). */
+  readonly echoMs?: number
   /** How long a first prompt's session is waited on to bind after its Enter, in milliseconds. */
   readonly bindMs?: number
   /** How long a box holding text is waited on to read empty before the prompt is refused. */
@@ -276,6 +280,7 @@ export class Prompts {
   private readonly pasteMs: number
   private readonly ringMs: number
   private readonly settleMs: number
+  private readonly echoMs: number
   private readonly emptyMs: number
   private readonly bindMs: number
   private readonly keysMs: number
@@ -291,6 +296,7 @@ export class Prompts {
     this.pasteMs = options.pasteMs ?? 5_000
     this.ringMs = options.ringMs ?? 10_000
     this.settleMs = options.settleMs ?? 1_000
+    this.echoMs = options.echoMs ?? 3_000
     this.emptyMs = options.emptyMs ?? 3_000
     this.bindMs = options.bindMs ?? 5_000
     this.keysMs = options.keysMs ?? 2_000
@@ -456,6 +462,12 @@ export class Prompts {
         "unrunnable",
         "The shell mode runs only a command's first line, and these lines can't be joined to run as written.",
       )
+    // A program that drops a shell command given mid-turn never runs it: it isn't sent.
+    if (shell && profile.shell.midTurn === "drops" && this.host.working?.(terminalId) === true)
+      throw new PromptRefusal(
+        "refused",
+        "This program drops a shell command given while its turn works. Send it once the turn has ended.",
+      )
     const typed = given || text
     // The first prompt of a program shown before its session binds starts that session, as a
     // shell command does only where its TUI starts one for it.
@@ -467,6 +479,8 @@ export class Prompts {
     // Whether the box showed the command only as a placeholder its shell would run as text.
     let unexpanded = false
     let returned: string | undefined
+    // The screen the prompt's paste started from, for what shows it taken (`BoxProfile.echoed`).
+    let started: ScreenText | undefined
     let left: InputBox | undefined
     let along: string | undefined
     // How many images the box showed so far, which a failure takes back out.
@@ -513,6 +527,7 @@ export class Prompts {
       }
       // A request may have come while the hold was taken: no paste into its dialog.
       this.host.admit(terminalId)
+      started = before
       // Images attached already, as one pasted in the program's own terminal and not sent
       // (Antigravity keeps them apart from the box's text), are a draft: they would be counted
       // as ours and taken back with ours.
@@ -582,8 +597,13 @@ export class Prompts {
       // After the images, the text goes on their line; a space keeps its first word apart from
       // the last placeholder, as the record then holds it (see `Receipts.joined`).
       if (images.length > 0 && typed !== "") joined?.()
+      const apart = left !== undefined && !keys && profile.breakApart === true
+      if (apart && !this.host.type(terminalId, bracketedPaste(inPaste("\n\n"))))
+        throw this.notShown()
       const pasted = left
-        ? `${keys ? " " : "\n\n"}${typed}`
+        ? apart
+          ? typed
+          : `${keys ? " " : "\n\n"}${typed}`
         : runs
           ? runPaste(images.length)
           : images.length > 0 && typed !== ""
@@ -645,6 +665,7 @@ export class Prompts {
       throw taken(this.notShown())
     }
     if (left) this.host.note?.(terminalId, "sent-along")
+    if (!shell && profile.echoed) await this.echoShown(terminalId, profile, typed, started)
     // The next prompt waits until the session it started is there: a program given one while
     // it still starts its conversation may start another with it, and the first is lost
     // (one TUI did, 160 ms apart: about 1 in 60 CI runs, a few percent under heavy local
@@ -655,6 +676,26 @@ export class Prompts {
     // next entry there takes this hold over, with the resizes it holds.
     hold.settleAfter(this.settleMs)
     return { returned, along }
+  }
+
+  /**
+   * Waits, up to `echoMs`, for the program to show the prompt as taken (`BoxProfile.echoed`),
+   * keys typed before it being lost by some programs. Gives up quietly: the prompt went.
+   */
+  private async echoShown(
+    terminalId: string,
+    profile: BoxProfile,
+    text: string,
+    before: ScreenText | undefined,
+  ): Promise<void> {
+    const until = Date.now() + this.echoMs
+    while (Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      const after = await this.host.screen(terminalId)
+      if (!after || profile.echoed!(after, text, before)) return
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await sleep(this.pollMs)
+    }
   }
 
   /**

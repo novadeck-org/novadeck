@@ -38,7 +38,7 @@ export const item = (
 /** Text without its placeholders of images and runs of white space, as words are told apart. */
 const unmarked = (text = ""): string =>
   text
-    .replace(/\[Image #\d+\]/g, "")
+    .replace(/\[Image #?\d+\]/g, "")
     .replace(/\s+/g, " ")
     .trim()
 

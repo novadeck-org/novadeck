@@ -9,7 +9,15 @@ import {
 import { measureCols, sizeBounds } from "../size.js"
 import { copyOnSelect, readClipboard, takeClipboardWrites } from "./copy.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
-import { takeClipboardKeys, takeFilePastes, type PasteFailure, type PasteTarget } from "./paste.js"
+import {
+  foldersAmong,
+  pastedFiles,
+  pasteFiles,
+  takeClipboardKeys,
+  takeFilePastes,
+  type PasteFailure,
+  type PasteTarget,
+} from "./paste.js"
 import { silenceQueries } from "./queries.js"
 import { scaleToFit } from "./scale.js"
 import {
@@ -139,6 +147,11 @@ type OpenScreen = {
   phase: ViewPhase
   // Starts a fresh shell, as Enter or the Restart button asks.
   readonly restart: () => void
+  // Whether the shell takes what is typed or pasted now: not while input is refused, nor once it
+  // ended and takes only Enter.
+  readonly takesInput: () => boolean
+  // Pastes the paths of `files` as a paste of them does (`pasteFiles`).
+  readonly pasteFiles: (files: readonly File[], folders: ReadonlySet<File>) => void
   // Set when a mount goes while focused, so the next to show this screen focuses it again.
   refocus: boolean
 }
@@ -195,6 +208,14 @@ export type Hold = {
   readonly focus: () => boolean
   // Takes control of an observed terminal, as the person's Take over does.
   readonly take: () => void
+  // Whether files dropped on it would go in now, as pasted ones would: while its shell takes
+  // input. Where it doesn't, as while reconnecting or once it ended, a paste goes nowhere.
+  readonly takesFiles: () => boolean
+  // Takes the files of a drop as a paste of them (`pasteFiles`): each one's own path where the
+  // owner knows it, else a copy's on the host's machine, then focuses the screen, so typing goes
+  // on after them. Read during the drop, which alone tells a folder apart. Nothing where it
+  // doesn't take files.
+  readonly dropFiles: (data: DataTransfer) => void
   // Lets the screen go, once. With `unmount`, focus the screen holds is left for the next
   // mount to restore; without it (out of sight, staying mounted) none is.
   readonly release: (options?: { readonly unmount?: boolean }) => void
@@ -461,6 +482,8 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         refresh({ waits: false })
         o.restart(key)
       },
+      takesInput: () => !gone && state.getSnapshot().lock === null && taking(),
+      pasteFiles: (files, folders) => void pasteFiles(files, target, folders),
       refocus: false,
     }
     refresh()
@@ -753,6 +776,15 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
           return screen.container.contains(document.activeElement)
         },
         take: () => void screen.followed.take().catch(() => {}),
+        takesFiles: () => !released && screen.takesInput(),
+        dropFiles: (data) => {
+          if (released || !screen.takesInput()) return
+          const files = pastedFiles(data)
+          if (files.length === 0) return
+          const folders = foldersAmong(data, files)
+          screen.xterm.focus()
+          screen.pasteFiles(files, folders)
+        },
         release: ({ unmount = false } = {}) => {
           if (released) return
           released = true

@@ -22,7 +22,7 @@ import { hostless, ownHome } from "../testing/host.js"
 import { hookVariables, prune, relayHook, windowsWords } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
-import { relayConfig } from "./scripts.js"
+import { gatedRelayConfig, relayConfig } from "./scripts.js"
 
 type Fixture = {
   endpoint: string
@@ -48,6 +48,9 @@ type Fixture = {
 // The relay's configuration, as the runner writes it beside the relay.
 const relayConfigFile = join(mkdtempSync(join(tmpdir(), "novadeck-relay-config-")), "relay.json")
 writeFileSync(relayConfigFile, JSON.stringify(relayConfig))
+// …and while the shipping gate is on.
+const gatedConfigFile = join(mkdtempSync(join(tmpdir(), "novadeck-relay-gated-")), "relay.json")
+writeFileSync(gatedConfigFile, JSON.stringify(gatedRelayConfig))
 
 const terminalId = "00000000-0000-4000-8000-000000000001"
 // Shaped like a runner's token: 48 hex digits.
@@ -74,6 +77,8 @@ const it = base.extend<{ fixture: Fixture }>({
       ack: (ack) => acks.push(ack),
       call: () => Promise.resolve(unanswered),
       tools: () => {},
+      // The shipping gate answers opencode's PreToolUse here, as it does while it is on.
+      gating: (agent, event) => agent === "opencode" && event === "PreToolUse",
     })
     resources.defer(() => listening.close())
     const hook: Fixture["hook"] = (agent, payload, env = {}, event) =>
@@ -659,6 +664,98 @@ describe("agent hook asking", () => {
       ),
     ).resolves.toBe("{}\n")
     expect(fixture.acks).toEqual([])
+  })
+})
+
+describe("opencode's hook with the shipping gate on", () => {
+  // As the plugin runs it for a `bash` call: the runner's answer, or what the relay prints for none.
+  const ran = (
+    fixture: Fixture,
+    command: string,
+    env: NodeJS.ProcessEnv = {},
+    config = gatedConfigFile,
+  ) =>
+    new Promise<string>((resolve) => {
+      const child = spawn(relayPath, ["hook", "--config", config, "opencode", "PreToolUse"], {
+        env: hostless({
+          NOVADECK_TERMINAL_ID: terminalId,
+          NOVADECK_REPORT: fixture.endpoint,
+          NOVADECK_REPORT_TOKEN: token,
+          ...env,
+        }),
+        stdio: ["pipe", "pipe", "inherit"],
+      })
+      let printed = ""
+      child.stdout.on("data", (data: Buffer) => (printed += data.toString()))
+      void finished(child).then(() => resolve(printed))
+      child.stdin.end(
+        JSON.stringify({
+          hook_event_name: "PreToolUse",
+          cwd: "/work",
+          session_id: "ses_1",
+          tool_name: "bash",
+          call_id: "toolu_1",
+          tool_input: { command, description: "d" },
+        }),
+      )
+    })
+  const refusal = (printed: string) => JSON.parse(printed) as { decision: string; reason: string }
+
+  it("asks the runner for a shell command's PreToolUse, with the whole raw command, and prints its answer", async ({
+    fixture,
+  }) => {
+    const stdout = `${JSON.stringify({ decision: "deny", reason: "Novadeck: ask first." })}\n`
+    fixture.answer.current = { leaseId: null, stdout }
+    await expect(ran(fixture, "git push origin main")).resolves.toBe(stdout)
+    const [asked] = fixture.deadlines
+    expect(asked?.event).toBe("PreToolUse")
+    expect(asked!.deadline - asked!.seq).toBeGreaterThan(2_000)
+    expect(fixture.reports).toMatchObject([
+      {
+        agent: "opencode",
+        event: "PreToolUse",
+        payload: { tool_name: "bash", tool_input: { command: "git push origin main" } },
+      },
+    ])
+  })
+
+  it("acknowledges the lease of a permitted command's silent answer once the relay printed it", async ({
+    fixture,
+  }) => {
+    // The permit is spent on this acknowledgement (opencode's default asks nothing).
+    fixture.answer.current = { leaseId: "lease-1", stdout: "" }
+    await expect(ran(fixture, "git push -f origin main")).resolves.toBe("")
+    expect(fixture.acks.map((ack) => ack.leaseId)).toEqual(["lease-1"])
+  })
+
+  it("refuses what looks like shipping where the runner gave no answer, and nothing else", async ({
+    fixture,
+  }) => {
+    // Unheard: the runner failed, or was too slow. opencode's default runs a command its hook
+    // says nothing of, so every shipping shape is refused, not only the shim's two.
+    for (const command of [
+      "gh pr create --title t",
+      "cd /w && gh pr merge 5 --squash",
+      "git push origin main",
+      "git push -f origin main",
+      "gh pr edit 5 --base release",
+      "gh release create v1",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One hook after another.
+      expect(refusal(await ran(fixture, command)), command).toMatchObject({ decision: "deny" })
+    await expect(ran(fixture, "git status")).resolves.toBe("{}\n")
+    // No runner at all, and a payload too big to send, say nothing of a shape either.
+    const gone = { NOVADECK_REPORT: join(tmpdir(), "novadeck-missing.sock") }
+    expect(refusal(await ran(fixture, "gh pr create", gone)).reason).toContain("Novadeck")
+    await expect(ran(fixture, "ls", gone)).resolves.toBe("{}\n")
+    // Too big to send is read by its start, and a command cut there may hide any shape.
+    const long = (program: string) => `${program} "${"x".repeat(1_500_000)}"`
+    expect(refusal(await ran(fixture, long("gh pr create --body"))).decision).toBe("deny")
+    expect(refusal(await ran(fixture, long("echo"))).decision).toBe("deny")
+  })
+
+  it("prints what it always did while the gate is off", async ({ fixture }) => {
+    await expect(ran(fixture, "gh pr create", {}, relayConfigFile)).resolves.toBe("{}\n")
   })
 })
 

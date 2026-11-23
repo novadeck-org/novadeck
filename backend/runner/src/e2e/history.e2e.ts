@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, rmSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
 import { setups } from "./agents/index.js"
+import { removeConversations, removeSession } from "./agents/opencode.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked } from "./model/script.js"
 import { prompted, replies, turn } from "./scenarios.js"
@@ -109,9 +110,12 @@ for (const setup of setups) {
       const second = await make("egret", "Egret noted.")
       await terminals.close({ terminalId: second.terminal.id })
       const storeFile = /(?:^|\/)(?:projects|sessions|conversations)\//
-      for (const path of walk(run.sandbox.home))
-        if (storeFile.test(path) && path.includes(second.id))
-          rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
+      // opencode's conversations are rows of one database, whose row is the file.
+      if (setup.agent === "opencode") removeSession(run.sandbox, second.id)
+      else
+        for (const path of walk(run.sandbox.home))
+          if (storeFile.test(path) && path.includes(second.id))
+            rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
       expect((await terminals.history.list(projectId))[0]?.availability).toEqual({
         state: "gone",
         reason: "conversation",
@@ -125,9 +129,11 @@ for (const setup of setups) {
       // missing), the restore is tried: Claude Code and Codex exit at once, and Antigravity
       // starts a new conversation silently. None confirms, so the row stays, and the
       // session is free for another restore.
-      for (const path of walk(run.sandbox.home))
-        if (/(?:^|\/)(?:projects|sessions|conversations)$/.test(path))
-          rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
+      if (setup.agent === "opencode") removeConversations(run.sandbox)
+      else
+        for (const path of walk(run.sandbox.home))
+          if (/(?:^|\/)(?:projects|sessions|conversations)$/.test(path))
+            rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
       mkdirSync(join(run.sandbox.home, "elsewhere"), { recursive: true })
       expect((await terminals.history.list(projectId))[0]?.availability).toEqual({ state: "ready" })
       const tried = await run.deck.restoreClosed(second.terminal.id)
