@@ -6,7 +6,7 @@ import { afterEach } from "vitest"
 import { z } from "zod"
 
 import { describe, expect, it } from "../test.js"
-import { latestMs, latestRelease } from "./install.js"
+import { latestMs, latestRelease, renameHeld } from "./install.js"
 
 const version = z.strictObject({ version: z.string() })
 
@@ -89,5 +89,35 @@ describe("latestRelease", () => {
     })
     // With no record to keep, the failure stands.
     await expect(latestRelease(record(), version, failing, 1000)).rejects.toThrow("EAI_AGAIN")
+  })
+})
+
+describe("moving a staged install into place", () => {
+  const failing = (codes: readonly (string | undefined)[]) => {
+    const tries: string[] = []
+    const move = async (from: string, to: string): Promise<void> => {
+      tries.push(`${from}->${to}`)
+      const code = codes[tries.length - 1]
+      if (code !== undefined) throw Object.assign(new Error(code), { code })
+    }
+    const waits: number[] = []
+    const wait = async (ms: number): Promise<void> => void waits.push(ms)
+    return { move, wait, tries, waits }
+  }
+
+  it("tries again, a little later each time, while Windows holds the files", async () => {
+    const { move, wait, tries, waits } = failing(["EPERM", "EBUSY", "EACCES", undefined])
+    await renameHeld("a.tmp", "a", move, wait)
+    expect(tries).toHaveLength(4)
+    expect(waits).toEqual([250, 500, 750])
+  })
+
+  it("gives up after a few tries, and at once on any other failure", async () => {
+    const held = failing(Array.from({ length: 8 }, () => "EPERM"))
+    await expect(renameHeld("a.tmp", "a", held.move, held.wait)).rejects.toThrow("EPERM")
+    expect(held.tries).toHaveLength(8)
+    const other = failing(["ENOENT"])
+    await expect(renameHeld("a.tmp", "a", other.move, other.wait)).rejects.toThrow("ENOENT")
+    expect(other.tries).toHaveLength(1)
   })
 })

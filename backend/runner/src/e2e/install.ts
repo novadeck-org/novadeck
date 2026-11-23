@@ -231,6 +231,34 @@ export const installHarness = (name: AgentName): Promise<Installed> => {
   return install
 }
 
+// Codes Windows gives a rename while something still holds a file in the folder for a moment,
+// as a virus scan of a fresh install does; the rename goes through once it lets go.
+const heldCodes: ReadonlySet<unknown> = new Set(["EPERM", "EACCES", "EBUSY"])
+
+/**
+ * Renames `from` to `to`, trying again a few times, a little longer each, while the files are
+ * held (`heldCodes`), about 10 s in all; any other failure, or the last, is thrown.
+ */
+export const renameHeld = async (
+  from: string,
+  to: string,
+  move: (from: string, to: string) => Promise<void> = rename,
+  wait: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => void setTimeout(resolve, ms)),
+): Promise<void> => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- One try at a time.
+      return await move(from, to)
+    } catch (error) {
+      const code = (error as { readonly code?: unknown }).code
+      if (attempt >= 8 || !heldCodes.has(code)) throw error
+      // eslint-disable-next-line no-await-in-loop -- Waits for the hold to end.
+      await wait(attempt * 250)
+    }
+  }
+}
+
 // A staging folder beside the final one, named so no other run picks the same.
 const stagingFor = (folder: string): string => `${folder}.${randomBytes(6).toString("hex")}.tmp`
 
@@ -246,7 +274,7 @@ const settle = async (staging: string, folder: string, program: string): Promise
   if (existsSync(program)) return
   if (existsSync(folder)) throw broken()
   try {
-    await rename(staging, folder)
+    await renameHeld(staging, folder)
   } catch (error) {
     if (existsSync(program)) return
     throw existsSync(folder) ? broken() : error
