@@ -273,13 +273,15 @@ const shardsOn: ReadonlyMap<string, ReadonlyMap<string, number>> = new Map([
     ]),
   ],
   [
-    // Planned as Antigravity's, the harness it is likeliest to run as long as, until its own
-    // runs are recorded (`durations.ts`).
+    // Its suite runs about twice Antigravity's: 46 minutes on Linux and 58 on Windows, the
+    // median of three runs of 2026-11-23, where three Linux shards ran one past its 20 minutes.
+    // Its macOS times are Linux's half a tenth slower, as Antigravity's are, until a night
+    // records them.
     "opencode",
     new Map([
-      [systems.linux, 3],
-      [systems.windows, 2],
-      [systems.macos, 2],
+      [systems.linux, 4],
+      [systems.windows, 3],
+      [systems.macos, 3],
     ]),
   ],
   [
