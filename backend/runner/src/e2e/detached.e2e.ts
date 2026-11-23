@@ -13,7 +13,7 @@ import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked } from "./model/script.js"
-import { lacking, own, prompted, replies, result, start, turn } from "./scenarios.js"
+import { allowLabel, lacking, own, prompted, replies, result, start, turn } from "./scenarios.js"
 
 // How long a quit may take in all: the five seconds the app gives the runner.
 const quitMs = 5_000
@@ -104,8 +104,13 @@ const startOf = (pid: number): string | undefined => {
   }
 }
 
-/** Has the agent run the script; answers its harness's question, should it ask. */
-const launch = async (run: E2E, terminal: DeckTerminal, count: number): Promise<void> => {
+/** Has the agent run the script; allows it once where its harness asks, in that harness's words. */
+const launch = async (
+  run: E2E,
+  setup: AgentSetup,
+  terminal: DeckTerminal,
+  count: number,
+): Promise<void> => {
   const pids = join(run.sandbox.project, "detached.pids")
   const answered = new Set<string>()
   await terminal.prompt("Run the detach script")
@@ -117,7 +122,7 @@ const launch = async (run: E2E, terminal: DeckTerminal, count: number): Promise<
       if (request?.dialog?.type === "choices" && !answered.has(request.ref)) {
         answered.add(request.ref)
         const yes = request.dialog.options.find(
-          (each) => each.label.startsWith("Yes") && each.text === null,
+          (each) => allowLabel(setup).test(each.label) && each.text === null,
         )
         if (yes)
           await terminal.answer(request.ref, {
@@ -180,7 +185,7 @@ for (const setup of setups) {
                 })
               : await start(run, setup)
             await turn(terminal, "Say ok", "Okay then.")
-            await launch(run, terminal, variants.length)
+            await launch(run, setup, terminal, variants.length)
             // Codex's sandbox has ended them all already, as its command ended; Antigravity ends
             // its command's own group a moment after it, leaving what left its session.
             const before = await left(word)
@@ -209,7 +214,7 @@ for (const setup of setups) {
         await terminal.reached("ready", { timeoutMs: 60_000 })
         await prompted(terminal, setup)
         await turn(terminal, "Say ok", "Okay then.")
-        await launch(run, terminal, variants.length)
+        await launch(run, setup, terminal, variants.length)
         const agent = agentOf(run, terminal)
         expect(agent).toBeDefined()
         // The agent dies without a word, as one killed or crashed: nothing of its own ends what
@@ -274,7 +279,7 @@ for (const setup of setups) {
           await terminal.reached("ready", { timeoutMs: 60_000 })
           await prompted(terminal, setup)
           await turn(terminal, "Say ok", "Okay then.")
-          await launch(run, terminal, 1)
+          await launch(run, setup, terminal, 1)
           const [app] = readFileSync(join(run.sandbox.project, "detached.pids"), "utf8")
             .trim()
             .split(" ")
