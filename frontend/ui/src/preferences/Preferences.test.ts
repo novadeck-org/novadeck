@@ -142,7 +142,12 @@ describe("the Agents tab", () => {
   })
 })
 
-const experimental = (on: boolean | undefined) => ({ on, onChange: () => {} })
+const experimental = (on: boolean | undefined, revealed = false) => ({
+  on,
+  onChange: () => {},
+  revealed,
+  onReveal: () => {},
+})
 
 describe("the Agents work as choice", () => {
   const panel = (): Element | null =>
@@ -375,7 +380,7 @@ describe("the About tab", () => {
       tab: "about",
       version: "0.4.2",
       logs: () => {},
-      experimental: { on: false, onChange: () => {} },
+      experimental: experimental(false, true),
     })
 
     expect(selected()).toBe("About")
@@ -388,6 +393,67 @@ describe("the About tab", () => {
     const general = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
     expect(general?.textContent).not.toContain("0.4.2")
     expect(general?.textContent).not.toContain("Experimental")
+  })
+})
+
+describe("the hidden Experimental switch", () => {
+  const panel = (): Element | null =>
+    document.querySelector('[role="tabpanel"][aria-labelledby$="about"]')
+  const toggle = (): Element | null | undefined =>
+    panel()?.querySelector('[role="switch"][aria-labelledby="experimental-label"]')
+  const versionText = (): HTMLElement | null =>
+    [...(panel()?.querySelectorAll<HTMLElement>("dd") ?? [])].find(
+      (each) => each.textContent === "0.4.2",
+    ) ?? null
+  const hint = (): string => panel()?.querySelector('[role="status"]')?.textContent ?? ""
+  const tap = async (times: number): Promise<void> => {
+    for (let at = 0; at < times; at += 1)
+      // eslint-disable-next-line no-await-in-loop -- Each tap after the one before.
+      await act(() => versionText()?.click())
+  }
+
+  it("is hidden while off, until the version is tapped ten times, counting the last taps down", async () => {
+    let reveals = 0
+    await show({
+      tab: "about",
+      version: "0.4.2",
+      experimental: { ...experimental(false), onReveal: () => (reveals += 1) },
+    })
+
+    expect(toggle()).toBeNull()
+    expect(panel()?.textContent).not.toContain("Experimental")
+    await tap(4)
+    expect(hint()).toBe("")
+    await tap(1)
+    expect(hint()).toBe("Tap 5 more times to show Experimental")
+    await tap(4)
+    expect(hint()).toBe("Tap once more to show Experimental")
+    expect(reveals).toBe(0)
+    await tap(1)
+    expect(reveals).toBe(1)
+    expect(hint()).toBe("")
+  })
+
+  it("shows while on, and while off once revealed, where tapping counts nothing", async () => {
+    let reveals = 0
+    const onReveal = (): void => void (reveals += 1)
+    await show({
+      tab: "about",
+      version: "0.4.2",
+      experimental: { ...experimental(true), onReveal },
+    })
+    expect(toggle()?.getAttribute("aria-checked")).toBe("true")
+    await tap(10)
+    expect(hint()).toBe("")
+    expect(reveals).toBe(0)
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({
+      tab: "about",
+      version: "0.4.2",
+      experimental: { ...experimental(false, true), onReveal },
+    })
+    expect(toggle()?.getAttribute("aria-checked")).toBe("false")
   })
 })
 
@@ -693,7 +759,7 @@ describe("the forge integrations, in Preferences", () => {
   it("has a section under the Experimental switches where the backend has forges", async () => {
     await show({
       tab: "experimental",
-      experimental: { on: true, onChange: () => {} },
+      experimental: experimental(true),
       forges: forges(),
     })
     const section = panel()?.querySelector(
@@ -704,7 +770,7 @@ describe("the forge integrations, in Preferences", () => {
   })
 
   it("has none where the backend has none", async () => {
-    await show({ tab: "experimental", experimental: { on: true, onChange: () => {} } })
+    await show({ tab: "experimental", experimental: experimental(true) })
     expect(panel()?.textContent).not.toContain("Forge integrations")
   })
 })

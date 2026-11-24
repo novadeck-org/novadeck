@@ -1016,7 +1016,8 @@ App:
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Experimental on
   and off set the channel, kept across the demo's boots until the page reloads; Preferences' Experimental switch and the IS_EXPERIMENTAL flag
-  follow once Preferences is reopened.
+  follow once Preferences is reopened. The switch stays in About for the rest of the run once it
+  has been on; at a boot that starts off, tap the version ten times to show it.
   What's new, after an update shows the card of three highlights until it is dismissed; What's
   new, text with markup shows highlights holding `<b>` and `**stars**` as typed; What's new,
   longest highlights fills four highlights to the app's limits, so the list scrolls; Updated,

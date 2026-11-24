@@ -39,10 +39,6 @@ export type TourRun = {
   // The lead's sheet was seen waiting, at any step so far: its going away is the answer, even
   // where the person answered it before its step came.
   readonly asked: boolean
-  // The step's moves were made: a step makes them once, as it begins, never again.
-  readonly entered: boolean
-  // The step's pane tab was opened: it is, once, as soon as the item it shows is there.
-  readonly tabbed: boolean
   // When the step on now was done, where it holds a while before the run moves on (`holdMs`);
   // null while it isn't.
   readonly doneAt: number | null
@@ -95,22 +91,27 @@ export type TourEvent =
 // How a run ended: its story done, the person ended it, or its lead's terminal closed.
 export type TourEnd = "done" | "ended" | "gone"
 
-// A move of a step, with the terminal its role is.
+// A move of a step's button, with the terminal its role is.
 export type TourMade =
   | { readonly kind: "view"; readonly view: ViewMode }
   | { readonly kind: "travel"; readonly terminalId: string }
   | { readonly kind: "fit-all" }
 
-// What follows from an event: the run as it is now (null once it ended, with why), the moves to
-// make as a step begins, the pane tab to open (a terminal's, by its item key), whether to ring
-// the lead its first line, and the terminal to nudge.
+// What follows from an event: the run as it is now (null once it ended, with why), whether to
+// ring the lead its first line, and the terminal to nudge. Never a move: the tour opens, pans and
+// zooms nothing of its own (`showAgain` is what the person's press makes).
 export type TourOutcome = {
   readonly run: TourRun | null
   readonly end?: TourEnd
-  readonly moves: readonly TourMade[]
-  readonly tab: { readonly terminalId: string; readonly key: BarKey } | null
   readonly brief: boolean
   readonly nudge: string | null
+}
+
+// What the caption box's button makes, as the person presses it: its moves, and the pane tab to
+// open (a terminal's, by its item key).
+export type TourShow = {
+  readonly moves: readonly TourMade[]
+  readonly tab: { readonly terminalId: string; readonly key: BarKey } | null
 }
 
 export const beginRun = (
@@ -130,8 +131,6 @@ export const beginRun = (
   nudged: false,
   briefed: start.brief === "launch",
   asked: false,
-  entered: false,
-  tabbed: false,
   doneAt: null,
   captionAt: null,
   touched: null,
@@ -140,13 +139,7 @@ export const beginRun = (
   approvalGoneAt: null,
 })
 
-const still = (run: TourRun | null): TourOutcome => ({
-  run,
-  moves: [],
-  tab: null,
-  brief: false,
-  nudge: null,
-})
+const still = (run: TourRun | null): TourOutcome => ({ run, brief: false, nudge: null })
 
 // The run at its next step, or ended once its story is done: past its last step, it stays only
 // until its lead's first line is rung.
@@ -159,8 +152,6 @@ const nextStep = (run: TourRun, steps: readonly TourStep[], now: number): TourOu
     stepAt: now,
     waitingSince: now,
     nudged: false,
-    entered: false,
-    tabbed: false,
     doneAt: null,
     captionAt: null,
     touched: null,
@@ -174,11 +165,18 @@ export const captionWaitMs = 8_000
 // When a done step's hold ends: `holdMs` after its caption was shown (or after the wait for it
 // ran out), never before it was done. A step with no line to read holds from when it was done.
 // One that waits on the person holds until they touch its subject, and `holdMs` (none where it
-// has none) from then: no end while they haven't.
+// has none) from then, or, for one touched by its subject coming on screen (`opened`: its cue
+// said until then), from its line's caption where that shows later: no end while they haven't.
 const holdEnd = (run: TourRun, step: TourStep): number | null => {
   if (typeof run.doneAt !== "number") return null
-  if (step.person)
-    return run.touched === null ? null : Math.max(run.doneAt, run.touched) + (step.holdMs ?? 0)
+  if (step.person) {
+    if (run.touched === null) return null
+    const from = Math.max(run.doneAt, run.touched)
+    if (step.holdMs === undefined) return from
+    // Touched by its subject coming on screen: its line shows a moment after.
+    if (!step.coach.opened) return from + step.holdMs
+    return Math.max(from, run.captionAt ?? from + captionWaitMs) + step.holdMs
+  }
   if (step.holdMs === undefined) return null
   if (step.coach.line === "") return run.doneAt + step.holdMs
   return Math.max(run.doneAt, run.captionAt ?? run.doneAt + captionWaitMs) + step.holdMs
@@ -220,12 +218,6 @@ const counting = (step: TourStep, signals: TourSignals): boolean => {
   )
 }
 
-// The roles a step's moves name, which have to be found before they can be made.
-const rolesOf = (step: TourStep): readonly TourRole[] => [
-  ...step.enter.flatMap((move) => (move.kind === "travel" ? [move.role ?? "lead"] : [])),
-  ...(step.open ? [step.open.role] : []),
-]
-
 // The terminal a role is: the lead's is the run's own, the others are found in the workspace.
 const terminalOf = (run: TourRun, signals: TourSignals, role: TourRole): string | undefined =>
   role === "lead" ? run.terminalId : signals.roles[role]
@@ -242,65 +234,35 @@ const resolve = (
   })
 
 /**
- * What brings the step on now back into view, as the person asks ("Show me") once it's out of
- * their sight: its travel again (or, for one about the team, every window framed), and its pane
- * tab where its item is there. Never on its own: the tour moves the camera once per step.
+ * What the step on now brings into view as the person presses its caption box's button (or
+ * "Show me", once what it marks is out of their sight): its moves, with the roles they name found
+ * (none before what it's about is there: `ready`), and its pane tab where its item is there. Never
+ * on its own: the tour opens, pans and zooms nothing of itself.
  */
 export const showAgain = (
   run: TourRun,
   steps: readonly TourStep[],
   signals: TourSignals,
-): Pick<TourOutcome, "moves" | "tab"> => {
+): TourShow => {
   const step = steps[run.step]
-  if (!step) return { moves: [], tab: null }
-  const travels = resolve(
-    step.enter.filter(({ kind }) => kind === "travel"),
-    run,
-    signals,
-  )
-  const moves: readonly TourMade[] =
-    travels.length > 0 ? travels : step.frameTeam ? [{ kind: "fit-all" }] : []
+  if (!step || !readyNow(step, signals)) return { moves: [], tab: null }
   const { open } = step
   const terminalId = open && terminalOf(run, signals, open.role)
   const key: BarKey | null | undefined =
     open && (open.tab === "messages" ? messagesKey : signals.shown[open.tab])
-  return { moves, tab: terminalId && key ? { terminalId, key } : null }
-}
-
-// A step's beginning: its moves, made once, as it begins on screen with the roles they name
-// found; and its pane tab, opened once, as soon as its item is there after that.
-const entering = (
-  run: TourRun,
-  step: TourStep,
-  signals: TourSignals,
-): Pick<TourOutcome, "moves" | "tab"> & { readonly run: TourRun } => {
-  // Never while a teammate's question waits on the person: the tour opened the Inbox for it, and
-  // a step's moves (a sidebar panel, the camera) would take it away while they answer.
-  const enter =
-    !run.entered &&
-    signals.onScreen &&
-    signals.askingRow === null &&
-    rolesOf(step).every((role) => terminalOf(run, signals, role))
-  const entered = run.entered || enter
-  const { open } = step
-  const terminalId = open && terminalOf(run, signals, open.role)
-  const key: BarKey | null | undefined =
-    open && (open.tab === "messages" ? messagesKey : signals.shown[open.tab])
-  const tab =
-    entered && signals.onScreen && !run.tabbed && terminalId && key ? { terminalId, key } : null
   return {
-    run: { ...run, entered, tabbed: run.tabbed || tab !== null },
-    moves: enter ? resolve(step.enter, run, signals) : [],
-    tab,
+    moves: resolve(step.show, run, signals),
+    tab: terminalId && key ? { terminalId, key } : null,
   }
 }
 
+// Whether what a step is about is there to see yet.
+const readyNow = (step: TourStep, signals: TourSignals): boolean => step.ready?.(signals) ?? true
+
 /**
- * Moves the run on by one event. A step makes its moves once, as it begins, and only while the
- * tour's project is on screen, so the tour never takes the person's view back from them. The
- * lead's first line is rung once its agent shows, where the launch line carried none. A step
- * waiting on
- * an agent nudges it once after `patienceMs` of that agent being there, and moves on after as
+ * Moves the run on by one event. It makes no moves: what a step brings into view, the person's
+ * press on its caption box's button does (`showAgain`). The lead's first line is rung once its
+ * agent shows, where the launch line carried none. A step waiting on an agent nudges it once after `patienceMs` of that agent being there, and moves on after as
  * long again; its wait starts over while it holds at a screen of its own. A run ends once its
  * last step is done, the person ends it, or its lead's terminal closes.
  */
@@ -316,17 +278,23 @@ export const stepRun = (
     case "brief-failed":
       return still({ ...run, briefed: false })
     // The step's own caption box came on screen: a held step's hold counts from the first time.
-    // A box for any other line (the agent's own screen, a teammate's question) isn't its, and
-    // one that comes once the wait for it ran out is too late: the hold already counts from
-    // then, so a step never lasts past `captionWaitMs` and `holdMs` after it was done.
+    // A box for any other line (its cue, the agent's own screen, a teammate's question) isn't
+    // its, and one that comes once the wait for it ran out is too late: the hold already counts
+    // from then, so a step never lasts past `captionWaitMs` and `holdMs` after it was done (and,
+    // for one that waits on the person, touched).
     case "caption": {
       const step = steps[run.step]
+      const from = step?.person
+        ? run.touched === null || run.doneAt === null
+          ? null
+          : Math.max(run.doneAt, run.touched)
+        : run.doneAt
       if (
         !step ||
         step.holdMs === undefined ||
         step.coach.line !== event.line ||
         run.captionAt !== null ||
-        (typeof run.doneAt === "number" && event.now >= run.doneAt + captionWaitMs)
+        (typeof from === "number" && event.now >= from + captionWaitMs)
       )
         return still(run)
       const adjusted = adjust({ ...run, captionAt: event.now }, steps, event.signals, event.now)
@@ -395,8 +363,6 @@ const reshape = (
       stepAt: now,
       waitingSince: now,
       nudged: false,
-      entered: false,
-      tabbed: false,
       doneAt: null,
       captionAt: null,
       touched: null,
@@ -432,18 +398,17 @@ const follow = (
   // Done: on to the next step, which begins with these same signals at once (its moves made
   // now, not at some later change), but never ended in the event that rings its first line.
   if (typeof run.doneAt === "number" || step.done(signals, briefed)) {
-    // A step that holds stays, its coach still said and its moves made, until its time is up.
-    // Its time counts only while the tour's project is on screen: away, it starts over, so the
-    // person sees what it holds on, and the story never ends in another project.
+    // A step that holds stays, its coach still said, until its time is up. Its time counts
+    // only while the tour's project is on screen: away, it starts over, so the person sees what
+    // it holds on, and the story never ends in another project.
     if (holding(briefed, step, now) || (holds(step) && !signals.onScreen)) {
-      const begun = entering(briefed, step, signals)
       const held = {
-        ...begun.run,
+        ...briefed,
         doneAt: typeof briefed.doneAt === "number" && signals.onScreen ? briefed.doneAt : now,
         // Away, its caption isn't on screen: it is waited for again.
         captionAt: signals.onScreen ? briefed.captionAt : null,
       }
-      return { ...begun, run: held, brief, nudge: null }
+      return { ...still(held), brief }
     }
     const next = nextStep(brief ? seen : briefed, steps, now)
     const following = next.run && { ...next.run, briefed: briefed.briefed }
@@ -451,10 +416,8 @@ const follow = (
     const begun = follow(following, steps, signals, now, patienceMs)
     return { ...begun, brief: brief || begun.brief }
   }
-  // Its moves once, as it begins on screen, whatever the agent is doing.
-  const begun = entering(briefed, step, signals)
-  const entered = begun.run
-  const outcome = { ...begun, brief, nudge: null }
+  const entered = briefed
+  const outcome = { ...still(entered), brief }
   // No agent there yet, or a screen of its own: the wait starts over once it counts. A wait on
   // the person has no end of its own.
   if (!counting(step, signals) || waitOf(step, entered, signals) !== "nudge") {
@@ -529,6 +492,8 @@ export const coachNow = (
   // A teammate's own question to the person, in the Inbox, whenever it comes: after the caption
   // of a step that holds, done, for its subject to be seen first.
   const step = steps[run.step]
+  // A step whose subject isn't there yet says nothing: no beat before what it's about.
+  if (step && !readyNow(step, signals)) return signals.askingRow !== null ? questionCoach : null
   // A step waiting on the person's touch gives way to the question, as it may wait a long time.
   const showing = typeof run.doneAt === "number" && step?.holdMs !== undefined && !step.person
   if (signals.askingRow !== null && !showing) return questionCoach

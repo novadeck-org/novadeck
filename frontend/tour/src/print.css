@@ -184,12 +184,28 @@
     #000 100%
   );
 }
-/* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
-/* "Show me", where what the step is about is out of sight: the one part of the box that takes a
-   press besides its note. */
-.tour-caption > .tour-button {
+/* The line's panel, with the button that brings what it's about into view beside it, where the
+   step has something to bring (or what it's about went out of sight): an ink tag with an eye, the
+   one part of the box that takes a press besides its note. */
+.tour-caption-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+}
+.tour-caption-head > .tour-caption-panel {
+  min-width: 0;
+}
+.tour-caption .tour-show {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
   pointer-events: auto;
 }
+/* What the person has to do, where a moment asks it of them: ink on paper, under the box. */
 .tour-caption-note {
   margin: 4px 0 0;
   max-width: 44ch;

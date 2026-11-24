@@ -9,10 +9,12 @@ import {
   closing,
   coach,
   coachSays,
+  coachSaysAny,
   consent,
   expectClickAt,
   expectClickAtWindows,
   paneOf,
+  showMe,
   topTab,
   touchStep,
   windowNamed,
@@ -133,42 +135,51 @@ const captionNow = (): string =>
 
 // The person clicks into the lead's page, as the tour waits for them to.
 const seePage = (): Promise<void> =>
-  touchStep("The game. Live. Empty, for now.", () => [paneOf("Game lead")])
+  touchStep("The game. Live. Empty, for now.", () => [paneOf("Game lead")], {
+    cue: "The game's up.",
+  })
 
 // The person clicks one of the teammates the lead hired.
 const meetTeam = (timeout = 40_000): Promise<void> =>
   touchStep(
     "Look. It hired its own help.",
     () => [windowNamed("Modeller"), windowNamed("Builder")],
-    {
-      timeout,
-    },
+    { timeout, cue: "It hired help." },
   )
 
 // The person spins the Modeller's model.
 const spinModel = (): Promise<void> =>
-  touchStep("A model. From scratch. Go on, spin it.", () => [paneOf("Modeller")])
+  touchStep("A model. From scratch. Go on, spin it.", () => [paneOf("Modeller")], {
+    cue: "Its first model's in.",
+  })
 
-// The person opens Files from its button, which is all the step asks (or, where it's open
-// already, presses in it).
+// The person opens Files from its button, as the box asks, which is all the step asks: its line
+// about the blinks comes only then, held a moment before the story goes on.
+const filesLine = "Every blink? An agent. Writing."
 const openFiles = async (): Promise<void> => {
-  const line = "Every blink? An agent. Writing."
-  await coachSays(line)
-  await expect.poll(() => clicked().length, { timeout: 15_000 }).toBeGreaterThan(0)
-  await page.elementLocator(clicked()[0]!).click()
-  await expect.poll(captionNow, { timeout: 15_000 }).not.toContain(line)
+  if ((await coachSaysAny(["Open your Files.", filesLine])) !== filesLine) {
+    await expect.poll(() => clicked().length, { timeout: 15_000 }).toBeGreaterThan(0)
+    await page.elementLocator(clicked()[0]!).click()
+    await coachSays(filesLine, 15_000)
+  }
+  await expect.poll(captionNow, { timeout: 20_000 }).not.toContain(filesLine)
 }
 
 // The person looks at the Builder's changes.
 const readDiff = (): Promise<void> =>
-  touchStep("What it wrote. Line by line.", () => [paneOf("Builder")])
+  touchStep("What it wrote. Line by line.", () => [paneOf("Builder")], { cue: "Its code's in." })
 
-// What the person does at each step that waits on them, by its line.
+// What the person does at each step that waits on them, by its line or its cue.
 const personSteps: Readonly<Record<string, () => Promise<void>>> = {
+  "The game's up.": seePage,
   "The game. Live. Empty, for now.": seePage,
+  "It hired help.": meetTeam,
   "Look. It hired its own help.": meetTeam,
+  "Its first model's in.": spinModel,
   "A model. From scratch. Go on, spin it.": spinModel,
-  "Every blink? An agent. Writing.": openFiles,
+  "Open your Files.": openFiles,
+  [filesLine]: openFiles,
+  "Its code's in.": readDiff,
   "What it wrote. Line by line.": readDiff,
 }
 
@@ -236,18 +247,27 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
   await expect.poll(() => topTab(paneOf("Modeller"))).toContain("hero.gltf")
   await spinModel()
 
-  // The Files panel, where every agent's write blinks: the tour points at its button, as it opens
-  // no panel itself.
-  await coachSays("Every blink? An agent. Writing.")
+  // The Files panel, where every agent's write blinks: the tour asks the person to open it and
+  // points at its button, as it opens no panel itself; the line about the blinks waits for it.
+  await coachSays("Open your Files.")
   await expect
     .poll(() => clicked().map((each) => each.getAttribute("data-tour-rail") ?? each.id))
     .toEqual(["files"])
+  expect(captionNow()).not.toContain(filesLine)
   await openFiles()
   await expect.element(page.getByRole("treeitem", { name: /^hero\.gltf,/ })).toBeVisible()
   await expect.element(page.getByRole("treeitem", { name: /^main\.js,/ })).toBeVisible()
 
-  // The Builder's pane, with its changes.
-  await coachSays("What it wrote. Line by line.")
+  // The Builder's pane, with its changes: while it isn't showing them, the box says they're in
+  // and marks the Builder's window, whose press brings them.
+  const diffLine = "What it wrote. Line by line."
+  if ((await coachSaysAny(["Its code's in.", diffLine])) !== diffLine) {
+    await expectClickAtWindows("Builder")
+    await page
+      .elementLocator(windowNamed("Builder")!.querySelector<HTMLElement>(".terminal-header")!)
+      .click()
+    await coachSays(diffLine)
+  }
   await expectClickAt(() => paneOf("Builder"))
   await expect.poll(() => topTab(paneOf("Builder"))).toContain("build-game")
   await readDiff()
@@ -256,8 +276,12 @@ const playToClosing = async (name: string, address?: string): Promise<void> => {
   await coachSays("They're finishing it.", 60_000)
 
   // Act 4: the game in the lead's pane: the closing card comes a while after the person clicks
-  // into it, never before.
-  await coachSays("Three agents. Your game. Go play.")
+  // into it, never before. Where the lead's pane isn't showing it, the box's eye brings it.
+  const playLine = "Three agents. Your game. Go play."
+  if ((await coachSaysAny(["Your game's done.", playLine])) !== playLine) {
+    await showMe().click()
+    await coachSays(playLine)
+  }
   await expect.element(page.getByText(/^Act 4, The result\./)).toBeInTheDocument()
   await expectClickAt(() => paneOf("Game lead"))
   await new Promise((resolve) => setTimeout(resolve, 3_000))
@@ -417,24 +441,24 @@ describe("The tour's story", () => {
       await startTour("opencode")
       await answerSheet("Fantasy", "RPG")
       await allowRun()
-      await playUntil("Every blink? An agent. Writing.")
+      await playUntil("Open your Files.")
       await openFiles()
       // The person opens a file instead of looking at the Builder's changes: its preview takes the
       // view, and the Builder is out of sight.
-      await coachSays("What it wrote. Line by line.")
+      await coachSaysAny(["Its code's in.", "What it wrote. Line by line."])
       await page
         .getByRole("treeitem", { name: /^index\.html/ })
         .first()
         .click()
       await expect.poll(() => clicked().length, { timeout: 15_000 }).toBe(0)
-      const show = coach().getByRole("button", { name: "Show me" })
+      const show = showMe()
       await expect.element(show, { timeout: 15_000 }).toBeVisible()
       // It waits: the view stays where the person took it.
       await new Promise((resolve) => setTimeout(resolve, 2_000))
       expect(clicked()).toEqual([])
       await show.click()
       await expectClickAt(() => paneOf("Builder"))
-      await expect.element(show).not.toBeInTheDocument()
+      await coachSays("What it wrote. Line by line.")
       await readDiff()
     },
   )

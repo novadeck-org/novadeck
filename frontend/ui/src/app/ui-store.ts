@@ -76,6 +76,11 @@ export type UiState = {
   readonly agentFocus: AgentName | null
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
   readonly crashLoopDismissed: boolean
+  // Whether Preferences shows the Experimental switch while it is off: the person tapped the
+  // version ten times, or IS_EXPERIMENTAL was on, in this run (`withFeatureFlag`). Never
+  // persisted, so a switch turned off hides again at the next launch; a reconnect to the runner,
+  // which makes the store afresh, hides it too.
+  readonly experimentalRevealed: boolean
   // Which addon's offer (voice input or murmur) came up in this run of the app: each run
   // offers at most one unasked ("none": a window that is not the app's first leaves it to
   // the first); never persisted.
@@ -214,6 +219,7 @@ export const initialUi = ({
   told: null,
   agentFocus: null,
   crashLoopDismissed: false,
+  experimentalRevealed: false,
   addonOffer: extraWindow ? "none" : null,
   nameOffer: null,
   crashLoop: 0,
@@ -443,6 +449,12 @@ export const answerChatOffer = (ui: UiStore): void =>
 export const holdChatOffer = (ui: UiStore): void =>
   void ui.update((state) => (state.chatOfferHeld ? state : { ...state, chatOfferHeld: true }))
 
+// Shows Preferences' Experimental switch for the rest of this run, whatever it is set to.
+export const revealExperimental = (ui: UiStore): void =>
+  void ui.update((state) =>
+    state.experimentalRevealed ? state : { ...state, experimentalRevealed: true },
+  )
+
 // Whether tabs and window headers show terminals' critters: the person turned Agent avatars
 // on, one of the experimental features, so they show only while IS_EXPERIMENTAL is on.
 export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
@@ -455,10 +467,20 @@ export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">):
 // Turns one feature flag on or off, as is: `setFeatureFlag` of the workspace's commands also
 // starts terminals afresh on the chat view where the flag turns it on or off.
 export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): void => {
-  ui.update((state) =>
-    state.flags[flag] === on ? state : { ...state, flags: { ...state.flags, [flag]: on } },
-  )
+  ui.update((state) => withFeatureFlag(state, flag, on))
 }
+
+// The state with one feature flag set. IS_EXPERIMENTAL seen on reveals Preferences' Experimental
+// switch for the rest of this run, however it goes off later: this window's switch, another
+// window's, or a channel read at a launch.
+export const withFeatureFlag = (state: UiState, flag: FeatureFlag, on: boolean): UiState =>
+  state.flags[flag] === on
+    ? state
+    : {
+        ...state,
+        flags: { ...state.flags, [flag]: on },
+        experimentalRevealed: state.experimentalRevealed || (flag === "IS_EXPERIMENTAL" && on),
+      }
 
 // Turns agent worktrees off where they are on, as the Experimental switch going off does, so the
 // setting never stays on without its toggle.

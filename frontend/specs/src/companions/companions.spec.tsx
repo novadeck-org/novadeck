@@ -1,4 +1,4 @@
-import { afterEach } from "vitest"
+import { afterEach, onTestFinished } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { watchBarDrag } from "../support/bar-drag"
@@ -268,6 +268,60 @@ describe("The pane in Canvas", () => {
     await taskbarIcon("Refactor auth", "Messages").click()
     await expect.poll(() => node.classList.contains("selected")).toBe(false)
     expect(getComputedStyle(reader).pointerEvents).toBe("none")
+  })
+
+  context("with its window selected", () => {
+    const width = (): number => terminal("Build Studio").element().getBoundingClientRect().width
+    const ctrlWheel = async (over: Element, deltaY: number): Promise<void> => {
+      await userEvent.keyboard("{Control>}")
+      await userEvent.wheel(over, { delta: { y: deltaY } })
+      await userEvent.keyboard("{/Control}")
+    }
+
+    it("keeps the wheel over the pane, and lets Ctrl+wheel zoom the canvas", async () => {
+      await openShowcase("canvas")
+      await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+      const pane = companionPane("Build Studio")
+      await expect.element(pane).toBeVisible()
+      const before = await settled(width)
+      // What the page's own handlers see of it, as the pane's row and its waking do.
+      const reached: WheelEvent[] = []
+      const reach = (event: WheelEvent): number => reached.push(event)
+      window.addEventListener("wheel", reach)
+      onTestFinished(() => window.removeEventListener("wheel", reach))
+
+      await userEvent.wheel(pane, { delta: { y: -300 } })
+      expect(await settled(width)).toBe(before)
+      expect(reached).toHaveLength(1)
+
+      await ctrlWheel(pane.element(), -100)
+      await expect.poll(width).toBeGreaterThan(before + 20)
+    })
+
+    it("leaves Ctrl+wheel to an image, which zooms itself, not the canvas", async () => {
+      await openShowcase("canvas")
+      await taskbarIcon("Build Studio", "2 images").click()
+      const image = companionPane("Build Studio").getByRole("img")
+      await expect.element(image).toBeVisible()
+      await expect.poll(() => image.element().closest("[data-sized]")).not.toBeNull()
+      const fitted = image.element().getBoundingClientRect().width
+      const before = await settled(width)
+      // The image keeps its zoom for the next time it shows, in a later test too: fitted again,
+      // whatever this one comes to.
+      onTestFinished(async () => {
+        const zoom = companionPane("Build Studio").getByRole("button", {
+          name: /^Zoomed to .+ Back to fit$/,
+        })
+        if (!zoom.query()) return
+        await zoom.click()
+        await expect.poll(() => zoom.query()).toBeNull()
+      })
+
+      await ctrlWheel(image.element().closest(".image-viewer")!, -100)
+
+      await expect.poll(() => image.element().getBoundingClientRect().width).toBeGreaterThan(fitted)
+      expect(await settled(width)).toBe(before)
+    })
   })
 })
 
