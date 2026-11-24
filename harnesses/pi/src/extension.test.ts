@@ -292,6 +292,26 @@ describe("Novadeck's pi extension", () => {
     ).toBeUndefined()
   })
 
+  it("refuses a PowerShell call the gate refuses, told in the bash call's shape", async () => {
+    const pi = await load({ gate: true })
+    await pi.answer({ PreToolUse: { decision: "deny", reason: "No permit to push" } })
+    expect(
+      await pi.emit("tool_call", {
+        toolName: "powershell",
+        toolCallId: "c9",
+        input: { command: "git push origin main" },
+      }),
+    ).toEqual({ block: true, reason: "No permit to push" })
+    expect((await pi.reports()).at(-1)).toMatchObject({
+      hook_event_name: "PreToolUse",
+      tool_name: "powershell",
+      call_id: "c9",
+      session_id: "s1",
+      cwd: "/home/person/project",
+      tool_input: { command: "git push origin main" },
+    })
+  })
+
   it("lets every call run with the gate off, whatever the answer", async () => {
     const pi = await load()
     await pi.answer({ PreToolUse: { decision: "deny", reason: "No permit" } })
