@@ -157,6 +157,8 @@ type Piece = {
   readonly pad: number
   /** What it draws; null leaves it blank. */
   readonly runs: readonly Run[] | null
+  /** Its pad and runs as one key, which a dropped row's element is taken back by. */
+  readonly says: string
   decoration: IDecoration | undefined
   /**
    * Where xterm draws no decorations (the alternate screen), the overlay's own element, laid over
@@ -553,11 +555,36 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     return tone.dim ? dimmed(base, bg) : base
   }
 
-  const cellSize = (): { w: number; h: number } | undefined => {
-    const screen = terminal.element?.querySelector<HTMLElement>(".xterm-screen")
-    if (!screen || !screen.offsetWidth || !terminal.cols || !terminal.rows) return undefined
-    return { w: screen.offsetWidth / terminal.cols, h: screen.offsetHeight / terminal.rows }
+  // A cell's size and the theme's look, read once in a pass (a write, a render, a refresh) and
+  // forgotten after it. Reading the screen's size forces a layout wherever anything was written
+  // since, so reading it for each row drawn, after the row before was placed, laid the page out
+  // once per row: a fullscreen TUI that scrolls a delivery block redraws all its rows each time.
+  let read: { readonly size: { w: number; h: number } | undefined; readonly look: string } | null =
+    null
+  const forget = (): void => {
+    read = null
   }
+  const reading = (): NonNullable<typeof read> => {
+    if (read) return read
+    const screen = terminal.element?.querySelector<HTMLElement>(".xterm-screen")
+    const size =
+      !screen || !screen.offsetWidth || !terminal.cols || !terminal.rows
+        ? undefined
+        : { w: screen.offsetWidth / terminal.cols, h: screen.offsetHeight / terminal.rows }
+    const look = [
+      size?.w,
+      size?.h,
+      terminal.options.fontFamily,
+      terminal.options.fontSize,
+      terminal.options.fontWeightBold,
+      JSON.stringify(theme()),
+      [1, 2, 3, 4, 5, 6, 7, 8, "you" as const].map(hueColour).join(),
+    ].join("|")
+    read = { size, look }
+    queueMicrotask(forget)
+    return read
+  }
+  const cellSize = (): { w: number; h: number } | undefined => reading().size
 
   const isSelected = (piece: Piece): boolean => {
     if (!selection) return false
@@ -571,25 +598,15 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
   }
 
   const paint = (element: HTMLElement, piece: Piece): void => {
-    const size = cellSize()
+    const { size, look } = reading()
     if (!size) return
     const t = theme()
     const bg = piece.bg ?? t.background ?? "#000000"
     const ink = piece.ink ?? t.foreground ?? "#cccccc"
     const selected = isSelected(piece)
-    // xterm renders a decoration's element on every scroll: draw again only when this changed.
-    const signature = [
-      size.w,
-      size.h,
-      terminal.options.fontFamily,
-      terminal.options.fontSize,
-      terminal.options.fontWeightBold,
-      bg,
-      ink,
-      selected,
-      JSON.stringify(t),
-      [1, 2, 3, 4, 5, 6, 7, 8, "you" as const].map(hueColour).join(),
-    ].join("|")
+    // xterm renders a decoration's element on every scroll, and a dropped row's element is drawn
+    // again where the same row comes back: draw again only when this changed.
+    const signature = [look, bg, ink, selected, piece.says].join("|")
     if (element.dataset["novadeckDoorbell"] === signature) return
     const t0 = performance.now()
     element.style.cssText += ";pointer-events:none;"
@@ -662,11 +679,36 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     element.style.height = `${size.h}px`
   }
 
+  // The elements of alternate screen rows dropped in this pass, by what they say. A TUI that
+  // scrolls its own screen moves its rows, which drops their drawings and finds them again a few
+  // rows on in the same write: a row that says the same takes its element back, drawn, rather than
+  // building one a span per character. What no row took back goes after the pass.
+  const spare = new Map<string, HTMLElement[]>()
+  let sparing = false
+  const clearSpare = (): void => {
+    sparing = false
+    for (const elements of spare.values()) for (const element of elements) element.remove()
+    spare.clear()
+  }
+  const keep = (piece: Piece, element: HTMLElement): void => {
+    element.style.display = "none"
+    spare.set(piece.says, [...(spare.get(piece.says) ?? []), element])
+    if (sparing) return
+    sparing = true
+    queueMicrotask(clearSpare)
+  }
+  const takeBack = (says: string, host: HTMLElement): HTMLElement | undefined => {
+    const elements = spare.get(says)
+    const element = elements?.pop()
+    if (elements?.length === 0) spare.delete(says)
+    return element?.parentElement === host ? element : undefined
+  }
+
   const remove = (entry: Entry): void => {
     if (opened?.entry === entry) close()
     onLeave()
     for (const piece of entry.pieces) {
-      piece.alt?.remove()
+      if (piece.alt) keep(piece, piece.alt)
       piece.decoration?.dispose()
       piece.marker.dispose()
     }
@@ -695,6 +737,8 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     hit.rows.forEach((row, index) => {
       const marker = terminal.registerMarker(row.y - base)
       if (!marker) return
+      const pad = pads[index]!
+      const runs = lines[index] ?? null
       const piece: Piece = {
         marker,
         ink: hit.ink,
@@ -702,8 +746,9 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
         width: row.width,
         sig: buf.getLine(row.y)!.translateToString(false, row.x, row.x + row.width),
         bg: row.bg,
-        pad: pads[index]!,
-        runs: lines[index] ?? null,
+        pad,
+        runs,
+        says: JSON.stringify([pad, runs]),
         decoration: undefined,
         alt: undefined,
       }
@@ -714,9 +759,12 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
           marker.dispose()
           return
         }
-        piece.alt = document.createElement("div")
-        piece.alt.style.cssText = "position:absolute;z-index:6;pointer-events:none;"
-        host.append(piece.alt)
+        piece.alt = takeBack(piece.says, host)
+        if (!piece.alt) {
+          piece.alt = document.createElement("div")
+          piece.alt.style.cssText = "position:absolute;z-index:6;pointer-events:none;"
+          host.append(piece.alt)
+        }
         place(piece)
         paint(piece.alt, piece)
         pieces.push(piece)
@@ -1105,6 +1153,8 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     }),
     // Where a cell's size changed (a font, a zoom), the alternate screen's own elements follow.
     terminal.onRender(() => {
+      // A render may follow a cell's new size: read it again.
+      forget()
       placeOpened()
       if (buffer().type !== "alternate") return
       for (const entry of entries.values())
@@ -1114,6 +1164,7 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
         }
     }),
     terminal.onResize(() => {
+      forget()
       // A resize rewraps what it can and the harness redraws the rest: look at everything again.
       dropAll()
       scanAll()
@@ -1147,6 +1198,8 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     },
     rescan: scanAll,
     refresh: () => {
+      // Told the theme or its hues changed: read the look again.
+      forget()
       for (const entry of entries.values())
         for (const piece of entry.pieces) {
           place(piece)
@@ -1181,6 +1234,7 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     dispose: () => {
       subscriptions.forEach((subscription) => subscription.dispose())
       dropAll()
+      clearSpare()
       close()
       cancel()
       bound?.removeEventListener("mousedown", onPress, true)
