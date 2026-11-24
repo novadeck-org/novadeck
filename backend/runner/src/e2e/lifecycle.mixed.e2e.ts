@@ -55,8 +55,8 @@ describe.skipIf(!supported)(order.map((setup) => setup.name).join(", "), () => {
       // The person types /exit; while it waits in the box, t2's message comes for the
       // session there. They submit it, and the agent leaves; its terminal's command then
       // starts the other.
-      await t1.confirm("/exit", async () => {
-        t1.press("/exit")
+      await t1.confirm(setup.exit ?? "/exit", async () => {
+        t1.press(setup.exit ?? "/exit")
         await t1.reached("drafting", { after: mark })
         await t2.submit("Ask moth for the word")
         await t1.reached(holds("fox", "moth", "queued"), { after: mark })

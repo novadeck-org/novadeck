@@ -24,6 +24,8 @@ const layouts: { readonly [agent: string]: RegExp } = {
   agy: /(?:^|\/)conversations\/<id>\.db$/,
   // One SQLite database holds every conversation, none a file of its own.
   opencode: /(?:^|\/)opencode\/opencode\.db$/,
+  // One file per session in a folder per project, named for the time and the id.
+  pi: /(?:^|\/)sessions\/--[^/]+--\/[^/]*_<id>\.jsonl$/,
 }
 
 const resumeCapMs = 30_000
@@ -85,7 +87,7 @@ for (const setup of setups) {
         await turn(terminal, "Remember the word heron", "Heron noted.")
         const id = (await terminal.detail()).sessionId
         if (!id) throw new Error("no session bound after the first prompt")
-        await terminal.submit("/exit")
+        await terminal.submit(setup.exit ?? "/exit")
         await terminal.poll(
           () => (terminal.summary().agent === null ? true : undefined),
           "the agent to leave after /exit",
@@ -138,7 +140,7 @@ for (const setup of setups) {
       await resumed.until("The word was heron.", 30_000)
       expect(call.turns.some((one) => one.text.includes("Remember the word heron"))).toBe(true)
       expect((await resumed.detail()).sessionId).toBe(id)
-      await resumed.submit("/exit")
+      await resumed.submit(setup.exit ?? "/exit")
       await resumed.poll(
         () => (resumed.summary().agent === null ? true : undefined),
         "the agent to leave after /exit",
@@ -204,7 +206,7 @@ for (const setup of setups) {
         await turn(first, "Remember the word kestrel", "Kestrel noted.")
         const id = (await first.detail()).sessionId
         if (!id) throw new Error("no session bound after the first prompt")
-        await first.submit("/exit")
+        await first.submit(setup.exit ?? "/exit")
         await first.poll(
           () => (first.summary().agent === null ? true : undefined),
           "the agent to leave after /exit",

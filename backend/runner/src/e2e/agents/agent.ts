@@ -375,6 +375,16 @@ export type AgentSetup = {
     /** Whether Enter sends images with no words (Antigravity does nothing then). */
     readonly alone: boolean
   }
+  /**
+   * The command that leaves the agent, typed at its prompt: `/exit` where omitted (pi's is
+   * `/quit`).
+   */
+  readonly exit?: string
+  /**
+   * The command that clears its conversation and starts a new session, typed at its prompt:
+   * `/clear` where omitted (pi has none: its `/new`).
+   */
+  readonly clear?: string
   /** A command its prompt runs that submits nothing to the model, as `/status`. */
   readonly idleCommand?: string
   /** How the person forks a session, in a new terminal or in place. */
