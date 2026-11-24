@@ -137,3 +137,49 @@ describe("finding a session's file", () => {
     expect(await transcripts.locate(reported, "abc123", null)).toBe(file)
   })
 })
+
+describe("an image Novadeck pasted as its path", () => {
+  const uuid = "0f8fad5b-d9cb-469f-a165-70867728950e"
+  const prompt = (text: string) =>
+    JSON.stringify({
+      type: "message",
+      id: "e",
+      parentId: null,
+      timestamp: "2026-11-24T10:00:00.000Z",
+      message: { role: "user", content: [{ type: "text", text }], timestamp: 1 },
+    })
+
+  it("is read as an image, its path as a mark, on macOS's folder with spaces", () => {
+    const line = prompt(
+      `look at /Users/person/Library/Application\\ Support/Novadeck/uploads/${uuid}/shot.png please`,
+    )
+    expect(transcripts.items(line)[0]).toMatchObject({
+      text: "look at [Image #1] please",
+      images: [{ index: 0, mime: "image/png" }],
+    })
+    expect(transcripts.images(line)).toEqual([
+      {
+        mime: "image/png",
+        file: `/Users/person/Library/Application Support/Novadeck/uploads/${uuid}/shot.png`,
+      },
+    ])
+  })
+
+  it("is read on Windows, bare or in quotes", () => {
+    const bare = `C:\\Users\\person\\AppData\\Novadeck\\uploads\\${uuid}\\a.jpg`
+    const quoted = `"C:\\Users\\my name\\Novadeck\\uploads\\${uuid}\\b.webp"`
+    expect(transcripts.images(prompt(`${bare} and ${quoted}`))).toEqual([
+      { mime: "image/jpeg", file: bare },
+      { mime: "image/webp", file: quoted.slice(1, -1) },
+    ])
+    expect(transcripts.items(prompt(`${bare} and ${quoted}`))[0]!.text).toBe(
+      "[Image #1] and [Image #2]",
+    )
+  })
+
+  it("leaves a path the person typed as their words", () => {
+    const line = prompt("see /home/person/project/shot.png")
+    expect(transcripts.images(line)).toEqual([])
+    expect(transcripts.items(line)[0]!.text).toBe("see /home/person/project/shot.png")
+  })
+})

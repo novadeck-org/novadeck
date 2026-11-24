@@ -63,6 +63,51 @@ const imageOf = (block: Fields): ImageSource | undefined =>
     ? { mime: typeof block.mimeType === "string" ? block.mimeType : null, base64: block.data }
     : undefined
 
+/**
+ * An image Novadeck gave pi: pi takes no image in its box, so the runner pastes the path of the
+ * file it saved (`imagePaste`: `<data>/uploads/<uuid>/<name>`, a POSIX path with a backslash
+ * before each special character, a Windows one in double quotes where it needs them), and the
+ * model reads the file with its own tool. Only such a path counts, never one the person typed.
+ * As the box reader marks it (box.ts).
+ */
+const uploaded =
+  /"((?:[A-Za-z]:|\\\\)[^"]*[\\/]uploads[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/][^"\\/]+)"|((?:[A-Za-z]:)?(?:[\\/](?:\\.|[^\s\\/])+)*[\\/]uploads[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/](?:\\.|[^\s\\/])+)/g
+
+// A file's image type, by its name, as the runner saves one.
+const mimeOfName = (name: string): string | null => {
+  const extension = /\.([A-Za-z0-9]+)$/.exec(name)?.[1]?.toLowerCase()
+  return extension === "png"
+    ? "image/png"
+    : extension === "jpg" || extension === "jpeg"
+      ? "image/jpeg"
+      : extension === "gif"
+        ? "image/gif"
+        : extension === "webp"
+          ? "image/webp"
+          : null
+}
+
+/**
+ * The person's words with each image path Novadeck pasted made `[Image #N]`, numbered after the
+ * images the message holds inline, and the files those paths name, as the shell word was read.
+ */
+export const pastedImages = (
+  words: string,
+  before: number,
+): { readonly text: string; readonly files: readonly ImageSource[] } => {
+  const files: ImageSource[] = []
+  const text = words.replace(
+    uploaded,
+    (_whole, quoted: string | undefined, bare: string | undefined) => {
+      // A POSIX path's backslashes escape what follows; a Windows one's are its separators.
+      const file = quoted ?? (bare?.startsWith("/") ? bare.replace(/\\(.)/g, "$1") : (bare ?? ""))
+      files.push({ mime: mimeOfName(file), file })
+      return `[Image #${before + files.length}]`
+    },
+  )
+  return { text, files }
+}
+
 // How bash says it ended, at the end of its result: "Command exited with code N" (its tool's
 // bash.ts, 1.6.0), where the command failed; a result without it ran to 0.
 const exitLine = /\bCommand exited with code (\d+)\s*$/
@@ -123,13 +168,12 @@ const messageItems = (record: Fields): readonly TranscriptEntry[] => {
   const time = timeOf(record, message)
   switch (message.role) {
     case "user": {
-      const blocks = blocksOf(message.content)
-      const words = wordsOf(message.content)
-      const images = blocks.flatMap((block) => {
-        const image = imageOf(block)
-        return image ? [image.mime] : []
-      })
-      return withImages(words.trim() ? [entry("user", "text", words, { at: time })] : [], images)
+      const inline = blocksOf(message.content).flatMap((block) => imageOf(block) ?? [])
+      const { text, files } = pastedImages(wordsOf(message.content), inline.length)
+      return withImages(
+        text.trim() ? [entry("user", "text", text, { at: time })] : [],
+        [...inline, ...files].map((image) => image.mime),
+      )
     }
     case "assistant":
       return answerItems(message, time)
@@ -190,7 +234,8 @@ export const transcripts: TranscriptDecoder = {
     const record = recordOf(line)
     const message = record?.type === "message" ? fieldsOf(record.message) : undefined
     if (message?.role !== "user") return []
-    return blocksOf(message.content).flatMap((block) => imageOf(block) ?? [])
+    const inline = blocksOf(message.content).flatMap((block) => imageOf(block) ?? [])
+    return [...inline, ...pastedImages(wordsOf(message.content), inline.length).files]
   },
   items: (line) => {
     const record = recordOf(line)
