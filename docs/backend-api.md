@@ -1398,8 +1398,7 @@ one from an earlier runner.
   `AGENT_SETUP_FAILED` saying why.
   An agent that was connected and whose plugin went from it outside Novadeck, or that isn't
   connected while agents of it sleep (which only a connected agent wakes), is listed `lost`
-  until it is connected again or the person sets it (revision 14). `agents.watch()` (revision
-  14) streams the list as `agents.list()` gives it, then again each time an agent's connection
+  until it is connected again or the person sets it (revision 14). `agents.watch()` (revision 14) streams the list as `agents.list()` gives it, then again each time an agent's connection
   changes: the person's switch in any client, or a change outside Novadeck, which the runner
   looks for every 15 seconds while anyone follows.
 - `agents.detail({ terminalId })` streams what the agent in a terminal does, beyond its
