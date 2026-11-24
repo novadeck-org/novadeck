@@ -10,7 +10,7 @@ import { minimum, outdated, standing, unknownFrom, versionOf } from "./version.j
 describe("a pi too old for the adapter", () => {
   it("is one below the minimum, by its numbers", () => {
     expect(outdated("0.87.1")).toBe(true)
-    expect(outdated("1.0.4")).toBe(true)
+    expect(outdated("0.99.2")).toBe(true)
     expect(outdated(minimum)).toBe(false)
     expect(outdated("1.6.0")).toBe(false)
     expect(outdated("1.9.0", "1.10.0")).toBe(true)
@@ -24,7 +24,7 @@ describe("a pi too old for the adapter", () => {
 
 describe("a release's standing", () => {
   it("is supported from the minimum up to pi 2, which Novadeck doesn't know yet", () => {
-    expect(standing("1.0.4")).toBe("outdated")
+    expect(standing("0.99.2")).toBe("outdated")
     expect(standing(minimum)).toBe("supported")
     expect(standing("1.6.0")).toBe("supported")
     expect(standing(unknownFrom)).toBe("unsupported")
@@ -63,7 +63,7 @@ describe.skipIf(process.platform === "win32")("the pi a person runs", () => {
   it("passes over another program named pi on PATH for the one its installer put aside", async () => {
     folder = mkdtempSync(join(tmpdir(), "novadeck-pi-version-"))
     const digits = program(join(folder, "usr-bin"), "echo 3.14159265358979")
-    const managed = program(join(folder, "home", ".pi", "agent", "bin"), "echo 1.0.0")
+    const managed = program(join(folder, "home", ".pi", "agent", "bin"), "echo 0.99.0")
     const install = {
       env: { PATH: join(folder, "usr-bin") },
       home: join(folder, "home"),
@@ -71,7 +71,7 @@ describe.skipIf(process.platform === "win32")("the pi a person runs", () => {
       plugin: join(folder, "plugin"),
     }
     expect(digits).toBeDefined()
-    expect(await programOf(install)).toEqual({ program: managed, version: "1.0.0" })
+    expect(await programOf(install)).toEqual({ program: managed, version: "0.99.0" })
     expect(await limited(install)).toBe("outdated")
   })
 })

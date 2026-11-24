@@ -232,6 +232,12 @@ describe("Novadeck's pi extension", () => {
         display: true,
       },
     })
+    // Before pi 1.2.0 the event names no messageType, and comes for prompts alone.
+    await pi.answer({ UserPromptSubmit: { deliver: "older" } })
+    await pi.emit("input", { text: "again", source: "interactive" })
+    expect(await pi.emit("before_agent_start", { prompt: "again" })).toEqual({
+      message: { customType: "novadeck", content: "older", display: true },
+    })
     // Once: the next run brings nothing of it.
     expect(await pi.emit("before_agent_start", { messageType: "user" })).toBeUndefined()
     expect((await pi.reports())[0]).toMatchObject({
