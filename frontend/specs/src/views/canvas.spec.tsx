@@ -362,7 +362,9 @@ describe("Canvas", () => {
       await expect.element(terminal("Checkout review")).toBeVisible()
       expect(fillsView(await settled(() => boxOf(terminal("Checkout review"))))).toBe(false)
       await sidebarPanel("Inbox").click()
-      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+      await page
+        .getByRole("button", { name: /^(?!(?:Dismiss|Snooze|Unsnooze): ).*Run pnpm test/ })
+        .click()
 
       await page
         .getByRole("dialog", { name: "Checkout review" })
@@ -382,7 +384,9 @@ describe("Canvas", () => {
       window.location.hash = "#/projects/docs-site/sessions/initial/grid"
       await expect.element(view("Grid")).toBeChecked()
       await sidebarPanel("Inbox").click()
-      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+      await page
+        .getByRole("button", { name: /^(?!(?:Dismiss|Snooze|Unsnooze): ).*Run pnpm test/ })
+        .click()
 
       await page
         .getByRole("dialog", { name: "Checkout review" })
@@ -400,7 +404,9 @@ describe("Canvas", () => {
       await openWorkspace("/?demo=agents")
       await chooseView("Canvas")
       await sidebarPanel("Inbox").click()
-      await page.getByRole("button", { name: /Run pnpm test/ }).click()
+      await page
+        .getByRole("button", { name: /^(?!(?:Dismiss|Snooze|Unsnooze): ).*Run pnpm test/ })
+        .click()
       await page
         .getByRole("dialog", { name: "Checkout review" })
         .getByRole("button", { name: "Show terminal" })
