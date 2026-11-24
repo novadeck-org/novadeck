@@ -101,7 +101,7 @@ const it = base.extend<{ fixture: Fixture }>({
     mkdirSync(bin)
     const script = join(root, "agent.cjs")
     writeFileSync(script, fakeAgent)
-    for (const agent of ["claude", "codex", "agy", "opencode"])
+    for (const agent of ["claude", "codex", "agy", "opencode", "pi"])
       if (windows)
         writeFileSync(
           join(bin, `${agent}.cmd`),
@@ -172,6 +172,7 @@ const installed = (home: string, ...agents: string[]) => {
     codex: [".codex"],
     agy: [".gemini", "antigravity-cli"],
     opencode: [".local", "share", "opencode"],
+    pi: [".pi", "agent"],
   }
   for (const agent of agents)
     mkdirSync(join(home, ...homes[agent as keyof typeof homes]), { recursive: true })
@@ -213,6 +214,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "codex", available: true, connected: false },
       missing("agy"),
       missing("opencode"),
+      missing("pi"),
     ])
     // Installed and never run: no home yet, but the program is on PATH.
     expect(await fixture.agents().list()).toEqual([
@@ -220,6 +222,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "codex", available: true, connected: false },
       { agent: "agy", available: true, connected: false },
       { agent: "opencode", available: true, connected: false },
+      { agent: "pi", available: true, connected: false },
     ])
   })
 
@@ -254,7 +257,7 @@ describe("agents Novadeck can connect", () => {
     fixture,
   }) => {
     const agents = fixture.agents()
-    for (const agent of ["claude", "codex", "agy", "opencode"] as const)
+    for (const agent of ["claude", "codex", "agy", "opencode", "pi"] as const)
       // eslint-disable-next-line no-await-in-loop -- Each connects in its turn, as the runner's queue has them.
       expect(await agents.set(agent, true)).toMatchObject({
         agent,
@@ -326,6 +329,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "codex", available: true, connected: true },
       { agent: "agy", available: true, connected: true },
       { agent: "opencode", available: true, connected: false },
+      { agent: "pi", available: true, connected: false },
     ])
     expect(fixture.calls()).toContainEqual(["codex", "plugin", "add", "novadeck@novadeck"])
     expect(fixture.calls()).toContainEqual(["agy", "plugin", "install", fixture.paths.plugins.agy])
@@ -357,6 +361,21 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.set("opencode", false)).toMatchObject({ connected: false })
     expect(existsSync(join(fixture.paths.plugins.opencode, "connected"))).toBe(false)
     expect(await agents.shims()).not.toContain("opencode")
+  })
+
+  it("connects pi by Novadeck's own marker, running none of its commands and writing nothing of its own", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "pi")
+    const agents = fixture.agents()
+    expect(await agents.set("pi", true)).toMatchObject({ connected: true })
+    expect(existsSync(join(fixture.paths.plugins.pi, "connected"))).toBe(true)
+    // Only its version is asked, for whether Novadeck's extension works with it.
+    expect(fixture.calls()).toEqual([["pi", "--version"]])
+    // Nothing of pi's own files: its extension loads per launch, through the shim's `-e`.
+    expect(existsSync(join(fixture.home, ".pi", "agent", "settings.json"))).toBe(false)
+    expect(await agents.set("pi", false)).toMatchObject({ connected: false })
+    expect(existsSync(join(fixture.paths.plugins.pi, "connected"))).toBe(false)
   })
 
   it("names Antigravity among the shimmed agents on Windows, with the cmd.exe pass-through or not", async ({

@@ -17,6 +17,7 @@ import { box as claudeBox } from "@novadeck/harness-claude/box"
 import { box as codexBox } from "@novadeck/harness-codex/box"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 import { box as opencodeBox } from "@novadeck/harness-opencode/box"
+import { box as piBox } from "@novadeck/harness-pi/box"
 
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
@@ -24,7 +25,13 @@ import { gate, type Call } from "../model/script.js"
 import { start } from "../scenarios.js"
 import { paste, probing, sleep } from "./support.js"
 
-const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox, opencode: opencodeBox }
+const profiles = {
+  claude: claudeBox,
+  codex: codexBox,
+  agy: agyBox,
+  opencode: opencodeBox,
+  pi: piBox,
+}
 
 const left = "\x1b[D"
 const up = "\x1b[A"

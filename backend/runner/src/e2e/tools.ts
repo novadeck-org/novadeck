@@ -146,6 +146,9 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write",
     ],
   },
+  // Its default tools (docs/cli.md, 1.6.0): none asks the person, as pi asks for nothing. Novadeck's
+  // own tools come as extension tools (`novadeck_*`). To be checked by tools.e2e.ts at the first run.
+  pi: { asking: [], other: ["bash", "edit", "read", "write"] },
 }
 
 // How each harness names a tool of Novadeck's own MCP server (`send`, `ask`, ...).
@@ -154,6 +157,7 @@ const novadeck: { readonly [agent in AgentName]: RegExp } = {
   codex: /^mcp__(?:plugin_)?novadeck/,
   agy: /^mcp_novadeck_novadeck_/,
   opencode: /^novadeck_/,
+  pi: /^novadeck_/,
 }
 
 /** The tools classified for a harness, asking or not. */

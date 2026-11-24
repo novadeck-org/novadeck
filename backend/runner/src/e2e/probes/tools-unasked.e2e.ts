@@ -158,6 +158,8 @@ const cases: { readonly [agent in AgentName]: readonly Case[] } = {
   // Novadeck's plugin adds its tools' allow to the configuration opencode loaded, so the
   // bare launch is the one that matters.
   opencode: [{ label: "bare", words: () => "" }],
+  // Novadeck's extension registers its tools itself, with nothing for the person to allow.
+  pi: [{ label: "bare", words: () => "" }],
 }
 
 const slug = (label: string): string => label.replace(/[^a-z0-9]+/gi, "-")
@@ -204,6 +206,7 @@ const past: { readonly [agent in AgentName]: string } = {
   codex: `NOVADECK_SHIMS= codex --no-daemon -c "tui.terminal_title=['status','thread-id']"`,
   agy: "NOVADECK_SHIMS= agy",
   opencode: "NOVADECK_SHIMS= opencode",
+  pi: "NOVADECK_SHIMS= pi",
 }
 
 for (const setup of setups) {

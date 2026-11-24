@@ -2,6 +2,7 @@ import { describe as agyDescribe } from "@novadeck/harness-agy/tools"
 import { describe as claudeDescribe } from "@novadeck/harness-claude/tools"
 import { describe as codexDescribe } from "@novadeck/harness-codex/tools"
 import { describe as opencodeDescribe } from "@novadeck/harness-opencode/tools"
+import { describe as piDescribe } from "@novadeck/harness-pi/tools"
 import type { ToolRun } from "@novadeck/protocol"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
@@ -20,6 +21,7 @@ const describes: {
   codex: codexDescribe,
   agy: agyDescribe,
   opencode: opencodeDescribe,
+  pi: piDescribe,
 }
 
 const generic: { readonly [agent in AgentName]: { readonly [tool: string]: string } } = {
@@ -33,10 +35,11 @@ const generic: { readonly [agent in AgentName]: { readonly [tool: string]: strin
     swarm: "added in 1.5.7; shows as its raw name until the chat gives its actions a row",
   },
   opencode: {},
+  pi: {},
 }
 
 describe("every tool a harness offers has a row of its own or is meant to show generically", () => {
-  for (const agent of ["claude", "codex", "agy", "opencode"] as const) {
+  for (const agent of ["claude", "codex", "agy", "opencode", "pi"] as const) {
     it(`covers ${agent}'s tools`, () => {
       const bare = classified(agent).filter((tool) => {
         const run = describes[agent](tool, "{}")

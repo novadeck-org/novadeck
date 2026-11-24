@@ -244,10 +244,10 @@ describe("what peers read of a terminal", () => {
 
   describe("the background shells of each harness's agent, as agents lists them", () => {
     const minute = 60_000
-    // What each harness's decoder gives for a shell, in the shape of its own ids. opencode runs
-    // no shell past its call (its bash has no background), so it has none to list.
+    // What each harness's decoder gives for a shell, in the shape of its own ids. opencode and pi run
+    // no shell past their call (their bash has no background), so they have none to list.
     const shells: Record<
-      Exclude<AgentName, "opencode">,
+      Exclude<AgentName, "opencode" | "pi">,
       { ids: readonly [string, string, string]; secret: string }
     > = {
       claude: { ids: ["bk1x2y3z4", "bq9w8e7r6", "bt5y4u3i2"], secret: "sk-live-9f8e7d6c5b4a3210" },
