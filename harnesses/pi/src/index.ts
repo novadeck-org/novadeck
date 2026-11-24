@@ -12,7 +12,7 @@ import { fallbacks, installer } from "./install.js"
 import { launch } from "./launch.js"
 import { limited } from "./limited.js"
 import { messaging } from "./messaging.js"
-import { connected, connectedFile, files, hook, hookDialect } from "./plugin.js"
+import { connected, connectedFile, files, hook, hookDialect, pidVariable } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
 import { commands, info, kept, shims, valued } from "./shim.js"
 import { heldScreen, screenMarker, screenVersion, signedOut, title } from "./startup.js"
@@ -41,6 +41,8 @@ export const pi = {
   disconnect: [],
   hookDialect,
   hook,
+  // Its own process, as the extension names it to its hooks: on Windows pi runs as `node.exe`.
+  pidVariable,
   files,
   shims,
   limited,

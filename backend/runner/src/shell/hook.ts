@@ -144,10 +144,15 @@ const folderOf = (payload: Fields, input: unknown): string | undefined => {
 export const askMs = 4_000
 
 /**
- * What of a hook's environment the relay forwards, by name: Claude Code's own pid, and
- * what tells nested agents apart. The relay reads the names from its configuration.
+ * What of a hook's environment the relay forwards, by name: the agent's own pid, as Claude Code
+ * and pi's extension give it, and what tells nested agents apart. The relay reads the names from its configuration.
  */
-export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"] as const
+export const hookVariables = [
+  "CLAUDE_PID",
+  "NOVADECK_PI_PID",
+  "CURSOR_VERSION",
+  "CODEX_THREAD_ID",
+] as const
 
 /**
  * The margin an ask leaves before its hook's limit, for the hook to print what a lease

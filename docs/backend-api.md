@@ -1217,7 +1217,7 @@ work with it, and an option without a value would be read as the agent.
      `seq`. Elsewhere `seq` tells, and the ancestor below the agent may be a long-lived
      process of its own, as under a wrapper script that doesn't `exec` it.
    - `env` holds the variables `relay.json` names, by name, as the hook found them:
-     `CLAUDE_PID`, `CURSOR_VERSION` and `CODEX_THREAD_ID`.
+     `CLAUDE_PID`, `NOVADECK_PI_PID`, `CURSOR_VERSION` and `CODEX_THREAD_ID`.
    - `payload` is the agent's JSON as text, unread. The runner prunes it.
 2. The runner answers one line, `{"stdout": string | null, "leaseId": string | null}`: a
    report at once, an ask by the relay's deadline (at most four seconds after `seq`),

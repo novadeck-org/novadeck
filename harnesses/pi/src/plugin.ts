@@ -38,6 +38,13 @@ export const toolPrefix = "novadeck_"
  */
 export const stoppedFolder = "stopped"
 
+/**
+ * The variable the extension gives its hook commands pi's own pid in: pi on Windows is `node.exe`,
+ * whose name tells no agent (its `process.title` only titles the console), so the relay names
+ * the agent that ran a hook by this, as by Claude Code's `CLAUDE_PID`.
+ */
+export const pidVariable = "NOVADECK_PI_PID"
+
 /** The extension spawns its hook commands with Node's `shell: true`: `sh`, or `cmd` on Windows. */
 export const hookDialect = (platform: NodeJS.Platform): Dialect =>
   platform === "win32" ? "cmd" : "sh"
@@ -72,6 +79,7 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
       unknownFrom,
       prefix: toolPrefix,
       stoppedFolder,
+      pidVariable,
       // Only while the Experimental shipping gate is on: off, the extension is as it always was.
       ...(machine.shippingGate === true && { gate: true }),
     }),
