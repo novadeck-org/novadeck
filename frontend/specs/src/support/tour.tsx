@@ -9,6 +9,8 @@ import { nameOf } from "./workspace"
 
 export const consent = (): Locator => page.getByRole("dialog", { name: "Take the tour" })
 export const coach = (): Locator => page.getByRole("region", { name: "Tour step" })
+// The caption box's eye, which brings what its step is about into view.
+export const showMe = (): Locator => coach().getByRole("button", { name: "Show me" })
 export const closing = (): Locator => page.getByRole("region", { name: "Tour finished" })
 
 /**
@@ -111,19 +113,40 @@ export const expectClickAtWindows = (...names: readonly string[]): Promise<void>
     )
     .toEqual(names.toSorted())
 
+/** Waits for the caption box to say any of `words`, and answers which. */
+export const coachSaysAny = async (words: readonly string[], timeout = 40_000): Promise<string> => {
+  let said = ""
+  await expect
+    .poll(
+      () => {
+        const now =
+          document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
+        said = words.find((each) => now.includes(each)) ?? ""
+        return said
+      },
+      { timeout },
+    )
+    .not.toBe("")
+  return said
+}
+
 /**
- * Plays a step that waits on the person, as they would: once its caption says `line`, presses
- * what opens its subject where the tour marks that first (the rail's button for a panel, a window
- * whose pane isn't showing yet), each once, then touches the subject itself, one of what
- * `subject` finds, and waits for the caption to move on (unless the step `stays` a while after,
- * as the game's last does).
+ * Plays a step that waits on the person, as they would: once its caption says `line` (or its
+ * `cue`, said while its subject isn't on screen yet), presses what opens its subject where the
+ * tour marks that first (the rail's button for a panel, a window whose pane isn't showing yet),
+ * each once, then touches the subject itself, one of what `subject` finds, and waits for the
+ * caption to move on (unless the step `stays` a while after, as the game's last does).
  */
 export const touchStep = async (
   line: string,
   subject: () => readonly (HTMLElement | undefined)[],
-  { timeout = 40_000, stays = false }: { readonly timeout?: number; readonly stays?: boolean } = {},
+  {
+    timeout = 40_000,
+    stays = false,
+    cue,
+  }: { readonly timeout?: number; readonly stays?: boolean; readonly cue?: string } = {},
 ): Promise<void> => {
-  await coachSays(line, timeout)
+  await coachSaysAny(cue === undefined ? [line] : [line, cue], timeout)
   const opened = new Set<HTMLElement>()
   await expect
     .poll(
@@ -134,6 +157,13 @@ export const touchStep = async (
         if (marked && !opened.has(marked)) {
           opened.add(marked)
           await page.elementLocator(marked).click()
+          return false
+        }
+        // Nothing it marks in sight: the box's eye brings it, once.
+        const eye = showMe().query()
+        if (!marked && eye instanceof HTMLElement && !opened.has(eye)) {
+          opened.add(eye)
+          await showMe().click()
         }
         return false
       },

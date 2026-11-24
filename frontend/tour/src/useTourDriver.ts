@@ -1,7 +1,6 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
-import { allInSight } from "./anchors"
 import {
   beginRun,
   coachNow,
@@ -12,10 +11,11 @@ import {
   type TourEvent,
   type TourMade,
   type TourRun,
+  type TourShow,
 } from "./driver"
 import { noTeam, sameSignals, tourSignals, type TourSignals } from "./signals"
 import type { TourStarted } from "./start"
-import { closingMoves, stepsOf, type Coach, type TourAct, type TourStep } from "./steps"
+import { stepsOf, type Coach, type TourAct, type TourStep } from "./steps"
 import type { TourHost } from "./tour-host"
 import { closingKey, storageKey } from "./tour-storage"
 import { useSelected } from "./use-selected"
@@ -27,8 +27,6 @@ const defaultPatienceMs = 90_000
 // again forever.
 const briefRetryMs = 2_000
 const briefTries = 5
-// How long after a window lands the tour frames the team again, for Canvas to settle first.
-const frameSettleMs = 400
 
 const isRun = (value: unknown): value is TourRun => {
   if (typeof value !== "object" || value === null) return false
@@ -43,9 +41,7 @@ const isRun = (value: unknown): value is TourRun => {
     (typeof run.doneAt === "number" || run.doneAt === null) &&
     (typeof run.approvalGoneAt === "number" || run.approvalGoneAt === null) &&
     typeof run.approvalSeen === "boolean" &&
-    ["page", "nudged", "briefed", "asked", "entered", "tabbed", "declined"].every(
-      (key) => typeof run[key] === "boolean",
-    )
+    ["page", "nudged", "briefed", "asked", "declined"].every((key) => typeof run[key] === "boolean")
   )
 }
 
@@ -127,13 +123,17 @@ export type TourDriver = {
   readonly captioned: (line: string) => void
   // The person touched what the caption with this line marks as its step's subject.
   readonly touched: (line: string) => void
-  // Brings what the tour is about now back into view, as the person asks.
+  // Brings what the tour is about now into view, as the person asks by the caption box's button.
   readonly show: () => void
   // The run followed now, with what it shows; null while none runs.
   readonly shown: {
     readonly terminalId: string
     readonly agent: AgentName
     readonly coach: Coach | null
+    // Whether the caption box's button has something to bring into view now: a terminal held at
+    // something of its own, or the step's subject. Where it hasn't, the box offers "Show me" only
+    // once what it marks is out of sight.
+    readonly bring: boolean
     // The act its step belongs to, which a wipe opens.
     readonly act: TourAct
     // The Inbox row of the team's question waiting now.
@@ -164,10 +164,17 @@ export type TourDriver = {
 
 /**
  * Follows a run of the tour: reads its signals off the workspace, moves it on with each change
- * and as its waits end, makes each step's moves once as it begins, and rings its lead its
- * first line, or a nudge, through the backend. It never takes the person's view back: a step's
- * moves are made once, and only while the tour's project is on screen.
+ * and as its waits end, and rings its lead its first line, or a nudge, through the backend. It
+ * opens, pans and zooms nothing of its own once the run has begun: what a step is about comes
+ * into view as the person presses its caption box's button (`show`), or as they go there.
  */
+// A terminal held at something of its own the person answers there: a teammate's screen, its
+// program ended, or an agent asking their permission.
+const waitingOn = (signals: TourSignals): string | undefined =>
+  signals.teamScreen?.terminalId ?? signals.teamLeft?.terminalId ?? signals.permission?.terminalId
+
+const hasShow = ({ moves, tab }: TourShow): boolean => moves.length > 0 || tab !== null
+
 export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourDriver => {
   const { tour } = backend
   // What else its signals read: the agents' messages and the Inbox, where the backend has them.
@@ -257,9 +264,8 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     [commands],
   )
 
-  // Moves the run on by one event and acts on what follows: a step's moves and pane tab, and
-  // ringing the lead its first line (again, a little later, where the backend refused) or a
-  // nudge.
+  // Moves the run on by one event and acts on what follows: ringing the lead its first line
+  // (again, a little later, where the backend refused) or a nudge.
   const dispatch = useCallback(
     function dispatch(event: TourEvent): void {
       const before = current.current
@@ -288,9 +294,6 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         })
       }
       const { terminalId } = before
-      // Its story done, every window framed for the closing card.
-      make(outcome.end === "done" ? closingMoves : outcome.moves)
-      if (outcome.tab) commands.openBarTab(outcome.tab.terminalId, outcome.tab.key)
       // Only for the run it was for: one ended or begun anew since lets it go.
       const again = (): void => {
         if (current.current?.terminalId !== terminalId) return
@@ -325,7 +328,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
             console.error("Novadeck couldn't nudge the tour's agent:", error),
           )
     },
-    [tour, patienceMs, make, keep, commands, workspace, dropRetry, setClosing],
+    [tour, patienceMs, keep, workspace, dropRetry, setClosing],
   )
 
   // A retry left waiting goes with the page.
@@ -378,58 +381,24 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
       current.current = next
       writeTourRun(next, stepsFor(next))
       setRun(next)
+      // As the person started it: the tour plays in Canvas, on its lead's window. The one time
+      // the tour moves the view; from here on only the person does, or their press on a caption
+      // box's button.
+      make([
+        { kind: "view", view: "canvas" },
+        { kind: "travel", terminalId: started.terminalId },
+      ])
     },
-    [dropRetry, setClosing],
+    [dropRetry, setClosing, make],
   )
 
-  // While a step frames the team, a window the team gains out of sight has every window framed, a
-  // moment after it lands (Canvas sets its camera afresh as a window comes, and drops a framing
-  // asked before it settles): the camera goes out to show it, never across, and stays where all
-  // are in sight. Only a new window: coming back to the tour, the person's own framing stays.
-  const framing = run && steps[run.step]?.frameTeam && signals.onScreen ? signals.team.count : null
-  // The team's windows as they are when the framing looks.
-  const teamIds = useRef(signals.team.ids)
-  useEffect(() => {
-    teamIds.current = signals.team.ids
-  }, [signals.team.ids])
-  const framingFor = run?.terminalId
-  // The most windows framed so far, for the run it was for: another run starts from none.
-  const framed = useRef({ terminalId: framingFor, count: 0 })
-  useEffect(() => {
-    if (framed.current.terminalId !== framingFor)
-      framed.current = { terminalId: framingFor, count: 0 }
-    if (framing === null || framing <= framed.current.count) return
-    framed.current = { terminalId: framingFor, count: framing }
-    const timer = setTimeout(() => {
-      if (!allInSight(current.current ? teamIds.current : [])) commands.frameAll()
-    }, frameSettleMs)
-    return () => clearTimeout(timer)
-  }, [framing, framingFor, commands])
-
-  // A teammate held at its own agent's screen (its own question, as folder trust or sign-in), or
-  // an agent asking the person's permission, waits on them in its terminal, which may not be on
-  // screen: brought into view once per hold, the calm way, for the coach to point at.
-  const held =
-    run && signals.onScreen
-      ? (signals.teamScreen?.terminalId ??
-        signals.teamLeft?.terminalId ??
-        signals.permission?.terminalId)
-      : undefined
-  const revealed = useRef<string | null>(null)
-  useEffect(() => {
-    if (!held) revealed.current = null
-    if (!held || revealed.current === held) return
-    revealed.current = held
-    commands.travel(held)
-  }, [held, commands])
-
-  // What "Show me" brings back: a terminal held at something of its own, or the step's subject.
+  // What the caption box's button brings into view: a terminal held at something of its own, or
+  // the step's subject.
   const show = useCallback((): void => {
     const now = current.current
     if (!now) return
     const state = tourSignals(workspace.getSnapshot(), now.terminalId, sources.current)
-    const waiting =
-      state.teamScreen?.terminalId ?? state.teamLeft?.terminalId ?? state.permission?.terminalId
+    const waiting = waitingOn(state)
     if (waiting) return commands.travel(waiting)
     // A panel the coach points to open by its rail button, where the rail is hidden (Zen).
     const click = coachNow(now, stepsFor(now), state)?.click ?? []
@@ -457,22 +426,28 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
     Object.is,
   )
 
-  const shown = useMemo(
-    () =>
-      run && {
-        terminalId: run.terminalId,
-        agent: run.agent,
-        coach: coachNow(run, steps, signals),
-        act: steps[Math.min(run.step, steps.length - 1)]!.act,
-        // A teammate's question, which the tour points at whatever the step, else the lead's sheet.
-        askingRow: signals.askingRow ?? signals.sheet.row,
-        roles: signals.roles,
-        open: signals.open,
-        team: signals.team.ids,
-        away: !signals.onScreen,
-      },
-    [run, steps, signals],
-  )
+  const shown = useMemo(() => {
+    if (!run) return null
+    const coach = coachNow(run, steps, signals)
+    return {
+      terminalId: run.terminalId,
+      agent: run.agent,
+      coach,
+      // Only for the step's own box, or one pointing at a terminal held at something of its own:
+      // not for a teammate's question, whose rail button the tour marks.
+      bring:
+        coach !== null &&
+        ((coach.terminalId !== undefined && coach.terminalId === waitingOn(signals)) ||
+          (coach === steps[run.step]?.coach && hasShow(showAgain(run, steps, signals)))),
+      act: steps[Math.min(run.step, steps.length - 1)]!.act,
+      // A teammate's question, which the tour points at whatever the step, else the lead's sheet.
+      askingRow: signals.askingRow ?? signals.sheet.row,
+      roles: signals.roles,
+      open: signals.open,
+      team: signals.team.ids,
+      away: !signals.onScreen,
+    }
+  }, [run, steps, signals])
 
   return useMemo(
     () => ({
