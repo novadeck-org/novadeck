@@ -61,8 +61,11 @@ export const racesOwnSettings = (setup: AgentSetup): boolean => has(settingsRace
  * line to its box (seen on Windows CI, 0.167.0, 2026-11-07): only one in what it takes for a burst
  * of typing does (`pastesWhole`). Pinned by inbox.e2e's "rings nothing over a draft scrolled out
  * of sight", which pastes the draft there; once such a key adds a line, it types it as elsewhere.
+ * pi on Windows the same (Windows CI, 1.6.0, 2026-11-24: twelve `\n` keys left its box one row,
+ * the draft not sent); a person's Shift+Enter still adds one, as pi reads the Shift key itself
+ * there (its docs/terminal-setup.md).
  */
-const lineBreakKeysLost: Gap = { agents: ["codex"], platforms: ["win32"] }
+const lineBreakKeysLost: Gap = { agents: ["codex", "pi"], platforms: ["win32"] }
 
 /** Whether a line break typed as a key of its own adds no line to the harness's box. */
 export const losesLineBreakKeys = (setup: AgentSetup): boolean => has(lineBreakKeysLost, setup)
