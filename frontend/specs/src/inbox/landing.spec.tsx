@@ -13,10 +13,14 @@ const storefront =
 const docs = "/projects/docs-site/sessions/initial/focus?terminal=docs-site-initial-02&desktop=on"
 
 const bell = () => page.getByRole("radio", { name: /^Inbox, \d+ waiting$/ })
-const inboxRow = (subject: RegExp | string) =>
-  page.getByRole("list", { name: "Messages from your agents" }).getByRole("button", {
-    name: typeof subject === "string" ? new RegExp(subject) : subject,
+// A row's own button, by its words: not the buttons beside it that name it too (Dismiss,
+// Snooze, Unsnooze).
+const inboxRow = (subject: RegExp | string) => {
+  const words = typeof subject === "string" ? new RegExp(subject) : subject
+  return page.getByRole("list", { name: "Messages from your agents" }).getByRole("button", {
+    name: new RegExp(`^(?!(?:Dismiss|Snooze|Unsnooze): ).*(?:${words.source})`, words.flags),
   })
+}
 
 const open = async (route: string): Promise<void> => {
   await openWorkspace(route)

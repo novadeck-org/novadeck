@@ -11,10 +11,16 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { inboxType, entryKey, type InboxEntry, type InboxState } from "@novadeck/core/inbox"
 import { afterDrop } from "@novadeck/toolkit/drag-settled"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
-import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
+import {
+  sidebarListClasses,
+  sidebarRowClasses,
+  sidebarRowIconClasses,
+  sidebarRowNameClasses,
+  sidebarRowSelectClasses,
+} from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Bell, BellOff, LoaderCircle, X } from "lucide-react"
-import { useCallback, useMemo, useState, memo } from "react"
+import { useCallback, useMemo, useState, memo, type CSSProperties } from "react"
 
 import { focusSheet, focusSheetSoon, nextRowButton, rowOf } from "./inbox-dom"
 import { iconKey, icons, tintOf, typeWords } from "./inbox-icons"
@@ -48,19 +54,24 @@ const feedback = Feedback.configure({
 })
 const cursor = Cursor.configure({ cursor: "grabbing" })
 
+const actionClasses = "inbox-row-action icon-button small dim quiet"
+
 // How a row the person can drag takes part: its place among the rows that drag, and Alt with
 // the arrows moving it one place.
 type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 
-// One row, for triage only: the kind's icon tinted by what it wants of the person, the subject,
-// how long the agent has waited if it stopped, and under it the project and what is extra. A row
-// that asks something stays bright until it is answered, opened or not. A resolved row stays as
-// history, in gray, with how it ended under its subject, and opens its sheet to read; an open
+// One row, for triage only, drawn as a terminal's tab is (TerminalTab.tsx), from the sidebar
+// item's parts: the kind's icon tinted by what it wants of the person, the subject on the name's
+// line (whole in its tooltip), and under it a tab's detail line: the project and what is extra,
+// and at its end, where a tab holds its @handle, how long the agent has waited if it stopped.
+// A row that asks something stays bright until it is answered, opened or not. A resolved row stays as
+// history, in gray, with how it ended on its detail line, and opens its sheet to read; an open
 // Novadeck ask can be dismissed. An update whose row has been in sight for a moment is read once
 // the person leaves the list (`read-on-leaving.ts`), as its subject is often all it says.
 // A row that asks drags among the others that do, into the person's order (`drag`), and can
 // be snoozed (S): it keeps its place, marked, its bell-off where its wait shows, and there its
-// unsnooze button instead of a dismiss button.
+// unsnooze button instead of a dismiss button. Its buttons slide in over the wait under the
+// pointer or with focus, as a tab's Hide and Rename do over its handle.
 const InboxRow = ({
   entry,
   place,
@@ -151,11 +162,19 @@ const InboxRow = ({
         answering ? null : resumesLabel(entry),
         readLabel(entry),
       ].filter((extra): extra is string => extra !== null)
+  // Room on the detail line for the buttons that slide in: a tab's 26px each.
+  const buttons = Number(dismissable) + Number(snoozable)
+  const label = `${typeWords[type]}: ${subject}, ${entry.source.projectName}${
+    settled ? `, ${endedWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
+  }`
   return (
     <div
       ref={ref}
       role="listitem"
-      className="item inbox-row"
+      className={`${sidebarRowClasses} min-h-17 inbox-row`}
+      style={
+        buttons ? ({ "--_sidebar-actions-space": `${buttons * 26}px` } as CSSProperties) : undefined
+      }
       data-inbox-row={entry.id}
       data-tour="inbox-card"
       data-type={type}
@@ -170,150 +189,165 @@ const InboxRow = ({
       data-selected={current}
       data-dragging={dragging || undefined}
     >
-      <button
-        ref={handleRef}
-        type="button"
-        className="inbox-row-select"
-        aria-keyshortcuts={
-          [onStep && "Alt+ArrowUp Alt+ArrowDown", snoozable && "S"].filter(Boolean).join(" ") ||
-          undefined
-        }
-        aria-label={`${typeWords[type]}: ${subject}, ${entry.source.projectName}${
-          settled ? `, ${endedWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
-        }`}
-        aria-current={current ? "true" : undefined}
-        onClick={(event) => {
-          // Pressed again, the open row closes its sheet.
-          if (current) return close()
-          open(entry.id)
-          // From the keyboard, on to the sheet that opens.
-          if (event.detail === 0) focusSheetSoon()
-        }}
-        // The sheet follows its row in the tab order: Tab or the right arrow goes into it.
-        onKeyDown={(event) => {
-          // Alt and the arrows move a row that drags one place among the others.
-          if (
-            onStep &&
-            event.altKey &&
-            !event.shiftKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            (event.key === "ArrowUp" || event.key === "ArrowDown")
-          ) {
-            event.preventDefault()
-            onStep(event.key === "ArrowUp" ? -1 : 1)
-            return
+      <Tooltip content={`${subject}\n${entry.source.projectName}`} placement="right-start">
+        <button
+          ref={handleRef}
+          type="button"
+          className={`${sidebarRowSelectClasses} inbox-row-select`}
+          aria-keyshortcuts={
+            [onStep && "Alt+ArrowUp Alt+ArrowDown", snoozable && "S"].filter(Boolean).join(" ") ||
+            undefined
           }
-          // S snoozes the row, or brings it back.
-          if (
-            snoozable &&
-            (event.key === "s" || event.key === "S") &&
-            !event.shiftKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey
-          ) {
-            event.preventDefault()
-            toggleSnooze()
-            return
-          }
-          // Delete dismisses an ask that can be, and the keyboard goes on to the next row.
-          if (
-            dismissable &&
-            (event.key === "Delete" || event.key === "Backspace") &&
-            !event.shiftKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey
-          ) {
-            event.preventDefault()
-            const next = nextRowButton(entry.id)
-            dismiss(entry.id)
-            next?.focus()
-            return
-          }
-          if (!current || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
-          if ((event.key === "Tab" || event.key === "ArrowRight") && focusSheet())
-            event.preventDefault()
-        }}
-      >
-        <span className="inbox-row-icon" aria-hidden="true">
-          <Icon size={14} strokeWidth={1.6} />
-        </span>
-        <span className="inbox-row-subject text-body">
-          <Text text={subjectOf(entry)} />
-        </span>
-        <span className="inbox-row-wait text-caption">
-          {settled ? (
-            waitLabel(settled.at, now)
-          ) : snoozed ? (
-            <BellOff size={14} strokeWidth={1.6} aria-hidden="true" />
-          ) : entry.stopped && !answering ? (
-            waitLabel(entry.at, now)
-          ) : (
-            ""
-          )}
-        </span>
-        <span className="inbox-row-meta text-caption">
-          <span className="inbox-row-project" title={entry.source.projectName}>
-            {entry.source.projectName}
-          </span>
-          {extras.map((extra) => (
-            <span
-              className="inbox-row-extra"
-              data-extra={extra === "Draft" ? "draft" : undefined}
-              key={extra}
-            >
-              · {extra}
-            </span>
-          ))}
-        </span>
-      </button>
-      {dismissable ? (
-        <Tooltip content="Dismiss · Delete">
-          <button
-            type="button"
-            className="inbox-row-dismiss icon-button dim size-7"
-            aria-label={`Dismiss: ${subject}`}
-            onClick={(event) => {
-              // The second click of a double one meant for the unsnooze button, whose place this
-              // takes as the row comes back, dismisses nothing.
-              if (event.detail > 1) return
-              // The keyboard was on this button, which goes with the click: it stays on the row.
-              const keyboard = event.detail === 0
-              const select = event.currentTarget.previousElementSibling
-              dismiss(entry.id)
-              if (keyboard && select instanceof HTMLElement) select.focus()
-            }}
-          >
-            <X size={14} strokeWidth={1.6} />
-          </button>
-        </Tooltip>
-      ) : null}
-      {snoozable ? (
-        <Tooltip content={entry.snoozed ? "Unsnooze · S" : "Snooze · S"}>
-          <button
-            type="button"
-            className="inbox-row-snooze icon-button dim size-7"
-            aria-label={`${entry.snoozed ? "Unsnooze" : "Snooze"}: ${subject}`}
-            onClick={(event) => {
-              // The keyboard was on this button, which goes with the click: it stays on the row.
-              const keyboard = event.detail === 0
-              const select = event.currentTarget
-                .closest("[data-inbox-row]")
-                ?.querySelector<HTMLElement>(".inbox-row-select")
+          aria-label={label}
+          aria-current={current ? "true" : undefined}
+          onClick={(event) => {
+            // Pressed again, the open row closes its sheet.
+            if (current) return close()
+            open(entry.id)
+            // From the keyboard, on to the sheet that opens.
+            if (event.detail === 0) focusSheetSoon()
+          }}
+          // The sheet follows its row in the tab order: Tab or the right arrow goes into it.
+          onKeyDown={(event) => {
+            // Alt and the arrows move a row that drags one place among the others.
+            if (
+              onStep &&
+              event.altKey &&
+              !event.shiftKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              (event.key === "ArrowUp" || event.key === "ArrowDown")
+            ) {
+              event.preventDefault()
+              onStep(event.key === "ArrowUp" ? -1 : 1)
+              return
+            }
+            // S snoozes the row, or brings it back.
+            if (
+              snoozable &&
+              (event.key === "s" || event.key === "S") &&
+              !event.shiftKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey
+            ) {
+              event.preventDefault()
               toggleSnooze()
-              if (keyboard) select?.focus()
-            }}
-          >
-            {entry.snoozed ? (
-              <Bell size={14} strokeWidth={1.6} />
-            ) : (
-              <BellOff size={14} strokeWidth={1.6} />
-            )}
-          </button>
-        </Tooltip>
-      ) : null}
+              return
+            }
+            // Delete dismisses an ask that can be, and the keyboard goes on to the next row.
+            if (
+              dismissable &&
+              (event.key === "Delete" || event.key === "Backspace") &&
+              !event.shiftKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey
+            ) {
+              event.preventDefault()
+              const next = nextRowButton(entry.id)
+              dismiss(entry.id)
+              next?.focus()
+              return
+            }
+            if (!current || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
+            if ((event.key === "Tab" || event.key === "ArrowRight") && focusSheet())
+              event.preventDefault()
+          }}
+        >
+          <span className={`${sidebarRowIconClasses} inbox-row-icon`} aria-hidden="true">
+            <Icon size={14} strokeWidth={1.6} />
+          </span>
+          <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">
+            <strong className={`${sidebarRowNameClasses()} inbox-row-subject`}>
+              <Text text={subjectOf(entry)} />
+            </strong>
+            <span className="sidebar-item-detail item-detail inbox-row-meta flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption leading-[18px]">
+              {/* One glyph wide, as a tab's, so the line starts where a tab's program does. */}
+              <span aria-hidden className="inbox-row-glyph inline-block w-[1ch] shrink-0" />
+              {/* The project and what is extra give way together, so the wait keeps its place. */}
+              <span className="inbox-row-words min-w-0 truncate">
+                <span className="inbox-row-project">{entry.source.projectName}</span>
+                {extras.map((extra) => (
+                  <span
+                    className="inbox-row-extra"
+                    data-extra={extra === "Draft" ? "draft" : undefined}
+                    key={extra}
+                  >
+                    · {extra}
+                  </span>
+                ))}
+              </span>
+              <span className="inbox-row-wait shrink-0">
+                {settled ? (
+                  waitLabel(settled.at, now)
+                ) : snoozed ? (
+                  <BellOff size={12} strokeWidth={1.6} aria-hidden="true" />
+                ) : entry.stopped && !answering ? (
+                  waitLabel(entry.at, now)
+                ) : (
+                  ""
+                )}
+              </span>
+            </span>
+          </span>
+        </button>
+      </Tooltip>
+      {buttons > 0 && (
+        <div className="sidebar-item-actions absolute top-[31px] right-2 flex h-6 shrink-0 items-center">
+          <div className="inbox-row-slot flex items-center">
+            {snoozable ? (
+              <Tooltip content={entry.snoozed ? "Unsnooze · S" : "Snooze · S"}>
+                <button
+                  type="button"
+                  className={`${actionClasses} inbox-row-snooze`}
+                  aria-label={`${entry.snoozed ? "Unsnooze" : "Snooze"}: ${subject}`}
+                  onClick={(event) => {
+                    // The keyboard was on this button, which goes with the click: it stays on
+                    // the row.
+                    const keyboard = event.detail === 0
+                    const select = event.currentTarget
+                      .closest("[data-inbox-row]")
+                      ?.querySelector<HTMLElement>(".inbox-row-select")
+                    toggleSnooze()
+                    if (keyboard) select?.focus()
+                  }}
+                >
+                  {entry.snoozed ? (
+                    <Bell size={14} strokeWidth={1.5} />
+                  ) : (
+                    <BellOff size={14} strokeWidth={1.5} />
+                  )}
+                </button>
+              </Tooltip>
+            ) : null}
+            {dismissable ? (
+              <Tooltip content="Dismiss · Delete">
+                <button
+                  type="button"
+                  className={`${actionClasses} inbox-row-dismiss`}
+                  aria-label={`Dismiss: ${subject}`}
+                  onClick={(event) => {
+                    // The second click of a double one meant for the unsnooze button, whose
+                    // place this takes as the row comes back, dismisses nothing.
+                    if (event.detail > 1) return
+                    // The keyboard was on this button, which goes with the click: it stays on
+                    // the row.
+                    const keyboard = event.detail === 0
+                    const select = event.currentTarget
+                      .closest("[data-inbox-row]")
+                      ?.querySelector<HTMLElement>(".inbox-row-select")
+                    dismiss(entry.id)
+                    if (keyboard) select?.focus()
+                  }}
+                >
+                  <X size={14} strokeWidth={1.5} />
+                </button>
+              </Tooltip>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

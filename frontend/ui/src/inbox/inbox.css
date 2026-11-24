@@ -3,14 +3,14 @@
 
    The panel (`.inbox-panel`, data-sheet="open" | "closed") holds a `.inbox-list` of
    `.inbox-row`s, the newest first, open rows and resolved ones together, with no line between
-   them. A row is an item (the item recipe) with a `.inbox-row-select` button and its
-   parts: `.inbox-row-icon`, `.inbox-row-subject`,
-   `.inbox-row-wait` and `.inbox-row-meta`,
-   and, on an open Novadeck ask, a `.inbox-row-dismiss` button (an icon button) beside the select
-   button, in the wait time's place: it shows on hover and keyboard focus (at rest on a screen
-   with no hover) and the wait time hides meanwhile. The meta
-   holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
-   data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
+   them. A row is a sidebar item, drawn as a terminal's tab, with a `.inbox-row-select` button
+   and its parts: `.inbox-row-icon`, `.inbox-row-subject` (one line, as a tab's name) and
+   `.inbox-row-meta`, a tab's detail line holding an `.inbox-row-glyph` slot, the
+   `.inbox-row-words` (the `.inbox-row-project` and its `.inbox-row-extra`s, one
+   data-extra="draft", which give way together) and the `.inbox-row-wait` at its end. Beside the select button, in an `.inbox-row-slot`, its
+   `.inbox-row-action`s: `.inbox-row-snooze` and, on an open Novadeck ask,
+   `.inbox-row-dismiss`, which slide in over the wait on hover and keyboard focus (at rest on a
+   screen with no hover). A row says its type in data-type="unblock" | "ask" | "trouble" |
    "update", what its icon's colour says in data-tint="attention" | "note" | "danger" |
    "success" | "ink" | "muted" (muted only once it is resolved), data-seen, data-needs while it
    asks something of the person and isn't resolved, data-dismissable while its dismiss
@@ -45,8 +45,8 @@
    --inbox-success-fg (success-fg), --inbox-ink-fg (ink), --inbox-muted-fg (muted): a row's
    icon and wait, and the sheet's tag and receipt; the icon of a kind never changes, only its
    colour with what it wants, and gray (muted) once resolved.
-   --inbox-row-radius (radius-panel), --inbox-row-lifted-shadow (shadow-panel): the rows,
-   and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the rows that ask
+   --inbox-row-radius (the item's, radius-control): the rows, as a tab's.
+   --inbox-row-lifted-shadow (shadow-panel): a row while it is dragged. --inbox-dim-opacity (0.4): the rows that ask
    nothing while a sheet is open; under the pointer they come back to
    --inbox-dim-hover-opacity (0.8).
    --inbox-resolved-fg (muted): a resolved row's subject and wait.
@@ -61,10 +61,12 @@
    Cards take the button, badge, field, toggle and tone recipes' tokens. */
 
 /* ---- The panel and its rows ---- */
+/* A row is a sidebar item drawn as a terminal's tab (tabs.css): its name's line, then a tab's
+   detail line in the program font, and its buttons sliding in over the wait at that line's
+   end. What follows is the Inbox's own. */
 .inbox-row {
-  --_radius: var(--inbox-row-radius, var(--radius-panel));
   --_fg: var(--inbox-muted-fg, var(--color-muted));
-  border-radius: var(--_radius);
+  border-radius: var(--inbox-row-radius, var(--item-radius, var(--radius-control)));
   transition:
     background-color var(--motion-feedback) var(--ease-interface),
     border-color var(--motion-feedback) var(--ease-interface),
@@ -89,9 +91,9 @@
 .inbox-row[data-settled] {
   --_fg: var(--inbox-resolved-fg, var(--color-muted));
 }
-/* The open row is lifted out of the list its sheet comes from. */
-.item.inbox-row[data-selected="true"] {
-  --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
+/* The open row is the selected item; a click on it closes its sheet, so it keeps the hand. */
+.inbox-row[data-selected="true"] .sidebar-item-select {
+  cursor: pointer;
 }
 /* A row carried to a new place among the rows that ask is lifted with it. */
 .item.inbox-row[data-dragging="true"] {
@@ -124,132 +126,101 @@
     );
   }
 }
-.inbox-row-select {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
-  column-gap: 10px;
-  row-gap: 0;
-  width: 100%;
-  padding: 13px 12px 14px 10px;
-  border-radius: inherit;
-  color: inherit;
-  text-align: left;
-}
-.inbox-row-select:focus-visible {
-  outline-offset: -2px;
-}
 .inbox-row-icon {
-  display: grid;
-  width: 14px;
-  height: 20px;
-  place-items: center;
   color: var(--_fg);
 }
-.inbox-row-subject {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  color: var(--color-muted);
-}
 /* An open row is bright until it is resolved, opened or not: gray is for resolved rows. */
-.inbox-row:not([data-settled]) .inbox-row-subject {
-  color: var(--color-ink);
-}
-.inbox-row[data-selected="true"] .inbox-row-subject {
+.inbox-row-subject {
   color: var(--color-ink);
 }
 .inbox-row-subject code {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  overflow-wrap: anywhere;
+}
+/* The detail line, a tab's: the project and what is extra in the program font, and the wait
+   as a done tab's age is, in the row's colour. */
+.inbox-row-meta {
+  font-family: var(--tab-process-font, var(--font-glyphs));
+}
+.inbox-row-glyph::before {
+  content: "\00a0";
 }
 .inbox-row-wait {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
   color: var(--_fg);
-  line-height: 20px;
-  text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.inbox-row-extra {
+  margin-left: 1ch;
+}
+.inbox-row-extra[data-extra="draft"] {
+  color: var(--inbox-draft-fg, var(--color-danger-fg));
 }
 /* A resolved row: gray, its icon faded, and it opens its sheet to read. */
 .inbox-row[data-settled] .inbox-row-subject {
   color: var(--inbox-resolved-fg, var(--color-muted));
-  font-weight: 400;
 }
 .inbox-row[data-settled] .inbox-row-icon {
   opacity: var(--inbox-resolved-icon-opacity, 0.55);
 }
-/* The dismiss button takes the wait time's place while the row is hovered or has focus. */
-.inbox-row-dismiss {
-  position: absolute;
-  top: 9px;
-  right: 6px;
-  z-index: 1;
-  display: none;
+
+/* Its buttons, snooze and dismiss, slide in from the row's end under the pointer or with
+   keyboard focus, after the same moment's wait as a tab's Hide and Rename; the wait slides
+   out to the left as they come, so nothing else on the line moves. At rest the wait reaches
+   into the room the line keeps for them, to stand where they will. The slot lets the pointer
+   through to the row where nothing shows. Without a pointer that hovers, they stay, and the
+   wait stands before them. */
+.inbox-row:has(.sidebar-item-actions) .inbox-row-meta {
+  padding-right: var(--_sidebar-actions-space, 26px);
 }
-.inbox-row[data-dismissable="true"]:hover .inbox-row-dismiss,
-.inbox-row[data-dismissable="true"]:focus-within .inbox-row-dismiss {
-  display: inline-flex;
+.inbox-row :is(.sidebar-item-actions, .inbox-row-slot) {
+  pointer-events: none;
 }
-.inbox-row[data-dismissable="true"]:hover .inbox-row-wait,
-.inbox-row[data-dismissable="true"]:focus-within .inbox-row-wait {
-  visibility: hidden;
+.inbox-row .inbox-row-action {
+  pointer-events: auto;
 }
-/* With no hover to show it, it is there at rest. */
-@media (hover: none) {
-  .inbox-row[data-dismissable="true"] .inbox-row-dismiss {
-    display: inline-flex;
+.icon-button.inbox-row-action:focus-visible {
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
+     and keeps that scroll, leaving the button standing at rest. */
+  .inbox-row-slot {
+    overflow: clip;
   }
-  .inbox-row[data-dismissable="true"] .inbox-row-wait {
-    visibility: hidden;
+  .inbox-row-slot > * {
+    transition: transform var(--motion-layout) var(--ease-interface);
   }
-}
-/* The snooze button sits at the row's other corner, under the dismiss button's place, while
-   the row is hovered or has focus; line two keeps room for it. */
-.inbox-row-snooze {
-  position: absolute;
-  right: 6px;
-  bottom: 9px;
-  z-index: 1;
-  display: none;
-}
-.inbox-row[data-snoozable="true"]:hover .inbox-row-snooze,
-.inbox-row[data-snoozable="true"]:focus-within .inbox-row-snooze {
-  display: inline-flex;
-}
-.inbox-row[data-snoozable="true"]:not([data-snoozed="true"]) .inbox-row-meta {
-  padding-right: 24px;
-}
-/* On a snoozed row it brings the row back from the dismiss button's place, over the bell-off:
-   such a row has no dismiss button until it is back. */
-.inbox-row[data-snoozable="true"][data-snoozed="true"] .inbox-row-snooze {
-  top: 9px;
-  bottom: auto;
-}
-.inbox-row[data-snoozable="true"][data-snoozed="true"]:hover .inbox-row-wait,
-.inbox-row[data-snoozable="true"][data-snoozed="true"]:focus-within .inbox-row-wait {
-  visibility: hidden;
-}
-/* With both (an open Novadeck ask), each sits nearer its edge, so a one-line row (about 70 px)
-   holds both apart. */
-.inbox-row[data-dismissable="true"][data-snoozable="true"] .inbox-row-dismiss {
-  top: 5px;
-}
-.inbox-row[data-dismissable="true"][data-snoozable="true"] .inbox-row-snooze {
-  bottom: 5px;
-}
-@media (hover: none) {
-  .inbox-row[data-snoozable="true"] .inbox-row-snooze {
-    display: inline-flex;
+  .inbox-row:not(:hover, :has(:focus-visible)) .inbox-row-slot > * {
+    transform: translateX(200%);
   }
-  .inbox-row[data-snoozable="true"][data-snoozed="true"] .inbox-row-wait {
-    visibility: hidden;
+  .inbox-row-wait {
+    pointer-events: none;
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform var(--motion-layout) var(--ease-interface);
+  }
+  /* At least the buttons' width, as a tab's handle keeps its slot, so the words never run
+     into the room they slide into, however short the wait or with none. */
+  .inbox-row:has(.sidebar-item-actions) .inbox-row-wait {
+    justify-content: flex-end;
+    min-width: var(--_sidebar-actions-space, 26px);
+    margin-right: calc(0px - var(--_sidebar-actions-space, 26px));
+  }
+  .inbox-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible)) .inbox-row-wait {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+  .inbox-row:hover :is(.inbox-row-wait, .inbox-row-slot > *) {
+    transition-delay: 60ms;
   }
 }
+
 /* A snoozed row keeps its place and height, its words as bright as any that asks: a gray
-   wash and a dashed bar where the open row's bar goes, its icons gray, a bell-off where its
-   wait shows. Open, it takes the open row's look. */
+   wash and a dashed bar where the open row's bar goes, as a snoozed tab's, its icons gray, a
+   bell-off where its wait shows. Open, it takes the open row's look. */
 .item.inbox-row[data-snoozed="true"]:not([data-selected="true"], :hover, :focus-within) {
   --_bg: var(--inbox-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
 }
@@ -265,33 +236,16 @@
 .inbox-row[data-snoozed="true"] :is(.inbox-row-icon, .inbox-row-wait) {
   color: var(--inbox-snoozed-icon-fg, var(--color-muted));
 }
-.inbox-row[data-snoozed="true"] .inbox-row-wait svg {
-  display: block;
-  margin: 3px 0 0 auto;
+/* The bell-off stands centred where the unsnooze button slides in, a button's width. Without a
+   pointer that hovers, the unsnooze button stands there at rest, and the bell-off gives way. */
+.inbox-row[data-snoozed="true"] .inbox-row-wait {
+  justify-content: center;
+  min-width: 24px;
 }
-/* Line two: the project, then anything extra. The project gives way first, and only when
-   it is very long. */
-.inbox-row-meta {
-  display: flex;
-  grid-column: 2 / 4;
-  min-width: 0;
-  gap: 4px;
-  margin-top: 5px;
-  color: var(--inbox-muted-fg, var(--color-muted));
-  line-height: 16px;
-}
-.inbox-row-project {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.inbox-row-extra {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.inbox-row-extra[data-extra="draft"] {
-  color: var(--inbox-draft-fg, var(--color-danger-fg));
+@media (hover: none) {
+  .inbox-row[data-snoozed="true"] .inbox-row-wait {
+    display: none;
+  }
 }
 
 /* It keeps its size beside the title: the title's count gives up its room first (see

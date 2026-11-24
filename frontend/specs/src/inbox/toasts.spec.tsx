@@ -32,10 +32,14 @@ const toastTexts = (): string[] => toasts().map((each) => each.textContent ?? ""
 // The pill counting the rest: "+1 more" at rest, "1 more in the Inbox" once the pointer is
 // over the stack and it fans out.
 const more = () => page.getByRole("button", { name: /^\+\d+ more$/ })
-const inboxRow = (subject: RegExp | string) =>
-  page.getByRole("list", { name: "Messages from your agents" }).getByRole("button", {
-    name: typeof subject === "string" ? new RegExp(subject) : subject,
+// A row's own button, by its words: not the buttons beside it that name it too (Dismiss,
+// Snooze, Unsnooze).
+const inboxRow = (subject: RegExp | string) => {
+  const words = typeof subject === "string" ? new RegExp(subject) : subject
+  return page.getByRole("list", { name: "Messages from your agents" }).getByRole("button", {
+    name: new RegExp(`^(?!(?:Dismiss|Snooze|Unsnooze): ).*(?:${words.source})`, words.flags),
   })
+}
 
 const open = async (extra?: string): Promise<void> => {
   await openWorkspace(route(extra))

@@ -122,7 +122,7 @@ describe("The Inbox's list", () => {
     await expect.element(rows()).toHaveLength(settledRows)
     await expect
       .element(rows().filter({ hasText: "Seems stuck" }))
-      .toMatchTextContent(/Seems stuck: the same failure 3 times[\s\S]*7m[\s\S]*api-service/)
+      .toMatchTextContent(/Seems stuck: the same failure 3 times[\s\S]*api-service[\s\S]*7m/)
     // Newest first: the held message (3m) before the stuck agent (7m) before the login (11m).
     const order = (): string[] =>
       Array.from(document.querySelectorAll("[data-inbox-row]")).map(
@@ -762,6 +762,20 @@ describe("Snoozing a row", () => {
     page.getByRole("button", { name: new RegExp(`^${name}: .*${subject}`) })
   const box = (element: Element): DOMRect => element.getBoundingClientRect()
 
+  it("keeps a long project clear of the buttons that slide in, with no wait to make room", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    // An open ask: both buttons, and no wait while its agent works on.
+    const ask = rows().filter({ has: button("Dismiss", "preview") })
+    ask.element().querySelector(".inbox-row-project")!.textContent = "customer-portal-frontend"
+    await ask.hover()
+    const snooze = button("Snooze", "preview").element()
+    await expect.poll(() => getComputedStyle(snooze).transform).toBe("none")
+    const words = ask.element().querySelector(".inbox-row-words")!
+    expect(box(words).right).toBeLessThanOrEqual(box(snooze).left)
+  })
+
   it("puts the unsnooze button where the dismiss button was, and the row isn't dismissed until it is back", async () => {
     await openInbox()
     await lookAway()
@@ -771,20 +785,25 @@ describe("Snoozing a row", () => {
     await expect.element(button("Dismiss", "webhooks")).toBeVisible()
     await button("Snooze", "webhooks").click()
 
-    // The pointer is still on the row: the button is over the bell-off, at the top right.
+    // The pointer is still on the row: the button slides in over the bell-off, which slides
+    // out, at the end of the detail line.
     await expect.element(webhooks).toHaveAttribute("data-snoozed", "true")
     await webhooks.hover()
     await expect.element(button("Unsnooze", "webhooks")).toBeVisible()
     await expect.element(button("Dismiss", "webhooks")).not.toBeInTheDocument()
-    const at = box(button("Unsnooze", "webhooks").element())
-    const wait = webhooks.element().querySelector(".inbox-row-wait")!
+    const unsnooze = button("Unsnooze", "webhooks").element()
+    const wait = webhooks.element().querySelector<HTMLElement>(".inbox-row-wait")!
+    await expect.poll(() => getComputedStyle(unsnooze).transform).toBe("none")
+    await expect.poll(() => getComputedStyle(wait).opacity).toBe("0")
+    const at = box(unsnooze)
+    // Where the bell-off stands at rest, without the slide that moves it out.
+    wait.style.transform = "none"
     const mark = box(wait.querySelector("svg")!)
-    expect(getComputedStyle(wait).visibility).toBe("hidden")
-    const whole = box(webhooks.element())
+    wait.style.removeProperty("transform")
     expect(at.top).toBeLessThan(mark.top)
     expect(at.bottom).toBeGreaterThan(mark.bottom)
-    expect(Math.abs((at.left + at.right) / 2 - (mark.left + mark.right) / 2)).toBeLessThan(2)
-    expect((at.top + at.bottom) / 2).toBeLessThan((whole.top + whole.bottom) / 2)
+    // Within the 2px the buttons' inset (8px, a tab's) differs from the line's (10px) by.
+    expect(Math.abs((at.left + at.right) / 2 - (mark.left + mark.right) / 2)).toBeLessThanOrEqual(2)
     row("webhooks").element().focus()
     await userEvent.keyboard("{Delete}")
     await expectStaysAbsent({
