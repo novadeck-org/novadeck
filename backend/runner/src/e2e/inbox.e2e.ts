@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
-import { losesLineBreakKeys } from "./known-gaps.js"
+import { losesLineBreakKeys, pastedLineBreak } from "./known-gaps.js"
 import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
 import { delivered, own, replies, result, start, through, turn, unrung } from "./scenarios.js"
 
@@ -433,7 +433,7 @@ for (const setup of setups) {
         const write = (data: string) =>
           run.deck.terminals.write({ terminalId: terminal.id, data }, "e2e")
         if (losesLineBreakKeys(setup))
-          write(`\x1b[200~MY UNFINISHED DRAFT${"\n".repeat(lines)}\x1b[201~`)
+          write(`\x1b[200~MY UNFINISHED DRAFT${pastedLineBreak(setup).repeat(lines)}\x1b[201~`)
         else {
           write("MY UNFINISHED DRAFT")
           await sleep(300)

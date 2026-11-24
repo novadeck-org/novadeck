@@ -1323,9 +1323,15 @@ reason to leave a harness out. These stand today:
   onboarding in place of the folder-trust question, on a CI runner. Its own settings
   write, not Novadeck's: controls.e2e.ts starts the second once the first asks there,
   and elsewhere both start together. A race, it has no pin that fails every time.
-- **Codex on Windows drops a line break typed as a key of its own** (`losesLineBreakKeys`). It
-  reads the console's keys, and adds no line to its box (0.167.0, 2026-11-07), so a test builds
-  a draft of several lines there with a paste, as a burst of typing keeps its line breaks.
+- **Codex and pi on Windows drop a line break typed as a key of its own** (`losesLineBreakKeys`).
+  Codex reads the console's keys, and adds no line to its box (0.167.0, 2026-11-07), and pi the
+  same (1.6.0, 2026-11-24), so a test builds a draft of several lines there with a paste, as a
+  burst of typing keeps its line breaks.
+- **pi on Windows takes a line feed pasted as Ctrl+Enter's keys** (`pastedLineBreak`). It asks
+  for the kitty keyboard protocol, which the ConPTY there gives it, and the line feed comes as
+  `ESC[13;5u` and a key release, which its paste shows as text (1.6.0, 2026-11-24). A return
+  goes in as a line break, as Novadeck's own pastes and a person's write one, so a test's own
+  paste uses returns there.
 
 `known-gaps.ts` names each one as a `Gap`, with the harnesses it affects (and the
 platforms, where only some have it), documented
