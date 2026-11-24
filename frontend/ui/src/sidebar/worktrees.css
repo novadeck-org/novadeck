@@ -55,13 +55,13 @@
   opacity: var(--icon-button-dim-opacity, 0.5);
 }
 
-/* The trash button slides in from the row's end under the pointer or with keyboard focus,
-   after the same moment's wait as a tab's Hide and Rename, and the handle slides out to the
-   left as it comes; at rest the handle reaches into the room the line keeps for it, at least
-   the button's width, so the branch never runs under it. A safe row's trash shows at rest, in
-   the colour that says so, the handle before it. The slot clips, so a button the keyboard
-   focuses while it is slid out never stays scrolled into sight. Without a pointer that hovers,
-   the button stays, and the handle stands before it. */
+/* The trash button comes in at the row's end under the pointer or with keyboard focus, and the
+   handle gives way, as a tab's Rename does over its handle (the toolkit's sidebar-item.css:
+   the slot is a `.sidebar-item-slot`, the handle a `.sidebar-item-end`); at rest the handle
+   reaches into the room the line keeps for it, at least the button's width, so the branch
+   never runs under it. A safe row's trash shows at rest (data-actions="shown"), in the colour
+   that says so, the handle before it, where it stays. Without a pointer that hovers, the
+   button stays, and the handle stands before it. */
 .worktrees-row {
   --_sidebar-actions-space: 26px;
 }
@@ -75,31 +75,9 @@
   outline-offset: -2px;
 }
 @media (hover: hover) {
-  .worktrees-slot {
-    overflow: clip;
-  }
-  .worktrees-slot > * {
-    transition: transform var(--motion-layout) var(--ease-interface);
-  }
-  .worktrees-row:not(:hover, :has(:focus-visible), [data-safe="true"]) .worktrees-slot > * {
-    transform: translateX(200%);
-  }
-  .worktrees-handle {
-    pointer-events: none;
-    transition:
-      opacity var(--motion-feedback) var(--ease-interface),
-      transform var(--motion-layout) var(--ease-interface);
-  }
   .worktrees-row:not([data-safe="true"]) .worktrees-handle {
     min-width: var(--_sidebar-actions-space);
     margin-right: calc(0px - var(--_sidebar-actions-space));
-  }
-  .worktrees-row:not([data-safe="true"]):is(:hover, :has(:focus-visible)) .worktrees-handle {
-    opacity: 0;
-    transform: translateX(-0.75rem);
-  }
-  .worktrees-row:hover :is(.worktrees-handle, .worktrees-slot > *) {
-    transition-delay: 60ms;
   }
 }
 
@@ -399,7 +377,15 @@ a.worktrees-pr:focus-visible {
   margin: 0;
 }
 
-/* A trash button that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
+/* A trash button that waits (the owner's agent is working in the worktree) stays in its place,
+   dimmed once it shows: at rest it is out of sight as any row's (sidebar-item.css), and fades in
+   to its dim. */
 .worktrees-row .worktrees-action[aria-disabled="true"] {
   opacity: 0.35;
+}
+@media (hover: hover) {
+  .worktrees-row:not(:hover, :has(:focus-visible), [data-actions="shown"])
+    .worktrees-action[aria-disabled="true"] {
+    opacity: 0;
+  }
 }

@@ -76,7 +76,12 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       // Busy: connecting, so it reads as disabled while focus stays.
       await expect.element(choice).toHaveAttribute("aria-disabled", "true")
       expect(welcome().element().contains(document.activeElement)).toBe(true)
-      await expect.element(choice, installTime).not.toHaveAttribute("aria-disabled")
+      // Connected, it stays fixed, as an agent connected already is: this dialog never
+      // disconnects one, so focus stays there too.
+      await expect
+        .element(welcome().getByText("Already connected. Turn it off in Preferences."), installTime)
+        .toBeVisible()
+      await expect.element(choice).toHaveAttribute("aria-disabled", "true")
       expect(welcome().element().contains(document.activeElement)).toBe(true)
     })
 

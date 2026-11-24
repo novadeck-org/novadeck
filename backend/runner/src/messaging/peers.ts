@@ -193,6 +193,11 @@ export type Peer = {
   readonly summary: string | null
   readonly state: "busy" | "idle" | "asleep" | null
   /**
+   * Why its asleep agent can't be woken now, as its harness not connected: messages to it
+   * wait until it can be. Absent where it can, and for an agent not asleep.
+   */
+  readonly stuck?: string
+  /**
    * Since when it is busy or idle: its latest turn's start, or its end. When it is asleep,
    * when its last turn ended.
    */
@@ -303,6 +308,8 @@ export const peerOf = (input: {
   readonly untrusted?: AgentName | null
   /** Whether no process runs there: its agent's session rests, and a message wakes it. */
   readonly asleep?: boolean
+  /** Why its asleep agent can't be woken now, if it can't. */
+  readonly stuck?: string | undefined
   readonly busy: boolean
   readonly where: Whereabouts | undefined
   /** Its running lead's handle; null when it has none, or the terminal that leads it is gone. */
@@ -329,6 +336,7 @@ export const peerOf = (input: {
     title: where?.title ?? null,
     summary: where?.summary ?? null,
     state: agent ? (input.asleep ? "asleep" : input.busy ? "busy" : "idle") : null,
+    ...(agent && input.asleep && input.stuck !== undefined && { stuck: input.stuck }),
     since: agent ? (where?.since ?? null) : null,
     waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
@@ -456,6 +464,10 @@ export const unboundNote =
 /** What `agents` says once of every agent asleep there, where `team` says it on each line. */
 export const asleepNote = "(Asleep: no process runs there; a message wakes it.)"
 
+/** What `agents` says once where an agent asleep there can't be woken now. */
+export const stuckNote =
+  "(Can't be woken now: messages to it wait there, and wake it once it can be.)"
+
 /**
  * What runs there and what it is doing: an agent busy or idle and since when, waiting on
  * the user, for how long and for what (whole in `team`), waiting on its own job or wake-up,
@@ -469,8 +481,14 @@ const statusOf = (peer: Peer, now: number, full: boolean): string => {
         ? "waiting on the user to sign in there: its prompt says it isn't signed in"
         : peer.state === "asleep"
           ? full
-            ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; a message wakes it`
-            : `asleep${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
+            ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; ${
+                peer.stuck !== undefined
+                  ? `it can't be woken now: ${peer.stuck}. Messages to it wait there, and wake it once it can be`
+                  : "a message wakes it"
+              }`
+            : `asleep${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}${
+                peer.stuck !== undefined ? `, can't be woken now: ${peer.stuck}` : ""
+              }`
           : peer.waiting
             ? waitingNote(peer.waiting, now, full)
             : peer.waitsOn
@@ -839,6 +857,7 @@ const settled = (git: Git | null): boolean =>
 export const blank = (peer: Peer, leads: ReadonlySet<string | null>): boolean =>
   peer.agent !== null &&
   peer.state === "asleep" &&
+  peer.stuck === undefined &&
   peer.startup === null &&
   !peer.title &&
   !peer.summary &&
@@ -872,12 +891,16 @@ const renderPeers = (peers: readonly Peer[], now: number, viewer: Viewer): strin
   const teams = rosterLines(viewer, peers)
   const leads = new Set([viewer.lead, ...peers.map((peer) => peer.lead)])
   const quiet = peers.filter((peer) => blank(peer, leads))
-  const asleep = peers.some((peer) => peer.agent && peer.state === "asleep")
+  const asleep = peers.some(
+    (peer) => peer.agent && peer.state === "asleep" && peer.stuck === undefined,
+  )
+  const stuck = peers.some((peer) => peer.agent && peer.stuck !== undefined)
   const blanks = blankLine(quiet)
   return [
     ...(teams.length > 0 ? ["Teams in this project and session:", ...teams] : []),
     "Other terminals in this project and session:",
     ...(asleep ? [asleepNote] : []),
+    ...(stuck ? [stuckNote] : []),
     ...peers.flatMap((peer) => (quiet.includes(peer) ? [] : renderPeer(peer, now, viewer))),
     ...(blanks ? [blanks] : []),
   ].join("\n")

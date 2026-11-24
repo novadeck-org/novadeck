@@ -107,6 +107,15 @@ export const wakeRefusal = (agent: AgentName, reason: UnavailableReason): string
 }
 
 /**
+ * Why a sleeping agent can't be woken now, its harness not being connected, in words for its
+ * messages' senders, which wait for it: what the person does about it.
+ */
+export const stuckReason = (agent: AgentName): string => {
+  const label = agentLabel(agent)
+  return `Novadeck isn't connected to ${label} (the user connects it again in Novadeck's Preferences, under Agents)`
+}
+
+/**
  * What a restored terminal's screen says when the agent that ran there was not resumed, in
  * a sentence for the person; undefined when it was, or none was asked to be. `took` is
  * whether the new shell was given the resume command.

@@ -261,7 +261,7 @@ describe("projects", () => {
   })
 })
 
-// Presses a session row's Rename or Delete, which slide in under the pointer: the row first.
+// Presses a session row's Rename or Delete, which come in under the pointer: the row first.
 const sessionAction = async (action: "Rename" | "Delete", name: string): Promise<void> => {
   await savedSession(name).hover()
   await savedSessions()

@@ -92,23 +92,26 @@ export class PreferenceFeed {
   }
 }
 
-/** The runner's settings as they change (`settings.watch`): a slow reader gets the latest. */
-export class SettingsFeed {
-  private readonly readers = new Set<Latest<RunnerSettingsState>>()
+/**
+ * What a runner holds whole and tells again as it changes, as its settings (`settings.watch`)
+ * or where each agent stands (`agents.watch`): a slow reader gets the latest.
+ */
+export class LatestFeed<T> {
+  private readonly readers = new Set<Latest<T>>()
 
-  constructor(private readonly current: () => Promise<RunnerSettingsState>) {}
+  constructor(private readonly current: () => Promise<T>) {}
 
-  /** Tells every reader the settings as they are now. */
+  /** Tells every reader the value as it is now. */
   async changed(): Promise<void> {
     if (this.readers.size === 0) return
-    const settings = await this.current()
-    const key = JSON.stringify(settings)
-    for (const reader of this.readers) reader.push(settings, key)
+    const value = await this.current()
+    const key = JSON.stringify(value)
+    for (const reader of this.readers) reader.push(value, key)
   }
 
-  /** One client's stream: the settings now, then as they change, until `signal` aborts. */
-  async *watch(signal: AbortSignal): AsyncGenerator<RunnerSettingsState> {
-    const reader = new Latest<RunnerSettingsState>()
+  /** One client's stream: the value now, then as it changes, until `signal` aborts. */
+  async *watch(signal: AbortSignal): AsyncGenerator<T> {
+    const reader = new Latest<T>()
     // Listening before reading, so a change meanwhile isn't missed.
     this.readers.add(reader)
     try {
@@ -120,3 +123,6 @@ export class SettingsFeed {
     yield* follow(this.readers, reader, signal)
   }
 }
+
+/** The runner's settings as they change (`settings.watch`). */
+export class SettingsFeed extends LatestFeed<RunnerSettingsState> {}

@@ -448,6 +448,13 @@ export const contract = {
     list: procedure
       .input(z.strictObject({ fresh: z.boolean().optional() }).optional())
       .output(z.array(agentIntegration)),
+    // Where each agent stands, as `list` without `fresh` says it, then again each time one's
+    // connection changes: the person's switch in any client, or a change outside Novadeck,
+    // which the runner looks for every few seconds (`lost`). Ends with the connection.
+    watch: procedure
+      .meta({ since: 14 })
+      .input(z.void())
+      .output(eventIterator(z.array(agentIntegration))),
     // What the agent in a terminal does, in more detail than its summary: a snapshot, then
     // another on each change. It follows the terminal from agent to agent, and ends when
     // the terminal is closed. An unknown terminal is TERMINAL_NOT_FOUND.

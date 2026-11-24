@@ -6,6 +6,7 @@ import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
 import {
   InboxToasts,
+  type LostBoard,
   type MoveBoard,
   type ShowBoard,
   type ToastBoard,
@@ -19,6 +20,7 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { dingOf } from "./ding"
 import { clickNotice, noticeBoard, entryOfNotice } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
+import { watchLostToasts } from "./lost-toasts"
 import { watchMoveToasts } from "./move-toasts"
 import { currentState, modalOpen } from "./selectors"
 import { focusWhenReady, watchShowToasts } from "./show-toasts"
@@ -127,6 +129,16 @@ export const InboxHost = ({
   )
   // What Novadeck says of something done elsewhere, as what the person was on being removed.
   const followTold = useCallback((board: ToldBoard) => watchToldToasts(ui, board), [ui])
+  // Agents that are no longer connected, each told once, with Reconnect and where to see it.
+  const { openAgentSettings } = commands
+  const followLost = useCallback(
+    (board: LostBoard) =>
+      watchLostToasts(backend.agents, ui, board, {
+        reconnect: (agent) => backend.agents?.set(agent, true),
+        open: openAgentSettings,
+      }),
+    [backend, ui, openAgentSettings],
+  )
   // Brings the terminal an entry waits on into view, as its sidebar row does where the session
   // is on screen, else as a click on a notification about it does.
   const showTerminal = useCallback(
@@ -180,6 +192,7 @@ export const InboxHost = ({
           followShows={followShows}
           followMoves={followMoves}
           followTold={followTold}
+          followLost={followLost}
           showInbox={showInbox}
           peekInbox={peekInbox}
           showTerminal={showTerminal}

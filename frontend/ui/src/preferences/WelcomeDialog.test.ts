@@ -195,13 +195,38 @@ describe("leaving the welcome dialog", () => {
     expect(done).toHaveBeenCalledOnce()
   })
 
+  it("never disconnects an agent connected already: it shows ticked, fixed, and says where to turn it off", () => {
+    const connected: [string, boolean][] = []
+    show({
+      agents: [
+        { agent: "claude", available: true, connected: true, busy: false },
+        { agent: "codex", available: true, connected: false, busy: false },
+      ],
+      onChange: (agent, on) => connected.push([agent, on]),
+    })
+    const claude = checkbox("claude")!
+    expect(claude.checked).toBe(true)
+    expect(claude.getAttribute("aria-disabled")).toBe("true")
+    expect(document.getElementById("welcome-claude-description")?.textContent).toBe(
+      "Already connected. Turn it off in Preferences.",
+    )
+    claude.click()
+    expect(claude.checked).toBe(true)
+    // Only what starting adds is named.
+    expect(document.body.textContent).toContain(
+      "Adds a small plugin to Codex. Remove it anytime in Preferences.",
+    )
+    start().click()
+    expect(connected).toEqual([["codex", true]])
+  })
+
   it("applies what is unticked as unticked", () => {
     const connected: [string, boolean][] = []
     const transcripts: boolean[] = []
     const chat: boolean[] = []
     show({
       agents: [
-        { agent: "claude", available: true, connected: true, busy: false },
+        { agent: "claude", available: true, connected: false, busy: false },
         { agent: "codex", available: true, connected: false, busy: false },
       ],
       onChange: (agent, on) => connected.push([agent, on]),
@@ -216,7 +241,8 @@ describe("leaving the welcome dialog", () => {
     ] as const)
       document.querySelector<HTMLInputElement>(`input[name="${name}"][value="${value}"]`)!.click()
     start().click()
-    expect(connected).toEqual([["claude", false]])
+    // Nothing was connected, and nothing unticked is connected.
+    expect(connected).toEqual([])
     expect(transcripts).toEqual([false])
     expect(chat).toEqual([false])
   })

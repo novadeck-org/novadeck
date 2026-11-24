@@ -12,7 +12,7 @@ import { singleLine } from "./text.js"
 //
 // A harness a later release added is marked with the revision it came in (`since`), so a UI asks
 // for it only of a runner that has it, and the window of runners it works with stays open.
-export const agentName = inputEnum(agentNames, { since: { pi: 14 } })
+export const agentName = inputEnum(agentNames, { since: { pi: 15 } })
 // An agent as a runner tells of it, which a UI reads tolerantly: one of a harness a newer
 // runner integrates and this UI doesn't is `newer`, a plain agent with no harness of its
 // own here. Inputs, and whatever the runner parses, keep `agentName`.
@@ -381,6 +381,12 @@ export const agentIntegration = z.strictObject({
     .max(4096)
     .regex(singleLine, "A command must be one line, without control characters.")
     .optional(),
+  // The agent was connected, and Novadeck's plugin went from it outside Novadeck (another
+  // program, or the agent's own plugin commands, removed it), or it isn't connected while
+  // agents of it sleep, which only a connected agent wakes: what a person is told, so they
+  // reconnect it. Absent while connected, and once the person sets it in Preferences.
+  // Revision 14; absent from a runner from before it.
+  lost: z.literal(true).optional(),
 })
 
 /**

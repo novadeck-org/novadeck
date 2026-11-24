@@ -21,7 +21,7 @@ const find = () => page.getByRole("searchbox", { name: "Find a closed terminal" 
 // A row's select button, by its title and how it stands.
 const row = (label: string) =>
   closed().getByRole("button", { name: `Select ${label}`, exact: true })
-// Restores a row from its Restore button, which slides in under the pointer.
+// Restores a row from its Restore button, which comes in under the pointer.
 const restore = async (title: string) => {
   await row(title).hover()
   await closed()
@@ -124,6 +124,7 @@ describe("The History panel", () => {
       await page.getByRole("heading", { name: /^History/ }).hover()
       const action = item.querySelector(".history-row-action")!
       await expect.poll(() => getComputedStyle(action).transform).toBe("none")
+      await expect.poll(() => getComputedStyle(action).opacity).toBe("1")
     })
 
     it("moves the selection to the next row clicked", async () => {

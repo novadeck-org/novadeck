@@ -101,15 +101,33 @@ for (const setup of setups) {
         const inner = (): Inside => run.deck.terminals as unknown as Inside
         const launchOf = (id: string): readonly string[] | undefined =>
           (inner().records.get(id) ?? inner().saves.saved(id))?.agents[agent]?.launch
-        const shown = async (terminal: {
-          screen: () => Promise<string>
-          submit: (text: string) => Promise<void>
-        }): Promise<string> => {
+        // The screen once it shows the mode, or as it is after 5 s: a resumed opencode draws
+        // its prompt before it sets the agent from the session's last message, about 250 ms
+        // later (seen 2026-11-24, 1.19.6: 6 of 9 runs read Build on the prompt and failed).
+        // 5 s stays under the doorbell's 6 s settle, so a mode that shows only later, after
+        // Novadeck's first message could have gone out without it, still fails. How long it
+        // took goes in `<label>Ms`.
+        const shown = async (
+          label: string,
+          terminal: {
+            screen: () => Promise<string>
+            submit: (text: string) => Promise<void>
+          },
+        ): Promise<string> => {
           if (probe.status) {
             await terminal.submit(probe.status)
             await new Promise((resolve) => setTimeout(resolve, 2500))
           }
-          return terminal.screen()
+          const since = Date.now()
+          let text = await terminal.screen()
+          while (!probe.shows.test(text) && Date.now() - since < 5_000) {
+            // eslint-disable-next-line no-await-in-loop -- Each read waits for the screen to change.
+            await new Promise((resolve) => setTimeout(resolve, 250))
+            // eslint-disable-next-line no-await-in-loop -- As above.
+            text = await terminal.screen()
+          }
+          found[`${label}Ms`] = Date.now() - since
+          return text
         }
 
         // Claude Code's Bypass Permissions warning, accepted as a person's settings record it.
@@ -129,7 +147,7 @@ for (const setup of setups) {
         await flagged.reached("ready", { timeoutMs: 60_000 })
         await prompted(flagged, setup)
         await turn(flagged, "Remember the word heron", "Remembered.")
-        found.launched = await shown(flagged)
+        found.launched = await shown("launched", flagged)
         // What the relay read of its process, as its harness keeps it for a resume.
         await flagged.poll(
           () => (launchOf(flagged.id) ? true : undefined),
@@ -152,14 +170,14 @@ for (const setup of setups) {
         const bare = await run.deck.open(harnesses[agent].launch.resume!(controlSession).join(" "))
         await bare.reached("ready", { timeoutMs: 60_000 })
         await prompted(bare, setup)
-        found.resumedBare = await shown(bare)
+        found.resumedBare = await shown("resumedBare", bare)
         found.bareCommand = harnesses[agent].launch.resume!(controlSession)
 
         // The first one restored by Novadeck: its launch flags come with the resume.
         const restored = await run.deck.restore(flagged, { resume: agent })
         await restored.reached("ready", { timeoutMs: 60_000 })
         await prompted(restored, setup)
-        found.restored = await shown(restored)
+        found.restored = await shown("restored", restored)
         writeOut()
         expect(found.restored).toMatch(probe.shows)
         // What the code relies on: a bare resume keeps the mode unless `forgets` lists it.

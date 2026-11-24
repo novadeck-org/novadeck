@@ -466,6 +466,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Codex runs through Novadeck's shim while it is connected; see `posixCodexShim`.
     shims: () => agents.shims(),
     connected: (agent) => agents.connected(agent),
+    connections: agents,
     // Where each harness lives, which says how it may start with a task.
     install: (agent) => agents.install(agent),
     models: (agent) => agents.models(agent),

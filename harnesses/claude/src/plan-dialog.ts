@@ -26,7 +26,8 @@ import {
 
 const planTitle = /^ {3}Exit plan mode\?$/
 const planAsk = "Claude has written up a plan and is ready to execute. Would you like to proceed?"
-const planQuestion = /Would you like to proceed\?$/
+// The question's last row; a narrow pane wraps it anywhere, so its last word is all this tells.
+const planQuestion = /proceed\?$/
 const planOption = /^ {3}(❯| ) (\d+)\. (.+)$/
 const shortOption = /^ {4}(❯| ) (\d+)\. (.+)$/
 const planContinuation = /^ {9,}\S/
@@ -44,11 +45,22 @@ const readyToCode = (
 ): DialogRead | undefined => {
   const name = file?.split("/").pop()
   if (!name) return refuse("plan.readyToCode.1")
-  const before = rows.slice(0, at).findLastIndex((each) => each !== "")
-  const lines = [rows[before] ?? "", rows[at]!].map((each) => each.trim())
-  const asked = flat(lines.join(" "))
-  if (asked !== flat(planAsk) && flat(lines[1]!) !== flat(planAsk))
-    return refuse("plan.readyToCode.2")
+  // The question, as wide as the pane lets it stand or over up to four rows (a Grid tile).
+  const want = flat(planAsk)
+  const said = (from: number): string =>
+    flat(
+      rows
+        .slice(from, at + 1)
+        .map((each) => each.trim())
+        .join(" "),
+    )
+  const spread = [0, 1, 2, 3].some(
+    (more) =>
+      at - more >= 0 &&
+      rows.slice(at - more, at + 1).every((each) => each !== "") &&
+      said(at - more) === want,
+  )
+  if (!spread) return refuse("plan.readyToCode.2")
   const read = numbered(rows, at + 1, planOption, planContinuation, planHint)
   if (!read || read.options.length !== 3 || read.options[2]!.label !== feedback)
     return refuse("plan.readyToCode.3")

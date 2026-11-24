@@ -12,6 +12,7 @@ import { secretVariables } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
+import { agentLabel } from "../messaging/messages.js"
 import { cmdPath, killTree, programsNamed } from "../programs.js"
 import { withoutInherited } from "../shell/inherited.js"
 import type { ShellPaths } from "../shell/scripts.js"
@@ -39,6 +40,32 @@ export type HarnessesOptions = {
    * be another build's.
    */
   readonly relay?: string
+  /** How often each agent's connection is looked at for a change outside Novadeck, in milliseconds. */
+  readonly connectionPollMs?: number
+  /** How long after a read that finds a connected agent disconnected it is read again, to confirm it. */
+  readonly connectionConfirmMs?: number
+}
+
+/**
+ * How often each agent's connection is looked at (`Harnesses.follow`): its plugin can go from
+ * it outside Novadeck, as another program's disconnect, and agents of it asleep then can't be
+ * woken until it is back. Each look reads one small file of each agent's.
+ */
+export const connectionPollMs = 15_000
+
+/**
+ * How long after a read that finds a connected agent disconnected it is read again before that
+ * counts: a settings file caught mid-write, or another Novadeck's reinstall, reads as no plugin
+ * for a moment.
+ */
+export const connectionConfirmMs = 1_000
+
+/** One agent's connection changed, as `Harnesses.follow` tells it. */
+export type ConnectionChange = {
+  readonly agent: AgentName
+  readonly connected: boolean
+  /** Lost outside Novadeck (`AgentIntegration.lost`). */
+  readonly lost: boolean
 }
 
 // Windows' cmd reads an argument in double quotes as it is; a path cannot hold one.
@@ -244,7 +271,11 @@ const steps = async (
   }
 }
 
-const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
+const state = async (
+  harness: Harness,
+  install: Install,
+  lost: (connected: boolean) => boolean = () => false,
+): Promise<AgentIntegration> => {
   const connected = await harness.connected(install)
   const limited = connected ? await harness.limited?.(install).catch(() => undefined) : undefined
   const available = await installedIn(harness, install)
@@ -253,6 +284,7 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
     available,
     connected,
     ...(limited !== undefined && { limited }),
+    ...(lost(connected) && { lost: true as const }),
     // What the person can run to get it, while it is missing.
     ...(!available && { installer: harness.installer(install.platform) }),
   }
@@ -320,6 +352,65 @@ export const createHarnesses = (
   let queue = Promise.resolve()
   // The agents the person asked to disconnect, until that is done.
   const disconnecting = new Set<AgentName>()
+  // Each agent's connection as last read, the agents whose plugin went from them outside
+  // Novadeck, and those Novadeck's own commands are changing, whose reads meanwhile say
+  // nothing of the person's (`note`).
+  const known = new Map<AgentName, boolean>()
+  const lost = new Set<AgentName>()
+  const changing = new Map<AgentName, number>()
+  // Each agent's count of Novadeck's own changes begun or ended: a read that spans one says
+  // nothing of where it stands now.
+  const epochs = new Map<AgentName, number>()
+  const epoch = (agent: AgentName): number => epochs.get(agent) ?? 0
+  const bump = (agent: AgentName): void => void epochs.set(agent, epoch(agent) + 1)
+  const followers = new Set<(change: ConnectionChange) => void>()
+  const tell = (change: ConnectionChange) => {
+    for (const follower of followers) follower(change)
+  }
+  /**
+   * What a read of an agent's connection says: one Novadeck isn't changing that was connected
+   * and isn't is lost outside Novadeck, and logged; one connected again is found. Each change
+   * is told.
+   */
+  const note = (agent: AgentName, connected: boolean): void => {
+    if (changing.has(agent)) return
+    const before = known.get(agent)
+    known.set(agent, connected)
+    if (before === undefined || before === connected) return
+    if (!connected) {
+      lost.add(agent)
+      log.warn(
+        "harnesses.disconnected",
+        `${agentLabel(agent)} is no longer connected: Novadeck's plugin was removed from it outside Novadeck.`,
+        { data: { agent } },
+      )
+    } else if (lost.delete(agent))
+      log.info("harnesses.reconnected", `${agentLabel(agent)} is connected again.`, {
+        data: { agent },
+      })
+    tell({ agent, connected, lost: lost.has(agent) })
+  }
+  // Novadeck's own commands change the agent's connection meanwhile; once they end, where it
+  // stands is the person's, never lost.
+  const own = async <T>(agent: AgentName, work: () => Promise<T>): Promise<T> => {
+    changing.set(agent, (changing.get(agent) ?? 0) + 1)
+    bump(agent)
+    try {
+      return await work()
+    } finally {
+      bump(agent)
+      const left = (changing.get(agent) ?? 1) - 1
+      if (left > 0) changing.set(agent, left)
+      else changing.delete(agent)
+    }
+  }
+  // After Novadeck's own change: where the agent stands now, told if it moved.
+  const settled = (agent: AgentName, connected: boolean): void => {
+    const before = known.get(agent)
+    const was = lost.delete(agent)
+    known.set(agent, connected)
+    if (before !== connected || was) tell({ agent, connected, lost: false })
+  }
   const queued = <T>(work: () => Promise<T>): Promise<T> => {
     const change = queue.then(work)
     queue = change.then(
@@ -433,8 +524,47 @@ export const createHarnesses = (
     /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()
-      return install ? harnesses[agent].connected(install(agent)) : false
+      if (!install) return false
+      const where = install(agent)
+      const began = epoch(agent)
+      let connected = await harnesses[agent].connected(where)
+      // A connected agent read as disconnected is read again before it counts as lost.
+      if (!connected && known.get(agent) === true && !changing.has(agent)) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, options.connectionConfirmMs ?? connectionConfirmMs).unref(),
+        )
+        connected = await harnesses[agent].connected(where)
+      }
+      if (epoch(agent) === began) note(agent, connected)
+      return connected
     },
+    /**
+     * Follows each agent's connection: `listener` hears each change, whether the person's,
+     * another client's or one outside Novadeck, which a look every `connectionPollMs` finds,
+     * or any read of it first. Returns its end.
+     */
+    follow: (listener: (change: ConnectionChange) => void): (() => void) => {
+      followers.add(listener)
+      return () => void followers.delete(listener)
+    },
+    /**
+     * Agents of `agent` asleep can't be woken, as it isn't connected: it counts as lost, as one
+     * found gone would, though no look saw it connected first (a runner started after it
+     * went). Nothing where it is connected, or lost already.
+     */
+    strand: (agent: AgentName): void => {
+      if (known.get(agent) === true || changing.has(agent) || lost.has(agent)) return
+      known.set(agent, false)
+      lost.add(agent)
+      log.warn(
+        "harnesses.stranded",
+        `Agents of ${agentLabel(agent)} sleep, but it isn't connected, so they can't be woken.`,
+        { data: { agent } },
+      )
+      tell({ agent, connected: false, lost: true })
+    },
+    /** Whether the agent was found disconnected at its last look; false where it was never looked at. */
+    disconnected: (agent: AgentName): boolean => known.get(agent) === false,
     /** The connected harnesses whose shims Novadeck's shells put first on PATH. */
     shims: async (): Promise<AgentName[]> => {
       const install = await installs()
@@ -460,18 +590,42 @@ export const createHarnesses = (
         look?.fresh === true && !closing.signal.aborted ? "fresh" : "latest",
       )
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
-      return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
+      return Promise.all(
+        agents.map((agent) => {
+          const began = epoch(agent)
+          return state(harnesses[agent], install(agent), (connected) => {
+            // A loss counts only once confirmed (`connected`), which a look is asked for here.
+            if (epoch(agent) === began && (connected || known.get(agent) !== true))
+              note(agent, connected)
+            else if (!connected) void api.connected(agent).catch(() => undefined)
+            return !connected && lost.has(agent)
+          })
+        }),
+      )
     },
     /** Installs or removes Novadeck's plugin in the agent; resolves to where it stands after. */
     set: (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
-      if (connected) return queued(() => apply(agent, true))
+      const change = (wanted: boolean) =>
+        own(agent, () => apply(agent, wanted)).then(
+          (after) => {
+            settled(agent, after.connected)
+            return after
+          },
+          async (error: unknown) => {
+            // Half done, it stands where its files say; never lost for Novadeck's own commands.
+            const found = await api.connected(agent).catch(() => undefined)
+            if (found !== undefined) settled(agent, found)
+            throw error
+          },
+        )
+      if (connected) return queued(() => change(true))
       // The person's disconnect stands from when it is asked for: a refresh queued ahead of
       // it leaves the agent alone, and a quit before it runs leaves no reinstall to finish.
       disconnecting.add(agent)
       void installs().then((install) =>
         install ? rm(reinstalling(install(agent)), { force: true }) : undefined,
       )
-      return queued(() => apply(agent, false)).finally(() => disconnecting.delete(agent))
+      return queued(() => change(false)).finally(() => disconnecting.delete(agent))
     },
     /**
      * Installs the plugin again into each connected agent that keeps a copy of it whose
@@ -513,9 +667,13 @@ export const createHarnesses = (
             // The mark is for a reinstall a quit cut short: one that fails, as over settings
             // that don't parse, is logged and done, not tried again at every start.
             try {
-              await apply(agent, true)
+              // Its uninstall leaves it disconnected a moment: no loss of the person's.
+              await own(agent, () => apply(agent, true))
             } finally {
               await rm(reinstalling(where), { force: true })
+              // Done or failed, it stands where its files say: never lost by Novadeck's own commands.
+              const now = await harnesses[agent].connected(where).catch(() => undefined)
+              if (now !== undefined) settled(agent, now)
             }
             // An agent that rewrites what it copies would be installed again at every start.
             if (await differing(installed, where))
@@ -544,9 +702,19 @@ export const createHarnesses = (
      */
     close: (): Promise<void> => {
       closing.abort()
+      clearInterval(polling)
       return Promise.resolve()
     },
   }
+  // Each agent's connection is looked at every few seconds, so one lost outside Novadeck is
+  // told (`follow`) while agents of it may sleep. Only while someone follows: the reads are
+  // what tell them.
+  const poll = () => {
+    if (closing.signal.aborted || followers.size === 0) return
+    for (const agent of agents) void api.connected(agent).catch(() => undefined)
+  }
+  const polling = setInterval(poll, options.connectionPollMs ?? connectionPollMs)
+  polling.unref()
   return api
 }
 

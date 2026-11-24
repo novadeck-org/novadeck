@@ -759,6 +759,10 @@ export type AgentConnection = {
   readonly error?: string
   // What keeps its messaging from working whole while connected, as the runner says.
   readonly limited?: "own-status-line" | "outdated" | "unsupported" | undefined
+  // It was connected and Novadeck's plugin went from it outside Novadeck, or it isn't
+  // connected while agents of it sleep, which can't wake: what the person is told. Absent
+  // while connected, and once the person sets the switch.
+  readonly lost?: true | undefined
   // While it is not `available`: the command that installs it where the backend runs, as a
   // terminal would run it for the person.
   readonly installer?: string | undefined

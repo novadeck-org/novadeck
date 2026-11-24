@@ -8,6 +8,8 @@ export type AgentSwitch = {
   readonly busy: boolean
   readonly error?: string
   readonly limited?: "own-status-line" | "outdated" | "unsupported" | undefined
+  // Disconnected outside Novadeck, or not connected while agents of it sleep.
+  readonly lost?: true | undefined
   // The command that installs it, while it is not `available`.
   readonly installer?: string | undefined
 }
@@ -28,6 +30,13 @@ export const agentNote = ({
   if (!available) return "Not installed"
   return undefined
 }
+
+// What a lost agent costs, under its name: it is off, so what needs it waits. Nothing while it
+// is on, or while the person changes it.
+export const agentLost = ({ connected, busy, lost }: AgentSwitch): string | undefined =>
+  lost && !connected && !busy
+    ? "Disconnected outside Novadeck. Its sleeping agents can't wake, so messages to them wait, and its sessions can't resume, until you connect it again."
+    : undefined
 
 type Limit = NonNullable<AgentSwitch["limited"]>
 

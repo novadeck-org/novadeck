@@ -14,7 +14,13 @@ import {
   openMessagesDemo,
   pauseSwitch,
 } from "../support/messages"
-import { closeLeadOnly, confirmClose, sidebarRenameField, tabAction } from "../support/terminals"
+import {
+  closeLeadOnly,
+  confirmClose,
+  pressTabAction,
+  sidebarRenameField,
+  tabAction,
+} from "../support/terminals"
 import {
   expectStaysAbsent,
   recordChanges,
@@ -235,7 +241,7 @@ describe("Who named a terminal", () => {
 
   it("leaves a rename in progress alone when the person right-clicks in its field", async () => {
     await openMessagesDemo()
-    await tabAction("Rename Checkout review").click()
+    await pressTabAction(tabAction("Rename Checkout review"))
     const field = sidebarRenameField("Checkout review")
     await expect.element(field).toHaveFocus()
     await userEvent.keyboard("Half")
@@ -248,7 +254,7 @@ describe("Who named a terminal", () => {
 
   it("leaves a rename in progress alone when the person long-presses its field", async () => {
     await openMessagesDemo()
-    await tabAction("Rename Checkout review").click()
+    await pressTabAction(tabAction("Rename Checkout review"))
     const field = sidebarRenameField("Checkout review")
     await expect.element(field).toHaveFocus()
     await userEvent.keyboard("Draft")
@@ -273,7 +279,7 @@ describe("Who named a terminal", () => {
   it("keeps the tab itself through a rename", async () => {
     await openMessagesDemo()
     const before = terminalTab("Checkout review").element().closest("[data-terminal-tab-id]")
-    await tabAction("Rename Checkout review").click()
+    await pressTabAction(tabAction("Rename Checkout review"))
     await expect.element(sidebarRenameField("Checkout review")).toHaveFocus()
     await userEvent.keyboard("Review{Enter}")
     await expect.element(terminalTab("Review")).toBeVisible()

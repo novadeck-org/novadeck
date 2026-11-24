@@ -4,7 +4,7 @@ import { page, userEvent } from "vitest/browser"
 import { settled } from "../support/canvas"
 import { expectFocusWithin, recentSwitcher } from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
-import { sidebarRenameField, tabAction } from "../support/terminals"
+import { pressTabAction, sidebarRenameField, tabAction } from "../support/terminals"
 import {
   clickInto,
   commandInput,
@@ -152,7 +152,7 @@ describe("pinned project shortcuts", () => {
     it("leaves the key to a tab's rename field", async () => {
       pinInOrder()
       await openWorkspace()
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
 
       const event = digitKeydown(2, {}, sidebarRenameField("Dev server").element())

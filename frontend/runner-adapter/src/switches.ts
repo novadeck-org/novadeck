@@ -1,10 +1,11 @@
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentConnection, AgentMode, Backend } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
-import { newer, type RunnerSettingsState } from "@novadeck/protocol"
+import { newer, type AgentIntegration, type RunnerSettingsState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
 
 import type { RunnerBackendOptions } from "./backend"
+import { consume } from "./streams"
 
 // Harnesses and forges a newer Novadeck's runner integrates that this build doesn't know
 // aren't switched from here: they're left out of its lists, their settings kept on the runner.
@@ -34,7 +35,10 @@ const knownForges = <T extends { readonly forge: string }>(
 // one the runner doesn't take goes back to what it still does.
 
 type RunnerSwitchCalls = {
-  readonly agents: Pick<Runner["agents"], "set" | "list">
+  readonly agents: Pick<Runner["agents"], "set" | "list"> &
+    // Where the runner tells of each agent's connection as it changes (`agents.watch`).
+    Partial<Pick<Runner["agents"], "watch">>
+  readonly supports?: Runner["supports"]
   readonly settings: Pick<Runner["settings"], "set">
   // Not every runner has forges (see `RunnerApi`).
   readonly forges?: Pick<Runner["forges"], "set" | "list"> | undefined
@@ -85,6 +89,12 @@ export const runnerSwitches = (
    * own until the runner's answer, as before.
    */
   readonly take: (settings: RunnerSettingsState) => void
+  /**
+   * Follows the agents' connections (`agents.watch`) where the runner tells of them, until
+   * `stopAgents`: a change outside Novadeck, or in another client, shows here.
+   */
+  readonly followAgents: () => void
+  readonly stopAgents: () => void
 } => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
@@ -146,37 +156,56 @@ export const runnerSwitches = (
     next: (current: AgentConnection) => AgentConnection,
   ) => agents.update((list) => list.map((item) => (item.agent === agent ? next(item) : item)))
   const connectAgent = (agent: AgentConnection["agent"], connected: boolean): void => {
-    updateAgent(agent, ({ available, connected: was }) => ({
+    updateAgent(agent, ({ available, connected: was, lost }) => ({
       agent,
       available,
       connected: was,
       busy: true,
+      ...(lost ? { lost } : {}),
     }))
     void track(runner.agents.set(agent, connected)).then(
       (result) => updateAgent(agent, () => ({ ...knownLimit(result), agent, busy: false })),
       (error: unknown) =>
-        updateAgent(agent, ({ available, connected: was }) => ({
+        updateAgent(agent, ({ available, connected: was, lost }) => ({
           agent,
           available,
           connected: was,
           busy: false,
+          ...(lost ? { lost } : {}),
           error: error instanceof Error ? error.message : String(error),
         })),
     )
   }
+  const takeAgents = (list: readonly AgentIntegration[]): void => {
+    agents.update((current) =>
+      knownAgents(list).map((found) => {
+        const shown = current.find((item) => item.agent === found.agent)
+        // A change under way reports its own result.
+        return shown?.busy ? shown : { ...knownLimit(found), busy: false }
+      }),
+    )
+  }
   const refreshAgents = (options?: { readonly fresh?: boolean }): Promise<void> =>
     track(runner.agents.list(options?.fresh ? { fresh: true } : undefined)).then(
-      (list) => {
-        agents.update((current) =>
-          knownAgents(list).map((found) => {
-            const shown = current.find((item) => item.agent === found.agent)
-            // A change under way reports its own result.
-            return shown?.busy ? shown : { ...knownLimit(found), busy: false }
-          }),
-        )
-      },
+      takeAgents,
       () => {},
     )
+  let agentsStream: AsyncIterableIterator<AgentIntegration[]> | undefined
+  const followAgents = (): void => {
+    if (agentsStream || typeof runner.supports !== "function" || !runner.supports("agents.watch"))
+      return
+    const changes = runner.agents.watch?.()
+    if (!changes) return
+    agentsStream = changes
+    void consume(changes, (list) => {
+      if (agentsStream === changes) takeAgents(list)
+    })
+  }
+  const stopAgents = (): void => {
+    const ended = agentsStream
+    agentsStream = undefined
+    void ended?.return?.()?.catch(() => {})
+  }
   // Switches changed here whose answer hasn't come: what another client says of them waits.
   const pending = new Set<string>()
   const pendingWhile = <T>(name: string, work: Promise<T>): Promise<T> => {
@@ -208,6 +237,8 @@ export const runnerSwitches = (
   }
   return {
     take,
+    followAgents,
+    stopAgents,
     ...(kept !== undefined
       ? {
           transcripts: {

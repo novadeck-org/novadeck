@@ -20,6 +20,8 @@ permissions:
   actions: read
   contents: read
 
+# One run at a time, and one waits: a newer merge replaces the waiting run, and Supersede
+# Release (release-supersede.yml) cancels the run in progress while its macOS package waits.
 concurrency:
   group: release-latest-main
   cancel-in-progress: false

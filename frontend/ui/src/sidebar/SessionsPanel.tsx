@@ -222,7 +222,7 @@ const SessionRow = ({
   const icon = <Layers2 size={14} strokeWidth={1.5} />
   // Where a tab holds its @handle: how long ago it was last open, as a tab says its turn's
   // age, "now" for the open one, nothing for one never opened, kept current. It slides out as
-  // the row's actions slide in (sidebar.css).
+  // the row's actions fade in (sidebar.css).
   const visitedAt = active ? null : session.visitedAt
   const when = active ? "now" : visitedAt === null ? "" : shortAge(visitedAt)
   useRenderAt(visitedAt === null ? undefined : nextShortAge(visitedAt))
@@ -237,10 +237,10 @@ const SessionRow = ({
         {need ??
           (session.running > 0 ? `${session.running} running` : terminalsCount(terminalCount))}
       </span>
-      <span className="session-when shrink-0">{when}</span>
+      <span className="session-when sidebar-item-end shrink-0">{when}</span>
     </>
   )
-  // Room on the detail line for the actions that slide in: a tab's 26px a button, or the
+  // Room on the detail line for the actions that come in: a tab's 26px a button, or the
   // words "Move here".
   const space = picking
     ? active
@@ -319,7 +319,7 @@ const SessionRow = ({
       actions={
         picking ? (
           active ? undefined : (
-            <div className="session-slot flex items-center">
+            <div className="session-slot sidebar-item-slot flex items-center">
               <span className="session-move-here flex items-center gap-1" aria-hidden="true">
                 <ArrowRight size={13} strokeWidth={1.5} />
                 Move here
@@ -327,7 +327,7 @@ const SessionRow = ({
             </div>
           )
         ) : renamable || removable ? (
-          <div className="session-actions session-slot flex items-center">
+          <div className="session-actions session-slot sidebar-item-slot flex items-center">
             {editing ? (
               <>
                 <Tooltip content="Save">
@@ -363,7 +363,7 @@ const SessionRow = ({
                 {renamable && (
                   <Tooltip content="Rename">
                     <button
-                      className={`${actionClasses} session-action-revealed`}
+                      className={actionClasses}
                       type="button"
                       aria-label={`Rename ${session.name}`}
                       onClick={onBeginRename}
@@ -375,7 +375,7 @@ const SessionRow = ({
                 {removable && (
                   <Tooltip content="Delete">
                     <button
-                      className={`${actionClasses} session-action-revealed`}
+                      className={actionClasses}
                       type="button"
                       aria-label={`Delete ${session.name}`}
                       onClick={onRemove}

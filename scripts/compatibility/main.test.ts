@@ -48,7 +48,7 @@ describe("main", () => {
       const grown = {
         ...agent,
         enum: [...(agent.enum as string[]), "grok"],
-        // What the release marks stays marked (pi, since 14).
+        // What the release marks stays marked (pi, since 15).
         ...(mark ? { "x-since": { ...(agent["x-since"] as object | undefined), ...mark } } : {}),
       }
       const properties = { ...input.properties, agent: grown }
