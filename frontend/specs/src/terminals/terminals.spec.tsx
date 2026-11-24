@@ -224,7 +224,7 @@ describe("clicking into a terminal", () => {
 })
 
 describe("the selected terminal's tab", () => {
-  it("offers no pointer's hand, where its click has nothing to do; the others do", async () => {
+  it("offers no pointer's hand, as the person is already there; the others do", async () => {
     await openWorkspace()
     await terminalTab("Dev server").click()
     const cursorOf = (name: string) => getComputedStyle(terminalTab(name).element()).cursor

@@ -13,9 +13,10 @@
 
    Plain steps are written as offsets from the paper in OK lightness,
    `oklab(from var(--color-paper) calc(l - n) a b)`, so they keep its tint and follow it
-   if it changes. In oklab, not oklch: newer Chromium calls a grey this faint hueless, drops
-   its hue to `none` and draws the chroma left at hue 0, a brown; a component token whose offset both schemes share is declared once
-   (foundation tokens are restated, as below). Warmer or tinted colours (strong lines,
+   if it changes; a component token whose offset both schemes share is declared once
+   (foundation tokens are restated, as below). They move in oklab, not oklch: newer Chromium
+   calls a grey this faint hueless, drops its hue to `none` and draws the chroma left at hue
+   0, a brown. Warmer or tinted colours (strong lines,
    the selected outline, selection, tones) and the grain-compensated
    grounds stay literal.
 

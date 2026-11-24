@@ -55,8 +55,8 @@ export const closedFull = (closedAt: number, now: number): string => {
   return (at.getFullYear() === new Date(now).getFullYear() ? full : fullWithYear).format(at)
 }
 
-// How a row stands, as the person is told it. `inert` rows take no click: one restoring, or
-// one that can't be. `end` is what stands at the end of its detail line, where a tab holds its
+// How a row stands, as the person is told it. `inert` rows offer no restore: one restoring,
+// or one that can't be. `end` is what stands at the end of its detail line, where a tab holds its
 // @handle: the day or time it closed, the handle of the terminal it is open in, or a word for
 // why it can't come back. `reason` says why a row can't
 // be restored, or what its click does instead, for assistive technology and the tooltip.

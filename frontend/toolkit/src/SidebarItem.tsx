@@ -5,8 +5,7 @@ import { Tooltip } from "./Tooltip"
 export const sidebarListClasses =
   "sidebar-list sidebar-scroll mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
 
-// A sidebar row's parts, for a list whose rows are drawn as an item's without being one, such as
-// the History panel's one-line rows: the row (the item recipe draws it, its selection bar
+// A sidebar row's parts, for a list whose rows are drawn as an item's without being one: the row (the item recipe draws it, its selection bar
 // included; sidebar-item.css adds the row's own looks), its select button, its icon and its name.
 export const sidebarRowClasses = "item sidebar-item relative flex min-w-0 shrink-0"
 export const sidebarRowSelectClasses =

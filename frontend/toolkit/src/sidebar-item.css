@@ -5,8 +5,9 @@
 
    Hooks: the item recipe's, and the `.dragging` class while a row is dragged;
    `:focus-within` tints a row as hovering does. A selected row (data-selected="true") is
-   where the person already is, so its select button doesn't offer the pointer's hand; a
-   list whose selected row's click still does something gives it back.
+   where the person already is, so its select button doesn't offer the pointer's hand, though
+   a click may still bring it back into view; a list whose selected row's click does more,
+   as Worktrees' opening its changes, gives it back.
 
    Tokens, each optional (its fallback in brackets): --item-hover-bg (soft), the
    --item-selected-* tokens (paper, line, the control shadow; also while dragged) and

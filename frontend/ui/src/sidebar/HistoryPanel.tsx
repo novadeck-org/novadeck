@@ -233,7 +233,8 @@ const HistoryPanelView = ({
   onConnect: (agent: AgentName) => void
 }): React.JSX.Element => {
   const [typed, setTyped] = useState("")
-  // The row the person selected, by id; none once it leaves the list.
+  // The row the person selected, by id, while the panel stands; a search that hides it keeps
+  // it, and a restored row never comes back under its id.
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   // Rows say when they closed against the day it is, which is read when the panel opens.

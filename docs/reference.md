@@ -572,10 +572,10 @@ when it closed where a tab shows its @handle, the time for today and the date fo
 earlier day. Under that is the start of its summary, on one line. A click selects a row
 and does nothing more. Under the pointer, with the keyboard on it, or while it's
 selected, the time slides out and its action slides in, as a tab's Hide and Rename do:
-Restore, or an arrow to the terminal it's open in. A right-click opens the same as a menu. The tooltip has the full date, the summary, and who closed it
-where an agent did. The search box matches a title, a handle, the folder it ran in (an
-agent's row doesn't show it) or a summary, and the count
-beside the title reads matches over total. A summary's match is lit, and the summary starts
+Restore, or an arrow to the terminal it's open in. A right-click opens the same as a
+menu. The tooltip has the full date, the summary, and who closed it where an agent did.
+The search box matches a title, a handle, the folder it ran in (an agent's row doesn't
+show it) or a summary, and the count beside the title reads matches over total. A summary's match is lit, and the summary starts
 a little before a match its line wouldn't show. With nothing closed there is no search box.
 
 Restore brings it back: a new terminal in the session on screen, selected, at the
