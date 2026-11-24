@@ -35,9 +35,10 @@ the same validated owner and repository from that file (`releases/repository.ts`
 A build follows one channel, which the person picks with Preferences' Experimental switch
 (on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the app keeps
 across launches in `update.json` in the data folder. The switch sits in About, hidden while
-off: tapping the version ten times shows it (the last five counted down under "Version"), and
-once shown or flipped it stays for the rest of that run, a renderer-only flag
-(`experimentalRevealed`) that a launch, or a reload, forgets. Turning the switch off also turns the
+off: tapping the version ten times shows it (the last five counted down under "Version"). Once
+tapped into view, or once IS_EXPERIMENTAL has been on in that run, it stays however the channel
+goes off; the window keeps that in memory only (`experimentalRevealed`), so a launch, a reload
+or a reconnect to the runner forgets it. Turning the switch off also turns the
 runner's `worktrees` setting off (the Experimental tab's "Agent worktrees", which also shows the Worktrees panel), as does a launch
 that finds the channel stable, so that setting never stays on without its toggle. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,

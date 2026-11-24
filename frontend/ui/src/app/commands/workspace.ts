@@ -37,6 +37,7 @@ import {
   chatViewOn,
   holdChatOffer,
   notePortableCardShown,
+  withFeatureFlag,
   type UiState,
 } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
@@ -620,7 +621,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     },
     setFeatureFlag: (flag, on) => {
       if (ui.getSnapshot().flags[flag] === on) return
-      ui.update((state) => ({ ...state, flags: { ...state.flags, [flag]: on } }))
+      ui.update((state) => withFeatureFlag(state, flag, on))
     },
     changeView: (next) => {
       const { enabledViews } = preferences()

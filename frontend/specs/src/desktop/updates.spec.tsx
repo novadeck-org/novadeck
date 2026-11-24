@@ -244,10 +244,15 @@ describe("the Experimental switch in Preferences", () => {
     expect(experimental().query()).toBeNull()
   })
 
-  it("shows without taps where it is on", async () => {
+  it("shows without taps where it is on, and stays for the run once the channel goes off elsewhere", async () => {
     await openWorkspace("/?update=ready&channel=experimental")
     await openPreferencesOn("About")
     await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
+    await closePreferences()
+    // As another window, or the debug panel, turning it off.
+    setChannelStable()
+    await openPreferencesOn("About")
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
   })
 
   it("starts off, and stays on once turned on, also when Preferences opens again", async () => {

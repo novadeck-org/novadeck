@@ -77,8 +77,9 @@ export type UiState = {
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
   readonly crashLoopDismissed: boolean
   // Whether Preferences shows the Experimental switch while it is off: the person tapped the
-  // version ten times, or had the switch on, in this run. Never persisted, so a switch turned off
-  // hides again at the next launch.
+  // version ten times, or IS_EXPERIMENTAL was on, in this run (`withFeatureFlag`). Never
+  // persisted, so a switch turned off hides again at the next launch; a reconnect to the runner,
+  // which makes the store afresh, hides it too.
   readonly experimentalRevealed: boolean
   // Which addon's offer (voice input or murmur) came up in this run of the app: each run
   // offers at most one unasked ("none": a window that is not the app's first leaves it to
@@ -466,10 +467,20 @@ export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">):
 // Turns one feature flag on or off, as is: `setFeatureFlag` of the workspace's commands also
 // starts terminals afresh on the chat view where the flag turns it on or off.
 export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): void => {
-  ui.update((state) =>
-    state.flags[flag] === on ? state : { ...state, flags: { ...state.flags, [flag]: on } },
-  )
+  ui.update((state) => withFeatureFlag(state, flag, on))
 }
+
+// The state with one feature flag set. IS_EXPERIMENTAL seen on reveals Preferences' Experimental
+// switch for the rest of this run, however it goes off later: this window's switch, another
+// window's, or a channel read at a launch.
+export const withFeatureFlag = (state: UiState, flag: FeatureFlag, on: boolean): UiState =>
+  state.flags[flag] === on
+    ? state
+    : {
+        ...state,
+        flags: { ...state.flags, [flag]: on },
+        experimentalRevealed: state.experimentalRevealed || (flag === "IS_EXPERIMENTAL" && on),
+      }
 
 // Turns agent worktrees off where they are on, as the Experimental switch going off does, so the
 // setting never stays on without its toggle.

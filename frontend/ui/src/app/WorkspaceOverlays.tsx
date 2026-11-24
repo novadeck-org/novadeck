@@ -229,8 +229,8 @@ type ExperimentalSetting = {
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
 // Turning it off turns agent worktrees, agent modes and forge integrations off with it.
-// The switch is hidden while off until the person taps the version ten times; once shown, or
-// flipped, it stays for the rest of this run (`experimentalRevealed`).
+// The switch is hidden while off until the person taps the version ten times; once revealed, or
+// on at any time in this run, it stays until the next launch (`experimentalRevealed`).
 const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
   features: ExperimentalFeatures,
@@ -270,8 +270,6 @@ const useExperimental = (
       revealed,
       onReveal: () => revealExperimental(ui),
       onChange: (next) => {
-        // Seen and flipped, it stays in sight for this run, off or on.
-        revealExperimental(ui)
         flips.current += 1
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
