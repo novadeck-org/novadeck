@@ -4,7 +4,7 @@ import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-c
 import type { Report } from "@novadeck/harness-core/report"
 import { agentName, dialogTextLimits, type AgentName } from "@novadeck/protocol"
 
-import { askOf, harnesses } from "../harnesses/registry.js"
+import { askOf, harnesses, hookGated } from "../harnesses/registry.js"
 import { cut } from "../text.js"
 import { object, type Fields } from "./json.js"
 
@@ -83,12 +83,12 @@ const agyCall = (payload: Fields): { command: string; cwd: string | undefined } 
 }
 
 /**
- * opencode's shell command, in the two reports the plugin makes of it: the `bash` tool's call
+ * A hook-gated harness's shell command (opencode's, pi's), in the reports its plugin makes of it: the `bash` tool's call
  * (its `command`, and its `workdir` where it gives one), and the `bash` permission's request,
  * which names the raw command in its metadata and the call it is for. The tool is `bash` on
  * every platform (tool/shell/id.ts, 1.19.6).
  */
-const opencodeCall = (
+const hookGatedCall = (
   payload: Fields,
   event: string,
 ): { command: string; cwd: string | undefined; call: string | undefined } | undefined => {
@@ -425,19 +425,19 @@ export const relayHook = (
       : seq + askMs
   const gated = gating(agent.data, event)
   const agyRun = gated && agent.data === "agy" ? agyCall(payload) : undefined
-  const opencodeRun = gated && agent.data === "opencode" ? opencodeCall(payload, event) : undefined
+  const hookGatedRun = gated && hookGated(agent.data) ? hookGatedCall(payload, event) : undefined
   const command = gated
     ? agent.data === "agy"
       ? agyRun?.command
-      : agent.data === "opencode"
-        ? opencodeRun?.command
+      : hookGated(agent.data)
+        ? hookGatedRun?.command
         : commandOf(payload.tool_input)
     : undefined
   const folder =
     agent.data === "agy"
       ? agyRun?.cwd
-      : agent.data === "opencode"
-        ? opencodeRun?.cwd
+      : hookGated(agent.data)
+        ? hookGatedRun?.cwd
         : folderOf(payload, payload.tool_input)
   const gate: GateCall | undefined =
     command === undefined ||
@@ -461,11 +461,11 @@ export const relayHook = (
             typeof payload.conversationId === "string" &&
             payload.conversationId.length <= 128 && { conversation: payload.conversationId }),
           // opencode's session and call, which tie its permission dialog to the hook that vetted it.
-          ...(agent.data === "opencode" &&
+          ...(hookGated(agent.data) &&
             text(payload.session_id, 128) !== undefined && {
               conversation: text(payload.session_id, 128)!,
             }),
-          ...(opencodeRun?.call !== undefined && { call: opencodeRun.call }),
+          ...(hookGatedRun?.call !== undefined && { call: hookGatedRun.call }),
         }
   return askOf(agent.data, event) || gate
     ? {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { shippingRules } from "@novadeck/harness-agy/shim"
 import { describe, expect, it } from "vitest"
 
+import { hookGated } from "../harnesses/registry.js"
 import { shipsByRule, shipsCoarsely } from "./shapes.js"
 
 const relay = new URL("../../../relay/src/", import.meta.url)
@@ -22,6 +23,15 @@ describe("the commands the shim's rules cover, read coarsely", () => {
     for (const { command, coarse } of cases) expect(shipsCoarsely(command), command).toBe(coarse)
     // The shim's shapes are among what it refuses.
     expect(cases.filter(({ ships, coarse }) => ships && !coarse)).toEqual([])
+  })
+
+  it("name the hook-gated harnesses the relay holds too", () => {
+    const { hookGated: held } = JSON.parse(
+      readFileSync(new URL("rule-cases.json", relay), "utf8"),
+    ) as { hookGated: string[] }
+    expect(held.toSorted()).toEqual(
+      (["claude", "codex", "agy", "opencode", "pi"] as const).filter(hookGated).toSorted(),
+    )
   })
 
   it("are the rules the relay holds too", () => {

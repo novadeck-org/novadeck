@@ -406,7 +406,7 @@ fn a_status_line_keeps_ignoring_a_signal_its_relay_was_started_ignoring() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// opencode's plugin's report of a tool call, as its PreToolUse hook is sent it.
+/// A hook-gated harness's plugin's report of a tool call (opencode's, pi's), as its PreToolUse hook is sent it.
 fn opencode_tool(tool: &str, input: serde_json::Value) -> String {
     serde_json::json!({ "hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": input })
         .to_string()
@@ -417,22 +417,32 @@ fn gated_config(dir: &Path) -> PathBuf {
     let path = dir.join("relay.json");
     let config = serde_json::json!({
         "gate": true,
-        "asks": { "opencode": ["Stop", "PreToolUse", "PermissionRequest"] },
+        "asks": {
+            "opencode": ["Stop", "PreToolUse", "PermissionRequest"],
+            "pi": ["Stop", "PreToolUse"],
+        },
     });
     std::fs::write(&path, config.to_string()).unwrap();
     path
 }
 
 #[test]
-fn refuses_what_looks_like_shipping_to_opencode_where_it_has_no_runner_and_leaves_the_rest() {
-    let dir = scratch("opencode-gate");
+fn refuses_what_looks_like_shipping_to_a_hook_gated_harness_where_it_has_no_runner_and_leaves_the_rest()
+ {
+    for agent in ["opencode", "pi"] {
+        refuses_shipping_to(agent);
+    }
+}
+
+fn refuses_shipping_to(agent: &str) {
+    let dir = scratch(&format!("{agent}-gate"));
     let config = gated_config(&dir);
     let hook = |command: &str| {
         let mut hook = relay(&[
             "hook",
             "--config",
             config.to_str().unwrap(),
-            "opencode",
+            agent,
             "PreToolUse",
         ])
         .stdin(Stdio::piped())
@@ -447,7 +457,7 @@ fn refuses_what_looks_like_shipping_to_opencode_where_it_has_no_runner_and_leave
             .unwrap();
         String::from_utf8_lossy(&hook.wait_with_output().unwrap().stdout).into_owned()
     };
-    // opencode's default runs a command its hook says nothing about, so these are refused.
+    // Neither opencode's default nor pi runs a dialog behind a hook that says nothing, so these are refused.
     for command in [
         "git push origin main",
         "git push -f origin main",

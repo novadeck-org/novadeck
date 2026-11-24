@@ -9,6 +9,7 @@ import { open } from "node:fs/promises"
 
 import { agentLimits, type AgentName, type StandingPermit } from "@novadeck/protocol"
 
+import { hookGated } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { noticeText } from "../messaging/notice-format.js"
 import type { GateCall } from "../shell/hook.js"
@@ -448,8 +449,8 @@ export class Shipping {
   }
 
   /**
-   * Whether the gate is on and covers `agent`'s harness: Claude Code, Codex, Antigravity and
-   * opencode, but Antigravity not where it has no PreToolUse hook (Windows, where cmd prints before
+   * Whether the gate is on and covers `agent`'s harness: Claude Code, Codex, Antigravity,
+   * opencode and pi, but Antigravity not where it has no PreToolUse hook (Windows, where cmd prints before
    * hooks and Novadeck's terminals couldn't be given one: `agyPreToolUse`): nothing is refused
    * there, so nobody is told of permits, and agy's own dialog is the only one asked. opencode's plugin runs its hook through `cmd /d` there, which skips the
    * AutoRun, so it is covered everywhere its plugin loads (`hooksTrusted`).
@@ -468,7 +469,7 @@ export class Shipping {
    */
   gating(agent: AgentName, event: string): boolean {
     if (!this.host.enabled()) return false
-    if (agent === "claude" || agent === "agy") return event === "PreToolUse"
+    if (agent === "claude" || agent === "agy" || agent === "pi") return event === "PreToolUse"
     return (
       (agent === "codex" || agent === "opencode") &&
       (event === "PreToolUse" || event === "PermissionRequest")
@@ -621,7 +622,13 @@ export class Shipping {
     until: number = Date.now() + 3_000,
   ): Promise<GateAnswer | undefined> {
     if (!this.gating(agent, call.event)) return undefined
-    if (agent !== "claude" && agent !== "codex" && agent !== "agy" && agent !== "opencode")
+    if (
+      agent !== "claude" &&
+      agent !== "codex" &&
+      agent !== "agy" &&
+      agent !== "opencode" &&
+      agent !== "pi"
+    )
       return undefined
     if (agent === "opencode" && call.event === "PermissionRequest")
       return this.confirmed(terminalId, call)
@@ -660,7 +667,7 @@ export class Shipping {
     // shipping, read coarsely, is refused there, and every other command is left as it is.
     if (
       failed &&
-      (agent === "opencode"
+      (hookGated(agent)
         ? shipsCoarsely(call.command)
         : agent === "agy" && shipsByRule(call.command))
     ) {
@@ -671,8 +678,8 @@ export class Shipping {
     if (saw && decision !== undefined && decision.stdout !== "") saw.denied = true
     if (agent === "agy" && decision?.permitted)
       await this.recordPending(terminalId, call, call.instance ?? null)
-    if (agent === "opencode" && decision?.covered)
-      return this.spend(terminalId, call, decision.covered, until)
+    if (hookGated(agent) && decision?.covered)
+      return this.spend(agent, terminalId, call, decision.covered, until)
     if (decision === undefined) return undefined
     const { stdout, commit } = decision
     if (commit === undefined) return stdout === "" ? undefined : { stdout, leaseId: null }
@@ -744,12 +751,19 @@ export class Shipping {
    * nothing more. A call the hook didn't name is not noted: its permission can't be told from
    * another's.
    */
-  private spend(terminalId: string, call: GateCall, covered: Covered, until: number): GateAnswer {
+  private spend(
+    agent: AgentName,
+    terminalId: string,
+    call: GateCall,
+    covered: Covered,
+    until: number,
+  ): GateAnswer {
     // A permit another call used or a revoke ended since the reading: nothing covers it now.
     if (!covered.take()) return { stdout: printedAgy(spentText), leaseId: null }
     const now = Date.now()
     let note: Vetted | undefined
-    if (call.call !== undefined && call.conversation !== undefined) {
+    // Only opencode may show a dialog for the call (`confirmed`); pi never asks, so it keeps no note.
+    if (agent === "opencode" && call.call !== undefined && call.conversation !== undefined) {
       note = {
         conversation: call.conversation,
         call: call.call,
@@ -787,13 +801,13 @@ export class Shipping {
     })
     log.info(
       "shipping.spent",
-      `Novadeck spends opencode's permit: ${covered.permits
+      `Novadeck spends ${agent}'s permit: ${covered.permits
         .map((permit) => `${describeKey(permit.key)} (${describeSource(permit.source)})`)
         .join("; ")}`,
       {
         data: {
           terminalId,
-          agent: "opencode",
+          agent,
           call: call.call ?? null,
           at: new Date().toISOString(),
         },

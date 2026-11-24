@@ -97,6 +97,7 @@ export const opencode = {
   transcripts: { ...transcripts, shapes, conversational },
   // Nothing outlives a turn: a task's subagent runs within its call.
   wakes: false,
+  hookGate: true,
   // Its Stop is the end: `session.idle` comes for every turn however it ended, its error
   // saying an Escape (`MessageAbortedError`), and nothing later says otherwise.
   records: false,
