@@ -15,10 +15,14 @@ import {
 } from "@novadeck/harness-core/items"
 import { exited, hunkChange, hunksOf, outcome } from "@novadeck/harness-core/outcomes"
 import { flavourOf } from "@novadeck/harness-core/paths"
+import type { TranscriptStore } from "@novadeck/harness-core/shapes"
 import { shellCall } from "@novadeck/harness-core/tools"
 import { isDelivery } from "@novadeck/protocol/harnesses"
 
 import { describe } from "./tools.js"
+
+/** Each session's transcript: `<time>_<id>.jsonl` under a folder per project. */
+export const store: TranscriptStore = { folder: "sessions", file: /_[0-9A-Za-z._-]+\.jsonl$/ }
 
 /** The customType of what Novadeck's extension puts into a session: deliveries and notices. */
 export const ownType = "novadeck"
