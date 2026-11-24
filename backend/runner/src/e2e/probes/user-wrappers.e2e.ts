@@ -73,6 +73,7 @@ const stores: Readonly<Record<AgentName, readonly string[]>> = {
   agy: [".gemini/antigravity-cli/brain"],
   // Its sessions are in SQLite, which holds no JSONL; Novadeck's plugin writes its own.
   opencode: [".local/share/opencode"],
+  pi: [".pi/agent/sessions"],
 }
 
 const jsonl = (folder: string): string[] => {

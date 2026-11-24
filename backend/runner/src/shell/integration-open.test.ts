@@ -443,6 +443,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           { id: "sonnet", efforts: [] },
         ],
         opencode: [{ id: "opencode/big-pickle", efforts: [] }],
+        pi: [{ id: "openai/gpt-6-luna", efforts: ["low", "medium"] }],
       } as const
       const manager = shell.manager({
         env: {
@@ -543,6 +544,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         codex: [{ id: "gpt-a", efforts: ["low", "high"] }],
         agy: [{ id: "flash-high", efforts: ["high"] }],
         opencode: [{ id: "anthropic/claude-sonnet-4-5", efforts: ["high", "max"] }],
+        pi: [{ id: "anthropic/claude-sonnet-4-5", efforts: ["high", "max"] }],
       } as const
       const manager = shell.manager({
         env: {
@@ -751,6 +753,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
               codex: [{ id: "gpt-a", efforts: [] }],
               agy: [],
               opencode: [],
+              pi: [],
             }[name],
           ),
       })

@@ -167,6 +167,7 @@ export const gatedRelayConfig = {
     codex: [...relayConfig.asks.codex!, "PreToolUse", "PermissionRequest"],
     agy: [...relayConfig.asks.agy!, "PreToolUse"],
     opencode: [...relayConfig.asks.opencode!, "PreToolUse", "PermissionRequest"],
+    pi: [...relayConfig.asks.pi!, "PreToolUse"],
   },
 }
 

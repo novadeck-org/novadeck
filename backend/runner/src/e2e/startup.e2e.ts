@@ -124,6 +124,8 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
   // The setup's seed turns its plugin off for the launch (OPENCODE_PURE), the one way a
   // person's launch can leave it unloaded without a file of theirs.
   opencode: async () => {},
+  // To be settled: what a person can do to launch pi without Novadeck's `-e` extension.
+  pi: async () => {},
 }
 
 for (const setup of setups) {
@@ -308,5 +310,12 @@ const signedOut: {
     gated(
       e2e(setup),
       "it shows no sign-in screen: a missing or refused key is its first turn's error",
+    )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
+  // Its prompt comes up with no model and no sign-in screen of its own: "No models available.
+  // Use /login" is a row under the box, and the first prompt fails (probed 2026-11-24, 1.6.0).
+  pi: (setup, how) =>
+    gated(
+      e2e(setup),
+      "it shows no sign-in screen at start: a missing key is a warning row and its first turn's error",
     )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
 }

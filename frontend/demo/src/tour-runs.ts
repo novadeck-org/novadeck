@@ -27,6 +27,11 @@ const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed"
     brief: "doorbell",
     model: "openrouter/openai/gpt-6-luna",
   },
+  pi: {
+    command: `pi --model openai/gpt-6-luna --thinking low "${startLine}"`,
+    brief: "launch",
+    model: "openai/gpt-6-luna",
+  },
 }
 
 export const demoRun = (agent: AgentName): Omit<TourRun, "directory" | "removed" | "page"> =>

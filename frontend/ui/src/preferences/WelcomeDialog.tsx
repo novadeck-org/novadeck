@@ -6,6 +6,7 @@ import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
+import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { brandName, NovaMark, NovaPattern, Wordmark } from "@novadeck/toolkit/NovaLogo"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import {
@@ -65,7 +66,13 @@ const schemeItems = [
   { label: "Dark", value: "dark", icon: <Moon size={13} aria-hidden="true" /> },
 ] as const
 
-const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: AntigravityIcon, opencode: OpencodeIcon }
+const icons = {
+  claude: ClaudeIcon,
+  codex: CodexIcon,
+  agy: AntigravityIcon,
+  opencode: OpencodeIcon,
+  pi: PiIcon,
+}
 
 // Staggers an entrance: `at` ms after the dialog opens.
 const at = (ms: number): CSSProperties => ({ "--_at": `${ms}ms` }) as CSSProperties

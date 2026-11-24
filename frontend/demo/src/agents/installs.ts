@@ -12,6 +12,7 @@ export const demoInstallers: Readonly<Record<AgentName, string>> = {
   codex: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
   agy: "curl -fsSL https://antigravity.google/cli/install.sh | bash",
   opencode: "curl -fsSL https://opencode.ai/install | bash",
+  pi: "curl -fsSL https://pi.dev/install.sh | sh",
 }
 
 // The agent a command installs, where it is one of those above.
@@ -48,6 +49,11 @@ const downloads: Readonly<Record<AgentName, readonly string[]>> = {
   opencode: [
     "Installing opencode version: 1.19.6",
     "Successfully added opencode to $PATH in ~/.zshrc",
+  ],
+  pi: [
+    "Installing pi 1.6.0 (Node 22.19.0 found)",
+    "Installed to ~/.pi/agent/install/releases/1.6.0",
+    "Linked ~/.pi/agent/bin/pi",
   ],
 }
 

@@ -61,9 +61,10 @@ for (const setup of setups) {
         codex: ".codex/sessions",
         agy: ".gemini",
       }
-      // Antigravity's files name no version, so none is kept; opencode's are in SQLite.
+      // Antigravity's files name no version, so none is kept; opencode's are in SQLite; pi's header
+      // names its session format's version, not its own.
       const files =
-        setup.agent === "agy" || setup.agent === "opencode"
+        setup.agent === "agy" || setup.agent === "opencode" || setup.agent === "pi"
           ? []
           : jsonl(join(run.sandbox.home, stores[setup.agent]))
       const lines = files.flatMap((file) =>

@@ -22,6 +22,8 @@ const planLeadMs: Readonly<Record<AgentName, number>> = {
   agy: 15 * minute,
   // opencode's plan_exit asks once the plan file is written, at the end of its turn.
   opencode: minute,
+  // pi has no plan mode and asks no plan approval: any value stands, and none is ever looked up.
+  pi: minute,
 }
 
 // How long after its dialog a plan may still come: the hook or rollout line that shows it

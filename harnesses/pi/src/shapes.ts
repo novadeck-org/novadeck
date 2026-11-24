@@ -1,9 +1,16 @@
 import { fieldsOf } from "@novadeck/harness-core/fields"
-import { classify, tagKeys, type Shape, type ShapeLists } from "@novadeck/harness-core/shapes"
+import {
+  classify,
+  tagKeys,
+  type Shape,
+  type ShapeLists,
+  type TranscriptStore,
+} from "@novadeck/harness-core/shapes"
 
 import { ownType, recordOf } from "./transcripts.js"
 
-export { store } from "./transcripts.js"
+/** Each session's transcript: `<time>_<id>.jsonl` under a folder per project of its sessions folder. */
+export const store: TranscriptStore = { folder: "sessions", file: /_[0-9A-Za-z._-]+\.jsonl$/ }
 
 /**
  * The shapes of a pi session's records (see harness-core's shapes.ts, and pi's

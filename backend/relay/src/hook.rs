@@ -100,7 +100,7 @@ impl Config {
     /// than the rules) is refused, and its plugin throws the reason. Any other answer it gets is
     /// the configuration's (silence).
     fn fallback(&self, agent: &str, event: &str, payload: Option<&str>) -> String {
-        if (agent == "agy" || agent == "opencode") && event == "PreToolUse" {
+        if (agent == "agy" || hook_gated(agent)) && event == "PreToolUse" {
             let guarded =
                 (self.gated || self.unreadable) && payload.is_none_or(|text| ships(agent, text));
             if guarded {
@@ -142,8 +142,8 @@ impl Config {
             // Antigravity's PreToolUse comes before every tool, and only a shell command's is
             // asked of the runner: the others keep a report's short limit (`limit_for`).
             ("agy", "PreToolUse") => 2_000,
-            // The same for opencode's: its plugin reports every tool, and only `bash` is asked.
-            ("opencode", "PreToolUse") => 2_000,
+            // The same for a hook-gated harness's: its plugin reports every tool, and only `bash` is asked.
+            (_, "PreToolUse") if hook_gated(agent) => 2_000,
             _ if self.asks(agent, event) => 4_000,
             _ => 2_000,
         })
@@ -155,7 +155,7 @@ impl Config {
     fn limit_for(&self, agent: &str, event: &str, payload: &str) -> Duration {
         let shell = match agent {
             "agy" => runs_command(payload),
-            "opencode" => runs_bash(payload),
+            _ if hook_gated(agent) => runs_bash(payload),
             _ => false,
         };
         if shell && event == "PreToolUse" && self.asks(agent, event) {
@@ -163,6 +163,14 @@ impl Config {
         }
         self.limit(agent, event)
     }
+}
+
+/// The harnesses whose shipping gate is their hook alone: no permission dialog of their own stands
+/// behind a hook that said nothing (opencode's built-in default allows a shell command, and pi
+/// never asks), so a command the runner didn't answer for is refused by its shape here. The
+/// runner's `Harness.hookGate` is the same list, and `rule-cases.json` pins them equal.
+fn hook_gated(agent: &str) -> bool {
+    matches!(agent, "opencode" | "pi")
 }
 
 /// What a refused shipping command is told where the runner gave no answer.
@@ -303,26 +311,26 @@ fn command_in(text: &str, key: &str) -> Option<(String, bool)> {
     Some((out, ended))
 }
 
-/// Whether an Antigravity or opencode PreToolUse payload is a shell command of a shipping shape,
+/// Whether an Antigravity, opencode or pi PreToolUse payload is a shell command of a shipping shape,
 /// or one that can't be told apart from it: a payload cut before its command, or one that names
 /// no tool. Antigravity's is its `run_command` call's `CommandLine`; opencode's is its plugin's
 /// report of the `bash` tool: `tool_name` and `tool_input.command`.
 fn ships(agent: &str, payload: &str) -> bool {
-    let (tool, command, key) = if agent == "opencode" {
+    let (tool, command, key) = if hook_gated(agent) {
         ("bash", "command", "command")
     } else {
         ("run_command", "CommandLine", "CommandLine")
     };
     // opencode's refusal is wider than the shim's rules: it has no rule, and its default runs
     // what its hook doesn't refuse.
-    let looks: fn(&str) -> bool = if agent == "opencode" {
+    let looks: fn(&str) -> bool = if hook_gated(agent) {
         command_looks_shipping
     } else {
         command_ships
     };
     match serde_json::from_str::<Value>(payload) {
         Ok(value) => {
-            let (name, line) = if agent == "opencode" {
+            let (name, line) = if hook_gated(agent) {
                 (&value["tool_name"], &value["tool_input"][command])
             } else {
                 (
@@ -354,7 +362,7 @@ fn runs_command(payload: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Whether an opencode hook payload is about a `bash` call.
+/// Whether a hook-gated harness's payload is about a `bash` call.
 fn runs_bash(payload: &str) -> bool {
     serde_json::from_str::<Value>(payload)
         .ok()
@@ -664,23 +672,41 @@ mod tests {
     }
 
     #[test]
-    fn reads_the_shapes_in_opencodes_report_as_the_runners_cases_do() {
+    fn reads_the_shapes_in_a_hook_gated_report_as_the_runners_cases_do() {
         let cases: Value = serde_json::from_str(include_str!("rule-cases.json")).unwrap();
-        for case in cases["cases"].as_array().unwrap() {
-            let command = case["command"].as_str().unwrap();
-            let ships_it = case["coarse"].as_bool().unwrap();
-            assert_eq!(
-                ships("opencode", &opencode_report(command)),
-                ships_it,
-                "{command:?}"
-            );
-            // Cut in the middle of the command: what may hide the shape counts as shipping.
-            if ships_it {
-                let report = opencode_report(command);
-                let from = report.find("\"command\":\"").unwrap() + "\"command\":\"".len();
-                let cut: String = report.chars().take(from + 5).collect();
-                assert!(ships("opencode", &cut), "{command:?}");
+        for agent in cases["hookGated"].as_array().unwrap() {
+            let agent = agent.as_str().unwrap();
+            for case in cases["cases"].as_array().unwrap() {
+                let command = case["command"].as_str().unwrap();
+                let ships_it = case["coarse"].as_bool().unwrap();
+                assert_eq!(
+                    ships(agent, &opencode_report(command)),
+                    ships_it,
+                    "{agent}: {command:?}"
+                );
+                // Cut in the middle of the command: what may hide the shape counts as shipping.
+                if ships_it {
+                    let report = opencode_report(command);
+                    let from = report.find("\"command\":\"").unwrap() + "\"command\":\"".len();
+                    let cut: String = report.chars().take(from + 5).collect();
+                    assert!(ships(agent, &cut), "{agent}: {command:?}");
+                }
             }
+        }
+    }
+
+    // The runner's `Harness.hookGate` is this list, as `rule-cases.json` names it.
+    #[test]
+    fn names_the_hook_gated_harnesses_the_runner_does() {
+        let cases: Value = serde_json::from_str(include_str!("rule-cases.json")).unwrap();
+        let named: Vec<&str> = cases["hookGated"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|agent| agent.as_str().unwrap())
+            .collect();
+        for agent in ["claude", "codex", "agy", "opencode", "pi"] {
+            assert_eq!(hook_gated(agent), named.contains(&agent), "{agent}");
         }
     }
 
