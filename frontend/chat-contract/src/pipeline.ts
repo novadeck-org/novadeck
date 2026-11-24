@@ -7,6 +7,7 @@ import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
 import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { transcripts as opencode } from "@novadeck/harness-opencode/transcripts"
+import { transcripts as pi } from "@novadeck/harness-pi/transcripts"
 import { transcriptItem, type TranscriptItem } from "@novadeck/protocol"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
@@ -23,6 +24,7 @@ export const transcriptsOf: Readonly<Record<AgentName, Transcripts>> = {
   codex,
   agy,
   opencode,
+  pi,
 }
 
 const session = "contract"

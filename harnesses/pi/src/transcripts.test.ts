@@ -183,3 +183,46 @@ describe("an image Novadeck pasted as its path", () => {
     expect(transcripts.items(line)[0]!.text).toBe("see /home/person/project/shot.png")
   })
 })
+
+describe("a codemode script's own calls", () => {
+  // The script's result as pi 1.6.0 wrote it (2026-11-24): its calls kept beside it, never their results.
+  const result = JSON.stringify({
+    type: "message",
+    id: "f",
+    parentId: "g",
+    timestamp: "2026-11-24T10:00:00.000Z",
+    message: {
+      role: "toolResult",
+      toolCallId: "call_1",
+      toolName: "codemode",
+      content: [{ type: "text", text: "Script completed" }],
+      isError: false,
+      timestamp: 1,
+      nestedCalls: {
+        calls: [
+          { id: "call_1/1", name: "read", status: "ok", arguments: { path: "sample.txt" } },
+          {
+            id: "call_1/2",
+            name: "bash",
+            status: "error",
+            arguments: { command: "git push" },
+            error: "No permit",
+          },
+        ],
+        complete: true,
+      },
+    },
+  })
+
+  it("follow the script's result, each a call and its result marked as the script's", () => {
+    const read = transcripts.items(result)
+    expect(read.map(({ kind, tool, scripted }) => [kind, tool, scripted])).toEqual([
+      ["tool-result", null, false],
+      ["tool-call", "read", true],
+      ["tool-result", null, true],
+      ["tool-call", "bash", true],
+      ["tool-result", null, true],
+    ])
+    expect(read[4]).toMatchObject({ text: "No permit", outcome: { failed: true } })
+  })
+})

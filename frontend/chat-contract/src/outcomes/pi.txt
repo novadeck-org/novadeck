@@ -1,0 +1,56 @@
+# read
+Read · sample.txt → failed false
+
+# read-part
+Read · sample.txt → failed false
+
+# read-missing
+Read · missing.txt → failed true
+
+# command-passes
+Ran · echo hello → failed false, exit 0
+
+# command-fails
+Ran · echo boom >&2; exit 3 → failed true, exit 3
+
+# no-match
+Ran · grep -n zzz sample.txt → failed true, exit 1
+
+# not-found
+Ran · no-such-program-here → failed true, exit 127
+
+# timeout
+Ran · sleep 5; echo late → failed true
+
+# search
+Searched · beta → failed false
+
+# search-none
+Searched · zzz → failed false
+
+# find
+Found files · **/*.txt → failed false
+
+# ls
+Listed · . → failed false
+
+# edit
+Edited · src/auth.ts → failed false, +2 -1 [5 lines: 1 const a = 1 | 2-const b = 2 | 2+const b = 20]
+
+# edit-many
+Edited · src/auth.ts · 2 edits → failed false, +2 -2 [5 lines: 1-const a = 1 | 2-const b = 2 | 1+const a = 10]
+
+# edit-no-match
+Edited · src/auth.ts → failed true
+
+# new-file
+Wrote · new.txt → failed false
+
+# overwrite
+Wrote · sample.txt → failed false
+
+# long-edit
+Edited · long.txt → failed false, +30 -30 [40 lines: 1-row 1 | 2-row 2 | 3-row 3]
+
+# long-write
+Wrote · written.txt → failed false

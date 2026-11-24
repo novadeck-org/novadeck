@@ -50,6 +50,8 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
   // exists (checked 2026-11-22). Nor does one of `todoread`, which no recorded turn called: it
   // has a row as its `todowrite` does.
   opencode: ["list", "multiedit", "todoread"],
+  // Its Windows shell tool, which it offers on Windows alone.
+  pi: ["powershell"],
 }
 
 const source = (harness: AgentName | "core", path: string): string =>
@@ -94,6 +96,8 @@ const keyOf: Readonly<Record<AgentName, (tool: string) => string>> = {
   agy: (tool) => tool.replace(/^mcp_novadeck_novadeck_/, "novadeck:").toLowerCase(),
   // An MCP server's tool goes by `<server>_<tool>`.
   opencode: (tool) => tool.replace(/^novadeck_/, "novadeck:").toLowerCase(),
+  // Novadeck's extension gives pi its tools as `novadeck_<tool>`.
+  pi: (tool) => tool.replace(/^novadeck_/, "novadeck:").toLowerCase(),
 }
 
 // The names each harness's recorded fixtures and vocabulary conversations call.
@@ -109,9 +113,10 @@ const named = (harness: AgentName): Set<string> => {
 
 describe("the tools the conversations name", () => {
   it("reads every case of each describe and of novadeckTool", () => {
-    // opencode has fewer tools than the others have names.
+    // opencode and pi have fewer tools than the others have names.
+    const fewest: Partial<Record<AgentName, number>> = { opencode: 10, pi: 8 }
     for (const harness of agentNames)
-      expect(known(harness).length, harness).toBeGreaterThan(harness === "opencode" ? 10 : 20)
+      expect(known(harness).length, harness).toBeGreaterThan(fewest[harness] ?? 20)
     expect(novadeckTools).toEqual(expect.arrayContaining(["send", "done", "feedback", "look"]))
   })
 

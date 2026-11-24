@@ -24,6 +24,17 @@ const midTurn = (records: readonly object[]): readonly object[] => {
 }
 const opencodeTurns = recordedScenarios("opencode-tools.json")
 
+// The records of a recorded turn of pi's as its session file has them while the agent works: the
+// answer that made the calls written, none of their results yet (pi runs an answer's calls
+// together, and writes each result as it comes).
+const piMidTurn = (records: readonly object[]): readonly object[] => {
+  const first = records.findIndex(
+    (record) => (record as { message?: { role?: string } }).message?.role === "toolResult",
+  )
+  return records.slice(0, first)
+}
+const piTurns = recordedScenarios("pi-tools.json")
+
 const conversations: Readonly<Record<AgentName, readonly Conversation[]>> = {
   claude: [
     {
@@ -135,6 +146,15 @@ const conversations: Readonly<Record<AgentName, readonly Conversation[]>> = {
       records: [...opencodeTurns["long-a"]!, ...midTurn(opencodeTurns["long-b"]!)],
     },
     { name: "short-run", records: midTurn(opencodeTurns.short!) },
+  ],
+  // Recorded turns (src/recorded/pi-tools.json: long-a, long-b and short), the last one's calls
+  // still running.
+  pi: [
+    {
+      name: "long-run",
+      records: [...piTurns["long-a"]!, ...piMidTurn(piTurns["long-b"]!)],
+    },
+    { name: "short-run", records: piMidTurn(piTurns.short!) },
   ],
 }
 

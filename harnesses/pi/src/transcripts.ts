@@ -154,6 +154,32 @@ const answerItems = (message: Fields, time: number | null): readonly TranscriptE
     : items
 }
 
+/**
+ * The calls a script made (pi's codemode), each after the script's own result, marked
+ * `scripted`: pi keeps no transcript entry of their own, only a record of them on the script's
+ * result (`nestedCalls`: name, arguments, status and error, never their results; probed
+ * 2026-11-24, 1.6.0), as Codex records a script's commands apart from its call.
+ */
+const scriptedItems = (message: Fields, time: number | null): readonly TranscriptEntry[] => {
+  const nested = fieldsOf(message.nestedCalls)?.calls
+  return (Array.isArray(nested) ? nested : []).flatMap((one): TranscriptEntry[] => {
+    const call = fieldsOf(one)
+    if (!call || typeof call.name !== "string") return []
+    const row = { at: time, call: call.id, scripted: true }
+    return [
+      entry("assistant", "tool-call", textOf(call.arguments ?? {}), {
+        ...row,
+        tool: call.name,
+        describe,
+      }),
+      entry("tool", "tool-result", typeof call.error === "string" ? call.error : "", {
+        ...row,
+        outcome: outcome({ failed: call.status !== "ok" }),
+      }),
+    ]
+  })
+}
+
 // The items of a message of Novadeck's, its extension's: a delivery of agents' messages, which
 // the chat reads apart, or Novadeck's standing notices.
 const ownItems = (content: unknown, time: number | null): readonly TranscriptEntry[] => {
@@ -185,6 +211,7 @@ const messageItems = (record: Fields): readonly TranscriptEntry[] => {
           call: message.toolCallId,
           outcome: resultOutcome(message, text),
         }),
+        ...scriptedItems(message, time),
       ]
     }
     // The person's own shell command (`!` or `!!`): the line they typed, the command, its output.

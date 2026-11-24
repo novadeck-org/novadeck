@@ -2,7 +2,7 @@ import type { Fields } from "@novadeck/harness-core/fields"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
-import { harnessSources, recordedFile } from "./harnesses.test-support"
+import { fixtureLines, harnessSources, recordedFile } from "./harnesses.test-support"
 import { agyAskSkipped, claudeAskSkipped, codexAskSkipped, codexPinnedAskSkipped } from "./skipped"
 import { agyVocabulary } from "./vocabulary/agy"
 import { claudeVocabulary } from "./vocabulary/claude"
@@ -181,12 +181,21 @@ const opencodeProbe = (file: string): Extracted => {
 export const recordedScenarios = (file: string): { [name: string]: readonly object[] } =>
   recordedFile<{ scenarios: { [name: string]: readonly object[] } }>(file).scenarios
 
-const opencodeRecorded = (file: string): Extracted =>
+// A recording of this package's, a conversation to a scenario.
+const recordedFixture = (file: string): Extracted =>
   found(file, {
     conversations: Object.entries(recordedScenarios(file)).map(([name, lines]) => ({
       name,
       lines: linesOf(recordsOf(`${file} ${name}`, lines)),
     })),
+    skipped: [],
+  })
+
+// pi's are its own session files (see its transcripts.ts): this package's recordings, a session a
+// scenario, as opencode's are; and the harness's own recorded session, a line each.
+const piSession = (file: string): Extracted =>
+  found(file, {
+    conversations: [{ name: "session", lines: [...fixtureLines("pi", file)] }],
     skipped: [],
   })
 
@@ -214,7 +223,8 @@ export const outcomeFixtures: readonly Fixture[] = [
   outcomeFixture("claude", 15),
   outcomeFixture("codex", 27),
   outcomeFixture("agy", 17),
-  outcomeFixture("opencode", 25, () => opencodeRecorded("opencode-outcomes.json")),
+  outcomeFixture("opencode", 25, () => recordedFixture("opencode-outcomes.json")),
+  outcomeFixture("pi", 19, () => recordedFixture("pi-outcomes.json")),
 ]
 
 export const fixtures: readonly Fixture[] = [
@@ -346,7 +356,7 @@ export const fixtures: readonly Fixture[] = [
     tools: true,
     count: 21,
     skipped: [],
-    extract: () => opencodeRecorded("opencode-tools.json"),
+    extract: () => recordedFixture("opencode-tools.json"),
   },
   {
     golden: "opencode/attached",
@@ -355,7 +365,23 @@ export const fixtures: readonly Fixture[] = [
     tools: false,
     count: 1,
     skipped: [],
-    extract: () => opencodeRecorded("opencode-attached.json"),
+    extract: () => recordedFixture("opencode-attached.json"),
+  },
+  {
+    golden: "pi/session",
+    harness: "pi",
+    tools: true,
+    count: 1,
+    skipped: [],
+    extract: () => piSession("session.jsonl"),
+  },
+  {
+    golden: "pi/tools",
+    harness: "pi",
+    tools: true,
+    count: 20,
+    skipped: [],
+    extract: () => recordedFixture("pi-tools.json"),
   },
   // Each case of a tool's outcome, on each harness (see outcomes.test.ts).
   ...outcomeFixtures,
