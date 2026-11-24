@@ -10,6 +10,7 @@ import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { afterDrop } from "@novadeck/toolkit/drag-settled"
 import { sidebarListClasses, SidebarItem } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -391,7 +392,7 @@ export const SessionsPanel = ({
   const [editing, setEditing] = useState<string | null>(null)
   // The session a delete asks about, while it asks.
   const [removing, setRemoving] = useState<WorkspaceSessionSummary | null>(null)
-  // Bumped as a drag ends: the drag library moves a row's element among the others, which
+  // Bumped as a drop settles: the drag library moves a row's element among the others, which
   // React can't follow, so the rows mount anew in the saved order. `focus` is the row a
   // keyboard drag moved, which the new rows give the focus back to.
   const [drag, setDrag] = useState<{ generation: number; focus: string | null }>({
@@ -450,18 +451,23 @@ export const SessionsPanel = ({
         sensors={sensors}
         modifiers={modifiers}
         plugins={(defaults) => [...defaults, accessibility, feedback, cursor]}
-        onDragEnd={(event) => {
+        onDragEnd={(event, manager) => {
           const { source, activatorEvent } = event.operation
           if (!isSortable(source)) return
           // A drag from the keyboard leaves the focus on the session it moved. Where the focus
           // stands as it ends can't say: moving the row's element may have dropped it.
           const keyboard = activatorEvent instanceof KeyboardEvent
-          setDrag((current) => ({
-            generation: current.generation + 1,
-            focus: keyboard ? String(source.id) : null,
-          }))
-          if (event.canceled || source.initialIndex === source.index) return
-          onMove?.(String(source.id), source.index)
+          const id = String(source.id)
+          const moved = !event.canceled && source.initialIndex !== source.index
+          const { index } = source
+          // Once the row has slid into its place: the rows mount anew in the saved order.
+          afterDrop(manager, () => {
+            setDrag((current) => ({
+              generation: current.generation + 1,
+              focus: keyboard ? id : null,
+            }))
+            if (moved) onMove?.(id, index)
+          })
         }}
       >
         <div

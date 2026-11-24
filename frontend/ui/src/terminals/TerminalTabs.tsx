@@ -9,6 +9,7 @@ import {
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
+import { afterDrop } from "@novadeck/toolkit/drag-settled"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import {
   Fragment,
@@ -65,7 +66,7 @@ const TerminalTabsView = ({
   onReorder: (ids: string[]) => void
 }): React.JSX.Element => {
   const [list, setList] = useState<HTMLDivElement | null>(null)
-  // Bumped when a drag ends: the drag library moves a tab's element next to the one it passes,
+  // Bumped once a drop settles: the drag library moves a tab's element next to the one it passes,
   // into that tab's wrapper, which React's next update can't follow (a tab closed later would
   // leave its row behind, or take another's with it), so the tabs mount anew, in the saved
   // order if a drop saved another than the drag showed (a drag past a folded lead).
@@ -107,22 +108,26 @@ const TerminalTabsView = ({
       sensors={sensors}
       modifiers={modifiers}
       plugins={(defaults) => [...defaults, accessibility, feedback, cursor]}
-      onDragEnd={(event) => {
+      onDragEnd={(event, manager) => {
         const { source } = event.operation
         if (!isSortable(source)) return
         const held = document.activeElement
         const focused = held && list?.contains(held) ? held.closest("[data-terminal-tab-id]") : null
-        setDrag((current) => ({
-          generation: current.generation + 1,
-          focus: focused?.getAttribute("data-terminal-tab-id") ?? null,
-        }))
-        if (event.canceled || source.initialIndex === source.index) return
-        const order = [...ids]
-        const from = order.indexOf(String(source.id))
-        if (from < 0) return
-        const [id] = order.splice(from, 1)
-        order.splice(source.index, 0, id!)
-        onReorder(order)
+        const focus = focused?.getAttribute("data-terminal-tab-id") ?? null
+        const moved = !event.canceled && source.initialIndex !== source.index
+        const dragged = String(source.id)
+        const { index } = source
+        // Once the tab has slid into its place: the tabs mount anew in the saved order.
+        afterDrop(manager, () => {
+          setDrag((current) => ({ generation: current.generation + 1, focus }))
+          if (!moved) return
+          const order = [...ids]
+          const from = order.indexOf(dragged)
+          if (from < 0) return
+          const [id] = order.splice(from, 1)
+          order.splice(index, 0, id!)
+          onReorder(order)
+        })
       }}
     >
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach} data-tour="tabs">

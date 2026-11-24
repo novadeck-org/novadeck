@@ -9,6 +9,7 @@ import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { inboxType, entryKey, type InboxEntry, type InboxState } from "@novadeck/core/inbox"
+import { afterDrop } from "@novadeck/toolkit/drag-settled"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -448,14 +449,20 @@ const InboxListView = (): React.JSX.Element => {
               feedback,
               cursor,
             ]}
-            onDragEnd={(event) => {
-              setDrags((count) => count + 1)
+            onDragEnd={(event, manager) => {
               const { source } = event.operation
-              if (!isSortable(source)) return
-              const id = String(source.id)
-              if (source.element?.contains(document.activeElement)) focusRow(id)
-              if (event.canceled || source.initialIndex === source.index) return
-              move(id, source.index)
+              const id = isSortable(source) ? String(source.id) : null
+              const focused = Boolean(source?.element?.contains(document.activeElement))
+              const reordered =
+                isSortable(source) && !event.canceled && source.initialIndex !== source.index
+              const index = isSortable(source) ? source.index : 0
+              // Once the row has slid into its place: the list mounts anew in the saved order.
+              afterDrop(manager, () => {
+                setDrags((count) => count + 1)
+                if (id === null) return
+                if (focused) focusRow(id)
+                if (reordered) move(id, index)
+              })
             }}
           >
             {placements.map(({ entry, asks }, index) => {
