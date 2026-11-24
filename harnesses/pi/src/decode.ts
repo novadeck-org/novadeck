@@ -70,7 +70,10 @@ const decodeReport = ({ event, seq, instance, payload }: Report): readonly Harne
       const prompt = typeof payload.prompt === "string" ? payload.prompt : ""
       return [promptStart(base, prompt, false), ...modelOf(base, payload.model, payload.effort)]
     }
-    case "Stop": {
+    // Past the extension's cap on a run's continuations it tells its Stop as StopHeld, which the
+    // relay asks no delivery at.
+    case "Stop":
+    case "StopHeld": {
       const error = fieldsOf(payload.error)
       const name = text(error?.name)
       const message = errorText(error?.message)

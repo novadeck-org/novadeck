@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -238,8 +238,11 @@ describe("Novadeck's pi extension", () => {
     expect(await pi.emit("before_agent_start", { prompt: "again" })).toEqual({
       message: { customType: "novadeck", content: "older", display: true },
     })
-    // Once: the next run brings nothing of it.
-    expect(await pi.emit("before_agent_start", { messageType: "user" })).toBeUndefined()
+    // Each run asks for its own: the runner leases a message once, so the next brings none.
+    await pi.answer({})
+    expect(
+      await pi.emit("before_agent_start", { messageType: "user", prompt: "next" }),
+    ).toBeUndefined()
     expect((await pi.reports())[0]).toMatchObject({
       hook_event_name: "UserPromptSubmit",
       prompt: "fix the build",
@@ -389,6 +392,89 @@ describe("Novadeck's pi extension", () => {
     ])
   })
 
+  it("asks no delivery at a Stop past its cap on a run's continuations", async () => {
+    const pi = await load()
+    await pi.answer({ Stop: { deliver: "more" }, StopHeld: { deliver: "never" } })
+    await pi.emit("agent_start")
+    for (let round = 0; round < 20; round += 1)
+      // eslint-disable-next-line no-await-in-loop -- One Stop after another, as pi runs them.
+      expect(await pi.emit("agent_before_settle", { entries: [] })).toMatchObject({
+        continue: true,
+      })
+    expect(await pi.emit("agent_before_settle", { entries: [] })).toBeUndefined()
+    const names = (await pi.reports()).map((report) => report.hook_event_name)
+    expect(names.filter((name) => name === "Stop")).toHaveLength(20)
+    expect(names.at(-1)).toBe("StopHeld")
+  })
+
+  it("gives back to the box a queued prompt an Escape stopped before it went in", async () => {
+    const pi = await load()
+    let box = "draft"
+    let aborted = 0
+    const ui = { getEditorText: () => box, setEditorText: (text: string) => (box = text) }
+    const ctx = context({ ui, abort: () => (aborted += 1) })
+    await pi.emit("agent_start", {}, ctx)
+    // Given while the run went on; a person's slow input handler still holds them.
+    await pi.emit(
+      "input",
+      { text: "Queued beta", source: "interactive", streamingBehavior: "steer" },
+      ctx,
+    )
+    await pi.emit(
+      "input",
+      { text: "Queued gamma", source: "interactive", streamingBehavior: "steer" },
+      ctx,
+    )
+    // Escape: the run settles, aborted; its Stop waits for the prompts to come back.
+    const settled = pi.emit("agent_settled", { aborted: true }, ctx)
+    for (const text of ["Queued beta", "Queued gamma"]) {
+      // eslint-disable-next-line no-await-in-loop -- Each comes as its handlers end.
+      await new Promise((done) => setTimeout(done, 100))
+      // eslint-disable-next-line no-await-in-loop -- As pi starts its run.
+      const started = await pi.emit(
+        "before_agent_start",
+        { messageType: "user", prompt: text },
+        ctx,
+      )
+      expect(started).toBeUndefined()
+      // eslint-disable-next-line no-await-in-loop -- Its run, aborted, is no turn's.
+      await pi.emit(
+        "message_start",
+        { message: { role: "user", content: text, timestamp: 900 + text.length } },
+        ctx,
+      )
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await pi.emit("agent_settled", { aborted: true }, ctx)
+    }
+    await settled
+    expect(box).toBe("draft\n\nQueued beta\n\nQueued gamma")
+    expect(aborted).toBe(2)
+    // One Stop, the stopped turn's, told once they were back.
+    expect((await pi.reports()).filter((report) => report.hook_event_name === "Stop")).toHaveLength(
+      1,
+    )
+    // What those runs left, the model reads no more.
+    const seen = (await pi.emit("context", {
+      messages: [
+        { role: "user", content: "Hold on", timestamp: 1 },
+        { role: "user", content: "Queued beta", timestamp: 911 },
+      ],
+    })) as { messages: { content: string }[] }
+    expect(seen.messages.map((message) => message.content)).toEqual(["Hold on"])
+  })
+
+  it("asks no delivery for a prompt whose run never starts", async () => {
+    const pi = await load()
+    await pi.answer({ UserPromptSubmit: { deliver: "for the run" } })
+    // No model or key: pi starts no run, so no before_agent_start.
+    await pi.emit("input", { text: "first", source: "interactive" })
+    await pi.emit("input", { text: "second", source: "interactive" })
+    expect(await pi.emit("before_agent_start", { messageType: "user", prompt: "second" })).toEqual({
+      message: { customType: "novadeck", content: "for the run", display: true },
+    })
+    expect((await pi.reports()).map((report) => report.prompt)).toEqual(["second"])
+  })
+
   it("tells an aborted run's end as it settles, with nothing to deliver", async () => {
     const pi = await load()
     await pi.emit("agent_start")
@@ -417,6 +503,22 @@ describe("Novadeck's pi extension", () => {
     ])
   })
 
+  it("leaves a worktree the person told pi not to trust to them", async () => {
+    const agentDir = join(root, "agent-distrust")
+    const main = join(root, "project-d")
+    const worktree = join(root, "worktrees", "wt3")
+    await mkdir(agentDir, { recursive: true })
+    await mkdir(worktree, { recursive: true })
+    await writeFile(join(worktree, ".git"), `gitdir: ${join(main, ".git", "worktrees", "wt3")}\n`)
+    await writeFile(
+      join(agentDir, "trust.json"),
+      JSON.stringify({ [main]: true, [worktree]: false }),
+    )
+    process.env.PI_CODING_AGENT_DIR = agentDir
+    const pi = await load()
+    expect(await pi.emit("project_trust", { cwd: worktree })).toEqual({ trusted: "undecided" })
+  })
+
   it("trusts a worktree of Novadeck's for this process where pi trusts its project already", async () => {
     const agentDir = join(root, "agent")
     const main = join(root, "project")
@@ -438,6 +540,10 @@ describe("Novadeck's pi extension", () => {
     expect(await pi.emit("project_trust", { cwd: trusted })).toEqual({ trusted: "yes" })
     expect(await pi.emit("project_trust", { cwd: other })).toEqual({ trusted: "undecided" })
     expect(await pi.emit("project_trust", { cwd: main })).toEqual({ trusted: "undecided" })
+    // A link to the worktrees' folder is the same place.
+    const linked = join(root, "linked-worktrees")
+    await symlink(join(root, "worktrees"), linked)
+    expect(await pi.emit("project_trust", { cwd: join(linked, "wt1") })).toEqual({ trusted: "yes" })
     // Read alone: pi's own decisions stay as they were.
     expect(JSON.parse(await readFile(join(agentDir, "trust.json"), "utf8"))).toEqual({
       [main]: true,

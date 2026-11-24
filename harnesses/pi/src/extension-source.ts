@@ -45,7 +45,7 @@ export const extensionSource = (config: ExtensionConfig): string =>
   `// Novadeck's extension for pi. Written by Novadeck into its own data directory and
 // overwritten on each start; pi loads it only in Novadeck's terminals, for one launch.
 import { spawn } from "node:child_process"
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -276,24 +276,44 @@ const mainOf = (folder) => {
   }
 }
 
-// Whether pi's own trust store trusts folder, or the nearest folder above it with a decision, as
-// pi reads it (core/trust-manager.ts, 1.6.0). Only read: Novadeck never writes it.
-const piTrusts = (folder) => {
+// A path as pi keys its trust decisions by: links resolved where it is there (its
+// canonicalizePath, 1.6.0), else as written.
+const real = (path) => {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
+// pi's own trust decisions (its trust.json), by their paths made real. Only read: Novadeck never
+// writes it.
+const trustStore = () => {
   try {
     const moved = process.env.PI_CODING_AGENT_DIR
     const agentDir = moved ? resolve(moved.replace(/^~(?=$|[\\/])/, homedir())) : join(homedir(), ".pi", "agent")
     const data = JSON.parse(readFileSync(join(agentDir, "trust.json"), "utf8"))
-    let at = resolve(folder)
-    while (true) {
-      for (const [key, value] of Object.entries(data)) {
-        if (same(resolve(key), at) && (value === true || value === false)) return value
-      }
-      const up = dirname(at)
-      if (up === at) return false
-      at = up
-    }
+    return Object.entries(data)
+      .filter(([, value]) => value === true || value === false)
+      .map(([key, value]) => [real(key), value])
   } catch {
-    return false
+    return []
+  }
+}
+
+// The decision pi keeps for folder itself, if any.
+const decisionOn = (store, folder) => store.find(([key]) => same(key, folder))?.[1]
+
+// Whether pi trusts folder, as the nearest folder at or above it with a decision says (its
+// trust-manager.ts, 1.6.0).
+const trusts = (store, folder) => {
+  let at = folder
+  while (true) {
+    const decided = decisionOn(store, at)
+    if (decided !== undefined) return decided
+    const up = dirname(at)
+    if (up === at) return false
+    at = up
   }
 }
 
@@ -310,8 +330,24 @@ export default function novadeck(pi) {
   let failure = null
   let stopped = false
   let continued = 0
-  // The deliveries for the prompt pi is starting, which go in with it.
-  const forPrompt = []
+  // The person's prompt pi is about to start a run with, as they gave it (before pi expands a
+  // skill or template), told as that run starts (before_agent_start), so a delivery goes in with
+  // that run alone: a prompt whose run never starts (no model or key, /new) asks for none.
+  let given = null
+  // Whether the latest prompt was an extension's own (pi.sendUserMessage), which is no person's.
+  let fromExtension = false
+  // Prompts the person gave while a run went on, told as given (queued): pi queues one only once
+  // every extension's input handler returned, so while a person's own slow one runs nothing
+  // shows queued. When an Escape stops the run first, such a prompt starts a run of its own once
+  // its handlers are done; Novadeck gives it back to the box instead, as pi gives back what it
+  // had queued (probed 2026-11-24, 1.6.0).
+  const inFlight = []
+  let abortedAt = 0
+  // A run started only to be given back, whose end is no turn's.
+  let givingBack = false
+  // What such runs left in the session (the prompt and its aborted answer, by their times),
+  // which the model reads no more.
+  const givenBack = new Set()
   // Extension dialogs, numbered in this process: the one showing, if any.
   let dialogs = 0
   let dialog = null
@@ -339,9 +375,12 @@ export default function novadeck(pi) {
   // this process alone, never remembered. Any other folder is left to pi and the person.
   pi.on("project_trust", (event) => {
     try {
-      if (config.worktrees && inside(event.cwd, config.worktrees)) {
+      if (config.worktrees && inside(real(event.cwd), real(config.worktrees))) {
         const main = mainOf(event.cwd)
-        if (main && piTrusts(main)) return { trusted: "yes" }
+        const store = trustStore()
+        // Never over the person's own "do not trust" for this very worktree.
+        if (main && decisionOn(store, real(event.cwd)) !== false && trusts(store, real(main)))
+          return { trusted: "yes" }
       }
     } catch {}
     return { trusted: "undecided" }
@@ -415,39 +454,90 @@ export default function novadeck(pi) {
     tools.close()
   })
 
+  const promptReport = (ctx, text, images, queued) =>
+    report("UserPromptSubmit", {
+      ...where(ctx),
+      prompt: cut(text, 100000),
+      images,
+      // Given while a run goes on: queued, which the person may still take back (Alt+Up, or an
+      // abort returns it to the box), so the runner delivers nothing with it.
+      queued,
+      ...modelOf(ctx),
+    })
+
   pi.on("input", async (event, ctx) => {
     try {
       // The extensions' own prompts aren't the person's.
-      if (event.source === "extension") return
-      const answer = await report("UserPromptSubmit", {
-        ...where(ctx),
-        prompt: cut(event.text ?? "", 100000),
-        images: Array.isArray(event.images) ? event.images.length : 0,
-        // Given while a run goes on: queued, which the person may still take back (Alt+Up, or
-        // an abort returns it to the box), so the runner delivers nothing with it.
-        queued: event.streamingBehavior ?? null,
-        ...modelOf(ctx),
-      })
-      const text = delivery(answer)
-      if (!text) return
-      if (!event.streamingBehavior) forPrompt.push(text)
-      // Queued after the prompt itself, which pi queues once this handler returns.
-      else
+      fromExtension = event.source === "extension"
+      if (fromExtension) return
+      const text = event.text ?? ""
+      const images = Array.isArray(event.images) ? event.images.length : 0
+      if (!event.streamingBehavior) {
+        given = { text, images }
+        return
+      }
+      inFlight.push({ text, at: Date.now() })
+      const delivered = delivery(await promptReport(ctx, text, images, event.streamingBehavior))
+      // Queued after the prompt itself, which pi queues once the handlers return.
+      if (delivered)
         setTimeout(() => {
           try {
-            pi.sendMessage({ customType: "novadeck", content: text, display: true }, { deliverAs: event.streamingBehavior })
+            pi.sendMessage({ customType: "novadeck", content: delivered, display: true }, { deliverAs: event.streamingBehavior })
           } catch {}
         }, 0)
     } catch {}
   })
 
-  // A prompt's delivery goes in with it, as a message of Novadeck's after the person's.
-  pi.on("before_agent_start", (event) => {
-    // A run a custom message started (pi.sendMessage with triggerTurn, 1.2.0 on) is no prompt's;
-    // before 1.2.0 the event has no messageType and fires for prompts alone.
-    const prompt = event.messageType === undefined || event.messageType === "user"
-    if (!prompt || forPrompt.length === 0) return
-    return { message: { customType: "novadeck", content: forPrompt.splice(0).join("\n\n"), display: true } }
+  // A run starting with the person's prompt: told now, its delivery going in with it, as a
+  // message of Novadeck's after the person's.
+  pi.on("before_agent_start", async (event, ctx) => {
+    try {
+      // A run a custom message started (pi.sendMessage with triggerTurn, 1.2.0 on) is no prompt's;
+      // before 1.2.0 the event has no messageType and fires for prompts alone.
+      if (event.messageType !== undefined && event.messageType !== "user") return
+      const text = typeof event.prompt === "string" ? event.prompt : ""
+      const queued = inFlight.findIndex((one) => one.text === text)
+      if (queued >= 0) {
+        const [one] = inFlight.splice(queued, 1)
+        // Given while a run went on that an Escape stopped before it went in: back to the box,
+        // after what is there, as pi joins what it gives back. Its run stops before any model call.
+        if (one.at < abortedAt) {
+          givingBack = true
+          ctx.abort()
+          const box = ctx.ui?.getEditorText?.() ?? ""
+          ctx.ui?.setEditorText?.([box, one.text].filter((part) => part.trim()).join("\n\n"))
+        }
+        // Told as it was queued.
+        return
+      }
+      if (fromExtension) return
+      const prompt = given ?? { text, images: Array.isArray(event.images) ? event.images.length : 0 }
+      given = null
+      const delivered = delivery(await promptReport(ctx, prompt.text, prompt.images, null))
+      if (delivered) return { message: { customType: "novadeck", content: delivered, display: true } }
+    } catch {}
+  })
+
+  // A queued prompt that went in: no longer waiting.
+  pi.on("message_start", (event) => {
+    const message = event.message
+    if (!message) return
+    // Its prompt and its aborted answer; never the system prompt pi writes beside them.
+    if (givingBack && (message.role === "user" || message.role === "assistant") && typeof message.timestamp === "number") {
+      givenBack.add(message.timestamp)
+      return
+    }
+    if (message.role !== "user" || inFlight.length === 0) return
+    const said = textOf(message.content)
+    const at = inFlight.findIndex((one) => one.text === said)
+    if (at >= 0) inFlight.splice(at, 1)
+  })
+
+  // What a run given back left in the session, out of what the model reads.
+  pi.on("context", (event) => {
+    if (givenBack.size === 0 || !Array.isArray(event.messages)) return
+    const kept = event.messages.filter((message) => !givenBack.has(message?.timestamp))
+    if (kept.length !== event.messages.length) return { messages: kept }
   })
 
   pi.on("agent_start", () => {
@@ -524,14 +614,16 @@ export default function novadeck(pi) {
     } catch {}
   }
 
-  const stop = async (ctx, aborted) => {
+  const stop = async (ctx, aborted, held = false) => {
     stopped = true
     let usage = null
     try {
       const used = ctx.getContextUsage()
       if (used) usage = { tokens: used.tokens ?? null, window: used.contextWindow ?? null, ...modelOf(ctx) }
     } catch {}
-    const answer = await report("Stop", {
+    // Past the cap, the Stop is told under a name the relay asks nothing at, so no message is
+    // leased to it: what waits stays for the doorbell.
+    const answer = await report(held ? "StopHeld" : "Stop", {
       ...where(ctx),
       last_assistant_message: reply,
       error: aborted ? { name: "aborted", message: null } : failure,
@@ -544,11 +636,12 @@ export default function novadeck(pi) {
 
   // A run's end, while it can still go on: a delivery continues it, in the same run, as Claude
   // Code's Stop hook can. The runner leases each message once, so the next Stop brings nothing
-  // new; the cap holds against a runaway all the same.
+  // new; past a cap of 20 the Stop asks for none, against a runaway.
   pi.on("agent_before_settle", async (event, ctx) => {
     try {
-      const text = delivery(await stop(ctx, false))
-      if (!text || continued >= 20) return
+      const held = continued >= 20
+      const text = delivery(await stop(ctx, false, held))
+      if (!text || held) return
       continued++
       return {
         entries: [...event.entries, { type: "custom_message", customType: "novadeck", content: text, display: true }],
@@ -559,7 +652,24 @@ export default function novadeck(pi) {
 
   pi.on("agent_settled", async (event, ctx) => {
     const aborted = event.aborted === true
+    // A run started only to be given back ends no turn.
+    if (givingBack) {
+      givingBack = false
+      stopped = false
+      return
+    }
     try {
+      if (aborted) {
+        abortedAt = Date.now()
+        // What pi itself gave back (it had queued them) is in the box already; the prompts still
+        // in a person's input handler come back as their runs start (before_agent_start). The
+        // turn's end is told once they are back, so what reads the box then finds them.
+        const box = ctx.ui?.getEditorText?.() ?? ""
+        for (let at = inFlight.length - 1; at >= 0; at -= 1) if (box.includes(inFlight[at].text)) inFlight.splice(at, 1)
+        const until = Date.now() + 10_000
+        while (inFlight.some((one) => one.at < abortedAt) && Date.now() < until)
+          await new Promise((done) => setTimeout(done, 50))
+      }
       // An aborted run skips agent_before_settle: its Stop is told here, with nothing to deliver.
       if (!stopped) await stop(ctx, aborted)
     } catch {}

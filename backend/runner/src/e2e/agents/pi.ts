@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { copyFile, mkdir, writeFile } from "node:fs/promises"
+import { basename, join } from "node:path"
 
 import { chat } from "../model/chat.js"
 import type { AgentSetup } from "./agent.js"
@@ -82,6 +82,13 @@ export const pi: AgentSetup = {
     }
     const folder = agentFolder(sandbox.home)
     await mkdir(folder, { recursive: true, mode: 0o700 })
+    // Its `@` menu lists files with `fd`, which it downloads into its agent folder's `bin` at
+    // its first start online; offline here, it gets the copy installed beside it (`tools`).
+    const fd = installed.tools?.fd
+    if (fd) {
+      await mkdir(join(folder, "bin"), { recursive: true })
+      await copyFile(fd, join(folder, "bin", basename(fd)))
+    }
     // A person's own prompt or tool hook: pi runs no hook commands, so an extension of theirs,
     // in their agent folder's `extensions` (which pi loads beside Novadeck's), runs the script
     // and waits for it, as pi waits for each extension's handler before going on. Its `input`
@@ -159,8 +166,6 @@ ${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script
     background: "it has no background subagents: it skips sub-agents (README, 1.6.0)",
     "background.command":
       "its bash tool takes `command` and `timeout` alone: it waits for the command (docs, 1.6.0)",
-    hookedQueue:
-      "it queues a prompt given mid-turn only once every extension's `input` handler returned: while a person's slow one runs, nothing shows queued, and an Escape then aborts the turn and the prompt runs as a turn of its own once its handler is done, which Novadeck's extension, whose handler runs first, can't hold back without stopping the person's (probed 2026-11-24, 1.6.0, backups/pi-harness-2026-11-24/rig/slow-queue.mjs)",
     // Where the platform tells a process's arguments (Linux), a pi started past the shim reads as held
     // by its hooks (`hooksTrusted`); elsewhere Novadeck can't tell such a launch from any other.
     ...(process.platform !== "linux" && {
@@ -169,8 +174,6 @@ ${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script
     }),
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
-    mention:
-      "its @ menu lists files with `fd`, which it downloads at its first start online; the e2e sandbox runs it offline (`PI_OFFLINE`), where it has none (probed 2026-11-24, 1.6.0)",
     pluginCopy:
       "it keeps no copy of Novadeck's extension in its home: the shim passes the runner's own file for each launch",
     image:

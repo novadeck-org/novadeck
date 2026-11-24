@@ -2,6 +2,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Watch } from "@novadeck/sandbox/tripwire"
 
 import type { DeckTerminal } from "../deck.js"
+import type { Installed } from "../install.js"
 import type { Sandbox } from "../keychain.js"
 import type { Dialect } from "../model/dialect.js"
 import type { Call, Reply, Rule } from "../model/script.js"
@@ -110,13 +111,6 @@ export type Trait =
   | "fork.inPlace"
   | "image"
   | "pluginCopy"
-  | "mention"
-  /**
-   * A prompt given while a turn runs shows queued while the person's own prompt hooks still run on
-   * it, so an Escape then can give it back: absent where the harness queues it only once its hooks
-   * returned (pi's extensions' `input` handlers).
-   */
-  | "hookedQueue"
 
 /**
  * How a scenario makes the harness ask the person before a tool runs, and what that
@@ -372,7 +366,7 @@ export type AgentSetup = {
   readonly prepare: (
     sandbox: Sandbox,
     model: FakeModel,
-    installed: { readonly version: string },
+    installed: Pick<Installed, "version" | "tools">,
     seed?: Seed,
   ) => Promise<Readonly<Record<string, string>>>
   /** How it asks before a tool runs. */
