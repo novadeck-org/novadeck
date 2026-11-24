@@ -35,6 +35,13 @@ const panel = () => {
         },
         { id: "b", name: "Quiet", visitedAt: null, terminalNames: [], running: 0 },
         {
+          id: "d",
+          name: "Earlier",
+          visitedAt: Date.now() - 4 * 60_000 - 5_000,
+          terminalNames: [],
+          running: 0,
+        },
+        {
           id: "c",
           name: "Spinning",
           visitedAt: null,
@@ -96,6 +103,7 @@ describe("The Sessions panel's marks", () => {
   it("says how long ago a session was last open where a tab holds its handle, now for the open one", () => {
     expect(row(panel(), "a").querySelector(".session-when")!.textContent).toBe("now")
     expect(row(panel(), "b").querySelector(".session-when")!.textContent).toBe("")
+    expect(row(panel(), "d").querySelector(".session-when")!.textContent).toBe("4m")
   })
 
   it("says the status first in the row's description, for a screen reader", () => {

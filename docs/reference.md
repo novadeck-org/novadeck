@@ -545,11 +545,11 @@ answers or the app quits; quitting waits briefly for it. A reload before the run
 answers leaves the project there, and it comes back.
 
 Sessions group a project's terminals, and the Sessions panel lists them in the order you
-put them in. A session's row looks and moves like a terminal's tab: under its name, a
-tab's detail line with the most pressing of what its terminals show (what needs you, how many
-run, or how many there are) and how long ago it was last open ("now" for the open one) where a
-tab shows its @handle; its Rename and Delete slide in over that under the pointer. Drag a session to move it, or focus it and press Space, the arrows, then Space
-again. A new session goes first. Rename one with its pencil or a double-click on it: Enter
+put them in. A session's row looks and moves like a terminal's tab. Under its name is the
+most pressing of what its terminals show (what needs you, how many run, or how many there
+are), and at the line's end how long ago it was last open ("now" for the open one). Its
+Rename and Delete slide in over that under the pointer. Drag a session to move it, or focus
+it and press Space, the arrows, then Space again. A new session goes first. Rename one with its pencil or a double-click on it: Enter
 saves and Escape keeps the old name. Its trash icon deletes it, asking first when it has
 terminals. They close and go to History, and you can restore them into another session.
 A project's last session can't be deleted. The order, names and deletions are the runner's,

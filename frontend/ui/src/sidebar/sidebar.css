@@ -86,7 +86,7 @@
 }
 /* A session row's detail line is a tab's (tabs.css): a glyph's slot, then in the program font
    its `.session-state`, the most pressing of what its terminals show (what needs the person,
-   data-need, else how many run, else how many there are), and at its end, where a tab holds its @handle, the
+   else how many run, else how many there are), and at its end, where a tab holds its @handle, the
    `.session-when` it was last open ("now" for the open one). Its actions, in a
    `.session-slot`, are `.session-action`s (an `.icon-button.small.dim.quiet`): Rename and
    Delete, `.session-action-revealed`, slide in over the time under the pointer or with
@@ -109,12 +109,18 @@
 .sessions-panel-entry .session-slot > * {
   pointer-events: auto;
 }
+/* "Move here" says what a click on the row does, and lets the click through to it. */
+.sessions-panel-entry .session-slot > .session-move-here {
+  pointer-events: none;
+}
 .icon-button.session-action:focus-visible {
   outline-offset: -2px;
 }
 @media (hover: hover) {
+  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
+     and keeps that scroll, leaving the button standing at rest. */
   .session-slot {
-    overflow: hidden;
+    overflow: clip;
   }
   .session-slot > * {
     transition: transform var(--motion-layout) var(--ease-interface);
@@ -128,7 +134,12 @@
       opacity var(--motion-feedback) var(--ease-interface),
       transform var(--motion-layout) var(--ease-interface);
   }
+  /* At least the actions' width, as a tab's handle keeps its slot, so the words never run
+     into the room they slide into, however short the age or with none. */
   .sessions-panel-entry:has(.sidebar-item-actions) .session-when {
+    display: inline-flex;
+    justify-content: flex-end;
+    min-width: var(--_sidebar-actions-space, 52px);
     margin-right: calc(0px - var(--_sidebar-actions-space, 52px));
   }
   .sessions-panel-entry:has(.sidebar-item-actions):is(:hover, :has(:focus-visible), .editing)
@@ -138,6 +149,14 @@
   }
   .sessions-panel-entry:hover :is(.session-when, .session-slot > *) {
     transition-delay: 60ms;
+  }
+}
+
+/* Without a pointer that hovers, the actions stand at the line's end at rest, and the age gives
+   way to them, so the line keeps its words whole. */
+@media (hover: none) {
+  .sessions-panel-entry:has(.sidebar-item-actions) .session-when {
+    display: none;
   }
 }
 

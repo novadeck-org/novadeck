@@ -261,6 +261,14 @@ describe("projects", () => {
   })
 })
 
+// Presses a session row's Rename or Delete, which slide in under the pointer: the row first.
+const sessionAction = async (action: "Rename" | "Delete", name: string): Promise<void> => {
+  await savedSession(name).hover()
+  await savedSessions()
+    .getByRole("button", { name: `${action} ${name}` })
+    .click()
+}
+
 describe("sessions sidebar", () => {
   context("when opening the Sessions panel", () => {
     it("lists the project's saved sessions with their terminal counts", async () => {
@@ -446,9 +454,7 @@ describe("sessions sidebar", () => {
       await sidebarPanel("Sessions").click()
       const original = await currentSessionName()
 
-      await savedSessions()
-        .getByRole("button", { name: `Rename ${original}` })
-        .click()
+      await sessionAction("Rename", original)
       const field = savedSessions().getByRole("textbox", { name: `Rename ${original}` })
       await expect.element(field).toHaveFocus()
       await userEvent.fill(field, "Checkout work")
@@ -482,9 +488,7 @@ describe("sessions sidebar", () => {
       await sidebarPanel("Sessions").click()
       const fresh = await newSessionName(original)
 
-      await savedSessions()
-        .getByRole("button", { name: `Delete ${fresh}` })
-        .click()
+      await sessionAction("Delete", fresh)
 
       await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(1)
       await expectCurrentSession(original)
@@ -499,9 +503,7 @@ describe("sessions sidebar", () => {
       await sidebarPanel("Sessions").click()
       const fresh = await newSessionName(original)
 
-      await savedSessions()
-        .getByRole("button", { name: `Delete ${original}` })
-        .click()
+      await sessionAction("Delete", original)
       const dialog = page.getByRole("alertdialog", { name: "Delete this session?" })
       await expect.element(dialog).toBeVisible()
       await expect
@@ -526,9 +528,7 @@ describe("sessions sidebar", () => {
       await sidebarPanel("Sessions").click()
       await newSessionName(original)
 
-      await savedSessions()
-        .getByRole("button", { name: `Delete ${original}` })
-        .click()
+      await sessionAction("Delete", original)
       const dialog = page.getByRole("alertdialog", { name: "Delete this session?" })
       await dialog.getByRole("button", { name: "Cancel" }).click()
 

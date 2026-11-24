@@ -232,7 +232,7 @@ const SessionRow = ({
       {/* The most pressing of what its terminals show, as a tab's line shows its program: what
           needs the person, else how many run, else how many there are, which the tooltip and
           description always say. */}
-      <span className="session-state min-w-0 truncate" data-need={need ? true : undefined}>
+      <span className="session-state min-w-0 truncate">
         {need ??
           (session.running > 0 ? `${session.running} running` : terminalsCount(terminalCount))}
       </span>
