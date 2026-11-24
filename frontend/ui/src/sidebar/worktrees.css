@@ -377,7 +377,15 @@ a.worktrees-pr:focus-visible {
   margin: 0;
 }
 
-/* A trash button that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
+/* A trash button that waits (the owner's agent is working in the worktree) stays in its place,
+   dimmed once it shows: at rest it is out of sight as any row's (sidebar-item.css), and fades in
+   to its dim. */
 .worktrees-row .worktrees-action[aria-disabled="true"] {
   opacity: 0.35;
+}
+@media (hover: hover) {
+  .worktrees-row:not(:hover, :has(:focus-visible), [data-actions="shown"])
+    .worktrees-action[aria-disabled="true"] {
+    opacity: 0;
+  }
 }

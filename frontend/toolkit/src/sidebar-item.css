@@ -53,10 +53,14 @@
   .sidebar-item-slot {
     overflow: clip;
   }
+  /* In place at once, but only after the wait as the fade starts, so a click in that moment
+     still goes to the row; gone at once as the pointer leaves. */
   .sidebar-item-slot > * {
-    transition: opacity var(--motion-feedback) var(--ease-interface);
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform 0s;
   }
-  /* Out of the slot too, two buttons wide so each clears it, so a faded one takes no click. */
+  /* Out of the slot too, two buttons wide so each clears it, so a hidden one takes no click. */
   .sidebar-item:not(:hover, :has(:focus-visible), .editing, [data-actions="shown"])
     .sidebar-item-slot
     > * {
