@@ -125,6 +125,22 @@ describe("prompt receipts", () => {
     expect(receipts.waiting(terminal)).toBe(true)
   })
 
+  it("tells of a prompt sent that the record hasn't told of, and not of one back in the box", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, pass } = await setup(resources)
+    expect(receipts.unrecorded(terminal)).toBe(false)
+    host.box = "Queued beta"
+    await receipts.expect(terminal, "Queued beta", "r1")
+    // Not yet typed: nothing waits on the record.
+    expect(receipts.unrecorded(terminal)).toBe(false)
+    receipts.sent(terminal, "r1")
+    expect(receipts.unrecorded(terminal)).toBe(true)
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    expect(receipts.unrecorded(terminal)).toBe(false)
+  })
+
   it("tells the words of the one prompt waiting whose lines a screen shows, and no other", async ({
     resources,
   }) => {

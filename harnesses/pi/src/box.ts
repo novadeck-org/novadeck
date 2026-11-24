@@ -320,6 +320,12 @@ export const box: BoxProfile = {
   // What pi puts back after an Escape (the messages queued behind the turn) goes as a draft does.
   clear: erase,
   erase,
+  // A prompt sent while a turn runs shows as `Steering:` only once a person's extensions are
+  // through with it (their `input` handlers), which may take a while, and runs as a turn of its
+  // own if Escape comes first; Novadeck's extension then hands it back to the box. Until then the
+  // screen shows nothing queued, so the host's account of it counts (probed 2026-11-24, 1.6.0, a
+  // 1.3 s handler; rig `slow-queue.mjs`).
+  unseenQueue: true,
   // A paste over a draft keeps its line breaks, a placeholder's in what it stands for
   // (`pasteOverDraft120x40`, `bigPasteOverDraft120x40` of fixtures/input-box.probe.json).
   interrupted,

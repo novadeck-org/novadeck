@@ -72,6 +72,12 @@ export type InterruptHost = {
    * where none are known.
    */
   readonly queuedWords?: (terminalId: string, lines: readonly string[]) => string | undefined
+  /**
+   * Whether prompts Novadeck gave wait behind the turn that the program's record hasn't told
+   * of: asked only of a program whose queue may not show (`BoxProfile.unseenQueue`). Omitted
+   * where none are known.
+   */
+  readonly queuedUnseen?: (terminalId: string) => boolean
 }
 
 /**
@@ -202,13 +208,16 @@ export class Interrupts {
     // may be sending by now with no word to the host: the Stop was for those too.
     const sending =
       held && (queuedBefore || queuedNow) && !host.working(terminalId) && host.alive(terminalId)
-    const queued = queuedNow || sending
+    // Prompts the program holds where its screen shows none (pi, while a person's extension
+    // works on each as it comes): the host's account of them counts.
+    const unseen = profile?.unseenQueue === true && host.queuedUnseen?.(terminalId) === true
+    const queued = queuedNow || sending || unseen
     if (!sending && !host.working(terminalId)) return none
     // What the box shows from now on is the program's: the person's keys wait, so text that
     // comes back only after the box has seemed settled is told from what they typed.
     const budget = this.restoreMs + this.queuedTurnMs + this.clearCapMs()
     const waiting =
-      profile?.takeQueued && emptyBefore && queued
+      (profile?.takeQueued || unseen) && emptyBefore && queued
         ? entry?.hold({ inputMs: budget, sizeMs: budget })
         : undefined
     try {
