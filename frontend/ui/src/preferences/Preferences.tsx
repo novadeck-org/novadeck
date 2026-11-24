@@ -141,6 +141,54 @@ const SettingText = ({
   </span>
 )
 
+// How many taps on the version show the Experimental switch while it's off, as Android's build
+// number does for its developer options, and from how many left the row counts them down.
+const revealTaps = 10
+const revealCountdown = 5
+
+// The About tab's version. Where `onReveal` is given, the Experimental switch is hidden: tapping
+// the version ten times shows it, counting the last taps down beside the label. The count starts
+// over each time the tab opens.
+const VersionRow = ({
+  version,
+  onReveal,
+}: {
+  version: string
+  onReveal: (() => void) | undefined
+}): React.JSX.Element => {
+  const [taps, setTaps] = useState(0)
+  const left = revealTaps - taps
+  const tap = (): void => {
+    if (!onReveal) return
+    if (left <= 1) {
+      setTaps(0)
+      onReveal()
+    } else setTaps(taps + 1)
+  }
+  return (
+    <dl className={`${settingsCardClasses} m-0`}>
+      <div className={`preference-row ${settingRowClasses}`}>
+        <dt className="m-0 flex min-w-0 flex-col">
+          <span>Version</span>
+          <span
+            role="status"
+            className="settings-description text-control leading-5 not-empty:mt-1"
+          >
+            {onReveal && left <= revealCountdown
+              ? `Tap ${left === 1 ? "once more" : `${left} more times`} to show Experimental`
+              : ""}
+          </span>
+        </dt>
+        {/* A hidden gesture, as Android's: the switch it shows is no secret, only out of the
+            way, so the version stays plain, selectable text. */}
+        <dd className="m-0 select-text" onClick={tap}>
+          {versionText(version)}
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
 // Brings the open tab into view once the dialog's content is there, and when the tab changes:
 // on a phone the list scrolls, and the tab a URL names may be out of sight. The dialog mounts
 // its content only once it opens, so this stands inside it, not in the dialog's own component.
@@ -290,10 +338,13 @@ export const Preferences = ({
   // Murmur, as the backend has it; absent where it has none.
   murmur?: MurmurAddonValue
   // Whether the desktop app follows experimental builds, which also shows the Experimental tab;
-  // absent where it doesn't offer the choice. `on` is undefined until the app has said.
+  // absent where it doesn't offer the choice. `on` is undefined until the app has said. While
+  // off, the switch shows only once `revealed`, which tapping the version ten times asks for.
   experimental?: {
     readonly on: boolean | undefined
     readonly onChange: (on: boolean) => void
+    readonly revealed: boolean
+    readonly onReveal: () => void
   }
   // The desktop app's version; absent where the backend has none to give.
   version?: string
@@ -354,6 +405,9 @@ export const Preferences = ({
   const hasAbout = version !== undefined || experimental !== undefined || !!logs || !!uninstall
   // The Experimental tab is there only while its switch is on.
   const hasExperimental = experimental?.on === true
+  // The switch itself shows while on, and while off once revealed in this run.
+  const showExperimentalSwitch =
+    experimental !== undefined && (hasExperimental || experimental.revealed)
   // Agents holds the agents and when to stop the idle ones; a backend with neither, as the
   // website's demo, has no tab for them.
   // The mode picker is an Experimental feature: it shows only with its switch on, and only where
@@ -989,14 +1043,12 @@ export const Preferences = ({
           {hasAbout && (
             <TabPanel value="about" className={panelClasses}>
               {version && (
-                <dl className={`${settingsCardClasses} m-0`}>
-                  <div className={`preference-row ${settingRowClasses}`}>
-                    <dt className="m-0">Version</dt>
-                    <dd className="m-0 select-text">{versionText(version)}</dd>
-                  </div>
-                </dl>
+                <VersionRow
+                  version={version}
+                  onReveal={showExperimentalSwitch ? undefined : experimental?.onReveal}
+                />
               )}
-              {experimental && (
+              {experimental && showExperimentalSwitch && (
                 <Section title="Updates">
                   <div className={settingsCardClasses}>
                     <div className={`preference-row ${settingRowClasses}`}>
