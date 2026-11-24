@@ -52,6 +52,11 @@
 .worktrees-row:has(.worktrees-facts) .sidebar-item-actions {
   top: 53px;
 }
+/* The selected row is the selected terminal's worktree, not what its click shows: a click
+   still opens its changes. */
+.worktrees-row[data-selected="true"] .sidebar-item-select {
+  cursor: pointer;
+}
 .worktrees-facts {
   display: flex;
   flex-wrap: wrap;

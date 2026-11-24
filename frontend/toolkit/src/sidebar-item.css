@@ -4,7 +4,9 @@
    context adds to an item (the terminal tabs, the team wire) stays with that context.
 
    Hooks: the item recipe's, and the `.dragging` class while a row is dragged;
-   `:focus-within` tints a row as hovering does.
+   `:focus-within` tints a row as hovering does. A selected row (data-selected="true") is
+   where the person already is, so its select button doesn't offer the pointer's hand; a
+   list whose selected row's click still does something gives it back.
 
    Tokens, each optional (its fallback in brackets): --item-hover-bg (soft), the
    --item-selected-* tokens (paper, line, the control shadow; also while dragged) and
@@ -20,6 +22,9 @@
 .sidebar-item-select {
   border-radius: inherit;
   color: inherit;
+}
+.sidebar-item[data-selected="true"] .sidebar-item-select {
+  cursor: default;
 }
 .sidebar-item-select:focus-visible {
   outline-offset: -2px;
