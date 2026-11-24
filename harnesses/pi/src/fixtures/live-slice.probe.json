@@ -1,0 +1,699 @@
+{
+  "harness": "pi",
+  "source": "probed 2026-11-24 against pi 1.6.0 (npm @earendil-works/pi-coding-agent; rig: a fake OpenAI-compatible model, a PTY, Novadeck's headless emulator; backups/pi-harness-2026-11-24/rig/live-slice.mjs)",
+  "how": "States of one run each, in order, at 120x40 (the narrow run 60x20), as the runner replays them for the chat's live slice. The session run is online, so pi had fd for its @ menu.",
+  "version": "1.6.0",
+  "runs": {
+    "session": [
+      {
+        "label": "idle",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 30,
+            "column": 1
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "30": "/                                                                                                                       ",
+            "31": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "32": "→ settings       Open settings menu                                                                                     ",
+            "33": "  model          <provider/model> — Select model (opens selector UI)                                                    ",
+            "34": "  tree           Navigate session tree (switch branches)                                                                ",
+            "35": "  thinking       <level> — Set thinking level                                                                           ",
+            "36": "  scoped-models  Enable/disable models for Ctrl+P cycling                                                               ",
+            "37": "  (1/27)                                                                                                                ",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "30": "/",
+            "32": "→ settings       Open settings menu",
+            "33": "  model",
+            "34": "  tree",
+            "35": "  thinking",
+            "36": "  scoped-models"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "idle again",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "@",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 34,
+            "column": 9
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "34": "look at @                                                                                                               ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "→ notes.txt                       notes.txt                                                                             ",
+            "37": "  README.md                       README.md                                                                             ",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "34": "look at @",
+            "36": "→ notes.txt                       notes.txt",
+            "37": "  README.md"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      }
+    ],
+    "dialog": [
+      {
+        "label": "idle",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "select",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 120
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": " Allow bash: rm -rf build?                                                                                              ",
+            "31": " → Yes                                                                                                                  ",
+            "32": "   Yes, always                                                                                                          ",
+            "33": "   No                                                                                                                   ",
+            "35": " ↑↓ navigate  enter select  escape/ctrl+c cancel                                                                        ",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "29": " Allow bash: rm -rf build?",
+            "31": " → Yes",
+            "32": "   Yes, always",
+            "33": "   No"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "cancelled",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "model picker",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 27,
+            "column": 2
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "23": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "Only showing models from configured providers. Use /login to add providers.                                             ",
+            "27": ">                                                                                                                       ",
+            "29": "→ ✓ fake-sonnet [fake] · default                                                                                        ",
+            "30": "    fake-haiku [fake]                                                                                                   ",
+            "32": "  Model Name: Fake Sonnet                                                                                               ",
+            "34": "  Model catalogs refreshed.                                                                                             ",
+            "36": "  Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel                                                  ",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "25": "Only showing models from configured providers. Use /login to add providers.",
+            "27": ">",
+            "29": "→ ✓ fake-sonnet",
+            "30": "    fake-haiku",
+            "34": "  Model catalogs refreshed."
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "closed",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      }
+    ],
+    "busy": [
+      {
+        "label": "idle",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "busy",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "23": " SLOW one                                                                                                               ",
+            "26": " word0 word1                                                                                                            ",
+            "35": "── ⠙ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "23": " SLOW one",
+            "26": " word0 word1"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 30,
+            "column": 1
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "23": " SLOW one                                                                                                               ",
+            "26": " word0 word1 word2                                                                                                      ",
+            "29": "── ⠇ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "30": "/                                                                                                                       ",
+            "31": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "32": "→ settings       Open settings menu                                                                                     ",
+            "33": "  model          <provider/model> — Select model (opens selector UI)                                                    ",
+            "34": "  tree           Navigate session tree (switch branches)                                                                ",
+            "35": "  thinking       <level> — Set thinking level                                                                           ",
+            "36": "  scoped-models  Enable/disable models for Ctrl+P cycling                                                               ",
+            "37": "  (1/27)                                                                                                                ",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "23": " SLOW one",
+            "26": " word0 word1 word2",
+            "30": "/",
+            "32": "→ settings       Open settings menu",
+            "33": "  model",
+            "34": "  tree",
+            "35": "  thinking",
+            "36": "  scoped-models"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "stopped",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "7": "[Extensions]                                                                                                            ",
+            "8": "  ext-dialogs.ts                                                                                                        ",
+            "11": " fd not found. Downloading...                                                                                           ",
+            "12": " fd installed to /tmp/claude-1000/pi-rig/homes/slice-session-1.6.0/.pi/agent/bin/fd                                     ",
+            "15": " hello                                                                                                                  ",
+            "18": " OK: hello                                                                                                              ",
+            "20": " picked undefined                                                                                                       ",
+            "23": " SLOW one                                                                                                               ",
+            "26": " word0 word1 word2 word3                                                                                                ",
+            "28": " Operation aborted                                                                                                      ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "7": "[Extensions]",
+            "15": " hello",
+            "18": " OK: hello",
+            "23": " SLOW one",
+            "26": " word0 word1 word2 word3",
+            "28": " Operation aborted"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      }
+    ],
+    "narrow": [
+      {
+        "label": "start",
+        "screen": {
+          "height": 20,
+          "columns": 60,
+          "cursor": {
+            "row": 16,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · /       ",
+            "3": " commands · ! bash · ctrl+o more                            ",
+            "4": " Press ctrl+o to show full startup help and loaded          ",
+            "5": " resources.                                                 ",
+            "7": " Pi can explain its own features and look up its docs. Ask  ",
+            "8": " it how to use or extend Pi.                                ",
+            "11": " Warning: fd not found. Offline mode enabled, skipping      ",
+            "12": " download.                                                  ",
+            "15": "────────────────────────────────────────────────────────────",
+            "17": "────────────────────────────────────────────────────────────",
+            "18": "~/project",
+            "19": "0.0%/200k (auto)                        fake-sonnet • medium"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "11": " Warning: fd not found. Offline mode enabled, skipping",
+            "12": " download."
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 20,
+          "columns": 60,
+          "cursor": {
+            "row": 10,
+            "column": 1
+          },
+          "rows": {
+            "0": " resources.                                                 ",
+            "2": " Pi can explain its own features and look up its docs. Ask  ",
+            "3": " it how to use or extend Pi.                                ",
+            "6": " Warning: fd not found. Offline mode enabled, skipping      ",
+            "7": " download.                                                  ",
+            "9": "────────────────────────────────────────────────────────────",
+            "10": "/                                                           ",
+            "11": "────────────────────────────────────────────────────────────",
+            "12": "→ settings       Open settings menu                         ",
+            "13": "  model          <provider/model> — Select model (opens se  ",
+            "14": "  tree           Navigate session tree (switch branches)    ",
+            "15": "  thinking       <level> — Set thinking level               ",
+            "16": "  scoped-models  Enable/disable models for Ctrl+P cycling   ",
+            "17": "  (1/26)                                                    ",
+            "18": "~/project",
+            "19": "0.0%/200k (auto)                        fake-sonnet • medium"
+          },
+          "bright": {
+            "6": " Warning: fd not found. Offline mode enabled, skipping",
+            "7": " download.",
+            "10": "/",
+            "12": "→ settings       Open settings menu",
+            "13": "  model",
+            "14": "  tree",
+            "15": "  thinking",
+            "16": "  scoped-models"
+          },
+          "alternate": true
+        }
+      }
+    ],
+    "signed out": [
+      {
+        "label": "start",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "1": " ▀▀█  v1.6.0                                                                                                            ",
+            "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+            "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+            "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+            "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+            "10": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+            "11": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+            "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "38": "~/project",
+            "39": "0.0%/0 (auto)                                                                                                    unknown"
+          },
+          "bright": {
+            "1": " ▀▀█",
+            "2": " █▀ █",
+            "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+            "10": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+            "11": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+            "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md"
+          },
+          "lit": {
+            "1": " ▀"
+          },
+          "alternate": true
+        }
+      }
+    ]
+  }
+}

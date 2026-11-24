@@ -19,6 +19,7 @@
     "@novadeck/harness-codex": "workspace:*",
     "@novadeck/harness-core": "workspace:*",
     "@novadeck/harness-opencode": "workspace:*",
+    "@novadeck/harness-pi": "workspace:*",
     "@novadeck/protocol": "workspace:*",
     "@novadeck/runner-adapter": "workspace:*",
     "@novadeck/test-kit": "workspace:*",

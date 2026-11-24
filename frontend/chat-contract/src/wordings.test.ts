@@ -10,6 +10,7 @@ import type { DialogAdapter, RequestFacts } from "@novadeck/harness-core/dialogs
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hookReport } from "@novadeck/harness-core/testing/reports"
 import { opencode } from "@novadeck/harness-opencode/index"
+import { pi } from "@novadeck/harness-pi/index"
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { harnessSources } from "./harnesses.test-support"
@@ -191,6 +192,17 @@ const opencodeUnrecorded: readonly RequestFacts[] = [
   opencodeAsk("theirs_say", ["*"]),
 ]
 
+// pi asks no permission of its own: what it draws is a person's extension's confirm, Yes or No
+// under its title and message (fixtures/dialogs.probe.json, one dialog a screen), read with the
+// request Novadeck's extension reports as it opens (`ui_prompt_start`: its kind and title).
+const piConfirm = (title: string): RequestFacts => ({
+  kind: "permission",
+  tool: "confirm",
+  input: { title },
+  cwd: "/home/user/project",
+})
+const piUnrecorded: readonly RequestFacts[] = [piConfirm("Delete build?"), piConfirm("Proceed?")]
+
 const profiles: Record<
   AgentName,
   {
@@ -242,6 +254,16 @@ const profiles: Record<
     folder: "opencode",
     files: /^dialogs\.probe\.json$/,
     cells: true,
+    kinds: ["permission"],
+  },
+  // Its selects, inputs and editors are questions, and the trust prompt too; it has no plan mode.
+  pi: {
+    dialogs: pi.dialogs,
+    requests: () => [],
+    unrecorded: piUnrecorded,
+    folder: "pi",
+    files: /^dialogs\.probe\.json$/,
+    cells: false,
     kinds: ["permission"],
   },
 }

@@ -1,0 +1,80 @@
+# session
+idle: none
+/: menu 32-39
+  | → settings       Open settings menu
+  |   model          <provider/model> — Select model (opens selector UI)
+  |   tree           Navigate session tree (switch branches)
+  |   thinking       <level> — Set thinking level
+  |   scoped-models  Enable/disable models for Ctrl+P cycling
+  |   (1/27)
+  | ~/project
+  | ↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium
+idle again: none
+@: menu 36-39
+  | → notes.txt                       notes.txt
+  |   README.md                       README.md
+  | ~/project
+  | ↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium
+
+# dialog
+idle: none
+select: view 29-39
+  |  Allow bash: rm -rf build?
+  | 
+  |  → Yes
+  |    Yes, always
+  |    No
+  | 
+  |  ↑↓ navigate  enter select  escape/ctrl+c cancel
+  | 
+  | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  | ~/project
+  | ↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium
+cancelled: none
+model picker: view 25-39
+  | Only showing models from configured providers. Use /login to add providers.
+  | 
+  | >
+  | 
+  | → ✓ fake-sonnet [fake] · default
+  |     fake-haiku [fake]
+  | 
+  |   Model Name: Fake Sonnet
+  | 
+  |   Model catalogs refreshed.
+  | 
+  |   Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel
+  | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  | ~/project
+  | ↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium
+closed: none
+
+# busy
+idle: none
+busy: none
+/: menu 32-39
+  | → settings       Open settings menu
+  |   model          <provider/model> — Select model (opens selector UI)
+  |   tree           Navigate session tree (switch branches)
+  |   thinking       <level> — Set thinking level
+  |   scoped-models  Enable/disable models for Ctrl+P cycling
+  |   (1/27)
+  | ~/project
+  | ↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium
+stopped: none
+
+# narrow
+start: none
+/: menu 12-19
+  | → settings       Open settings menu
+  |   model          <provider/model> — Select model (opens se
+  |   tree           Navigate session tree (switch branches)
+  |   thinking       <level> — Set thinking level
+  |   scoped-models  Enable/disable models for Ctrl+P cycling
+  |   (1/26)
+  | ~/project
+  | 0.0%/200k (auto)                        fake-sonnet • medium
+
+# signed out
+start: none
+
