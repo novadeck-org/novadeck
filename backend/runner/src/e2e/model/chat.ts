@@ -81,6 +81,14 @@ const conversation = (messages: readonly z.infer<typeof message>[]) => {
         text: textOf(one.content),
         ...withImages(imagesIn(one.content)),
       })
+    } else if (last?.role === "tool" && toolImages(one)) {
+      // A tool result's images, which a chat completions tool message can't hold, sent right
+      // after it as a user message of their own (pi's openai-completions.ts, 1.6.0): the
+      // model reads them as that result's.
+      turns[turns.length - 1] = {
+        ...last,
+        ...withImages((last.images ?? 0) + imagesIn(one.content)),
+      }
     } else if (last?.role === "user") {
       turns[turns.length - 1] = {
         ...last,
@@ -95,6 +103,12 @@ const conversation = (messages: readonly z.infer<typeof message>[]) => {
 
 // The call a harness makes for itself rather than the agent's turn: its thread's title.
 const titling = /^\s*You are a title generator/
+
+// A user message that only carries a tool result's images, as pi words it.
+const toolImages = (one: z.infer<typeof message>): boolean =>
+  one.role === "user" &&
+  imagesIn(one.content) > 0 &&
+  textOf(one.content).startsWith("Attached image(s) from tool result:")
 
 /** The call a chat completions request makes. */
 export const parse = (data: unknown): Call => {

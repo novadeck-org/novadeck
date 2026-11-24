@@ -250,9 +250,9 @@ describe("the harness registry", () => {
               .length > 0,
         )
         .map(({ id }) => id)
-    expect(withShim("win32")).toEqual(["claude", "codex", "agy", "opencode"])
-    expect(withShim("linux")).toEqual(["claude", "codex", "agy", "opencode"])
-    expect(withShim("darwin")).toEqual(["claude", "codex", "agy", "opencode"])
+    expect(withShim("win32")).toEqual(["claude", "codex", "agy", "opencode", "pi"])
+    expect(withShim("linux")).toEqual(["claude", "codex", "agy", "opencode", "pi"])
+    expect(withShim("darwin")).toEqual(["claude", "codex", "agy", "opencode", "pi"])
   })
 })
 

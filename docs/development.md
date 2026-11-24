@@ -378,7 +378,9 @@ Agents:
   does, and an open pane says "The shells are gone." Rest leaves it at its prompt with nothing running or asking; the Inbox entries it wrote (a done report,
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
-  place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
+  place of whatever ran, whose hooks say nothing), an agent starting ("Agent starting", of the
+  chosen harness, before its prompt shows: its chat says so and holds what is sent), an agent
+  held at its startup screen (of the
   chosen harness) or Antigravity at its sign-in screen, before its first session, Claude Code
   bound at its prompt that says it isn't signed in ("Signed out at its prompt"), Codex held
   by its untrusted hooks ("Hooks not trusted") or the chosen harness with Novadeck's hooks off
@@ -1161,6 +1163,7 @@ atlas.
 | `harnesses/codex`         | The Codex adapter, same shape.                                                             |
 | `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
 | `harnesses/opencode`      | The opencode adapter: the plugin its shim loads per launch, transcripts, dialogs, box.     |
+| `harnesses/pi`            | The pi adapter: the extension its shim loads per launch, session files, dialogs, box.      |
 | `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
 | `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
 | `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |

@@ -11,6 +11,7 @@ import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import { coalesced } from "./coalesce.js"
+import { sessionLaunch } from "./commands.js"
 import type { Record } from "./record.js"
 import { programOf } from "./sampling.js"
 
@@ -85,6 +86,8 @@ export type Track = {
   readonly box: number | null
   /** Its box stood long enough: the agent is past any startup screen, and is left alone. */
   readonly prompted: boolean
+  /** Its box stood a delay since the shell ran it: it started, whatever shows over it since. */
+  readonly started: boolean
   /** Which screen its text says it is, where its harness tells (`Harness.heldScreen`). */
   readonly screen?: StartupScreen | undefined
   /**
@@ -105,6 +108,7 @@ export const freshTrack = (now: number): Track => ({
   held: false,
   box: null,
   prompted: false,
+  started: false,
 })
 
 /**
@@ -125,7 +129,8 @@ export const nextTrack = (
   if (look === "box") {
     const box = track.box ?? now
     const prompted = now - box >= delayMs * promptedDelays
-    return { ...freshTrack(now), text, box, prompted, asked: track.asked }
+    const started = track.started || now - box >= delayMs
+    return { ...freshTrack(now), text, box, prompted, started, asked: track.asked }
   }
   if (look === "screen" && text === track.text)
     return { ...track, moving: null, held: track.held || now - track.still >= delayMs, box: null }
@@ -156,6 +161,8 @@ export type StartupHost<R extends WatchedRecord> = {
     readonly expected: (terminalId: string) => AgentName | null
     /** The agent whose hooks were found not to run there, with no session bound, if any. */
     readonly untrustedAgent: (terminalId: string) => AgentName | undefined
+    /** The agent whose own empty prompt shows there, before any session bound. */
+    readonly shownAgent: (terminalId: string) => AgentName | undefined
   }
   readonly shown: () => {
     /**
@@ -253,6 +260,7 @@ export class StartupWatch<R extends WatchedRecord> {
     if (run !== record.terminal.pty || launch.terminal !== record.summary.id) return
     if (record.bound || !isAgentName(program) || this.liveLaunch(record) !== undefined) return
     this.launches.set(trackKey(record), { agent: program, at: this.now() })
+    this.tell(record)
     this.noticed(record)
   }
 
@@ -330,9 +338,40 @@ export class StartupWatch<R extends WatchedRecord> {
       if (record.bound) looking ||= this.looksBound(record, track)
       else if (!this.agentIn(record)) this.show(record, null, false)
       else if (!track?.prompted) looking = true
+      // Past its box, as the looks found it now.
+      this.tell(record)
       if (record.summary.startup) looking = true
     }
     if (!looking) this.pause()
+  }
+
+  /**
+   * Shows in the summary the agent starting in the terminal (`TerminalSummary.expecting`): the
+   * one it was opened or woken to run for a session, else one its shim said the person typed,
+   * until a session binds, its prompt is known to show, or its own box has stood a delay, as for
+   * an agent whose harness tells neither. Its prompt or a session ends it at once too
+   * (`Bindings.publishAgent`).
+   */
+  private tell(record: R): void {
+    const expecting = this.starting(record)
+    if ((record.summary.expecting ?? null) === expecting) return
+    record.summary = { ...record.summary, expecting }
+    this.host.changed(record)
+  }
+
+  /** The agent starting in the terminal, as the summary tells it (see `tell`). */
+  starting(record: R): AgentName | null {
+    const { bound, summary } = record
+    const track = this.tracks.get(trackKey(record))
+    if (bound || track?.prompted || track?.started) return null
+    if (this.host.messaging().shownAgent(summary.id) !== undefined) return null
+    // The one it was opened or woken to run, for a session: an agent's other commands, as
+    // `codex login`, start none. Else one its shim said the person typed, which it says only
+    // of a session.
+    const expected = this.host.messaging().expected(summary.id)
+    const { command } = summary
+    if (expected && (!command || sessionLaunch(command) === expected)) return expected
+    return this.liveLaunch(record) ?? null
   }
 
   // The agent the watch looks for in a terminal: the one Novadeck expects there, else one the
@@ -437,8 +476,10 @@ export class StartupWatch<R extends WatchedRecord> {
       this.host.messaging().untrustedAgent(record.summary.id),
       agent && held ? { agent, screen: record.startupScreen?.screen ?? screen ?? "startup" } : null,
     )
-    if (startup === record.summary.startup) return
-    record.summary = { ...record.summary, startup }
+    const expecting = this.starting(record)
+    if (startup === record.summary.startup && expecting === (record.summary.expecting ?? null))
+      return
+    record.summary = { ...record.summary, startup, expecting }
     this.host.changed(record)
   }
 }

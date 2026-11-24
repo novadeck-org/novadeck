@@ -212,6 +212,16 @@ suite("what Antigravity's own subagent, task and question tools were", () => {
     ],
     ["list_resources", {}, { kind: "read", title: "Listed MCP resources", detail: "" }],
     ["ask_question", {}, { kind: "plan", title: "Asked", detail: "" }],
+    [
+      "update_steps",
+      {
+        steps: [
+          { title: "Read the code", status: "done" },
+          { title: "Fix the bug", status: "in_progress" },
+        ],
+      },
+      { kind: "plan", title: "Updated plan", detail: "2 steps" },
+    ],
   ])("reads %s", (tool, input, expected) => {
     expect(run(tool, input)).toEqual(expected)
   })

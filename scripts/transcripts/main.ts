@@ -1,7 +1,7 @@
-// `pnpm transcripts:shapes [--all] [--newest N] [claude|codex|agy|opencode …]`: runs each
+// `pnpm transcripts:shapes [--all] [--newest N] [claude|codex|agy|opencode|pi …]`: runs each
 // harness's decoder shape lists (harnesses/<harness>/src/shapes.ts) over the transcripts on
 // this machine, read-only: `~/.claude` (or CLAUDE_CONFIG_DIR), `~/.codex` (or CODEX_HOME),
-// `~/.gemini/antigravity-cli`, and for opencode the folder Novadeck's plugin writes them in
+// `~/.gemini/antigravity-cli`, `~/.pi/agent` (or PI_CODING_AGENT_DIR), and for opencode the folder Novadeck's plugin writes them in
 // (beside NOVADECK_HOOK in a Novadeck terminal, else Linux's default). It prints the shapes no list names, which the chat drops
 // without a word, with how many lines held each and the first file one was in; `--all`
 // prints every shape with its verdict. Run it before a pin bump: the e2e suite drives a fake
@@ -39,6 +39,8 @@ export const homes = (env: NodeJS.ProcessEnv, home: string): Readonly<Record<str
     "plugins",
     "opencode",
   ),
+  // pi's own session files, in its agent folder.
+  pi: env.PI_CODING_AGENT_DIR || join(home, ".pi", "agent"),
 })
 
 // When a file was last written, in epoch milliseconds; 0 for one gone since it was listed.

@@ -385,7 +385,7 @@ export const createRouter = (options: {
         terminals.transcript(input.terminalId, input.actor, signal),
       ),
       transcriptImage: api.agents.transcriptImage.handler(({ input }) =>
-        terminals.transcriptImage(input.terminalId, input),
+        terminals.transcriptImage(input.terminalId, input, (path) => uploads.savedImage(path)),
       ),
       prompt: api.agents.prompt.handler(async ({ input }) => {
         // Only images this runner saved are pasted into an agent's box.

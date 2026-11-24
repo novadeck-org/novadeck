@@ -98,6 +98,7 @@ export type Trait =
   | "idleCommand"
   | "trust.folder"
   | "trust.hooks"
+  | "hooks.off"
   | "shell"
   | "rewind"
   | "popup"
@@ -324,6 +325,12 @@ export type AgentSetup = {
    */
   readonly merges?: true
   /**
+   * Whether prompts queued behind a running turn reach its agent one at a time, each answered
+   * before the next goes in, as pi's steering does by default (`steeringMode`, the person's own
+   * setting): its transcript then holds each prompt before its own answer.
+   */
+  readonly oneByOne?: true
+  /**
    * Hosts it tries through the proxy on every run, which no setting turns off: their
    * refused tunnels are expected. Any other refused tunnel is not.
    */
@@ -375,6 +382,16 @@ export type AgentSetup = {
     /** Whether Enter sends images with no words (Antigravity does nothing then). */
     readonly alone: boolean
   }
+  /**
+   * The command that leaves the agent, typed at its prompt: `/exit` where omitted (pi's is
+   * `/quit`).
+   */
+  readonly exit?: string
+  /**
+   * The command that clears its conversation and starts a new session, typed at its prompt:
+   * `/clear` where omitted (pi has none: its `/new`).
+   */
+  readonly clear?: string
   /** A command its prompt runs that submits nothing to the model, as `/status`. */
   readonly idleCommand?: string
   /** How the person forks a session, in a new terminal or in place. */

@@ -3,7 +3,8 @@
 // screen shows then: right after the Stop, with a key typed, and once the prompt went in.
 // Claude Code and Antigravity start a background subagent (their setups' `background`),
 // Claude Code a background shell beside it;
-// Codex spawns one (`spawn_agent`), which runs on with the root idle.
+// Codex spawns one (`spawn_agent`), which runs on with the root idle; a harness with neither
+// (opencode) is skipped, with its setup's reason.
 // Runs only with NOVADECK_E2E_PROBES=1, by path; writes what it saw to
 // $PROBE_OUT/background-prompt-<agent>.json: each screen a `ScreenRecord` (harness-core's
 // testing/probes.ts), and whether the root's model was called for the typed prompt while
@@ -16,9 +17,9 @@ import { join } from "node:path"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
 import { setups } from "../agents/index.js"
-import { describe, e2e, supported } from "../fixture.js"
+import { describe, e2e, gated, supported } from "../fixture.js"
 import { asked, gate, type Call, type Reply } from "../model/script.js"
-import { own, result, start } from "../scenarios.js"
+import { lacking, own, result, start } from "../scenarios.js"
 import { sleep, probing } from "./support.js"
 
 // The helper's own task, which only its conversation holds as a user's words.
@@ -29,105 +30,108 @@ for (const setup of setups) {
     `probe: a prompt while ${setup.name}'s background work runs`,
     () => {
       const it = e2e(setup)
-      it("records the screen, and whether a typed prompt starts a turn", async ({ e2e: run }) => {
-        const finishing = gate()
-        const spawning = setup.agent === "codex"
-        // What starts the work, and whether a call is the work's own.
-        const begin = (call: Call): Reply | undefined => {
-          // Claude Code runs a shell in the background beside its agent, as the issue's did.
-          if (setup.agent === "claude")
-            return {
-              calls: [
-                ...(setup.background!.start(call).calls ?? []),
-                ...(setup.background!.command!(call, "sleep 600").calls ?? []),
-              ],
-            }
-          if (!spawning) return setup.background!.start(call)
-          const spawn = call.tools.find((offered) => offered.endsWith("spawn_agent"))
-          return spawn ? { calls: [{ name: spawn, input: { message: helper } }] } : undefined
-        }
-        const owns = (call: Call): boolean =>
-          spawning
-            ? !call.side &&
-              call.turns.some((one) => one.role === "user" && one.text.includes(helper))
-            : setup.background!.owns(call)
-        run.model.use(
-          own(async (call) => {
-            if (!owns(call)) return undefined
-            await finishing.opened
-            return { text: "Background work done." }
-          }),
-          own((call) => (asked(call, "Start the work") ? begin(call) : undefined)),
-          own((call) => (asked(call, "Ping now") ? { text: "Pong." } : undefined)),
-          own((call) =>
-            result(call) !== undefined && !owns(call) ? { text: "Started the work." } : undefined,
-          ),
-        )
-        const t = await start(run, setup)
-        const out: Record<string, unknown> = { harness: setup.agent }
-        const look = async (label: string) => {
-          const shown = await t.screenText()
-          if (shown) out[label] = screenRecord(shown)
-        }
-        try {
-          const calls = run.model.mark()
-          await t.submit("Start the work")
-          await run.model.waitFor(owns, { after: calls })
-          await t.until("Started the work.")
-          // The root's turn has ended, the work still held.
-          await t.poll(() => {
-            const activity = t.summary().activity
-            return (spawning ? activity?.state === "idle" : activity?.background?.agents === 1)
-              ? true
-              : undefined
-          }, "the root's turn to end, its work running")
-          await sleep(3000)
-          out.activity = t.summary().activity
-          await look("1 stopped, work running")
-          // What redraws by itself meanwhile, sampled every 100 ms for 3 s: each row that
-          // changed, with every text it showed.
-          const changing: Record<string, string[]> = {}
-          let before = (await t.screenText())?.rows ?? []
-          for (let sample = 0; sample < 30; sample += 1) {
-            await sleep(100)
-            const rows = (await t.screenText())?.rows ?? []
-            rows.forEach((row, at) => {
-              if (row === before[at]) return
-              const seen = (changing[at] ??= [before[at] ?? ""])
-              if (!seen.includes(row)) seen.push(row)
-            })
-            before = rows
+      const spawning = setup.agent === "codex"
+      gated(it, spawning ? undefined : lacking(setup, "background"))(
+        "records the screen, and whether a typed prompt starts a turn",
+        async ({ e2e: run }) => {
+          const finishing = gate()
+          // What starts the work, and whether a call is the work's own.
+          const begin = (call: Call): Reply | undefined => {
+            // Claude Code runs a shell in the background beside its agent, as the issue's did.
+            if (setup.agent === "claude")
+              return {
+                calls: [
+                  ...(setup.background!.start(call).calls ?? []),
+                  ...(setup.background!.command!(call, "sleep 600").calls ?? []),
+                ],
+              }
+            if (!spawning) return setup.background!.start(call)
+            const spawn = call.tools.find((offered) => offered.endsWith("spawn_agent"))
+            return spawn ? { calls: [{ name: spawn, input: { message: helper } }] } : undefined
           }
-          out.changing = changing
-          t.press("P")
-          await sleep(1000)
-          await look("2 a key typed")
-          t.press("\x7f")
-          await sleep(1000)
-          const typed = run.model.mark()
-          await t.submit("Ping now")
-          const took = await run.model
-            .waitFor((call) => !call.side && !owns(call) && asked(call, "Ping now"), {
-              after: typed,
-              timeoutMs: 30_000,
-            })
-            .then(
-              () => true,
-              () => false,
-            )
-          out.took = took
-          await sleep(2000)
-          await look("3 after the prompt")
-        } finally {
-          finishing.open()
-          const dir = process.env.PROBE_OUT ?? "probe-out"
-          mkdirSync(dir, { recursive: true })
-          writeFileSync(
-            join(dir, `background-prompt-${setup.agent}.json`),
-            JSON.stringify(out, null, 2),
+          const owns = (call: Call): boolean =>
+            spawning
+              ? !call.side &&
+                call.turns.some((one) => one.role === "user" && one.text.includes(helper))
+              : setup.background!.owns(call)
+          run.model.use(
+            own(async (call) => {
+              if (!owns(call)) return undefined
+              await finishing.opened
+              return { text: "Background work done." }
+            }),
+            own((call) => (asked(call, "Start the work") ? begin(call) : undefined)),
+            own((call) => (asked(call, "Ping now") ? { text: "Pong." } : undefined)),
+            own((call) =>
+              result(call) !== undefined && !owns(call) ? { text: "Started the work." } : undefined,
+            ),
           )
-        }
-      })
+          const t = await start(run, setup)
+          const out: Record<string, unknown> = { harness: setup.agent }
+          const look = async (label: string) => {
+            const shown = await t.screenText()
+            if (shown) out[label] = screenRecord(shown)
+          }
+          try {
+            const calls = run.model.mark()
+            await t.submit("Start the work")
+            await run.model.waitFor(owns, { after: calls })
+            await t.until("Started the work.")
+            // The root's turn has ended, the work still held.
+            await t.poll(() => {
+              const activity = t.summary().activity
+              return (spawning ? activity?.state === "idle" : activity?.background?.agents === 1)
+                ? true
+                : undefined
+            }, "the root's turn to end, its work running")
+            await sleep(3000)
+            out.activity = t.summary().activity
+            await look("1 stopped, work running")
+            // What redraws by itself meanwhile, sampled every 100 ms for 3 s: each row that
+            // changed, with every text it showed.
+            const changing: Record<string, string[]> = {}
+            let before = (await t.screenText())?.rows ?? []
+            for (let sample = 0; sample < 30; sample += 1) {
+              await sleep(100)
+              const rows = (await t.screenText())?.rows ?? []
+              rows.forEach((row, at) => {
+                if (row === before[at]) return
+                const seen = (changing[at] ??= [before[at] ?? ""])
+                if (!seen.includes(row)) seen.push(row)
+              })
+              before = rows
+            }
+            out.changing = changing
+            t.press("P")
+            await sleep(1000)
+            await look("2 a key typed")
+            t.press("\x7f")
+            await sleep(1000)
+            const typed = run.model.mark()
+            await t.submit("Ping now")
+            const took = await run.model
+              .waitFor((call) => !call.side && !owns(call) && asked(call, "Ping now"), {
+                after: typed,
+                timeoutMs: 30_000,
+              })
+              .then(
+                () => true,
+                () => false,
+              )
+            out.took = took
+            await sleep(2000)
+            await look("3 after the prompt")
+          } finally {
+            finishing.open()
+            const dir = process.env.PROBE_OUT ?? "probe-out"
+            mkdirSync(dir, { recursive: true })
+            writeFileSync(
+              join(dir, `background-prompt-${setup.agent}.json`),
+              JSON.stringify(out, null, 2),
+            )
+          }
+        },
+      )
     },
   )
 }

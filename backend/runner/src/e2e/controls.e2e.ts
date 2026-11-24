@@ -207,28 +207,30 @@ const writing = (agent: AgentName, path: string): Reply =>
     ? { calls: [{ name: "Write", input: { file_path: path, content: "x\n" } }] }
     : agent === "opencode"
       ? { calls: [{ name: "write", input: { filePath: path, content: "x\n" } }] }
-      : agent === "codex"
-        ? {
-            // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
-            // runs the program through its shell, which Codex takes as the same patch.
-            calls: [
-              {
-                name: "exec_command",
-                input: {
-                  cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
-                  yield_time_ms: 5000,
+      : agent === "pi"
+        ? { calls: [{ name: "write", input: { path, content: "x\n" } }] }
+        : agent === "codex"
+          ? {
+              // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
+              // runs the program through its shell, which Codex takes as the same patch.
+              calls: [
+                {
+                  name: "exec_command",
+                  input: {
+                    cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
+                    yield_time_ms: 5000,
+                  },
                 },
-              },
-            ],
-          }
-        : {
-            calls: [
-              {
-                name: "write_file",
-                input: { Path: path, Overwrite: true, Content: "x\n" },
-              },
-            ],
-          }
+              ],
+            }
+          : {
+              calls: [
+                {
+                  name: "write_file",
+                  input: { Path: path, Overwrite: true, Content: "x\n" },
+                },
+              ],
+            }
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {

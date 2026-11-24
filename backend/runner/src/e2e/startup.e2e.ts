@@ -8,7 +8,7 @@ import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
-import { prompted } from "./scenarios.js"
+import { lacking, prompted } from "./scenarios.js"
 import { claudeHello, openssl, standIn } from "./stand-in.js"
 
 // What holds each harness for the person before Novadeck can reach it, as
@@ -124,64 +124,67 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
   // The setup's seed turns its plugin off for the launch (OPENCODE_PURE), the one way a
   // person's launch can leave it unloaded without a file of theirs.
   opencode: async () => {},
-  // To be settled: what a person can do to launch pi without Novadeck's `-e` extension.
+  // Never run: a person has no way to launch pi without Novadeck's `-e` extension (`hooks.off`).
   pi: async () => {},
 }
 
 for (const setup of setups) {
-  describe.skipIf(!supported)(`${setup.name}, Novadeck's hooks off`, () => {
-    for (const how of launches)
-      e2e.seeded({ hooksTrusted: false }, setup)(
-        `reads as held by them at its prompt, and at its review where it has one${typed(how)}`,
-        async ({ e2e: run }) => {
-          await hooksOff[setup.agent](run)
-          const t = await launch(
-            run,
-            how,
-            how === "scripted" ? await wrapped(run, how, setup.agent, {}) : setup.agent,
-          )
-          const review = setup.trust?.hooks
-          if (review) {
-            await t.until(review.shows, 60_000)
-            await held(t, "its hooks review to count")
+  describe.skipIf(!supported || lacking(setup, "hooks.off") !== undefined)(
+    `${setup.name}, Novadeck's hooks off`,
+    () => {
+      for (const how of launches)
+        e2e.seeded({ hooksTrusted: false }, setup)(
+          `reads as held by them at its prompt, and at its review where it has one${typed(how)}`,
+          async ({ e2e: run }) => {
+            await hooksOff[setup.agent](run)
+            const t = await launch(
+              run,
+              how,
+              how === "scripted" ? await wrapped(run, how, setup.agent, {}) : setup.agent,
+            )
+            const review = setup.trust?.hooks
+            if (review) {
+              await t.until(review.shows, 60_000)
+              await held(t, "its hooks review to count")
+              expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
+              await skip(t, review)
+            }
+            // Its own prompt, with nothing of Novadeck's running for it.
+            await prompted(t, setup)
+            await t.poll(
+              () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+              "its hooks to be found off at its prompt",
+              60_000,
+            )
+            expect(t.summary()).toMatchObject({
+              agent: null,
+              ready: null,
+              startup: { agent: setup.agent, screen: "hooks" },
+            })
+            // It stays so: nothing binds there.
+            await sleep(3000)
             expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
-            await skip(t, review)
-          }
-          // Its own prompt, with nothing of Novadeck's running for it.
-          await prompted(t, setup)
-          await t.poll(
-            () => (t.summary().startup?.screen === "hooks" ? true : undefined),
-            "its hooks to be found off at its prompt",
-            60_000,
-          )
-          expect(t.summary()).toMatchObject({
-            agent: null,
-            ready: null,
-            startup: { agent: setup.agent, screen: "hooks" },
-          })
-          // It stays so: nothing binds there.
-          await sleep(3000)
-          expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
-        },
-      )
+          },
+        )
 
-    if (setup.agent === "claude")
-      e2e(setup)(
-        "reads as held where the project's settings turn the plugin off",
-        async ({ e2e: run }) => {
-          await merge(join(run.sandbox.project, ".claude", "settings.json"), (settings) => {
-            settings.enabledPlugins = { "novadeck@novadeck": false }
-          })
-          const t = await run.deck.open(setup.agent)
-          await t.poll(
-            () => (t.summary().startup?.screen === "hooks" ? true : undefined),
-            "its hooks to be found off at its prompt",
-            60_000,
-          )
-          expect(t.summary().startup).toEqual({ agent: "claude", screen: "hooks" })
-        },
-      )
-  })
+      if (setup.agent === "claude")
+        e2e(setup)(
+          "reads as held where the project's settings turn the plugin off",
+          async ({ e2e: run }) => {
+            await merge(join(run.sandbox.project, ".claude", "settings.json"), (settings) => {
+              settings.enabledPlugins = { "novadeck@novadeck": false }
+            })
+            const t = await run.deck.open(setup.agent)
+            await t.poll(
+              () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+              "its hooks to be found off at its prompt",
+              60_000,
+            )
+            expect(t.summary().startup).toEqual({ agent: "claude", screen: "hooks" })
+          },
+        )
+    },
+  )
 
   describe.skipIf(!supported)(`${setup.name}, signed out`, () => {
     for (const how of launches) signedOut[setup.agent](setup, how)
@@ -319,3 +322,65 @@ const signedOut: {
       "it shows no sign-in screen at start: a missing key is a warning row and its first turn's error",
     )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
 }
+
+// Which agent a terminal opened to run one starts (`TerminalSummary.expecting`), which the chat
+// shows from the start: told from the open until the agent's prompt shows, and gone once the
+// start comes to nothing, as a plain shell.
+for (const setup of setups)
+  describe.skipIf(!supported)(`${setup.name}, starting`, () => {
+    e2e(setup)("says which agent starts until its prompt shows", async ({ e2e: run }) => {
+      const t = await run.deck.open(setup.agent)
+      expect(t.summary().expecting).toBe(setup.agent)
+      await t.reached("ready", { timeoutMs: 60_000 })
+      await prompted(t, setup)
+      await t.poll(
+        () => (t.summary().expecting === null ? true : undefined),
+        "the start to be told over",
+        10_000,
+      )
+    })
+
+    e2e(setup)(
+      "says which agent the person typed starts, from its shim's word",
+      async ({ e2e: run }) => {
+        const t = await run.deck.open()
+        await t.submit(setup.agent)
+        await t.poll(
+          () => (t.summary().expecting === setup.agent ? true : undefined),
+          "the typed agent's start to be told",
+          30_000,
+        )
+        await t.reached("ready", { timeoutMs: 60_000 })
+        await prompted(t, setup)
+        await t.poll(
+          () => (t.summary().expecting === null ? true : undefined),
+          "the start to be told over",
+          10_000,
+        )
+      },
+    )
+
+    e2e(setup)("says none for its commands that start no session", async ({ e2e: run }) => {
+      const t = await run.deck.open(`${setup.agent} --version`)
+      expect(t.summary().expecting ?? null).toBeNull()
+      await sleep(2000)
+      expect(t.summary().expecting ?? null).toBeNull()
+    })
+
+    e2e(setup)("says none once its start comes to nothing", async ({ e2e: run }) => {
+      // A program named after the agent that exits at once, as a failed start does.
+      const folder = join(run.sandbox.root, "failing")
+      await mkdir(folder, { recursive: true })
+      const windows = process.platform === "win32"
+      const script = join(folder, windows ? `${setup.agent}.cmd` : setup.agent)
+      await writeFile(script, windows ? "@exit /b 1\r\n" : "#!/bin/sh\nexit 1\n", { mode: 0o755 })
+      const t = await run.deck.open(script)
+      expect(t.summary().expecting).toBe(setup.agent)
+      await t.poll(
+        () => (t.summary().expecting === null ? true : undefined),
+        "the failed start to be told over",
+        30_000,
+      )
+      expect(t.summary()).toMatchObject({ agent: null, ready: null, startup: null })
+    })
+  })

@@ -89,7 +89,7 @@ command, so no new trust is asked for. What the probes did not establish is list
 
 ## Per harness
 
-All three harnesses get every path. Where one falls short, the design accepts it:
+Every harness gets every path. Where one falls short, the design accepts it:
 
 | Harness       | Falls short                                                                                                                                                                                | Accepted as                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -111,6 +111,11 @@ All three harnesses get every path. Where one falls short, the design accepts it
 | Antigravity   | Esc and denials show only as an idle status line                                                                                                                                           | Its decoder tells them from completion; they leave it Unknown                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Antigravity   | Its status line still says working, or confirming, 10–60 ms after its Stop hook                                                                                                            | Only `PreInvocation` starts a root turn. Working resolves a confirmation, and resumes only a turn an older idle status line ended, never one a Stop ended. Idle ends nothing when its hook started before the turn's latest `PreInvocation`, or before the idle a working resumed the turn after                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Antigravity   | `agy -i "<line>"` submits its prompt even while its "Do you trust this folder?" dialog is up, and before its MCP servers may have listed their tools, which a turn takes only as it starts | A task never starts it with `-i`: it starts plain, and the task is rung once its prompt shows (after the person trusts the folder, where it asks) and Novadeck's MCP server has listed its tools (see Starting a task)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| pi            | No hook commands: it loads extensions                                                                                                                                                      | Novadeck's extension, loaded per launch with `-e`, runs the hook command for each event it reads, under names of its own, as opencode's plugin does (`harnesses/pi/src/extension-source.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| pi            | Novadeck's server instructions don't reach the model: its tools are the extension's own (`model-only`), from Novadeck's MCP server                                                         | Rules live in each tool's description and in the delivery, as for Codex and Antigravity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| pi            | A prompt given while a run goes on fires its prompt hook as pi queues it, and Alt+Up or an abort can take it back                                                                          | Its prompt hook runs on queueing (`promptHookOnQueueing`), as Claude Code's: it delivers nothing, the run's Stop does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| pi            | A codemode script's own calls fire their tool hooks, but a delivery steered in at one waits for the whole script                                                                           | They report as `NestedToolUse`, which asks for no delivery; the run's own calls deliver                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| pi            | A Stop's report may never come (its hook failed to run)                                                                                                                                    | The extension marks each run's end in a file of Novadeck's own (`stopped/<session>.jsonl`), which pi's watch reads, as opencode's plugin writes `stopped`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Windows (all) | The hook reports no instance, and the foreground process group can't be read                                                                                                               | Nested agents are told apart by the decoders alone. Nothing checks at ring time that the agent still holds the terminal, for a bound session or a prompt shown before one: an agent that left unseen, as from a nested shell without Novadeck's integration, leaves a shell or REPL prompt, where the test paste lands alone and Enter runs the line as a command. Novadeck's own shell integration tells each prompt, which ends both; this residual risk stays on Windows. Nor is a bound agent's exit with no shell prompt after it (`claude ; codex`) seen, as no process is known to be gone: its binding stays until the shell's prompt, so a ring for its messages may land in the next agent's prompt, Codex taking Claude Code's message                                                                                                                  |
 
 ## How it fits
@@ -1684,7 +1689,7 @@ doesn't make the prompt known empty.
 ### The shipping gate
 
 Behind Preferences → Experimental → "Shipping gate" (`shippingGate`, off by default), for Claude
-Code, Codex, Antigravity and opencode (see "Antigravity" and "opencode" below for how theirs differ).
+Code, Codex, Antigravity, opencode and pi (see "Antigravity", "opencode" and "pi" below for how theirs differ).
 The design is `architecture/grants.md`. Agents ship with their own `git` and `gh`; Novadeck's hook
 only gates them (`backend/runner/src/shipping/`).
 
@@ -1908,6 +1913,20 @@ only gates them (`backend/runner/src/shipping/`).
     `OPENCODE_CONFIG_CONTENT` and `OPENCODE_CONFIG`, or runs a version outside the plugin's range,
     no plugin loads and nothing is gated (`hooksTrusted` says so): there is no Novadeck MCP
     there either, so no `request_permit` exists and no notice can promise a permit.
+- **pi** (`harnesses/pi/src/extension-source.ts`, `shipping/service.ts`). It runs no hook commands
+  and asks no permission (docs/security.md, 1.6.0), so its hook is the whole gate (`Harness.hookGate`,
+  as opencode's default is): Novadeck's extension reports each `bash` (and `powershell`) call in its
+  `tool_call` event as PreToolUse, with opencode's keys (`tool_name`, `call_id`, `tool_input.command`,
+  `cwd`), and, while the gate is on (the extension's rendered `gate`), waits for the runner's answer.
+  A deny (`{"decision":"deny","reason":…}`) makes it refuse the call (`{block: true, reason}`), which
+  pi gives the model as the call's result, an error, and the run goes on (probed 2026-11-24, 1.6.0, on
+  a fake model). A permit is spent at the call, as opencode's default spends one: no dialog comes.
+  - A codemode script's own calls go through the same event (`parentToolCallId` names the script's
+    call), so each is judged and refused on its own, and the script reads the refusal as that call's
+    error; the script's own text, which only names commands, is never judged (probed).
+  - pi has no flag that skips its permissions, so nothing bypasses the gate. Where the extension
+    doesn't load (pi run by its full path, below 1.1.0, from 2.0.0) nothing is gated, and there is no
+    Novadeck MCP either, so no `request_permit` exists.
 - **With the switch off** nothing changes: no hook is registered, and `relay.json` and every
   plugin file are byte for byte as before (on, `relay.json` also lists the gate's events among
   `asks`, so they wait the 4 s limit a Stop does). A session started while it was on and kept
@@ -2945,7 +2964,8 @@ output, not that the model acted on it.
     without the plugin) counts as work, which only spares a thread.
   - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`,
     `Skill`, `TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList` and `TaskGet` (never
-    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`.
+    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`, Antigravity's
+    `update_steps`.
   - Waiting: Claude Code's `ScheduleWakeup`, and a shell call (Claude Code's and Codex's
     `Bash`, Codex's argv form unwrapped from its `bash -lc`, Antigravity's `run_command`)
     whose command is only sleeps, alone or joined by `;`, `&&` or newlines: `sleep` with
@@ -3212,11 +3232,26 @@ screen" (or "Waiting for you to sign in, in its terminal", or what holds its hoo
 tooltip, and the chat view gives way to the screen. It raises no Inbox entry: no
 request stands behind it.
 
-Chat also leaves the terminal visible until the agent's prompt or session is known, even
-before the startup watch has named its screen (as for an agent typed into an ordinary shell). A foreground
-process name alone doesn't make chat ready. The chat preference and draft stay kept, and
-chat appears once its prompt is recognized or its conversation is bound to a session. Hooks
-may stay silent; a process with neither readiness signal keeps showing its terminal.
+While an agent starts, the chat shows from the start, so what the person types as it starts
+stays in the chat's box rather than landing in the agent's own as it draws. The startup watch
+tells which agent starts as `TerminalSummary.expecting`: the one the terminal was opened or
+woken to run for a session (not an agent's other commands, as `codex login`: `sessionLaunch`),
+or one the person typed in its shell (its shim's word, which it says only of a session, a few
+dozen milliseconds after Enter), until a session binds, its prompt is known to show (`ready`), or its own box has
+stood a delay (an agent whose harness tells neither); and none once the startup command
+ends with no agent, as a failed start does. Its box having stood ends it for good, whatever shows
+over it later. Meanwhile the chat says the agent is starting, after anything already in it, and a
+prompt sent from it waits in the chat's queue until the agent can take it (`agentStarting`). Its
+own screen shows in the chat once the start has taken three seconds (`startScreenMs`), its keys
+passed to it (`agents.keys`) where the person clicks it, so a folder-trust or sign-in screen is
+there to answer before the watch names it; nothing of it takes the keys by itself. Once the
+watch names a screen that holds it (`startup`), the chat gives way to the terminal as above.
+
+Without that signal, as for a process the watch never expected, chat leaves the terminal visible
+until the agent's prompt or session is known: a foreground process name alone doesn't make chat
+ready. The chat preference and draft stay kept, and chat appears once its prompt is recognized or
+its conversation is bound to a session. A prompt the chat sent stands for its session meanwhile,
+as Codex, Antigravity and opencode bind theirs only with it, so the chat stays while it goes.
 
 ## Naming
 

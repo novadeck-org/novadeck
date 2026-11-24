@@ -28,7 +28,7 @@ export { chatDraftOf, setChatDraft } from "./drafts"
 export { chatReplyOf } from "./replies"
 export { chatSendsOf } from "./sends"
 export { chatShellsOf } from "./shells"
-export { chatAvailable, chatShown } from "./shown"
+export { agentStarting, chatAvailable, chatShown } from "./shown"
 
 // What the chat keeps for the app, a store of its own that the app composes. It starts over
 // on reload.

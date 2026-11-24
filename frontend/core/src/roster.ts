@@ -294,7 +294,8 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
   if (status.state === "running")
     return (
       terminal.state === "running" &&
-      JSON.stringify(terminal.agent) === JSON.stringify(status.agent)
+      JSON.stringify(terminal.agent) === JSON.stringify(status.agent) &&
+      terminal.expecting === status.expecting
     )
   if (status.state === "sleeping")
     return (
@@ -317,7 +318,11 @@ const statusFields = (status: TerminalStatus): TerminalStatus => {
     }
   if (status.state === "failed") return { state: status.state, message: status.message }
   if (status.state === "running")
-    return { state: status.state, ...(status.agent ? { agent: status.agent } : {}) }
+    return {
+      state: status.state,
+      ...(status.agent ? { agent: status.agent } : {}),
+      ...(status.expecting ? { expecting: status.expecting } : {}),
+    }
   if (status.state === "sleeping")
     return {
       state: status.state,

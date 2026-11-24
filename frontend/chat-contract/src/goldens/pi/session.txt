@@ -1,0 +1,23 @@
+# session
+user: WRITETOOL now
+tools: wrote [write] · notes.txt | Call: write: 3 lines: content: → 1 line: Successfully wrote to notes.txt
+assistant: done after tool
+user: EDITTOOL now
+tools: edited [write] · notes.txt +1 −1 → 3 lines: 1   one
+assistant: done after tool
+user: FAILTOOL now
+tools: ran [run] · echo bad; exit 3 · exit 3 → 4 lines: bad
+assistant: done after tool
+user: !echo shell-out
+tools: ran [run] · echo shell-out → 1 line: shell-out
+user: hello there
+assistant: reply 7 to: Ran echo shell-out shell-out | hello there
+user: SLOW stop me
+note: Interrupted
+user: after compact
+note: Interrupted
+user: after real compact
+note: Interrupted
+compaction: compacted the conversation · summary kept → 5 lines: Summary: the person wrote notes.txt, edited it,…
+user: after real compact
+assistant: reply 2 to: The conversation history before this point was compacted int

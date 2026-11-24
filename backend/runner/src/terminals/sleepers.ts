@@ -283,10 +283,10 @@ export class Sleepers {
     const now = this.resting(terminalId)
     if (this.host.stopping() || now?.agent !== agent || now.sessionId !== sessionId) return
     // Judged with the flags its session was launched with, as the create that follows is.
-    const launch = this.row(terminalId, this.sessions.get(terminalId))?.agents[agent]?.launch
+    const report = this.row(terminalId, this.sessions.get(terminalId))?.agents[agent]
     const check = this.host
       .claims()
-      .check(terminalId, agent, sessionId, connected, undefined, launch)
+      .check(terminalId, agent, sessionId, connected, undefined, report?.launch, report?.transcript)
     if (check.ok) return void this.wake(terminalId)
     const why = wakeRefusal(agent, check.reason)
     this.host.messaging().wakeFailed(terminalId, why)

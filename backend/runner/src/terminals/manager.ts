@@ -102,7 +102,7 @@ import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
 import { noAgent, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
-import { transcriptImage } from "./transcript-images.js"
+import { transcriptImage, type ImageAsk, type OwnImage } from "./transcript-images.js"
 import { followTranscript } from "./transcripts.js"
 import { Typing, type InterruptInput, type Prompted, type PromptInput } from "./typing.js"
 
@@ -1045,6 +1045,7 @@ export class Terminals {
     )
     this.messaging.expect(id, agent)
     record.expecting = agent
+    record.summary = { ...record.summary, expecting: this.startups.starting(record) }
     if (agent) this.startups.start()
   }
 
@@ -1741,9 +1742,9 @@ export class Terminals {
   }
 
   /** A prompt image of the terminal's session, found in its transcript (see `transcript-images.ts`). */
-  transcriptImage(terminalId: string, image: { sessionId: string; offset: number; index: number }) {
+  transcriptImage(terminalId: string, image: ImageAsk, ownImage?: OwnImage) {
     if (this.stopping) throw new DomainError("CLOSING")
-    return transcriptImage(this.record(terminalId), image)
+    return transcriptImage(this.record(terminalId), image, ownImage)
   }
 
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {

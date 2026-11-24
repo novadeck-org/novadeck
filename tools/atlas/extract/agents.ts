@@ -204,6 +204,7 @@ const titles: Record<string, string> = {
   codex: "Codex",
   agy: "Antigravity",
   opencode: "opencode",
+  pi: "pi",
 }
 
 // Every `harnesses/*` package but the shared core is a harness.

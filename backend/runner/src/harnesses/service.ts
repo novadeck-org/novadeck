@@ -132,11 +132,15 @@ export const locate = async (
   install: Install,
 ): Promise<string | undefined> => {
   const found = findProgram(program, { env: install.env, platform: install.platform })
-  if (found) return found
+  // A program of the harness's name that another program shares counts only once it says it is
+  // the harness's (`Harness.identifies`).
+  const ours = async (path: string): Promise<boolean> =>
+    program !== harness.id || (await harness.identifies?.(path, install)) !== false
+  if (found && (await ours(found))) return found
   if (program !== harness.id) return undefined
   for (const fallback of harness.fallbacks?.(install) ?? [])
     // eslint-disable-next-line no-await-in-loop -- The first that is there wins.
-    if (await exists(fallback)) return fallback
+    if ((await exists(fallback)) && (await ours(fallback))) return fallback
   return undefined
 }
 

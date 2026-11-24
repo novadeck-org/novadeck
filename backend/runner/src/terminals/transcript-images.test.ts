@@ -13,16 +13,19 @@ import {
 
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
+import { imagePaste } from "./image-paste.js"
 import type { Record } from "./record.js"
 import { lineEndingAt, transcriptImage as ask } from "./transcript-images.js"
 import { readingOf, transcriptChanges } from "./transcripts.js"
+import { Uploads } from "./uploads.js"
 
 // As the client asks: the session its item was read in, which the tests' records are bound to.
 const read = (
   record: Pick<Record, "bound" | "transcript">,
   image: TranscriptImage,
   sessionId = session,
-) => ask(record, { sessionId, offset: image.offset, index: image.index })
+  ownImage?: (path: string) => Promise<string | undefined>,
+) => ask(record, { sessionId, offset: image.offset, index: image.index }, ownImage)
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
@@ -191,6 +194,37 @@ describe("a prompt image of a bound session", () => {
         state: "ready",
       })
     }
+  })
+
+  it("is found again as the file this runner saved and pasted into pi's box as its path", async ({
+    place,
+  }) => {
+    const uploads = new Uploads(join(place.folder, "uploads"))
+    const own = (path: string) => uploads.savedImage(path)
+    const saved = await uploads.save({ name: "shot.png", data: png.toString("base64") })
+    const pi = (text: string) => ({
+      type: "message",
+      id: "a1",
+      parentId: null,
+      timestamp: "2026-11-24T10:00:00.000Z",
+      message: { role: "user", content: [{ type: "text", text }], timestamp: 1 },
+    })
+    const path = place.write("pi", [pi(`look at ${imagePaste(saved)}`)])
+    const [image] = await listed("pi", path)
+    expect(await read(place.record("pi", path), image!, session, own)).toMatchObject({
+      state: "ready",
+      mime: "image/png",
+    })
+    // A file of the same shape that this runner never saved stays unread.
+    const stranger = join(place.folder, "else", "uploads", "0f8fad5b-d9cb-469f-a165-70867728950e")
+    mkdirSync(stranger, { recursive: true })
+    writeFileSync(join(stranger, "x.png"), png)
+    const other = place.write("pi", [pi(`look at ${join(stranger, "x.png")}`)])
+    const [foreign] = await listed("pi", other)
+    expect(await read(place.record("pi", other), foreign!, session, own)).toEqual({
+      state: "unavailable",
+      reason: "gone",
+    })
   })
 
   it("is the type its first bytes say, not the one the record claims", async ({ place }) => {

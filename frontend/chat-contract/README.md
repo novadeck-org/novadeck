@@ -96,6 +96,17 @@ harness's own `session.probe.json` and `edges.probe.json` sit beside them. What 
 make has no record: a reasoning part, and the tools `list` and `multiedit`, which 1.19.6 offered no
 agent or model it was probed with (`coverage.test.ts`).
 
+pi has no hand-written vocabulary either: its transcript is pi's own session file, and every
+conversation here is a recording of it. `src/recorded/` keeps the ones this package made (pi 1.6.0
+on a scripted fake model, Novadeck's real extension loaded, its tools through a stand-in of
+Novadeck's MCP server that answers fixed texts, paths made generic): `pi-outcomes` (each case of a
+tool's outcome), `pi-tools` (the other tools, a codemode script and its own calls, `tool_search`
+over a person's deferred MCP server, a person's own MCP tool, Novadeck's tools, pasted images, the
+person's `!` command, an answer stopped with Escape, a compaction, and three turns the live test
+cuts while their calls run) and `pi-words` (the prompts the sent and turn-start tests share). The
+harness's own `session.jsonl` sits beside them. `powershell` has no record: pi offers it on
+Windows alone (`coverage.test.ts`).
+
 Where opencode draws less than the others, the tests say so: it has no plan dialog of its own (`wordings.test.ts`); its experimental plan mode asks its plan review through the question dialog, which `harnesses/opencode/src/question-dialog.test.ts` covers.
 
 ## Changing a golden

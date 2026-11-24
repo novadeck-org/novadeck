@@ -1,4 +1,5 @@
 import {
+  agentStarting,
   answeringInTerminal,
   chatAvailable,
   chatKept,
@@ -53,6 +54,33 @@ describe("answers in the terminal", () => {
       expect(chatShown(true, noTerminalAnswers, "p/s", held)).toBe(false)
       expect(chatShown(true, noTerminalAnswers, "p/s", { ...terminal, state: "idle" })).toBe(false)
     })
+
+    for (const agent of ["claude", "codex", "agy", "opencode"] as const)
+      it(`shows ${agent}'s chat from its start where the terminal was opened to run it`, () => {
+        // Its program not seen yet: the shell still holds the foreground.
+        const starting = {
+          ...terminal,
+          process: agent,
+          state: "running" as const,
+          expecting: agent,
+        }
+        expect(chatShown(true, noTerminalAnswers, "p/s", starting)).toBe(true)
+        expect(agentStarting(starting)).toBe(true)
+        // Held at a screen of its own, it shows that screen, and still starts.
+        const held = {
+          ...terminal,
+          state: "running" as const,
+          agent: { working: false, startup: "startup" },
+        } as const
+        expect(chatShown(true, noTerminalAnswers, "p/s", held)).toBe(false)
+        expect(agentStarting(held)).toBe(true)
+        // Its hooks off, nothing comes of waiting.
+        expect(agentStarting({ ...held, agent: { working: false, startup: "hooks" } })).toBe(false)
+        // At its prompt it no longer starts.
+        const ready = { ...terminal, state: "running" as const, agent: { working: false } }
+        expect(agentStarting(ready)).toBe(false)
+        expect(agentStarting({ ...terminal, state: "idle" })).toBe(false)
+      })
 
     for (const process of ["claude", "codex", "agy"])
       it(`keeps ${process}'s screen visible until its prompt or session is known`, () => {

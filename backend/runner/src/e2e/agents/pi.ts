@@ -47,6 +47,14 @@ export const pi: AgentSetup = {
   // A prompt given mid-turn shows dim above the box as `Steering: <prompt>`, until the turn's
   // tool calls end (probed 2026-11-24, 1.6.0, busy.probe.json `steerQueued`).
   queued: (prompt) => new RegExp(`Steering: ${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+  // It has no `/clear`: `/new` starts a new session, as `session_start{reason:"new"}` says.
+  clear: "/new",
+  // Its `/quit` leaves it; it has no `/exit`.
+  exit: "/quit",
+  // Its `/session` prints the session's file, id and usage in the transcript, with no model call.
+  idleCommand: "/session",
+  // Its `/settings` opens a menu over the box, which the live-slice test closes with Escape.
+  view: "/settings",
   shell: {
     run: (_call, command) => ({ calls: [{ name: "bash", input: { command } }] }),
     nested,
@@ -85,6 +93,9 @@ export const pi: AgentSetup = {
         defaultModel: "fake-sonnet",
         // No changelog banner for the version run.
         lastChangelogVersion: installed.version,
+        // Its /compact refuses a session this small ("Nothing to compact (session too small)",
+        // probed 2026-11-24, 1.6.0): a cut of one token's worth changes nothing else.
+        compaction: { keepRecentTokens: 1 },
       }),
     )
     return {
@@ -93,6 +104,9 @@ export const pi: AgentSetup = {
       PI_TELEMETRY: "0",
     }
   },
+  // Its steering gives queued prompts one at a time, each answered before the next (its
+  // default `steeringMode`, probed 2026-11-24, 1.6.0).
+  oneByOne: true,
   absent: {
     approval:
       "it asks nothing before a tool runs: its docs say it does not ask for approval before every tool call, and an extension's dialog is the person's own (docs/security.md, 1.6.0)",
@@ -103,6 +117,8 @@ export const pi: AgentSetup = {
     background: "it has no background subagents: it skips sub-agents (README, 1.6.0)",
     "background.command":
       "its bash tool takes `command` and `timeout` alone: it waits for the command (docs, 1.6.0)",
+    "hooks.off":
+      "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
     "trust.folder":

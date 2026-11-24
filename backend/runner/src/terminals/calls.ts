@@ -54,7 +54,7 @@ import {
 import type { OpenPolicy } from "./options.js"
 import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { folderFor, launchFor, resumeRefusal, type Claims } from "./resumes.js"
+import { folderFor, launchFor, resumeRefusal, transcriptFor, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 import { shellBusy } from "./sampling.js"
 import type { Sleeper, Sleepers } from "./sleepers.js"
@@ -276,6 +276,7 @@ export class Calls {
               true,
               choice,
               launchFor(this.host.rows(), request.agent, request.resume),
+              transcriptFor(this.host.rows(), request.agent, request.resume),
             )
         : undefined
     if (request.agent !== undefined && resuming && !resuming.ok)

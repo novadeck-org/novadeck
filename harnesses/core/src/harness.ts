@@ -82,6 +82,12 @@ export type Harness = {
    */
   readonly fallbacks?: (install: Install) => readonly string[]
   /**
+   * Whether the program found under its name is the harness's: for a harness whose name another
+   * program shares (Ubuntu's `pi` prints digits of π), so that one is never taken for it, nor
+   * launched. Absent where nothing else goes by the name.
+   */
+  readonly identifies?: (program: string, install: Install) => Promise<boolean>
+  /**
    * The one-line command that installs it on `platform`, which Novadeck's terminal runs
    * for the person, so it works in any shell Novadeck starts there (see `installer.ts`).
    */
@@ -575,12 +581,15 @@ export type LaunchProfile = {
    * The words that continue its session by id, with the model and effort `choose` puts,
    * where each is given: after its program, or where its resume command takes its options.
    * Then the `kept` flags of the launch it resumes (see `kept`), but for the model and effort
-   * `choice` sets itself.
+   * `choice` sets itself. `transcript` is the session's file as its harness named it at bind,
+   * where the runner has it: for a harness whose resume by id asks a question from another folder
+   * than the session's (pi's), and which takes the file itself.
    */
   readonly resume?: (
     session: string,
     choice?: Choice,
     kept?: readonly string[],
+    transcript?: string,
   ) => readonly string[]
   /**
    * The flags of a launch a resume carries over, from the words an agent was started with
@@ -751,4 +760,10 @@ export type Run = {
   readonly instance: string | null
   /** Its transcript, as its hooks named it. */
   readonly transcript: string
+  /**
+   * The folder Novadeck writes the harness's own files to (`Install.plugin`), for a harness
+   * whose plugin keeps a record of its own beside the harness's transcript; asked for only by
+   * the watch that reads one.
+   */
+  readonly plugin?: () => Promise<string | undefined>
 }

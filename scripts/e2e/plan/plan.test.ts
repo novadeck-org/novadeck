@@ -656,6 +656,7 @@ describe("the plan script", () => {
       "Claude Code",
       "Codex",
       "opencode",
+      "pi",
       "Antigravity",
       "Mixed",
     ])

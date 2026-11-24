@@ -39,7 +39,8 @@ const statusKey = (status: TerminalStatus): string => {
   if (status.state === "exited")
     return `exited:${status.exitCode}:${status.signal}:${status.cause ?? ""}`
   if (status.state === "failed") return `failed:${status.message}`
-  if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
+  if (status.state === "running")
+    return `running:${JSON.stringify(status.agent ?? null)}:${status.expecting ?? ""}`
   if (status.state === "sleeping")
     return `sleeping:${status.agent}:${status.reported ?? false}:${status.endedAt ?? ""}`
   return status.state
@@ -144,13 +145,19 @@ export const terminalActivity = (
   if (summary.exit) return { status: exitStatus(summary.exit, quickExitMs) }
   // A bound session's only mark is its prompt saying it isn't signed in.
   const startup = summary.agent && summary.startup?.screen !== "sign-in" ? null : summary.startup
+  // The agent starting there, where nothing else of it is known yet: one of a harness this UI
+  // knows, as a newer one's has no chat here.
+  const expected = summary.expecting === "newer" ? null : (summary.expecting ?? null)
+  const expecting = !summary.agent && !summary.ready && !startup ? expected : null
   // `ready` names an agent at its prompt before a session, where no process can, as on Windows.
   const named = runningProgram(
     summary.process,
-    summary.agent ?? summary.ready ?? startup?.agent ?? null,
+    summary.agent ?? summary.ready ?? startup?.agent ?? expecting,
   )
-  // A launcher script of the shell's own may hold the foreground over the agent it started.
-  const program = startup && isShellProcess(named) ? startup.agent : named
+  // A launcher script of the shell's own may hold the foreground over the agent it started, and
+  // the shell holds it until the agent it runs is seen.
+  const starting = startup?.agent ?? expecting
+  const program = starting && isShellProcess(named) ? starting : named
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
   const shell = summary.shellCommand ? { shellCommand: summary.shellCommand } : {}
   const base =
@@ -170,7 +177,11 @@ export const terminalActivity = (
   const agent = base || summary.shellCommand ? { working: false, ...base, ...shell } : undefined
   const usage = summary.agent && summary.activity ? usageOf(summary.telemetry) : undefined
   return {
-    status: { state: "running", ...(agent ? { agent } : {}) },
+    status: {
+      state: "running",
+      ...(agent ? { agent } : {}),
+      ...(expecting && !agent ? { expecting } : {}),
+    },
     process: program,
     ...commandLine(summary, program),
     ...(usage ? { usage } : {}),

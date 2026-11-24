@@ -39,7 +39,8 @@ jobs:
           - { name: Codex, agents: codex }
           - { name: Antigravity, agents: agy }
           - { name: opencode, agents: opencode }
-          - { name: Mixed, agents: "claude,codex,agy,opencode", only: every harness at once }
+          - { name: pi, agents: pi }
+          - { name: Mixed, agents: "claude,codex,agy,opencode,pi", only: every harness at once }
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
       NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
@@ -103,6 +104,13 @@ jobs:
         with:
           cache: ${{ env.NOVADECK_E2E_CACHE }}
           harness: opencode
+
+      - name: Restore pi
+        if: contains(matrix.setup.agents, 'pi')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: pi
 
       - name: Build Protocol and Relay
         run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build

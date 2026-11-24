@@ -39,6 +39,30 @@ const opencodeRecorded = (): readonly string[] => {
   })
 }
 
+// pi's: the same two recorded prompts and the answer to the first (src/recorded/pi-words.json),
+// their times set where the others' are: pi keeps a message's own time beside its record's.
+const piRecorded = (): readonly string[] => {
+  const words = recordedScenarios("pi-words.json")
+  type Record = {
+    type: string
+    timestamp?: string
+    message?: { role?: string; timestamp?: number }
+  }
+  const said = (records: readonly object[]) =>
+    records.filter((record) => {
+      const role = (record as Record).message?.role
+      return role === "user" || role === "assistant"
+    })
+  const lines = [...said(words["check-the-folder"]!), ...said(words["open-the-first"]!).slice(0, 1)]
+  return lines.map((line, place) => {
+    const record = structuredClone(line) as Record
+    const second = [1, 5, 9][place]!
+    record.timestamp = time(second)
+    if (record.message) record.message.timestamp = Date.parse(time(second))
+    return JSON.stringify(record)
+  })
+}
+
 // The person asks, the agent answers, and the person asks again: the record's own items.
 const recorded: Readonly<Record<AgentName, readonly string[]>> = {
   claude: [
@@ -88,6 +112,7 @@ const recorded: Readonly<Record<AgentName, readonly string[]>> = {
     },
   ].map((step) => JSON.stringify(step)),
   opencode: opencodeRecorded(),
+  pi: piRecorded(),
 }
 
 const receipt = (

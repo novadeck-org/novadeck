@@ -2,7 +2,7 @@ import {
   createChatCommands as createChatWrites,
   type ChatCommands as ChatWrites,
 } from "@novadeck/chat/commands"
-import { answerInTerminal } from "@novadeck/chat/state"
+import { agentStarting, answerInTerminal } from "@novadeck/chat/state"
 import type { TerminalKey } from "@novadeck/core/port"
 import type { Workspace } from "@novadeck/core/types"
 
@@ -30,6 +30,18 @@ const locate = (snapshot: Workspace, key: TerminalKey): TerminalKey | null => {
   return session ? { ...key, workspaceSessionId: session.id } : null
 }
 
+// Whether the terminal's agent is still starting, wherever the terminal is now.
+const starting = (snapshot: Workspace, key: TerminalKey): boolean => {
+  const at = locate(snapshot, key)
+  const session = at
+    ? snapshot.projects
+        .find((project) => project.id === at.projectId)
+        ?.history.find((each) => each.id === at.workspaceSessionId)
+    : undefined
+  const terminal = session?.state.roster.terminals.find((each) => each.id === key.terminalId)
+  return terminal !== undefined && agentStarting(terminal)
+}
+
 export const createChatCommands = (ctx: CommandContext): ChatCommands => {
   const { workspace, navigation, conversations, chat, ui } = ctx
   const { set } = shellEdits(ctx)
@@ -40,6 +52,7 @@ export const createChatCommands = (ctx: CommandContext): ChatCommands => {
       locate: (key) => locate(workspace.getSnapshot(), key),
       context: () => currentContext(workspace.getSnapshot()),
       chatView: () => chatViewOn(ui.getSnapshot()),
+      starting: (key) => starting(workspace.getSnapshot(), key),
     }),
     showTerminal: (terminalId) => {
       const snapshot = workspace.getSnapshot()
