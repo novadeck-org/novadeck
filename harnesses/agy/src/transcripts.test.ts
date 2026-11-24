@@ -53,7 +53,7 @@ describe("what Antigravity says between turns", () => {
   })
 
   // As a local 1.5.16 conversation holds it (2026-11-24), and as CI's 1.5.13 wrote one.
-  it("skips a failed model call it retries", () => {
+  it("skips a failed model call", () => {
     const retried = {
       step_index: 1,
       source: "SYSTEM",
