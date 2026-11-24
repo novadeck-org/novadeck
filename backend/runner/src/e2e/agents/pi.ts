@@ -93,6 +93,9 @@ export const pi: AgentSetup = {
         defaultModel: "fake-sonnet",
         // No changelog banner for the version run.
         lastChangelogVersion: installed.version,
+        // Its /compact refuses a session this small ("Nothing to compact (session too small)",
+        // probed 2026-11-24, 1.6.0): a cut of one token's worth changes nothing else.
+        compaction: { keepRecentTokens: 1 },
       }),
     )
     return {
@@ -114,6 +117,8 @@ export const pi: AgentSetup = {
     background: "it has no background subagents: it skips sub-agents (README, 1.6.0)",
     "background.command":
       "its bash tool takes `command` and `timeout` alone: it waits for the command (docs, 1.6.0)",
+    "hooks.off":
+      "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
     "trust.folder":

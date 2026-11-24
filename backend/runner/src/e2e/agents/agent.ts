@@ -98,6 +98,7 @@ export type Trait =
   | "idleCommand"
   | "trust.folder"
   | "trust.hooks"
+  | "hooks.off"
   | "shell"
   | "rewind"
   | "popup"
