@@ -2945,7 +2945,8 @@ output, not that the model acted on it.
     without the plugin) counts as work, which only spares a thread.
   - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`,
     `Skill`, `TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList` and `TaskGet` (never
-    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`.
+    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`, Antigravity's
+    `update_steps`.
   - Waiting: Claude Code's `ScheduleWakeup`, and a shell call (Claude Code's and Codex's
     `Bash`, Codex's argv form unwrapped from its `bash -lc`, Antigravity's `run_command`)
     whose command is only sleeps, alone or joined by `;`, `&&` or newlines: `sleep` with
