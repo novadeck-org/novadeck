@@ -588,6 +588,16 @@ describe("a fullscreen TUI scrolling a delivery block", () => {
       expect(paints).toBe(block.length)
       const screen = element.querySelector<HTMLElement>(".xterm-screen")!
       const cell = screen.getBoundingClientRect().height / view.terminal.rows
+      // Each read of the screen's size after a row was placed lays the page out again.
+      let reads = 0
+      const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")!.get!
+      Object.defineProperty(screen, "offsetWidth", {
+        configurable: true,
+        get(this: HTMLElement) {
+          reads += 1
+          return width.call(this) as number
+        },
+      })
       for (let top = 1; top <= 18; top += 1) {
         // eslint-disable-next-line no-await-in-loop -- Each redraw is laid out before the next.
         await show(top)
@@ -608,6 +618,8 @@ describe("a fullscreen TUI scrolling a delivery block", () => {
       }
       // Moved eighteen times, never drawn again.
       expect(doorbell.stats.paints).toBe(paints)
+      // And the size read a few times a redraw (a write's pass and a render's), never once a row.
+      expect(reads).toBeLessThanOrEqual(18 * 6)
     },
   )
 })

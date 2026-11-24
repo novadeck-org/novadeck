@@ -701,7 +701,9 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     const elements = spare.get(says)
     const element = elements?.pop()
     if (elements?.length === 0) spare.delete(says)
-    return element?.parentElement === host ? element : undefined
+    if (element?.parentElement === host) return element
+    element?.remove()
+    return undefined
   }
 
   const remove = (entry: Entry): void => {
