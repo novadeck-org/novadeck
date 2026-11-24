@@ -760,7 +760,7 @@ with every safety check again at that time:
   (no pull request), In review (an open one) and Done (merged, or its pull request closed), newest
   first in each; Done folds (kept in this browser) and holds Trash N safe, which closes every safe
   row, unforced, after one confirm that lists them, saying above the list why any that stopped
-  being safe stays. A row's trash button slides in over its handle under the pointer or with the
+  being safe stays. A row's trash button fades in over its handle under the pointer or with the
   keyboard on the row, as a tab's Hide and Rename do; a safe row's shows at rest, in green. Over the groups, a line says
   how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
   measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). Sizes are

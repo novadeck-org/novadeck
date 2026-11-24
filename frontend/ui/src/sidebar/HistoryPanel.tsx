@@ -58,7 +58,7 @@ const actionClasses = "history-row-action icon-button small dim quiet"
 // its program, or a plain terminal's folder, with when it closed where a tab holds its
 // @handle, and under them the start of its summary, cut to where a search found it. Its
 // handle isn't shown: a restore keeps it only where it is still free in the session. A click
-// only selects it, as a tab's does; what it can do is its action, which slides in where the
+// only selects it, as a tab's does; what it can do is its action, which fades in where the
 // time was under the pointer, with focus or while it is selected, as a tab's Hide and Rename
 // do over its handle: Restore, Show the terminal its conversation is open in, or Connect its
 // agent. A right-click opens the same as a menu.
@@ -174,7 +174,7 @@ const HistoryRow = ({
             {/* One glyph wide in every state, so the text beside it never shifts. */}
             <span aria-hidden className="history-glyph inline-block w-[1ch] shrink-0 text-center" />
             <span className="history-row-program truncate">{program}</span>
-            <span className="history-row-end shrink-0" data-end={view.end.kind}>
+            <span className="history-row-end sidebar-item-end shrink-0" data-end={view.end.kind}>
               {view.end.text}
             </span>
           </>
@@ -196,8 +196,13 @@ const HistoryRow = ({
         className="history-row [--_sidebar-actions-space:26px]"
         data-state={view.state}
         data-history-row={row.id}
+        {...(selected ? { "data-actions": "shown" } : {})}
         {...(action
-          ? { actions: <div className="history-row-slot flex items-center">{action}</div> }
+          ? {
+              actions: (
+                <div className="history-row-slot sidebar-item-slot flex items-center">{action}</div>
+              ),
+            }
           : {})}
       />
     </div>

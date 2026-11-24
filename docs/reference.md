@@ -518,9 +518,9 @@ bell-off button on the row or in the card's head. A snoozed row keeps its place 
 with a gray wash, a dashed bar and a bell-off where its wait shows, and still drags with the
 rest; Next, the arrows and j/k step past it, and the bell, its count, toasts and OS pings
 leave it out. Snoozed from its card, the next card opens. S again, or the bell button, brings
-it back, which rings nothing. A row's snooze and dismiss buttons slide in over its wait under
+it back, which rings nothing. A row's snooze and dismiss buttons fade in over its wait under
 the pointer or with the keyboard on it, as a tab's Hide and Rename do. On a snoozed row the
-bell button slides in over the bell-off, in place of the button that dismisses an ask: bring
+bell button fades in over the bell-off, in place of the button that dismisses an ask: bring
 one back before you dismiss it. A terminal whose every need is snoozed shows a gray bell-off for
 its "!" or "?", the tab a gray wash and dashed bar and the window's head a wash, with no warning
 line; a new prompt from it is marked at once. The project switcher's dot leaves snoozed needs
@@ -553,7 +553,7 @@ Sessions group a project's terminals, and the Sessions panel lists them in the o
 put them in. A session's row looks and moves like a terminal's tab. Under its name is the
 most pressing of what its terminals show (what needs you, how many run, or how many there
 are), and at the line's end how long ago it was last open ("now" for the open one). Its
-Rename and Delete slide in over that under the pointer. Drag a session to move it, or focus
+Rename and Delete fade in over that under the pointer. Drag a session to move it, or focus
 it and press Space, the arrows, then Space again. A new session goes first. Rename one with its pencil or a double-click on it: Enter
 saves and Escape keeps the old name. Its trash icon deletes it, asking first when it has
 terminals. They close and go to History, and you can restore them into another session.
@@ -579,7 +579,7 @@ line: a glyph for how the row stands, the agent's program (a plain terminal's fo
 when it closed where a tab shows its @handle, the time for today and the date for an
 earlier day. Under that is the start of its summary, on one line. A click selects a row
 and does nothing more. Under the pointer, with the keyboard on it, or while it's
-selected, the time slides out and its action slides in, as a tab's Hide and Rename do:
+selected, the time slides out and its action fades in, as a tab's Hide and Rename do:
 Restore, or an arrow to the terminal it's open in. A right-click opens the same as a
 menu. The tooltip has the full date, the summary, and who closed it where an agent did.
 The search box matches a title, a handle, the folder it ran in (an agent's row doesn't
@@ -600,7 +600,7 @@ tooltip, and to assistive technology. Three other states show on its detail line
 - **Unavailable** where the date was, with a `×` glyph. The agent no longer has the
   conversation, or the folder is gone.
 - **Not connected** where the date was, with a `○` glyph. The agent isn't connected. Under
-  the pointer a plug icon slides in, which opens Preferences at that agent's switch, as its
+  the pointer a plug icon fades in, which opens Preferences at that agent's switch, as its
   menu's Connect does; it isn't offered for an agent that isn't installed or while its
   connection changes.
 - **An @handle** where the date was (not hatched). The conversation is open in another
