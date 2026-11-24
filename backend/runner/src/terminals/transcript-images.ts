@@ -112,6 +112,12 @@ const saved = async (file: string, folder: string | undefined): Promise<Transcri
   ])
   if (!session || !home || !real || !under(session, home) || !under(home, real))
     return unavailable("gone")
+  return readImage(real)
+}
+
+// A file found safe to read, as it really is: a plain file within the limit, opened without
+// following a link and judged by what was opened, and not one that may hold secrets.
+const readImage = async (real: string): Promise<TranscriptImageResult> => {
   if (secret(real)) return unavailable("unreadable")
   const handle = await open(real, constants.O_RDONLY | careful).catch(() => undefined)
   if (!handle) return unavailable("unreadable")
@@ -134,21 +140,29 @@ const saved = async (file: string, folder: string | undefined): Promise<Transcri
   }
 }
 
+/** Which image is asked for: the session its item was read in, its line's end, its place there. */
+export type ImageAsk = {
+  readonly sessionId: string
+  readonly offset: number
+  readonly index: number
+}
+
+/** The file at a path as it really is, where this runner saved it (`Uploads.savedImage`). */
+export type OwnImage = (path: string) => Promise<string | undefined>
+
 /**
  * A prompt image of the terminal's bound session, found again in its own transcript: the line
  * that ends at `offset`, and the `index`th image its harness reads in it. Never a path the
  * caller names: a record's inline bytes, or a file the harness's record names that lies in the
- * session's uploads (`imageFolder`), and either only as a PNG, JPEG, GIF or WebP of at most
+ * session's uploads (`imageFolder`) or is one this runner saved (`ownImage`, the runner's
+ * uploads as `Uploads.savedImage` checks them), and either only as a PNG, JPEG, GIF or WebP of at most
  * `maxTranscriptImageBytes`, by its first bytes. A terminal with no session, or another one than
  * `sessionId`, a line that is no longer there or holds no such image is NOT_FOUND.
  */
 export const transcriptImage = async (
   record: ConversationRecord,
-  {
-    sessionId,
-    offset,
-    index,
-  }: { readonly sessionId: string; readonly offset: number; readonly index: number },
+  { sessionId, offset, index }: ImageAsk,
+  ownImage?: OwnImage,
 ): Promise<TranscriptImageResult> => {
   const conversation = conversationOf(record)
   const source = conversation && harnesses[conversation.binding.agent].transcripts
@@ -165,7 +179,11 @@ export const transcriptImage = async (
   const line = await lineEndingAt(path, offset)
   const image: ImageSource | undefined = line === undefined ? undefined : source.images(line)[index]
   if (!image) throw new DomainError("NOT_FOUND")
-  return "base64" in image
-    ? inline(image.base64)
+  if ("base64" in image) return inline(image.base64)
+  // A file this runner saved itself, as one it pasted for a harness that takes no image in its
+  // box (pi reads the path it was given: harnesses/pi's transcripts.ts).
+  const own = await ownImage?.(image.file)
+  return own !== undefined
+    ? readImage(own)
     : saved(image.file, source.imageFolder?.(path, binding.sessionId))
 }
