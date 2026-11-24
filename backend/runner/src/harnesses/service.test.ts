@@ -27,7 +27,7 @@ import { hostless, ownHome } from "../testing/host.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { harnesses } from "./registry.js"
-import { createHarnesses } from "./service.js"
+import { createHarnesses, locate } from "./service.js"
 
 const windows = process.platform === "win32"
 
@@ -39,6 +39,8 @@ const path = require("node:path")
 const [agent, ...args] = process.argv.slice(2)
 const home = process.env.HOME
 fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify([agent, ...args]) + "\\n")
+// pi's version, as a bare semver: another program named pi says none, and is not pi.
+if (agent === "pi" && args[0] === "--version") { console.log("1.6.0"); return }
 // FAKE_ENV: where it writes the names of the variables it was given.
 if (process.env.FAKE_ENV) fs.writeFileSync(process.env.FAKE_ENV, JSON.stringify(Object.keys(process.env)))
 // FAKE_HANG: a step that never ends, and leaves a child holding its error output open.
@@ -377,6 +379,33 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.set("pi", false)).toMatchObject({ connected: false })
     expect(existsSync(join(fixture.paths.plugins.pi, "connected"))).toBe(false)
   })
+
+  it.skipIf(windows)(
+    "take no other program named pi for it, such as Ubuntu's, until one says a version",
+    async ({ fixture }) => {
+      const install = {
+        env: { PATH: join(fixture.root, "apt") },
+        home: join(fixture.root, "nohome"),
+        platform: process.platform,
+        plugin: join(fixture.root, "plugin"),
+      }
+      const program = (folder: string, output: string): string => {
+        mkdirSync(join(fixture.root, folder), { recursive: true })
+        const path = join(fixture.root, folder, "pi")
+        writeFileSync(path, `#!/bin/sh\necho '${output}'\n`, { mode: 0o755 })
+        return path
+      }
+      // Ubuntu's `pi` prints digits of π: it is no pi, however it is named.
+      const apt = program("apt", "3.14159265358979")
+      expect(await locate("pi", harnesses.pi, install)).toBeUndefined()
+      // Another with a version is, and the first on PATH that says one.
+      const real = program("real", "1.6.0")
+      expect(
+        await locate("pi", harnesses.pi, { ...install, env: { PATH: join(fixture.root, "real") } }),
+      ).toBe(real)
+      expect(apt).not.toBe(real)
+    },
+  )
 
   it("names Antigravity among the shimmed agents on Windows, with the cmd.exe pass-through or not", async ({
     fixture,
