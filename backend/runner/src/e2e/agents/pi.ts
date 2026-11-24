@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { copyFile, mkdir, writeFile } from "node:fs/promises"
+import { basename, join } from "node:path"
 
 import { chat } from "../model/chat.js"
 import type { AgentSetup } from "./agent.js"
@@ -82,6 +82,13 @@ export const pi: AgentSetup = {
     }
     const folder = agentFolder(sandbox.home)
     await mkdir(folder, { recursive: true, mode: 0o700 })
+    // Its `@` menu lists files with `fd`, which it downloads into its agent folder's `bin` at
+    // its first start online; offline here, it gets the copy installed beside it (`tools`).
+    const fd = installed.tools?.fd
+    if (fd) {
+      await mkdir(join(folder, "bin"), { recursive: true })
+      await copyFile(fd, join(folder, "bin", basename(fd)))
+    }
     // A person's own prompt or tool hook: pi runs no hook commands, so an extension of theirs,
     // in their agent folder's `extensions` (which pi loads beside Novadeck's), runs the script
     // and waits for it, as pi waits for each extension's handler before going on. Its `input`
@@ -165,8 +172,6 @@ ${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script
       "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
-    mention:
-      "its @ menu lists files with `fd`, which it downloads at its first start online; the e2e sandbox runs it offline (`PI_OFFLINE`), where it has none (probed 2026-11-24, 1.6.0)",
     pluginCopy:
       "it keeps no copy of Novadeck's extension in its home: the shim passes the runner's own file for each launch",
     image:

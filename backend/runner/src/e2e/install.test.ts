@@ -6,7 +6,7 @@ import { afterEach } from "vitest"
 import { z } from "zod"
 
 import { describe, expect, it } from "../test.js"
-import { latestMs, latestRelease, renameHeld } from "./install.js"
+import { latestMs, latestRelease, pins, renameHeld } from "./install.js"
 
 const version = z.strictObject({ version: z.string() })
 
@@ -119,5 +119,22 @@ describe("moving a staged install into place", () => {
     const other = failing(["ENOENT"])
     await expect(renameHeld("a.tmp", "a", other.move, other.wait)).rejects.toThrow("ENOENT")
     expect(other.tries).toHaveLength(1)
+  })
+})
+
+describe("the programs a harness fetches for itself", () => {
+  it("pin pi's fd for every platform the tests run on, an archive of a version with its checksum", () => {
+    const pin = pins.pi
+    const fd = pin && "tools" in pin ? pin.tools?.fd : undefined
+    expect(Object.keys(fd?.releases ?? {}).toSorted()).toEqual([
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-x64",
+      "win32-x64",
+    ])
+    for (const release of Object.values(fd?.releases ?? {})) {
+      expect(release.archive).toContain(`/v${fd!.version}/`)
+      expect(release.member).toMatch(/[\\/]fd(?:\.exe)?$/)
+    }
   })
 })

@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { delimiter, dirname, join } from "node:path"
+import { basename, delimiter, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
 import { agentName, type AgentName } from "@novadeck/protocol"
@@ -19,11 +19,32 @@ const safeVersion = (version: string, from: string): string => {
   return version
 }
 
-// A harness published on npm: its package and the version the tests run.
+// The platforms the tests run on, by `<platform>-<arch>` as Node names them.
+const platforms = z.enum(["linux-x64", "win32-x64", "darwin-arm64", "darwin-x64"])
+
+// A program a harness fetches for itself at its first start online, which the tests, offline,
+// install beside it instead: its version, its name, and for each platform the archive that
+// holds it (`.tar.gz`, or `.zip` on Windows), its SHA-512 and the program's path inside it.
+const toolPin = z.strictObject({
+  version: z.string().regex(versionPattern),
+  bin: z.string().min(1),
+  releases: z.partialRecord(
+    platforms,
+    z.strictObject({
+      archive: z.url(),
+      sha512: z.string().regex(/^[0-9a-f]{128}$/),
+      member: z.string().min(1),
+    }),
+  ),
+})
+
+// A harness published on npm: its package and the version the tests run, and the programs it
+// fetches for itself (`tools`).
 const npmPin = z.strictObject({
   package: z.string().min(1),
   version: z.string().regex(versionPattern),
   bin: z.string().min(1),
+  tools: z.record(z.string().regex(/^[a-z]+$/), toolPin).optional(),
 })
 
 // One platform's release of a harness published only as a download, as Antigravity is:
@@ -42,10 +63,7 @@ const platformRelease = z.strictObject({
 const archivePin = z.strictObject({
   version: z.string().regex(versionPattern),
   bin: z.string().min(1),
-  releases: z.partialRecord(
-    z.enum(["linux-x64", "win32-x64", "darwin-arm64", "darwin-x64"]),
-    platformRelease,
-  ),
+  releases: z.partialRecord(platforms, platformRelease),
 })
 
 const pin = z.union([npmPin, archivePin])
@@ -209,8 +227,15 @@ const npmVersion = async (
   return release.version
 }
 
-/** A harness installed in the cache: the folder holding its program, and its version. */
-export type Installed = { readonly bin: string; readonly version: string }
+/**
+ * A harness installed in the cache: the folder holding its program, its version, and the path
+ * of each program it fetches for itself (`tools` of its pin), by name, installed beside it.
+ */
+export type Installed = {
+  readonly bin: string
+  readonly version: string
+  readonly tools?: Readonly<Record<string, string>>
+}
 
 // Each harness's install in this process, by harness and which version it runs, so a
 // file's tests and its setup share one, and `latest` is looked up once.
@@ -292,7 +317,8 @@ const installPackage = async (
   const wanted = await npmVersion(name, found, cache)
   const folder = join(cache, `${name}-${wanted}`)
   const bins = join(folder, "node_modules", ".bin")
-  const installed = { bin: bins, version: wanted }
+  const tools = await installTools(found.tools ?? {})
+  const installed = { bin: bins, version: wanted, ...(found.tools && { tools }) }
   if (existsSync(join(bins, bin))) return installed
   // Installed beside it first, then moved into place whole, so a run stopped halfway
   // leaves nothing that looks installed.
@@ -393,4 +419,71 @@ const installArchive = async (
     await rm(staging, { recursive: true, force: true })
   }
   return installed
+}
+
+/** Fetches `url` whole, and checks it against its SHA-512 before anything of it is used. */
+const fetchChecked = async (url: string, wanted: string): Promise<Buffer> => {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
+  const download = Buffer.from(await response.arrayBuffer())
+  const sha512 = createHash("sha512").update(download).digest("hex")
+  if (sha512 !== wanted) throw new Error(`${url} doesn't match its SHA-512: got ${sha512}`)
+  return download
+}
+
+/**
+ * Unpacks `member` of the archive `file` in `cwd`: a `.zip` with Windows' own tar (bsdtar, which
+ * reads it, where a Git for Windows tar earlier on PATH doesn't), anything else with tar.
+ */
+const unpack = async (cwd: string, file: string, member: string): Promise<void> => {
+  const zip = file.endsWith(".zip")
+  const tar =
+    zip && process.platform === "win32"
+      ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
+      : "tar"
+  await promisify(execFile)(tar, [zip ? "-xf" : "-xzf", file, member], { cwd })
+}
+
+/**
+ * Installs a program a harness fetches for itself (see `toolPin`), once, into the cache:
+ * this platform's archive, checked against its SHA-512, its program kept alone. Undefined for a
+ * platform it names no release for: the harness then goes without, as it would offline.
+ */
+const installTool = async (
+  name: string,
+  found: z.infer<typeof toolPin>,
+): Promise<string | undefined> => {
+  const key = `${process.platform}-${process.arch}`
+  const platform = found.releases[key as keyof typeof found.releases]
+  if (!platform) return undefined
+  const folder = join(cacheFolder(), `${name}-${found.version}`)
+  const program = join(folder, "bin", process.platform === "win32" ? `${found.bin}.exe` : found.bin)
+  if (existsSync(program)) return program
+  const staging = stagingFor(folder)
+  await mkdir(join(staging, "bin"), { recursive: true })
+  try {
+    const download = await fetchChecked(platform.archive, platform.sha512)
+    const file = platform.archive.endsWith(".zip") ? "release.zip" : "release.tar.gz"
+    await writeFile(join(staging, file), download)
+    await unpack(staging, file, platform.member)
+    await rename(join(staging, platform.member), join(staging, "bin", basename(program)))
+    await rm(join(staging, file))
+    await settle(staging, folder, program)
+  } finally {
+    await rm(staging, { recursive: true, force: true })
+  }
+  return program
+}
+
+/** Installs each of a harness's tools (`installTool`), and gives each one's path by name. */
+const installTools = async (
+  tools: Readonly<Record<string, z.infer<typeof toolPin>>>,
+): Promise<Readonly<Record<string, string>>> => {
+  const paths: Record<string, string> = {}
+  for (const [name, found] of Object.entries(tools)) {
+    // eslint-disable-next-line no-await-in-loop -- One download at a time.
+    const program = await installTool(name, found)
+    if (program !== undefined) paths[name] = program
+  }
+  return paths
 }

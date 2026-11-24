@@ -184,6 +184,13 @@ pinned SHA-512 before anything of it runs, and only its program is kept, as `agy
 copy of a harness installed anywhere else on the machine is never used. To move a pin,
 change it and run the suite.
 
+A pin may also name the programs its harness fetches for itself at its first start online,
+which the suite, offline, installs beside it (`tools`): pi lists files for its `@` menu with
+`fd`, which it downloads into its agent folder's `bin`, so pi's pin names fd 10.5.2's archive
+for each platform with its SHA-512 and the program inside it. `install.ts` keeps it in
+`<cache>/fd-<version>`, as it keeps a harness, ignores `latest` for it, and pi's setup copies it
+where pi would have put it. A `.zip` (Windows') is unpacked with Windows' own `tar.exe`.
+
 ## Isolation
 
 The suite never runs a harness against the developer's configuration, login or

@@ -1,4 +1,7 @@
 /* eslint-disable no-await-in-loop -- A scenario's steps run in order, each after the one before. */
+import { writeFileSync } from "node:fs"
+import { join } from "node:path"
+
 import type { SliceChange } from "@novadeck/protocol"
 
 import { setups } from "./agents/index.js"
@@ -25,6 +28,8 @@ for (const setup of setups) {
     it("shows a menu and a command's view, and clears with them", async ({ e2e: run }) => {
       const view = setup.view ?? "/permissions"
       run.model.use(() => undefined)
+      // A file for its @ menu to list: pi lists the project's files alone, none in an empty one.
+      writeFileSync(join(run.sandbox.project, "notes.txt"), "notes\n")
       const t = await start(run, setup)
       const { terminals } = run.deck
       const keys = (data: string) => terminals.write({ terminalId: t.id, data }, "e2e")
@@ -96,12 +101,10 @@ for (const setup of setups) {
       await sleep(300)
 
       // A mention: the words before it go as they are, and the menu comes up behind them.
-      if (lacking(setup, "mention") === undefined) {
-        pass("look at @")
-        await until("the @ menu", (latest) => latest?.slice?.reason === "menu")
-        pass("\x15")
-        await until("the @ menu close", (latest) => latest?.slice === null)
-      }
+      pass("look at @")
+      await until("the @ menu", (latest) => latest?.slice?.reason === "menu")
+      pass("\x15")
+      await until("the @ menu close", (latest) => latest?.slice === null)
       controller.abort()
       await reading
     })
