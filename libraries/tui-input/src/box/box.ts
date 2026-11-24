@@ -297,6 +297,12 @@ export type ProfileImages = {
    * place from them. Omitted where the program shows a placeholder at the image's place.
    */
   readonly typed?: (ordinal: number) => string
+  /**
+   * What to paste between two images with no words between them, for a program whose image is
+   * the path itself (pi shows the path as text, and two would run together as one word);
+   * nothing where omitted.
+   */
+  readonly after?: string
 }
 
 /**

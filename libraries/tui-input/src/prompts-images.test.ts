@@ -40,6 +40,8 @@ const terminal = (
     idleOnly?: boolean
     /** How many image pastes land as words first, as a paste read as keys cut short does. */
     landsAsText?: number
+    /** What it pastes between two images, where a path is the image itself, as pi's is. */
+    after?: string
   } = {},
 ) => {
   let words = options.draft ?? ""
@@ -89,6 +91,7 @@ const terminal = (
               ...placeholderImages((screen) => profile.read(screen)),
               alone: true,
               discard: () => "\x15",
+              ...(options.after !== undefined && { after: options.after }),
             },
     }),
   }
@@ -194,6 +197,21 @@ describe("a prompt with images", () => {
       "\x1b[200~/up/b/two.png\x1b[201~",
     ])
     expect(sent).toEqual([{ words: " Compare them", images: 2 }])
+  })
+
+  it("pastes what keeps two images apart between them, where the program asks for it", async () => {
+    const { prompts, written, sent } = terminal("chips", { after: " " })
+    await prompts.prompt("t", "Compare them", "alone", undefined, [
+      "/up/a/one.png",
+      "/up/b/two.png",
+    ])
+    expect(written.slice(0, 4)).toEqual([
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~ \x1b[201~",
+      "\x1b[200~/up/b/two.png\x1b[201~",
+      "\x1b[200~ Compare them\x1b[201~",
+    ])
+    expect(sent).toEqual([{ words: "  Compare them", images: 2 }])
   })
 
   it("sends images alone with one Enter where the program sends them", async () => {
@@ -354,6 +372,19 @@ describe("a prompt with images among its words", () => {
       "\x1b[200~ at it\x1b[201~",
       "\r",
     ])
+  })
+
+  it("pastes nothing between two images that words stand between", async () => {
+    const { prompts, written } = terminal("inline", { after: " " })
+    await prompts.prompt(
+      "t",
+      "Look at it",
+      "alone",
+      undefined,
+      ["/up/a/one.png", "/up/b/two.png"],
+      [0, 4],
+    )
+    expect(written).not.toContain("\x1b[200~ \x1b[201~")
   })
 
   it("trims the text's edges where an image stands in the white space", async () => {
