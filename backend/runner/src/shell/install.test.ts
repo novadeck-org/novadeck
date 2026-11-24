@@ -120,7 +120,9 @@ describe("the Windows shims", () => {
       cmdShimDir: "C:\\data\\agy-cmd",
     }).filter((file) => file.path.endsWith(".cmd") && file.path.startsWith(paths.bin))
     expect(shims.map((file) => file.path).toSorted()).toEqual(
-      ["agy.cmd", "claude.cmd", "codex.cmd", "opencode.cmd"].map((name) => join(paths.bin, name)),
+      ["agy.cmd", "claude.cmd", "codex.cmd", "opencode.cmd", "pi.cmd"].map((name) =>
+        join(paths.bin, name),
+      ),
     )
     for (const { content } of shims) {
       expect(content).toContain("\r\n")

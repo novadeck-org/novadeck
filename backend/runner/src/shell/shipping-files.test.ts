@@ -51,6 +51,7 @@ describe("the shipping gate's files", () => {
       "claude/worktrees.json",
       "codex/novadeck/hooks/hooks.json",
       "opencode/novadeck.mjs",
+      "pi/novadeck.mjs",
     ])
     const settings = JSON.parse(at(on, "statusline.json")) as {
       hooks: { PreToolUse: { matcher: string; hooks: { command: string }[] }[] }
@@ -66,6 +67,10 @@ describe("the shipping gate's files", () => {
     expect(plugin(off)).not.toContain('"gate"')
     expect(plugin(on)).toContain('"gate":true')
     expect(plugin(on).replace(',"gate":true', "")).toBe(plugin(off))
+    // …and so does pi's extension, which refuses a shell command only then.
+    const piExtension = (all: Map<string, string>) => at(all, "pi/novadeck.mjs")
+    expect(piExtension(off)).not.toContain('"gate":true')
+    expect(piExtension(on)).toContain('"gate":true')
     // Antigravity's shim passes the shipping rules to the relay, only while the gate is on.
     expect(at(off, "/bin/agy")).not.toContain("command(gh pr")
     const shim = at(on, "/bin/agy")
