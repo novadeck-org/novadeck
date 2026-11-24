@@ -560,6 +560,9 @@ importers:
       '@novadeck/harness-opencode':
         specifier: workspace:*
         version: link:../../harnesses/opencode
+      '@novadeck/harness-pi':
+        specifier: workspace:*
+        version: link:../../harnesses/pi
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../contract/protocol

@@ -48,7 +48,8 @@ const frame = (row: string | undefined): boolean =>
  * fixtures/dialogs.probe.json): its selects and confirms (`select`, `confirm`, `trust`,
  * `login`), its text fields (`input`, `editor`), the model and thinking pickers (whose hint
  * wraps on a narrow screen), `/settings`, the question tool of pi's examples, `/resume` and
- * `/tree`, and the count under a searchable list (`/login`'s providers).
+ * `/tree`, the count under a searchable list (`/login`'s providers), and any indented row
+ * that offers Escape to cancel or close (`/mcp`'s panel; probed in e2e/probes/box-leftover).
  */
 const dialogHints = [
   /^\s*↑↓ navigate\s+enter select\s+escape\/ctrl\+c cancel\s*$/,
@@ -61,6 +62,9 @@ const dialogHints = [
   /^\s*↑\/↓ move · ←\/→ page\b/,
   // A searchable list's count, under its rows, where it shows no hints (`/login`'s providers).
   /^\s*\(\d+\/\d+\)\s*$/,
+  // Any other panel's hints that offer Escape (`/mcp`'s ` escape/ctrl+c close`): indented, as
+  // the box's own text never is, which starts at the first column.
+  /^\s+.*\b(?:escape|esc)(?:\/ctrl\+c)? (?:to )?(?:cancel|close)\b/i,
 ]
 
 /** Whether a row is a dialog's line of key hints (`dialogHints`). */
@@ -104,9 +108,23 @@ export const dialogShown = (rows: readonly string[]): boolean => {
   return found !== undefined && dialogIn(trimmed, found)
 }
 
-/** Where Novadeck's runner saves an image it pastes: `<data>/uploads/<uuid>/<name>`. */
-const upload =
-  /(?:[A-Za-z]:)?(?:[\\/](?:\\ |[^\s\\/])+)*[\\/]uploads[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/](?:\\ |[^\s\\/])+/g
+/** The folder of one image Novadeck's runner saved: `uploads/<uuid>/`. */
+const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+/**
+ * Where Novadeck's runner saves an image it pastes, `<data>/uploads/<uuid>/<name>`, as it pastes
+ * the path (`imagePaste`): a Windows path in double quotes where it holds a space or more than
+ * plain characters, bare otherwise; elsewhere bare, a backslash before each character a shell
+ * would read.
+ */
+const upload = new RegExp(
+  [
+    String.raw`"[^"]*[\\/]uploads[\\/]${uuid}[\\/][^"]+"`,
+    String.raw`[A-Za-z]:\\(?:[^\s\\"]+\\)*uploads\\${uuid}\\[^\s\\"]+`,
+    String.raw`(?:/(?:\\.|[^\s\\/])+)*/uploads/${uuid}/(?:\\.|[^\s\\/])+`,
+  ].join("|"),
+  "g",
+)
 
 /**
  * The box's text with each image Novadeck pasted in it shown as `[Image #1]`, `[Image #2]`, …, as
@@ -195,6 +213,8 @@ const erase = (box: InputBox): string => {
 const images: ProfileImages = {
   attached: (screen) => imageCount(read(screen)?.text ?? ""),
   alone: true,
+  // Two paths pasted one after the other would read as one word: a space keeps them apart.
+  after: " ",
   discard: (screen) => {
     const box = read(screen)
     return box && erase(box)
