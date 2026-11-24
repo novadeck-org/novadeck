@@ -34,6 +34,8 @@ for await (const chunk of process.stdin) input += chunk
 const payload = JSON.parse(input)
 const [log, answersFile] = process.argv.slice(2)
 appendFileSync(log, JSON.stringify(payload) + "\\n")
+// The pid the extension names pi's process by, beside the report.
+appendFileSync(log + ".pid", (process.env.NOVADECK_PI_PID ?? "none") + "\\n")
 let answers = {}
 try {
   answers = JSON.parse(readFileSync(answersFile, "utf8"))
@@ -113,6 +115,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       unknownFrom: "2.0.0",
       prefix: "novadeck_",
       stoppedFolder: "stopped",
+      pidVariable: "NOVADECK_PI_PID",
       ...overrides,
     }),
   )
@@ -146,7 +149,10 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       .split("\n")
       .filter(Boolean)
       .map((line) => JSON.parse(line) as Record<string, unknown>)
-  return { file, handlers, tools, sent, entries, emit, reports, answer }
+  // The pid each hook was given as pi's own, in order.
+  const pids = async () =>
+    (await readFile(`${log}.pid`, "utf8").catch(() => "")).split("\n").filter(Boolean)
+  return { file, handlers, tools, sent, entries, emit, reports, pids, answer }
 }
 
 // The marks the extensions wrote of their Stops for the session "s1", beside them.
@@ -199,6 +205,9 @@ describe("Novadeck's pi extension", () => {
         effort: "high",
       }),
     ])
+    // pi's own process, by which the relay names the agent: on Windows its process is node.
+    expect(await pi.pids()).toEqual([String(process.pid)])
+    expect(process.env.NOVADECK_PI_PID).toBeUndefined()
     expect(pi.tools.map(({ name, exposure }) => ({ name, exposure }))).toEqual([
       { name: "novadeck_send", exposure: "model-only" },
     ])

@@ -525,7 +525,8 @@ the runner, which already sees the terminal's output. `decode` performs no I/O,
 and ignores events it does not use by returning none.
 
 The hook names the harness process through the variable its adapter's `pidVariable`
-names, where it sets one (`CLAUDE_PID` for Claude Code), and otherwise through the
+names, where it sets one (`CLAUDE_PID` for Claude Code; `NOVADECK_PI_PID`, which Novadeck's pi
+extension gives its hooks, as pi runs as `node.exe` on Windows), and otherwise through the
 nearest ancestor process with the harness's own name (`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
 
 The hook answers each harness the way it needs. It prints nothing for Claude
@@ -1187,10 +1188,12 @@ denial.
 
 `same-root-instance` needs a process identity from the hook. Every harness
 provides one through the hook's process ancestry: Claude Code sets
-`CLAUDE_PID`, a Codex hook's parent is `codex`, and an Antigravity hook's
-grandparent is `agy`. The hook host reports the nearest ancestor whose
+`CLAUDE_PID`, a Codex hook's parent is `codex`, an Antigravity hook's
+grandparent is `agy`, and pi's extension gives its hooks `NOVADECK_PI_PID` (on
+Windows its process is `node.exe`). The hook host reports the nearest ancestor whose
 executable is the harness. Environment variables alone never prove it, since
-a hook inherits every ancestor harness's variables.
+a hook inherits every ancestor harness's variables; pi's extension gives its variable
+only to its own hook commands, never to pi's tools, so nothing below pi inherits it.
 
 Interruption reaches Novadeck differently per harness: Codex fires `Interrupt`,
 Claude Code's transcript records the interruption, and Antigravity reports it

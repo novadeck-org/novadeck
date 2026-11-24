@@ -938,6 +938,18 @@ describe("reading a relay's hook", () => {
     expect(relayHook(claude)?.report.instance).toBe("30")
   })
 
+  it("names pi on Windows by the pid its extension gives, where its process is node", () => {
+    // pi's extension spawns the hook with shell: true, under cmd, under pi's node.exe.
+    const ancestors = [
+      { pid: 10, name: "cmd", startedAt: 900, args: ["/d", "/s", "/c", "hook"] },
+      { pid: 20, name: "node", startedAt: 400, args: ["C:\\pi\\cli.js", "--model", "a/b"] },
+    ]
+    const named = hook({ agent: "pi", ancestors, env: { NOVADECK_PI_PID: "20" } })
+    expect(relayHook(named, "win32")?.report).toMatchObject({ instance: "20", processStart: 400 })
+    // Without it, no ancestor is named pi: none is told.
+    expect(relayHook(hook({ agent: "pi", ancestors }), "win32")?.report.instance).toBeNull()
+  })
+
   it("is forwarded every harness's pidVariable by the relay", () => {
     for (const { pidVariable } of Object.values(harnesses))
       if (pidVariable !== undefined) expect(hookVariables).toContain(pidVariable)

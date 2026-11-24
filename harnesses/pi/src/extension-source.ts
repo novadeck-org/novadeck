@@ -34,6 +34,12 @@ export type ExtensionConfig = {
    */
   readonly stoppedFolder: string
   /**
+   * The variable its hook commands are given pi's own pid in (the harness's `pidVariable`), as
+   * Claude Code gives `CLAUDE_PID`: the relay names the agent that ran a hook by it, as on
+   * Windows pi runs as `node.exe`, and its title (`process.title`) names no process.
+   */
+  readonly pidVariable: string
+  /**
    * The shipping gate (Experimental) is on: a shell call's PreToolUse waits for the runner's
    * answer, and is refused where it says so. Absent otherwise.
    */
@@ -100,7 +106,13 @@ const hook = (event, payload) =>
     }
     let child
     try {
-      child = spawn(command, { shell: true, stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
+      child = spawn(command, {
+        shell: true,
+        // pi's own process, by which the relay names the agent that ran the hook.
+        env: { ...process.env, [config.pidVariable]: String(process.pid) },
+        stdio: ["pipe", "pipe", "ignore"],
+        windowsHide: true,
+      })
     } catch {
       return done("")
     }
