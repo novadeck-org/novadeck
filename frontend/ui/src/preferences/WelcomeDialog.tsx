@@ -39,6 +39,11 @@ const installed = (agents: readonly AgentSwitch[], id: AgentSwitch["agent"]): bo
 const choicesFrom = (agents: readonly AgentSwitch[]): Choices =>
   Object.fromEntries(harnesses.map(({ id }) => [id, installed(agents, id)])) as Choices
 
+// An agent connected already is no choice here: it shows ticked, and only Preferences turns it
+// off, so leaving this dialog never disconnects one.
+const kept = (toggle: AgentSwitch): boolean => toggle.connected && !toggle.busy
+const keptNote = "Already connected. Turn it off in Preferences."
+
 type TranscriptsSetting = {
   readonly enabled: boolean
   // False where nothing can keep them encrypted; the choice is left out.
@@ -328,13 +333,14 @@ const WelcomeForm = ({
   }, [agents])
 
   // As "Let’s build something" applies the choices, whatever an installer is doing: an agent
-  // not installed yet is no choice, and one mid-change is left to its own change.
+  // not installed yet is no choice, and one mid-change is left to its own change. It only ever
+  // connects: one connected already stays so (see `kept`), as a first run on a fresh workspace,
+  // a second one included, must never take Novadeck's plugin from the person's agents.
   const formRef = useRef<HTMLFormElement>(null)
   const submit = (): void => {
     for (const toggle of agents) {
-      const connected = choices[toggle.agent]
-      if (toggle.available && !toggle.busy && connected !== toggle.connected) {
-        onChange(toggle.agent, connected)
+      if (toggle.available && !toggle.busy && choices[toggle.agent] && !toggle.connected) {
+        onChange(toggle.agent, true)
       }
     }
     if (transcripts?.available && keepTranscripts !== transcripts.enabled)
@@ -456,14 +462,15 @@ const WelcomeForm = ({
                     key={toggle.agent}
                     icon={icons[toggle.agent]}
                     label={agentLabels[toggle.agent]}
-                    note={note}
+                    note={note ?? (kept(toggle) ? keptNote : undefined)}
                     noteId={`welcome-${toggle.agent}-description`}
                     error={Boolean(toggle.error)}
                     name="agents"
                     value={toggle.agent}
-                    checked={choices[toggle.agent]}
+                    checked={kept(toggle) || choices[toggle.agent]}
                     disabled={!toggle.available}
-                    busy={toggle.busy}
+                    // Fixed as busy is, so focus stays on it: one an install just connected has it.
+                    busy={toggle.busy || kept(toggle)}
                     onChange={(checked) =>
                       setChoices((current) => ({ ...current, [toggle.agent]: checked }))
                     }
