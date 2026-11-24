@@ -581,12 +581,15 @@ export type LaunchProfile = {
    * The words that continue its session by id, with the model and effort `choose` puts,
    * where each is given: after its program, or where its resume command takes its options.
    * Then the `kept` flags of the launch it resumes (see `kept`), but for the model and effort
-   * `choice` sets itself.
+   * `choice` sets itself. `transcript` is the session's file as its harness named it at bind,
+   * where the runner has it: for a harness whose resume by id asks a question from another folder
+   * than the session's (pi's), and which takes the file itself.
    */
   readonly resume?: (
     session: string,
     choice?: Choice,
     kept?: readonly string[],
+    transcript?: string,
   ) => readonly string[]
   /**
    * The flags of a launch a resume carries over, from the words an agent was started with
