@@ -69,7 +69,6 @@ import type {
 } from "./types"
 import { useCanvasNavigation } from "./useCanvasNavigation"
 import { useCanvasVisit } from "./useCanvasVisit"
-import { unusedNoWheelClass } from "./wheel"
 export type { CanvasHandle } from "./types"
 
 // How far past the viewport's edges a node still counts as on screen: about one node's size
@@ -654,7 +653,6 @@ const TerminalCanvas = ({
               zoomOnScroll
               zoomOnDoubleClick={false}
               zoomActivationKeyCode={["Control", "Meta"]}
-              noWheelClassName={unusedNoWheelClass}
               proOptions={{ hideAttribution: true }}
             >
               <Background

@@ -1,4 +1,4 @@
-import { afterEach } from "vitest"
+import { afterEach, onTestFinished } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { watchBarDrag } from "../support/bar-drag"
@@ -284,9 +284,15 @@ describe("The pane in Canvas", () => {
       const pane = companionPane("Build Studio")
       await expect.element(pane).toBeVisible()
       const before = await settled(width)
+      // What the page's own handlers see of it, as the pane's row and its waking do.
+      const reached: WheelEvent[] = []
+      const reach = (event: WheelEvent): number => reached.push(event)
+      window.addEventListener("wheel", reach)
+      onTestFinished(() => window.removeEventListener("wheel", reach))
 
       await userEvent.wheel(pane, { delta: { y: -300 } })
       expect(await settled(width)).toBe(before)
+      expect(reached).toHaveLength(1)
 
       await ctrlWheel(pane.element(), -100)
       await expect.poll(width).toBeGreaterThan(before + 20)
