@@ -4,13 +4,13 @@
    restores), its `.history-row-program` (a plain terminal's folder) and `.history-row-end`,
    where a tab holds its @handle: when it closed, the handle of the terminal it is open in, or
    a word for why it can't come back. Under the line, its `.history-row-summary`, one line, a
-   search's match lit. At the end of the line, in a `.history-row-slot`, a
-   `.history-row-action`: a `.history-row-mark` for what its click does (restore, or show the
-   terminal it is open in), or the button that connects its agent. A row that can't restore
-   is hatched and quiet, as an ended terminal's tab.
+   search's match lit. At the end of the line, in a `.history-row-slot`, its
+   `.history-row-action`, the one button that acts: Restore, Show the terminal it is open in,
+   or Connect its agent; a click on the row only selects it. A row that can't restore is
+   hatched and quiet, as an ended terminal's tab.
 
-   Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open"; on
-   its end, data-end="time" | "handle" | "word".
+   Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open" and
+   the sidebar item's data-selected; on its end, data-end="time" | "handle" | "word".
 
    Tokens: none of its own; it reads the palette's (muted, strong, ink) and the tabs'
    (--tab-process-font, --tab-glyph-fg, --tab-ended-image, --tab-ended-fg, --tab-age-fg,
@@ -25,15 +25,6 @@
 .history-search input::-webkit-search-cancel-button {
   appearance: none;
   display: none;
-}
-
-.history-row .sidebar-item-select {
-  cursor: pointer;
-}
-.history-row[data-state="gone"] .sidebar-item-select,
-.history-row[data-state="disconnected"] .sidebar-item-select,
-.history-row[data-state="restoring"] .sidebar-item-select {
-  cursor: default;
 }
 
 /* The detail line, a tab's: the glyph and program in the program font, the end as a done
@@ -101,23 +92,19 @@
   top: 31px;
   bottom: auto;
 }
-/* Its slot lets the pointer through to the select button where nothing is shown; the mark
-   and the connection's button take it, as a tab's icons do, and a mark does the row's click. */
+/* Its slot lets the pointer through to the select button where nothing is shown. */
 .history-row :is(.sidebar-item-actions, .history-row-slot) {
   pointer-events: none;
 }
 .history-row .history-row-action {
   pointer-events: auto;
 }
-.history-row-mark {
-  cursor: pointer;
-}
 .icon-button.history-row-action:focus-visible {
   outline-offset: -2px;
 }
 
-/* What its click does slides in from the row's end under the pointer or with keyboard
-   focus, after the same moment's wait as a tab's Hide and Rename; the end slides out to the
+/* Its action slides in from the row's end under the pointer, with keyboard focus or while
+   the row is selected, after the same moment's wait as a tab's Hide and Rename; the end slides out to the
    left as it comes, so nothing else on the line moves. At rest the end reaches into the room
    the line keeps for the action, to stand where the action will. Without a pointer that
    hovers, the action stays, and the end stands before it. */
@@ -128,7 +115,7 @@
   .history-row-slot > * {
     transition: transform var(--motion-layout) var(--ease-interface);
   }
-  .history-row:not(:hover, :has(:focus-visible)) .history-row-slot > * {
+  .history-row:not(:hover, :has(:focus-visible), [data-selected="true"]) .history-row-slot > * {
     transform: translateX(200%);
   }
   .history-row-end {
@@ -140,7 +127,8 @@
   .history-row:has(.sidebar-item-actions) .history-row-end {
     margin-right: calc(0px - var(--_sidebar-actions-space, 26px));
   }
-  .history-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible)) .history-row-end {
+  .history-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible), [data-selected="true"])
+    .history-row-end {
     opacity: 0;
     transform: translateX(-0.75rem);
   }

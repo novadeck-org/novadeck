@@ -569,16 +569,16 @@ that ended by itself once you close it.
 A row looks and moves like a terminal's tab. Under its icon and title is a tab's detail
 line: a glyph for how the row stands, the agent's program (a plain terminal's folder), and
 when it closed where a tab shows its @handle, the time for today and the date for an
-earlier day. Under that is the start of its summary, on one line. Under the pointer, or
-with the keyboard on it, the time slides out and what a click does slides in, as a tab's
-Hide and Rename do: a restore icon, or an arrow to the terminal it's open in. A right-click
-opens the same as a menu. The tooltip has the full date, the summary, and who closed it
+earlier day. Under that is the start of its summary, on one line. A click selects a row
+and does nothing more. Under the pointer, with the keyboard on it, or while it's
+selected, the time slides out and its action slides in, as a tab's Hide and Rename do:
+Restore, or an arrow to the terminal it's open in. A right-click opens the same as a menu. The tooltip has the full date, the summary, and who closed it
 where an agent did. The search box matches a title, a handle, the folder it ran in (an
 agent's row doesn't show it) or a summary, and the count
 beside the title reads matches over total. A summary's match is lit, and the summary starts
 a little before a match its line wouldn't show. With nothing closed there is no search box.
 
-Clicking a row restores it: a new terminal in the session on screen, selected, at the
+Restore brings it back: a new terminal in the session on screen, selected, at the
 top of the Terminals list, in the folder it ran in. A plain terminal gets a fresh shell with its saved output above; an
 agent resumes its conversation. The row stays, a tab's spinner in its glyph, until the restore is
 confirmed, and leaves then. If the resume fails, the terminal stays as a plain shell
@@ -596,7 +596,7 @@ tooltip, and to assistive technology. Three other states show on its detail line
   menu's Connect does; it isn't offered for an agent that isn't installed or while its
   connection changes.
 - **An @handle** where the date was (not hatched). The conversation is open in another
-  terminal; clicking goes there.
+  terminal; its arrow goes there.
 
 ### Closing asks first
 

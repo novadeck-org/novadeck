@@ -18,6 +18,16 @@ const agents = "/?demo=agents"
 
 const closed = () => page.getByRole("list", { name: "Closed terminals" })
 const find = () => page.getByRole("searchbox", { name: "Find a closed terminal" })
+// A row's select button, by its title and how it stands.
+const row = (label: string) =>
+  closed().getByRole("button", { name: `Select ${label}`, exact: true })
+// Restores a row from its Restore button, which slides in under the pointer.
+const restore = async (title: string) => {
+  await row(title).hover()
+  await closed()
+    .getByRole("button", { name: `Restore ${title}` })
+    .click()
+}
 const openHistory = async () => {
   await openWorkspace(agents)
   await sidebarPanel("History").click()
@@ -34,24 +44,23 @@ describe("The History panel", () => {
         .elements()
         .map((each) => each.getAttribute("aria-label"))
       expect(toggles.at(-1)).toBe("History")
-      await expect.element(page.getByRole("button", { name: "Restore Coupon codes" })).toBeVisible()
+      await expect.element(row("Coupon codes")).toBeVisible()
       await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
     })
 
     it("names a plain terminal's folder after its title, where a tab names its program", async () => {
       await openHistory()
-      const row = closed().getByRole("button", { name: "Restore pnpm dev" })
-      await expect.poll(() => row.element().textContent).toMatch(/^pnpm devweb/)
+      await expect.poll(() => row("pnpm dev").element().textContent).toMatch(/^pnpm devweb/)
     })
 
     it("shows a row's summary under its title, without the handle it had", async () => {
       await openHistory()
-      const row = closed().getByRole("button", { name: "Restore Coupon codes" })
+      const coupon = row("Coupon codes")
       await expect
-        .poll(() => row.element().textContent)
+        .poll(() => coupon.element().textContent)
         .toMatch(/^Coupon codes.*Coupon codes in the cart and at checkout$/)
-      expect(row.element().textContent).not.toMatch(/@wren/)
-      expect(row.element().querySelector("mark")).toBeNull()
+      expect(coupon.element().textContent).not.toMatch(/@wren/)
+      expect(coupon.element().querySelector("mark")).toBeNull()
     })
   })
 
@@ -59,25 +68,23 @@ describe("The History panel", () => {
     it("finds a row by its title, with the matches over the total as the count", async () => {
       await openHistory()
       await find().fill("tax")
-      await expect.element(page.getByRole("button", { name: "Restore Tax rounding" })).toBeVisible()
-      await expect
-        .element(page.getByRole("button", { name: "Restore Coupon codes" }))
-        .not.toBeInTheDocument()
+      await expect.element(row("Tax rounding")).toBeVisible()
+      await expect.element(row("Coupon codes")).not.toBeInTheDocument()
       await expect.element(page.getByRole("heading", { name: /^History 1\/14$/ })).toBeVisible()
     })
 
     it("finds a row by its handle, typed with its @", async () => {
       await openHistory()
       await find().fill("@pike")
-      await expect.element(page.getByRole("button", { name: "Restore Tax rounding" })).toBeVisible()
+      await expect.element(row("Tax rounding")).toBeVisible()
     })
 
     it("lights a search's match in the summary", async () => {
       await openHistory()
       await find().fill("webhook")
-      const row = page.getByRole("button", { name: "Restore Payment retries" })
-      await expect.poll(() => row.element().textContent).toMatch(/Stripe webhook retries/)
-      expect(row.element().querySelector("mark")?.textContent).toBe("webhook")
+      const payment = row("Payment retries")
+      await expect.poll(() => payment.element().textContent).toMatch(/Stripe webhook retries/)
+      expect(payment.element().querySelector("mark")?.textContent).toBe("webhook")
     })
 
     it("says what it looked for when nothing matches", async () => {
@@ -103,27 +110,56 @@ describe("The History panel", () => {
     })
   })
 
-  context("when a row can't be restored", () => {
-    it("says why without a tooltip, to assistive technology, and takes no click", async () => {
+  context("when a row is clicked", () => {
+    it("selects it and does nothing more, its Restore in sight", async () => {
       await openHistory()
-      const gone = closed().getByRole("button", { name: "Product filters, unavailable" })
-      await expect.element(gone).toHaveAttribute("aria-disabled", "true")
+      await row("Coupon codes").click()
+      const item = row("Coupon codes").element().closest(".history-row")!
+      await expect.poll(() => item.getAttribute("data-selected")).toBe("true")
+      await expect.element(row("Coupon codes")).toHaveAttribute("aria-current", "true")
+      // No terminal came of it: the row is still listed, and so is every other.
+      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
+      expect(document.body.textContent).toMatch(/6 terminals/)
+      // Its Restore stays out while the pointer is elsewhere, as it is selected.
+      await page.getByRole("heading", { name: /^History/ }).hover()
+      const action = item.querySelector(".history-row-action")!
+      await expect.poll(() => getComputedStyle(action).transform).toBe("none")
+    })
+
+    it("moves the selection to the next row clicked", async () => {
+      await openHistory()
+      await row("Coupon codes").click()
+      await row("Tax rounding").click()
+      await expect.element(row("Tax rounding")).toHaveAttribute("aria-current", "true")
+      await expect.element(row("Coupon codes")).not.toHaveAttribute("aria-current")
+    })
+  })
+
+  context("when a row can't be restored", () => {
+    it("says why without a tooltip, to assistive technology, and offers no restore", async () => {
+      await openHistory()
+      const gone = row("Product filters, unavailable")
       await expect
         .element(gone)
         .toHaveAccessibleDescription(/Claude Code no longer has this conversation/)
       await expect
-        .element(closed().getByRole("button", { name: "Image CDN, unavailable" }))
+        .element(row("Image CDN, unavailable"))
         .toHaveAccessibleDescription(/folder it ran in is gone/)
-      // A person's click lands on it and does nothing.
-      ;(gone.element() as HTMLElement).click()
-      await expect.element(gone).toBeVisible()
+      await expect
+        .element(closed().getByRole("button", { name: "Restore Product filters" }))
+        .not.toBeInTheDocument()
+      // A click selects it, as any row, and restores nothing.
+      await gone.click()
+      await expect.element(gone).toHaveAttribute("aria-current", "true")
+      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
     })
 
     it("offers to connect a disconnected agent, reachable by keyboard, in Preferences", async () => {
       await openHistory()
-      const row = closed().getByRole("button", { name: "Release notes, not connected" })
-      await expect.element(row).toHaveAttribute("aria-disabled", "true")
-      await expect.element(row).toHaveAccessibleDescription(/Connect Codex to restore this/)
+      const disconnected = row("Release notes, not connected")
+      await expect
+        .element(disconnected)
+        .toHaveAccessibleDescription(/Connect Codex to restore this/)
       const plug = page.getByRole("button", { name: "Connect Codex in Preferences" })
       plug.element().focus()
       await expect.element(plug).toHaveFocus()
@@ -135,59 +171,35 @@ describe("The History panel", () => {
 
     it("says an agent that isn't installed can't be connected, and offers nothing", async () => {
       await openHistory()
-      const row = closed().getByRole("button", { name: "Receipt emails, not connected" })
-      await expect.element(row).toHaveAccessibleDescription(/Antigravity isn't installed/)
+      await expect
+        .element(row("Receipt emails, not connected"))
+        .toHaveAccessibleDescription(/Antigravity isn't installed/)
       await expect
         .element(page.getByRole("button", { name: /Connect Antigravity/ }))
         .not.toBeInTheDocument()
     })
 
-    it("goes to the terminal that holds an open conversation", async () => {
+    it("goes to the terminal that holds an open conversation, from its Show", async () => {
       await openWorkspace(agents)
       await sidebarPanel("History").click()
-      await closed()
-        .getByRole("button", { name: /^Show Shipping rates, open as @fox/ })
-        .click()
+      await row("Shipping rates, open as @fox").hover()
+      await closed().getByRole("button", { name: "Show Shipping rates in @fox" }).click()
       // @fox is the second terminal, "Dev server".
       await expect.element(terminal("Dev server")).toBeVisible()
     })
   })
 
-  context("under the pointer", () => {
-    it("restores from the restore mark that slides in, as from the row", async () => {
-      await openHistory()
-      const row = closed().getByRole("button", { name: "Restore Coupon codes" })
-      await row.hover()
-      const mark = row.element().closest(".history-row")!.querySelector(".history-row-mark")!
-      const box = mark.getBoundingClientRect()
-      // The mark is what the pointer lands on, and it does the row's click.
-      expect(
-        document
-          .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
-          ?.closest(".history-row-mark"),
-      ).toBe(mark)
-      ;(mark as HTMLElement).click()
-      await expect.element(terminal("Coupon codes")).toBeVisible()
-    })
-  })
-
   context("from a row's menu", () => {
-    it("restores it, as its click does", async () => {
+    it("restores it, as its Restore does", async () => {
       await openHistory()
-      await userEvent.click(closed().getByRole("button", { name: "Restore Coupon codes" }), {
-        button: "right",
-      })
+      await userEvent.click(row("Coupon codes"), { button: "right" })
       await page.getByRole("menuitem", { name: "Restore" }).click()
       await expect.element(terminal("Coupon codes")).toBeVisible()
     })
 
     it("offers a disconnected agent's connection, and no restore", async () => {
       await openHistory()
-      // Forced, as a click waits for an aria-disabled button to take one; the menu doesn't.
-      await userEvent.click(
-        closed().getByRole("button", { name: "Release notes, not connected" }),
-        { button: "right", force: true },
-      )
+      await userEvent.click(row("Release notes, not connected"), { button: "right" })
       await expect
         .element(page.getByRole("menuitem", { name: "Restore" }))
         .toHaveAttribute("aria-disabled", "true")
@@ -199,30 +211,29 @@ describe("The History panel", () => {
   context("when restoring", () => {
     it("adds a new terminal beside the session's, selected, and the row leaves once restored", async () => {
       await openHistory()
-      await closed().getByRole("button", { name: "Restore Coupon codes" }).click()
+      await restore("Coupon codes")
       await expect.element(terminal("Coupon codes")).toBeVisible()
       // The sidebar stays on History, and the row shows it is restoring, inert, until it goes.
       await expect.element(sidebarPanel("History")).toBeChecked()
-      await expect
-        .element(closed().getByRole("button", { name: "Restore Coupon codes" }))
-        .not.toBeInTheDocument()
+      await expect.element(row("Coupon codes")).not.toBeInTheDocument()
       await expect.element(page.getByRole("heading", { name: /^History 13$/ })).toBeVisible()
     })
 
     it("lists the restored terminal at the top of the Terminals list", async () => {
       await openHistory()
-      await closed().getByRole("button", { name: "Restore Coupon codes" }).click()
+      await restore("Coupon codes")
       await expect.element(terminal("Coupon codes")).toBeVisible()
       await sidebarPanel("Terminals").click()
       await expect.poll(() => terminalTabNames()[0]).toBe("Coupon codes")
     })
   })
 
-  context("when a row is clicked twice at once", () => {
+  context("when Restore is clicked twice at once", () => {
     it("restores it once", async () => {
       await openHistory()
-      const row = closed().getByRole("button", { name: "Restore Coupon codes" })
-      const button = row.element() as HTMLElement
+      const button = closed()
+        .getByRole("button", { name: "Restore Coupon codes" })
+        .element() as HTMLElement
       button.click()
       button.click()
       await expect.element(terminal("Coupon codes")).toBeVisible()
@@ -243,9 +254,7 @@ describe("The History panel", () => {
       await confirmClose()
       await expect.element(terminalTab("Dev server")).not.toBeInTheDocument()
       await sidebarPanel("History").click()
-      await expect
-        .element(closed().getByRole("button", { name: "Restore Dev server" }))
-        .toBeVisible()
+      await expect.element(row("Dev server")).toBeVisible()
     })
 
     it("flares a dot on the History toggle for a moment, and names what landed", async () => {
