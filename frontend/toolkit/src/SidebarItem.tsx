@@ -132,13 +132,15 @@ export const SidebarItem = ({
           {description}
         </span>
       )}
-      {after}
+      {/* The rename field, then its actions, which stand beside its detail line, so the
+          keyboard meets them in the order they are seen, before what stands under the row. */}
       {editor}
       {actions && (
         <div className="sidebar-item-actions absolute right-2 bottom-[9px] flex h-6 shrink-0 items-center">
           {actions}
         </div>
       )}
+      {after}
     </div>
   )
 }

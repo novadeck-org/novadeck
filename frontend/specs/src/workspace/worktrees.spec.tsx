@@ -201,6 +201,9 @@ describe("The Worktrees panel", () => {
       await expect
         .element(trash("Checkout review", "agent/checkout-review"))
         .toHaveAttribute("aria-disabled", "true")
+      // On the button, slid in under the pointer: forced, as a click waits for an aria-disabled
+      // button to take one.
+      await row("Checkout review", "agent/checkout-review").hover()
       await trash("Checkout review", "agent/checkout-review").click({ force: true })
       await expect.element(dialog()).not.toBeInTheDocument()
       await expect.element(row("Checkout review")).toBeVisible()
@@ -211,7 +214,11 @@ describe("The Worktrees panel", () => {
 
       await expect.element(itemOf("No owner")).toBeVisible()
       await expect.element(itemOf("No owner")).toHaveAttribute("data-safe", "true")
-      await pressTrash("No owner", "agent/promo-banner")
+      // In its place with the pointer elsewhere, not slid out as an unsafe row's is.
+      await page.getByRole("heading", { name: /^Worktrees/ }).hover()
+      const button = trash("No owner", "agent/promo-banner").element()
+      await expect.poll(() => getComputedStyle(button).transform).toBe("none")
+      await trash("No owner", "agent/promo-banner").click()
 
       await expect.element(itemOf("No owner")).not.toBeInTheDocument()
       await expect.element(dialog()).not.toBeInTheDocument()

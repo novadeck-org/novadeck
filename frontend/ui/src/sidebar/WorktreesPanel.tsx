@@ -234,9 +234,9 @@ const pullGlyphs: Readonly<Record<PullMark["state"], LucideIcon>> = {
   closed: GitPullRequestClosed,
 }
 
-// The work's pull request, "#812" after its state's glyph: a link to its page at the end of the
-// row's detail line, among the row's actions rather than in its select button (a link inside it
-// would be a control in a control), so it is reached by Tab and a click does not select the row.
+// The work's pull request, "#812" after its state's glyph: a link to its page after its state
+// among the row's facts, outside its select button (a link inside it would be a control in a
+// control), so it is reached by Tab and a click does not select the row.
 const PullMarkLink = ({ mark }: { mark: PullMark }): React.JSX.Element => {
   const Glyph = pullGlyphs[mark.state]
   const body = (

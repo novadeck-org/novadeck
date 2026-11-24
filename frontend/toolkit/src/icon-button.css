@@ -7,7 +7,9 @@
 
    Hooks: aria-pressed="true" on a toggle that is on; aria-expanded="true" with
    aria-haspopup on the trigger of a select, menu or popover while it is open (its
-   data-state may be a tooltip's around it); :disabled.
+   data-state may be a tooltip's around it); :disabled; aria-disabled="true" on one that
+   can't act yet but keeps the focus, so its tooltip can say why: the pointer shows it isn't
+   allowed.
 
    Tokens, each optional (its fallback in brackets):
    --icon-button-bg (transparent), --icon-button-fg (muted),
@@ -55,6 +57,9 @@
   .icon-button.raised:hover {
     --_bg: var(--icon-button-raised-bg, var(--color-paper));
   }
+}
+.icon-button[aria-disabled="true"] {
+  cursor: not-allowed;
 }
 .icon-button:disabled {
   @apply cursor-default;
