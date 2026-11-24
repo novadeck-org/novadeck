@@ -3,6 +3,7 @@ import { claude } from "@novadeck/harness-claude/index"
 import { codex } from "@novadeck/harness-codex/index"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { opencode } from "@novadeck/harness-opencode/index"
+import { pi } from "@novadeck/harness-pi/index"
 import type { AgentName } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
@@ -12,6 +13,7 @@ export const harnesses: { readonly [agent in AgentName]: Harness } = {
   codex,
   agy,
   opencode,
+  pi,
 }
 
 export const agents = Object.keys(harnesses) as AgentName[]

@@ -78,6 +78,36 @@ export const harnesses = [
     logins: [],
     recordsShell: true,
   },
+  {
+    id: "pi",
+    menus: { leading: ["/"], words: ["@"] },
+    name: "pi",
+    shortName: "pi",
+    // A Node program: its npm launcher `pi` runs this script (`bin` of its package).
+    nodeScript: "/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+    // What it sets on its children (docs/environment-variables.md), which Novadeck's shells must
+    // not pass on.
+    inheritedEnv: [
+      "PI_CODING_AGENT",
+      "AI_AGENT",
+      "PI_SESSION_ID",
+      "PI_SESSION_FILE",
+      "PI_PROVIDER",
+      "PI_MODEL",
+      "PI_REASONING_LEVEL",
+    ],
+    // Its login file, `auth.json`, in its agent folder (`~/.pi/agent`, or where
+    // `PI_CODING_AGENT_DIR` puts it).
+    logins: [
+      {
+        file: "auth.json",
+        folder: ".pi",
+        variable: "PI_CODING_AGENT_DIR",
+        beside: ["settings.json", "models.json", "sessions"],
+      },
+    ],
+    recordsShell: true,
+  },
 ] as const satisfies readonly {
   readonly menus: { readonly leading: readonly string[]; readonly words: readonly string[] }
   readonly id: string
