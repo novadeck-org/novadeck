@@ -98,6 +98,34 @@ const submitRow = /^[❯ ] 1\. Submit answers$/
 const cancelRow = /^[❯ ] 2\. Cancel$/
 const answerRow = /^\s+→ \S/
 
+const splitStart = /^([❯ ]) {3}(\S.*)$/
+const splitNumber = /^ (\d+)\.(\S.*)$/
+
+/**
+ * The rows with each previewed option as its layout draws it whole. At some narrow widths
+ * Claude Code draws a label that wraps with its number a row down: the marker's row starts
+ * the label where the number would stand, and the next row has the number against the
+ * label's rest (`❯   Commit merge and` over ` 1.push (Recommended)`; 2.1.329 and 2.1.331,
+ * fixtures/narrow-preview.probe.json, at 40, 44, 49 and 52 columns, depending on the labels).
+ * Those two rows come back as `❯ 1. Commit merge and` over `    push (Recommended)`, every
+ * other row as it is, row for row. A question screen goes through it whatever its layout:
+ * no other row of any layout probed starts so, and the options of one without previews are
+ * read from the rows as drawn, so at worst it is refused.
+ */
+const unsplit = (rows: readonly string[]): readonly string[] => {
+  let whole: string[] | undefined
+  for (let at = 0; at + 1 < rows.length; at++) {
+    const start = splitStart.exec(rows[at]!)
+    const number = start ? splitNumber.exec(rows[at + 1]!) : null
+    if (!start || !number) continue
+    whole ??= [...rows]
+    whole[at] = `${start[1]} ${number[1]}. ${start[2]}`
+    whole[at + 1] = `    ${number[2]}`
+    at++
+  }
+  return whole ?? rows
+}
+
 const footerAt = (rows: readonly string[]): number =>
   rows.findLastIndex((each) => questionFooter.test(each))
 
@@ -128,7 +156,8 @@ type QuestionScreen = {
 }
 
 /** The question a screen shows; undefined where the screen is no question's. */
-const questionScreen = (rows: readonly string[]): QuestionScreen | undefined => {
+const questionScreen = (drawn: readonly string[]): QuestionScreen | undefined => {
+  const rows = unsplit(drawn)
   const footer = footerAt(rows)
   if (footer < 0) return refuse("question.questionScreen.1")
   const first = rows.slice(0, footer).findLastIndex((each) => /^(❯| ) 1\. /.test(each))
@@ -228,7 +257,8 @@ const optionsOf = (
   const count = ask.options.length
   const entries: OptionRow[] = []
   let ruledAt = -1
-  for (const whole of rows.slice(first, footer)) {
+  const drawn = preview ? unsplit(rows) : rows
+  for (const whole of drawn.slice(first, footer)) {
     if (whole === "") continue
     if (rule.test(whole)) {
       ruledAt = entries.length
@@ -452,7 +482,7 @@ const keysFor = (
         steps.push({ press: target > start ? Down : Up })
       }
       steps.push({
-        until: (rows) => marked(rows, questionOption, target + 1),
+        until: (rows) => marked(unsplit(rows), questionOption, target + 1),
         timeoutMs,
         why: `the highlight on option ${target + 1}`,
       })
@@ -520,7 +550,7 @@ const keysFor = (
       steps.push({
         // The next question shows with its highlight on its first row, never on a field.
         until: next
-          ? (rows) => showing(rows, next, place) && marked(rows, questionOption, 1)
+          ? (rows) => showing(rows, next, place) && marked(unsplit(rows), questionOption, 1)
           : reviewing,
         timeoutMs,
         why: next ? `question ${index + 2} shown` : "the review screen",
