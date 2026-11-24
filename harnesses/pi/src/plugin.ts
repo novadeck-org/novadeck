@@ -31,6 +31,12 @@ export const extensionFile = "novadeck.mjs"
 /** How pi declares Novadeck's tools: `novadeck_send` and so on (tools.ts reads them back). */
 export const toolPrefix = "novadeck_"
 
+/**
+ * The type of the entry the extension adds to a session's file as each run ends
+ * (transcript-watch.ts reads it).
+ */
+export const stoppedType = "novadeck-stopped"
+
 /** The extension spawns its hook commands with Node's `shell: true`: `sh`, or `cmd` on Windows. */
 export const hookDialect = (platform: NodeJS.Platform): Dialect =>
   platform === "win32" ? "cmd" : "sh"
@@ -64,6 +70,7 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
       minimum,
       unknownFrom,
       prefix: toolPrefix,
+      stoppedType,
       // Only while the Experimental shipping gate is on: off, the extension is as it always was.
       ...(machine.shippingGate === true && { gate: true }),
     }),

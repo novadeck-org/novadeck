@@ -28,6 +28,8 @@ export type ExtensionConfig = {
   readonly unknownFrom: string
   /** The prefix of Novadeck's tools' names as pi declares them (`novadeck_send`). */
   readonly prefix: string
+  /** The type of the entry that marks a run's end in the session's file (`novadeck-stopped`). */
+  readonly stoppedType: string
   /**
    * The shipping gate (Experimental) is on: a shell call's PreToolUse waits for the runner's
    * answer, and is refused where it says so. Absent otherwise.
@@ -527,9 +529,20 @@ export default function novadeck(pi) {
   })
 
   pi.on("agent_settled", async (event, ctx) => {
+    const aborted = event.aborted === true
     try {
       // An aborted run skips agent_before_settle: its Stop is told here, with nothing to deliver.
-      if (!stopped) await stop(ctx, event.aborted === true)
+      if (!stopped) await stop(ctx, aborted)
+    } catch {}
+    // That the run is over, in the session's own file, however its Stop's hook fared: a turn
+    // whose report never reached Novadeck still ends (transcript-watch.ts reads it), as
+    // Claude Code's stop_hook_summary ends one. An entry of an extension's own, which the model
+    // never reads.
+    try {
+      pi.appendEntry(config.stoppedType, {
+        at: Date.now(),
+        error: aborted ? "aborted" : failure ? failure.name : null,
+      })
     } catch {}
     reply = null
     failure = null

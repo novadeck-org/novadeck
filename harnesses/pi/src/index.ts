@@ -16,6 +16,7 @@ import { connected, connectedFile, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
 import { commands, info, kept, shims, valued } from "./shim.js"
 import { heldScreen, screenMarker, screenVersion, signedOut, title } from "./startup.js"
+import { followTranscript } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 import { versionOf } from "./version.js"
 
@@ -60,6 +61,8 @@ export const pi = {
     context: "partial",
   },
   decode: (report) => withLaunch(decode(report), report, launch.kept),
+  // A run's end the extension marks in the session's file, for a Stop whose report never came.
+  watch: followTranscript,
   dialogs,
   commandFields: ["command"],
   heldScreen,
