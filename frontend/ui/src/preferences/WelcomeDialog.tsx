@@ -39,6 +39,11 @@ const installed = (agents: readonly AgentSwitch[], id: AgentSwitch["agent"]): bo
 const choicesFrom = (agents: readonly AgentSwitch[]): Choices =>
   Object.fromEntries(harnesses.map(({ id }) => [id, installed(agents, id)])) as Choices
 
+// An agent connected already is no choice here: it shows ticked, and only Preferences turns it
+// off, so leaving this dialog never disconnects one.
+const kept = (toggle: AgentSwitch): boolean => toggle.connected && !toggle.busy
+const keptNote = "Already connected. Turn it off in Preferences."
+
 type TranscriptsSetting = {
   readonly enabled: boolean
   // False where nothing can keep them encrypted; the choice is left out.
@@ -74,10 +79,13 @@ const listed = (names: readonly string[]): string =>
   names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
 
 // What starting will install, so nothing about it is a surprise.
-const pluginNote = (names: readonly string[]): string =>
-  names.length === 0
-    ? "You can connect agents later in Preferences."
-    : `Adds a small plugin to ${listed(names)}. Remove it anytime in Preferences.`
+// What starting adds: the plugin of each agent it connects, never one connected already.
+const pluginNote = (names: readonly string[], connected: boolean): string =>
+  names.length > 0
+    ? `Adds a small plugin to ${listed(names)}. Remove it anytime in Preferences.`
+    : connected
+      ? "Nothing new to add. Manage your agents anytime in Preferences."
+      : "You can connect agents later in Preferences."
 
 const headline = "not a babysitter."
 
@@ -328,13 +336,19 @@ const WelcomeForm = ({
   }, [agents])
 
   // As "Let’s build something" applies the choices, whatever an installer is doing: an agent
-  // not installed yet is no choice, and one mid-change is left to its own change.
+  // not installed yet is no choice, and one mid-change is left to its own change. It only ever
+  // connects: one connected already stays so (see `kept`), as a first run on a fresh workspace,
+  // a second one included, must never take Novadeck's plugin from the person's agents.
   const formRef = useRef<HTMLFormElement>(null)
+  // What the cards, the preview and the note show: the choices, with every agent kept ticked.
+  const shown: Choices = {
+    ...choices,
+    ...Object.fromEntries(agents.filter(kept).map(({ agent }) => [agent, true])),
+  }
   const submit = (): void => {
     for (const toggle of agents) {
-      const connected = choices[toggle.agent]
-      if (toggle.available && !toggle.busy && connected !== toggle.connected) {
-        onChange(toggle.agent, connected)
+      if (toggle.available && !toggle.busy && choices[toggle.agent] && !toggle.connected) {
+        onChange(toggle.agent, true)
       }
     }
     if (transcripts?.available && keepTranscripts !== transcripts.enabled)
@@ -415,7 +429,7 @@ const WelcomeForm = ({
         </div>
         <div className="welcome-enter flex min-h-0 flex-1 flex-col" style={at(500)}>
           <WelcomePreview
-            connected={choices}
+            connected={shown}
             chat={chatView !== undefined && showChat}
             spotlight={chatView !== undefined && (lookingAtChat.pointer || lookingAtChat.focus)}
           />
@@ -456,14 +470,15 @@ const WelcomeForm = ({
                     key={toggle.agent}
                     icon={icons[toggle.agent]}
                     label={agentLabels[toggle.agent]}
-                    note={note}
+                    note={note ?? (kept(toggle) ? keptNote : undefined)}
                     noteId={`welcome-${toggle.agent}-description`}
                     error={Boolean(toggle.error)}
                     name="agents"
                     value={toggle.agent}
-                    checked={choices[toggle.agent]}
+                    checked={shown[toggle.agent]}
                     disabled={!toggle.available}
-                    busy={toggle.busy}
+                    // Fixed as busy is, so focus stays on it: one an install just connected has it.
+                    busy={toggle.busy || kept(toggle)}
                     onChange={(checked) =>
                       setChoices((current) => ({ ...current, [toggle.agent]: checked }))
                     }
@@ -479,8 +494,9 @@ const WelcomeForm = ({
           >
             {pluginNote(
               agents
-                .filter((toggle) => toggle.available && choices[toggle.agent])
+                .filter((toggle) => toggle.available && choices[toggle.agent] && !kept(toggle))
                 .map((toggle) => agentLabels[toggle.agent]),
+              agents.some(kept),
             )}
           </p>
 
