@@ -207,6 +207,7 @@ describe("demo debug panel", () => {
         "Codex",
         "Antigravity",
         "opencode",
+        "pi",
       ])
       first.click([...switched(first)].find((each) => each.textContent === "Antigravity")!)
       expect(chosen(first)).toBe("Antigravity")
