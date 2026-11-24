@@ -1014,11 +1014,12 @@ stops going through a member a probe wraps.
      shows them. Find each by running the harness in the sandbox, never outside it. A
      scenario needing a trait it lacks skips, saying why from `absent`, so add them all:
      every harness runs every scenario. A trait goes in `absent` only once a probe shows
-     the harness lacks the behaviour. Escape is `\x1b` for all three; a harness reading
-     another key would bring back an `escape` trait. Likewise all three clear their
+     the harness lacks the behaviour. Escape is `\x1b` for all of them; a harness reading
+     another key would bring back an `escape` trait. Likewise they clear their
      conversation with `/clear` and leave with `/exit`, each typed at their prompt and
-     submitted (probed 2026-10-02); a harness with another command would bring back a
-     `clear` or `exit` trait.
+     submitted (probed 2026-10-02); a harness with another command names it: pi has no
+     `/clear` or `/exit`, so its setup says `clear: "/new"` and `exit: "/quit"`, which the
+     scenarios that type one use (`AgentSetup.clear`, `exit`).
    - `shell`, a reply running a command through its shell tool, and its own one-shot,
      non-interactive mode as the command, which its seed allows so it runs without
      asking, unlike `approval`'s, and which waits for the command as long as the tool

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <strong>A desktop terminal for Claude Code, Codex, Antigravity and opencode.</strong><br />
+  <strong>A desktop terminal for Claude Code, Codex, Antigravity, opencode and pi.</strong><br />
   When an agent needs you, its question comes to one Inbox, and you answer it right there.<br />
   Free and open source, no account.
 </p>
@@ -22,7 +22,7 @@
 <p align="center">
   <a href="https://github.com/novadeck-org/novadeck/releases/latest"><img src="https://novadeck.dev/badge/latest.svg" alt="Latest release" /></a>
   <a href="https://github.com/novadeck-org/novadeck/commits/main"><img src="https://novadeck.dev/badge/commits.svg" alt="Commits this week" /></a>
-  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity and opencode" /></a>
+  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity, opencode and pi" /></a>
   <br />
   <a href="https://novadeck.dev/download?utm_source=readme"><img src="https://novadeck.dev/badge/runs-on.svg" alt="Runs on macOS, Windows and Linux" /></a>
   <a href="https://novadeck.dev/privacy?utm_source=readme"><img src="https://novadeck.dev/badge/privacy.svg" alt="Privacy: no account, no telemetry" /></a>
@@ -47,7 +47,7 @@ Every agent's permission prompts, plans and questions land in one Inbox. Most yo
   <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, with its teammates wired to it in the terminal list, Pricing endpoint on Codex and Stock endpoint on Antigravity among them. Its Messages pane opens Cart endpoint's conversation: the brief, the teammate's question about which API version to call, and the lead's answer." width="100%" />
 </p>
 
-Agents message each other by handle and start their own teammates. Claude Code, Codex, Antigravity and opencode can share a team.
+Agents message each other by handle and start their own teammates. Claude Code, Codex, Antigravity, opencode and pi can share a team.
 
 ## Run one, a few, or the whole crew
 

@@ -1161,6 +1161,7 @@ atlas.
 | `harnesses/codex`         | The Codex adapter, same shape.                                                             |
 | `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
 | `harnesses/opencode`      | The opencode adapter: the plugin its shim loads per launch, transcripts, dialogs, box.     |
+| `harnesses/pi`            | The pi adapter: the extension its shim loads per launch, session files, dialogs, box.      |
 | `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
 | `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
 | `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |
