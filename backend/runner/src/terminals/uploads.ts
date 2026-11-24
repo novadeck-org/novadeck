@@ -127,6 +127,18 @@ export class Uploads {
     return checked.flatMap((one) => ("file" in one ? [one.file] : []))
   }
 
+  /**
+   * The image file at `path` as it really is, where this runner saved it (as `checkImages` checks
+   * one); undefined for any other path. A transcript names such a file where the runner pasted its
+   * path for a harness that takes no image in its box.
+   */
+  async savedImage(path: string): Promise<string | undefined> {
+    const root = this.folder ?? (await this.root?.catch(() => undefined))
+    const real = root && (await realpath(root).catch(() => undefined))
+    const found = await this.imageAt(real, path)
+    return "file" in found ? found.file : undefined
+  }
+
   /** The image file at `path` in `real`, the uploads folder as it really is; else why it is none. */
   private async imageAt(
     real: string | undefined,
