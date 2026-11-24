@@ -205,7 +205,9 @@ export type AgentUsage = {
 // its hooks adds what it is doing.
 export type TerminalStatus =
   | { readonly state: "starting" | "idle" | "finished" }
-  | { readonly state: "running"; readonly agent?: AgentStatus }
+  // `expecting`: the agent it was opened or woken to run, still starting, before its own prompt
+  // shows, a session binds or one of its screens holds it for the person (`agent`'s `startup`).
+  | { readonly state: "running"; readonly agent?: AgentStatus; readonly expecting?: AgentName }
   // A saved agent session with no process: the runner starts it again when someone needs it.
   // `reported`: its agent's `done` still stands. `endedAt`: when its agent's last turn ended,
   // where the runner kept it, so its tab can say how long ago.

@@ -99,6 +99,7 @@ const ChatBody = ({
   terminalName,
   program,
   agent,
+  starting = false,
   compact,
   windowPhase,
   peerLooks,
@@ -140,6 +141,9 @@ const ChatBody = ({
   readonly program: string
   // What the terminal's agent says it is doing.
   readonly agent: AgentStatus | undefined
+  // Whether the agent the terminal was opened or woken to run is starting, before its prompt
+  // shows: what the box sends waits for it.
+  readonly starting?: boolean
   readonly compact: boolean
   // The window's phase line as the app works it out, which the mark of the current turn's prompt
   // wears; without it the mark stands still.
@@ -231,10 +235,14 @@ const ChatBody = ({
     requests,
     permits,
     prompts,
-    slice,
+    slice: drawnSlice,
     box,
     doorbell,
   } = useHeldSnapshot(conversation.subscribe, conversation.getSnapshot)
+  // An agent starting has nothing of its own at its prompt yet: what its screen shows meanwhile
+  // stands in the log as its whole screen, which never takes the keys by itself, so what the
+  // person types as it starts stays in the box.
+  const slice = starting ? null : drawnSlice
   const name = agentName(harness ?? program)
   const blocks = useMemo(
     () => groupItems(wentItems(items, prompts), doorbell.delivered, doorbell.notices),
@@ -694,6 +702,9 @@ const ChatBody = ({
   // Before a session binds (Codex and Antigravity bind at a first prompt) there is no record to
   // read, but a screen that isn't at its idle box is as much to show.
   const verdict = emptiness({ loaded, records, rest, turned })
+  // An agent starting shows its own screen once its start takes a while, as one held at a
+  // folder-trust screen of its own: a quick start shows none of it.
+  const startingLong = useHeldFor(starting, startScreenMs)
   const unproven =
     session === null
       ? rest === false
@@ -750,6 +761,7 @@ const ChatBody = ({
                 </button>
               )}
               {empty &&
+                !starting &&
                 (unproven ? (
                   <Unproven
                     reason={unproven.reason}
@@ -788,6 +800,16 @@ const ChatBody = ({
                   onShowTerminal={onAnswerInTerminal}
                 />
               </ThumbsContext.Provider>
+              {starting && (
+                // After what the person sent meanwhile, and a resumed session's history.
+                <Unproven
+                  reason="starting"
+                  agent={name}
+                  screen={startingLong ? screen : null}
+                  below={false}
+                  onShowTerminal={onAnswerInTerminal}
+                />
+              )}
               {(status || listed.length > 0) && (
                 // While the agent works, or a shell runs, the log's last rows: the turn's clock and
                 // stop and a line for each shell. They scroll with the log.
@@ -1004,6 +1026,24 @@ const Held = memo(
   ),
   ({ held: _before, ...before }, { held, ...after }) => held || sameProps(before, after),
 )
+
+// How long an agent starts before the chat shows its own screen, in milliseconds: longer than
+// a start that reaches its prompt takes, so that one shows none of it.
+export const startScreenMs = 3000
+
+// Whether `on` has held for `ms` since it came on.
+const useHeldFor = (on: boolean, ms: number): boolean => {
+  const [since, setSince] = useState<number | null>(null)
+  useEffect(() => {
+    if (!on) return
+    const timer = setTimeout(() => setSince(Date.now()), ms)
+    return () => {
+      clearTimeout(timer)
+      setSince(null)
+    }
+  }, [on, ms])
+  return on && since !== null
+}
 
 export const ChatView = (props: ChatViewProps): React.JSX.Element => {
   const holds = useHolds()

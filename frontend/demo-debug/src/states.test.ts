@@ -582,13 +582,13 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The seventeen that set no agent verb: four that ask through MCP (their Inbox entries are the
-      // demo's own), unheard, at its startup screen, program, a shell an agent opened, one an
-      // agent exited from, starting, asleep (three times more with a done report, a newer agent and an ask), waking
-      // (twice, one with an ask), and the three ways to end.
-      expect(released).toHaveLength(17)
+      // The eighteen that set no agent verb: four that ask through MCP (their Inbox entries are the
+      // demo's own), unheard, an agent starting, at its startup screen, program, a shell an agent
+      // opened, one an agent exited from, starting, asleep (three times more with a done report, a
+      // newer agent and an ask), waking (twice, one with an ask), and the three ways to end.
+      expect(released).toHaveLength(18)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(17)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(18)
     })
 
     it("calls its verbs without letting go", () => {

@@ -36,7 +36,9 @@ export const compatibility: Compatibility = {
   // read tolerantly from here, which UIs before it don't.
   // 12: the tour runs on opencode alone, on a model of Novadeck's (`tour.prepare` takes no
   // agent, which a runner before it requires).
-  revision: 12,
+  // 13: a terminal says which agent it is starting (a terminal's `expecting`), so a client
+  // shows its chat from the start.
+  revision: 13,
   oldestClient: 11,
   oldestRunner: 12,
 }

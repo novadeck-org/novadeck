@@ -322,11 +322,20 @@ export const WorkspaceTerminal = memo(
       return agent === terminal.process && session !== null
     }, [observed, terminal.process])
     const boundSession = useSyncExternalStore(observed.subscribe, boundSnapshot, boundSnapshot)
+    // A prompt of the chat's on its way stands for the session it starts, as Codex, Antigravity
+    // and opencode bind theirs only with it: their prompt no longer shows as ready meanwhile,
+    // and the chat stays rather than show the terminal until the session binds.
     const showChat = useChat(
       chat,
       (state) =>
         conversations !== undefined &&
-        chatShown(chatView, state.answering, chatContext, terminal, boundSession),
+        chatShown(
+          chatView,
+          state.answering,
+          chatContext,
+          terminal,
+          boundSession || chatSendsOf(state.sends, chatContext, terminalId).length > 0,
+        ),
     )
     const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
     const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
@@ -431,6 +440,7 @@ export const WorkspaceTerminal = memo(
                     terminalName={terminal.name}
                     program={terminal.process}
                     agent={terminal.state === "running" ? terminal.agent : undefined}
+                    starting={terminal.state === "running" && terminal.expecting !== undefined}
                     compact={view !== "focus"}
                     links={messageLinks}
                     draft={draft}

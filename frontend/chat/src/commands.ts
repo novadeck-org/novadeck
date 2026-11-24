@@ -161,6 +161,9 @@ export const ringWaitMs = 60_000
 // line a ring left in the box can stand there with no ring under way.
 export const ringRetryMs = 1_000
 
+// How often a prompt held while its agent starts looks again whether it has, in milliseconds.
+export const startLookMs = 250
+
 // Why a reply or a shell command can't go while the box holds images.
 export const replyImagesNote = "A reply can't take images. Remove them, or send them as a message."
 export const shellImagesNote =
@@ -219,6 +222,7 @@ export const createChatCommands = ({
   locate,
   context: currentContext,
   chatView,
+  starting = () => false,
 }: {
   readonly chat: Chat
   // The agents' conversations, where the backend reads them.
@@ -230,6 +234,8 @@ export const createChatCommands = ({
   readonly context: () => string
   // Whether the chat view is on, so that terminals show as chats.
   readonly chatView: () => boolean
+  // Whether the terminal's agent is still starting (see `agentStarting`): its prompts wait.
+  readonly starting?: (key: TerminalKey) => boolean
 }): ChatCommands => {
   // A send, a Stop or a take of the box carries on with the key it began with: what it says
   // of the chat's state goes where the terminal is now, as it may have moved meanwhile, and
@@ -480,13 +486,14 @@ export const createChatCommands = ({
   // being typed, or sent and not yet in the agent's record.
   // Since when each prompt has waited behind rings, by ref, and what ends each terminal's wait.
   const ringWaits = new Map<string, number>()
-  const heldByRing = new Map<string, () => void>()
+  // What ends each terminal's hold, behind a ring or while its agent starts.
+  const holds = new Map<string, () => void>()
 
   // Holds the terminal's queue behind the ring under way, `rest` at the least, then goes on. A
   // prompt that has waited `ringWaitMs` goes on all the same, for the agent to say.
   const holdForRing = (key: TerminalKey, ref: string, rest: number): void => {
     const { terminalId } = key
-    if (heldByRing.has(terminalId)) return
+    if (holds.has(terminalId)) return
     const since = ringWaits.get(ref) ?? Date.now()
     ringWaits.set(ref, since)
     const conversation = conversations!.conversation(key)
@@ -504,10 +511,32 @@ export const createChatCommands = ({
       clearTimeout(rests)
       clearTimeout(gives)
       stop()
-      heldByRing.delete(terminalId)
+      holds.delete(terminalId)
       pump(key)
     }
-    heldByRing.set(terminalId, release)
+    holds.set(terminalId, release)
+  }
+
+  // Holds the terminal's queue while its agent starts, then goes on: a prompt sent meanwhile
+  // goes once the agent's prompt shows, past any screen of its own the person answers in its
+  // terminal. One whose start came to nothing goes on too, for the backend to refuse.
+  const holdForStart = (key: TerminalKey): void => {
+    const { terminalId } = key
+    if (holds.has(terminalId)) return
+    const conversation = conversations!.conversation(key)
+    const look = (): void => {
+      if (!starting(key) || !terminalOpen(key)) release()
+    }
+    // The conversation tells of the agent's session; the terminal's status, looked at in turn.
+    const stop = conversation.subscribe(look)
+    const looks = setInterval(look, startLookMs)
+    const release = (): void => {
+      clearInterval(looks)
+      stop()
+      holds.delete(terminalId)
+      pump(key)
+    }
+    holds.set(terminalId, release)
   }
 
   const pump = (key: TerminalKey): void => {
@@ -518,7 +547,11 @@ export const createChatCommands = ({
     if (!next) return
     const context = contextOf(key)
     const { terminalId } = key
-    if (heldByRing.has(terminalId)) return
+    if (holds.has(terminalId)) return
+    if (starting(key)) {
+      holdForStart(key)
+      return
+    }
     const waited = Date.now() - (ringWaits.get(next.ref) ?? Date.now())
     if (waited < ringWaitMs && conversations!.conversation(key).getSnapshot().doorbell.ringing) {
       holdForRing(key, next.ref, 0)

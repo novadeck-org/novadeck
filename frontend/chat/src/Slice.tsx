@@ -1,7 +1,7 @@
 import type { ChatSlice } from "@novadeck/core/conversation"
 import { hasControlCharacters } from "@novadeck/core/conversation/prompt-refusal"
 import { sliceRunStyle } from "@novadeck/core/conversation/slice"
-import { createContext, useContext, useEffect, useRef } from "react"
+import { createContext, useContext, useEffect, useLayoutEffect, useRef } from "react"
 
 import { terminalKey } from "./passing"
 
@@ -15,15 +15,25 @@ export const Slice = ({
   slice,
   live = false,
   grab = true,
+  follow = false,
 }: {
   readonly slice: ChatSlice
   readonly live?: boolean
   // Whether the rows take focus as they come, which a view does; the agent's whole screen, shown
   // while there is nothing else, leaves it where it is.
   readonly grab?: boolean
+  // Whether the rows keep their last in sight as they change, where the person hasn't scrolled
+  // up: the agent's whole screen, whose question, as a folder-trust one's, stands at its foot.
+  readonly follow?: boolean
 }): React.JSX.Element => {
   const keys = useContext(SliceKeys)
   const element = useRef<HTMLPreElement>(null)
+  const atFoot = useRef(true)
+  useLayoutEffect(() => {
+    const rows = element.current
+    if (follow && rows && atFoot.current) rows.scrollTop = rows.scrollHeight
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Again as its rows change.
+  }, [follow, slice])
   const taking = live && keys !== null && slice.reason !== "menu"
   const comesByItself = slice.reason === "dialog"
   useEffect(() => {
@@ -43,6 +53,13 @@ export const Slice = ({
       tabIndex={0}
       aria-label="The terminal's own rows"
       style={{ "--chat-slice-columns": slice.columns } as React.CSSProperties}
+      onScroll={
+        follow
+          ? ({ currentTarget: rows }) => {
+              atFoot.current = rows.scrollHeight - rows.scrollTop - rows.clientHeight < 2
+            }
+          : undefined
+      }
       onKeyDown={
         taking
           ? (event) => {
@@ -153,7 +170,7 @@ export const LiveSlice = ({
           </span>
         )}
       </div>
-      <Slice slice={slice} live grab={!screen} />
+      <Slice slice={slice} live grab={!screen} follow={screen} />
     </section>
   )
 }

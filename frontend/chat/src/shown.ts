@@ -45,7 +45,18 @@ export const keepTerminalAnswers = (
   keep: (context: string, id: string) => boolean,
 ): TerminalAnswers => settled(keepTerminals(answers, keep))
 
-// Chat takes over once the agent's prompt or session is known. Its foreground program
+// Whether the terminal's agent is still starting, before its prompt shows or a session binds,
+// or held at a screen of its own the person answers there (a folder-trust or sign-in one): what
+// the chat's box sends meanwhile waits for it. Not one whose hooks are off, which nothing but the
+// person's settings changes: what is sent to it is refused at once, saying why.
+export const agentStarting = (terminal: TerminalMetadata): boolean =>
+  terminal.state === "running" &&
+  (terminal.expecting !== undefined ||
+    (terminal.agent?.startup !== undefined && terminal.agent.startup !== "hooks"))
+
+// Chat takes over once the agent's prompt or session is known, or from the start of an agent
+// the terminal was opened or woken to run, so what the person types as it starts stays in the
+// chat's box rather than landing in the agent's own as it draws. Its foreground program
 // alone may still be at an update, trust or sign-in screen, including a manual launch
 // that no startup watch follows. Keep the person's preference while its screen shows, or
 // while its terminal holds what only the person can do there (a session not signed in,
@@ -61,5 +72,5 @@ export const chatShown = (
   chatAvailable(terminal) &&
   !answeringInTerminal(answers, context, terminal.id) &&
   terminal.state === "running" &&
-  (terminal.agent !== undefined || boundSession) &&
+  (terminal.agent !== undefined || terminal.expecting !== undefined || boundSession) &&
   !terminal.agent?.startup

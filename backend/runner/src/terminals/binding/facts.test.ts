@@ -852,3 +852,32 @@ describe("the shipping gate in a terminal's summary", () => {
     expect(shipping.cardsOf("t1")).toEqual([])
   })
 })
+
+describe("the agent a terminal starts, in its summary", () => {
+  // What the startup watch told, with no session bound yet.
+  const starting = (shown?: AgentName) => {
+    const { bindings: facts } = bindings(shown)
+    const launched = record({ expecting: "codex" })
+    ;(launched as { bound: Record["bound"] }).bound = null
+    return { facts, launched }
+  }
+
+  it("keeps what the startup watch told until its prompt shows or a session binds", () => {
+    const { facts, launched } = starting()
+    facts.publishAgent(launched, false)
+    expect(launched.summary.expecting).toBe("codex")
+  })
+
+  it("is none once its prompt shows, before a session", () => {
+    const { facts, launched } = starting("codex")
+    facts.publishAgent(launched, false)
+    expect(launched.summary).toMatchObject({ ready: "codex", expecting: null })
+  })
+
+  it("is none once a session binds", () => {
+    const { facts } = starting()
+    const bound = record({ expecting: "claude" })
+    facts.publishAgent(bound, false)
+    expect(bound.summary.expecting).toBeNull()
+  })
+})

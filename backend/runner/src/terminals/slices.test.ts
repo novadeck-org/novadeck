@@ -92,14 +92,28 @@ describe("slicingOf", () => {
   const of = (pending: readonly unknown[]) =>
     ({
       terminal: { pty: {} },
+      summary: { expecting: null },
       bound: { binding, activity: { pending } },
     }) as unknown as Record
   const raw = { type: "raw", text: "", reason: "unrecognized" } as const
 
   it("follows an agent shown at its prompt before a session binds", () => {
-    const record = { terminal: { pty: {} }, bound: null } as unknown as Record
+    const record = {
+      terminal: { pty: {} },
+      summary: { expecting: null },
+      bound: null,
+    } as unknown as Record
     expect(slicingOf(record, new Map(), "agy")?.waiting).toBe(false)
     expect(slicingOf(record, new Map(), undefined)).toBeUndefined()
+  })
+
+  it("follows an agent as it starts, before its prompt shows", () => {
+    const record = {
+      terminal: { pty: {} },
+      summary: { expecting: "claude" },
+      bound: null,
+    } as unknown as Record
+    expect(slicingOf(record, new Map(), undefined)?.waiting).toBe(false)
   })
 
   it("lets a detached request's menus show: it leaves the prompt free", () => {

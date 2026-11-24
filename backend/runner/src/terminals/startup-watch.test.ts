@@ -190,6 +190,7 @@ describe("the startup watch", () => {
     let hooksOff: AgentName | undefined
     let stood: AgentName[]
     let answers: boolean
+    let promptShown: AgentName | undefined
     const record: {
       summary: WatchedRecord["summary"]
       terminal: WatchedRecord["terminal"]
@@ -217,7 +218,11 @@ describe("the startup watch", () => {
         {
           stopping: () => false,
           records: () => [record],
-          messaging: () => ({ expected: () => expected, untrustedAgent: () => hooksOff }),
+          messaging: () => ({
+            expected: () => expected,
+            untrustedAgent: () => hooksOff,
+            shownAgent: () => promptShown,
+          }),
           shown: () => ({
             boxStood: async (_record, agent) => {
               stood.push(agent)
@@ -253,7 +258,9 @@ describe("the startup watch", () => {
       hooksOff = undefined
       stood = []
       answers = true
-      record.summary = { ...record.summary, startup: null }
+      promptShown = undefined
+      // As the terminal's create tells it.
+      record.summary = { ...record.summary, startup: null, expecting: "codex" }
       record.terminal = { run: 1, pty: ptyOf(1) }
       record.promptedAt = null
       record.startupScreen = undefined
@@ -265,6 +272,67 @@ describe("the startup watch", () => {
     afterEach(() => {
       watch.stop()
       vi.useRealTimers()
+    })
+
+    describe("telling the agent that starts", () => {
+      it("tells it until its box has stood a delay, as of an agent whose harness says nothing", async () => {
+        drawn = codexScreens.prompt
+        await pass(delayMs)
+        expect(record.summary.expecting).toBe("codex")
+        await pass(2000)
+        expect(record.summary.expecting).toBeNull()
+        await pass(30_000)
+        expect(changed).toBe(1)
+      })
+
+      it("tells none for an agent's command that starts no session", async () => {
+        record.summary = { ...record.summary, command: "codex login", expecting: null }
+        drawn = shown(["Signing in…"], false)
+        await pass(3000)
+        expect(record.summary.expecting).toBeNull()
+        expect(changed).toBe(0)
+        record.summary = { ...record.summary, command: null }
+      })
+
+      it("doesn't tell it again once its box stood, whatever shows over it", async () => {
+        drawn = codexScreens.prompt
+        await pass(delayMs + 2000)
+        expect(record.summary.expecting).toBeNull()
+        // A menu of its own over the box, or a screen raised over it a moment later.
+        drawn = shown(["/model", "  gpt-6"])
+        await pass(3000)
+        expect(record.summary.expecting).toBeNull()
+        expect(changed).toBe(1)
+      })
+
+      it("ends it once its prompt is known to show, or a session binds", async () => {
+        await pass(1000)
+        expect(record.summary.expecting).toBe("codex")
+        promptShown = "codex"
+        await pass(1000)
+        expect(record.summary.expecting).toBeNull()
+        promptShown = undefined
+        record.summary = { ...record.summary, expecting: "codex" }
+        record.bound = { binding: { agent: "codex" } } as WatchedRecord["bound"]
+        await pass(1000)
+        expect(record.summary.expecting).toBeNull()
+      })
+
+      it("tells one the person typed in a plain shell, from its shim's word", async () => {
+        expected = null
+        record.summary = { ...record.summary, expecting: null }
+        drawn = shown(["Loading"], false)
+        watch.launched(record, record.terminal.pty, {
+          program: "claude",
+          terminal: "t",
+        } as Parameters<typeof watch.launched>[2])
+        expect(record.summary.expecting).toBe("claude")
+        expect(changed).toBe(1)
+        // The shell's prompt again: nothing came of it.
+        record.promptedAt = clock + 1
+        await pass(2000)
+        expect(record.summary.expecting).toBeNull()
+      })
     })
 
     it("marks a held terminal once, and tells of it", async () => {
@@ -303,7 +371,9 @@ describe("the startup watch", () => {
       }, delayMs)
       await pass(9000)
       expect(record.summary.startup).toBeNull()
-      expect(changed).toBe(0)
+      // Only the start it told ended.
+      expect(record.summary.expecting).toBeNull()
+      expect(changed).toBe(1)
     })
 
     it("lets go of a marked terminal whose expectation ended during a look", async () => {
@@ -342,7 +412,9 @@ describe("the startup watch", () => {
       watch.start()
       await pass(9000)
       expect(record.summary.startup).toBeNull()
-      expect(changed).toBe(0)
+      // Its start ended as its box stood, and nothing since.
+      expect(record.summary.expecting).toBeNull()
+      expect(changed).toBe(1)
     })
 
     it("rests once every agent expected reached its box", async () => {
@@ -395,6 +467,7 @@ describe("the startup watch", () => {
 
     it("marks an agent whose hooks are off at its prompt, until they no longer are", async () => {
       expected = "claude"
+      record.summary = { ...record.summary, expecting: "claude" }
       drawn = claudeScreens.prompt
       await pass(6000)
       // Found off: nothing can deliver to it, so it is no longer expected.
