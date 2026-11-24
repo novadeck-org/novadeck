@@ -727,7 +727,8 @@
 }
 /* The tape at the start, lifted over the top edge, and the stamp and the × at the end: in
    one row. The tape always shows its whole version, as it tells people which version they
-   get; where the row runs short, the stamp breaks after "From" instead, its version whole. */
+   get; where the row runs short, the stamp breaks after "From" instead, its version whole,
+   and only a version too long for its own line breaks, so the × stays on the card. */
 .whats-new-head {
   display: flex;
   align-items: center;
@@ -763,6 +764,7 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
   line-height: 1.2;
+  overflow-wrap: anywhere;
   text-align: end;
   text-transform: uppercase;
 }
