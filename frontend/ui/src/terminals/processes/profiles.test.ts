@@ -3,6 +3,7 @@ import type { TerminalMetadata } from "@novadeck/core/types"
 import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
+import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
 import { BookText, FileCode2, FileText, Globe, Image, Terminal } from "lucide-react"
 
 import { context, describe, expect, it } from "../../test"
@@ -56,10 +57,11 @@ const terminal = (process: string, status: Partial<TerminalMetadata> = {}) =>
 
 describe("terminal profile", () => {
   context("while a program holds the foreground", () => {
-    it("presents Claude Code, Codex and Antigravity with their own icons", () => {
+    it("presents Claude Code, Codex, Antigravity and opencode with their own icons", () => {
       expect(terminalProfile(terminal("claude"))).toEqual({ icon: ClaudeIcon })
       expect(terminalProfile(terminal("codex"))).toEqual({ icon: CodexIcon })
       expect(terminalProfile(terminal("agy"))).toEqual({ icon: AntigravityIcon })
+      expect(terminalProfile(terminal("opencode"))).toEqual({ icon: OpencodeIcon })
     })
 
     it("presents any other program as a plain terminal", () => {
