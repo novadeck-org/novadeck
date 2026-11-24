@@ -58,6 +58,10 @@ export const pi: AgentSetup = {
     ),
   // Under what is queued: `↳ Alt+Up to edit all queued messages` (`Alt+Q` on Windows, Windows CI 2026-11-24).
   queueHint: /↳ Alt\+(?:Up|Q) to edit all queued messages/,
+  // A prompt entered mid-turn goes through every extension's `input` handler (Novadeck's tells the
+  // runner) before pi queues it, so a turn whose reply comes in that time (the test's held reply,
+  // let go as the prompt is entered) can end first: the Stop's message, then the prompt.
+  stopsFirst: "its queued prompt's input handler may run after the turn's end",
   // Escape puts queued messages back in its box a blank line apart (busy.probe.json `altUp`).
   queuedJoin: "\n\n",
   // Seeded with `folderTrusted: false`, the project holds `.pi/settings.json`, which it asks to
