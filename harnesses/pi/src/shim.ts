@@ -84,6 +84,11 @@ ${header("#", "shim for pi")}
 # Runs the real pi with Novadeck's extension loaded for this launch.
 novadeck_real=
 novadeck_ifs=$IFS
+# Another program is called pi (Ubuntu's apt package prints digits of π): only one that says a
+# version, a bare semver, is pi, as the runner's own search takes it (Harness.identifies).
+novadeck_is_pi() {
+  "$1" --version 2>/dev/null | head -n 1 | grep -Eq '^[0-9]+[.][0-9]+[.][0-9]+'
+}
 IFS=:
 set -f
 for novadeck_dir in $PATH; do
@@ -92,11 +97,23 @@ for novadeck_dir in $PATH; do
   # Another Novadeck's shim, as from a runner started in a Novadeck terminal, would call
   # this one back: only the program itself counts.
   if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ] &&
-    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -qi "novadeck shim for pi"; then
+    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -qi "novadeck shim for pi" &&
+    novadeck_is_pi "$novadeck_candidate"; then
     novadeck_real=$novadeck_candidate
     break
   fi
 done
+# Where its installers put it, when PATH has none that is pi (the same places as \`fallbacks\`).
+if [ -z "$novadeck_real" ]; then
+  for novadeck_candidate in "\${HOME:-}/.pi/agent/bin/pi" "\${HOME:-}/.local/bin/pi" "\${HOME:-}/bin/pi" "\${HOME:-}/.bin/pi" "\${NPM_CONFIG_PREFIX:-/nonexistent}/bin/pi"; do
+    if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ] &&
+      ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -qi "novadeck shim for pi" &&
+      novadeck_is_pi "$novadeck_candidate"; then
+      novadeck_real=$novadeck_candidate
+      break
+    fi
+  done
+fi
 set +f
 IFS=$novadeck_ifs
 if [ -z "$novadeck_real" ]; then

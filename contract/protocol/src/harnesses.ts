@@ -97,11 +97,11 @@ export const harnesses = [
       "PI_REASONING_LEVEL",
     ],
     // Its login file, `auth.json`, in its agent folder (`~/.pi/agent`, or where
-    // `PI_CODING_AGENT_DIR` puts it).
+    // `PI_CODING_AGENT_DIR` puts it): the file's own folder is `agent`.
     logins: [
       {
         file: "auth.json",
-        folder: ".pi",
+        folder: "agent",
         variable: "PI_CODING_AGENT_DIR",
         beside: ["settings.json", "models.json", "sessions"],
       },
