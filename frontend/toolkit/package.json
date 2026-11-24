@@ -26,6 +26,7 @@
     "./icons/ClaudeIcon": "./src/icons/ClaudeIcon.ts",
     "./icons/CodexIcon": "./src/icons/CodexIcon.ts",
     "./icons/OpencodeIcon": "./src/icons/OpencodeIcon.ts",
+    "./icons/PiIcon": "./src/icons/PiIcon.ts",
     "./item.css": "./src/item.css",
     "./label.css": "./src/label.css",
     "./Markdown": "./src/Markdown.tsx",
