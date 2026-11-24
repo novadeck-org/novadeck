@@ -35,6 +35,12 @@ const itemOf = (title: string, branch = "") =>
     .filter({ has: page.getByRole("button", { name: named(title, branch) }) })
 const trash = (title: string, branch: string) =>
   itemOf(title, branch).getByRole("button", { name: /^Close the / })
+// Presses a row's trash button, which slides in under the pointer: the row first (a safe row's
+// shows at rest).
+const pressTrash = async (title: string, branch: string): Promise<void> => {
+  await row(title, branch).hover()
+  await trash(title, branch).click()
+}
 const dialog = () => page.getByRole("alertdialog", { name: "Close this worktree?" })
 
 describe("The Worktrees panel", () => {
@@ -158,7 +164,7 @@ describe("The Worktrees panel", () => {
     it("asks before closing a worktree that differs from main, saying what is kept", async () => {
       await openWorkspace(storefront)
 
-      await trash("Tests", "agent/tests").click()
+      await pressTrash("Tests", "agent/tests")
 
       await expect.element(dialog()).toBeVisible()
       await expect
@@ -173,7 +179,7 @@ describe("The Worktrees panel", () => {
     it("closes it once confirmed, and the count drops", async () => {
       await openWorkspace(storefront)
 
-      await trash("Tests", "agent/tests").click()
+      await pressTrash("Tests", "agent/tests")
       await dialog().getByRole("button", { name: "Close worktree" }).click()
 
       await expect.element(row("Tests")).not.toBeInTheDocument()
@@ -183,7 +189,7 @@ describe("The Worktrees panel", () => {
     it("closes a worktree that differs from nothing at once", async () => {
       await openWorkspace(storefront)
 
-      await trash("Build", "agent/build-cache").click()
+      await pressTrash("Build", "agent/build-cache")
 
       await expect.element(dialog()).not.toBeInTheDocument()
       await expect.element(row("Build", "agent/build-cache")).not.toBeInTheDocument()
@@ -205,7 +211,7 @@ describe("The Worktrees panel", () => {
 
       await expect.element(itemOf("No owner")).toBeVisible()
       await expect.element(itemOf("No owner")).toHaveAttribute("data-safe", "true")
-      await trash("No owner", "agent/promo-banner").click()
+      await pressTrash("No owner", "agent/promo-banner")
 
       await expect.element(itemOf("No owner")).not.toBeInTheDocument()
       await expect.element(dialog()).not.toBeInTheDocument()
