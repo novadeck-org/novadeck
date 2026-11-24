@@ -55,9 +55,10 @@ export const closedFull = (closedAt: number, now: number): string => {
   return (at.getFullYear() === new Date(now).getFullYear() ? full : fullWithYear).format(at)
 }
 
-// How a row stands, as the person is told it. `inert` rows take no click: one restoring, or
-// one that can't be. `end` is what stands at the end of its title's line: the day or time it
-// closed, or what stands where that does. `reason` says why a row can't
+// How a row stands, as the person is told it. `inert` rows offer no restore: one restoring,
+// or one that can't be. `end` is what stands at the end of its detail line, where a tab holds its
+// @handle: the day or time it closed, the handle of the terminal it is open in, or a word for
+// why it can't come back. `reason` says why a row can't
 // be restored, or what its click does instead, for assistive technology and the tooltip.
 // `connect` is the agent whose connection the row offers to open Preferences for.
 export type RowView = {
@@ -65,7 +66,6 @@ export type RowView = {
   readonly inert: boolean
   readonly end:
     | { readonly kind: "time"; readonly text: string }
-    | { readonly kind: "restoring" }
     | { readonly kind: "handle"; readonly text: string }
     | { readonly kind: "word"; readonly text: string }
   readonly reason: string | undefined
@@ -108,7 +108,7 @@ export const rowView = (
       return {
         state: "restoring",
         inert: true,
-        end: { kind: "restoring" },
+        end: time,
         reason: "Restoring",
         connect: undefined,
       }
@@ -190,14 +190,13 @@ const matchRange = (
   return { start: starts[found]!, end: ends[found + query.length - 1]! }
 }
 
-// How far into a summary a match can end and still show within the two lines a row has for
-// it, after a plain terminal's folder and at the sidebar's narrowest; and how far before a match an excerpt
-// starts, past that.
-const shown = 48
-const lead = 20
+// How far into a summary a match can end and still show on the one line a row has for it, at
+// the sidebar's narrowest; and how far before a match an excerpt starts, past that.
+const shown = 18
+const lead = 6
 
 // A summary cut to start a little before the match, with an ellipsis, when the match ends
-// further in than the row's two lines show; the whole summary otherwise.
+// further in than the row's line shows; the whole summary otherwise.
 export const summaryExcerpt = (text: string, typed: string): string => {
   const range = matchRange(text, typed)
   if (!range || range.end <= shown) return text
