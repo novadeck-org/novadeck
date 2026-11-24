@@ -40,6 +40,11 @@ export type ExtensionConfig = {
    */
   readonly pidVariable: string
   /**
+   * The most deliveries a run's Stops may continue it with, against a runaway; past them its Stop
+   * asks for none (StopHeld).
+   */
+  readonly continueCap: number
+  /**
    * The shipping gate (Experimental) is on: a shell call's PreToolUse waits for the runner's
    * answer, and is refused where it says so. Absent otherwise.
    */
@@ -648,10 +653,10 @@ export default function novadeck(pi) {
 
   // A run's end, while it can still go on: a delivery continues it, in the same run, as Claude
   // Code's Stop hook can. The runner leases each message once, so the next Stop brings nothing
-  // new; past a cap of 20 the Stop asks for none, against a runaway.
+  // new; past its cap (config.continueCap) the Stop asks for none, against a runaway.
   pi.on("agent_before_settle", async (event, ctx) => {
     try {
-      const held = continued >= 20
+      const held = continued >= config.continueCap
       const text = delivery(await stop(ctx, false, held))
       if (!text || held) return
       continued++

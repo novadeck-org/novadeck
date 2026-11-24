@@ -45,6 +45,9 @@ export const stoppedFolder = "stopped"
  */
 export const pidVariable = "NOVADECK_PI_PID"
 
+/** The most deliveries a run's Stops continue it with; past them a Stop asks for none. */
+export const continueCap = 20
+
 /** The extension spawns its hook commands with Node's `shell: true`: `sh`, or `cmd` on Windows. */
 export const hookDialect = (platform: NodeJS.Platform): Dialect =>
   platform === "win32" ? "cmd" : "sh"
@@ -80,6 +83,7 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
       prefix: toolPrefix,
       stoppedFolder,
       pidVariable,
+      continueCap,
       // Only while the Experimental shipping gate is on: off, the extension is as it always was.
       ...(machine.shippingGate === true && { gate: true }),
     }),

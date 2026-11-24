@@ -116,6 +116,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       prefix: "novadeck_",
       stoppedFolder: "stopped",
       pidVariable: "NOVADECK_PI_PID",
+      continueCap: 20,
       ...overrides,
     }),
   )
@@ -422,17 +423,19 @@ describe("Novadeck's pi extension", () => {
   })
 
   it("asks no delivery at a Stop past its cap on a run's continuations", async () => {
-    const pi = await load()
+    // A cap of 2, not pi's 20: each Stop runs a hook process, which takes about a second on
+    // Windows CI, and the count is the same check at any cap.
+    const pi = await load({ continueCap: 2 })
     await pi.answer({ Stop: { deliver: "more" }, StopHeld: { deliver: "never" } })
     await pi.emit("agent_start")
-    for (let round = 0; round < 20; round += 1)
+    for (let round = 0; round < 2; round += 1)
       // eslint-disable-next-line no-await-in-loop -- One Stop after another, as pi runs them.
       expect(await pi.emit("agent_before_settle", { entries: [] })).toMatchObject({
         continue: true,
       })
     expect(await pi.emit("agent_before_settle", { entries: [] })).toBeUndefined()
     const names = (await pi.reports()).map((report) => report.hook_event_name)
-    expect(names.filter((name) => name === "Stop")).toHaveLength(20)
+    expect(names.filter((name) => name === "Stop")).toHaveLength(2)
     expect(names.at(-1)).toBe("StopHeld")
   })
 
