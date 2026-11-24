@@ -2137,9 +2137,12 @@ most two seconds), so a wake that falls back to a plain shell shows the latest s
 A sleeper wakes only while its harness is connected. Novadeck's plugin can go from a harness
 outside Novadeck (another program's disconnect, or the person's own `claude plugin uninstall`):
 the runner looks at every harness's connection every 15 seconds (`connectionPollMs` in
-`harnesses/service.ts`, whose own `set` and reinstall never count), logs `harnesses.disconnected`
+`harnesses/service.ts`, whose own `set` and reinstall never count, nor a read that spans one;
+a loss counts only once a second read a second later agrees, `connectionConfirmMs`, as a file
+caught mid-write or another Novadeck's reinstall reads as no plugin a moment), logs `harnesses.disconnected`
 and marks the harness `lost` in `agents.list` and `agents.watch`, which the UI toasts once with
-Reconnect and notes in Preferences. An idle agent of a harness last found disconnected doesn't
+Reconnect and notes in Preferences. Its sleepers are stuck from then (below), and so are a
+harness's sleepers that a runner finds disconnected as it starts. An idle agent of a harness last found disconnected doesn't
 rest (`Sleepers.restable`). A wake judged `not-connected` fails nothing: the sleeper is stuck
 (`Sleepers.stuck`, `Messaging.stuck`), its messages stay queued, `send` answers that it can't be
 woken now and why, the listing says so on its line (never among the blank sleepers), and each

@@ -142,6 +142,8 @@ const it = base.extend<{ fixture: Fixture }>({
       const made = createHarnesses(() => Promise.resolve(paths), {
         home,
         env: environment(env),
+        // A loss is confirmed by a second read; soon, in tests.
+        connectionConfirmMs: 10,
         ...options,
       })
       resources.defer(() => made.close())
@@ -409,6 +411,28 @@ describe("agents Novadeck can connect", () => {
       expect(agents.disconnected(agent)).toBe(false)
     },
   )
+
+  it("count no loss where a second read finds the plugin back, as a file caught mid-write", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "claude")
+    const agents = fixture.agents({}, { connectionConfirmMs: 200 })
+    await agents.set("claude", true)
+    const changes: ConnectionChange[] = []
+    agents.follow((change) => changes.push(change))
+    const settings = join(fixture.home, ".claude", "settings.json")
+    const whole = readFileSync(settings, "utf8")
+    writeFileSync(settings, whole.slice(0, 5))
+    setTimeout(() => writeFileSync(settings, whole), 20)
+    expect(await agents.connected("claude")).toBe(true)
+    // A list that reads it half written asks for that confirmation, and counts nothing itself.
+    writeFileSync(settings, whole.slice(0, 5))
+    setTimeout(() => writeFileSync(settings, whole), 20)
+    expect((await agents.list()).find((each) => each.agent === "claude")?.lost).toBeUndefined()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(changes).toEqual([])
+    expect(agents.disconnected("claude")).toBe(false)
+  })
 
   it("never count Novadeck's own disconnect, or its reinstall, as lost", async ({ fixture }) => {
     installed(fixture.home, "claude")

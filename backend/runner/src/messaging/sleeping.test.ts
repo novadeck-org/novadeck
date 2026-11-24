@@ -209,19 +209,19 @@ describe("a sleeper that starts", () => {
 describe("a sleeper that can't be woken now", () => {
   const why = "Novadeck isn't connected to Claude Code (the user connects it again)"
 
-  it("keeps the message waiting, says why to its sender, and asks again with the next", ({
+  it("keeps the message waiting, says why to its sender from the first, and asks again with the next", ({
     resources,
   }) => {
     const run = setup()
     resources.defer(closing(run))
-    const first = run.send("please")
+    // Stuck as its harness is found lost, before anyone sends.
     run.messaging.stuck("B", why)
-    expect(run.messaging.stateOf(first.id)).toBe("queued")
+    const first = run.send("please")
+    const route = `the recipient is asleep, and can't be woken now: ${why}. This message waits there, and wakes it once it can be`
+    expect(first).toMatchObject({ state: "queued", asleep: true, route })
     const answer = run.send("still there?")
-    expect(answer).toMatchObject({ state: "queued", asleep: true })
-    expect(answer.route).toBe(
-      `the recipient is asleep, and can't be woken now: ${why}. This message waits there, and wakes it once it can be`,
-    )
+    expect(answer.route).toBe(route)
+    expect(run.messaging.stateOf(first.id)).toBe("queued")
     // Each change asks again, so a wake that can be now is found at once.
     expect(run.wakes).toEqual(["B", "B"])
     expect(run.messaging.goneFrom("A")).toEqual([])

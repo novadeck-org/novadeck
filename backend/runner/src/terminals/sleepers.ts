@@ -50,9 +50,16 @@ export type Connections = {
   readonly disconnected: (agent: AgentName) => boolean
   /** Agents of the harness sleep that can't be woken, as it isn't connected: the person is told. */
   readonly strand: (agent: AgentName) => void
-  /** Follows each change of a harness's connection; returns its end. */
+  /**
+   * Follows each change of a harness's connection, `lost` where it went outside Novadeck;
+   * returns its end.
+   */
   readonly follow: (
-    listener: (change: { readonly agent: AgentName; readonly connected: boolean }) => void,
+    listener: (change: {
+      readonly agent: AgentName
+      readonly connected: boolean
+      readonly lost: boolean
+    }) => void,
   ) => () => void
 }
 
@@ -143,14 +150,29 @@ export class Sleepers {
   start(): void {
     const { messaging } = this.host
     // An agent connected again, however it was, wakes its sleepers that waited for it.
+    // One lost outside Novadeck makes its sleepers stuck at once, so the first message to one
+    // and every listing say so. (The person's own disconnect forgets them instead.)
     this.unfollow = this.host.connections?.follow((change) => {
-      if (change.connected && !this.stopped) this.connected(change.agent)
+      if (this.stopped) return
+      if (change.connected) this.connected(change.agent)
+      else if (change.lost) this.lost(change.agent)
     })
     const turns: string[] = []
+    const agents = new Set<AgentName>()
     for (const row of this.host.saves().terminals()) {
       const resting = this.rest(row)
+      if (resting) agents.add(resting.agent)
       if (resting && row.agents[resting.agent]?.turn !== undefined) turns.push(row.id)
     }
+    // A harness that went while no runner looked: its sleepers are stuck from the start.
+    if (this.host.connections)
+      for (const agent of agents)
+        void this.host
+          .connected(agent)
+          .then((connected) => {
+            if (!connected && !this.stopped && !this.host.stopping()) this.lost(agent)
+          })
+          .catch(() => undefined)
     for (const id of turns) this.ask(id)
     for (const id of messaging().wakesWanted()) this.ask(id)
   }
@@ -326,26 +348,39 @@ export class Sleepers {
     }
     // Only the person can connect it again: its messages wait for that, as the agent sleeps on.
     if (check.reason === "not-connected") {
-      const why = stuckReason(agent)
-      if (this.stuck.get(terminalId) !== agent) {
-        this.stuck.set(terminalId, agent)
-        this.host.messaging().stuck(terminalId, why)
-        log.info(
-          "sleepers.stuck",
-          "A sleeping agent can't be woken: its harness isn't connected.",
-          {
-            data: { terminal: terminalId, agent },
-          },
-        )
-        this.publish(terminalId)
-      }
+      this.stick(terminalId, agent)
       this.host.connections?.strand(agent)
-      return why
+      return stuckReason(agent)
     }
     this.unstick(terminalId)
     const why = wakeRefusal(agent, check.reason)
     this.host.messaging().wakeFailed(terminalId, why)
     return why
+  }
+
+  /**
+   * `agent` isn't connected, and Novadeck didn't disconnect it: every sleeper of it is stuck
+   * now, its messages kept and told why, before any wake is tried; the person is told too.
+   */
+  private lost(agent: AgentName): void {
+    let any = false
+    for (const id of this.sessions.keys()) {
+      if (this.resting(id)?.agent !== agent || this.wakes.has(id)) continue
+      any = true
+      this.stick(id, agent)
+    }
+    if (any) this.host.connections?.strand(agent)
+  }
+
+  /** The sleeper can't be woken until `agent` is connected: told once. */
+  private stick(terminalId: string, agent: AgentName): void {
+    if (this.stuck.get(terminalId) === agent) return
+    this.stuck.set(terminalId, agent)
+    this.host.messaging().stuck(terminalId, stuckReason(agent))
+    log.info("sleepers.stuck", "A sleeping agent can't be woken: its harness isn't connected.", {
+      data: { terminal: terminalId, agent },
+    })
+    this.publish(terminalId)
   }
 
   /** The sleeper can be woken again, or isn't one: its messages are judged as any wake's. */
