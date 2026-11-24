@@ -547,7 +547,6 @@ export class Terminals {
           const record = this.records.get(id)
           if (record) this.bindings.publishReported(record)
           else this.sleepers.publish(id)
-          if (record) this.startups.noticed(record) // a hooks mark is shown by the startup watch
         },
         exists: (id) =>
           !this.closedIds.has(id) &&
@@ -647,6 +646,7 @@ export class Terminals {
         this.typing.settleBox(record)
         this.typing.watchQueue(record)
         this.bindings.publishReported(record)
+        this.startups.noticed(record) // a hooks mark is shown by the startup watch
       }
     })
     this.typing = new Typing(
