@@ -632,8 +632,10 @@
    in the warning tint, one `.restart-item` per terminal at risk: `.restart-item-icon`,
    `.restart-item-words` over `.restart-item-where`, and `.restart-item-go`, an icon button
    to go to the terminal; `.restart-more` counts the rest. The card is `.update-card` and
-   `.whats-new`: tokens above, and --color-warning, --color-warning-fg for the well. */
+   `.whats-new`: tokens above, and --color-warning, --color-warning-fg for the well. Wide
+   enough that its head holds "Restart · 0.000.000" and "From 0.000.000" on one line. */
 .update-card.whats-new.restart-card {
+  width: 24.5rem;
   gap: 10px;
 }
 .restart-verdict {
@@ -724,7 +726,8 @@
   padding: 8px 14px 14px;
 }
 /* The tape at the start, lifted over the top edge, and the stamp and the × at the end: in
-   one row, so a long version shortens the tape, never runs under them. */
+   one row. The tape always shows its whole version, as it tells people which version they
+   get; where the row runs short, the stamp breaks after "From" instead, its version whole. */
 .whats-new-head {
   display: flex;
   align-items: center;
@@ -734,12 +737,10 @@
 }
 /* Torn at both ends and slapped on at a slant, in the wordmark's face. */
 .whats-new-tape {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: none;
   margin-inline-end: auto;
   translate: 0 -20px;
   padding: 4px 10px 3px;
-  overflow: hidden;
   background: var(--_accent-bg);
   color: var(--_accent-fg);
   font-family: "Archivo Variable", var(--font-sans);
@@ -748,7 +749,6 @@
   font-stretch: 125%;
   line-height: 1.2;
   letter-spacing: 0.16em;
-  text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
   rotate: -1.6deg;
@@ -762,9 +762,9 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
-  line-height: 1;
+  line-height: 1.2;
+  text-align: end;
   text-transform: uppercase;
-  white-space: nowrap;
 }
 .whats-new-list {
   min-height: 0;
