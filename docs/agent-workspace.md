@@ -405,7 +405,13 @@ what the file came to, and its changes, each headed by where it sits ("2/4 in re
 refreshSession()") and the lines it spans; a change past 36 rows shows its start and end with
 "N more changed lines · +N −N · Show", and the unchanged stretches between changes are folded
 with a click to show them. Esc or ‹ shrinks the heading back into its row; J and K step through
-the selection's files. Lines are unified, in classic green and red from the
+the selection's files. **Expand all**, at the end of the Files line, lays the tree out as every
+file's view one after another, in the tree's order (folded folders' files too): each row in view
+grows into its heading, which stays on top while its file scrolls by (a change's heading just
+under it), with a ⌄ that hides that file's diff. A file's diff is read as it comes within about a
+screen of the view, its place held by its line count until then, and a file whose diff has been
+on screen past its heading is read. J and K step between the headings; Collapse all or Esc folds
+the views back into their rows, the file at the top staying at the top. Lines are unified, in classic green and red from the
 theme's own `--color-success-fg` / `--color-danger-fg` inks (a sea green and a rose in Coolant),
 carried by the gutter: the number and sign sit on the ink at 20% (18% on a light scheme), the line
 on the ink at 5% (7%), with no bar. The changed tokens of a replaced line are marked, each

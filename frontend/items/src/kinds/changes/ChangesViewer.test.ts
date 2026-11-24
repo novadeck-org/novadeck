@@ -450,7 +450,7 @@ describe("a change beside a terminal", () => {
         "src/components/Header.tsx",
       ])
       expect(container.querySelector(".changes-files-head")?.textContent).toBe(
-        "Files4 files · everything",
+        "Files4 files · everythingExpand all",
       )
       expect(
         [...container.querySelectorAll(".changes-tree > [role='none'] .files-name")].map(
@@ -1130,6 +1130,139 @@ describe("a change beside a terminal", () => {
       await shown.settle()
 
       expect(document.activeElement).not.toBe(document.body)
+    })
+  })
+
+  context("expanded into every file's diff", () => {
+    const headings = (container: HTMLElement) =>
+      [...container.querySelectorAll<HTMLElement>(".changes-stack-file")].map(
+        (each) => each.dataset.path,
+      )
+    const expand = async (shown: ReturnType<typeof show>) => {
+      await shown.click(shown.container.querySelector(".changes-expand"))
+      await shown.settle()
+    }
+
+    it("lays out each file's diff one after another, in the tree's order", async () => {
+      const shown = show(change())
+      await expand(shown)
+
+      expect(headings(shown.container)).toEqual([
+        "src/auth/cookies.ts",
+        "src/auth/session.test.ts",
+        "src/auth/session.ts",
+        "src/components/Header.tsx",
+      ])
+      expect(shown.container.querySelector(".changes-tree")).toBeNull()
+      expect(shown.asked.map((each) => each.path).toSorted()).toEqual([
+        "src/auth/cookies.ts",
+        "src/auth/session.test.ts",
+        "src/auth/session.ts",
+        "src/components/Header.tsx",
+      ])
+      const cookies = shown.container.querySelector(".changes-stack-file")!
+      expect([...cookies.querySelectorAll(".diff-row")].map((each) => each.textContent)).toContain(
+        "2−export const cookieMaxAge = 7 * day",
+      )
+      expect(shown.container.querySelector(".changes-expand")?.textContent).toBe("Collapse all")
+    })
+
+    it("hides a file's diff under its heading, and shows it again", async () => {
+      const shown = show(change())
+      await expand(shown)
+      const fold = () =>
+        shown.container.querySelector<HTMLElement>(".changes-stack-file .changes-stack-fold")!
+
+      await shown.click(fold())
+      expect(fold().getAttribute("aria-expanded")).toBe("false")
+      expect(shown.container.querySelector(".changes-stack-file .diff-row")).toBeNull()
+
+      await shown.click(fold())
+      await shown.settle()
+      expect(shown.container.querySelector(".changes-stack-file .diff-row")).not.toBeNull()
+    })
+
+    it("folds back into the tree on Collapse all and on Escape", async () => {
+      const shown = show(change())
+      await expand(shown)
+      await shown.click(shown.container.querySelector(".changes-expand"))
+      expect(shown.files()).toHaveLength(4)
+      expect(shown.container.querySelector(".changes-stack")).toBeNull()
+
+      await expand(shown)
+      await shown.press("Escape")
+      expect(shown.files()).toHaveLength(4)
+    })
+
+    it("steps between the files' headings with J and K", async () => {
+      const shown = show(change())
+      await expand(shown)
+      const scroller = shown.container.querySelector<HTMLElement>(".changes-scroll")!
+      const tops = [0, 300, 600, 900]
+      // jsdom lays nothing out: each heading sits at its place less what is scrolled.
+      shown.container.querySelectorAll<HTMLElement>(".changes-stack-file").forEach((each, at) => {
+        each.getBoundingClientRect = () =>
+          DOMRect.fromRect({ y: tops[at]! - scroller.scrollTop, height: 300, width: 400 })
+      })
+
+      await shown.press("j")
+      expect(scroller.scrollTop).toBe(300)
+      await shown.press("j")
+      expect(scroller.scrollTop).toBe(600)
+      await shown.press("k")
+      expect(scroller.scrollTop).toBe(300)
+    })
+
+    it("marks a file read once its diff is on screen", async () => {
+      const watchers: { margin: string; on: IntersectionObserverCallback; seen: Element[] }[] = []
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          seen: Element[] = []
+          constructor(on: IntersectionObserverCallback, options: IntersectionObserverInit) {
+            watchers.push({ margin: options.rootMargin ?? "", on, seen: this.seen })
+          }
+          observe(element: Element) {
+            this.seen.push(element)
+          }
+          disconnect() {}
+        },
+      )
+      try {
+        const shown = show(change())
+        await expand(shown)
+        // Nothing is near yet, so nothing is read or asked for.
+        expect(shown.asked).toEqual([])
+        const fire = (ahead: boolean, path: string) =>
+          act(async () => {
+            for (const watcher of watchers.filter((each) => each.margin.startsWith("-") !== ahead))
+              watcher.on(
+                watcher.seen
+                  .filter((each) => (each as HTMLElement).dataset.path === path)
+                  .map(
+                    (element) =>
+                      ({ target: element, isIntersecting: true }) as IntersectionObserverEntry,
+                  ),
+                watcher as unknown as IntersectionObserver,
+              )
+          })
+
+        await fire(true, "src/auth/cookies.ts")
+        await shown.settle()
+        expect(shown.asked.map((each) => each.path)).toEqual(["src/auth/cookies.ts"])
+        expect(shown.marked).toEqual([])
+
+        await fire(false, "src/auth/cookies.ts")
+        await shown.settle()
+        expect(shown.marked).toEqual(["src/auth/cookies.ts"])
+        expect(
+          shown.container
+            .querySelector(".changes-stack-file .changes-crumbs")
+            ?.hasAttribute("data-read"),
+        ).toBe(true)
+      } finally {
+        vi.unstubAllGlobals()
+      }
     })
   })
 

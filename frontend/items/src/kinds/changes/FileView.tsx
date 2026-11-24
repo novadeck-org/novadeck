@@ -14,11 +14,11 @@ import {
   type Layout,
   type Line,
 } from "./diff-rows"
-import { headParts, summaryParts } from "./labels"
+import { headParts, summaryParts, type Part } from "./labels"
 import { segmentsOf, stretchesOf, type Segment } from "./paint"
 import { Counts, Parts, startsOf } from "./Parts"
 import type { TreeFile } from "./tree"
-import { useFileDiff } from "./use-file-diff"
+import { useFileDiff, type FileDiffState } from "./use-file-diff"
 
 // One file of the change: its row grown into a plain heading (back, its folder and name, its
 // lines, and where it is among the files of the selection), a line of what it came to, and the
@@ -182,7 +182,7 @@ const ChangeBlock = ({
   )
 }
 
-const RunBody = ({
+export const RunBody = ({
   run,
   layout,
   path,
@@ -224,6 +224,75 @@ const RunBody = ({
   )
 }
 
+/** What a file's view shows of its diff as read: the run and its layout, its counts, a notice in
+ * place of its lines, a summary, and the name it was renamed from. */
+export type FileShown = {
+  readonly run: ChangeFileRun | null
+  readonly layout: Layout
+  readonly counts: { readonly added: number; readonly removed: number; readonly reindented: number }
+  readonly notice: string | undefined
+  readonly summary: readonly Part[] | undefined
+  readonly renamed: string | null | undefined
+}
+
+export const useFileShown = (file: TreeFile, loaded: FileDiffState): FileShown => {
+  const run = loaded.state === "ready" ? loaded.diff.run : null
+  const facts = loaded.state === "ready" ? loaded.facts : null
+  const layout = useMemo(() => (run ? layoutFor(run, facts) : []), [run, facts])
+  const counts = run ? totalsOf(layout) : file
+  const first = run?.file
+  const notice =
+    file.secret || first?.secret
+      ? "This file may hold secrets, so its changes aren't shown."
+      : file.binary || first?.binary
+        ? "A binary file: there are no lines to show."
+        : loaded.state === "failed"
+          ? "Can't read this file's changes."
+          : loaded.state === "ready" && run?.badName
+            ? "This file's name isn't valid text, so its changes can't be asked of git."
+            : loaded.state === "ready" && run?.big
+              ? "This change is too large to show here."
+              : loaded.state === "ready" && !run
+                ? "The layers selected did not change this file."
+                : undefined
+  const summary =
+    run && !notice
+      ? summaryParts(facts, run.file, layout.filter((each) => each.kind === "change").length)
+      : undefined
+  const renamed = first?.oldPath ?? file.oldPath
+  return { run, layout, counts, notice, summary, renamed }
+}
+
+/** The line under a file's heading: where it was renamed from, and what it came to. */
+export const FileSummary = ({
+  file,
+  loaded,
+  shown,
+}: {
+  file: TreeFile
+  loaded: FileDiffState
+  shown: FileShown
+}): React.JSX.Element => (
+  <div className="changes-summary">
+    {shown.renamed && file.status === "renamed" && (
+      <div>
+        renamed from <code>{shown.renamed}</code>
+      </div>
+    )}
+    {shown.notice ? (
+      <div>{shown.notice}</div>
+    ) : loaded.state === "loading" || loaded.state === "idle" ? (
+      <div>Reading the changes…</div>
+    ) : (
+      shown.summary && (
+        <div>
+          <Parts parts={shown.summary} />
+        </div>
+      )
+    )}
+  </div>
+)
+
 export const FileView = ({
   file,
   index,
@@ -253,30 +322,8 @@ export const FileView = ({
   onStep: (delta: number) => void
 }): React.JSX.Element => {
   const loaded = useFileDiff(itemStore, target, itemId, stamp, file.path, layers)
-  const run = loaded.state === "ready" ? loaded.diff.run : null
-  const facts = loaded.state === "ready" ? loaded.facts : null
-  const layout = useMemo(() => (run ? layoutFor(run, facts) : []), [run, facts])
-  const counts = run ? totalsOf(layout) : file
-  const first = run?.file
-  const notice =
-    file.secret || first?.secret
-      ? "This file may hold secrets, so its changes aren't shown."
-      : file.binary || first?.binary
-        ? "A binary file: there are no lines to show."
-        : loaded.state === "failed"
-          ? "Can't read this file's changes."
-          : loaded.state === "ready" && run?.badName
-            ? "This file's name isn't valid text, so its changes can't be asked of git."
-            : loaded.state === "ready" && run?.big
-              ? "This change is too large to show here."
-              : loaded.state === "ready" && !run
-                ? "The layers selected did not change this file."
-                : undefined
-  const summary =
-    run && !notice
-      ? summaryParts(facts, run.file, layout.filter((each) => each.kind === "change").length)
-      : undefined
-  const renamed = first?.oldPath ?? file.oldPath
+  const shown = useFileShown(file, loaded)
+  const { run, layout, counts, notice } = shown
   return (
     <div className="changes-view changes-file-view" data-path={file.path}>
       <header className="changes-head" ref={headRef} data-kind={file.status}>
@@ -329,24 +376,7 @@ export const FileView = ({
           </button>
         </span>
       </header>
-      <div className="changes-summary">
-        {renamed && file.status === "renamed" && (
-          <div>
-            renamed from <code>{renamed}</code>
-          </div>
-        )}
-        {notice ? (
-          <div>{notice}</div>
-        ) : loaded.state === "loading" || loaded.state === "idle" ? (
-          <div>Reading the changes…</div>
-        ) : (
-          summary && (
-            <div>
-              <Parts parts={summary} />
-            </div>
-          )
-        )}
-      </div>
+      <FileSummary file={file} loaded={loaded} shown={shown} />
       <div className="changes-body">
         {!notice && run && <RunBody run={run} layout={layout} path={file.path} />}
       </div>

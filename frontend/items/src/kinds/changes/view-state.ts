@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react"
 import type { Picked } from "./selection"
 
 // What the person has done in a change's pane, kept by item for as long as the session lives, so
-// a change shown again is as they left it: the layers picked, the file unfolded or opened and
-// the folders folded. The files read are the backend's (the content's `read`); `read` here holds
+// a change shown again is as they left it: the layers picked, the file unfolded or opened, the
+// folders folded, and whether the tree is expanded into every file's diff. The files read are the backend's (the content's `read`); `read` here holds
 // each file opened by the content's stamp then, which grays it until the content comes again
 // (with the backend's word on it, or where the backend keeps none, with a change).
 
@@ -15,6 +15,10 @@ export type ChangesView = {
   readonly open: string | null
   readonly folded: readonly string[]
   readonly read: Readonly<Record<string, string>>
+  /** The tree expanded into every file's diff, one after another. */
+  readonly expanded: boolean
+  /** The files whose diffs are hidden under their headings while expanded. */
+  readonly shut: readonly string[]
 }
 
 export const freshView: ChangesView = {
@@ -23,6 +27,8 @@ export const freshView: ChangesView = {
   open: null,
   folded: [],
   read: {},
+  expanded: false,
+  shut: [],
 }
 
 // By the item store of the session, which a session that goes takes with it: the last 64 items.
