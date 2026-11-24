@@ -12,10 +12,11 @@ import {
   headerRenameField,
   hiddenTerminalTab,
   newTerminalButton,
+  pressTabAction,
   renderedOpacity,
-  tabName,
   sidebarRenameField,
   tabAction,
+  tabName,
   visibilityToggle,
 } from "../support/terminals"
 import {
@@ -124,7 +125,7 @@ describe("creating terminals", () => {
       await openWorkspace()
       await newTerminalButton().click()
       await expect.element(commandInput(newTerminalName)).toHaveFocus()
-      await tabAction(`Rename ${newTerminalName}`).click()
+      await pressTabAction(tabAction(`Rename ${newTerminalName}`))
       await expect.element(sidebarRenameField(newTerminalName)).toHaveFocus()
 
       await press("My shell{Enter}")
@@ -136,7 +137,7 @@ describe("creating terminals", () => {
     it("keeps the original name when Escape is pressed", async () => {
       await openWorkspace()
       await newTerminalButton().click()
-      await tabAction(`Rename ${newTerminalName}`).click()
+      await pressTabAction(tabAction(`Rename ${newTerminalName}`))
       await expect.element(sidebarRenameField(newTerminalName)).toHaveFocus()
 
       await press("Discarded{Escape}")
@@ -151,7 +152,7 @@ describe("creating terminals", () => {
       await openWorkspace()
       await chooseView("Grid")
       await newTerminalButton().click()
-      await tabAction(`Rename ${newTerminalName}`).click()
+      await pressTabAction(tabAction(`Rename ${newTerminalName}`))
       await expect.element(sidebarRenameField(newTerminalName)).toHaveFocus()
 
       await press("Scratch")
@@ -335,10 +336,10 @@ describe("renaming terminals", () => {
       await openWorkspace()
       await chooseView("Grid")
 
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
       await press("  Local shell  ")
-      await tabAction("Save name for Dev server").click()
+      await pressTabAction(tabAction("Save name for Dev server"))
 
       await expect.element(terminalTab("Local shell")).toBeVisible()
       await expect.element(headerName("Local shell")).toBeVisible()
@@ -347,7 +348,7 @@ describe("renaming terminals", () => {
     it("keeps arrows and Shift+arrows in the field", async () => {
       await openWorkspace()
       await chooseView("Grid")
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
 
       await press("{ArrowDown}{Shift>}{ArrowLeft}{/Shift}")
@@ -360,9 +361,9 @@ describe("renaming terminals", () => {
     it("discards the draft with the Cancel button", async () => {
       await openWorkspace()
 
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await press("Discarded")
-      await tabAction("Cancel renaming Dev server").click()
+      await pressTabAction(tabAction("Cancel renaming Dev server"))
 
       await expect.element(anyRenameField()).not.toBeInTheDocument()
       await expectStaysAbsent(terminalTab("Discarded"))
@@ -419,7 +420,7 @@ describe("renaming terminals", () => {
     it("shows the same draft in both fields and keeps editing when moving between them", async () => {
       await openWorkspace()
       await chooseView("Grid")
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
 
       await press("Shared")
@@ -434,7 +435,7 @@ describe("renaming terminals", () => {
     it("ends the edit in both places when Escape is pressed in either", async () => {
       await openWorkspace()
       await chooseView("Grid")
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await press("Discarded")
       await headerRenameField("Dev server").click()
 
@@ -698,7 +699,7 @@ describe("hiding terminals from Grid and Canvas", () => {
   context("when clicking the eye on a tab", () => {
     it("draws the eye that shows it again no stronger than the tab's other actions", async () => {
       await openWorkspace()
-      await visibilityToggle("Dev server", "Hide").click()
+      await pressTabAction(visibilityToggle("Dev server", "Hide"))
       const show = visibilityToggle("Dev server", "Show")
       await expect.element(show).toHaveAttribute("aria-pressed", "true")
 
@@ -712,7 +713,7 @@ describe("hiding terminals from Grid and Canvas", () => {
       await openWorkspace()
       await chooseView("Grid")
 
-      await visibilityToggle("Dev server", "Hide").click()
+      await pressTabAction(visibilityToggle("Dev server", "Hide"))
 
       await expect.element(hiddenTerminalTab("Dev server")).toBeVisible()
       await expect.element(visibilityToggle("Dev server", "Show")).toBeVisible()
@@ -730,7 +731,7 @@ describe("hiding terminals from Grid and Canvas", () => {
         await chooseView(name)
         await expect.element(terminal("Dev server")).toBeInTheDocument()
 
-        await visibilityToggle("Dev server", "Hide").click()
+        await pressTabAction(visibilityToggle("Dev server", "Hide"))
 
         await expect.element(terminal("Dev server")).not.toBeInTheDocument()
         await expect.element(terminal("Tests")).toBeInTheDocument()
@@ -739,7 +740,7 @@ describe("hiding terminals from Grid and Canvas", () => {
 
     it("still shows the terminal in Focus", async () => {
       await openWorkspace()
-      await visibilityToggle("Dev server", "Hide").click()
+      await pressTabAction(visibilityToggle("Dev server", "Hide"))
 
       await hiddenTerminalTab("Dev server").click()
 
@@ -780,7 +781,7 @@ describe("hiding terminals from Grid and Canvas", () => {
       it("shows it at half the opacity of a selected visible terminal", async () => {
         await openWorkspace()
         await chooseView(name)
-        await visibilityToggle("Dev server", "Hide").click()
+        await pressTabAction(visibilityToggle("Dev server", "Hide"))
         await expect.element(terminal("Dev server")).not.toBeInTheDocument()
 
         await hiddenTerminalTab("Dev server").click()
@@ -801,7 +802,7 @@ describe("hiding terminals from Grid and Canvas", () => {
       it("removes it again once another terminal is selected", async () => {
         await openWorkspace()
         await chooseView(name)
-        await visibilityToggle("Dev server", "Hide").click()
+        await pressTabAction(visibilityToggle("Dev server", "Hide"))
         await hiddenTerminalTab("Dev server").click()
         await expect.element(terminal("Dev server")).toBeVisible()
 
@@ -816,7 +817,7 @@ describe("hiding terminals from Grid and Canvas", () => {
         await chooseView(name)
         await typeInto("Checkout review", "unfinished command")
         await terminalTab("Tests").click()
-        await visibilityToggle("Checkout review", "Hide").click()
+        await pressTabAction(visibilityToggle("Checkout review", "Hide"))
         await expect.element(terminal("Checkout review")).not.toBeInTheDocument()
 
         await hiddenTerminalTab("Checkout review").click()
@@ -832,10 +833,10 @@ describe("hiding terminals from Grid and Canvas", () => {
         await openWorkspace()
         await chooseView(name)
         const before = placeBeside(terminal("Dev server"), terminal("Checkout implementation"))
-        await visibilityToggle("Dev server", "Hide").click()
+        await pressTabAction(visibilityToggle("Dev server", "Hide"))
         await expect.element(terminal("Dev server")).not.toBeInTheDocument()
 
-        await visibilityToggle("Dev server", "Show").click()
+        await pressTabAction(visibilityToggle("Dev server", "Show"))
 
         await expect.element(terminal("Dev server")).toBeVisible()
         await expect
@@ -849,12 +850,12 @@ describe("hiding terminals from Grid and Canvas", () => {
     it("shows it at full opacity and keeps it in Grid after selecting another terminal", async () => {
       await openWorkspace()
       await chooseView("Grid")
-      await visibilityToggle("Dev server", "Hide").click()
+      await pressTabAction(visibilityToggle("Dev server", "Hide"))
       await hiddenTerminalTab("Dev server").click()
       await expect.element(hiddenTerminalTab("Dev server")).toHaveAttribute("aria-current", "true")
       await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(0.5, 1)
 
-      await visibilityToggle("Dev server", "Show").click()
+      await pressTabAction(visibilityToggle("Dev server", "Show"))
 
       await expectSelected("Dev server")
       await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)

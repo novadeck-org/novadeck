@@ -2,6 +2,7 @@ import { terminalCount, newTerminalName } from "../support/keyboard"
 import {
   anyRenameField,
   newTerminalButton,
+  pressTabAction,
   sidebarRenameField,
   tabAction,
 } from "../support/terminals"
@@ -18,7 +19,7 @@ describe("workspace commands", () => {
   context("when creating a terminal while another name is being edited", () => {
     it("saves the existing name and creates the new terminal in the same interaction", async () => {
       await openWorkspace()
-      await tabAction("Rename Dev server").click()
+      await pressTabAction(tabAction("Rename Dev server"))
       await sidebarRenameField("Dev server").fill("API server")
 
       await newTerminalButton().click()
