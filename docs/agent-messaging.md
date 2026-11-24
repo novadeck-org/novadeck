@@ -221,7 +221,8 @@ Teams work the same in Solo and Herd: a lead directs, and its teammates act on i
 report back. Approvals of actions stay the person's in every mode, and a harness's own
 permission prompts are never Novadeck's to skip.
 
-The mode words the server's instructions and the `send`, `agents` and `ask` descriptions
+The mode words the server's instructions and the `send` and `ask` descriptions (`agents`
+points to `send`'s rather than carry them again)
 (`together`, `meets`, `onward`, `anchored`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
 drops), which the MCP server asks the runner for (call `mode`) with each handshake and listing,
 and the rules on peers' messages (`peerAction`, `peersShort` in `messaging/messages.ts`), as each
