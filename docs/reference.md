@@ -450,8 +450,11 @@ kinds: an Unblock ("!"), where the agent can't go on without you (a permission o
 dialog, a message held for you to release, or an `ask` whose answer is an action only you
 can do, such as a sign-in, access or a key); an Ask ("?"), a question from the harness or
 sent through the agent's `ask` tool; Trouble, a failed turn, a usage limit or messages held
-long; and an Update, an agent's `done` report or a `tell`. Click a
-row to read it and answer in place, or reveal its terminal. An `ask` returns immediately so
+long; and an Update, an agent's `done` report or a `tell`. A row looks and moves like a
+terminal's tab: the kind's icon and the subject on one line (whole in its tooltip), then a
+tab's detail line with the project, anything extra (a draft, a snooze, how it ended) and how
+long the agent has waited at its end. Click a row to read it and answer in place, or reveal
+its terminal. An `ask` returns immediately so
 the agent can keep working; your answer reaches that exact agent session later as a message.
 
 Every row is open, resolved or withdrawn, and only a withdrawn one disappears: an ask its own
@@ -515,8 +518,10 @@ bell-off button on the row or in the card's head. A snoozed row keeps its place 
 with a gray wash, a dashed bar and a bell-off where its wait shows, and still drags with the
 rest; Next, the arrows and j/k step past it, and the bell, its count, toasts and OS pings
 leave it out. Snoozed from its card, the next card opens. S again, or the bell button, brings
-it back, which rings nothing. On a snoozed row the bell button is at the top right, where the
-bell-off shows, in place of the button that dismisses an ask: bring one back before you dismiss it. A terminal whose every need is snoozed shows a gray bell-off for
+it back, which rings nothing. A row's snooze and dismiss buttons slide in over its wait under
+the pointer or with the keyboard on it, as a tab's Hide and Rename do. On a snoozed row the
+bell button slides in over the bell-off, in place of the button that dismisses an ask: bring
+one back before you dismiss it. A terminal whose every need is snoozed shows a gray bell-off for
 its "!" or "?", the tab a gray wash and dashed bar and the window's head a wash, with no warning
 line; a new prompt from it is marked at once. The project switcher's dot leaves snoozed needs
 out. Snoozes are kept across a restart, each for the row it was made on: a message thread held
