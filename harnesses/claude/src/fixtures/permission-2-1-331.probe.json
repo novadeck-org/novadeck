@@ -1,0 +1,69 @@
+{
+  "version": "2.1.331",
+  "scenarios": {
+    "bash-tip": {
+      "tool": "Bash",
+      "input": {
+        "command": "git -C /home/mzpk/Workspace/oss/novadeck log --oneline -3",
+        "description": "Show the last three commits in the repo"
+      },
+      "cwd": "/home/mzpk/Workspace/oss/novadeck",
+      "screens": {
+        "74x17": {
+          "height": 17,
+          "columns": 74,
+          "rows": {
+            "0": " Bash command",
+            "1": " Tip: auto mode handles these prompts for you — choose \"switch to auto ",
+            "2": " mode\" below",
+            "3": " Show the last three commits in the repo",
+            "4": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+            "5": " git -C /home/mzpk/Workspace/oss/novadeck log --oneline -3",
+            "6": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+            "7": " This command requires approval",
+            "9": " Do you want to proceed?",
+            "10": " ❯ 1. Yes",
+            "11": "   2. Yes, and don’t ask again for: git *",
+            "12": "   3. Yes, and switch to auto mode · auto mode handles these prompts for ",
+            "13": "      you",
+            "14": "   4. No",
+            "15": " ↑ 1 more line ",
+            "16": " Esc to cancel · Tab to amend"
+          }
+        }
+      }
+    },
+    "mcp-scrolled": {
+      "tool": "mcp__plugin_novadeck_novadeck__describe",
+      "input": {
+        "title": "Add --version flag to dev-web",
+        "summary": "Plan a --version flag in scripts/dev-web/main.ts printing the protocol version"
+      },
+      "cwd": "/home/mzpk/Workspace/oss/novadeck",
+      "screens": {
+        "74x17": {
+          "height": 17,
+          "columns": 74,
+          "rows": {
+            "0": " plugin:novadeck:novadeck — Describe Tool: (MCP)",
+            "1": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+            "2": " title: \"Add --version flag to dev-web\"",
+            "3": " summary:",
+            "4": "   │ Plan a --version flag in scripts/dev-web/main.ts printing the",
+            "5": "   │ protocol version",
+            "6": "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+            "7": " About the plugin:novadeck:novadeck — Describe Tool:",
+            "8": " │ Describe your own Novadeck terminal with a title and a summary,",
+            "9": " │ each one short line on what the work here is about, at a high…",
+            "10": " (ctrl+o to expand description)",
+            "12": " Do you want to proceed?",
+            "13": " ❯ 1. Yes",
+            "14": "   2. No",
+            "15": " ↑ 2 more lines ",
+            "16": " Esc to cancel · Tab to amend"
+          }
+        }
+      }
+    }
+  }
+}
