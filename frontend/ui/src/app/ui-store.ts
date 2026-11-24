@@ -76,6 +76,10 @@ export type UiState = {
   readonly agentFocus: AgentName | null
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
   readonly crashLoopDismissed: boolean
+  // Whether Preferences shows the Experimental switch while it is off: the person tapped the
+  // version ten times, or had the switch on, in this run. Never persisted, so a switch turned off
+  // hides again at the next launch.
+  readonly experimentalRevealed: boolean
   // Which addon's offer (voice input or murmur) came up in this run of the app: each run
   // offers at most one unasked ("none": a window that is not the app's first leaves it to
   // the first); never persisted.
@@ -214,6 +218,7 @@ export const initialUi = ({
   told: null,
   agentFocus: null,
   crashLoopDismissed: false,
+  experimentalRevealed: false,
   addonOffer: extraWindow ? "none" : null,
   nameOffer: null,
   crashLoop: 0,
@@ -442,6 +447,12 @@ export const answerChatOffer = (ui: UiStore): void =>
 // Holds Agent Chat's offer back for the rest of this run, without answering it.
 export const holdChatOffer = (ui: UiStore): void =>
   void ui.update((state) => (state.chatOfferHeld ? state : { ...state, chatOfferHeld: true }))
+
+// Shows Preferences' Experimental switch for the rest of this run, whatever it is set to.
+export const revealExperimental = (ui: UiStore): void =>
+  void ui.update((state) =>
+    state.experimentalRevealed ? state : { ...state, experimentalRevealed: true },
+  )
 
 // Whether tabs and window headers show terminals' critters: the person turned Agent avatars
 // on, one of the experimental features, so they show only while IS_EXPERIMENTAL is on.

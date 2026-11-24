@@ -1,4 +1,5 @@
 import { onTestFinished } from "vitest"
+import { cleanup } from "vitest-browser-react"
 import { page, type Locator } from "vitest/browser"
 
 import { restartsAsked, setChannelStable } from "../support/backend"
@@ -180,9 +181,21 @@ describe("restarting to update", () => {
   })
 })
 
-// The About tab holds the Experimental switch.
+// The About tab holds the Experimental switch, hidden while off until the version is tapped ten
+// times; once shown it stays for the rest of the run.
 const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental" })
 const experimentalTab = () => preferencesDialog().getByRole("tab", { name: "Experimental" })
+const tapVersion = async (times: number): Promise<void> => {
+  const version = preferencesDialog().getByText("0.0.79", { exact: true })
+  // eslint-disable-next-line no-await-in-loop -- Each tap after the one before.
+  for (let at = 0; at < times; at += 1) await version.click()
+}
+// Opens About and taps the version until the Experimental switch shows.
+const openExperimental = async (): Promise<void> => {
+  await openPreferencesOn("About")
+  await tapVersion(10)
+  await expect.element(experimental()).toBeVisible()
+}
 
 describe("the Experimental switch in Preferences", () => {
   it("is absent where the app has no updates, and so is its tab", async () => {
@@ -195,9 +208,51 @@ describe("the Experimental switch in Preferences", () => {
     expect(experimentalTab().query()).toBeNull()
   })
 
-  it("starts off, and stays on once turned on, also when Preferences opens again", async () => {
+  it("is hidden while off, until the version is tapped ten times, counting the last taps down", async () => {
     await openWorkspace("/?update=ready")
     await openPreferencesOn("About")
+    await expect.element(preferencesDialog().getByText("0.0.79", { exact: true })).toBeVisible()
+    expect(experimental().query()).toBeNull()
+    await tapVersion(5)
+    await expect
+      .element(preferencesDialog().getByText("Tap 5 more times to show Experimental"))
+      .toBeVisible()
+    expect(experimental().query()).toBeNull()
+    await tapVersion(5)
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
+    expect(
+      preferencesDialog().getByText("to show Experimental", { exact: false }).query(),
+    ).toBeNull()
+  })
+
+  it("stays in sight, turned off, until the next launch, and hides then", async () => {
+    await openWorkspace("/?update=ready")
+    await openExperimental()
+    await experimental().click()
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
+    await experimental().click()
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
+    await closePreferences()
+    await openPreferencesOn("About")
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
+    await closePreferences()
+    // A launch: in-memory state starts over, the stored channel stays.
+    await cleanup()
+    await openWorkspace("/?update=ready")
+    await openPreferencesOn("About")
+    await expect.element(preferencesDialog().getByText("0.0.79", { exact: true })).toBeVisible()
+    expect(experimental().query()).toBeNull()
+  })
+
+  it("shows without taps where it is on", async () => {
+    await openWorkspace("/?update=ready&channel=experimental")
+    await openPreferencesOn("About")
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
+  })
+
+  it("starts off, and stays on once turned on, also when Preferences opens again", async () => {
+    await openWorkspace("/?update=ready")
+    await openExperimental()
     await expect.element(experimental()).toBeEnabled()
     await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
     await experimental().click()
@@ -211,7 +266,7 @@ describe("the Experimental switch in Preferences", () => {
 
   it("shows the Experimental tab, with agent avatars, while it is on", async () => {
     await openWorkspace("/?update=ready")
-    await openPreferencesOn("About")
+    await openExperimental()
     expect(experimentalTab().query()).toBeNull()
     await experimental().click()
     await experimentalTab().click()
@@ -226,7 +281,7 @@ describe("the Experimental switch in Preferences", () => {
   it("turns agent worktrees off with it, so they never stay on without their toggle", async () => {
     const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
     await openWorkspace("/?update=ready")
-    await openPreferencesOn("About")
+    await openExperimental()
     await experimental().click()
     await experimentalTab().click()
     await expect.element(worktrees()).toHaveAttribute("aria-checked", "false")
@@ -245,7 +300,7 @@ describe("the Experimental switch in Preferences", () => {
     await openWorkspace("/projects/storefront/sessions/initial/focus?update=ready&panel=worktrees")
     await expect.element(sidebar()).toHaveAccessibleName("Terminals")
     await expectStaysAbsent(sidebarPanel("Worktrees"))
-    await openPreferencesOn("About")
+    await openExperimental()
     await experimental().click()
     await experimentalTab().click()
     await worktrees().click()
@@ -263,7 +318,7 @@ describe("the Experimental switch in Preferences", () => {
 
   it("forgets a step back to the Worktrees panel once it is gone", async () => {
     await openWorkspace("/?update=ready")
-    await openPreferencesOn("About")
+    await openExperimental()
     await experimental().click()
     await experimentalTab().click()
     await preferencesDialog().getByRole("switch", { name: "Agent worktrees" }).click()
@@ -283,7 +338,7 @@ describe("the Experimental switch in Preferences", () => {
   it("turns agent worktrees off when Preferences opens again and the channel reads stable", async () => {
     const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
     await openWorkspace("/?update=ready")
-    await openPreferencesOn("About")
+    await openExperimental()
     await experimental().click()
     await experimentalTab().click()
     await worktrees().click()

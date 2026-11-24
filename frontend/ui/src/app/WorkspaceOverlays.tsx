@@ -61,7 +61,12 @@ import {
   sameItems,
   shallowEqual,
 } from "./selectors"
-import { chatViewOn, switchOffExperimental, type ExperimentalFeatures } from "./ui-store"
+import {
+  chatViewOn,
+  revealExperimental,
+  switchOffExperimental,
+  type ExperimentalFeatures,
+} from "./ui-store"
 import { useForgeRuns } from "./useForgeRuns"
 import { useInstalls } from "./useInstalls"
 
@@ -216,19 +221,25 @@ const useMurmur = (murmur: Backend["murmur"]): MurmurAddonValue | undefined => {
 type ExperimentalSetting = {
   readonly on: boolean | undefined
   readonly onChange: (on: boolean) => void
+  readonly revealed: boolean
+  readonly onReveal: () => void
 }
 
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
 // Turning it off turns agent worktrees, agent modes and forge integrations off with it.
+// The switch is hidden while off until the person taps the version ten times; once shown, or
+// flipped, it stays for the rest of this run (`experimentalRevealed`).
 const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
   features: ExperimentalFeatures,
   open: boolean,
 ): ExperimentalSetting | undefined => {
-  const { setFeatureFlag } = useWorkspaceServices().commands
+  const { commands, ui } = useWorkspaceServices()
+  const { setFeatureFlag } = commands
   const flag = useFeatureFlag("IS_EXPERIMENTAL")
+  const revealed = useUiState((state) => state.experimentalRevealed)
   const [known, setKnown] = useState(false)
   // How many times the person flipped the switch: a read asked before the latest flip may
   // answer with the channel from before it, so it is not taken.
@@ -256,7 +267,11 @@ const useExperimental = (
   return (
     channel && {
       on: known ? flag : undefined,
+      revealed,
+      onReveal: () => revealExperimental(ui),
       onChange: (next) => {
+        // Seen and flipped, it stays in sight for this run, off or on.
+        revealExperimental(ui)
         flips.current += 1
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
