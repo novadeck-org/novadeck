@@ -232,6 +232,22 @@ describe("pi's input box", () => {
         expect(read(name), name).toBeUndefined()
     })
 
+    it("reads no box under a panel that offers Escape, as /mcp's does", () => {
+      const panel = withBox("ready", [
+        " MCP servers",
+        "",
+        " No MCP servers configured. Add them to ~/.pi/agent/mcp.json or .pi/mcp.json.",
+        "",
+        " escape/ctrl+c close",
+      ])
+      expect(box.read(panel)).toBeUndefined()
+      expect(box.overlay(panel)).toBe(true)
+      // The words typed in the box start at its first column.
+      expect(box.read(withBox("ready", ["press escape to cancel it"]))?.text).toBe(
+        "press escape to cancel it",
+      )
+    })
+
     it("tells the transcript's search over the box", () => {
       expect(box.overlay(screen("searchCsiU120x40"))).toBe(true)
       expect(read("searchCsiU120x40")).toBeUndefined()

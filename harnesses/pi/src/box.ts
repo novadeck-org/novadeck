@@ -48,7 +48,8 @@ const frame = (row: string | undefined): boolean =>
  * fixtures/dialogs.probe.json): its selects and confirms (`select`, `confirm`, `trust`,
  * `login`), its text fields (`input`, `editor`), the model and thinking pickers (whose hint
  * wraps on a narrow screen), `/settings`, the question tool of pi's examples, `/resume` and
- * `/tree`, and the count under a searchable list (`/login`'s providers).
+ * `/tree`, the count under a searchable list (`/login`'s providers), and any indented row
+ * that offers Escape to cancel or close (`/mcp`'s panel; probed in e2e/probes/box-leftover).
  */
 const dialogHints = [
   /^\s*↑↓ navigate\s+enter select\s+escape\/ctrl\+c cancel\s*$/,
@@ -61,6 +62,9 @@ const dialogHints = [
   /^\s*↑\/↓ move · ←\/→ page\b/,
   // A searchable list's count, under its rows, where it shows no hints (`/login`'s providers).
   /^\s*\(\d+\/\d+\)\s*$/,
+  // Any other panel's hints that offer Escape (`/mcp`'s ` escape/ctrl+c close`): indented, as
+  // the box's own text never is, which starts at the first column.
+  /^\s+.*\b(?:escape|esc)(?:\/ctrl\+c)? (?:to )?(?:cancel|close)\b/i,
 ]
 
 /** Whether a row is a dialog's line of key hints (`dialogHints`). */
