@@ -11,13 +11,13 @@ import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
 import { BellOff, Minimize2, Maximize2, Mic, X } from "lucide-react"
 import { lazy, Suspense, useMemo, useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
-import { useRenderAt } from "./useRenderAt"
 import { WindowPhaseProvider } from "./window-phase"
 
 // What a layout contributes to each terminal it places.

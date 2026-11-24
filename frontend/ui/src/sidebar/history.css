@@ -109,8 +109,10 @@
    the line keeps for the action, to stand where the action will. Without a pointer that
    hovers, the action stays, and the end stands before it. */
 @media (hover: hover) {
+  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
+     and keeps that scroll, leaving the button standing at rest. */
   .history-row-slot {
-    overflow: hidden;
+    overflow: clip;
   }
   .history-row-slot > * {
     transition: transform var(--motion-layout) var(--ease-interface);

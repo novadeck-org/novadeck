@@ -35,6 +35,13 @@ const panel = () => {
         },
         { id: "b", name: "Quiet", visitedAt: null, terminalNames: [], running: 0 },
         {
+          id: "d",
+          name: "Earlier",
+          visitedAt: Date.now() - 4 * 60_000 - 5_000,
+          terminalNames: [],
+          running: 0,
+        },
+        {
           id: "c",
           name: "Spinning",
           visitedAt: null,
@@ -81,16 +88,22 @@ describe("The Sessions panel's marks", () => {
     ).toBe("running")
   })
 
-  it("says what needs the person in the detail line, before what runs", () => {
-    const detail = row(panel(), "a").querySelector(".sidebar-item-detail")!
-    expect(detail.textContent).toBe("2 terminals1 needs you")
-    expect(row(panel(), "b").querySelector(".sidebar-item-detail")!.textContent).toBe("0 terminals")
+  // What the detail line says, before when the session was last open.
+  const state = (id: string) => row(panel(), id).querySelector(".session-state")!.textContent
+
+  it("says what needs the person in the detail line, before what runs or how many there are", () => {
+    expect(state("a")).toBe("1 needs you")
+    expect(state("b")).toBe("0 terminals")
   })
 
   it("shows the running count only where nothing needs the person", () => {
-    expect(row(panel(), "c").querySelector(".sidebar-item-detail")!.textContent).toBe(
-      "1 terminal1 running",
-    )
+    expect(state("c")).toBe("1 running")
+  })
+
+  it("says how long ago a session was last open where a tab holds its handle, now for the open one", () => {
+    expect(row(panel(), "a").querySelector(".session-when")!.textContent).toBe("now")
+    expect(row(panel(), "b").querySelector(".session-when")!.textContent).toBe("")
+    expect(row(panel(), "d").querySelector(".session-when")!.textContent).toBe("4m")
   })
 
   it("says the status first in the row's description, for a screen reader", () => {
@@ -104,6 +117,6 @@ describe("The Sessions panel's marks", () => {
 
   it("names those terminals in the row's description before the terminal list", () => {
     const description = heard(panel(), "a")
-    expect(description).toContain("Needs you: @glint · Polish. One, Two")
+    expect(description).toContain("Needs you: @glint · Polish. 2 terminals: One, Two")
   })
 })
