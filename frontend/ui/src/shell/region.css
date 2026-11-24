@@ -588,12 +588,13 @@
   margin-inline-start: auto;
 }
 /* A portable copy's card (PortableInstall.tsx) is as wide as the changelog it can carry,
-   which it shows in the what's-new look below. The workspace's folder sits in a soft well of
+   which it shows in the what's-new look below, in every phase, so pressing Install never
+   narrows it. The workspace's folder sits in a soft well of
    its own, apart from the highlights above it and the buttons below: the words, an icon
    button in the well's corner to show the folder, and the path under both, in mono, on a line
    of its own so it breaks only when it must. */
 .update-card.portable-card {
-  width: 20.5rem;
+  width: 24.5rem;
 }
 .whats-new-list + .portable-data,
 .portable-data + .update-card-foot {
@@ -723,8 +724,17 @@
   gap: 8px;
   padding: 8px 14px 14px;
 }
+/* The cards whose tape names a release, a downloaded update's (`.restart-card`), what's new
+   after one (`.news-card`) and a portable copy's news (`.portable-card`, as wide in every
+   phase): wide enough that their head holds "Restart · 0.000.000" and "From 0.000.000" on one
+   line. */
+.update-card.whats-new:is(.restart-card, .news-card, .portable-card) {
+  width: 24.5rem;
+}
 /* The tape at the start, lifted over the top edge, and the stamp and the × at the end: in
-   one row, so a long version shortens the tape, never runs under them. */
+   one row. The tape always shows its whole version, as it tells people which version they
+   get; where the row runs short, the stamp breaks after "From" instead, its version whole,
+   and only a version too long for its own line breaks, so the × stays on the card. */
 .whats-new-head {
   display: flex;
   align-items: center;
@@ -734,12 +744,10 @@
 }
 /* Torn at both ends and slapped on at a slant, in the wordmark's face. */
 .whats-new-tape {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: none;
   margin-inline-end: auto;
   translate: 0 -20px;
   padding: 4px 10px 3px;
-  overflow: hidden;
   background: var(--_accent-bg);
   color: var(--_accent-fg);
   font-family: "Archivo Variable", var(--font-sans);
@@ -748,7 +756,6 @@
   font-stretch: 125%;
   line-height: 1.2;
   letter-spacing: 0.16em;
-  text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
   rotate: -1.6deg;
@@ -762,9 +769,10 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
-  line-height: 1;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: end;
   text-transform: uppercase;
-  white-space: nowrap;
 }
 .whats-new-list {
   min-height: 0;

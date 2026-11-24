@@ -177,7 +177,7 @@ const WhatsNewCard = ({
           ref={panel}
           data-workspace-notice
           aria-labelledby={titleId}
-          className="floating update-card whats-new"
+          className="floating update-card whats-new news-card"
           tabIndex={-1}
           // A click anywhere on it leaves focus where it was, in a terminal.
           onMouseDown={(event) => event.preventDefault()}
