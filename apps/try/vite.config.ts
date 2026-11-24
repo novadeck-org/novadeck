@@ -45,14 +45,17 @@ export default defineConfig({
       // Take back (about 900 bytes; 1,310,139 bytes on CI, main 1,309,217 locally), and to
       // 1.312 MB for files dropped on terminals and the chat (1,311,340 bytes on CI), and to
       // 1.313 MB for macOS's sidebar running to the window's top and the header's own
-      // breakpoints (1,312,277 bytes on CI). The demo's was
+      // breakpoints (1,312,277 bytes on CI), and to 1.45 MB, by the owner's choice, when the
+      // changes pane's Expand all and the hidden Experimental switch, merged together, took
+      // main over it (1,313,101 bytes on CI before the switch, 1,313,172 with it locally). The
+      // demo's was
       // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then), and
       // to 205 kB for the changes pane's layers and the small git its samples come from
       // (198,875 bytes then), to 210 kB for the Inbox's history of resolved rows, which the
       // demo's Inbox keeps (206,351 bytes then), and to 250 kB, by the owner's choice, when main
       // reached it (about 210,000 bytes on CI, and the folder path field's 4 bytes over it).
       budgets: {
-        first: 1_313_000,
+        first: 1_450_000,
         demo: 250_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },
