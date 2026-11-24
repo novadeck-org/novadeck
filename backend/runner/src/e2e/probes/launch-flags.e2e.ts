@@ -94,10 +94,12 @@ for (const setup of setups) {
         const inner = (): Inside => run.deck.terminals as unknown as Inside
         const launchOf = (id: string): readonly string[] | undefined =>
           (inner().records.get(id) ?? inner().saves.saved(id))?.agents[agent]?.launch
-        // The screen once it shows the mode, or as it is after 10 s: a resumed opencode draws
+        // The screen once it shows the mode, or as it is after 5 s: a resumed opencode draws
         // its prompt before it sets the agent from the session's last message, about 250 ms
         // later (seen 2026-11-24, 1.19.6: 6 of 9 runs read Build on the prompt and failed).
-        // How long it took goes in `<label>Ms`.
+        // 5 s stays under the doorbell's 6 s settle, so a mode that shows only later, after
+        // Novadeck's first message could have gone out without it, still fails. How long it
+        // took goes in `<label>Ms`.
         const shown = async (
           label: string,
           terminal: {
@@ -111,7 +113,7 @@ for (const setup of setups) {
           }
           const since = Date.now()
           let text = await terminal.screen()
-          while (!probe.shows.test(text) && Date.now() - since < 10_000) {
+          while (!probe.shows.test(text) && Date.now() - since < 5_000) {
             // eslint-disable-next-line no-await-in-loop -- Each read waits for the screen to change.
             await new Promise((resolve) => setTimeout(resolve, 250))
             // eslint-disable-next-line no-await-in-loop -- As above.
