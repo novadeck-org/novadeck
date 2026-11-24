@@ -776,7 +776,10 @@ for (const setup of setups) {
     the message, and no other call does, so no Stop continued the turn with it. Each
     harness gets there its own way, which the scenario doesn't ask: Claude Code and
     Antigravity run the queued prompt after the Stop (Drafting in between), and Codex's
-    Enter steers it into the running turn, its hook firing as it is submitted.
+    Enter steers it into the running turn, its hook firing as it is submitted. pi's hook
+    runs as the prompt is entered, which a turn ending in that time beats: its Stop then
+    continues the turn with the message, in a call before the prompt's (`stopsFirst`), and
+    the message is told once either way.
   - _Next prompt typed mid-turn_: with the reply held, the person types without
     submitting, and a message comes. Having submitted nothing, the Stop continues the
     turn with it (its call holds no typed text), and the turn ends Drafting, never

@@ -310,6 +310,14 @@ export type AgentSetup = {
    */
   readonly queuedTaken?: string
   /**
+   * Why a Stop may bring a message before the prompt queued behind a running turn, in a model
+   * call of its own: the harness runs that prompt's hook after its turn can end, so a turn that
+   * ends first goes on with the message, and the prompt follows. pi's input handler runs as
+   * its queued prompt is entered, and a reply held until then may come first. Undefined where
+   * the prompt's own hook carries the message, or where a Stop always does.
+   */
+  readonly stopsFirst?: string
+  /**
    * What the screen shows under messages queued behind a running turn, which the scenarios
    * wait for: Claude Code's and Antigravity's `Press up to edit queued messages` where omitted.
    */
