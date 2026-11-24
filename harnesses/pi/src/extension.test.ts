@@ -112,7 +112,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       minimum: "1.1.0",
       unknownFrom: "2.0.0",
       prefix: "novadeck_",
-      stoppedType: "novadeck-stopped",
+      stoppedFolder: "stopped",
       ...overrides,
     }),
   )
@@ -352,7 +352,7 @@ describe("Novadeck's pi extension", () => {
     ])
   })
 
-  it("marks each run's end in the session's file, however its Stop's report fared", async () => {
+  it("marks each run's end in a file of Novadeck's, however its Stop's report fared", async () => {
     const pi = await load()
     await pi.emit("agent_start")
     await pi.emit("message_end", {
@@ -362,9 +362,15 @@ describe("Novadeck's pi extension", () => {
     await pi.emit("agent_settled", { aborted: false })
     await pi.emit("agent_start")
     await pi.emit("agent_settled", { aborted: true })
-    expect(pi.entries).toEqual([
-      { type: "novadeck-stopped", data: { at: expect.any(Number), error: "error" } },
-      { type: "novadeck-stopped", data: { at: expect.any(Number), error: "aborted" } },
+    // Beside the extension, never in pi's session file.
+    expect(pi.entries).toEqual([])
+    const marks = (await readFile(join(root, "stopped", "s1.jsonl"), "utf8"))
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as unknown)
+    expect(marks.slice(-2)).toEqual([
+      { type: "stopped", session_id: "s1", at: expect.any(Number), error: "error" },
+      { type: "stopped", session_id: "s1", at: expect.any(Number), error: "aborted" },
     ])
   })
 

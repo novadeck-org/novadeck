@@ -28,8 +28,11 @@ export type ExtensionConfig = {
   readonly unknownFrom: string
   /** The prefix of Novadeck's tools' names as pi declares them (`novadeck_send`). */
   readonly prefix: string
-  /** The type of the entry that marks a run's end in the session's file (`novadeck-stopped`). */
-  readonly stoppedType: string
+  /**
+   * The folder beside the extension where it marks each run's end, a file per session
+   * (`stopped/<session>.jsonl`), which pi's watch follows.
+   */
+  readonly stoppedFolder: string
   /**
    * The shipping gate (Experimental) is on: a shell call's PreToolUse waits for the runner's
    * answer, and is refused where it says so. Absent otherwise.
@@ -42,7 +45,7 @@ export const extensionSource = (config: ExtensionConfig): string =>
   `// Novadeck's extension for pi. Written by Novadeck into its own data directory and
 // overwritten on each start; pi loads it only in Novadeck's terminals, for one launch.
 import { spawn } from "node:child_process"
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -534,15 +537,24 @@ export default function novadeck(pi) {
       // An aborted run skips agent_before_settle: its Stop is told here, with nothing to deliver.
       if (!stopped) await stop(ctx, aborted)
     } catch {}
-    // That the run is over, in the session's own file, however its Stop's hook fared: a turn
-    // whose report never reached Novadeck still ends (transcript-watch.ts reads it), as
-    // Claude Code's stop_hook_summary ends one. An entry of an extension's own, which the model
-    // never reads.
+    // That the run is over, however its Stop's hook fared, in a file of Novadeck's own beside
+    // the extension (never the person's session file, which keeps only what pi and they put
+    // there): a turn whose report never reached Novadeck still ends (transcript-watch.ts reads
+    // it), as Claude Code's stop_hook_summary and opencode's stopped line end one.
     try {
-      pi.appendEntry(config.stoppedType, {
-        at: Date.now(),
-        error: aborted ? "aborted" : failure ? failure.name : null,
-      })
+      const id = ctx.sessionManager.getSessionId()
+      if (/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/.test(id)) {
+        mkdirSync(join(here, config.stoppedFolder), { recursive: true })
+        appendFileSync(
+          join(here, config.stoppedFolder, id + ".jsonl"),
+          JSON.stringify({
+            type: "stopped",
+            session_id: id,
+            at: Date.now(),
+            error: aborted ? "aborted" : failure ? failure.name : null,
+          }) + "\n",
+        )
+      }
     } catch {}
     reply = null
     failure = null

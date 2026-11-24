@@ -357,7 +357,17 @@ export class Bindings {
     if (!binding || !watch) return
     const controller = new AbortController()
     record.watching = controller
-    const run = { sessionId: binding.sessionId, instance: binding.instance, transcript }
+    const { agent } = binding
+    const run = {
+      sessionId: binding.sessionId,
+      instance: binding.instance,
+      transcript,
+      plugin: () =>
+        this.host.install(agent).then(
+          (install) => install?.plugin,
+          () => undefined,
+        ),
+    }
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
       this.sourceFact(record, fact)
@@ -573,7 +583,17 @@ export class Bindings {
         actorWatches.delete(actor)
       }
     if (!binding || !watchActor || transcript === null) return
-    const run = { sessionId: binding.sessionId, instance: binding.instance, transcript }
+    const { agent } = binding
+    const run = {
+      sessionId: binding.sessionId,
+      instance: binding.instance,
+      transcript,
+      plugin: () =>
+        this.host.install(agent).then(
+          (install) => install?.plugin,
+          () => undefined,
+        ),
+    }
     for (const [actor, since] of waiting) {
       if (actorWatches.has(actor)) continue
       const controller = new AbortController()

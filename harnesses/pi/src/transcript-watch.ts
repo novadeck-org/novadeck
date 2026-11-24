@@ -1,41 +1,43 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import { fieldsOf, parseFields } from "@novadeck/harness-core/fields"
+import { parseFields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness } from "@novadeck/harness-core/harness"
-import { at } from "@novadeck/harness-core/items"
+import { flavourOf } from "@novadeck/harness-core/paths"
 
-import { stoppedType } from "./plugin.js"
+import { stoppedFolder } from "./plugin.js"
 
 /**
- * What a pi session's own file says beside the extension's reports, followed live while it is
- * bound: Novadeck's extension adds an entry of its own (`custom`, `novadeck-stopped`) as each run
- * settles, once its `Stop` report returned, however that hook fared (extension-source.ts). So a
- * turn whose own `Stop` report never reached Novadeck still ends, `recorded`, as Claude Code's
- * `stop_hook_summary` and opencode's `stopped` line end one. The entry says how the run ended: an
- * abort (Escape) or a failure.
+ * What Novadeck's extension records beside its reports, followed live while a session is bound:
+ * it marks each run's end as the run settles, once its `Stop` report returned however that hook
+ * fared, in a file of its own beside it (`<plugin>/stopped/<session>.jsonl`, never pi's own
+ * session file: extension-source.ts). So a turn whose own `Stop` report never reached Novadeck
+ * still ends, `recorded`, as Claude Code's `stop_hook_summary` and opencode's `stopped` line end
+ * one. The mark says how the run ended: an abort (Escape) or a failure.
  */
-export const followTranscript: NonNullable<Harness["watch"]> = async (run, signal, emit) =>
-  followLines(run.transcript, signal, (line) => {
-    if (!line.includes(stoppedType)) return
+export const followTranscript: NonNullable<Harness["watch"]> = async (run, signal, emit) => {
+  const plugin = await run.plugin?.()
+  if (!plugin || signal.aborted || !/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/.test(run.sessionId)) return
+  const file = flavourOf(plugin).join(plugin, stoppedFolder, `${run.sessionId}.jsonl`)
+  await followLines(file, signal, (line) => {
     const event = stoppedEvent(line, run)
     if (event) emit(event)
   })
+}
 
-/** The turn's end one line of the file records, where it is the extension's mark of one. */
+/** The turn's end one line of the extension's file records. */
 export const stoppedEvent = (
   line: string,
   run: { readonly sessionId: string; readonly instance: string | null },
 ): ActivityEvent | undefined => {
   const fields = parseFields(line)
-  if (!fields || fields.type !== "custom" || fields.customType !== stoppedType) return undefined
-  const data = fieldsOf(fields.data)
-  const error = data?.error
+  if (!fields || fields.type !== "stopped" || fields.session_id !== run.sessionId) return undefined
+  const error = fields.error
   return {
     type: "turn-ended",
     agent: "pi",
     sessionId: run.sessionId,
     instance: run.instance,
-    startedAt: typeof data?.at === "number" ? data.at : (at(fields.timestamp) ?? Date.now()),
+    startedAt: typeof fields.at === "number" ? fields.at : Date.now(),
     outcome:
       error === "aborted"
         ? "interrupted"

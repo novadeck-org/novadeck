@@ -757,4 +757,10 @@ export type Run = {
   readonly instance: string | null
   /** Its transcript, as its hooks named it. */
   readonly transcript: string
+  /**
+   * The folder Novadeck writes the harness's own files to (`Install.plugin`), for a harness
+   * whose plugin keeps a record of its own beside the harness's transcript; asked for only by
+   * the watch that reads one.
+   */
+  readonly plugin?: () => Promise<string | undefined>
 }
