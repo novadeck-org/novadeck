@@ -262,6 +262,16 @@ describe("pi's input box", () => {
       expect(found.text).toBe("[Image #1] and more")
     })
 
+    it("shows each form of the path the runner pastes as an image", () => {
+      const id = "0f8e2b8e-6d1a-4b8a-9d6e-3b2a1c0d9e8f"
+      for (const pasted of [
+        `"C:\\Users\\my name\\AppData\\Roaming\\Novadeck\\uploads\\${id}\\shot.png"`,
+        `C:\\Users\\a\\AppData\\Roaming\\Novadeck\\uploads\\${id}\\shot.png`,
+        `/Users/a/Library/Application\\ Support/Novadeck/uploads/${id}/my\\ shot\\(1\\).png`,
+      ])
+        expect(box.read(withBox("ready", [`${pasted} what`]))?.text, pasted).toBe("[Image #1] what")
+    })
+
     it("leaves a path the person typed as text", () => {
       expect(read("pathTyped")?.text).toMatch(/^\/tmp\/.*shot\.png what is this$/)
       expect(box.images?.attached(screen("pathTyped"))).toBe(0)
@@ -270,6 +280,7 @@ describe("pi's input box", () => {
     it("takes the images out with the rest of the box", () => {
       expect(box.images?.discard(withBox("ready", [path]))).toBe("\x05\x15\x15")
       expect(box.images?.alone).toBe(true)
+      expect(box.images?.after).toBe(" ")
     })
   })
 

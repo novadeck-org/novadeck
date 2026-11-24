@@ -104,9 +104,23 @@ export const dialogShown = (rows: readonly string[]): boolean => {
   return found !== undefined && dialogIn(trimmed, found)
 }
 
-/** Where Novadeck's runner saves an image it pastes: `<data>/uploads/<uuid>/<name>`. */
-const upload =
-  /(?:[A-Za-z]:)?(?:[\\/](?:\\ |[^\s\\/])+)*[\\/]uploads[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/](?:\\ |[^\s\\/])+/g
+/** The folder of one image Novadeck's runner saved: `uploads/<uuid>/`. */
+const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+/**
+ * Where Novadeck's runner saves an image it pastes, `<data>/uploads/<uuid>/<name>`, as it pastes
+ * the path (`imagePaste`): a Windows path in double quotes where it holds a space or more than
+ * plain characters, bare otherwise; elsewhere bare, a backslash before each character a shell
+ * would read.
+ */
+const upload = new RegExp(
+  [
+    String.raw`"[^"]*[\\/]uploads[\\/]${uuid}[\\/][^"]+"`,
+    String.raw`[A-Za-z]:\\(?:[^\s\\"]+\\)*uploads\\${uuid}\\[^\s\\"]+`,
+    String.raw`(?:/(?:\\.|[^\s\\/])+)*/uploads/${uuid}/(?:\\.|[^\s\\/])+`,
+  ].join("|"),
+  "g",
+)
 
 /**
  * The box's text with each image Novadeck pasted in it shown as `[Image #1]`, `[Image #2]`, …, as
@@ -195,6 +209,8 @@ const erase = (box: InputBox): string => {
 const images: ProfileImages = {
   attached: (screen) => imageCount(read(screen)?.text ?? ""),
   alone: true,
+  // Two paths pasted one after the other would read as one word: a space keeps them apart.
+  after: " ",
   discard: (screen) => {
     const box = read(screen)
     return box && erase(box)
