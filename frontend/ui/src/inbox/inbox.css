@@ -200,7 +200,11 @@
       opacity var(--motion-feedback) var(--ease-interface),
       transform var(--motion-layout) var(--ease-interface);
   }
+  /* At least the buttons' width, as a tab's handle keeps its slot, so the words never run
+     into the room they slide into, however short the wait or with none. */
   .inbox-row:has(.sidebar-item-actions) .inbox-row-wait {
+    justify-content: flex-end;
+    min-width: var(--_sidebar-actions-space, 26px);
     margin-right: calc(0px - var(--_sidebar-actions-space, 26px));
   }
   .inbox-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible)) .inbox-row-wait {
@@ -230,10 +234,16 @@
 .inbox-row[data-snoozed="true"] :is(.inbox-row-icon, .inbox-row-wait) {
   color: var(--inbox-snoozed-icon-fg, var(--color-muted));
 }
-/* The bell-off stands centred where the unsnooze button slides in, a button's width. */
+/* The bell-off stands centred where the unsnooze button slides in, a button's width. Without a
+   pointer that hovers, the unsnooze button stands there at rest, and the bell-off gives way. */
 .inbox-row[data-snoozed="true"] .inbox-row-wait {
   justify-content: center;
   min-width: 24px;
+}
+@media (hover: none) {
+  .inbox-row[data-snoozed="true"] .inbox-row-wait {
+    display: none;
+  }
 }
 
 /* It keeps its size beside the title: the title's count gives up its room first (see

@@ -762,6 +762,20 @@ describe("Snoozing a row", () => {
     page.getByRole("button", { name: new RegExp(`^${name}: .*${subject}`) })
   const box = (element: Element): DOMRect => element.getBoundingClientRect()
 
+  it("keeps a long project clear of the buttons that slide in, with no wait to make room", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    // An open ask: both buttons, and no wait while its agent works on.
+    const ask = rows().filter({ has: button("Dismiss", "preview") })
+    ask.element().querySelector(".inbox-row-project")!.textContent = "customer-portal-frontend"
+    await ask.hover()
+    const snooze = button("Snooze", "preview").element()
+    await expect.poll(() => getComputedStyle(snooze).transform).toBe("none")
+    const words = ask.element().querySelector(".inbox-row-words")!
+    expect(box(words).right).toBeLessThanOrEqual(box(snooze).left)
+  })
+
   it("puts the unsnooze button where the dismiss button was, and the row isn't dismissed until it is back", async () => {
     await openInbox()
     await lookAway()
