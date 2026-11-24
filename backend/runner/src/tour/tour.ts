@@ -195,16 +195,19 @@ export class Tour {
   }
 
   /**
-   * What a new terminal starting in `cwd` gets in its environment on top of the person's: for one
-   * in a folder of the tour (`tour`, `tour-2`, ...) that has a record of its run, the provider
-   * and model of the tour's agents (`tourConfig`), so the lead and every teammate it opens run on
-   * the run's ticket whatever the command line says, and the ticket is in no line of any screen
-   * or history. The record is what a restart left (`TourRecords`), and it stays through the person
-   * keeping the project and the ticket's end, so a tour terminal never reaches for the person's own
-   * account: a dead ticket is the service's own refusal. It goes with the folder's project: where
-   * none is open there any more, it is dropped. None elsewhere.
+   * What a terminal starting in `cwd` gets in its environment on top of the person's: for one in a
+   * folder of the tour (`tour`, `tour-2`, ...) that has a record of its run, the provider and model
+   * of the tour's agents (`tourConfig`), so the lead and every teammate it opens run on the run's
+   * ticket whatever the command line says, and the ticket is in no line of any screen or history.
+   * While the run is live, any shell there gets it. Once the person keeps the project, or in a
+   * runner started again, only a terminal `resumed` there does (a restart, a restore, a session
+   * resumed): it keeps the model on its command line, which without the ticket would reach for the
+   * person's own account, and a dead ticket is the service's own refusal. A fresh agent the person
+   * opens in their project gets their own configuration. The record is what a restart left
+   * (`TourRecords`); it goes with the folder's project: where none is open there any more, it is
+   * dropped. None elsewhere.
    */
-  launchEnv(cwd: string): NodeJS.ProcessEnv | undefined {
+  launchEnv(cwd: string, resumed = false): NodeJS.ProcessEnv | undefined {
     const folder = folderOf(
       cwd,
       this.host.home ?? homedir(),
@@ -222,6 +225,8 @@ export class Tour {
       this.records.delete(name)
       return undefined
     }
+    const live = this.run !== undefined && basename(this.run.directory) === name
+    if (!live && !resumed) return undefined
     return { NOVADECK_OPENCODE_CONFIG: tourConfig(run.endpoint, run.ticket) }
   }
 

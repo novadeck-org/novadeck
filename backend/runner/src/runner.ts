@@ -472,7 +472,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // The tour's teammates may not open agents, and its lead's open in the teammates' folder.
     openPolicy: (terminalId) => tour.openPolicy(terminalId),
     // The tour's agents' provider, for the shells that start in its folder.
-    launchEnv: (cwd) => tour.launchEnv(cwd),
+    launchEnv: (cwd, resumed) => tour.launchEnv(cwd, resumed),
     transcripts: store.settings.runner().transcripts,
     // Read each time idle agents are looked at, so a change in Preferences counts at once.
     hibernateAfterMinutes: () => store.settings.runner().hibernateAfterMinutes,

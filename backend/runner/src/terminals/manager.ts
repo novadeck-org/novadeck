@@ -893,6 +893,8 @@ export class Terminals {
         integration,
         env,
         startup || undefined,
+        // Its agent resumed (or restarted with its task), not started by a command typed anew.
+        input.command === undefined && Boolean(startup),
       )
       // A shell that can't take the resume leaves an unseen wake asleep, not a plain shell.
       if (asleep && !input.seen && !started.resumes)
@@ -1272,6 +1274,7 @@ export class Terminals {
               integration,
               env,
               resume ? { command: resume.argv.join(" ") } : undefined,
+              true,
             )
             const earlier =
               this.saves.transcripts && !started.resumes

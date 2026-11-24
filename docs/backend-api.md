@@ -2523,9 +2523,13 @@ one from an earlier runner.
   ticket and expiry are kept in `tour-runs.json` beside the database (the runner's own, mode 0600,
   by the folder's name; never in the tour's folder or the workspace's schema; a new run takes its
   folder's record over, and it goes once no project is open in the folder), and every shell that
-  starts in a tour folder with such a record (the lead's, each teammate's, a resumed terminal's
-  after a restart, and any after the person keeps the project or the ticket ends: the Terminals
-  option `launchEnv`, `Tour.launchEnv`) gets `NOVADECK_OPENCODE_CONFIG`, which Novadeck's plugin
+  starts in a tour folder with such a record while the run is live (the lead's, each teammate's), and
+  afterwards, once the person keeps the project or in a runner started again, only a terminal being
+  resumed there (a restart, a restore or a resumed session, as the launch option says: it keeps the
+  model on its command line, so without the ticket it would reach for the person's own account, and
+  a dead ticket is the service's own 402); an agent the person opens anew in their project gets
+  their own configuration (the Terminals option `launchEnv`, `Tour.launchEnv`). What they get is
+  `NOVADECK_OPENCODE_CONFIG`, which Novadeck's plugin
   merges over opencode's loaded configuration for that process, so the tour's agents never reach
   for the person's own account and a dead ticket is the service's own 402. It holds the
   `openrouter` provider with `baseURL` the endpoint and `apiKey` the ticket, `model` and

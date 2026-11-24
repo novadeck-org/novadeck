@@ -271,9 +271,13 @@ describe("readying the tour", () => {
     expect(config.provider.openrouter.options.baseURL).toMatch(/\/tour\/v1$|^http/)
     // Only the tour's folders.
     expect(tour.launchEnv(join(home, "elsewhere"))).toBeUndefined()
-    // The person keeping the project changes nothing: its terminals never reach for their own account.
-    await tour.keep()
+    // Another run's terminal in the folder, started afresh by a command, gets it too while it is live.
     expect(tour.launchEnv(join(tourFolder(home), "src"))).toBeDefined()
+    // The person keeping the project: what they open afresh there is theirs, with their own
+    // configuration; a terminal resumed there keeps the model on its line, so the ticket too.
+    await tour.keep()
+    expect(tour.launchEnv(join(tourFolder(home), "src"))).toBeUndefined()
+    expect(tour.launchEnv(join(tourFolder(home), "src"), true)).toBeDefined()
   })
 
   it("keeps the run for a runner started again, through keeping and the ticket's end, until the project goes", async ({
@@ -292,21 +296,23 @@ describe("readying the tour", () => {
     await first.tour.keep()
     // The runner starts again: nothing of the run is in memory, the person's terminals resume.
     const again = tourIn(home, { projects, records: new TourRecords(file) })
-    const env = again.tour.launchEnv(tourFolder(home))
+    // A fresh agent the person opens is theirs; a resumed terminal keeps the tour's.
+    expect(again.tour.launchEnv(tourFolder(home))).toBeUndefined()
+    const env = again.tour.launchEnv(tourFolder(home), true)
     expect(JSON.parse(env!.NOVADECK_OPENCODE_CONFIG!).provider.openrouter.options.apiKey).toBe(
       "TICKET_7",
     )
     if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o600)
     // The tour's folder only, the person's own never.
-    expect(again.tour.launchEnv(join(home, "code"))).toBeUndefined()
+    expect(again.tour.launchEnv(join(home, "code"), true)).toBeUndefined()
     // Its project removed, the record goes with it, for good.
     projects.length = 0
-    expect(again.tour.launchEnv(tourFolder(home))).toBeUndefined()
+    expect(again.tour.launchEnv(tourFolder(home), true)).toBeUndefined()
     expect(
       tourIn(home, {
         projects: [project("tour", tourFolder(home))],
         records: new TourRecords(file),
-      }).tour.launchEnv(tourFolder(home)),
+      }).tour.launchEnv(tourFolder(home), true),
     ).toBeUndefined()
   })
 

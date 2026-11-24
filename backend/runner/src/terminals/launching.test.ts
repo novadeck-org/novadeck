@@ -20,7 +20,7 @@ const launcher = (path: string) =>
       shell: "/bin/sh",
       shellArgs: undefined,
       env: { PATH: path },
-      launchEnv: () => undefined,
+      launchEnv: (_cwd: string, resumed: boolean) => (resumed ? { TOUR: "yes" } : undefined),
       freshPath: false,
       relay: "",
       shims: () => Promise.resolve([]),
@@ -80,5 +80,16 @@ describe("putting folders last on a PATH", () => {
     expect(withFolders({ PATH: "/usr/bin:/Home/a/bin" }, ["/home/a/bin"], "linux")).toEqual({
       PATH: "/usr/bin:/Home/a/bin:/home/a/bin",
     })
+  })
+})
+
+describe.skipIf(!posix)("what a shell starting in a folder is given on top", () => {
+  it("is asked whether the terminal starts again, and adds what it is given", () => {
+    const shell = launcher("/usr/bin")
+    const input = { cols: 80, rows: 24, id: "t1" }
+    expect(shell.launch("/bin/sh", "/tmp", input, undefined, {}).spec.env.TOUR).toBeUndefined()
+    expect(
+      shell.launch("/bin/sh", "/tmp", input, undefined, {}, undefined, true).spec.env.TOUR,
+    ).toBe("yes")
   })
 })

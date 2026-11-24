@@ -52,7 +52,7 @@ export type TerminalOptions = {
    * Variables a shell starting in `cwd` gets on top of `env`, for that shell alone (the tour's
    * agents' provider, in the tour's folder); read as each shell starts, restarts included.
    */
-  launchEnv?: (cwd: string) => NodeJS.ProcessEnv | undefined
+  launchEnv?: (cwd: string, resumed: boolean) => NodeJS.ProcessEnv | undefined
   /** The environment shells start from: the runner's own when omitted. */
   baseEnv?: NodeJS.ProcessEnv
   /**
