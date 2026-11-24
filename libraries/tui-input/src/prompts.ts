@@ -563,6 +563,11 @@ export class Prompts {
         // A program with no placeholder of its own is told where the image stands, in words.
         const marked = runs && profile.images?.typed?.(index + 1)
         if (marked && !this.host.type(terminalId, bracketedPaste(marked))) throw this.notShown()
+        // Where the next image follows with no words between, what keeps the two apart.
+        const apart = profile.images?.after
+        const next = index + 1 < images.length && (runs?.[index + 1] ?? "") === ""
+        if (apart && next && !this.host.type(terminalId, bracketedPaste(inPaste(apart))))
+          throw this.notShown()
       }
       if (shell) {
         // The `!` as a key: pasted whole, some TUIs send it to the model as text.
