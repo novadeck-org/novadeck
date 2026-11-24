@@ -303,6 +303,22 @@ describe("pi's input box", () => {
         expect(box.read(withBox("ready", [`${pasted} what`]))?.text, pasted).toBe("[Image #1] what")
     })
 
+    it("reads a path with a space that pi wrapped at that space, the space dropped", () => {
+      const id = "0f8e2b8e-6d1a-4b8a-9d6e-3b2a1c0d9e8f"
+      // As pi drew Windows CI's upload path at 120 columns (probed 2026-11-24, 1.6.0).
+      const windows = [
+        String.raw`"C:\Users\runneradmin\AppData\Local\Temp\novadeck`,
+        `e2e-jdKuRr\\data\\uploads\\${id}\\shot.png"`,
+      ]
+      expect(box.read(withBox("ready", windows))?.text).toBe("[Image #1]")
+      expect(box.images?.attached(withBox("ready", windows))).toBe(1)
+      const posix = [
+        "/Users/runner/Library/Application\\ Support/Novadeck/novadeck\\",
+        `e2e-AbCdEf/data/uploads/${id}/shot.png what`,
+      ]
+      expect(box.read(withBox("ready", posix))?.text).toBe("[Image #1] what")
+    })
+
     it("leaves a path the person typed as text", () => {
       expect(read("pathTyped")?.text).toMatch(/^\/tmp\/.*shot\.png what is this$/)
       expect(box.images?.attached(screen("pathTyped"))).toBe(0)

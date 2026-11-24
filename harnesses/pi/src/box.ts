@@ -127,13 +127,14 @@ const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
  * Where Novadeck's runner saves an image it pastes, `<data>/uploads/<uuid>/<name>`, as it pastes
  * the path (`imagePaste`): a Windows path in double quotes where it holds a space or more than
  * plain characters, bare otherwise; elsewhere bare, a backslash before each character a shell
- * would read.
+ * would read. pi wraps a path with a space at that space, which it drops: inside the quotes, or after
+ * the backslash that escapes it, a line break stands for it.
  */
 const upload = new RegExp(
   [
     String.raw`"[^"]*[\\/]uploads[\\/]${uuid}[\\/][^"]+"`,
     String.raw`[A-Za-z]:\\(?:[^\s\\"]+\\)*uploads\\${uuid}\\[^\s\\"]+`,
-    String.raw`(?:/(?:\\.|[^\s\\/])+)*/uploads/${uuid}/(?:\\.|[^\s\\/])+`,
+    String.raw`(?:/(?:\\[\s\S]|[^\s\\/])+)*/uploads/${uuid}/(?:\\[\s\S]|[^\s\\/])+`,
   ].join("|"),
   "g",
 )
@@ -144,8 +145,11 @@ const upload = new RegExp(
  * model reads the file itself (probed 2026-11-24, 1.6.0, `pathTyped` and `pathSent` of
  * fixtures/input-box.probe.json). So what stands for an image is its path, as the runner pasted
  * it (`imagePaste`): only a path into Novadeck's uploads folder counts, never one the person
- * typed. pi wraps a path longer than a row at the row's end, so the rows of a line are joined
- * where a row is full (`width` columns) before the paths are looked for.
+ * typed. pi wraps a path with no space longer than a row at the row's end, so the rows of a line
+ * are joined where a row is full (`width` columns) before the paths are looked for; one with a
+ * space it wraps there, which `upload` reads across (probed 2026-11-24, 1.6.0: Windows CI's
+ * `"C:\Users\runneradmin\AppData\Local\Temp\novadeck e2e-…\shot.png"`, 120 columns with its
+ * quotes, broke after `novadeck`).
  */
 const withImageMarks = (lines: readonly string[], width: number): string => {
   const joined: string[] = []
@@ -156,8 +160,8 @@ const withImageMarks = (lines: readonly string[], width: number): string => {
     else joined.push(line)
   }
   let count = 0
-  const marked = joined.map((line) => line.replace(upload, () => `[Image #${(count += 1)}]`))
-  return count === 0 ? lines.join("\n") : marked.join("\n")
+  const marked = joined.join("\n").replace(upload, () => `[Image #${(count += 1)}]`)
+  return count === 0 ? lines.join("\n") : marked
 }
 
 /** How many columns of a row pi's box fills with text: all but one, for its cursor. */
