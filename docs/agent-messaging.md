@@ -2134,6 +2134,26 @@ told, the wrapper counts as something the shell started beside the agent, and th
 Before the agent is stopped its screen is saved as the transcript (`Saves.saveNow`, waited for at
 most two seconds), so a wake that falls back to a plain shell shows the latest screen.
 
+A sleeper wakes only while its harness is connected. Novadeck's plugin can go from a harness
+outside Novadeck (another program's disconnect, or the person's own `claude plugin uninstall`):
+the runner looks at every harness's connection every 15 seconds (`connectionPollMs` in
+`harnesses/service.ts`, whose own `set` and reinstall never count, nor a read that spans one;
+a loss counts only once a second read a second later agrees, `connectionConfirmMs`, as a file
+caught mid-write or another Novadeck's reinstall reads as no plugin a moment), logs `harnesses.disconnected`
+and marks the harness `lost` in `agents.list` and `agents.watch`, which the UI toasts once with
+Reconnect and notes in Preferences. Its sleepers are stuck from then (below), and so are a
+harness's sleepers that a runner finds disconnected as it starts. An idle agent of a harness last found disconnected doesn't
+rest (`Sleepers.restable`). A wake judged `not-connected` fails nothing: the sleeper is stuck
+(`Sleepers.stuck`, `Messaging.stuck`), its messages stay queued, `send` answers that it can't be
+woken now and why, the listing says so on its line (never among the blank sleepers), and each
+later message asks for the wake again. A runner that finds a stuck sleeper with no look having
+seen its harness connected (it started after the loss) marks the harness lost too
+(`Harnesses.strand`). Once the harness is connected again, by the person's switch or outside
+Novadeck, every stuck sleeper with messages waiting, or with a turn the stop cut short, is woken
+(`Sleepers.connected`). The person's own disconnect in Preferences still forgets the agent's
+sessions, and its sleepers' messages are gone, as before. Other refusals (`in-use`,
+`conversation-gone`, ...) still fail the wake's messages.
+
 ### The lead's messages mid-turn
 
 A terminal's lead directs its work, so its messages don't wait for the turn to end.

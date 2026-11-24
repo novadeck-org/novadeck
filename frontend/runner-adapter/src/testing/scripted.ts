@@ -3,6 +3,7 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import type { CanvasLayout, Workspace } from "@novadeck/core/types"
 import type {
+  AgentIntegration,
   FeedbackDraft,
   ForgeIntegration,
   InboxEntry,
@@ -210,6 +211,7 @@ export const scripted = ({
   // How the runner answers `preferences.set`, which a test may change as it goes.
   const answers: { preference: () => Promise<number> } = { preference: async () => 1 }
   const settingsChanges = channel<RunnerSettingsState>()
+  const agentChanges = channel<AgentIntegration[]>()
   const preferenceChanges = channel<PreferenceChange>()
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
@@ -230,7 +232,8 @@ export const scripted = ({
   const api = {
     watch: () => statuses.iterator,
     supports: (path: string) =>
-      follows && (path === "settings.watch" || path === "preferences.get"),
+      follows &&
+      (path === "settings.watch" || path === "preferences.get" || path === "agents.watch"),
     preferences: {
       get: unused,
       set: note("preference", () => answers.preference()),
@@ -264,6 +267,7 @@ export const scripted = ({
     },
     agents: {
       list: listAgents as never,
+      watch: () => agentChanges.iterator,
       // No agent is followed here; `prompt`, `interrupt` and `answer` are noted and take.
       detail: () => channel<never>().iterator,
       transcript: () => channel<never>().iterator,
@@ -419,6 +423,8 @@ export const scripted = ({
     inbox,
     statuses,
     settingsChanges,
+    // What the test pushes as `agents.watch` (with `follows`).
+    agentChanges,
     preferenceChanges,
     // Changes how the runner answers `preferences.set` from now on.
     answerPreference: (answer: () => Promise<number>) => {

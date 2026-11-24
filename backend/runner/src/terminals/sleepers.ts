@@ -9,17 +9,20 @@ import {
 
 import { withoutLaunch } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
+import { logs } from "../log.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { standingDone } from "../messaging/peers.js"
 import type { PeerRecord } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { wakeRefusal, type Claims } from "./resumes.js"
+import { stuckReason, wakeRefusal, type Claims } from "./resumes.js"
 import type { ListedTerminal } from "./saved-terminals.js"
 import type { Saves } from "./saving.js"
 import { StoreTurns } from "./store-turns.js"
 import { savedSummaryOf, type AgentSummary } from "./summary.js"
+
+const log = logs.for("terminals")
 
 /**
  * How long the person's keys are dropped while a woken shell has not yet read its resume
@@ -38,6 +41,28 @@ export const graceMs = 5_000
 export const aloneLimit = 3
 export const aloneGapMs = 150
 
+/** How each harness's connection changes, as `Harnesses` follows it (`harnesses/service.ts`). */
+export type Connections = {
+  /**
+   * Whether the harness was found disconnected at its last look, read without looking again:
+   * an agent of it put to sleep now couldn't be woken.
+   */
+  readonly disconnected: (agent: AgentName) => boolean
+  /** Agents of the harness sleep that can't be woken, as it isn't connected: the person is told. */
+  readonly strand: (agent: AgentName) => void
+  /**
+   * Follows each change of a harness's connection, `lost` where it went outside Novadeck;
+   * returns its end.
+   */
+  readonly follow: (
+    listener: (change: {
+      readonly agent: AgentName
+      readonly connected: boolean
+      readonly lost: boolean
+    }) => void,
+  ) => () => void
+}
+
 export type SleepersHost = {
   readonly messaging: () => Messaging
   readonly saves: () => Saves
@@ -45,6 +70,8 @@ export type SleepersHost = {
   readonly claims: () => Claims
   /** Whether Novadeck is connected to the harness, whose sessions it may resume. */
   readonly connected: (agent: AgentName) => Promise<boolean>
+  /** How each harness's connection changes; none is ever found disconnected when omitted. */
+  readonly connections?: Connections
   /** Whether shells here can run a resume command: with the integration, and no custom arguments. */
   readonly resumes: () => boolean
   /** The project a session belongs to; undefined when the session is gone. */
@@ -101,11 +128,18 @@ export class Sleepers {
   private readonly restorables = new Map<string, boolean>()
   /** The session of each terminal rested here, to find its row. */
   private readonly sessions = new Map<string, string>()
+  /**
+   * The sleepers a wake was refused for as their agent's harness isn't connected, by that
+   * agent: their messages wait, and a wake is asked again once it is (`connected`).
+   */
+  private readonly stuck = new Map<string, AgentName>()
   /** The runner's own creates under way, and those waiting for a place among them. */
   private starting = 0
   private readonly queued: (() => void)[] = []
   private stopped = false
   private gate: Promise<void> = Promise.resolve()
+  /** The end of following the harnesses' connections. */
+  private unfollow: (() => void) | undefined
 
   constructor(private readonly host: SleepersHost) {}
 
@@ -115,11 +149,30 @@ export class Sleepers {
    */
   start(): void {
     const { messaging } = this.host
+    // An agent connected again, however it was, wakes its sleepers that waited for it.
+    // One lost outside Novadeck makes its sleepers stuck at once, so the first message to one
+    // and every listing say so. (The person's own disconnect forgets them instead.)
+    this.unfollow = this.host.connections?.follow((change) => {
+      if (this.stopped) return
+      if (change.connected) this.connected(change.agent)
+      else if (change.lost) this.lost(change.agent)
+    })
     const turns: string[] = []
+    const agents = new Set<AgentName>()
     for (const row of this.host.saves().terminals()) {
       const resting = this.rest(row)
+      if (resting) agents.add(resting.agent)
       if (resting && row.agents[resting.agent]?.turn !== undefined) turns.push(row.id)
     }
+    // A harness that went while no runner looked: its sleepers are stuck from the start.
+    if (this.host.connections)
+      for (const agent of agents)
+        void this.host
+          .connected(agent)
+          .then((connected) => {
+            if (!connected && !this.stopped && !this.host.stopping()) this.lost(agent)
+          })
+          .catch(() => undefined)
     for (const id of turns) this.ask(id)
     for (const id of messaging().wakesWanted()) this.ask(id)
   }
@@ -183,6 +236,8 @@ export class Sleepers {
     const { id, sessionId } = record.summary
     if (!this.host.resumes() || this.host.closed(id) || !harnesses[agent].launch.resume)
       return false
+    // Asleep, it couldn't be woken until its harness is connected again.
+    if (this.host.connections?.disconnected(agent) === true) return false
     const session = record.agents[agent]?.sessionId
     if (session === undefined || !agentSessionId.safeParse(session).success) return false
     return this.host.projectOf(sessionId) !== undefined && this.host.saves().saved(id) !== undefined
@@ -287,10 +342,69 @@ export class Sleepers {
     const check = this.host
       .claims()
       .check(terminalId, agent, sessionId, connected, undefined, launch)
-    if (check.ok) return void this.wake(terminalId)
+    if (check.ok) {
+      this.unstick(terminalId)
+      return void this.wake(terminalId)
+    }
+    // Only the person can connect it again: its messages wait for that, as the agent sleeps on.
+    if (check.reason === "not-connected") {
+      this.stick(terminalId, agent)
+      this.host.connections?.strand(agent)
+      return stuckReason(agent)
+    }
+    this.unstick(terminalId)
     const why = wakeRefusal(agent, check.reason)
     this.host.messaging().wakeFailed(terminalId, why)
     return why
+  }
+
+  /**
+   * `agent` isn't connected, and Novadeck didn't disconnect it: every sleeper of it is stuck
+   * now, its messages kept and told why, before any wake is tried; the person is told too.
+   */
+  private lost(agent: AgentName): void {
+    let any = false
+    for (const id of this.sessions.keys()) {
+      if (this.resting(id)?.agent !== agent || this.wakes.has(id)) continue
+      any = true
+      this.stick(id, agent)
+    }
+    if (any) this.host.connections?.strand(agent)
+  }
+
+  /** The sleeper can't be woken until `agent` is connected: told once. */
+  private stick(terminalId: string, agent: AgentName): void {
+    if (this.stuck.get(terminalId) === agent) return
+    this.stuck.set(terminalId, agent)
+    this.host.messaging().stuck(terminalId, stuckReason(agent))
+    log.info("sleepers.stuck", "A sleeping agent can't be woken: its harness isn't connected.", {
+      data: { terminal: terminalId, agent },
+    })
+    this.publish(terminalId)
+  }
+
+  /** The sleeper can be woken again, or isn't one: its messages are judged as any wake's. */
+  private unstick(terminalId: string): void {
+    if (!this.stuck.delete(terminalId)) return
+    this.host.messaging().stuck(terminalId, null)
+  }
+
+  /**
+   * `agent` is connected again: each of its sleepers that couldn't be woken is woken now, judged
+   * afresh, for the messages that waited or the turn a stop cut short, as at `start`.
+   */
+  connected(agent: AgentName): void {
+    for (const [id, stuck] of this.stuck) {
+      if (stuck !== agent) continue
+      const turn = this.row(id, this.sessions.get(id))?.agents[agent]?.turn
+      if (turn !== undefined || this.host.messaging().wakeWanted(id)) this.ask(id)
+      else this.unstick(id)
+    }
+  }
+
+  /** Whether the sleeper can't be woken now, as its agent's harness isn't connected. */
+  stuckOn(terminalId: string): boolean {
+    return this.stuck.has(terminalId)
   }
 
   private wake(terminalId: string): void {
@@ -372,6 +486,7 @@ export class Sleepers {
    */
   stop(): void {
     this.stopped = true
+    this.unfollow?.()
     for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
     for (const { timer, end } of this.gaps) {
@@ -430,6 +545,7 @@ export class Sleepers {
 
   /** The terminal is not a sleeper any more, or was started: its wake, if any, is over. */
   forget(terminalId: string): void {
+    this.unstick(terminalId)
     this.wakes.delete(terminalId)
     this.judging.delete(terminalId)
     this.disarm(terminalId)

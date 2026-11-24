@@ -21,6 +21,7 @@ import type { HistoryTimes } from "./history.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import type { TerminalRecords } from "./saved-terminals.js"
 import type { TranscriptSealer } from "./sealing.js"
+import type { Connections } from "./sleepers.js"
 
 /**
  * What the runner decides of an agent's `open_agent`, before anything starts: a refusal, or the
@@ -97,6 +98,8 @@ export type TerminalOptions = {
    * nothing and its reports are ignored. Every harness counts as connected when omitted.
    */
   connected?: (agent: AgentName) => Promise<boolean>
+  /** How each harness's connection changes, which sleeping agents wait on (see `Connections`). */
+  connections?: Connections
   /** Whether terminals' transcripts are kept, until `keepTranscripts` changes it. */
   transcripts?: boolean
   /**

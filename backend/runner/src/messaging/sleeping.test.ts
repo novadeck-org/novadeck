@@ -206,6 +206,54 @@ describe("a sleeper that starts", () => {
   })
 })
 
+describe("a sleeper that can't be woken now", () => {
+  const why = "Novadeck isn't connected to Claude Code (the user connects it again)"
+
+  it("keeps the message waiting, says why to its sender from the first, and asks again with the next", ({
+    resources,
+  }) => {
+    const run = setup()
+    resources.defer(closing(run))
+    // Stuck as its harness is found lost, before anyone sends.
+    run.messaging.stuck("B", why)
+    const first = run.send("please")
+    const route = `the recipient is asleep, and can't be woken now: ${why}. This message waits there, and wakes it once it can be`
+    expect(first).toMatchObject({ state: "queued", asleep: true, route })
+    const answer = run.send("still there?")
+    expect(answer.route).toBe(route)
+    expect(run.messaging.stateOf(first.id)).toBe("queued")
+    // Each change asks again, so a wake that can be now is found at once.
+    expect(run.wakes).toEqual(["B", "B"])
+    expect(run.messaging.goneFrom("A")).toEqual([])
+  })
+
+  it("is listed as such, with why, and not among the blank sleepers", ({ resources }) => {
+    const run = setup()
+    resources.defer(closing(run))
+    run.messaging.stuck("B", why)
+    const listed = run.messaging.agents("A")
+    const text = listed.ok ? listed.text : ""
+    expect(text).toContain(`@fox: Claude Code, asleep, can't be woken now: ${why}`)
+    expect(text).toContain(
+      "(Can't be woken now: messages to it wait there, and wake it once it can be.)",
+    )
+    expect(text).not.toContain("a message wakes it")
+    expect(text).not.toContain("never described and nothing reported")
+  })
+
+  it("is woken as any sleeper once it can be, or starts", ({ resources }) => {
+    const run = setup()
+    resources.defer(closing(run))
+    run.messaging.stuck("B", why)
+    run.messaging.stuck("B", null)
+    expect(run.send().route).toMatch(/this message wakes it/)
+    run.messaging.stuck("B", why)
+    run.messaging.register("B", here, "fox", null)
+    run.messaging.rest("B", here, "fox", null, saved)
+    expect(run.send().route).toMatch(/this message wakes it/)
+  })
+})
+
 describe("a sleeper's wake that fails", () => {
   it("makes the messages that asked for it gone, tells their sender, and rests as before", ({
     resources,

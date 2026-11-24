@@ -244,6 +244,7 @@ export class Terminals {
       | "agentMode"
       | "shipping"
       | "hibernation"
+      | "connections"
     >
   > & {
     env: NodeJS.ProcessEnv
@@ -560,6 +561,7 @@ export class Terminals {
       inbox: () => this.inbox,
       claims: () => this.claims,
       connected: (agent) => this.launcher.connected(agent),
+      ...(options.connections !== undefined && { connections: options.connections }),
       resumes: () =>
         this.options.shellArgs === undefined &&
         options.shellFiles !== undefined &&

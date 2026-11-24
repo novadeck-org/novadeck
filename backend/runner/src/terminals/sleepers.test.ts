@@ -49,6 +49,10 @@ const setup = (
   options: {
     wanted?: Set<string>
     connected?: boolean
+    /** The harnesses' connections as `Harnesses` follows them; none when omitted. */
+    connections?: boolean
+    /** Every session held by another terminal: a wake is refused as `in-use`. */
+    taken?: boolean
     done?: boolean
     turnAt?: number
     restorable?: () => Promise<boolean>
@@ -59,6 +63,17 @@ const setup = (
   const resting = new Map<string, { agent: AgentName; sessionId: string }>()
   const held = new Set<string>()
   const wanted = options.wanted ?? new Set<string>()
+  // Whether the harness is connected now, which a test changes; and who follows it.
+  const harness = { connected: options.connected ?? true }
+  const followers = new Set<
+    (change: { agent: AgentName; connected: boolean; lost: boolean }) => void
+  >()
+  // Lost outside Novadeck unless `own`, the person's own switch.
+  const connect = (connected: boolean, own = false) => {
+    harness.connected = connected
+    for (const follower of followers)
+      follower({ agent: "claude", connected, lost: !connected && !own })
+  }
   const host = {
     messaging: () => ({
       rest: (id: string, _scope: unknown, _handle: string, _led: unknown, on: never) => {
@@ -69,6 +84,8 @@ const setup = (
       wakesWanted: () => wanted,
       wakeWanted: (id: string) => wanted.has(id),
       wakeFailed: (id: string, why: string) => calls.push(`failed ${id}: ${why}`),
+      stuck: (id: string, why: string | null) =>
+        calls.push(why === null ? `unstuck ${id}` : `stuck ${id}: ${why}`),
       wakeEnded: (id: string, why: string) => calls.push(`ended ${id}: ${why}`),
       shownAgent: () => undefined,
       unregister: (id: string, _good: boolean, why?: string) => {
@@ -89,8 +106,20 @@ const setup = (
       reports: () => ({ tell: null, done: options.done ? { subject: "x", at: 5 } : null }),
       lastTurnAt: () => options.turnAt ?? null,
     }),
-    claims: () => new Claims({ boundElsewhere: () => false }),
-    connected: () => Promise.resolve(options.connected ?? true),
+    claims: () => new Claims({ boundElsewhere: () => options.taken === true }),
+    connected: () => Promise.resolve(harness.connected),
+    ...(options.connections && {
+      connections: {
+        disconnected: () => !harness.connected,
+        strand: (agent: AgentName) => calls.push(`strand ${agent}`),
+        follow: (
+          listener: (change: { agent: AgentName; connected: boolean; lost: boolean }) => void,
+        ) => {
+          followers.add(listener)
+          return () => followers.delete(listener)
+        },
+      },
+    }),
     restorable: options.restorable ?? (() => Promise.resolve(true)),
     resumes: () => true,
     projectOf: () => "p",
@@ -105,7 +134,7 @@ const setup = (
     changed: (each: ListedTerminal) => calls.push(`changed ${each.id}`),
     ended: (id: string) => calls.push(`ended stream ${id}`),
   } as unknown as SleepersHost
-  return { sleepers: new Sleepers(host), calls, resting, held }
+  return { sleepers: new Sleepers(host), calls, resting, held, connect, followers }
 }
 
 describe("sleepers", () => {
@@ -181,11 +210,116 @@ describe("sleepers", () => {
   it("leaves a wake that can't resume asleep and fails the messages that asked for it", async () => {
     const { sleepers, calls } = setup(
       [row("a", "claude", { claude: { sessionId: "one", seq: 1 } })],
-      { wanted: new Set(["a"]), connected: false },
+      { wanted: new Set(["a"]), taken: true },
     )
     sleepers.start()
     await vi.waitFor(() => expect(calls.some((call) => call.startsWith("failed a"))).toBe(true))
     expect(sleepers.asleep("a")).toBe(true)
+  })
+
+  it("keeps the messages of a wake its harness isn't connected for, says why, and wakes it once it is", async () => {
+    const { sleepers, calls, connect } = setup(
+      [row("a", "claude", { claude: { sessionId: "one", seq: 1 } })],
+      { wanted: new Set(["a"]), connected: false, connections: true },
+    )
+    sleepers.start()
+    await vi.waitFor(() => expect(sleepers.stuckOn("a")).toBe(true))
+    expect(calls).toContain(
+      "stuck a: Novadeck isn't connected to Claude Code (the user connects it again in Novadeck's Preferences, under Agents)",
+    )
+    // The person is told the harness is lost; nothing is gone, and it sleeps on.
+    expect(calls).toContain("strand claude")
+    expect(calls.some((call) => call.startsWith("failed a"))).toBe(false)
+    expect(sleepers.asleep("a")).toBe(true)
+    // Asked again while still disconnected, it is told once.
+    const strands = calls.filter((call) => call === "strand claude").length
+    sleepers.ask("a")
+    await vi.waitFor(() =>
+      expect(calls.filter((call) => call === "strand claude").length).toBeGreaterThan(strands),
+    )
+    expect(calls.filter((call) => call.startsWith("stuck a"))).toHaveLength(1)
+    connect(true)
+    await vi.waitFor(() => expect(sleepers.asleep("a")).toBe(false))
+    expect(sleepers.stuckOn("a")).toBe(false)
+    expect(calls).toContain("unstuck a")
+    expect(calls.some((call) => call.startsWith("failed a"))).toBe(false)
+  })
+
+  it("wakes nothing once connected again for a stuck sleeper no message waits for any more", async () => {
+    const wanted = new Set(["a"])
+    const { sleepers, calls, connect } = setup(
+      [row("a", "claude", { claude: { sessionId: "one", seq: 1 } })],
+      { wanted, connected: false, connections: true },
+    )
+    sleepers.start()
+    await vi.waitFor(() => expect(sleepers.stuckOn("a")).toBe(true))
+    wanted.clear()
+    connect(true)
+    expect(sleepers.stuckOn("a")).toBe(false)
+    expect(calls).toContain("unstuck a")
+    expect(sleepers.asleep("a")).toBe(true)
+  })
+
+  it("makes every sleeper of a harness lost outside Novadeck stuck at once, before any message", async () => {
+    const { sleepers, calls, connect } = setup(
+      [
+        row("a", "claude", { claude: { sessionId: "one", seq: 1 } }),
+        row("b", "codex", { codex: { sessionId: "two", seq: 1 } }),
+      ],
+      { connections: true },
+    )
+    sleepers.start()
+    await Promise.resolve()
+    expect(sleepers.stuckOn("a")).toBe(false)
+    connect(false)
+    expect(sleepers.stuckOn("a")).toBe(true)
+    expect(sleepers.stuckOn("b")).toBe(false)
+    expect(calls).toContain("strand claude")
+    expect(calls.some((call) => call.startsWith("failed"))).toBe(false)
+  })
+
+  it("leaves sleepers alone when the person disconnects their harness, which forgets them instead", async () => {
+    const { sleepers, calls, connect } = setup(
+      [row("a", "claude", { claude: { sessionId: "one", seq: 1 } })],
+      { connections: true },
+    )
+    sleepers.start()
+    await Promise.resolve()
+    connect(false, true)
+    expect(sleepers.stuckOn("a")).toBe(false)
+    expect(calls).not.toContain("strand claude")
+  })
+
+  it("makes the sleepers of a harness disconnected before the runner started stuck from the start", async () => {
+    const { sleepers, calls } = setup(
+      [row("a", "claude", { claude: { sessionId: "one", seq: 1 } })],
+      { connected: false, connections: true },
+    )
+    sleepers.start()
+    await vi.waitFor(() => expect(sleepers.stuckOn("a")).toBe(true))
+    expect(calls).toContain("strand claude")
+  })
+
+  it("puts no agent to sleep whose harness was last found disconnected", () => {
+    const { sleepers, connect } = setup(
+      [row("a", "claude", { claude: { sessionId: "one", seq: 1 } })],
+      { connections: true },
+    )
+    const running = {
+      summary: { id: "a", sessionId: "s" },
+      agents: { claude: { sessionId: "one", seq: 1 } },
+    }
+    expect(sleepers.restable(running, "claude")).toBe(true)
+    connect(false)
+    expect(sleepers.restable(running, "claude")).toBe(false)
+  })
+
+  it("stops following the harnesses' connections once it stops", () => {
+    const { sleepers, followers } = setup([], { connections: true })
+    sleepers.start()
+    expect(followers.size).toBe(1)
+    sleepers.stop()
+    expect(followers.size).toBe(0)
   })
 
   const waking = () =>

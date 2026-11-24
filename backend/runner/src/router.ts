@@ -38,7 +38,7 @@ import { listFolder } from "./workspaces/folder.js"
 import { keptPreferences } from "./workspaces/preferences.js"
 import type { Preferences } from "./workspaces/preferences.js"
 import type { Projects } from "./workspaces/projects.js"
-import { SettingsFeed } from "./workspaces/settings-feed.js"
+import { LatestFeed, SettingsFeed } from "./workspaces/settings-feed.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 import type { MainCheckouts } from "./worktrees/main-checkout.js"
 
@@ -220,6 +220,16 @@ export const createRouter = (options: {
     transcriptsAvailable: await options.transcriptsAvailable(),
   })
   const settingsFeed = new SettingsFeed(runnerSettings)
+  // Where each agent stands, told again as one's connection changes, however it did.
+  const agentsFeed = new LatestFeed(() => agents.list())
+  agents.follow(
+    () =>
+      void agentsFeed.changed().catch((error: unknown) =>
+        log.error("agents.feed-failed", "Novadeck could not tell clients of an agent's change.", {
+          err: error,
+        }),
+      ),
+  )
   const preferences = options.preferences ?? keptPreferences(store.settings)
 
   return api.router({
@@ -375,6 +385,9 @@ export const createRouter = (options: {
     },
     agents: {
       list: api.agents.list.handler(({ input }) => agents.list(input)),
+      watch: api.agents.watch.handler(({ signal }) =>
+        agentsFeed.watch(signal ?? new AbortController().signal),
+      ),
       detail: api.agents.detail.handler(({ input, signal }) =>
         terminals.detail(input.terminalId, signal),
       ),

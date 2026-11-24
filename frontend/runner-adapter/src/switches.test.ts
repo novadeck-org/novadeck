@@ -6,6 +6,8 @@ import { WireError } from "@novadeck/wire"
 import { describe, expect, it } from "./test"
 import { scripted } from "./testing/scripted"
 
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 describe("the transcript setting", () => {
   it("shows what the runner said, and changes it there", async () => {
     const app = scripted({ shown: [] })
@@ -253,6 +255,50 @@ describe("the agent switches", () => {
       { agent: "opencode", available: true, connected: true, busy: false },
       { agent: "agy", available: true, connected: true, limited: "own-status-line", busy: false },
     ])
+    app.stop()
+  })
+
+  it("follow the runner's word of each agent's connection, a change under way left as it is", async () => {
+    let answer: (result: unknown) => void = () => {}
+    const app = scripted({
+      shown: [],
+      follows: true,
+      connect: () => new Promise((resolve) => (answer = resolve)),
+    })
+    const agents = app.backend.agents!
+    app.agentChanges.push([
+      { agent: "claude", available: true, connected: false, lost: true },
+      { agent: "agy", available: true, connected: true },
+    ])
+    await settled()
+    expect(agents.state.getSnapshot()).toEqual([
+      { agent: "claude", available: true, connected: false, lost: true, busy: false },
+      { agent: "agy", available: true, connected: true, busy: false },
+    ])
+    // The person's own change reports its own result, whatever the watch says meanwhile.
+    agents.set("claude", true)
+    app.agentChanges.push([
+      { agent: "claude", available: true, connected: false, lost: true },
+      { agent: "agy", available: true, connected: true },
+    ])
+    await settled()
+    expect(agents.state.getSnapshot()[0]).toMatchObject({ busy: true, lost: true })
+    answer({ agent: "claude", available: true, connected: true })
+    await app.idle()
+    expect(agents.state.getSnapshot()[0]).toEqual({
+      agent: "claude",
+      available: true,
+      connected: true,
+      busy: false,
+    })
+    app.stop()
+  })
+
+  it("show no watch from a runner that does not offer one", async () => {
+    const app = scripted({ shown: [] })
+    app.agentChanges.push([{ agent: "claude", available: true, connected: true }])
+    await settled()
+    expect(app.backend.agents!.state.getSnapshot()[0]).toMatchObject({ connected: false })
     app.stop()
   })
 

@@ -31,6 +31,11 @@ export class Sessions {
   private readonly closedForGood = new Set<string>()
   /** The terminals resting with no process yet: asleep, until `register` starts one. */
   private readonly asleepIds = new Set<string>()
+  /**
+   * Why each terminal asleep that a wake was refused for can't be woken now, as its agent's
+   * harness not connected: its messages wait, and senders are told (`stuck`).
+   */
+  private readonly stuckWhy = new Map<string, string>()
 
   constructor(private readonly host: SessionsHost) {}
 
@@ -50,6 +55,17 @@ export class Sessions {
   /** Whether the terminal rests with no process started for it: asleep, not yet waking. */
   asleep(terminalId: string): boolean {
     return this.asleepIds.has(terminalId)
+  }
+
+  /** Why the terminal asleep can't be woken now, while that holds; undefined for any other. */
+  stuck(terminalId: string): string | undefined {
+    return this.asleepIds.has(terminalId) ? this.stuckWhy.get(terminalId) : undefined
+  }
+
+  /** The terminal asleep can't be woken now, for `why`, or can again for null. */
+  setStuck(terminalId: string, why: string | null): void {
+    if (why === null || !this.asleepIds.has(terminalId)) this.stuckWhy.delete(terminalId)
+    else this.stuckWhy.set(terminalId, why)
   }
 
   /** The terminals asleep; the live view. */
@@ -91,6 +107,7 @@ export class Sessions {
       // A sleeper starts: the same record, as it starts, its messages untouched and never
       // gone, still resting on its session until a root binds.
       if (!this.asleepIds.delete(terminalId)) return
+      this.stuckWhy.delete(terminalId)
       this.become(existing, started(terminalId, scope, handle, ledBy), existing.resting)
       this.host.store.changed(terminalId)
       return
@@ -169,6 +186,7 @@ export class Sessions {
       if (message.to.terminalId === terminalId && undelivered(message)) store.gone(message, reason)
     this.live.delete(terminalId)
     this.asleepIds.delete(terminalId)
+    this.stuckWhy.delete(terminalId)
     this.host.loops.forget(terminalId)
   }
 

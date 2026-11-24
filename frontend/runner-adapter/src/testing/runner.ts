@@ -193,6 +193,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     },
     agents: {
       list: () => runner.agents.list(),
+      watch: () => runner.agents.watch(),
       detail: (terminalId) => runner.agents.detail(terminalId),
       slice: (terminalId, screen) => runner.agents.slice(terminalId, screen),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),

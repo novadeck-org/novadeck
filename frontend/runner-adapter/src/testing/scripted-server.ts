@@ -288,6 +288,7 @@ export const scriptedRunner = ({
       list: api.agents.list.handler(() => [
         { agent: "claude" as const, available: true, connected: true },
       ]),
+      watch: api.agents.watch.handler(idle),
       detail: api.agents.detail.handler(idle),
       slice: api.agents.slice.handler(idle),
       transcript: api.agents.transcript.handler(idle),
