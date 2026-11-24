@@ -17,10 +17,13 @@ const runnable = (path: string): Promise<boolean> =>
   )
 
 /**
- * The pi the person's shells run: the first on their PATH, then where its installers put it
- * (`fallbacks`); undefined where none is.
+ * The pi the person's shells run, and its version: the first on their PATH, then where its
+ * installers put it (`fallbacks`), that answers `--version` with one. Another program named `pi`
+ * (Ubuntu's prints digits of π) answers with none and is passed over. Undefined where no pi is.
  */
-export const programOf = async (install: Install): Promise<string | undefined> => {
+export const programOf = async (
+  install: Install,
+): Promise<{ readonly program: string; readonly version: string } | undefined> => {
   const rules = rulesOf(install)
   const path = install.env.PATH ?? install.env.Path ?? ""
   const folders = path.split(install.platform === "win32" ? ";" : ":").filter(Boolean)
@@ -28,9 +31,13 @@ export const programOf = async (install: Install): Promise<string | undefined> =
     ...folders.flatMap((folder) => names(install.platform).map((name) => rules.join(folder, name))),
     ...(fallbacks(install) ?? []),
   ]
-  for (const candidate of candidates)
+  for (const program of new Set(candidates)) {
     // eslint-disable-next-line no-await-in-loop -- The first that runs answers.
-    if (await runnable(candidate)) return candidate
+    if (!(await runnable(program))) continue
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    const version = await versionOf(program, install.env)
+    if (version !== undefined) return { program, version }
+  }
   return undefined
 }
 
@@ -39,8 +46,7 @@ export const programOf = async (install: Install): Promise<string | undefined> =
  * or one of pi 2, which Novadeck doesn't know yet.
  */
 export const limited: NonNullable<Harness["limited"]> = async (install) => {
-  const program = await programOf(install)
-  const version = program === undefined ? undefined : await versionOf(program, install.env)
-  const known = version === undefined ? "supported" : standing(version)
+  const found = await programOf(install)
+  const known = found === undefined ? "supported" : standing(found.version)
   return known === "supported" ? undefined : known
 }

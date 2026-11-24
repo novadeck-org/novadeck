@@ -2,9 +2,12 @@ import { execFile } from "node:child_process"
 import { stat } from "node:fs/promises"
 
 /**
- * The oldest pi this adapter works with. 1.1.0 is a floor read from its changelog
- * (`registerTool`'s model-only exposure, `agent_before_settle`, `agent_settled`, `ui_prompt_start`,
- * `--session-id`), to be confirmed by running older builds.
+ * The oldest pi this adapter works with. Its screens are the same from 1.0.0, when its TUI went
+ * fullscreen, to 1.6.0 (probed 2026-11-24: 1.0.0, 1.3.0, 1.5.2 and 1.6.0, and 1.6.0's own binary,
+ * drew every state of a turn alike, `backups/pi-harness-2026-11-24/fixtures-screens/versions`);
+ * 0.87.1 drew them inline, in the terminal's own scrollback. 1.1.0 is the floor its extension
+ * events set, read from its changelog (`registerTool`'s model-only exposure, `agent_before_settle`,
+ * `agent_settled`, `ui_prompt_start`, `--session-id`).
  */
 export const minimum = "1.1.0"
 
