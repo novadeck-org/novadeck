@@ -306,18 +306,21 @@ describe("The pane in Canvas", () => {
       await expect.poll(() => image.element().closest("[data-sized]")).not.toBeNull()
       const fitted = image.element().getBoundingClientRect().width
       const before = await settled(width)
+      // The image keeps its zoom for the next time it shows, in a later test too: fitted again,
+      // whatever this one comes to.
+      onTestFinished(async () => {
+        const zoom = companionPane("Build Studio").getByRole("button", {
+          name: /^Zoomed to .+ Back to fit$/,
+        })
+        if (!zoom.query()) return
+        await zoom.click()
+        await expect.poll(() => zoom.query()).toBeNull()
+      })
 
       await ctrlWheel(image.element().closest(".image-viewer")!, -100)
 
       await expect.poll(() => image.element().getBoundingClientRect().width).toBeGreaterThan(fitted)
       expect(await settled(width)).toBe(before)
-
-      // The image keeps its zoom for the next time it shows, in a later test too: fitted again.
-      const zoom = companionPane("Build Studio").getByRole("button", {
-        name: /^Zoomed to .+ Back to fit$/,
-      })
-      await zoom.click()
-      await expect.poll(() => zoom.query()).toBeNull()
     })
   })
 })
