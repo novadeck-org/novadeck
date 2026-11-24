@@ -308,6 +308,11 @@ export class Messaging {
     return this.wakes.allWanted()
   }
 
+  /** The sleeper can't be woken now, for `why` (its messages wait), or can again for null. */
+  stuck(terminalId: string, why: string | null): void {
+    this.sessions.setStuck(terminalId, why)
+  }
+
   /** The terminal's wake failed: its waiting messages are gone, for `reason`; it still rests. */
   wakeFailed(terminalId: string, reason: string): void {
     this.wakes.failed(terminalId, reason)

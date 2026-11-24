@@ -1480,7 +1480,12 @@ export const runnerBackend = (
     },
     track,
   )
-  const { take: takeSettings, ...switches } = runnerSwitches(runner, options, track)
+  const {
+    take: takeSettings,
+    followAgents,
+    stopAgents,
+    ...switches
+  } = runnerSwitches(runner, options, track)
   // Whether the runner has the call, as one from before it has none: the shipping gate's
   // standing permits are neither shown nor taken back there.
   const takeBack = takeBackCall(runner)
@@ -2233,6 +2238,7 @@ export const runnerBackend = (
       listed: listing.map(({ project }) => project.id),
     })
     followSettings()
+    followAgents()
     person?.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
@@ -2262,6 +2268,7 @@ export const runnerBackend = (
       liveProjects?.stop()
       liveProjects = undefined
       stopSettings()
+      stopAgents()
       person?.stop()
       // The last changes are saved; nothing retries after this.
       flush()

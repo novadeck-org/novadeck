@@ -431,6 +431,11 @@ export type Runner = {
      */
     list(options?: { readonly fresh?: boolean }): Promise<AgentIntegration[]>
     /**
+     * Where each agent stands, then again each time one's connection changes, opened again
+     * after each reconnection (revision 14; ask `supports("agents.watch")` first).
+     */
+    watch(): AsyncIterableIterator<AgentIntegration[], undefined>
+    /**
      * Follows what the agent in a terminal does, in detail: a snapshot, then another on
      * each change, across reconnections, with a fresh one when the stream is opened again. It
      * follows the terminal from agent to agent; iteration ends once the terminal is gone,
@@ -1126,6 +1131,8 @@ export const connectRunner = async (
     },
     agents: {
       list: (look) => call((client) => client.agents.list(look)),
+      watch: () =>
+        followSession(connection, (client, signal) => client.agents.watch(undefined, { signal })),
       detail: (terminalId) =>
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),

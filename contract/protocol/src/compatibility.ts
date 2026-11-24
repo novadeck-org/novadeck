@@ -38,7 +38,9 @@ export const compatibility: Compatibility = {
   // agent, which a runner before it requires).
   // 13: a terminal says which agent it is starting (a terminal's `expecting`), so a client
   // shows its chat from the start.
-  revision: 13,
+  // 14: clients follow each agent's connection, and hear of one lost outside Novadeck
+  // (`agents.watch`, an agent's `lost`).
+  revision: 14,
   oldestClient: 11,
   oldestRunner: 12,
 }

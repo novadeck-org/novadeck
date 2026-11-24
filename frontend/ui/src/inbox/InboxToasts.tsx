@@ -1,8 +1,9 @@
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxEntry } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, shownToasts, ToastRegion } from "@novadeck/toolkit/Toast"
-import { ArrowRightLeft, Eye, Folder, Info, Terminal, type LucideIcon } from "lucide-react"
+import { ArrowRightLeft, Eye, Folder, Info, Terminal, Unplug, type LucideIcon } from "lucide-react"
 import { useEffect, useMemo } from "react"
 
 import { focusSheetSoon } from "./inbox-dom"
@@ -65,6 +66,21 @@ export type ToldBoard = {
   readonly close: () => void
 }
 
+// An agent that is no longer connected: what the toast says, and the ways out of it, which
+// each take the toast away.
+export type LostToast = {
+  readonly agent: AgentName
+  readonly title: string
+  readonly words: string
+  readonly reconnect: () => void
+  readonly open: () => void
+}
+// What shows the toasts of lost agents: one per agent.
+export type LostBoard = {
+  readonly show: (lost: LostToast) => void
+  readonly close: (agent: AgentName) => void
+}
+
 // A toast is an Inbox entry's, an agent's wish to show something, a move the person made, or
 // what Novadeck tells of something done elsewhere.
 type Toast =
@@ -72,6 +88,7 @@ type Toast =
   | { readonly kind: "show"; readonly waiting: ShowWaiting }
   | { readonly kind: "moved"; readonly moved: MovedToast }
   | { readonly kind: "told"; readonly told: ToldToast }
+  | { readonly kind: "lost"; readonly lost: LostToast }
 
 const toldText = (told: ToldToast): ToastText => ({
   type: "update",
@@ -95,6 +112,42 @@ export const moreWords = (count: number, inbox: number): string =>
 const showKey = (itemId: string): string => `show:${itemId}`
 const movedKey = "moved"
 const toldKey = "told"
+const lostKey = (agent: AgentName): string => `lost:${agent}`
+
+// A lost agent's toast: its name and what it means, and Reconnect, or its place in Preferences.
+const LostCard = ({ lost }: { readonly lost: LostToast }): React.JSX.Element => (
+  <div className="move-toast">
+    <span className="move-toast-icon" aria-hidden="true">
+      <Unplug size={15} strokeWidth={1.6} />
+    </span>
+    <span className="move-toast-words">
+      <strong className="block font-medium">{lost.title}</strong>
+      {lost.words}
+    </span>
+    <span className="move-toast-actions">
+      <button
+        type="button"
+        className="button quiet move-toast-undo"
+        onClick={(event) => {
+          event.stopPropagation()
+          lost.open()
+        }}
+      >
+        Settings
+      </button>
+      <button
+        type="button"
+        className="button move-toast-go"
+        onClick={(event) => {
+          event.stopPropagation()
+          lost.reconnect()
+        }}
+      >
+        Reconnect
+      </button>
+    </span>
+  </div>
+)
 
 // A move's toast: where the terminal went and that it still runs, or why it couldn't go, and
 // Undo and Go there. A click on the toast goes there too; its buttons' own clicks don't.
@@ -205,6 +258,7 @@ export const InboxToasts = ({
   followShows,
   followMoves,
   followTold,
+  followLost,
   showInbox,
   peekInbox,
   showTerminal,
@@ -217,6 +271,8 @@ export const InboxToasts = ({
   readonly followMoves: (board: MoveBoard) => () => void
   // Tells what Novadeck says of something done elsewhere on the board until the returned stop.
   readonly followTold: (board: ToldBoard) => () => void
+  // Tells of agents that are no longer connected on the board until the returned stop.
+  readonly followLost: (board: LostBoard) => () => void
   readonly showInbox: () => void
   // Shows the Inbox for one entry; returns what puts the sidebar back, unless it showed already.
   readonly peekInbox: () => (() => void) | undefined
@@ -255,14 +311,20 @@ export const InboxToasts = ({
       close: () => toasts.close(toldKey),
     }
     const stopTold = followTold(told)
+    const lost: LostBoard = {
+      show: (agent) => toasts.show(lostKey(agent.agent), { kind: "lost", lost: agent }),
+      close: (agent) => toasts.close(lostKey(agent)),
+    }
+    const stopLost = followLost(lost)
     return () => {
       stop()
       stopShows()
       stopMoves()
       stopTold()
+      stopLost()
       toasts.clear()
     }
-  }, [follow, followShows, followMoves, followTold, toasts])
+  }, [follow, followShows, followMoves, followTold, followLost, toasts])
   return (
     <ToastRegion
       toasts={toasts}
@@ -271,6 +333,7 @@ export const InboxToasts = ({
         if (toast.kind === "show") return showTerminal(toast.waiting.terminalId)
         if (toast.kind === "moved") return toast.moved.failed ? undefined : toast.moved.go()
         if (toast.kind === "told") return toasts.close(toldKey)
+        if (toast.kind === "lost") return toasts.close(lostKey(toast.lost.agent))
         open(toast.entry.id, { once: true, after: peekInbox() })
         // From the keyboard, on to the sheet that opens, as from a row.
         if (keyboard) focusSheetSoon()
@@ -290,6 +353,8 @@ export const InboxToasts = ({
           <MovedCard moved={toast.moved} />
         ) : toast.kind === "told" ? (
           <ToastCard text={toldText(toast.told)} Icon={Info} />
+        ) : toast.kind === "lost" ? (
+          <LostCard lost={toast.lost} />
         ) : toast.kind === "show" ? (
           <ToastCard text={showText(toast.waiting, now)} Icon={Eye} />
         ) : (

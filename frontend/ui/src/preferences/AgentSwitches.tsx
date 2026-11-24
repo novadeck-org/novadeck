@@ -1,7 +1,7 @@
 import type { AgentName } from "@novadeck/core/harnesses"
 import { Switch } from "@novadeck/toolkit/Switch"
 
-import { agentLabels, agentLimit, agentNote, type AgentSwitch } from "./agent-switches"
+import { agentLabels, agentLimit, agentLost, agentNote, type AgentSwitch } from "./agent-switches"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
 // The command that installs an agent that isn't here, where the backend knows one.
@@ -41,6 +41,7 @@ export const AgentSwitches = ({
         )
       const note = agentNote(toggle)
       const limit = agentLimit(toggle)
+      const lost = agentLost(toggle)
       return (
         <li key={toggle.agent} className={settingRowClasses}>
           <div className="flex min-w-0 flex-col gap-1">
@@ -52,6 +53,15 @@ export const AgentSwitches = ({
                 data-tone="warning"
               >
                 {limit}
+              </span>
+            )}
+            {lost && (
+              <span
+                id={`agent-${toggle.agent}-lost`}
+                className="settings-note text-control leading-5"
+                data-tone="warning"
+              >
+                {lost}
               </span>
             )}
             {note && toggle.error && (
@@ -76,11 +86,12 @@ export const AgentSwitches = ({
               checked={toggle.connected}
               onChange={(connected) => onChange(toggle.agent, connected)}
               labelledBy={`agent-${toggle.agent}`}
-              {...(note || limit
+              {...(note || limit || lost
                 ? {
                     describedBy: [
                       note && `agent-${toggle.agent}-note`,
                       limit && `agent-${toggle.agent}-limit`,
+                      lost && `agent-${toggle.agent}-lost`,
                     ]
                       .filter(Boolean)
                       .join(" "),

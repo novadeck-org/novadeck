@@ -13,7 +13,7 @@ import { delimiter, join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
 
 import { agy } from "@novadeck/harness-agy/index"
-import { startupCommand } from "@novadeck/protocol"
+import { startupCommand, type AgentIntegration, type AgentName } from "@novadeck/protocol"
 import { connectRunner } from "@novadeck/runner-client"
 import { messagePort } from "@novadeck/wire/client"
 import { servePort } from "@novadeck/wire/server"
@@ -27,7 +27,7 @@ import { hostless, ownHome } from "../testing/host.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { harnesses } from "./registry.js"
-import { createHarnesses } from "./service.js"
+import { createHarnesses, type ConnectionChange, type HarnessesOptions } from "./service.js"
 
 const windows = process.platform === "win32"
 
@@ -84,7 +84,10 @@ type Fixture = {
   /** Where the stand-in agents are on PATH. */
   bin: string
   paths: ShellPaths
-  agents: (env?: NodeJS.ProcessEnv) => ReturnType<typeof createHarnesses>
+  agents: (
+    env?: NodeJS.ProcessEnv,
+    options?: Partial<HarnessesOptions>,
+  ) => ReturnType<typeof createHarnesses>
   calls: () => string[][]
 }
 
@@ -135,8 +138,15 @@ const it = base.extend<{ fixture: Fixture }>({
         FAKE_LOG: log,
         ...env,
       })
-    const agents = (env: NodeJS.ProcessEnv = {}) =>
-      createHarnesses(() => Promise.resolve(paths), { home, env: environment(env) })
+    const agents = (env: NodeJS.ProcessEnv = {}, options: Partial<HarnessesOptions> = {}) => {
+      const made = createHarnesses(() => Promise.resolve(paths), {
+        home,
+        env: environment(env),
+        ...options,
+      })
+      resources.defer(() => made.close())
+      return made
+    }
     const calls = () => {
       try {
         return readFileSync(log, "utf8")
@@ -357,6 +367,95 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.set("opencode", false)).toMatchObject({ connected: false })
     expect(existsSync(join(fixture.paths.plugins.opencode, "connected"))).toBe(false)
     expect(await agents.shims()).not.toContain("opencode")
+  })
+
+  // Novadeck's plugin removed from each agent as another program would, outside Novadeck.
+  const removeOutside = (fixture: Fixture, agent: AgentName): void => {
+    const { home } = fixture
+    if (agent === "claude")
+      writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: {} }))
+    if (agent === "codex") writeFileSync(join(home, ".codex", "config.toml"), "")
+    if (agent === "agy")
+      rmSync(join(home, ".gemini", "config", "plugins", "novadeck"), { recursive: true })
+    if (agent === "opencode") rmSync(join(fixture.paths.plugins.opencode, "connected"))
+  }
+
+  it.for(["claude", "codex", "agy", "opencode"] as const)(
+    "tell of %s's plugin removed outside Novadeck as lost, until it is connected again",
+    async (agent, { fixture }) => {
+      installed(fixture.home, agent)
+      const agents = fixture.agents()
+      expect(await agents.set(agent, true)).toMatchObject({ connected: true })
+      const changes: ConnectionChange[] = []
+      agents.follow((change) => changes.push(change))
+      // A look finds nothing changed: nothing is told.
+      expect(await agents.connected(agent)).toBe(true)
+      expect(changes).toEqual([])
+      removeOutside(fixture, agent)
+      expect(await agents.connected(agent)).toBe(false)
+      expect(changes).toEqual([{ agent, connected: false, lost: true }])
+      expect(agents.disconnected(agent)).toBe(true)
+      expect((await agents.list()).find((each) => each.agent === agent)).toMatchObject({
+        connected: false,
+        lost: true,
+      })
+      // Looked at again, it is told once.
+      await agents.connected(agent)
+      expect(changes).toHaveLength(1)
+      expect(await agents.set(agent, true)).toEqual(
+        expect.not.objectContaining({ lost: expect.anything() as unknown }),
+      )
+      expect(changes.at(-1)).toEqual({ agent, connected: true, lost: false })
+      expect(agents.disconnected(agent)).toBe(false)
+    },
+  )
+
+  it("never count Novadeck's own disconnect, or its reinstall, as lost", async ({ fixture }) => {
+    installed(fixture.home, "claude")
+    const agents = fixture.agents()
+    await agents.set("claude", true)
+    await agents.connected("claude")
+    const changes: ConnectionChange[] = []
+    agents.follow((change) => changes.push(change))
+    expect(await agents.set("claude", false)).toEqual(
+      expect.not.objectContaining({ lost: expect.anything() as unknown }),
+    )
+    expect(changes).toEqual([{ agent: "claude", connected: false, lost: false }])
+    await agents.connected("claude")
+    expect(changes).toHaveLength(1)
+  })
+
+  it("count an agent whose sleepers can't be woken as lost, though no look saw it connected", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "codex")
+    const agents = fixture.agents()
+    const changes: ConnectionChange[] = []
+    agents.follow((change) => changes.push(change))
+    agents.strand("codex")
+    agents.strand("codex")
+    expect(changes).toEqual([{ agent: "codex", connected: false, lost: true }])
+    expect((await agents.list()).find((each) => each.agent === "codex")).toMatchObject({
+      lost: true,
+    })
+    // The person's own disconnect ends it too.
+    await agents.set("codex", false)
+    expect(changes.at(-1)).toEqual({ agent: "codex", connected: false, lost: false })
+    expect((await agents.list()).find((each) => each.agent === "codex")?.lost).toBeUndefined()
+  })
+
+  it("look at each agent's connection every few seconds while someone follows", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "claude")
+    const agents = fixture.agents({}, { connectionPollMs: 20 })
+    await agents.set("claude", true)
+    const changes: ConnectionChange[] = []
+    agents.follow((change) => changes.push(change))
+    removeOutside(fixture, "claude")
+    await vi.waitFor(() =>
+      expect(changes).toEqual([{ agent: "claude", connected: false, lost: true }]),
+    )
   })
 
   it("names Antigravity among the shimmed agents on Windows, with the cmd.exe pass-through or not", async ({
@@ -849,6 +948,75 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     expect(resumed("before-connecting")).toBe(false)
     await client.agents.set("claude", false)
     expect(saved.terminal(after)?.agents).toEqual({})
+  })
+
+  it("waits for an agent lost outside Novadeck, tells clients, and wakes its sleeper once connected", async ({
+    fixture,
+    resources,
+  }) => {
+    installed(fixture.home, "claude")
+    const database = join(fixture.root, "data", "workspace.sqlite")
+    const id = randomUUID()
+    const saved = new WorkspaceStore(database)
+    resources.defer(() => saved.close())
+    const project = await saved.createProject({ id: randomUUID(), name: "P", cwd: fixture.home })
+    const session = saved.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+    // Asleep in a turn the stop cut short, which the runner wakes by itself at its start.
+    saved.saveTerminal({
+      id,
+      sessionId: session.id,
+      cwd: fixture.home,
+      agents: { claude: { sessionId: "cut-short", seq: 1, turn: "running" } },
+      promptedAt: null,
+      handle: "moth",
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+      openedBy: null,
+      ledBy: null,
+      command: null,
+      lastProgram: "claude",
+      work: null,
+    })
+    const runner = createRunner({
+      database,
+      shell: join(fixture.root, "data", "shell"),
+      agents: { home: fixture.home, env: fixture.environment() },
+      terminals: { shell: "/bin/bash", env: fixture.environment() },
+    })
+    resources.defer(() => runner.close())
+    const { port1, port2 } = new MessageChannel()
+    servePort(runner.sessions, port1)
+    const client = await connectRunner(messagePort(() => Promise.resolve(port2)))
+    resources.defer(() => client.close())
+    const watch = client.agents.watch()
+    resources.defer(async () => void (await watch.return?.()))
+    const claude = (list: readonly AgentIntegration[]) =>
+      list.find((each) => each.agent === "claude")
+    // Claude Code isn't connected: the sleeper can't be woken, so it counts as lost.
+    await expect
+      .poll(async () => claude(await client.agents.list())?.lost, { timeout: 10_000 })
+      .toBe(true)
+    const listed = await client.terminals.list({ sessionId: session.id })
+    expect(listed.find((each) => each.id === id)).toMatchObject({ sleeping: true })
+    let seen = await watch.next()
+    while (claude(seen.value ?? [])?.lost !== true)
+      // eslint-disable-next-line no-await-in-loop -- Each value of the feed, in turn.
+      seen = await watch.next()
+    await client.agents.set("claude", true)
+    seen = await watch.next()
+    expect(claude(seen.value ?? [])).toMatchObject({ connected: true })
+    expect(claude(seen.value ?? [])?.lost).toBeUndefined()
+    // Connected again, the runner wakes it itself, resuming its session.
+    await expect
+      .poll(
+        () =>
+          fixture
+            .calls()
+            .some(
+              (call) => call[0] === "claude" && call.slice(-2).join(" ") === "--resume cut-short",
+            ),
+        { timeout: 20_000 },
+      )
+      .toBe(true)
   })
 
   it("lists the models an agent starts with, as its harness tells them", async ({ fixture }) => {

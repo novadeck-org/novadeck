@@ -63,7 +63,8 @@ export class Wakes {
     const live = sessions.asleep(terminalId) ? sessions.get(terminalId) : undefined
     if (!live) return void this.asked.delete(terminalId)
     if (!this.wanted(terminalId)) return void this.asked.delete(terminalId)
-    if (this.asked.get(terminalId) === live.resting) return
+    // One that can't be woken now is asked again with each change: the next may find it can.
+    if (this.asked.get(terminalId) === live.resting && !sessions.stuck(terminalId)) return
     this.asked.set(terminalId, live.resting)
     this.host.onWake?.(terminalId)
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { agentLimit, agentNote, type AgentSwitch } from "./agent-switches"
+import { agentLimit, agentLost, agentNote, type AgentSwitch } from "./agent-switches"
 
 const antigravity: AgentSwitch = {
   agent: "agy",
@@ -31,5 +31,14 @@ describe("An agent's switch", () => {
     expect(agentLimit({ ...antigravity, busy: true })).toBeUndefined()
     const { limited: _limited, ...plain } = antigravity
     expect(agentLimit(plain)).toBeUndefined()
+  })
+
+  it("says what a lost agent keeps from working, while it is off and not changing", () => {
+    const lost: AgentSwitch = { ...antigravity, connected: false, lost: true }
+    expect(agentLost(lost)).toMatch(/Disconnected outside Novadeck/)
+    expect(agentLost(lost)).toMatch(/can't wake/)
+    expect(agentLost({ ...lost, busy: true })).toBeUndefined()
+    expect(agentLost({ ...lost, connected: true })).toBeUndefined()
+    expect(agentLost(antigravity)).toBeUndefined()
   })
 })

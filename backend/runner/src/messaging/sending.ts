@@ -93,6 +93,11 @@ const asleepRoute =
   "the recipient is asleep, with no process running: this message wakes it, and arrives " +
   "once its agent is back, which can take a minute"
 
+/** What `send` says of a queued message to a terminal asleep that can't be woken now, for `why`. */
+const stuckRoute = (why: string): string =>
+  `the recipient is asleep, and can't be woken now: ${why}. This message waits there, and ` +
+  "wakes it once it can be"
+
 /** A message on its way, as a close of its sender tells of it: whether it waits held too. */
 export type OnTheWay = Pick<Message, "id" | "sentAt"> & { readonly held: boolean }
 
@@ -661,8 +666,10 @@ export class Sending {
     }
     if (message.state !== "queued") return base
     // No process runs there: the message is what starts one.
-    if (this.host.sessions.asleep(recipient.terminalId))
-      return { ...base, asleep: true, route: asleepRoute }
+    if (this.host.sessions.asleep(recipient.terminalId)) {
+      const stuck = this.host.sessions.stuck(recipient.terminalId)
+      return { ...base, asleep: true, route: stuck ? stuckRoute(stuck) : asleepRoute }
+    }
     const agent = standingOf(recipient)?.agent ?? recipient.shown?.agent
     const profile = agent ? harnesses[agent].messaging : undefined
     return {
@@ -939,6 +946,7 @@ export class Sending {
         expecting: standingOf(peer) || peer.shown ? null : peer.expecting,
         untrusted: standingOf(peer) || peer.shown ? null : peer.untrusted,
         asleep: this.host.sessions.asleep(peer.terminalId),
+        stuck: this.host.sessions.stuck(peer.terminalId),
         // Working as its terminal shows it too: waiting on subagents its turn left
         // running, as after an Esc, is no delivery phase.
         busy: peer.delivery.state === "working" || about(peer.terminalId)?.working === true,

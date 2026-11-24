@@ -378,6 +378,12 @@ export const agentIntegration = z.strictObject({
     .max(4096)
     .regex(singleLine, "A command must be one line, without control characters.")
     .optional(),
+  // The agent was connected, and Novadeck's plugin went from it outside Novadeck (another
+  // program, or the agent's own plugin commands, removed it), or it isn't connected while
+  // agents of it sleep, which only a connected agent wakes: what a person is told, so they
+  // reconnect it. Absent while connected, and once the person sets it in Preferences.
+  // Revision 14; absent from a runner from before it.
+  lost: z.literal(true).optional(),
 })
 
 /**
