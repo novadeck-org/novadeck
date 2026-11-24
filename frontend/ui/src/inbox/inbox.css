@@ -9,7 +9,7 @@
    `.inbox-row-words` (the `.inbox-row-project` and its `.inbox-row-extra`s, one
    data-extra="draft", which give way together) and the `.inbox-row-wait` at its end. Beside the select button, in an `.inbox-row-slot`, its
    `.inbox-row-action`s: `.inbox-row-snooze` and, on an open Novadeck ask,
-   `.inbox-row-dismiss`, which slide in over the wait on hover and keyboard focus (at rest on a
+   `.inbox-row-dismiss`, which fade in over the wait on hover and keyboard focus (at rest on a
    screen with no hover). A row says its type in data-type="unblock" | "ask" | "trouble" |
    "update", what its icon's colour says in data-tint="attention" | "note" | "danger" |
    "success" | "ink" | "muted" (muted only once it is resolved), data-seen, data-needs while it
@@ -62,7 +62,7 @@
 
 /* ---- The panel and its rows ---- */
 /* A row is a sidebar item drawn as a terminal's tab (tabs.css): its name's line, then a tab's
-   detail line in the program font, and its buttons sliding in over the wait at that line's
+   detail line in the program font, and its buttons fading in over the wait at that line's
    end. What follows is the Inbox's own. */
 .inbox-row {
   --_fg: var(--inbox-muted-fg, var(--color-muted));
@@ -166,9 +166,9 @@
   opacity: var(--inbox-resolved-icon-opacity, 0.55);
 }
 
-/* Its buttons, snooze and dismiss, slide in from the row's end under the pointer or with
-   keyboard focus, after the same moment's wait as a tab's Hide and Rename; the wait slides
-   out to the left as they come, so nothing else on the line moves. At rest the wait reaches
+/* Its buttons, snooze and dismiss, come in at the row's end under the pointer or with keyboard
+   focus, and the wait gives way, as a tab's Hide and Rename do over its handle (the toolkit's
+   sidebar-item.css: the slot is a `.sidebar-item-slot`, the wait a `.sidebar-item-end`). At rest the wait reaches
    into the room the line keeps for them, to stand where they will. The slot lets the pointer
    through to the row where nothing shows. Without a pointer that hovers, they stay, and the
    wait stands before them. */
@@ -185,36 +185,12 @@
   outline-offset: -2px;
 }
 @media (hover: hover) {
-  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
-     and keeps that scroll, leaving the button standing at rest. */
-  .inbox-row-slot {
-    overflow: clip;
-  }
-  .inbox-row-slot > * {
-    transition: transform var(--motion-layout) var(--ease-interface);
-  }
-  .inbox-row:not(:hover, :has(:focus-visible)) .inbox-row-slot > * {
-    transform: translateX(200%);
-  }
-  .inbox-row-wait {
-    pointer-events: none;
-    transition:
-      opacity var(--motion-feedback) var(--ease-interface),
-      transform var(--motion-layout) var(--ease-interface);
-  }
   /* At least the buttons' width, as a tab's handle keeps its slot, so the words never run
-     into the room they slide into, however short the wait or with none. */
+     into the room they come into, however short the wait or with none. */
   .inbox-row:has(.sidebar-item-actions) .inbox-row-wait {
     justify-content: flex-end;
     min-width: var(--_sidebar-actions-space, 26px);
     margin-right: calc(0px - var(--_sidebar-actions-space, 26px));
-  }
-  .inbox-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible)) .inbox-row-wait {
-    opacity: 0;
-    transform: translateX(-0.75rem);
-  }
-  .inbox-row:hover :is(.inbox-row-wait, .inbox-row-slot > *) {
-    transition-delay: 60ms;
   }
 }
 
@@ -236,7 +212,7 @@
 .inbox-row[data-snoozed="true"] :is(.inbox-row-icon, .inbox-row-wait) {
   color: var(--inbox-snoozed-icon-fg, var(--color-muted));
 }
-/* The bell-off stands centred where the unsnooze button slides in, a button's width. Without a
+/* The bell-off stands centred where the unsnooze button fades in, a button's width. Without a
    pointer that hovers, the unsnooze button stands there at rest, and the bell-off gives way. */
 .inbox-row[data-snoozed="true"] .inbox-row-wait {
   justify-content: center;

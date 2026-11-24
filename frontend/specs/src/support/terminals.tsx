@@ -1,3 +1,4 @@
+import { expect } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { labelled, sidebar, terminal, terminalTab } from "./workspace"
@@ -22,6 +23,17 @@ export const anyRenameField = (): Locator => page.getByRole("textbox", { name: /
 /** A sidebar tab action such as `Rename Dev server` or `Close Dev server`. */
 export const tabAction = (label: string): Locator =>
   sidebar().getByRole("button", { name: labelled(label, "") })
+
+/**
+ * Presses a tab's action as a person does, the pointer on its tab first: Hide and Rename come in
+ * under it, and stand out of the tab's clipped slot until then (the toolkit's sidebar-item.css).
+ */
+export const pressTabAction = async (action: Locator): Promise<void> => {
+  await expect.element(action).toBeInTheDocument()
+  const tab = action.element().closest(".sidebar-item")
+  if (tab) await page.elementLocator(tab).hover()
+  await action.click()
+}
 
 /** A terminal header action such as `Close Dev server` or `Focus Dev server`. */
 export const headerAction = (name: string, label: string): Locator =>

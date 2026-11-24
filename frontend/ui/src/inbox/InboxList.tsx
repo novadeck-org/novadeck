@@ -70,7 +70,7 @@ type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 // the person leaves the list (`read-on-leaving.ts`), as its subject is often all it says.
 // A row that asks drags among the others that do, into the person's order (`drag`), and can
 // be snoozed (S): it keeps its place, marked, its bell-off where its wait shows, and there its
-// unsnooze button instead of a dismiss button. Its buttons slide in over the wait under the
+// unsnooze button instead of a dismiss button. Its buttons fade in over the wait under the
 // pointer or with focus, as a tab's Hide and Rename do over its handle.
 const InboxRow = ({
   entry,
@@ -162,7 +162,7 @@ const InboxRow = ({
         answering ? null : resumesLabel(entry),
         readLabel(entry),
       ].filter((extra): extra is string => extra !== null)
-  // Room on the detail line for the buttons that slide in: a tab's 26px each.
+  // Room on the detail line for the buttons that come in: a tab's 26px each.
   const buttons = Number(dismissable) + Number(snoozable)
   const label = `${typeWords[type]}: ${subject}, ${entry.source.projectName}${
     settled ? `, ${endedWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
@@ -278,7 +278,7 @@ const InboxRow = ({
                   </span>
                 ))}
               </span>
-              <span className="inbox-row-wait shrink-0">
+              <span className="inbox-row-wait sidebar-item-end shrink-0">
                 {settled ? (
                   waitLabel(settled.at, now)
                 ) : snoozed ? (
@@ -295,7 +295,7 @@ const InboxRow = ({
       </Tooltip>
       {buttons > 0 && (
         <div className="sidebar-item-actions absolute top-[31px] right-2 flex h-6 shrink-0 items-center">
-          <div className="inbox-row-slot flex items-center">
+          <div className="inbox-row-slot sidebar-item-slot flex items-center">
             {snoozable ? (
               <Tooltip content={entry.snoozed ? "Unsnooze · S" : "Snooze · S"}>
                 <button

@@ -89,10 +89,11 @@
    else how many run, else how many there are), and at its end, where a tab holds its @handle, the
    `.session-when` it was last open ("now" for the open one). Its actions, in a
    `.session-slot`, are `.session-action`s (an `.icon-button.small.dim.quiet`): Rename and
-   Delete, `.session-action-revealed`, slide in over the time under the pointer or with
-   keyboard focus, as a tab's Hide and Rename do over its handle, and the time slides out;
-   Save and Cancel stay while it is renamed (`.editing`, its `.session-rename-input`). At
-   rest the time reaches into the room the line keeps for them, to stand where they will. */
+   Delete come in over the time under the pointer or with keyboard focus, as a tab's Hide and
+   Rename do over its handle, and the time gives way (the toolkit's sidebar-item.css: the
+   slot is a `.sidebar-item-slot`, the time a `.sidebar-item-end`); Save and Cancel stay while
+   it is renamed (`.editing`, its `.session-rename-input`). At rest the time reaches into the
+   room the line keeps for them, to stand where they will. */
 .sessions-panel-entry .sidebar-item-detail {
   font-family: var(--tab-process-font, var(--font-glyphs));
 }
@@ -117,38 +118,13 @@
   outline-offset: -2px;
 }
 @media (hover: hover) {
-  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
-     and keeps that scroll, leaving the button standing at rest. */
-  .session-slot {
-    overflow: clip;
-  }
-  .session-slot > * {
-    transition: transform var(--motion-layout) var(--ease-interface);
-  }
-  .sessions-panel-entry:not(:hover, :has(:focus-visible), .editing) .session-slot > * {
-    transform: translateX(200%);
-  }
-  .session-when {
-    pointer-events: none;
-    transition:
-      opacity var(--motion-feedback) var(--ease-interface),
-      transform var(--motion-layout) var(--ease-interface);
-  }
   /* At least the actions' width, as a tab's handle keeps its slot, so the words never run
-     into the room they slide into, however short the age or with none. */
+     into the room they come into, however short the age or with none. */
   .sessions-panel-entry:has(.sidebar-item-actions) .session-when {
     display: inline-flex;
     justify-content: flex-end;
     min-width: var(--_sidebar-actions-space, 52px);
     margin-right: calc(0px - var(--_sidebar-actions-space, 52px));
-  }
-  .sessions-panel-entry:has(.sidebar-item-actions):is(:hover, :has(:focus-visible), .editing)
-    .session-when {
-    opacity: 0;
-    transform: translateX(-0.75rem);
-  }
-  .sessions-panel-entry:hover :is(.session-when, .session-slot > *) {
-    transition-delay: 60ms;
   }
 }
 
@@ -164,7 +140,7 @@
    `.session-move-strip` above the list says which, with its Cancel; each row and the new
    session's button is a place to put it (data-move-target="yes"), the open session where it
    is now is dimmed ("here").
-   A row's `.session-move-here` slides into its actions' place under the pointer. */
+   A row's `.session-move-here` comes into its actions' place under the pointer. */
 .session-move-strip {
   padding: 4px 4px 4px 10px;
   border: var(--border-width) dashed var(--color-line-strong);

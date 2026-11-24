@@ -60,8 +60,6 @@ const WakePassed = lazy(() =>
 const capital = (text: string) => `${text[0]!.toUpperCase()}${text.slice(1)}`
 
 const actionClasses = "terminal-tab-action icon-button small dim quiet"
-// Hide and Rename wait for the pointer or keyboard focus; Close stays.
-const revealedActionClasses = `${actionClasses} terminal-tab-revealed`
 
 export const TerminalTab = ({
   terminal,
@@ -320,11 +318,11 @@ export const TerminalTab = ({
               </>
             )}
             {/* After the program, so the program comes first; where a pointer hovers it
-                waits in the slot Hide and Rename slide into (tabs.css). Only on a terminal
+                waits in the slot Hide and Rename fade into (tabs.css). Only on a terminal
                 agents name by its handle (core/terminals/handle.ts). */}
             <HandleChip
               handle={shell && showsHandle(shell) ? shell.handle : undefined}
-              className="handle-plain terminal-tab-handle"
+              className="handle-plain terminal-tab-handle sidebar-item-end"
             />
           </>
         }
@@ -402,10 +400,10 @@ export const TerminalTab = ({
         actions={
           <div className="terminal-tab-actions flex items-center">
             {/* Hide and Rename (or Save) share the slot the handle holds at rest. */}
-            <div className="terminal-tab-slot flex items-center">
+            <div className="terminal-tab-slot sidebar-item-slot flex items-center">
               <Tooltip content={hidden ? "Show" : "Hide"}>
                 <button
-                  className={revealedActionClasses}
+                  className={actionClasses}
                   aria-label={`${hidden ? "Show" : "Hide"} ${label} in Grid and Canvas`}
                   aria-pressed={hidden}
                   disabled={editing}
@@ -438,7 +436,7 @@ export const TerminalTab = ({
                   }
                 >
                   <button
-                    className={revealedActionClasses}
+                    className={actionClasses}
                     aria-label={`Rename ${label}`}
                     onClick={onBeginRename}
                   >

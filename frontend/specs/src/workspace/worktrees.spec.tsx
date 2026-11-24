@@ -35,7 +35,7 @@ const itemOf = (title: string, branch = "") =>
     .filter({ has: page.getByRole("button", { name: named(title, branch) }) })
 const trash = (title: string, branch: string) =>
   itemOf(title, branch).getByRole("button", { name: /^Close the / })
-// Presses a row's trash button, which slides in under the pointer: the row first (a safe row's
+// Presses a row's trash button, which comes in under the pointer: the row first (a safe row's
 // shows at rest).
 const pressTrash = async (title: string, branch: string): Promise<void> => {
   await row(title, branch).hover()
@@ -201,7 +201,7 @@ describe("The Worktrees panel", () => {
       await expect
         .element(trash("Checkout review", "agent/checkout-review"))
         .toHaveAttribute("aria-disabled", "true")
-      // On the button, slid in under the pointer: forced, as a click waits for an aria-disabled
+      // On the button, in place under the pointer: forced, as a click waits for an aria-disabled
       // button to take one.
       await row("Checkout review", "agent/checkout-review").hover()
       await trash("Checkout review", "agent/checkout-review").click({ force: true })
@@ -214,10 +214,11 @@ describe("The Worktrees panel", () => {
 
       await expect.element(itemOf("No owner")).toBeVisible()
       await expect.element(itemOf("No owner")).toHaveAttribute("data-safe", "true")
-      // In its place with the pointer elsewhere, not slid out as an unsafe row's is.
+      // In its place with the pointer elsewhere, not out of sight as an unsafe row's is.
       await page.getByRole("heading", { name: /^Worktrees/ }).hover()
       const button = trash("No owner", "agent/promo-banner").element()
       await expect.poll(() => getComputedStyle(button).transform).toBe("none")
+      await expect.poll(() => getComputedStyle(button).opacity).toBe("1")
       await trash("No owner", "agent/promo-banner").click()
 
       await expect.element(itemOf("No owner")).not.toBeInTheDocument()

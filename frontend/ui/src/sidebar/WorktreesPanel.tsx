@@ -144,7 +144,7 @@ const closeTip = (row: ChangeRow): string =>
 // The row's detail line, a tab's: a glyph's slot, its branch, then, where its work belongs on
 // another branch than main, "→ home", quiet and cut at its end where it is long (the branch gives
 // way first), and at the end, where a tab holds its @handle, its owner's handle, which the trash
-// button slides in over (worktrees.css).
+// button fades in over (worktrees.css).
 const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
     {/* One glyph wide, as a tab's, so the line starts where a tab's program does. */}
@@ -161,7 +161,10 @@ const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
         {row.home}
       </span>
     )}
-    <span className="worktrees-handle shrink-0">{row.handle}</span>
+    {/* A safe row's handle stands before its trash, which shows at rest, so it never gives way. */}
+    <span className={`worktrees-handle shrink-0${row.safe ? "" : " sidebar-item-end"}`}>
+      {row.handle}
+    </span>
   </>
 )
 
@@ -318,7 +321,7 @@ const ChangeItem = ({
       selected={selected}
       selectLabel={label}
       actions={
-        <div className="worktrees-slot flex items-center">
+        <div className="worktrees-slot sidebar-item-slot flex items-center">
           <Tooltip content={closeTip(row)}>
             <button
               className="worktrees-action icon-button small dim quiet"
@@ -341,6 +344,7 @@ const ChangeItem = ({
       data-conflict={row.conflict || undefined}
       data-merged={row.merged || undefined}
       data-safe={row.safe || undefined}
+      {...(row.safe ? { "data-actions": "shown" } : {})}
       data-pull-request={row.pullRequest?.state}
     />
   )

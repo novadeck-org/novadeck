@@ -17,6 +17,7 @@ import {
   confirmClose,
   headerAction,
   hiddenTerminalTab,
+  pressTabAction,
   visibilityToggle,
 } from "../support/terminals"
 import {
@@ -264,7 +265,7 @@ describe("Canvas's arrangement", () => {
   context("when a hidden terminal is looked at from the sidebar", () => {
     it("shows it without moving any other window, then or afterwards", async () => {
       await openWorkspace()
-      await visibilityToggle("Tests", "Hide").click()
+      await pressTabAction(visibilityToggle("Tests", "Hide"))
       const rest = storefront.filter((name) => name !== "Tests")
       await openCanvas(rest)
       const before = placesFrom(rest, "Checkout implementation")
@@ -289,7 +290,7 @@ describe("Canvas's arrangement", () => {
     it("leaves its team where it is", async () => {
       // The messages demo: Checkout implementation leads Checkout review.
       await openMessagesDemo()
-      await visibilityToggle("Checkout implementation", "Hide").click()
+      await pressTabAction(visibilityToggle("Checkout implementation", "Hide"))
       const rest = storefront.filter((name) => name !== "Checkout implementation")
       await openCanvas(rest)
       const before = placesFrom(rest, "Dev server")

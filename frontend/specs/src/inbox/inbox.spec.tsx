@@ -762,7 +762,7 @@ describe("Snoozing a row", () => {
     page.getByRole("button", { name: new RegExp(`^${name}: .*${subject}`) })
   const box = (element: Element): DOMRect => element.getBoundingClientRect()
 
-  it("keeps a long project clear of the buttons that slide in, with no wait to make room", async () => {
+  it("keeps a long project clear of the buttons that come in, with no wait to make room", async () => {
     await openInbox()
     await lookAway()
     await expect.element(rows()).toHaveLength(settledRows)
@@ -772,6 +772,7 @@ describe("Snoozing a row", () => {
     await ask.hover()
     const snooze = button("Snooze", "preview").element()
     await expect.poll(() => getComputedStyle(snooze).transform).toBe("none")
+    await expect.poll(() => getComputedStyle(snooze).opacity).toBe("1")
     const words = ask.element().querySelector(".inbox-row-words")!
     expect(box(words).right).toBeLessThanOrEqual(box(snooze).left)
   })
@@ -785,7 +786,7 @@ describe("Snoozing a row", () => {
     await expect.element(button("Dismiss", "webhooks")).toBeVisible()
     await button("Snooze", "webhooks").click()
 
-    // The pointer is still on the row: the button slides in over the bell-off, which slides
+    // The pointer is still on the row: the button fades in over the bell-off, which slides
     // out, at the end of the detail line.
     await expect.element(webhooks).toHaveAttribute("data-snoozed", "true")
     await webhooks.hover()
@@ -794,6 +795,7 @@ describe("Snoozing a row", () => {
     const unsnooze = button("Unsnooze", "webhooks").element()
     const wait = webhooks.element().querySelector<HTMLElement>(".inbox-row-wait")!
     await expect.poll(() => getComputedStyle(unsnooze).transform).toBe("none")
+    await expect.poll(() => getComputedStyle(unsnooze).opacity).toBe("1")
     await expect.poll(() => getComputedStyle(wait).opacity).toBe("0")
     const at = box(unsnooze)
     // Where the bell-off stands at rest, without the slide that moves it out.

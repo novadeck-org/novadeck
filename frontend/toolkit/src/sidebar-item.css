@@ -33,3 +33,57 @@
 .sidebar-item-icon {
   color: var(--item-icon-fg, var(--color-muted));
 }
+
+/* A row's actions revealed on hover, the terminal tab's motion, which every sidebar list
+   shares: its `.sidebar-item-slot` holds the actions that wait for the pointer or keyboard
+   focus, and its `.sidebar-item-end`, at the end of its detail line (a tab's @handle, a
+   time, a word), stands in their place at rest. Under the pointer, after a moment's wait so
+   sweeping it down the list leaves the rows it crosses alone, the actions fade in where they
+   stand and the end slides out to the left as it fades, so nothing else on the line moves;
+   as the pointer leaves, the actions are gone at once and the end slides back. They stay
+   while the row is renamed (`.editing`) or says they stay (data-actions="shown", as a
+   History row while selected). Without a pointer that hovers, they all stay; where the
+   end goes then is the list's own. Where the end stands at rest, how far it reaches into the
+   room the line keeps for the actions, is the list's own too.
+
+   Hooks: on the row, `.editing` and data-actions="shown". */
+@media (hover: hover) {
+  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
+     and keeps that scroll, leaving the button standing at rest. */
+  .sidebar-item-slot {
+    overflow: clip;
+  }
+  /* In place at once, but only after the wait as the fade starts, so a click in that moment
+     still goes to the row; gone at once as the pointer leaves. */
+  .sidebar-item-slot > * {
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform 0s;
+  }
+  /* Out of the slot too, two buttons wide so each clears it, so a hidden one takes no click. */
+  .sidebar-item:not(:hover, :has(:focus-visible), .editing, [data-actions="shown"])
+    .sidebar-item-slot
+    > * {
+    opacity: 0;
+    transform: translateX(200%);
+  }
+  .sidebar-item-end {
+    pointer-events: none;
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform var(--motion-layout) var(--ease-interface);
+  }
+  .sidebar-item:has(.sidebar-item-slot):is(
+      :hover,
+      :has(:focus-visible),
+      .editing,
+      [data-actions="shown"]
+    )
+    .sidebar-item-end {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+  .sidebar-item:hover :is(.sidebar-item-end, .sidebar-item-slot > *) {
+    transition-delay: 60ms;
+  }
+}

@@ -103,39 +103,15 @@
   outline-offset: -2px;
 }
 
-/* Its action slides in from the row's end under the pointer, with keyboard focus or while
-   the row is selected, after the same moment's wait as a tab's Hide and Rename; the end slides out to the
-   left as it comes, so nothing else on the line moves. At rest the end reaches into the room
-   the line keeps for the action, to stand where the action will. Without a pointer that
-   hovers, the action stays, and the end stands before it. */
+/* Its action comes in at the row's end under the pointer, with keyboard focus or while the
+   row is selected (data-actions="shown"), and the end gives way, as a tab's Hide and Rename
+   do over its handle (the toolkit's sidebar-item.css: the slot is a `.sidebar-item-slot`, the
+   end a `.sidebar-item-end`). At rest the end reaches into the room the line keeps for the
+   action, to stand where the action will. Without a pointer that hovers, the action stays,
+   and the end stands before it. */
 @media (hover: hover) {
-  /* Clipped, not hidden: a hidden box scrolls to a button focused while it is slid out,
-     and keeps that scroll, leaving the button standing at rest. */
-  .history-row-slot {
-    overflow: clip;
-  }
-  .history-row-slot > * {
-    transition: transform var(--motion-layout) var(--ease-interface);
-  }
-  .history-row:not(:hover, :has(:focus-visible), [data-selected="true"]) .history-row-slot > * {
-    transform: translateX(200%);
-  }
-  .history-row-end {
-    pointer-events: none;
-    transition:
-      opacity var(--motion-feedback) var(--ease-interface),
-      transform var(--motion-layout) var(--ease-interface);
-  }
   .history-row:has(.sidebar-item-actions) .history-row-end {
     margin-right: calc(0px - var(--_sidebar-actions-space, 26px));
-  }
-  .history-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible), [data-selected="true"])
-    .history-row-end {
-    opacity: 0;
-    transform: translateX(-0.75rem);
-  }
-  .history-row:hover :is(.history-row-end, .history-row-slot > *) {
-    transition-delay: 60ms;
   }
 }
 .history-row-end {
