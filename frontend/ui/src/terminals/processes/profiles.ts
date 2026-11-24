@@ -5,6 +5,7 @@ import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
+import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { CircleDashed, FileText, SquareTerminal, Terminal, type LucideIcon } from "lucide-react"
 
 // How the UI presents a program: its icon in the tab and window header. The window itself
@@ -23,6 +24,7 @@ const profiles: ReadonlyMap<string, ProcessProfile> = new Map([
   ["codex", { icon: CodexIcon }],
   ["agy", { icon: AntigravityIcon }],
   ["opencode", { icon: OpencodeIcon }],
+  ["pi", { icon: PiIcon }],
 ])
 
 // The program a terminal presents as, which names its window: one with a profile, while it

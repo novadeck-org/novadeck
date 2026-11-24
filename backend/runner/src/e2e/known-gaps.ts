@@ -61,8 +61,28 @@ export const racesOwnSettings = (setup: AgentSetup): boolean => has(settingsRace
  * line to its box (seen on Windows CI, 0.167.0, 2026-11-07): only one in what it takes for a burst
  * of typing does (`pastesWhole`). Pinned by inbox.e2e's "rings nothing over a draft scrolled out
  * of sight", which pastes the draft there; once such a key adds a line, it types it as elsewhere.
+ * pi on Windows the same (Windows CI, 1.6.0, 2026-11-24: twelve `\n` keys left its box one row,
+ * the draft not sent); a person's Shift+Enter still adds one, as pi reads the Shift key itself
+ * there (its docs/terminal-setup.md).
  */
-const lineBreakKeysLost: Gap = { agents: ["codex"], platforms: ["win32"] }
+const lineBreakKeysLost: Gap = { agents: ["codex", "pi"], platforms: ["win32"] }
 
 /** Whether a line break typed as a key of its own adds no line to the harness's box. */
 export const losesLineBreakKeys = (setup: AgentSetup): boolean => has(lineBreakKeysLost, setup)
+
+/**
+ * pi on Windows asks its terminal for the kitty keyboard protocol, and the ConPTY Novadeck's
+ * terminals run on there gives it: a line feed written in a bracketed paste reaches pi as
+ * Ctrl+Enter's keys (`ESC[13;5u` and the Ctrl key's release), which its paste shows as text
+ * (Windows CI, 1.6.0, 2026-11-24: `[13;5u[57442;1:3u…MY DRAFT` in the box). A return goes in
+ * as a line break, as Novadeck's own pastes write one (`inPaste`) and a person's paste is
+ * written by the terminal, so only a scenario's own paste of line feeds is touched.
+ * Pinned by doorbell.e2e's "never rings over a draft under blank rows" and inbox.e2e's "rings
+ * nothing over a draft scrolled out of sight", which paste returns there; once a line feed
+ * pastes as one, they paste it as elsewhere.
+ */
+const lineFeedPastedAsKeys: Gap = { agents: ["pi"], platforms: ["win32"] }
+
+/** The line break a scenario pastes as its own: a line feed, or a return where one is taken as keys. */
+export const pastedLineBreak = (setup: AgentSetup): string =>
+  has(lineFeedPastedAsKeys, setup) ? "\r" : "\n"

@@ -1,0 +1,373 @@
+{
+  "harness": "pi",
+  "source": "probed 2026-11-24 against pi 1.6.0 (npm @earendil-works/pi-coding-agent; rig: a fake OpenAI-compatible model, a PTY, Novadeck's headless emulator; backups/pi-harness-2026-11-24/rig)",
+  "how": "Each state read with `readScreen`: `rows` the rows that show anything, `bright` those whose dim cells blank some of their text, `lit` cells whose background stands out, `cursor` the cursor. Sizes: names ending 60 are 60x20, names ending in a size are that size, the rest 120x40. No colour query answered (the runner's headless emulator answers only DA), so pi draws its 16-colour theme. `empty*` and `login*` with an empty HOME, online (pi downloads fd at its first start); `trust` in a project with .pi/settings.json.",
+  "version": "1.6.0",
+  "screens": {
+    "empty": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/empty-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "emptyTyped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 5
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/empty-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "hello                                                                                                                   ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "36": "hello"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "emptyEnter": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/empty-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "15": " Error: No API key found for the selected model.                                                                        ",
+        "17": " Use /login to log into a provider via OAuth or API key. See:                                                           ",
+        "18": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "19": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "15": " Error: No API key found for the selected model.",
+        "17": " Use /login to log into a provider via OAuth or API key. See:",
+        "18": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "19": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "trust": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 15,
+        "column": 120
+      },
+      "rows": {
+        "0": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "2": " Trust project folder?                                                                                                  ",
+        "3": " /tmp/claude-1000/pi-rig/homes/trust-1.6.0/project                                                                      ",
+        "5": " This allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.   ",
+        "7": " → Trust                                                                                                                ",
+        "8": "   Trust parent folder (/tmp/claude-1000/pi-rig/homes/trust-1.6.0)                                                      ",
+        "9": "   Trust (this session only)                                                                                            ",
+        "10": "   Do not trust                                                                                                         ",
+        "11": "   Do not trust (this session only)                                                                                     ",
+        "13": " ↑↓ navigate  enter select  escape/ctrl+c cancel                                                                        ",
+        "15": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": " Trust project folder?",
+        "3": " /tmp/claude-1000/pi-rig/homes/trust-1.6.0/project",
+        "5": " This allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+        "7": " → Trust",
+        "8": "   Trust parent folder (/tmp/claude-1000/pi-rig/homes/trust-1.6.0)",
+        "9": "   Trust (this session only)",
+        "10": "   Do not trust",
+        "11": "   Do not trust (this session only)"
+      }
+    },
+    "loginTyped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 35,
+        "column": 6
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/login-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "/login                                                                                                                  ",
+        "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "→ login       <provider> — Configure provider authentication                                                            ",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "35": "/login",
+        "37": "→ login       <provider> — Configure provider authentication"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "login": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 37,
+        "column": 120
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/login-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "29": " Select authentication method:                                                                                          ",
+        "31": " → Sign in with an account                                                                                              ",
+        "32": "   Sign in with an API key                                                                                              ",
+        "33": "   Sign in with Radius • not configured                                                                                 ",
+        "35": " ↑↓ navigate  enter select  escape/ctrl+c cancel                                                                        ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "29": " Select authentication method:",
+        "31": " → Sign in with an account",
+        "32": "   Sign in with an API key",
+        "33": "   Sign in with Radius"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "loginDown": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 32,
+        "column": 120
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/login-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "29": " Select authentication method:                                                                                          ",
+        "31": "   Sign in with an account                                                                                              ",
+        "32": " → Sign in with an API key                                                                                              ",
+        "33": "   Sign in with Radius • not configured                                                                                 ",
+        "35": " ↑↓ navigate  enter select  escape/ctrl+c cancel                                                                        ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "29": " Select authentication method:",
+        "31": "   Sign in with an account",
+        "32": " → Sign in with an API key",
+        "33": "   Sign in with Radius"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "loginPicked": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 25,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/login-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": " Select provider to configure:                                                                                          ",
+        "25": ">                                                                                                                       ",
+        "27": " → Radius ✦ • not configured                                                                                            ",
+        "28": "   OpenRouter ✦ • not configured                                                                                        ",
+        "29": "   Amazon Bedrock • not configured                                                                                      ",
+        "30": "   Ant Ling • not configured                                                                                            ",
+        "31": "   Anthropic • not configured                                                                                           ",
+        "32": "   Azure • not configured                                                                                               ",
+        "33": "   Baseten • not configured                                                                                             ",
+        "34": "   Cerebras • not configured                                                                                            ",
+        "35": "   (1/43)                                                                                                               ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "23": " Select provider to configure:",
+        "25": ">",
+        "27": " → Radius",
+        "28": "   OpenRouter",
+        "29": "   Amazon Bedrock",
+        "30": "   Ant Ling",
+        "31": "   Anthropic",
+        "32": "   Azure",
+        "33": "   Baseten",
+        "34": "   Cerebras"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "loginEscaped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 35,
+        "column": 120
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " fd not found. Downloading...                                                                                           ",
+        "9": " fd installed to /tmp/claude-1000/pi-rig/homes/login-1.6.0/.pi/agent/bin/fd                                             ",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:                             ",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md                      ",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md                         ",
+        "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "29": " Select authentication method:                                                                                          ",
+        "31": " → Sign in with an account                                                                                              ",
+        "32": "   Sign in with an API key                                                                                              ",
+        "33": "   Sign in with Radius • not configured                                                                                 ",
+        "35": " ↑↓ navigate  enter select  escape/ctrl+c cancel                                                                        ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/0 (auto)                                                                                                    unknown"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "11": " Warning: No models available. Use /login to log into a provider via OAuth or API key. See:",
+        "12": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+        "13": "   /tmp/claude-1000/pi-rig/pi/1.6.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+        "29": " Select authentication method:",
+        "31": " → Sign in with an account",
+        "32": "   Sign in with an API key",
+        "33": "   Sign in with Radius"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# permission
+  on bare: its screen
+  on bare60: its screen
+  on confirm: its screen
+  on confirmNo: its screen
+  on confirmY: its screen
+  Yes → yes
+  No → no

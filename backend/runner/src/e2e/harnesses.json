@@ -14,6 +14,39 @@
     "version": "1.19.6",
     "bin": "opencode"
   },
+  "pi": {
+    "package": "@earendil-works/pi-coding-agent",
+    "version": "1.6.0",
+    "bin": "pi",
+    "tools": {
+      "fd": {
+        "version": "10.5.2",
+        "bin": "fd",
+        "releases": {
+          "linux-x64": {
+            "archive": "https://github.com/sharkdp/fd/releases/download/v10.5.2/fd-v10.5.2-x86_64-unknown-linux-musl.tar.gz",
+            "sha512": "754228082e6c4171d805dd10cb182d53d42995bc368b0e2bbcf86ca99eb2c8aa4ff01bf57b5222b09c91f9ac0c63c8889549ce93ab0456b8766296f9132cfbe0",
+            "member": "fd-v10.5.2-x86_64-unknown-linux-musl/fd"
+          },
+          "darwin-arm64": {
+            "archive": "https://github.com/sharkdp/fd/releases/download/v10.5.2/fd-v10.5.2-aarch64-apple-darwin.tar.gz",
+            "sha512": "893b14d103153630fd07feffd91ca36b6b4020a207b67d226cf86ba3ea05c35a5986c4c23d8348fd0562acad119dca8a9ea69a0e8a12836a36dcccb34c3b12bc",
+            "member": "fd-v10.5.2-aarch64-apple-darwin/fd"
+          },
+          "darwin-x64": {
+            "archive": "https://github.com/sharkdp/fd/releases/download/v10.5.2/fd-v10.5.2-x86_64-apple-darwin.tar.gz",
+            "sha512": "f54d405270501ca1af9952e083fafbda25826edcbf1472aa798592dfa865ea531576ca732207bc283636b2e9b7488b878d0d056bcb9028ba5af2e6a93471fbab",
+            "member": "fd-v10.5.2-x86_64-apple-darwin/fd"
+          },
+          "win32-x64": {
+            "archive": "https://github.com/sharkdp/fd/releases/download/v10.5.2/fd-v10.5.2-x86_64-pc-windows-msvc.zip",
+            "sha512": "fe3d8b1e08ab371ad88c46efc2894450c97cfd5f6a5867a81efd2daeef14b155d985d5936ab01ce2554337cc0e0dfdf8617577cc6a7933047fa56289d785d63e",
+            "member": "fd-v10.5.2-x86_64-pc-windows-msvc/fd.exe"
+          }
+        }
+      }
+    }
+  },
   "agy": {
     "version": "1.5.16",
     "bin": "agy",

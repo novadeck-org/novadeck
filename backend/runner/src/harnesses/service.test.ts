@@ -27,7 +27,7 @@ import { hostless, ownHome } from "../testing/host.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { harnesses } from "./registry.js"
-import { createHarnesses, type ConnectionChange, type HarnessesOptions } from "./service.js"
+import { createHarnesses, locate, type ConnectionChange, type HarnessesOptions } from "./service.js"
 
 const windows = process.platform === "win32"
 
@@ -39,6 +39,8 @@ const path = require("node:path")
 const [agent, ...args] = process.argv.slice(2)
 const home = process.env.HOME
 fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify([agent, ...args]) + "\\n")
+// pi's version, as a bare semver: another program named pi says none, and is not pi.
+if (agent === "pi" && args[0] === "--version") { console.log("1.6.0"); return }
 // FAKE_ENV: where it writes the names of the variables it was given.
 if (process.env.FAKE_ENV) fs.writeFileSync(process.env.FAKE_ENV, JSON.stringify(Object.keys(process.env)))
 // FAKE_HANG: a step that never ends, and leaves a child holding its error output open.
@@ -104,7 +106,7 @@ const it = base.extend<{ fixture: Fixture }>({
     mkdirSync(bin)
     const script = join(root, "agent.cjs")
     writeFileSync(script, fakeAgent)
-    for (const agent of ["claude", "codex", "agy", "opencode"])
+    for (const agent of ["claude", "codex", "agy", "opencode", "pi"])
       if (windows)
         writeFileSync(
           join(bin, `${agent}.cmd`),
@@ -184,6 +186,7 @@ const installed = (home: string, ...agents: string[]) => {
     codex: [".codex"],
     agy: [".gemini", "antigravity-cli"],
     opencode: [".local", "share", "opencode"],
+    pi: [".pi", "agent"],
   }
   for (const agent of agents)
     mkdirSync(join(home, ...homes[agent as keyof typeof homes]), { recursive: true })
@@ -225,6 +228,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "codex", available: true, connected: false },
       missing("agy"),
       missing("opencode"),
+      missing("pi"),
     ])
     // Installed and never run: no home yet, but the program is on PATH.
     expect(await fixture.agents().list()).toEqual([
@@ -232,6 +236,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "codex", available: true, connected: false },
       { agent: "agy", available: true, connected: false },
       { agent: "opencode", available: true, connected: false },
+      { agent: "pi", available: true, connected: false },
     ])
   })
 
@@ -266,7 +271,7 @@ describe("agents Novadeck can connect", () => {
     fixture,
   }) => {
     const agents = fixture.agents()
-    for (const agent of ["claude", "codex", "agy", "opencode"] as const)
+    for (const agent of ["claude", "codex", "agy", "opencode", "pi"] as const)
       // eslint-disable-next-line no-await-in-loop -- Each connects in its turn, as the runner's queue has them.
       expect(await agents.set(agent, true)).toMatchObject({
         agent,
@@ -338,6 +343,7 @@ describe("agents Novadeck can connect", () => {
       { agent: "codex", available: true, connected: true },
       { agent: "agy", available: true, connected: true },
       { agent: "opencode", available: true, connected: false },
+      { agent: "pi", available: true, connected: false },
     ])
     expect(fixture.calls()).toContainEqual(["codex", "plugin", "add", "novadeck@novadeck"])
     expect(fixture.calls()).toContainEqual(["agy", "plugin", "install", fixture.paths.plugins.agy])
@@ -371,6 +377,48 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.shims()).not.toContain("opencode")
   })
 
+  it("connects pi by Novadeck's own marker, running none of its commands and writing nothing of its own", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "pi")
+    const agents = fixture.agents()
+    expect(await agents.set("pi", true)).toMatchObject({ connected: true })
+    expect(existsSync(join(fixture.paths.plugins.pi, "connected"))).toBe(true)
+    // Only its version is asked, for whether Novadeck's extension works with it.
+    expect(fixture.calls()).toEqual([["pi", "--version"]])
+    // Nothing of pi's own files: its extension loads per launch, through the shim's `-e`.
+    expect(existsSync(join(fixture.home, ".pi", "agent", "settings.json"))).toBe(false)
+    expect(await agents.set("pi", false)).toMatchObject({ connected: false })
+    expect(existsSync(join(fixture.paths.plugins.pi, "connected"))).toBe(false)
+  })
+
+  it.skipIf(windows)(
+    "take no other program named pi for it, such as Ubuntu's, until one says a version",
+    async ({ fixture }) => {
+      const install = {
+        env: { PATH: join(fixture.root, "apt") },
+        home: join(fixture.root, "nohome"),
+        platform: process.platform,
+        plugin: join(fixture.root, "plugin"),
+      }
+      const program = (folder: string, output: string): string => {
+        mkdirSync(join(fixture.root, folder), { recursive: true })
+        const path = join(fixture.root, folder, "pi")
+        writeFileSync(path, `#!/bin/sh\necho '${output}'\n`, { mode: 0o755 })
+        return path
+      }
+      // Ubuntu's `pi` prints digits of π: it is no pi, however it is named.
+      const apt = program("apt", "3.14159265358979")
+      expect(await locate("pi", harnesses.pi, install)).toBeUndefined()
+      // Another with a version is, and the first on PATH that says one.
+      const real = program("real", "1.6.0")
+      expect(
+        await locate("pi", harnesses.pi, { ...install, env: { PATH: join(fixture.root, "real") } }),
+      ).toBe(real)
+      expect(apt).not.toBe(real)
+    },
+  )
+
   // Novadeck's plugin removed from each agent as another program would, outside Novadeck.
   const removeOutside = (fixture: Fixture, agent: AgentName): void => {
     const { home } = fixture
@@ -380,9 +428,10 @@ describe("agents Novadeck can connect", () => {
     if (agent === "agy")
       rmSync(join(home, ".gemini", "config", "plugins", "novadeck"), { recursive: true })
     if (agent === "opencode") rmSync(join(fixture.paths.plugins.opencode, "connected"))
+    if (agent === "pi") rmSync(join(fixture.paths.plugins.pi, "connected"))
   }
 
-  it.for(["claude", "codex", "agy", "opencode"] as const)(
+  it.for(["claude", "codex", "agy", "opencode", "pi"] as const)(
     "tell of %s's plugin removed outside Novadeck as lost, until it is connected again",
     async (agent, { fixture }) => {
       installed(fixture.home, agent)

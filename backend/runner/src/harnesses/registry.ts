@@ -3,6 +3,7 @@ import { claude } from "@novadeck/harness-claude/index"
 import { codex } from "@novadeck/harness-codex/index"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { opencode } from "@novadeck/harness-opencode/index"
+import { pi } from "@novadeck/harness-pi/index"
 import type { AgentName } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
@@ -12,9 +13,16 @@ export const harnesses: { readonly [agent in AgentName]: Harness } = {
   codex,
   agy,
   opencode,
+  pi,
 }
 
 export const agents = Object.keys(harnesses) as AgentName[]
+
+/**
+ * Whether the shipping gate is `agent`'s hook alone (`Harness.hookGate`): no permission dialog
+ * of its own stands behind a silent hook.
+ */
+export const hookGated = (agent: AgentName): boolean => harnesses[agent].hookGate === true
 
 /**
  * The kind of ask `event` is to `agent`'s harness, or undefined where it asks nothing: only

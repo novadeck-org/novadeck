@@ -161,6 +161,18 @@ for (const setup of setups) {
           { from: "fox", text: "The plan is ready." },
         ])
         expect(carried(run, calls).some((call) => holding(call, "Then sum it up"))).toBe(false)
+      } else if (setup.stopsFirst) {
+        // Either order of the two is whole: the prompt's hook carried the message, or the turn's
+        // Stop continued it with the message, in a call of its own before the prompt's. Told once.
+        const carrying = carried(run, calls)
+        expect(carrying.flatMap((call) => deliveries(call))).toEqual([
+          { from: "fox", text: "The plan is ready." },
+        ])
+        expect(
+          carrying.every(
+            (call) => run.model.calls.indexOf(call) <= run.model.calls.indexOf(prompt),
+          ),
+        ).toBe(true)
       } else {
         // Their prompt's hook delivers the message; no Stop continues the turn with it.
         expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The plan is ready." }])

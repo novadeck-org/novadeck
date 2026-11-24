@@ -3,13 +3,16 @@ import { z } from "zod"
 import { requestDialogRead } from "./dialogs.js"
 import { directory, id } from "./fields.js"
 import { agentNames } from "./harnesses.js"
-import { openEnum } from "./open.js"
+import { inputEnum, openEnum } from "./open.js"
 import { singleLine } from "./text.js"
 
 // Agents whose sessions Novadeck identifies and can resume once connected: Claude Code,
 // Codex and Antigravity. An agent session id is what the agent itself names its
 // session: a UUID today, kept to a plain token so a shell can run it as it is.
-export const agentName = z.enum(agentNames)
+//
+// A harness a later release added is marked with the revision it came in (`since`), so a UI asks
+// for it only of a runner that has it, and the window of runners it works with stays open.
+export const agentName = inputEnum(agentNames, { since: { pi: 15 } })
 // An agent as a runner tells of it, which a UI reads tolerantly: one of a harness a newer
 // runner integrates and this UI doesn't is `newer`, a plain agent with no harness of its
 // own here. Inputs, and whatever the runner parses, keep `agentName`.

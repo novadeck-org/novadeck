@@ -184,6 +184,13 @@ pinned SHA-512 before anything of it runs, and only its program is kept, as `agy
 copy of a harness installed anywhere else on the machine is never used. To move a pin,
 change it and run the suite.
 
+A pin may also name the programs its harness fetches for itself at its first start online,
+which the suite, offline, installs beside it (`tools`): pi lists files for its `@` menu with
+`fd`, which it downloads into its agent folder's `bin`, so pi's pin names fd 10.5.2's archive
+for each platform with its SHA-512 and the program inside it. `install.ts` keeps it in
+`<cache>/fd-<version>`, as it keeps a harness, ignores `latest` for it, and pi's setup copies it
+where pi would have put it. A `.zip` (Windows') is unpacked with Windows' own `tar.exe`.
+
 ## Isolation
 
 The suite never runs a harness against the developer's configuration, login or
@@ -769,7 +776,10 @@ for (const setup of setups) {
     the message, and no other call does, so no Stop continued the turn with it. Each
     harness gets there its own way, which the scenario doesn't ask: Claude Code and
     Antigravity run the queued prompt after the Stop (Drafting in between), and Codex's
-    Enter steers it into the running turn, its hook firing as it is submitted.
+    Enter steers it into the running turn, its hook firing as it is submitted. pi's hook
+    runs as the prompt is entered, which a turn ending in that time beats: its Stop then
+    continues the turn with the message, in a call before the prompt's (`stopsFirst`), and
+    the message is told once either way.
   - _Next prompt typed mid-turn_: with the reply held, the person types without
     submitting, and a message comes. Having submitted nothing, the Stop continues the
     turn with it (its call holds no typed text), and the turn ends Drafting, never
@@ -1014,11 +1024,12 @@ stops going through a member a probe wraps.
      shows them. Find each by running the harness in the sandbox, never outside it. A
      scenario needing a trait it lacks skips, saying why from `absent`, so add them all:
      every harness runs every scenario. A trait goes in `absent` only once a probe shows
-     the harness lacks the behaviour. Escape is `\x1b` for all three; a harness reading
-     another key would bring back an `escape` trait. Likewise all three clear their
+     the harness lacks the behaviour. Escape is `\x1b` for all of them; a harness reading
+     another key would bring back an `escape` trait. Likewise they clear their
      conversation with `/clear` and leave with `/exit`, each typed at their prompt and
-     submitted (probed 2026-10-02); a harness with another command would bring back a
-     `clear` or `exit` trait.
+     submitted (probed 2026-10-02); a harness with another command names it: pi has no
+     `/clear` or `/exit`, so its setup says `clear: "/new"` and `exit: "/quit"`, which the
+     scenarios that type one use (`AgentSetup.clear`, `exit`).
    - `shell`, a reply running a command through its shell tool, and its own one-shot,
      non-interactive mode as the command, which its seed allows so it runs without
      asking, unlike `approval`'s, and which waits for the command as long as the tool
@@ -1315,9 +1326,15 @@ reason to leave a harness out. These stand today:
   onboarding in place of the folder-trust question, on a CI runner. Its own settings
   write, not Novadeck's: controls.e2e.ts starts the second once the first asks there,
   and elsewhere both start together. A race, it has no pin that fails every time.
-- **Codex on Windows drops a line break typed as a key of its own** (`losesLineBreakKeys`). It
-  reads the console's keys, and adds no line to its box (0.167.0, 2026-11-07), so a test builds
-  a draft of several lines there with a paste, as a burst of typing keeps its line breaks.
+- **Codex and pi on Windows drop a line break typed as a key of its own** (`losesLineBreakKeys`).
+  Codex reads the console's keys, and adds no line to its box (0.167.0, 2026-11-07), and pi the
+  same (1.6.0, 2026-11-24), so a test builds a draft of several lines there with a paste, as a
+  burst of typing keeps its line breaks.
+- **pi on Windows takes a line feed pasted as Ctrl+Enter's keys** (`pastedLineBreak`). It asks
+  for the kitty keyboard protocol, which the ConPTY there gives it, and the line feed comes as
+  `ESC[13;5u` and a key release, which its paste shows as text (1.6.0, 2026-11-24). A return
+  goes in as a line break, as Novadeck's own pastes and a person's write one, so a test's own
+  paste uses returns there.
 
 `known-gaps.ts` names each one as a `Gap`, with the harnesses it affects (and the
 platforms, where only some have it), documented

@@ -1,0 +1,5246 @@
+{
+  "probed": "2026-11-24",
+  "version": "1.6.0",
+  "how": "pi 1.6.0 in print mode on a scripted fake model (openai-completions), Novadeck's extension loaded: one tool call of each case a prompt, the session file pi wrote for it. Paths are made generic.",
+  "scenarios": {
+    "read": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-read",
+        "timestamp": "2026-11-24T11:49:22.679Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "37bc9dac",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:22.734Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "f5050fba",
+        "parentId": "37bc9dac",
+        "timestamp": "2026-11-24T11:49:22.734Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "6bcbbe3b",
+        "parentId": "f5050fba",
+        "timestamp": "2026-11-24T11:49:22.860Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520962859,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "b0dc7983",
+        "parentId": "6bcbbe3b",
+        "timestamp": "2026-11-24T11:49:22.860Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Read the sample"
+            }
+          ],
+          "timestamp": 1795520962858
+        }
+      },
+      {
+        "type": "message",
+        "id": "86248079",
+        "parentId": "b0dc7983",
+        "timestamp": "2026-11-24T11:49:22.898Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_1_0",
+              "name": "read",
+              "arguments": {
+                "path": "sample.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520962870,
+          "responseId": "c1",
+          "rawStopReason": "tool_calls",
+          "durationMs": 29,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "6d70412e",
+        "parentId": "86248079",
+        "timestamp": "2026-11-24T11:49:22.977Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_1_0",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "alpha\nbeta\ngamma\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 3,
+          "timestamp": 1795520962977
+        }
+      },
+      {
+        "type": "message",
+        "id": "4fb83672",
+        "parentId": "6d70412e",
+        "timestamp": "2026-11-24T11:49:22.985Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520962981,
+          "responseId": "c2",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "read-part": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-read-part",
+        "timestamp": "2026-11-24T11:49:23.217Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "d17601d8",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:23.274Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "025ab702",
+        "parentId": "d17601d8",
+        "timestamp": "2026-11-24T11:49:23.274Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "2f4edd47",
+        "parentId": "025ab702",
+        "timestamp": "2026-11-24T11:49:23.418Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520963414,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "ac4ea693",
+        "parentId": "2f4edd47",
+        "timestamp": "2026-11-24T11:49:23.418Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Read part of the sample"
+            }
+          ],
+          "timestamp": 1795520963412
+        }
+      },
+      {
+        "type": "message",
+        "id": "340a5739",
+        "parentId": "ac4ea693",
+        "timestamp": "2026-11-24T11:49:23.461Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_3_0",
+              "name": "read",
+              "arguments": {
+                "path": "sample.txt",
+                "offset": 2,
+                "limit": 1
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520963431,
+          "responseId": "c3",
+          "rawStopReason": "tool_calls",
+          "durationMs": 30,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "6a832cd7",
+        "parentId": "340a5739",
+        "timestamp": "2026-11-24T11:49:23.525Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_3_0",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "beta\n\n[2 more lines in file. Use offset=3 to continue.]"
+            }
+          ],
+          "isError": false,
+          "durationMs": 3,
+          "timestamp": 1795520963525
+        }
+      },
+      {
+        "type": "message",
+        "id": "2731b88d",
+        "parentId": "6a832cd7",
+        "timestamp": "2026-11-24T11:49:23.534Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520963528,
+          "responseId": "c4",
+          "rawStopReason": "stop",
+          "durationMs": 5,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "read-missing": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-read-missing",
+        "timestamp": "2026-11-24T11:49:23.765Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "0ee9bdef",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:23.819Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "ab21e35d",
+        "parentId": "0ee9bdef",
+        "timestamp": "2026-11-24T11:49:23.819Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "cc10e72b",
+        "parentId": "ab21e35d",
+        "timestamp": "2026-11-24T11:49:23.954Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520963953,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "da6a75e8",
+        "parentId": "cc10e72b",
+        "timestamp": "2026-11-24T11:49:23.954Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Read the missing file"
+            }
+          ],
+          "timestamp": 1795520963952
+        }
+      },
+      {
+        "type": "message",
+        "id": "f55a0f63",
+        "parentId": "da6a75e8",
+        "timestamp": "2026-11-24T11:49:23.990Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_5_0",
+              "name": "read",
+              "arguments": {
+                "path": "missing.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520963964,
+          "responseId": "c5",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "fe3e173e",
+        "parentId": "f55a0f63",
+        "timestamp": "2026-11-24T11:49:24.064Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_5_0",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "ENOENT: no such file or directory, access '/home/person/project/missing.txt'"
+            }
+          ],
+          "details": {},
+          "isError": true,
+          "durationMs": 2,
+          "timestamp": 1795520964064
+        }
+      },
+      {
+        "type": "message",
+        "id": "94fa3904",
+        "parentId": "fe3e173e",
+        "timestamp": "2026-11-24T11:49:24.074Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520964068,
+          "responseId": "c6",
+          "rawStopReason": "stop",
+          "durationMs": 5,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "command-passes": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-command-passes",
+        "timestamp": "2026-11-24T11:49:24.292Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "10127d60",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:24.347Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "23a58736",
+        "parentId": "10127d60",
+        "timestamp": "2026-11-24T11:49:24.347Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "f1346c99",
+        "parentId": "23a58736",
+        "timestamp": "2026-11-24T11:49:24.473Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520964472,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "42829a4c",
+        "parentId": "f1346c99",
+        "timestamp": "2026-11-24T11:49:24.473Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Say hello"
+            }
+          ],
+          "timestamp": 1795520964471
+        }
+      },
+      {
+        "type": "message",
+        "id": "03edf47c",
+        "parentId": "42829a4c",
+        "timestamp": "2026-11-24T11:49:24.509Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_7_0",
+              "name": "bash",
+              "arguments": {
+                "command": "echo hello"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520964482,
+          "responseId": "c7",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "7256be28",
+        "parentId": "03edf47c",
+        "timestamp": "2026-11-24T11:49:24.578Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_7_0",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "hello\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 6,
+          "timestamp": 1795520964578
+        }
+      },
+      {
+        "type": "message",
+        "id": "99b46af3",
+        "parentId": "7256be28",
+        "timestamp": "2026-11-24T11:49:24.585Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520964582,
+          "responseId": "c8",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "command-fails": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-command-fails",
+        "timestamp": "2026-11-24T11:49:24.811Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "5ac9a0a4",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:24.869Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "7f5ea70a",
+        "parentId": "5ac9a0a4",
+        "timestamp": "2026-11-24T11:49:24.869Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "1baffe37",
+        "parentId": "7f5ea70a",
+        "timestamp": "2026-11-24T11:49:24.998Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520964997,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "38ef48c9",
+        "parentId": "1baffe37",
+        "timestamp": "2026-11-24T11:49:24.998Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Fail loudly"
+            }
+          ],
+          "timestamp": 1795520964996
+        }
+      },
+      {
+        "type": "message",
+        "id": "e5d30117",
+        "parentId": "38ef48c9",
+        "timestamp": "2026-11-24T11:49:25.034Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_9_0",
+              "name": "bash",
+              "arguments": {
+                "command": "echo boom >&2; exit 3"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520965008,
+          "responseId": "c9",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "99087d9f",
+        "parentId": "e5d30117",
+        "timestamp": "2026-11-24T11:49:25.110Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_9_0",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "boom\n\n\nCommand exited with code 3"
+            }
+          ],
+          "isError": true,
+          "durationMs": 6,
+          "timestamp": 1795520965110
+        }
+      },
+      {
+        "type": "message",
+        "id": "a215da85",
+        "parentId": "99087d9f",
+        "timestamp": "2026-11-24T11:49:25.117Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520965114,
+          "responseId": "c10",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "no-match": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-no-match",
+        "timestamp": "2026-11-24T11:49:25.335Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "197b0824",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:25.393Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "dbacda00",
+        "parentId": "197b0824",
+        "timestamp": "2026-11-24T11:49:25.393Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "6398c6d3",
+        "parentId": "dbacda00",
+        "timestamp": "2026-11-24T11:49:25.517Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520965516,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "19d96f57",
+        "parentId": "6398c6d3",
+        "timestamp": "2026-11-24T11:49:25.517Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Grep for nothing"
+            }
+          ],
+          "timestamp": 1795520965515
+        }
+      },
+      {
+        "type": "message",
+        "id": "4920d6f1",
+        "parentId": "19d96f57",
+        "timestamp": "2026-11-24T11:49:25.554Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_11_0",
+              "name": "bash",
+              "arguments": {
+                "command": "grep -n zzz sample.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520965527,
+          "responseId": "c11",
+          "rawStopReason": "tool_calls",
+          "durationMs": 27,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "f4a75498",
+        "parentId": "4920d6f1",
+        "timestamp": "2026-11-24T11:49:25.624Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_11_0",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "(no output)\n\nCommand exited with code 1"
+            }
+          ],
+          "isError": true,
+          "durationMs": 7,
+          "timestamp": 1795520965624
+        }
+      },
+      {
+        "type": "message",
+        "id": "f5dd98d9",
+        "parentId": "f4a75498",
+        "timestamp": "2026-11-24T11:49:25.632Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520965628,
+          "responseId": "c12",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "not-found": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-not-found",
+        "timestamp": "2026-11-24T11:49:25.869Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "5e2221d4",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:25.928Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "632ace16",
+        "parentId": "5e2221d4",
+        "timestamp": "2026-11-24T11:49:25.928Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "44004304",
+        "parentId": "632ace16",
+        "timestamp": "2026-11-24T11:49:26.057Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520966056,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "ef4b8780",
+        "parentId": "44004304",
+        "timestamp": "2026-11-24T11:49:26.057Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Run a missing program"
+            }
+          ],
+          "timestamp": 1795520966055
+        }
+      },
+      {
+        "type": "message",
+        "id": "b750a2da",
+        "parentId": "ef4b8780",
+        "timestamp": "2026-11-24T11:49:26.093Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_13_0",
+              "name": "bash",
+              "arguments": {
+                "command": "no-such-program-here"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520966066,
+          "responseId": "c13",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "6b40f8d9",
+        "parentId": "b750a2da",
+        "timestamp": "2026-11-24T11:49:26.161Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_13_0",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "/bin/bash: line 1: no-such-program-here: command not found\n\n\nCommand exited with code 127"
+            }
+          ],
+          "isError": true,
+          "durationMs": 6,
+          "timestamp": 1795520966161
+        }
+      },
+      {
+        "type": "message",
+        "id": "3e7141c8",
+        "parentId": "6b40f8d9",
+        "timestamp": "2026-11-24T11:49:26.168Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520966165,
+          "responseId": "c14",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "timeout": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-timeout",
+        "timestamp": "2026-11-24T11:49:26.397Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "ec8f2e89",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:26.455Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "6409dbae",
+        "parentId": "ec8f2e89",
+        "timestamp": "2026-11-24T11:49:26.455Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "a5e17fd6",
+        "parentId": "6409dbae",
+        "timestamp": "2026-11-24T11:49:26.581Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520966580,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "60b27ea2",
+        "parentId": "a5e17fd6",
+        "timestamp": "2026-11-24T11:49:26.581Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Wait too long"
+            }
+          ],
+          "timestamp": 1795520966579
+        }
+      },
+      {
+        "type": "message",
+        "id": "4b238b26",
+        "parentId": "60b27ea2",
+        "timestamp": "2026-11-24T11:49:26.617Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_15_0",
+              "name": "bash",
+              "arguments": {
+                "command": "sleep 5; echo late",
+                "timeout": 1
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520966591,
+          "responseId": "c15",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "0d98f9e3",
+        "parentId": "4b238b26",
+        "timestamp": "2026-11-24T11:49:27.666Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_15_0",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "Command timed out after 1 seconds"
+            }
+          ],
+          "details": {},
+          "isError": true,
+          "durationMs": 1007,
+          "timestamp": 1795520967666
+        }
+      },
+      {
+        "type": "message",
+        "id": "6e107ffa",
+        "parentId": "0d98f9e3",
+        "timestamp": "2026-11-24T11:49:27.673Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520967670,
+          "responseId": "c16",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "search": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-search",
+        "timestamp": "2026-11-24T11:49:27.935Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "9dce52ae",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:27.995Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "8ccf7ca0",
+        "parentId": "9dce52ae",
+        "timestamp": "2026-11-24T11:49:27.995Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "883197ad",
+        "parentId": "8ccf7ca0",
+        "timestamp": "2026-11-24T11:49:28.126Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520968125,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "d385b650",
+        "parentId": "883197ad",
+        "timestamp": "2026-11-24T11:49:28.127Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Search for beta"
+            }
+          ],
+          "timestamp": 1795520968124
+        }
+      },
+      {
+        "type": "message",
+        "id": "3ef7a8dc",
+        "parentId": "d385b650",
+        "timestamp": "2026-11-24T11:49:28.165Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_17_0",
+              "name": "grep",
+              "arguments": {
+                "pattern": "beta"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520968136,
+          "responseId": "c17",
+          "rawStopReason": "tool_calls",
+          "durationMs": 28,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "66a3dcf2",
+        "parentId": "3ef7a8dc",
+        "timestamp": "2026-11-24T11:49:28.230Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_17_0",
+          "toolName": "grep",
+          "content": [
+            {
+              "type": "text",
+              "text": "sample.txt:2: beta"
+            }
+          ],
+          "isError": false,
+          "durationMs": 13,
+          "timestamp": 1795520968230
+        }
+      },
+      {
+        "type": "message",
+        "id": "ef261988",
+        "parentId": "66a3dcf2",
+        "timestamp": "2026-11-24T11:49:28.237Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520968233,
+          "responseId": "c18",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "search-none": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-search-none",
+        "timestamp": "2026-11-24T11:49:28.469Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "54f8ed16",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:28.528Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "7bdfb5ba",
+        "parentId": "54f8ed16",
+        "timestamp": "2026-11-24T11:49:28.529Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "e4abd222",
+        "parentId": "7bdfb5ba",
+        "timestamp": "2026-11-24T11:49:28.674Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520968673,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "545580be",
+        "parentId": "e4abd222",
+        "timestamp": "2026-11-24T11:49:28.675Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Search for nothing"
+            }
+          ],
+          "timestamp": 1795520968672
+        }
+      },
+      {
+        "type": "message",
+        "id": "936a8138",
+        "parentId": "545580be",
+        "timestamp": "2026-11-24T11:49:28.711Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_19_0",
+              "name": "grep",
+              "arguments": {
+                "pattern": "zzz"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520968684,
+          "responseId": "c19",
+          "rawStopReason": "tool_calls",
+          "durationMs": 27,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "baaebb8d",
+        "parentId": "936a8138",
+        "timestamp": "2026-11-24T11:49:28.783Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_19_0",
+          "toolName": "grep",
+          "content": [
+            {
+              "type": "text",
+              "text": "No matches found"
+            }
+          ],
+          "isError": false,
+          "durationMs": 11,
+          "timestamp": 1795520968783
+        }
+      },
+      {
+        "type": "message",
+        "id": "70730a79",
+        "parentId": "baaebb8d",
+        "timestamp": "2026-11-24T11:49:28.790Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520968786,
+          "responseId": "c20",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "find": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-find",
+        "timestamp": "2026-11-24T11:49:29.045Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "1f9b2ce8",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:29.108Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "3222f472",
+        "parentId": "1f9b2ce8",
+        "timestamp": "2026-11-24T11:49:29.108Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "5ca58dd1",
+        "parentId": "3222f472",
+        "timestamp": "2026-11-24T11:49:29.244Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520969242,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "2984c471",
+        "parentId": "5ca58dd1",
+        "timestamp": "2026-11-24T11:49:29.244Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Find the text files"
+            }
+          ],
+          "timestamp": 1795520969242
+        }
+      },
+      {
+        "type": "message",
+        "id": "723783b5",
+        "parentId": "2984c471",
+        "timestamp": "2026-11-24T11:49:29.285Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_21_0",
+              "name": "find",
+              "arguments": {
+                "pattern": "**/*.txt"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520969256,
+          "responseId": "c21",
+          "rawStopReason": "tool_calls",
+          "durationMs": 30,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "6b4f53ba",
+        "parentId": "723783b5",
+        "timestamp": "2026-11-24T11:49:30.115Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_21_0",
+          "toolName": "find",
+          "content": [
+            {
+              "type": "text",
+              "text": "long.txt\nsample.txt"
+            }
+          ],
+          "isError": false,
+          "durationMs": 788,
+          "timestamp": 1795520970115
+        }
+      },
+      {
+        "type": "message",
+        "id": "b5734a52",
+        "parentId": "6b4f53ba",
+        "timestamp": "2026-11-24T11:49:30.122Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520970118,
+          "responseId": "c22",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "ls": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-ls",
+        "timestamp": "2026-11-24T11:49:30.355Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "bb8f3203",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:30.418Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "df647f97",
+        "parentId": "bb8f3203",
+        "timestamp": "2026-11-24T11:49:30.418Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "871e67c5",
+        "parentId": "df647f97",
+        "timestamp": "2026-11-24T11:49:30.541Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520970540,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "af088d10",
+        "parentId": "871e67c5",
+        "timestamp": "2026-11-24T11:49:30.542Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "List the folder"
+            }
+          ],
+          "timestamp": 1795520970539
+        }
+      },
+      {
+        "type": "message",
+        "id": "feb13982",
+        "parentId": "af088d10",
+        "timestamp": "2026-11-24T11:49:30.586Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_23_0",
+              "name": "ls",
+              "arguments": {
+                "path": "."
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520970560,
+          "responseId": "c23",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "122ed281",
+        "parentId": "feb13982",
+        "timestamp": "2026-11-24T11:49:30.652Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_23_0",
+          "toolName": "ls",
+          "content": [
+            {
+              "type": "text",
+              "text": "long.txt\nsample.txt\nsrc/"
+            }
+          ],
+          "isError": false,
+          "durationMs": 3,
+          "timestamp": 1795520970652
+        }
+      },
+      {
+        "type": "message",
+        "id": "8aae4030",
+        "parentId": "122ed281",
+        "timestamp": "2026-11-24T11:49:30.658Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520970655,
+          "responseId": "c24",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "edit": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-edit",
+        "timestamp": "2026-11-24T11:49:30.901Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "2c0a6f21",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:30.959Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "bef23bfb",
+        "parentId": "2c0a6f21",
+        "timestamp": "2026-11-24T11:49:30.959Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "5864263c",
+        "parentId": "bef23bfb",
+        "timestamp": "2026-11-24T11:49:31.097Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520971093,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "2e9a429e",
+        "parentId": "5864263c",
+        "timestamp": "2026-11-24T11:49:31.098Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Change b"
+            }
+          ],
+          "timestamp": 1795520971091
+        }
+      },
+      {
+        "type": "message",
+        "id": "0f8347a0",
+        "parentId": "2e9a429e",
+        "timestamp": "2026-11-24T11:49:31.167Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_25_0",
+              "name": "edit",
+              "arguments": {
+                "path": "src/auth.ts",
+                "edits": [
+                  {
+                    "oldText": "const b = 2",
+                    "newText": "const b = 20\nconst c = 3"
+                  }
+                ]
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520971123,
+          "responseId": "c25",
+          "rawStopReason": "tool_calls",
+          "durationMs": 45,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "513ce16f",
+        "parentId": "0f8347a0",
+        "timestamp": "2026-11-24T11:49:31.239Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_25_0",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 1 block(s) in src/auth.ts."
+            }
+          ],
+          "details": {
+            "diff": " 1 const a = 1\n-2 const b = 2\n+2 const b = 20\n+3 const c = 3\n 3 // TODO: check",
+            "patch": "--- src/auth.ts\n+++ src/auth.ts\n@@ -1,3 +1,4 @@\n const a = 1\n-const b = 2\n+const b = 20\n+const c = 3\n // TODO: check\n",
+            "firstChangedLine": 2
+          },
+          "isError": false,
+          "durationMs": 4,
+          "timestamp": 1795520971239
+        }
+      },
+      {
+        "type": "message",
+        "id": "730f0025",
+        "parentId": "513ce16f",
+        "timestamp": "2026-11-24T11:49:31.247Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520971244,
+          "responseId": "c26",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "edit-many": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-edit-many",
+        "timestamp": "2026-11-24T11:49:31.469Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "d682ee6b",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:31.529Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "cdfc718d",
+        "parentId": "d682ee6b",
+        "timestamp": "2026-11-24T11:49:31.529Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "661269a3",
+        "parentId": "cdfc718d",
+        "timestamp": "2026-11-24T11:49:31.653Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520971651,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "06bfa248",
+        "parentId": "661269a3",
+        "timestamp": "2026-11-24T11:49:31.653Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Change a and b"
+            }
+          ],
+          "timestamp": 1795520971650
+        }
+      },
+      {
+        "type": "message",
+        "id": "a0401822",
+        "parentId": "06bfa248",
+        "timestamp": "2026-11-24T11:49:31.687Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_27_0",
+              "name": "edit",
+              "arguments": {
+                "path": "src/auth.ts",
+                "edits": [
+                  {
+                    "oldText": "const a = 1",
+                    "newText": "const a = 10"
+                  },
+                  {
+                    "oldText": "const b = 2",
+                    "newText": "const b = 20"
+                  }
+                ]
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520971662,
+          "responseId": "c27",
+          "rawStopReason": "tool_calls",
+          "durationMs": 25,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "42f3251c",
+        "parentId": "a0401822",
+        "timestamp": "2026-11-24T11:49:31.757Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_27_0",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 2 block(s) in src/auth.ts."
+            }
+          ],
+          "details": {
+            "diff": "-1 const a = 1\n-2 const b = 2\n+1 const a = 10\n+2 const b = 20\n 3 // TODO: check",
+            "patch": "--- src/auth.ts\n+++ src/auth.ts\n@@ -1,3 +1,3 @@\n-const a = 1\n-const b = 2\n+const a = 10\n+const b = 20\n // TODO: check\n",
+            "firstChangedLine": 1
+          },
+          "isError": false,
+          "durationMs": 3,
+          "timestamp": 1795520971757
+        }
+      },
+      {
+        "type": "message",
+        "id": "ca05201f",
+        "parentId": "42f3251c",
+        "timestamp": "2026-11-24T11:49:31.763Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520971760,
+          "responseId": "c28",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "edit-no-match": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-edit-no-match",
+        "timestamp": "2026-11-24T11:49:31.991Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "302cd27e",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:32.052Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "ba6b4bb3",
+        "parentId": "302cd27e",
+        "timestamp": "2026-11-24T11:49:32.052Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "994d21ea",
+        "parentId": "ba6b4bb3",
+        "timestamp": "2026-11-24T11:49:32.180Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520972178,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "981eb270",
+        "parentId": "994d21ea",
+        "timestamp": "2026-11-24T11:49:32.180Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Change what isn't there"
+            }
+          ],
+          "timestamp": 1795520972178
+        }
+      },
+      {
+        "type": "message",
+        "id": "ed40e0e3",
+        "parentId": "981eb270",
+        "timestamp": "2026-11-24T11:49:32.216Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_29_0",
+              "name": "edit",
+              "arguments": {
+                "path": "src/auth.ts",
+                "edits": [
+                  {
+                    "oldText": "const z = 9",
+                    "newText": "const z = 0"
+                  }
+                ]
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520972189,
+          "responseId": "c29",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "c077fd19",
+        "parentId": "ed40e0e3",
+        "timestamp": "2026-11-24T11:49:32.288Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_29_0",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Could not find the exact text in src/auth.ts. The old text must match exactly including all whitespace and newlines."
+            }
+          ],
+          "details": {},
+          "isError": true,
+          "durationMs": 2,
+          "timestamp": 1795520972287
+        }
+      },
+      {
+        "type": "message",
+        "id": "4da41df9",
+        "parentId": "c077fd19",
+        "timestamp": "2026-11-24T11:49:32.295Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520972291,
+          "responseId": "c30",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "new-file": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-new-file",
+        "timestamp": "2026-11-24T11:49:32.522Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "db3292e1",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:32.578Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "394d6624",
+        "parentId": "db3292e1",
+        "timestamp": "2026-11-24T11:49:32.578Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "f4ca4160",
+        "parentId": "394d6624",
+        "timestamp": "2026-11-24T11:49:32.705Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520972704,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "2014b6d7",
+        "parentId": "f4ca4160",
+        "timestamp": "2026-11-24T11:49:32.706Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Write a new file"
+            }
+          ],
+          "timestamp": 1795520972703
+        }
+      },
+      {
+        "type": "message",
+        "id": "1bfcad83",
+        "parentId": "2014b6d7",
+        "timestamp": "2026-11-24T11:49:32.743Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_31_0",
+              "name": "write",
+              "arguments": {
+                "path": "new.txt",
+                "content": "one\ntwo\n"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520972716,
+          "responseId": "c31",
+          "rawStopReason": "tool_calls",
+          "durationMs": 28,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "5fca2c5a",
+        "parentId": "1bfcad83",
+        "timestamp": "2026-11-24T11:49:32.808Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_31_0",
+          "toolName": "write",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully wrote to new.txt"
+            }
+          ],
+          "isError": false,
+          "durationMs": 2,
+          "timestamp": 1795520972808
+        }
+      },
+      {
+        "type": "message",
+        "id": "48a879ad",
+        "parentId": "5fca2c5a",
+        "timestamp": "2026-11-24T11:49:32.814Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520972810,
+          "responseId": "c32",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "overwrite": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-overwrite",
+        "timestamp": "2026-11-24T11:49:33.039Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "80d7c0d3",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:33.101Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "e87a92ac",
+        "parentId": "80d7c0d3",
+        "timestamp": "2026-11-24T11:49:33.101Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "c037ed3d",
+        "parentId": "e87a92ac",
+        "timestamp": "2026-11-24T11:49:33.229Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520973227,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "24773237",
+        "parentId": "c037ed3d",
+        "timestamp": "2026-11-24T11:49:33.229Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Overwrite the sample"
+            }
+          ],
+          "timestamp": 1795520973226
+        }
+      },
+      {
+        "type": "message",
+        "id": "2c1dd89e",
+        "parentId": "24773237",
+        "timestamp": "2026-11-24T11:49:33.266Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_33_0",
+              "name": "write",
+              "arguments": {
+                "path": "sample.txt",
+                "content": "replaced\n"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520973241,
+          "responseId": "c33",
+          "rawStopReason": "tool_calls",
+          "durationMs": 25,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "5f761f8c",
+        "parentId": "2c1dd89e",
+        "timestamp": "2026-11-24T11:49:33.339Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_33_0",
+          "toolName": "write",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully wrote to sample.txt"
+            }
+          ],
+          "isError": false,
+          "durationMs": 2,
+          "timestamp": 1795520973339
+        }
+      },
+      {
+        "type": "message",
+        "id": "b49021ed",
+        "parentId": "5f761f8c",
+        "timestamp": "2026-11-24T11:49:33.347Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520973343,
+          "responseId": "c34",
+          "rawStopReason": "stop",
+          "durationMs": 3,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "long-edit": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-long-edit",
+        "timestamp": "2026-11-24T11:49:33.582Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "b1957d33",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:33.637Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "181f01c8",
+        "parentId": "b1957d33",
+        "timestamp": "2026-11-24T11:49:33.637Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "fb6bb9f3",
+        "parentId": "181f01c8",
+        "timestamp": "2026-11-24T11:49:33.774Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520973770,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "7bd339aa",
+        "parentId": "fb6bb9f3",
+        "timestamp": "2026-11-24T11:49:33.775Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Rewrite the long file"
+            }
+          ],
+          "timestamp": 1795520973768
+        }
+      },
+      {
+        "type": "message",
+        "id": "3644f82c",
+        "parentId": "7bd339aa",
+        "timestamp": "2026-11-24T11:49:33.819Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_35_0",
+              "name": "edit",
+              "arguments": {
+                "path": "long.txt",
+                "edits": [
+                  {
+                    "oldText": "row 1\nrow 2\nrow 3\nrow 4\nrow 5\nrow 6\nrow 7\nrow 8\nrow 9\nrow 10\nrow 11\nrow 12\nrow 13\nrow 14\nrow 15\nrow 16\nrow 17\nrow 18\nrow 19\nrow 20\nrow 21\nrow 22\nrow 23\nrow 24\nrow 25\nrow 26\nrow 27\nrow 28\nrow 29\nrow 30",
+                    "newText": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14\nline 15\nline 16\nline 17\nline 18\nline 19\nline 20\nline 21\nline 22\nline 23\nline 24\nline 25\nline 26\nline 27\nline 28\nline 29\nline 30"
+                  }
+                ]
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520973792,
+          "responseId": "c35",
+          "rawStopReason": "tool_calls",
+          "durationMs": 26,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "146ae255",
+        "parentId": "3644f82c",
+        "timestamp": "2026-11-24T11:49:33.890Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_35_0",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 1 block(s) in long.txt."
+            }
+          ],
+          "details": {
+            "diff": "- 1 row 1\n- 2 row 2\n- 3 row 3\n- 4 row 4\n- 5 row 5\n- 6 row 6\n- 7 row 7\n- 8 row 8\n- 9 row 9\n-10 row 10\n-11 row 11\n-12 row 12\n-13 row 13\n-14 row 14\n-15 row 15\n-16 row 16\n-17 row 17\n-18 row 18\n-19 row 19\n-20 row 20\n-21 row 21\n-22 row 22\n-23 row 23\n-24 row 24\n-25 row 25\n-26 row 26\n-27 row 27\n-28 row 28\n-29 row 29\n-30 row 30\n+ 1 line 1\n+ 2 line 2\n+ 3 line 3\n+ 4 line 4\n+ 5 line 5\n+ 6 line 6\n+ 7 line 7\n+ 8 line 8\n+ 9 line 9\n+10 line 10\n+11 line 11\n+12 line 12\n+13 line 13\n+14 line 14\n+15 line 15\n+16 line 16\n+17 line 17\n+18 line 18\n+19 line 19\n+20 line 20\n+21 line 21\n+22 line 22\n+23 line 23\n+24 line 24\n+25 line 25\n+26 line 26\n+27 line 27\n+28 line 28\n+29 line 29\n+30 line 30",
+            "patch": "--- long.txt\n+++ long.txt\n@@ -1,30 +1,30 @@\n-row 1\n-row 2\n-row 3\n-row 4\n-row 5\n-row 6\n-row 7\n-row 8\n-row 9\n-row 10\n-row 11\n-row 12\n-row 13\n-row 14\n-row 15\n-row 16\n-row 17\n-row 18\n-row 19\n-row 20\n-row 21\n-row 22\n-row 23\n-row 24\n-row 25\n-row 26\n-row 27\n-row 28\n-row 29\n-row 30\n+line 1\n+line 2\n+line 3\n+line 4\n+line 5\n+line 6\n+line 7\n+line 8\n+line 9\n+line 10\n+line 11\n+line 12\n+line 13\n+line 14\n+line 15\n+line 16\n+line 17\n+line 18\n+line 19\n+line 20\n+line 21\n+line 22\n+line 23\n+line 24\n+line 25\n+line 26\n+line 27\n+line 28\n+line 29\n+line 30\n",
+            "firstChangedLine": 1
+          },
+          "isError": false,
+          "durationMs": 4,
+          "timestamp": 1795520973890
+        }
+      },
+      {
+        "type": "message",
+        "id": "3f884da3",
+        "parentId": "146ae255",
+        "timestamp": "2026-11-24T11:49:33.900Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520973894,
+          "responseId": "c36",
+          "rawStopReason": "stop",
+          "durationMs": 7,
+          "thinkingLevel": "low"
+        }
+      }
+    ],
+    "long-write": [
+      {
+        "type": "session",
+        "version": 3,
+        "id": "pi-long-write",
+        "timestamp": "2026-11-24T11:49:34.143Z",
+        "cwd": "/home/person/project"
+      },
+      {
+        "type": "model_change",
+        "id": "dee6c647",
+        "parentId": null,
+        "timestamp": "2026-11-24T11:49:34.200Z",
+        "provider": "fake",
+        "modelId": "fake-1"
+      },
+      {
+        "type": "thinking_level_change",
+        "id": "f864a158",
+        "parentId": "dee6c647",
+        "timestamp": "2026-11-24T11:49:34.201Z",
+        "thinkingLevel": "low"
+      },
+      {
+        "type": "message",
+        "id": "35a83c9c",
+        "parentId": "f864a158",
+        "timestamp": "2026-11-24T11:49:34.338Z",
+        "message": {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are a coding assistant running inside pi, a coding agent",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash comm",
+            "rules": "<rules>\n- Use read to examine files instead of cat or sed.\n-",
+            "docs": "<docs>\nPi documentation (read only when the user asks about ",
+            "cwd": "<cwd>\n/home/person/project\n</cwd>",
+            "mcp_servers": "<mcp_servers>\nMCP servers whose tools are not declared to yo"
+          },
+          "timestamp": 1795520974337,
+          "toolsAdded": [
+            {
+              "name": "read"
+            },
+            {
+              "name": "bash"
+            },
+            {
+              "name": "edit"
+            },
+            {
+              "name": "write"
+            },
+            {
+              "name": "grep"
+            },
+            {
+              "name": "find"
+            },
+            {
+              "name": "ls"
+            },
+            {
+              "name": "codemode"
+            },
+            {
+              "name": "tool_search"
+            },
+            {
+              "name": "probe_ask"
+            },
+            {
+              "name": "nd_model_only"
+            },
+            {
+              "name": "novadeck_send"
+            },
+            {
+              "name": "novadeck_agents"
+            },
+            {
+              "name": "novadeck_team"
+            },
+            {
+              "name": "novadeck_open_terminal"
+            },
+            {
+              "name": "novadeck_open_agent"
+            },
+            {
+              "name": "novadeck_close_terminal"
+            },
+            {
+              "name": "novadeck_open_worktree"
+            },
+            {
+              "name": "novadeck_take_worktree"
+            },
+            {
+              "name": "novadeck_close_worktree"
+            },
+            {
+              "name": "novadeck_give_worktree"
+            },
+            {
+              "name": "novadeck_lead"
+            },
+            {
+              "name": "novadeck_release"
+            },
+            {
+              "name": "novadeck_join"
+            },
+            {
+              "name": "novadeck_leave"
+            },
+            {
+              "name": "novadeck_hand_lead"
+            },
+            {
+              "name": "novadeck_show"
+            },
+            {
+              "name": "novadeck_close"
+            },
+            {
+              "name": "novadeck_showing"
+            },
+            {
+              "name": "novadeck_look"
+            },
+            {
+              "name": "novadeck_ask"
+            },
+            {
+              "name": "novadeck_tell"
+            },
+            {
+              "name": "novadeck_done"
+            },
+            {
+              "name": "novadeck_feedback"
+            },
+            {
+              "name": "novadeck_describe"
+            },
+            {
+              "name": "mcp__theirs__ping"
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "id": "2afa9ece",
+        "parentId": "35a83c9c",
+        "timestamp": "2026-11-24T11:49:34.338Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Write a long file"
+            }
+          ],
+          "timestamp": 1795520974336
+        }
+      },
+      {
+        "type": "message",
+        "id": "39de75d4",
+        "parentId": "2afa9ece",
+        "timestamp": "2026-11-24T11:49:34.375Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_37_0",
+              "name": "write",
+              "arguments": {
+                "path": "written.txt",
+                "content": "row 1\nrow 2\nrow 3\nrow 4\nrow 5\nrow 6\nrow 7\nrow 8\nrow 9\nrow 10\nrow 11\nrow 12\nrow 13\nrow 14\nrow 15\nrow 16\nrow 17\nrow 18\nrow 19\nrow 20\nrow 21\nrow 22\nrow 23\nrow 24\nrow 25\nrow 26\nrow 27\nrow 28\nrow 29\nrow 30\nrow 31\nrow 32\nrow 33\nrow 34\nrow 35\nrow 36\nrow 37\nrow 38\nrow 39\nrow 40\nrow 41\nrow 42\nrow 43\nrow 44\nrow 45\nrow 46\nrow 47\nrow 48\nrow 49\nrow 50\nrow 51\nrow 52\nrow 53\nrow 54\nrow 55\nrow 56\nrow 57\nrow 58\nrow 59\nrow 60\n"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1795520974348,
+          "responseId": "c37",
+          "rawStopReason": "tool_calls",
+          "durationMs": 27,
+          "thinkingLevel": "low"
+        }
+      },
+      {
+        "type": "message",
+        "id": "3fb9fed3",
+        "parentId": "39de75d4",
+        "timestamp": "2026-11-24T11:49:34.442Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_37_0",
+          "toolName": "write",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully wrote to written.txt"
+            }
+          ],
+          "isError": false,
+          "durationMs": 2,
+          "timestamp": 1795520974442
+        }
+      },
+      {
+        "type": "message",
+        "id": "bb6492bd",
+        "parentId": "3fb9fed3",
+        "timestamp": "2026-11-24T11:49:34.450Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Done."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "fake",
+          "model": "fake-1",
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 120,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0,
+              "totalFromProvider": false
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1795520974446,
+          "responseId": "c38",
+          "rawStopReason": "stop",
+          "durationMs": 4,
+          "thinkingLevel": "low"
+        }
+      }
+    ]
+  }
+}

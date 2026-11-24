@@ -84,6 +84,9 @@ const terminal = (
     knows?: ((lines: readonly string[]) => string | undefined) | undefined
     /** Whether the queued message's row stays on the screen after Up. */
     lingers?: boolean
+    /** Whether its queue may not show (`unseenQueue`), and whether the host knows of one. */
+    unseenQueue?: boolean
+    hostQueued?: boolean
   } = {},
 ) => {
   const began = Date.now()
@@ -150,6 +153,7 @@ const terminal = (
     ...(options.viewport === undefined ? {} : { viewport: () => options.viewport! }),
     room: (rows) => rows - 3,
     still: (rows) => rows.map((row) => row.replace(/^agent \d+s$/, "agent")),
+    ...(options.unseenQueue && { unseenQueue: true as const }),
   }
   // How many reads running have shown the box holding the same text.
   let typesOnSteady = options.typesOnSteady
@@ -201,6 +205,7 @@ const terminal = (
     },
     ...(options.own !== undefined && { ownImages: () => options.own! }),
     ...(options.knows && { queuedWords: (_id, lines) => options.knows!(lines) }),
+    ...(options.hostQueued !== undefined && { queuedUnseen: () => options.hostQueued! }),
     write: (_id, data) => {
       written.push(data)
       heldAtWrites.push(holds.some((hold) => hold.held))
@@ -893,6 +898,40 @@ describe("interrupts", () => {
       t.boxAfter(1_100, "look at [Image #1] this")
       await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
       expect(t.written).not.toContain(CLEAR)
+    })
+
+    // pi shows a prompt queued only once a person's extensions are through with it; the host
+    // knows it gave one, and the program puts it back in the box after the Escape.
+    it("is given back for a queue its screen never showed, the host knowing of it", async () => {
+      const t = terminal({
+        queued: false,
+        unseenQueue: true,
+        hostQueued: true,
+        prompt: "Hold on",
+        working: (() => {
+          let looks = 0
+          return () => (looks += 1) < 3
+        })(),
+      })
+      t.boxAfter(1_100, "Queued beta\n\nQueued gamma")
+      expect(await t.interruptIn()).toEqual({ returned: "Queued beta\n\nQueued gamma" })
+      expect(t.holds.length).toBeGreaterThan(0)
+      expect(t.holds.every(({ settled }) => settled)).toBe(true)
+    })
+
+    it("counts the host's account of a queue only where the screen may not show it", async () => {
+      const t = terminal({
+        queued: false,
+        hostQueued: true,
+        prompt: "Hold on",
+        working: (() => {
+          let looks = 0
+          return () => (looks += 1) < 3
+        })(),
+      })
+      t.boxAfter(1_100, "their words")
+      expect(await t.interruptIn()).toEqual({ returned: undefined })
+      expect(t.holds).toEqual([])
     })
 
     it("is left as the person's where nothing held their keys", async () => {

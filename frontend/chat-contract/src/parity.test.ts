@@ -479,6 +479,16 @@ const records: Readonly<
       },
     },
   ],
+  // An assistant message's tool call, its arguments as pi keeps them (an object; text here).
+  pi: (name, input) => [
+    {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_1", name, arguments: input }],
+      },
+    },
+  ],
 }
 
 // A way a harness writes a call: each harness's own above, and Codex's others below.
@@ -592,6 +602,8 @@ const emits: Readonly<Record<AgentName, ReadonlySet<string>>> = {
   // Only the names whose calls its table describes as the old one did: its other tools read
   // their input's own keys (`filePath`, `patchText`, `oldString`), which the old table didn't.
   opencode: new Set(["websearch", "task"]),
+  // Its tools read their input's own keys (`path`, `edits`), which the old table didn't.
+  pi: new Set(),
 }
 
 // The Novadeck MCP spellings: Claude Code's plugin, Codex's namespace (joined by its

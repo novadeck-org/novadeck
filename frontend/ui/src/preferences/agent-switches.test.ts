@@ -21,6 +21,9 @@ describe("An agent's switch", () => {
     const opencode: AgentSwitch = { ...antigravity, agent: "opencode", limited: "outdated" }
     expect(agentLimit(opencode)).toMatch(/opencode upgrade/)
     expect(agentLimit({ ...opencode, limited: "unsupported" })).toMatch(/opencode 2/)
+    const pi: AgentSwitch = { ...antigravity, agent: "pi", limited: "outdated" }
+    expect(agentLimit(pi)).toMatch(/pi update/)
+    expect(agentLimit(pi)).not.toMatch(/opencode/i)
     for (const agent of ["claude", "codex", "agy"] as const)
       for (const limited of ["outdated", "unsupported"] as const)
         expect(agentLimit({ ...antigravity, agent, limited })).not.toMatch(/opencode/i)

@@ -29,6 +29,15 @@ const pathOf = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string =>
  */
 export const findProgram = (
   name: string,
+  options: Parameters<typeof programsNamed>[1] = {},
+): string | undefined => programsNamed(name, options).next().value
+
+/**
+ * Every program of that name on PATH, in PATH's order, as `findProgram` takes the first: for a
+ * name another program may share, whose first is not always the one wanted (Ubuntu's `pi`).
+ */
+export const programsNamed = function* (
+  name: string,
   {
     env = process.env,
     platform = process.platform,
@@ -39,7 +48,7 @@ export const findProgram = (
     /** On Windows, the extensions to try; PATHEXT's when omitted. */
     readonly extensions?: readonly string[]
   } = {},
-): string | undefined => {
+): Generator<string, undefined> {
   const windows = platform === "win32"
   const absolute = windows ? win32.isAbsolute : posix.isAbsolute
   const suffixes = windows
@@ -60,10 +69,11 @@ export const findProgram = (
       try {
         if (!statSync(candidate).isFile()) continue
         if (!windows) accessSync(candidate, constants.X_OK)
-        return candidate
       } catch {
         // Not here, or not runnable.
+        continue
       }
+      yield candidate
     }
   }
   return undefined

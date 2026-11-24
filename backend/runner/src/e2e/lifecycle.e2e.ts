@@ -69,11 +69,11 @@ const cleared = (terminal: DeckTerminal, timeoutMs?: number) =>
  * tui/src/chatwidget/slash_dispatch.rs refuses). Each try but the last waits 10 s for it,
  * and a clear that took only slowly is waited out, never cleared twice.
  */
-const clear = async (terminal: DeckTerminal, tries = 3): Promise<void> => {
+const clear = async (terminal: DeckTerminal, command: string, tries = 3): Promise<void> => {
   const before = (await terminal.detail()).sessionId
   for (let tried = 1; ; tried += 1) {
     // eslint-disable-next-line no-await-in-loop -- One try after another.
-    await terminal.submit("/clear")
+    await terminal.submit(command)
     try {
       // eslint-disable-next-line no-await-in-loop -- As above.
       await cleared(terminal, tried < tries ? 10_000 : undefined)
@@ -129,7 +129,7 @@ for (const setup of setups) {
       // The harness cleared: its own screen drops the conversation, and Novadeck sees its
       // agent at an empty prompt again, the old session no longer bound (a new one, or
       // none yet where the harness binds its next session only with its first prompt).
-      await clear(t1)
+      await clear(t1, setup.clear ?? "/clear")
       await t1.reached("ready", { after: mark })
       await t1.poll(
         async () => ((await t1.detail()).sessionId !== before ? true : undefined),
@@ -184,7 +184,7 @@ for (const setup of setups) {
 
       // The person types /clear; while it waits in the box, Drafting, t2's message comes
       // for the session there, and waits for the person's prompt. They submit the clear.
-      await typed(t1, "/clear", async () => {
+      await typed(t1, setup.clear ?? "/clear", async () => {
         await t2.submit("Ask moth for the word")
         await t1.reached(holds("fox", "moth", "queued"), { after: mark })
       })
@@ -243,7 +243,7 @@ for (const setup of setups) {
       // The person types /exit; while it waits in the box, t2's message comes for the
       // session there. They submit it, and the agent leaves; its terminal's command then
       // starts the agent again there, another session.
-      await typed(t1, "/exit", async () => {
+      await typed(t1, setup.exit ?? "/exit", async () => {
         await t2.submit("Ask moth for the word")
         await t1.reached(holds("fox", "moth", "queued"), { after: mark })
       })

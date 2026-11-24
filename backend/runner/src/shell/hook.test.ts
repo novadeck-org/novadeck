@@ -78,7 +78,7 @@ const it = base.extend<{ fixture: Fixture }>({
       call: () => Promise.resolve(unanswered),
       tools: () => {},
       // The shipping gate answers opencode's PreToolUse here, as it does while it is on.
-      gating: (agent, event) => agent === "opencode" && event === "PreToolUse",
+      gating: (agent, event) => (agent === "opencode" || agent === "pi") && event === "PreToolUse",
     })
     resources.defer(() => listening.close())
     const hook: Fixture["hook"] = (agent, payload, env = {}, event) =>
@@ -674,9 +674,10 @@ describe("opencode's hook with the shipping gate on", () => {
     command: string,
     env: NodeJS.ProcessEnv = {},
     config = gatedConfigFile,
+    { agent = "opencode", tool = "bash" }: { agent?: string; tool?: string } = {},
   ) =>
     new Promise<string>((resolve) => {
-      const child = spawn(relayPath, ["hook", "--config", config, "opencode", "PreToolUse"], {
+      const child = spawn(relayPath, ["hook", "--config", config, agent, "PreToolUse"], {
         env: hostless({
           NOVADECK_TERMINAL_ID: terminalId,
           NOVADECK_REPORT: fixture.endpoint,
@@ -693,7 +694,7 @@ describe("opencode's hook with the shipping gate on", () => {
           hook_event_name: "PreToolUse",
           cwd: "/work",
           session_id: "ses_1",
-          tool_name: "bash",
+          tool_name: tool,
           call_id: "toolu_1",
           tool_input: { command, description: "d" },
         }),
@@ -756,6 +757,38 @@ describe("opencode's hook with the shipping gate on", () => {
 
   it("prints what it always did while the gate is off", async ({ fixture }) => {
     await expect(ran(fixture, "gh pr create", {}, relayConfigFile)).resolves.toBe("{}\n")
+  })
+
+  it("gates pi's PowerShell tool as its bash: asked of the runner, and refused by shape without one, in any case", async ({
+    fixture,
+  }) => {
+    const pi = { agent: "pi", tool: "powershell" }
+    const stdout = `${JSON.stringify({ decision: "deny", reason: "Novadeck: ask first." })}\n`
+    fixture.answer.current = { leaseId: null, stdout }
+    await expect(ran(fixture, "git push origin main", {}, gatedConfigFile, pi)).resolves.toBe(
+      stdout,
+    )
+    const [asked] = fixture.deadlines
+    expect(asked!.deadline - asked!.seq).toBeGreaterThan(2_000)
+    expect(fixture.reports).toMatchObject([
+      {
+        agent: "pi",
+        event: "PreToolUse",
+        payload: { tool_name: "powershell", tool_input: { command: "git push origin main" } },
+      },
+    ])
+    // Unheard: no dialog stands behind pi's hook, so every shipping shape is refused.
+    fixture.answer.current = unheard
+    for (const command of [
+      "GIT.EXE push origin main",
+      "gh pr create --title t",
+      "git push -f origin main",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One hook after another.
+      expect(refusal(await ran(fixture, command, {}, gatedConfigFile, pi)), command).toMatchObject({
+        decision: "deny",
+      })
+    await expect(ran(fixture, "Get-ChildItem", {}, gatedConfigFile, pi)).resolves.toBe("{}\n")
   })
 })
 
@@ -903,6 +936,18 @@ describe("reading a relay's hook", () => {
     // Claude Code without one falls back to its nearest ancestor too.
     const claude = hook({ agent: "claude", ancestors: [{ pid: 30, name: "claude" }] })
     expect(relayHook(claude)?.report.instance).toBe("30")
+  })
+
+  it("names pi on Windows by the pid its extension gives, where its process is node", () => {
+    // pi's extension spawns the hook with shell: true, under cmd, under pi's node.exe.
+    const ancestors = [
+      { pid: 10, name: "cmd", startedAt: 900, args: ["/d", "/s", "/c", "hook"] },
+      { pid: 20, name: "node", startedAt: 400, args: ["C:\\pi\\cli.js", "--model", "a/b"] },
+    ]
+    const named = hook({ agent: "pi", ancestors, env: { NOVADECK_PI_PID: "20" } })
+    expect(relayHook(named, "win32")?.report).toMatchObject({ instance: "20", processStart: 400 })
+    // Without it, no ancestor is named pi: none is told.
+    expect(relayHook(hook({ agent: "pi", ancestors }), "win32")?.report.instance).toBeNull()
   })
 
   it("is forwarded every harness's pidVariable by the relay", () => {

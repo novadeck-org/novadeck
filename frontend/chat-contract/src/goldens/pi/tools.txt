@@ -1,0 +1,96 @@
+# text
+user: Explain the folder
+assistant: The folder holds two files: ⏎ sample.txt ⏎ src/auth.ts
+
+# parallel
+user: Look at both
+tools: read [read] · sample.txt → 3 lines: alpha; ran [run] · ls → 3 lines: long.txt
+assistant: Both read.
+
+# many
+user: Look at everything
+tools: [5 tool calls · read ×2, searched, ran, listed] read [read] · sample.txt → 3 lines: alpha; read [read] · src/auth.ts → 3 lines: const a = 1; searched [search] · const → 2 lines: src/auth.ts:1: const a = 1; ran [run] · wc -l sample.txt → 1 line: 3 sample.txt; listed [read] · src → 1 line: auth.ts
+assistant: Looked.
+
+# unknown
+user: Use a tool pi lacks
+tools: frobnicate [other] · failed | Call: 1 line: 3 → 1 line: Tool frobnicate not found
+assistant: Done.
+
+# codemode
+user: Script it
+tools: ran a script [run] · const a = await tools.read({ path: "sample.txt" }); const b = await tools.bash({ command: "echo scripted" }); return JSON.stringify({ a: a.length, b: b.output }) · 2 calls → 5 lines: Script completed; in script: read [read] · sample.txt → empty; in script: ran [run] · echo scripted → empty
+assistant: Done.
+
+# tool-search
+user: Find a catalog tool
+tools: found tools [search] · catalog ping → 2 lines: Loaded 1 tool. They are available from your nex…
+assistant: Done.
+
+# theirs
+user: Ping their server
+tools: mcp__theirs__ping [other] | Call: 1 line: hi → 1 line: pong
+assistant: Done.
+
+# novadeck-terminals
+user: Work with the other terminals
+tools: [6 tool calls · listed agents, messaged @fox, checked its team, opened a terminal] listed agents [agent] → 1 line: - @fox · api-server: Claude Code, idle; messaged @fox [agent] · The build is green. | Call: novadeck_send: 1 line: to: @fox → 1 line: Done: send; checked its team [agent] → 1 line: Done: team; opened a terminal [agent] · npm run dev | Call: novadeck_open_terminal: 1 line: title: dev server → 1 line: Done: open_terminal; opened an agent [agent] · claude: Review the diff | Call: novadeck_open_agent: 2 lines: agent: claude → 1 line: Done: open_agent; close @owl [agent] | Call: novadeck_close_terminal: 1 line: @owl → 1 line: Done: close_terminal
+assistant: Done with the terminals.
+
+# novadeck-worktrees
+user: Work in a worktree
+tools: [4 tool calls · opened a worktree, took a worktree, gave a worktree to @fox, closed a worktree] opened a worktree [agent] · fix/login → 1 line: Done: open_worktree; took a worktree [agent] · …/x/fix-login/project | Call: novadeck_take_worktree: 1 line: /home/person/.novadeck/worktrees/x/fix-login/pr… → 1 line: Done: take_worktree; gave a worktree to @fox [agent] · …/x/fix-login/project | Call: novadeck_give_worktree: 2 lines: path: /home/person/.novadeck/worktrees/x/fix-lo… → 1 line: Done: give_worktree; closed a worktree [agent] · …/x/fix-login/project | Call: novadeck_close_worktree: 1 line: /home/person/.novadeck/worktrees/x/fix-login/pr… → 1 line: Done: close_worktree
+assistant: Done with the worktree.
+
+# novadeck-team
+user: Lead and join
+tools: [5 tool calls · asked to lead @fox, released @fox, join @moth's team, leave its team] asked to lead @fox [agent] · Take the tests | Call: novadeck_lead: 1 line: to: @fox → 1 line: Done: lead; released @fox [agent] | Call: novadeck_release: 1 line: @fox → 1 line: Done: release; join @moth's team [agent] | Call: novadeck_join: 1 line: @moth → 1 line: Done: join; leave its team [agent] → 1 line: Done: leave; hand the lead to @moth [agent] | Call: novadeck_hand_lead: 1 line: @moth → 1 line: Done: hand_lead
+assistant: Done with the team.
+
+# novadeck-show
+user: Show the page
+tools: [4 tool calls · showed, checked what's shown, looked at the page, closed] showed [read] | Call: novadeck_show: 1 line: http://localhost:5173 → 1 line: Done: show; checked what's shown [read] → 1 line: Done: showing; looked at the page [web] | Call: novadeck_look: 1 line: page → 1 line: Done: look; closed [read] | Call: novadeck_close: 1 line: page → 1 line: Done: close
+assistant: Done showing.
+
+# novadeck-reports
+user: Report to the person
+tools: [5 tool calls · described this terminal, asked you, told you, drafted feedback] described this terminal [agent] · Login fix | Call: novadeck_describe: 1 line: summary: Fixing the login form → 1 line: Done: describe; asked you [agent] · Which branch? | Call: novadeck_ask: 1 line: body: Main or the release branch? → 1 line: Done: ask; told you [agent] · Tests pass | Call: novadeck_tell: 1 line: body: All green. → 1 line: Done: tell; drafted feedback [agent] · idea | Call: novadeck_feedback: 1 line: text: A shortcut would help. → 1 line: Done: feedback; reported done [agent] · Login fixed | Call: novadeck_done: 1 line: body: Merged into the branch. → 1 line: Done: done
+assistant: Reported.
+
+# image-one
+user (images: Image #1): What is in [Image #1]
+assistant: A login form.
+
+# image-two
+user (images: Image #1, Image #2): Compare [Image #1] [Image #2]
+assistant: The second is darker.
+
+# long-a
+user: Check it all
+tools: [4 tool calls · ran, read ×2, searched] ran [run] · ls → 3 lines: long.txt; read [read] · sample.txt → 3 lines: alpha; read [read] · src/auth.ts → 3 lines: const a = 1; searched [search] · TODO → 1 line: src/auth.ts:3: // TODO: check
+assistant: Checked.
+
+# long-b
+user: And the tests
+tools: [4 tool calls · ran ×2, read, searched] ran [run] · echo built → 1 line: built; read [read] · sample.txt → 3 lines: alpha; searched [search] · FIXME → 1 line: No matches found; ran [run] · echo tested → 1 line: tested
+assistant: Tested.
+
+# short
+user: Run it
+tools: read [read] · sample.txt → 3 lines: alpha; ran [run] · echo ran → 1 line: ran
+assistant: Ran.
+
+# shell
+user: !echo shell-out
+tools: ran [run] · echo shell-out → 1 line: shell-out
+user: What did it print
+assistant: It printed shell-out.
+
+# aborted
+user: Take your time
+note: Interrupted
+
+# compaction
+user: Sum up the folder
+assistant: It holds two files.
+compaction: compacted the conversation · summary kept → 7 lines: No prior history.

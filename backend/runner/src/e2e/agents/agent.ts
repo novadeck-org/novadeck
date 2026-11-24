@@ -2,6 +2,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Watch } from "@novadeck/sandbox/tripwire"
 
 import type { DeckTerminal } from "../deck.js"
+import type { Installed } from "../install.js"
 import type { Sandbox } from "../keychain.js"
 import type { Dialect } from "../model/dialect.js"
 import type { Call, Reply, Rule } from "../model/script.js"
@@ -98,6 +99,7 @@ export type Trait =
   | "idleCommand"
   | "trust.folder"
   | "trust.hooks"
+  | "hooks.off"
   | "shell"
   | "rewind"
   | "popup"
@@ -308,6 +310,24 @@ export type AgentSetup = {
    */
   readonly queuedTaken?: string
   /**
+   * Why a Stop may bring a message before the prompt queued behind a running turn, in a model
+   * call of its own: the harness runs that prompt's hook after its turn can end, so a turn that
+   * ends first goes on with the message, and the prompt follows. pi's input handler runs as
+   * its queued prompt is entered, and a reply held until then may come first. Undefined where
+   * the prompt's own hook carries the message, or where a Stop always does.
+   */
+  readonly stopsFirst?: string
+  /**
+   * What the screen shows under messages queued behind a running turn, which the scenarios
+   * wait for: Claude Code's and Antigravity's `Press up to edit queued messages` where omitted.
+   */
+  readonly queueHint?: RegExp
+  /**
+   * What stands between messages a Stop gives back to the box: a line break where omitted;
+   * pi's box puts a blank line between them.
+   */
+  readonly queuedJoin?: string
+  /**
    * How many Escapes a person presses to stop a turn: 2 where the first only arms the interrupt
    * (opencode's `esc again to interrupt`, which lapses in about 5 s), 1 where omitted.
    */
@@ -323,6 +343,12 @@ export type AgentSetup = {
    * its transcript then holds them as one prompt, which the chat shows as it was sent.
    */
   readonly merges?: true
+  /**
+   * Whether prompts queued behind a running turn reach its agent one at a time, each answered
+   * before the next goes in, as pi's steering does by default (`steeringMode`, the person's own
+   * setting): its transcript then holds each prompt before its own answer.
+   */
+  readonly oneByOne?: true
   /**
    * Hosts it tries through the proxy on every run, which no setting turns off: their
    * refused tunnels are expected. Any other refused tunnel is not.
@@ -348,7 +374,7 @@ export type AgentSetup = {
   readonly prepare: (
     sandbox: Sandbox,
     model: FakeModel,
-    installed: { readonly version: string },
+    installed: Pick<Installed, "version" | "tools">,
     seed?: Seed,
   ) => Promise<Readonly<Record<string, string>>>
   /** How it asks before a tool runs. */
@@ -375,6 +401,16 @@ export type AgentSetup = {
     /** Whether Enter sends images with no words (Antigravity does nothing then). */
     readonly alone: boolean
   }
+  /**
+   * The command that leaves the agent, typed at its prompt: `/exit` where omitted (pi's is
+   * `/quit`).
+   */
+  readonly exit?: string
+  /**
+   * The command that clears its conversation and starts a new session, typed at its prompt:
+   * `/clear` where omitted (pi has none: its `/new`).
+   */
+  readonly clear?: string
   /** A command its prompt runs that submits nothing to the model, as `/status`. */
   readonly idleCommand?: string
   /** How the person forks a session, in a new terminal or in place. */

@@ -230,6 +230,24 @@ export const launchFor = (
   return found?.launch
 }
 
+/**
+ * The transcript path `session` of `agent` was bound with, as any of the terminals' rows kept it
+ * (`AgentReport.transcript`): for a resume asked by an agent, as `launchFor`. The newest report wins.
+ */
+export const transcriptFor = (
+  rows: Iterable<Pick<SavedTerminal, "agents">>,
+  agent: AgentName,
+  session: string,
+): string | undefined => {
+  let found: { readonly seq: number; readonly transcript: string } | undefined
+  for (const row of rows) {
+    const report = row.agents[agent]
+    if (report?.sessionId !== session || !report.transcript) continue
+    if (!found || report.seq > found.seq) found = { seq: report.seq, transcript: report.transcript }
+  }
+  return found?.transcript
+}
+
 export type ClaimsHost = {
   /** Whether another terminal than this one has the agent's session bound. */
   readonly boundElsewhere: (
@@ -281,7 +299,15 @@ export class Claims {
     const { id, command, resume } = input
     if (command !== undefined || !resume) return undefined
     const report = saved?.agents[resume]
-    return this.check(id, resume, report?.sessionId, connected, undefined, report?.launch)
+    return this.check(
+      id,
+      resume,
+      report?.sessionId,
+      connected,
+      undefined,
+      report?.launch,
+      report?.transcript,
+    )
   }
 
   /**
@@ -298,6 +324,7 @@ export class Claims {
     connected: boolean,
     choice?: Choice,
     launch?: readonly string[],
+    transcript?: string,
   ): ResumeCheck {
     const { resume } = harnesses[agent].launch
     const key = `${agent}:${session}`
@@ -313,7 +340,7 @@ export class Claims {
     })
     if (availability.state !== "ready") return { ok: false, reason: availability.reason }
     if (!resume || session === undefined) return { ok: false, reason: "unsupported" }
-    return { ok: true, argv: resume(session, choice, launch), key }
+    return { ok: true, argv: resume(session, choice, launch, transcript), key }
   }
 
   /**

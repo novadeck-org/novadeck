@@ -946,6 +946,7 @@ export class Typing {
       write: (terminalId, data) => this.written(terminalId, data),
       ownImages: (terminalId, text) => this.ownImages(terminalId, text, true),
       queuedWords: (terminalId, lines) => this.receipts.queuedWords(terminalId, lines),
+      queuedUnseen: (terminalId) => this.receipts.unrecorded(terminalId),
     }
   }
 

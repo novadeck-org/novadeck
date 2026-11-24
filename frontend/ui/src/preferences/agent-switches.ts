@@ -60,6 +60,12 @@ const agentLimitNotes: Readonly<Partial<Record<AgentName, Partial<Record<Limit, 
     unsupported:
       "Novadeck works with opencode 1 so far, so opencode 2 runs without sessions resuming, messages or the chat. Installing opencode 1 (1.18 or later) instead turns them on.",
   },
+  pi: {
+    outdated:
+      "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (pi update) to turn them on.",
+    unsupported:
+      "Novadeck works with pi 1 so far, so pi 2 runs without sessions resuming, messages or the chat. Installing pi 1 (1.0 or later) instead turns them on.",
+  },
 }
 
 export const agentLimit = ({ agent, connected, busy, limited }: AgentSwitch): string | undefined =>

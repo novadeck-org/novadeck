@@ -613,15 +613,17 @@ for (const setup of setups) {
           "the agent's session to end",
           30_000,
         )
-        // Antigravity has ended what its commands left already; Claude Code and opencode don't
-        // as they die; Codex (its sandbox off too) mostly does, a moment on, but not always.
+        // Antigravity has ended what its commands left already; Claude Code, opencode and pi
+        // don't as they die (pi ends only a command still running, on a signal, in its print
+        // and RPC modes: dist/utils/shell.js, 1.6.0); Codex (its sandbox off too) mostly does,
+        // a moment on, but not always.
         await new Promise((resolve) => setTimeout(resolve, 2_000))
         const survivors = windowsLeft(run)
         if (setup.agent === "codex")
           expect([[], windowsVariants.toSorted()]).toContainEqual(survivors)
         else
           expect(survivors).toEqual(
-            setup.agent === "claude" || setup.agent === "opencode"
+            setup.agent === "claude" || setup.agent === "opencode" || setup.agent === "pi"
               ? windowsVariants.toSorted()
               : [],
           )

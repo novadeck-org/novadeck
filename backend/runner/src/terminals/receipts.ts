@@ -485,6 +485,16 @@ export class Receipts {
   }
 
   /**
+   * Whether a prompt was sent that the record has yet to tell of: behind a running turn, one
+   * the agent holds queued, whether or not its screen shows it (see `BoxProfile.unseenQueue`).
+   */
+  unrecorded(terminalId: string): boolean {
+    return (this.tracks.get(terminalId)?.entries ?? []).some(
+      ({ state, sentAt }) => state === "pending" && sentAt !== null,
+    )
+  }
+
+  /**
    * The words, as given, of the one prompt sent and still waiting on the record whose lines are
    * exactly `lines` (a screen's rows of a queued message, trailing white space aside); undefined
    * where none is, or more than one is, or it carried images.

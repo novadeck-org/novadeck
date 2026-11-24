@@ -8,7 +8,7 @@ import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
-import { prompted } from "./scenarios.js"
+import { lacking, prompted } from "./scenarios.js"
 import { claudeHello, openssl, standIn } from "./stand-in.js"
 
 // What holds each harness for the person before Novadeck can reach it, as
@@ -124,62 +124,78 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
   // The setup's seed turns its plugin off for the launch (OPENCODE_PURE), the one way a
   // person's launch can leave it unloaded without a file of theirs.
   opencode: async () => {},
+  // Its extension comes with its shim's `-e`, so a launch past the shim has none (`bypassed`).
+  pi: async () => {},
+}
+
+/**
+ * What a person's launch changes to start the agent past Novadeck's shim, for a harness whose
+ * hooks are the shim's own and nothing of its files: pi's program by an alias or its full path,
+ * which runs it with no `-e` (an empty NOVADECK_SHIMS says the same to the shim).
+ */
+const bypassed: { readonly [agent in AgentName]?: Readonly<Record<string, string | null>> } = {
+  pi: { NOVADECK_SHIMS: "" },
 }
 
 for (const setup of setups) {
-  describe.skipIf(!supported)(`${setup.name}, Novadeck's hooks off`, () => {
-    for (const how of launches)
-      e2e.seeded({ hooksTrusted: false }, setup)(
-        `reads as held by them at its prompt, and at its review where it has one${typed(how)}`,
-        async ({ e2e: run }) => {
-          await hooksOff[setup.agent](run)
-          const t = await launch(
-            run,
-            how,
-            how === "scripted" ? await wrapped(run, how, setup.agent, {}) : setup.agent,
-          )
-          const review = setup.trust?.hooks
-          if (review) {
-            await t.until(review.shows, 60_000)
-            await held(t, "its hooks review to count")
+  describe.skipIf(!supported || lacking(setup, "hooks.off") !== undefined)(
+    `${setup.name}, Novadeck's hooks off`,
+    () => {
+      for (const how of launches)
+        e2e.seeded({ hooksTrusted: false }, setup)(
+          `reads as held by them at its prompt, and at its review where it has one${typed(how)}`,
+          async ({ e2e: run }) => {
+            await hooksOff[setup.agent](run)
+            const t = await launch(
+              run,
+              how,
+              how === "scripted" || bypassed[setup.agent]
+                ? await wrapped(run, how, setup.agent, bypassed[setup.agent] ?? {})
+                : setup.agent,
+            )
+            const review = setup.trust?.hooks
+            if (review) {
+              await t.until(review.shows, 60_000)
+              await held(t, "its hooks review to count")
+              expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
+              await skip(t, review)
+            }
+            // Its own prompt, with nothing of Novadeck's running for it.
+            await prompted(t, setup)
+            await t.poll(
+              () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+              "its hooks to be found off at its prompt",
+              60_000,
+            )
+            expect(t.summary()).toMatchObject({
+              agent: null,
+              ready: null,
+              startup: { agent: setup.agent, screen: "hooks" },
+            })
+            // It stays so: nothing binds there.
+            await sleep(3000)
             expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
-            await skip(t, review)
-          }
-          // Its own prompt, with nothing of Novadeck's running for it.
-          await prompted(t, setup)
-          await t.poll(
-            () => (t.summary().startup?.screen === "hooks" ? true : undefined),
-            "its hooks to be found off at its prompt",
-            60_000,
-          )
-          expect(t.summary()).toMatchObject({
-            agent: null,
-            ready: null,
-            startup: { agent: setup.agent, screen: "hooks" },
-          })
-          // It stays so: nothing binds there.
-          await sleep(3000)
-          expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
-        },
-      )
+          },
+        )
 
-    if (setup.agent === "claude")
-      e2e(setup)(
-        "reads as held where the project's settings turn the plugin off",
-        async ({ e2e: run }) => {
-          await merge(join(run.sandbox.project, ".claude", "settings.json"), (settings) => {
-            settings.enabledPlugins = { "novadeck@novadeck": false }
-          })
-          const t = await run.deck.open(setup.agent)
-          await t.poll(
-            () => (t.summary().startup?.screen === "hooks" ? true : undefined),
-            "its hooks to be found off at its prompt",
-            60_000,
-          )
-          expect(t.summary().startup).toEqual({ agent: "claude", screen: "hooks" })
-        },
-      )
-  })
+      if (setup.agent === "claude")
+        e2e(setup)(
+          "reads as held where the project's settings turn the plugin off",
+          async ({ e2e: run }) => {
+            await merge(join(run.sandbox.project, ".claude", "settings.json"), (settings) => {
+              settings.enabledPlugins = { "novadeck@novadeck": false }
+            })
+            const t = await run.deck.open(setup.agent)
+            await t.poll(
+              () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+              "its hooks to be found off at its prompt",
+              60_000,
+            )
+            expect(t.summary().startup).toEqual({ agent: "claude", screen: "hooks" })
+          },
+        )
+    },
+  )
 
   describe.skipIf(!supported)(`${setup.name}, signed out`, () => {
     for (const how of launches) signedOut[setup.agent](setup, how)
@@ -308,6 +324,13 @@ const signedOut: {
     gated(
       e2e(setup),
       "it shows no sign-in screen: a missing or refused key is its first turn's error",
+    )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
+  // Its prompt comes up with no model and no sign-in screen of its own: "No models available.
+  // Use /login" is a row under the box, and the first prompt fails (probed 2026-11-24, 1.6.0).
+  pi: (setup, how) =>
+    gated(
+      e2e(setup),
+      "it shows no sign-in screen at start: a missing key is a warning row and its first turn's error",
     )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
 }
 

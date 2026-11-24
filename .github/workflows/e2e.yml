@@ -170,6 +170,14 @@ jobs:
           cache: ${{ env.NOVADECK_E2E_CACHE }}
           harness: opencode
 
+      - name: Restore pi
+        id: pi
+        if: env.NOVADECK_E2E_HARNESS == 'pinned' && contains(format(',{0},', matrix.setup.agents), ',pi,')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: pi
+
       # With the network, as the relay's build may install the Rust it names.
       - name: Build Protocol and Relay
         run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
@@ -271,6 +279,14 @@ jobs:
           harness: opencode
           key: ${{ steps.opencode.outputs.cache-primary-key }}
 
+      - name: Save pi
+        if: ${{ !cancelled() && steps.pi.outcome == 'success' && steps.pi.outputs.cache-hit != 'true' }}
+        uses: ./.github/actions/e2e-harness-cache/save
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: pi
+          key: ${{ steps.pi.outputs.cache-primary-key }}
+
   # Windows's jobs, beside Linux's, when the plan chose Windows.
   e2e-windows:
     needs: plan
@@ -338,6 +354,7 @@ jobs:
           - { name: Codex, agents: codex }
           - { name: Antigravity, agents: agy }
           - { name: opencode, agents: opencode }
+          - { name: pi, agents: pi }
         # `files` are what vitest runs: paths it matches by substring, and `--exclude` globs
         # for the rest, which keeps exactly what the others leave. `part` is the held
         # reply's share of its runs (PROBE_PART).

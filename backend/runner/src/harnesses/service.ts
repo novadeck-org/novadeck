@@ -13,7 +13,7 @@ import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
-import { cmdPath, findProgram, killTree } from "../programs.js"
+import { cmdPath, killTree, programsNamed } from "../programs.js"
 import { withoutInherited } from "../shell/inherited.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { agents, harnesses } from "./registry.js"
@@ -158,12 +158,18 @@ export const locate = async (
   harness: Harness,
   install: Install,
 ): Promise<string | undefined> => {
-  const found = findProgram(program, { env: install.env, platform: install.platform })
-  if (found) return found
+  // A program of the harness's name that another program shares counts only once it says it is
+  // the harness's (`Harness.identifies`), the first on PATH that does, else where its installers
+  // put it.
+  const ours = async (path: string): Promise<boolean> =>
+    program !== harness.id || (await harness.identifies?.(path, install)) !== false
+  for (const found of programsNamed(program, { env: install.env, platform: install.platform }))
+    // eslint-disable-next-line no-await-in-loop -- The first that is the harness's wins.
+    if (await ours(found)) return found
   if (program !== harness.id) return undefined
   for (const fallback of harness.fallbacks?.(install) ?? [])
     // eslint-disable-next-line no-await-in-loop -- The first that is there wins.
-    if (await exists(fallback)) return fallback
+    if ((await exists(fallback)) && (await ours(fallback))) return fallback
   return undefined
 }
 

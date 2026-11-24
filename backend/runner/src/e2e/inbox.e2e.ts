@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
-import { losesLineBreakKeys } from "./known-gaps.js"
+import { losesLineBreakKeys, pastedLineBreak } from "./known-gaps.js"
 import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
 import { delivered, own, replies, result, start, through, turn, unrung } from "./scenarios.js"
 
@@ -30,6 +30,10 @@ const parameters = (call: Call, name: string, reading: boolean): unknown => {
           : [item]
     })
     .map(record)
+    // A chat completions tool keeps its name and schema under `function` (pi's).
+    .map((item) =>
+      typeof item.function === "object" && item.function ? record(item.function) : item,
+    )
     .find((item) => item.name === name || item.name === "ask")
   return offered?.parameters ?? offered?.input_schema ?? offered?.parametersJsonSchema
 }
@@ -428,9 +432,22 @@ for (const setup of setups) {
         await sleep(1_200)
         const write = (data: string) =>
           run.deck.terminals.write({ terminalId: terminal.id, data }, "e2e")
-        if (losesLineBreakKeys(setup))
-          write(`\x1b[200~MY UNFINISHED DRAFT${"\n".repeat(lines)}\x1b[201~`)
-        else {
+        if (losesLineBreakKeys(setup)) {
+          const lineBreak = pastedLineBreak(setup)
+          const draft = `MY UNFINISHED DRAFT${lineBreak.repeat(lines)}`
+          // One paste, where the box shows it whole. Where so long a paste shows as a mark and
+          // not its words (pi: more than 10 lines, `[paste #1 +13 lines]`), the words and the
+          // line breaks go in pastes short enough to show whole, as typing them would.
+          if (!harnesses[setup.agent].box.collapses(draft)) write(`\x1b[200~${draft}\x1b[201~`)
+          else {
+            write("\x1b[200~MY UNFINISHED DRAFT\x1b[201~")
+            for (let line = 0; line < lines; line += 5) {
+              // eslint-disable-next-line no-await-in-loop -- One paste after another.
+              await sleep(300)
+              write(`\x1b[200~${lineBreak.repeat(Math.min(5, lines - line))}\x1b[201~`)
+            }
+          }
+        } else {
           write("MY UNFINISHED DRAFT")
           await sleep(300)
           for (let line = 0; line < lines; line += 1) {

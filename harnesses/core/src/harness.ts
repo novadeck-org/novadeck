@@ -29,6 +29,15 @@ export type Effort = (typeof efforts)[number]
 /** A model a harness can start with, and the efforts it takes. */
 export type Model = { readonly id: string; readonly efforts: readonly Effort[] }
 
+/**
+ * Where a harness runs in a terminal, as its hooks would be asked about there: the install,
+ * and its own program and the words it was started with, where the platform tells them (Linux).
+ */
+export type Where = Install & {
+  readonly program?: string
+  readonly argv?: readonly string[]
+}
+
 /** Where a harness lives on this machine, as its setup and inspection need it. */
 export type Install = {
   /** The person's login environment, which may move the harness's home. */
@@ -81,6 +90,12 @@ export type Harness = {
    * catches up.
    */
   readonly fallbacks?: (install: Install) => readonly string[]
+  /**
+   * Whether the program found under its name is the harness's: for a harness whose name another
+   * program shares (Ubuntu's `pi` prints digits of π), so that one is never taken for it, nor
+   * launched. Absent where nothing else goes by the name.
+   */
+  readonly identifies?: (program: string, install: Install) => Promise<boolean>
   /**
    * The one-line command that installs it on `platform`, which Novadeck's terminal runs
    * for the person, so it works in any shell Novadeck starts there (see `installer.ts`).
@@ -265,6 +280,14 @@ export type Harness = {
    * of its own holds, is read back once its hooks and activity are gone.
    */
   readonly plans?: (line: string) => readonly WrittenPlan[]
+  /**
+   * Whether the shipping gate is its hook alone: no permission dialog of its own stands behind a
+   * hook that says nothing (opencode's built-in default allows a shell command, and pi never
+   * asks). The gate's deny is then the hook's refusal, a permitted command's permits are spent
+   * at the call, and where the runner gives no answer the relay refuses what looks like shipping
+   * (`backend/relay`, `hook_gated`, pinned equal to this by its `rule-cases.json`).
+   */
+  readonly hookGate?: true
   /** How much of each feature Novadeck tells of it, from the sources its adapter reads. */
   readonly coverage: AgentCoverage
   /**
@@ -366,10 +389,7 @@ export type Harness = {
    * without them. `where` holds the terminal's own program and environment where the runner
    * can tell them. Undefined when the harness couldn't answer; trusted when omitted.
    */
-  readonly hooksTrusted?: (
-    where: Install & { readonly program?: string },
-    cwd: string,
-  ) => Promise<boolean | undefined>
+  readonly hooksTrusted?: (where: Where, cwd: string) => Promise<boolean | undefined>
   /**
    * Whether the session a title shows, whose id starts with `prefix`, is one it just
    * started as a new root (Codex's /clear), not another it only shows, as a forked side
@@ -567,12 +587,15 @@ export type LaunchProfile = {
    * The words that continue its session by id, with the model and effort `choose` puts,
    * where each is given: after its program, or where its resume command takes its options.
    * Then the `kept` flags of the launch it resumes (see `kept`), but for the model and effort
-   * `choice` sets itself.
+   * `choice` sets itself. `transcript` is the session's file as its harness named it at bind,
+   * where the runner has it: for a harness whose resume by id asks a question from another folder
+   * than the session's (pi's), and which takes the file itself.
    */
   readonly resume?: (
     session: string,
     choice?: Choice,
     kept?: readonly string[],
+    transcript?: string,
   ) => readonly string[]
   /**
    * The flags of a launch a resume carries over, from the words an agent was started with
@@ -743,4 +766,10 @@ export type Run = {
   readonly instance: string | null
   /** Its transcript, as its hooks named it. */
   readonly transcript: string
+  /**
+   * The folder Novadeck writes the harness's own files to (`Install.plugin`), for a harness
+   * whose plugin keeps a record of its own beside the harness's transcript; asked for only by
+   * the watch that reads one.
+   */
+  readonly plugin?: () => Promise<string | undefined>
 }

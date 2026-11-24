@@ -40,7 +40,9 @@ export const compatibility: Compatibility = {
   // shows its chat from the start.
   // 14: clients follow each agent's connection, and hear of one lost outside Novadeck
   // (`agents.watch`, an agent's `lost`).
-  revision: 14,
+  // 15: pi, an agent the UI may name in an input (a resume, Preferences), marked since 15
+  // (`inputEnum`), so a runner at 14 stays in the window and a UI asks for it only of a runner at 15.
+  revision: 15,
   oldestClient: 11,
   oldestRunner: 12,
 }

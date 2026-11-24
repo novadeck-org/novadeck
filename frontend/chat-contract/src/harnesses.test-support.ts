@@ -16,3 +16,9 @@ export const harnessSources = (harness: AgentName | "core"): string =>
 /** A recording this package made of a harness's own transcript (`src/recorded/<file>`), as the JSON it holds. */
 export const recordedFile = <T>(file: string): T =>
   JSON.parse(readFileSync(join(import.meta.dirname, "recorded", file), "utf8")) as T
+
+/** A harness's own fixture of record lines (`src/fixtures/<file>`, JSONL), a line each. */
+export const fixtureLines = (harness: AgentName, file: string): readonly string[] =>
+  readFileSync(join(harnessSources(harness), "fixtures", file), "utf8")
+    .split("\n")
+    .filter(Boolean)

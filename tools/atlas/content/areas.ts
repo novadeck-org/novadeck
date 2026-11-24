@@ -39,6 +39,7 @@ export const roots: Root[] = [
   { token: "harnesses/codex", dir: "harnesses/codex", node: "runner" },
   { token: "harnesses/agy", dir: "harnesses/agy", node: "runner" },
   { token: "harnesses/opencode", dir: "harnesses/opencode", node: "runner" },
+  { token: "harnesses/pi", dir: "harnesses/pi", node: "runner" },
   {
     token: "apps/desktop",
     dir: "apps/desktop",
@@ -250,6 +251,11 @@ export const notes: Record<string, Note> = {
   "harnesses/opencode": {
     purpose: "The opencode harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/opencode/src/index.ts", text: "export const opencode" }],
+    docs: ["docs/harness-coverage.md"],
+  },
+  "harnesses/pi": {
+    purpose: "The pi harness, the same shape as harnesses/claude.",
+    entries: [{ file: "harnesses/pi/src/index.ts", text: "export const pi" }],
     docs: ["docs/harness-coverage.md"],
   },
   "apps/desktop": {

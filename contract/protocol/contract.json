@@ -1,5 +1,5 @@
 {
-  "revision": 14,
+  "revision": 15,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -703,7 +703,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["claude","codex","agy","opencode","newer"],
+                  "enum": ["claude","codex","agy","opencode","pi","newer"],
                   "x-open": {"since":3,"unknown":"placeholder"}
                 },
                 {"type":"null"}
@@ -713,7 +713,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["claude","codex","agy","opencode","newer"],
+                  "enum": ["claude","codex","agy","opencode","pi","newer"],
                   "x-open": {"since":3,"unknown":"placeholder"}
                 },
                 {"type":"null"}
@@ -723,7 +723,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["claude","codex","agy","opencode","newer"],
+                  "enum": ["claude","codex","agy","opencode","pi","newer"],
                   "x-open": {"since":3,"unknown":"placeholder"}
                 },
                 {"type":"null"}
@@ -736,7 +736,7 @@
                   "properties": {
                     "agent": {
                       "type": "string",
-                      "enum": ["claude","codex","agy","opencode","newer"],
+                      "enum": ["claude","codex","agy","opencode","pi","newer"],
                       "x-open": {"since":3,"unknown":"placeholder"}
                     },
                     "screen": {"type":"string","enum":["startup","sign-in","hooks"]}
@@ -1059,7 +1059,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["claude","codex","agy","opencode","newer"],
+                  "enum": ["claude","codex","agy","opencode","pi","newer"],
                   "x-open": {"since":3,"unknown":"placeholder"}
                 },
                 {"type":"null"}
@@ -1111,7 +1111,11 @@
           "cols": {"type":"integer","minimum":2,"maximum":500},
           "rows": {"type":"integer","minimum":1,"maximum":200},
           "restore": {"type":"boolean"},
-          "resume": {"type":"string","enum":["claude","codex","agy","opencode"]},
+          "resume": {
+            "type": "string",
+            "enum": ["claude","codex","agy","opencode","pi"],
+            "x-since": {"pi":15}
+          },
           "command": {
             "type": "string",
             "minLength": 1,
@@ -1239,7 +1243,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -1249,7 +1253,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -1259,7 +1263,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -1272,7 +1276,7 @@
                 "properties": {
                   "agent": {
                     "type": "string",
-                    "enum": ["claude","codex","agy","opencode","newer"],
+                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                     "x-open": {"since":3,"unknown":"placeholder"}
                   },
                   "screen": {"type":"string","enum":["startup","sign-in","hooks"]}
@@ -1591,7 +1595,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -1972,7 +1976,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       {"type":"null"}
@@ -1982,7 +1986,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       {"type":"null"}
@@ -1992,7 +1996,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       {"type":"null"}
@@ -2005,7 +2009,7 @@
                         "properties": {
                           "agent": {
                             "type": "string",
-                            "enum": ["claude","codex","agy","opencode","newer"],
+                            "enum": ["claude","codex","agy","opencode","pi","newer"],
                             "x-open": {"since":3,"unknown":"placeholder"}
                           },
                           "screen": {"type":"string","enum":["startup","sign-in","hooks"]}
@@ -2355,7 +2359,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       {"type":"null"}
@@ -2714,7 +2718,11 @@
           "terminalId": {"type":"string","format":"uuid"},
           "cols": {"type":"integer","minimum":2,"maximum":500},
           "rows": {"type":"integer","minimum":1,"maximum":200},
-          "resume": {"type":"string","enum":["claude","codex","agy","opencode"]}
+          "resume": {
+            "type": "string",
+            "enum": ["claude","codex","agy","opencode","pi"],
+            "x-since": {"pi":15}
+          }
         },
         "required": ["terminalId","cols","rows"],
         "additionalProperties": false
@@ -2828,7 +2836,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -2838,7 +2846,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -2848,7 +2856,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -2861,7 +2869,7 @@
                 "properties": {
                   "agent": {
                     "type": "string",
-                    "enum": ["claude","codex","agy","opencode","newer"],
+                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                     "x-open": {"since":3,"unknown":"placeholder"}
                   },
                   "screen": {"type":"string","enum":["startup","sign-in","hooks"]}
@@ -3180,7 +3188,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -3235,7 +3243,7 @@
           "properties": {
             "agent": {
               "type": "string",
-              "enum": ["claude","codex","agy","opencode","newer"],
+              "enum": ["claude","codex","agy","opencode","pi","newer"],
               "x-open": {"since":3,"unknown":"placeholder"}
             },
             "available": {"type":"boolean"},
@@ -3268,7 +3276,7 @@
           "properties": {
             "agent": {
               "type": "string",
-              "enum": ["claude","codex","agy","opencode","newer"],
+              "enum": ["claude","codex","agy","opencode","pi","newer"],
               "x-open": {"since":3,"unknown":"placeholder"}
             },
             "available": {"type":"boolean"},
@@ -3306,7 +3314,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["claude","codex","agy","opencode","newer"],
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
                 "x-open": {"since":3,"unknown":"placeholder"}
               },
               {"type":"null"}
@@ -4654,7 +4662,11 @@
       "input": {
         "type": "object",
         "properties": {
-          "agent": {"type":"string","enum":["claude","codex","agy","opencode"]},
+          "agent": {
+            "type": "string",
+            "enum": ["claude","codex","agy","opencode","pi"],
+            "x-since": {"pi":15}
+          },
           "connected": {"type":"boolean"}
         },
         "required": ["agent","connected"],
@@ -4665,7 +4677,7 @@
         "properties": {
           "agent": {
             "type": "string",
-            "enum": ["claude","codex","agy","opencode","newer"],
+            "enum": ["claude","codex","agy","opencode","pi","newer"],
             "x-open": {"since":3,"unknown":"placeholder"}
           },
           "available": {"type":"boolean"},
@@ -4817,7 +4829,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["claude","codex","agy","opencode","newer"],
+                  "enum": ["claude","codex","agy","opencode","pi","newer"],
                   "x-open": {"since":3,"unknown":"placeholder"}
                 },
                 {"type":"null"}
@@ -4861,7 +4873,7 @@
                     "state": {"type":"string","const":"disconnected"},
                     "agent": {
                       "type": "string",
-                      "enum": ["claude","codex","agy","opencode","newer"],
+                      "enum": ["claude","codex","agy","opencode","pi","newer"],
                       "x-open": {"since":3,"unknown":"placeholder"}
                     }
                   },
@@ -4927,7 +4939,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       {"type":"null"}
@@ -4971,7 +4983,7 @@
                           "state": {"type":"string","const":"disconnected"},
                           "agent": {
                             "type": "string",
-                            "enum": ["claude","codex","agy","opencode","newer"],
+                            "enum": ["claude","codex","agy","opencode","pi","newer"],
                             "x-open": {"since":3,"unknown":"placeholder"}
                           }
                         },
@@ -5437,7 +5449,7 @@
                       "properties": {
                         "agent": {
                           "type": "string",
-                          "enum": ["claude","codex","agy","opencode","newer"],
+                          "enum": ["claude","codex","agy","opencode","pi","newer"],
                           "x-open": {"since":3,"unknown":"placeholder"}
                         },
                         "role": {"type":"string","enum":["root","subagent"]},
@@ -5605,7 +5617,7 @@
                         "properties": {
                           "agent": {
                             "type": "string",
-                            "enum": ["claude","codex","agy","opencode","newer"],
+                            "enum": ["claude","codex","agy","opencode","pi","newer"],
                             "x-open": {"since":3,"unknown":"placeholder"}
                           },
                           "role": {"type":"string","enum":["root","subagent"]},
@@ -5979,7 +5991,7 @@
                       "kind": {"type":"string","const":"shells"},
                       "agent": {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       "shells": {
@@ -6544,7 +6556,7 @@
                 "properties": {
                   "agent": {
                     "type": "string",
-                    "enum": ["claude","codex","agy","opencode","newer"],
+                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                     "x-open": {"since":3,"unknown":"placeholder"}
                   },
                   "role": {"type":"string","enum":["root","subagent"]},
@@ -6622,7 +6634,7 @@
             "handle": {"type":"string","pattern":"^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$"},
             "agent": {
               "type": "string",
-              "enum": ["claude","codex","agy","opencode","newer"],
+              "enum": ["claude","codex","agy","opencode","pi","newer"],
               "x-open": {"since":3,"unknown":"placeholder"}
             },
             "at": {"type":"number"}
@@ -6725,7 +6737,7 @@
                 "properties": {
                   "agent": {
                     "type": "string",
-                    "enum": ["claude","codex","agy","opencode","newer"],
+                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                     "x-open": {"since":3,"unknown":"placeholder"}
                   },
                   "role": {"type":"string","enum":["root","subagent"]},
@@ -6859,7 +6871,7 @@
                     "properties": {
                       "agent": {
                         "type": "string",
-                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
                         "x-open": {"since":3,"unknown":"placeholder"}
                       },
                       "role": {"type":"string","enum":["root","subagent"]},
@@ -7164,7 +7176,7 @@
                 "properties": {
                   "agent": {
                     "type": "string",
-                    "enum": ["claude","codex","agy","opencode","newer"],
+                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                     "x-open": {"since":3,"unknown":"placeholder"}
                   },
                   "role": {"type":"string","enum":["root","subagent"]},
@@ -7288,7 +7300,7 @@
             "workspaceSessionId": {"type":"string","format":"uuid"},
             "agent": {
               "type": "string",
-              "enum": ["claude","codex","agy","opencode","newer"],
+              "enum": ["claude","codex","agy","opencode","pi","newer"],
               "x-open": {"since":3,"unknown":"placeholder"}
             },
             "sessionId": {"type":"string"},
@@ -7552,7 +7564,7 @@
             "workspaceSessionId": {"type":"string","format":"uuid"},
             "agent": {
               "type": "string",
-              "enum": ["claude","codex","agy","opencode","newer"],
+              "enum": ["claude","codex","agy","opencode","pi","newer"],
               "x-open": {"since":3,"unknown":"placeholder"}
             },
             "sessionId": {"type":"string"},
@@ -7897,7 +7909,7 @@
             "workspaceSessionId": {"type":"string","format":"uuid"},
             "agent": {
               "type": "string",
-              "enum": ["claude","codex","agy","opencode","newer"],
+              "enum": ["claude","codex","agy","opencode","pi","newer"],
               "x-open": {"since":3,"unknown":"placeholder"}
             },
             "handle": {"type":"string"},
@@ -8002,7 +8014,7 @@
                           "anyOf": [
                             {
                               "type": "string",
-                              "enum": ["claude","codex","agy","opencode","newer"],
+                              "enum": ["claude","codex","agy","opencode","pi","newer"],
                               "x-open": {"since":3,"unknown":"placeholder"}
                             },
                             {"type":"null"}
@@ -8049,7 +8061,7 @@
                                 "anyOf": [
                                   {
                                     "type": "string",
-                                    "enum": ["claude","codex","agy","opencode","newer"],
+                                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                                     "x-open": {"since":3,"unknown":"placeholder"}
                                   },
                                   {"type":"null"}
@@ -8080,7 +8092,7 @@
                               },
                               "agent": {
                                 "type": "string",
-                                "enum": ["claude","codex","agy","opencode","newer"],
+                                "enum": ["claude","codex","agy","opencode","pi","newer"],
                                 "x-open": {"since":3,"unknown":"placeholder"}
                               }
                             },
@@ -8360,7 +8372,7 @@
                           "anyOf": [
                             {
                               "type": "string",
-                              "enum": ["claude","codex","agy","opencode","newer"],
+                              "enum": ["claude","codex","agy","opencode","pi","newer"],
                               "x-open": {"since":3,"unknown":"placeholder"}
                             },
                             {"type":"null"}
@@ -8407,7 +8419,7 @@
                                 "anyOf": [
                                   {
                                     "type": "string",
-                                    "enum": ["claude","codex","agy","opencode","newer"],
+                                    "enum": ["claude","codex","agy","opencode","pi","newer"],
                                     "x-open": {"since":3,"unknown":"placeholder"}
                                   },
                                   {"type":"null"}
@@ -8438,7 +8450,7 @@
                               },
                               "agent": {
                                 "type": "string",
-                                "enum": ["claude","codex","agy","opencode","newer"],
+                                "enum": ["claude","codex","agy","opencode","pi","newer"],
                                 "x-open": {"since":3,"unknown":"placeholder"}
                               }
                             },
@@ -9042,7 +9054,13 @@
     "tour.prepare": {
       "input": {
         "type": "object",
-        "properties": {"agent":{"type":"string","enum":["claude","codex","agy","opencode"]}},
+        "properties": {
+          "agent": {
+            "type": "string",
+            "enum": ["claude","codex","agy","opencode","pi"],
+            "x-since": {"pi":15}
+          }
+        },
         "additionalProperties": false
       },
       "output": {

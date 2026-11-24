@@ -173,7 +173,9 @@ for (const setup of setups) {
 
       // The agent leaves with its real quit; the shell stays, with no session bound.
       const quit = await make("kite")
-      await quit.terminal.confirm("/exit", async () => quit.terminal.press("/exit"))
+      await quit.terminal.confirm(setup.exit ?? "/exit", async () =>
+        quit.terminal.press(setup.exit ?? "/exit"),
+      )
       await quit.terminal.poll(
         async () => (quit.terminal.summary().agent === null ? true : undefined),
         "the agent to leave its terminal",

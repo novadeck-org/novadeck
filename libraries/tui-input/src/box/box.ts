@@ -240,6 +240,14 @@ export type BoxProfile = {
     readonly stands?: (text: string) => number | undefined
   }
   /**
+   * Whether prompts queued behind a turn may not show on its screen: pi shows one only once a
+   * person's extensions are through with it, which may take a while, and its record tells of none
+   * before it runs. An interrupt then counts the host's account of prompts it gave and the record
+   * hasn't told of as a queue (`InterruptHost.queuedUnseen`), and waits, the person's keys held,
+   * for what the program puts back. Omitted where its screen shows every prompt queued.
+   */
+  readonly unseenQueue?: true
+  /**
    * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
    * milliseconds, that Escape waits for it to say otherwise, then goes all the same. A turn
    * that ends during the wait takes the Escape with it, unless messages were queued behind
@@ -297,6 +305,12 @@ export type ProfileImages = {
    * place from them. Omitted where the program shows a placeholder at the image's place.
    */
   readonly typed?: (ordinal: number) => string
+  /**
+   * What to paste between two images with no words between them, for a program whose image is
+   * the path itself (pi shows the path as text, and two would run together as one word);
+   * nothing where omitted.
+   */
+  readonly after?: string
 }
 
 /**

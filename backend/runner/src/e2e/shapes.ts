@@ -6,6 +6,8 @@ import { shapes as claudeShapes, store as claudeStore } from "@novadeck/harness-
 import { shapes as codexShapes, store as codexStore } from "@novadeck/harness-codex/shapes"
 import type { Shape, TranscriptStore } from "@novadeck/harness-core/shapes"
 import { shapes as opencodeShapes, store as opencodeStore } from "@novadeck/harness-opencode/shapes"
+import { shapes as piShapes } from "@novadeck/harness-pi/shapes"
+import { store as piStore } from "@novadeck/harness-pi/transcripts"
 import type { AgentName } from "@novadeck/protocol"
 
 // Each harness's transcripts checked against its decoder's shape lists: the e2e fixture's
@@ -22,6 +24,7 @@ const classifiers: Readonly<Record<AgentName, Classifier>> = {
   codex: { shapes: codexShapes, store: codexStore },
   agy: { shapes: agyShapes, store: agyStore },
   opencode: { shapes: opencodeShapes, store: opencodeStore },
+  pi: { shapes: piShapes, store: piStore },
 }
 
 /** The transcripts a harness keeps under its home (`Harness.home`), oldest name first. */

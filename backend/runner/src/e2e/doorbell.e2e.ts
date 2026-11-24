@@ -10,7 +10,7 @@ import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
-import { losesLineBreakKeys } from "./known-gaps.js"
+import { losesLineBreakKeys, pastedLineBreak } from "./known-gaps.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
 import {
   answers,
@@ -588,7 +588,7 @@ for (const setup of setups) {
         const mark = t1.mark()
         const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
         if (losesLineBreakKeys(setup))
-          write(`\x1b[200~${"\n".repeat(lines)}MY DRAFT BELOW\x1b[201~`)
+          write(`\x1b[200~${pastedLineBreak(setup).repeat(lines)}MY DRAFT BELOW\x1b[201~`)
         else {
           for (let line = 0; line < lines; line += 1) {
             write(setup.agent === "agy" ? "\x1b\r" : "\n")

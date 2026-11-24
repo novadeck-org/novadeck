@@ -1,5 +1,6 @@
 {
   "note": "Commands and whether the relay and the runner read them as a shape of the shim's shipping rules (harnesses/agy/src/shim.ts `shippingRules`: `ships`) and as something that looks like git or gh shipping, read coarsely per segment, for opencode (`coarse`; backend/runner `shipsCoarsely`, relay `command_looks_shipping`). Both are coarse on purpose: more is read as shipping than the rules allow, never less. Both sides test against this file.",
+  "hookGated": ["opencode", "pi"],
   "cases": [
     {
       "command": "gh pr create --title x --body y",

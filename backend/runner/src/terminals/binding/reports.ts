@@ -7,7 +7,7 @@ import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/termina
 
 import { boundSince, started as fresh } from "../../harnesses/activity.js"
 import { observe, type Binding } from "../../harnesses/bindings.js"
-import { askOf, harnesses } from "../../harnesses/registry.js"
+import { askOf, harnesses, hookGated } from "../../harnesses/registry.js"
 import { unreplied, withReplies } from "../../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
@@ -161,9 +161,10 @@ export class Reports {
         // Raced against the hook's own deadline: an answer that comes later is no answer.
         const given = await shipping.answer(report.terminalId, report.agent, gate, deadline)
         if (given !== undefined) {
-          // opencode's plugin reports every shell call, and a permitted one is answered with a
-          // lease that spends its permit: the call is still reported, as when it had no answer.
-          if (report.agent === "opencode" && report.event === "PreToolUse" && given.leaseId)
+          // A hook-gated harness's plugin (opencode's, pi's) reports every shell call, and a
+          // permitted one is answered with a lease that spends its permit: the call is still
+          // reported, as when it had no answer.
+          if (hookGated(report.agent) && report.event === "PreToolUse" && given.leaseId)
             this.queueReport(report)
           return given
         }

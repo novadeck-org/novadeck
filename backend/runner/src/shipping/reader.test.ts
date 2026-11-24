@@ -443,3 +443,52 @@ describe("what a command ships", () => {
     expect(await key("gh pr merge 3 -R mzpk/NOVADECK")).toEqual(["pr-merge:mzpk/novadeck#3"])
   })
 })
+
+describe("a command written for PowerShell", () => {
+  const ps = (command: string, cwd = "/w") => readCommand(command, cwd, lookups, "powershell")
+  const shipped = async (command: string, cwd?: string) => {
+    const reading = await ps(command, cwd)
+    return reading.kind === "none"
+      ? "none"
+      : (reading.refusal ?? reading.actions.map((each) => each.key))
+  }
+
+  it("reads a program's name without regard to case, as PowerShell runs it", async () => {
+    const push = ["push:r/app:origin/main"]
+    expect(await shipped("git push origin main")).toEqual(push)
+    expect(await shipped("GIT.EXE push origin main")).toEqual(push)
+    expect(await shipped("Git push origin main")).toEqual(push)
+    expect(await shipped("GH.EXE pr create --title t")).toEqual(["pr-create:r/app:@default"])
+    // POSIX's reading doesn't take it for git: PowerShell's does.
+    expect((await read("GIT push origin main")).kind).toBe("none")
+  })
+
+  it("reads a backslash as the character it is, so a quote after it closes its string", async () => {
+    const command = 'echo "a\\"; git push origin main; echo "b"'
+    // POSIX's quoting runs the string on past the semicolons and hides the push.
+    expect((await read(command)).kind).toBe("none")
+    expect((await ps(command)).kind).toBe("ships")
+  })
+
+  it("takes PowerShell's backtick escape as an expansion it can't read", async () => {
+    expect(await shipped("git push origin main`n")).toMatch(/expansion/)
+    expect(await shipped('git push "origin`" main"')).toMatch(/expansion/)
+  })
+
+  it("follows Set-Location as it does cd, and loses the folder at Pop-Location", async () => {
+    expect(await shipped("Set-Location /w; git push origin feat/x", "/main")).toBe("none")
+    expect(await shipped("Push-Location /w; git push origin feat/x", "/main")).toBe("none")
+    expect(
+      await shipped("Set-Location /w; Pop-Location; git push origin feat/x", "/main"),
+    ).not.toBe("none")
+  })
+
+  it("refuses git or gh run through PowerShell's own wrappers", async () => {
+    for (const command of [
+      'Invoke-Expression "git push origin main"',
+      'iex "GIT PUSH origin main"',
+      'Start-Process git -ArgumentList "push origin main"',
+    ])
+      expect(await shipped(command), command).toMatch(/can't be read/)
+  })
+})

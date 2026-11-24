@@ -1,4 +1,7 @@
 /* eslint-disable no-await-in-loop -- A scenario's steps run in order, each after the one before. */
+import { writeFileSync } from "node:fs"
+import { join } from "node:path"
+
 import type { SliceChange } from "@novadeck/protocol"
 
 import { setups } from "./agents/index.js"
@@ -25,6 +28,8 @@ for (const setup of setups) {
     it("shows a menu and a command's view, and clears with them", async ({ e2e: run }) => {
       const view = setup.view ?? "/permissions"
       run.model.use(() => undefined)
+      // A file for its @ menu to list: pi lists the project's files alone, none in an empty one.
+      writeFileSync(join(run.sandbox.project, "notes.txt"), "notes\n")
       const t = await start(run, setup)
       const { terminals } = run.deck
       const keys = (data: string) => terminals.write({ terminalId: t.id, data }, "e2e")
@@ -50,11 +55,14 @@ for (const setup of setups) {
       expect(seen.at(-1)?.slice?.columns).toBe(terminals.get(t.id).cols)
       keys("\x1b[B")
       await until("the mark move", (latest) => styled(latest) !== marked)
-      keys("\x15")
+      // Backspacing the key closes its menu on every harness; pi's Ctrl-U leaves it open.
+      keys("\x7f")
       await until("the menu close", (latest) => latest?.slice === null)
       await sleep(300)
       keys(view)
-      await until("the filtered menu", (latest) => rows(latest).includes(view))
+      // Its rows name the command, with its `/` or without (pi's list `→ settings`).
+      const named = (latest: SliceChange | undefined) => rows(latest).includes(view.slice(1))
+      await until("the filtered menu", named)
       await sleep(300)
       keys("\r")
       await until("the command's view", (latest) => latest?.slice?.reason === "view")
@@ -68,7 +76,7 @@ for (const setup of setups) {
         pass(key)
         await sleep(90)
       }
-      await until("the menu, by keys", (latest) => rows(latest).includes(view))
+      await until("the menu, by keys", named)
       pass("\x1b[B")
       await sleep(300)
       pass("\x1b[A")

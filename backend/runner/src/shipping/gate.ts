@@ -10,6 +10,7 @@
  */
 import { createHash } from "node:crypto"
 
+import { hookGated } from "../harnesses/registry.js"
 import type { Permit, Permits } from "./permits.js"
 import { readCommand, type Action, type Lookups } from "./reader.js"
 import { covered, type AllowRule } from "./rules.js"
@@ -23,7 +24,7 @@ export type Decision = {
   readonly stdout: string
   readonly commit?: () => void
   /**
-   * Antigravity's or opencode's hook stays silent because a permit covers the command: its own
+   * Antigravity's hook stays silent because a permit covers the command: its own
    * confirmation follows, which the runner answers for this very call (`Shipping`).
    */
   readonly permitted?: true
@@ -36,7 +37,7 @@ export type Decision = {
 }
 
 /** The harnesses the gate answers for. */
-export type GatedAgent = "claude" | "codex" | "agy" | "opencode"
+export type GatedAgent = "claude" | "codex" | "agy" | "opencode" | "pi"
 
 export type GateInput = {
   readonly agent: GatedAgent
@@ -52,6 +53,8 @@ export type GateInput = {
   readonly mode?: string
   /** Codex's rollout, which says what the turn's sandbox and approval policy are. */
   readonly transcript?: string
+  /** The shell the command is written in, where it isn't a POSIX one (pi's `powershell` tool). */
+  readonly shell?: "powershell"
 }
 
 /** What a Codex turn runs under, as its rollout's `turn_context` says. */
@@ -315,7 +318,12 @@ export class Gate {
     // Antigravity told to skip every permission: nothing to replace.
     if (input.agent === "agy" && input.mode === agyBypassMode) return undefined
     if (input.agent === "opencode" && input.mode === opencodeBypassMode) return undefined
-    const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
+    const reading = await readCommand(
+      input.command,
+      input.cwd,
+      this.deps.lookups(input.terminalId),
+      input.shell,
+    )
     if (reading.kind === "none") return undefined
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
     if (input.agent === "codex") this.deps.turnSeen?.(input.terminalId, turn)
@@ -325,7 +333,7 @@ export class Gate {
       return undefined
     const refuse = (reason: string): Decision => ({
       stdout:
-        input.agent === "agy" || input.agent === "opencode"
+        input.agent === "agy" || hookGated(input.agent)
           ? printedAgy(reason)
           : printed(input.event, "deny", reason),
     })
@@ -356,7 +364,8 @@ export class Gate {
     // Antigravity's hook has no allow: it stays silent, its own confirmation shows, and the
     // runner answers that one (`Shipping.autoAnswer`) only for this very command.
     if (input.agent === "agy") return { stdout: "", permitted: true }
-    if (input.agent === "opencode")
+    // A hook-gated harness (opencode, pi) has no dialog to wait for: its permits are spent at the call.
+    if (hookGated(input.agent))
       return {
         stdout: "",
         permitted: true,

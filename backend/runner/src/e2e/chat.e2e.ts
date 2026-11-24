@@ -106,40 +106,48 @@ for (const setup of setups) {
       expect(compacted.text).not.toBe("")
     })
 
-    it("says its mode between turns, the change showing in what it records", async ({
-      e2e: run,
-    }) => {
-      run.model.use(() => ({ text: "Noted." }))
-      const t1 = await start(run, setup)
-      const first = t1.mark()
-      await t1.submit("First words")
-      await t1.until("Noted.")
-      // Its turn over first: Codex turns a command away while one runs (Windows CI).
-      await through(t1, ["working", "settled"], { after: first })
-      const shiftTab = "\x1b[Z"
-      const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
-      // Its plan mode, or Claude Code's accept-edits, the first Shift+Tab takes it to.
-      if (setup.agent === "codex" || setup.agent === "opencode") await setup.planning!.enter!(t1)
-      else {
-        write(shiftTab)
-        await sleep(1000)
-        if (setup.agent === "agy") {
+    // A harness with no mode to change (pi's) has none to say.
+    gated(it, lacking(setup, "plan"))(
+      "says its mode between turns, the change showing in what it records",
+      async ({ e2e: run }) => {
+        run.model.use(() => ({ text: "Noted." }))
+        const t1 = await start(run, setup)
+        const first = t1.mark()
+        await t1.submit("First words")
+        await t1.until("Noted.")
+        // Its turn over first: Codex turns a command away while one runs (Windows CI).
+        await through(t1, ["working", "settled"], { after: first })
+        const shiftTab = "\x1b[Z"
+        const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+        // Its plan mode, or Claude Code's accept-edits, the first Shift+Tab takes it to.
+        if (setup.agent === "codex" || setup.agent === "opencode") await setup.planning!.enter!(t1)
+        else {
           write(shiftTab)
           await sleep(1000)
+          if (setup.agent === "agy") {
+            write(shiftTab)
+            await sleep(1000)
+          }
         }
-      }
-      await t1.submit("After the change")
-      const said = { claude: "acceptEdits", codex: "plan", agy: "plan", opencode: "plan" }[
-        setup.agent
-      ]
-      await t1.poll(
-        async () =>
-          (await t1.transcript()).some(({ note }) => note?.type === "mode" && note.mode === said) ||
-          undefined,
-        "its mode in its transcript",
-        30_000,
-      )
-    })
+        await t1.submit("After the change")
+        const said = {
+          claude: "acceptEdits",
+          codex: "plan",
+          agy: "plan",
+          opencode: "plan",
+          // Never asked: it has no mode (see the gate above).
+          pi: "plan",
+        }[setup.agent]
+        await t1.poll(
+          async () =>
+            (await t1.transcript()).some(
+              ({ note }) => note?.type === "mode" && note.mode === said,
+            ) || undefined,
+          "its mode in its transcript",
+          30_000,
+        )
+      },
+    )
 
     it("gives its agent a multi-line prompt as one prompt, whole in the transcript", async ({
       e2e: run,
@@ -829,10 +837,16 @@ for (const setup of setups) {
           const at = sent.map((prompt) =>
             items.findIndex((one) => one.role === "user" && one.text.includes(prompt)),
           )
-          const answered = items.findIndex(
-            (one) => one.role === "assistant" && one.kind === "text" && one.text.includes("Read:"),
+          const answers = items.flatMap((one, index) =>
+            one.role === "assistant" && one.kind === "text" && one.text.includes("Read:")
+              ? [index]
+              : [],
           )
-          const order = [result, ...at, answered]
+          const answered = answers[0]!
+          // One at a time (pi's), each prompt goes in after the answer to the one before it.
+          const order = setup.oneByOne
+            ? [result, ...at.flatMap((index) => [index, answers.find((one) => one > index)!])]
+            : [result, ...at, answered]
           expect(result).toBeGreaterThanOrEqual(0)
           expect(order).toEqual(order.toSorted((a, b) => a - b))
           expect(new Set(order).size).toBe(order.length)

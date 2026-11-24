@@ -3,7 +3,7 @@ description: Restores one pinned harness from the e2e cache, keyed by its pin an
 
 inputs:
   harness:
-    description: The harness, a key of harnesses.json (claude, codex, agy, opencode).
+    description: The harness, a key of harnesses.json (claude, codex, agy, opencode, pi).
     required: true
   cache:
     description: The folder the harnesses install into (the job's NOVADECK_E2E_CACHE).

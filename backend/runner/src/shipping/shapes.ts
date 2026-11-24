@@ -51,8 +51,9 @@ const coarse = new RegExp(
  * refused, as the relay refuses them where the runner gives no answer at all (`hook.rs`,
  * `command_looks_shipping`); both are tested against `backend/relay/src/rule-cases.json`.
  */
-export const shipsCoarsely = (command: string): boolean =>
-  command
+export const shipsCoarsely = (command: string, shell?: "powershell"): boolean =>
+  // PowerShell reads a program's name in any case (`GIT.EXE push` runs git).
+  (shell === "powershell" ? command.toLowerCase() : command)
     .split(/[;&|\n\r]/)
     // The shell drops quotes and backslashes it reads (`g''it`, `pu\sh`, `"g"it`), which the
     // reader reads past too: without them, nothing it reads as shipping slips by.

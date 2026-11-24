@@ -355,7 +355,12 @@ export const foregroundRuns = async (
 export const processSetting = (
   pid: number,
   names: readonly string[],
-): { readonly env: { readonly [name: string]: string }; readonly program?: string } => {
+): {
+  readonly env: { readonly [name: string]: string }
+  readonly program?: string
+  /** Its arguments, where its command line could be read (Linux). */
+  readonly argv?: readonly string[]
+} => {
   if (process.platform !== "linux") return { env: {} }
   const env: { [name: string]: string } = {}
   try {
@@ -367,10 +372,17 @@ export const processSetting = (
   } catch {
     return { env: {} }
   }
+  // Its command line, as it started: what tells a program run past a shim of Novadeck's.
+  let argv: string[] | undefined
   try {
-    return { env, program: readlinkSync(`/proc/${pid}/exe`) }
+    argv = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").slice(0, -1)
   } catch {
-    return { env }
+    argv = undefined
+  }
+  try {
+    return { env, ...(argv && { argv }), program: readlinkSync(`/proc/${pid}/exe`) }
+  } catch {
+    return { env, ...(argv && { argv }) }
   }
 }
 
