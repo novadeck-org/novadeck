@@ -148,6 +148,7 @@ export const touchStep = async (
 ): Promise<void> => {
   await coachSaysAny(cue === undefined ? [line] : [line, cue], timeout)
   const opened = new Set<HTMLElement>()
+  let pressedAt = 0
   await expect
     .poll(
       async () => {
@@ -156,12 +157,23 @@ export const touchStep = async (
         if (marked && wanted.includes(marked)) return true
         if (marked && !opened.has(marked)) {
           opened.add(marked)
-          await page.elementLocator(marked).click()
+          pressedAt = Date.now()
+          // A window by its header, never into a pane's frame (see below).
+          const opener =
+            marked
+              .closest<HTMLElement>('[data-terminal]:not([data-terminal="true"])')
+              ?.querySelector<HTMLElement>(".terminal-header") ?? marked
+          await page.elementLocator(opener).click()
           return false
         }
-        // Nothing it marks in sight: the box's eye brings it, once.
+        // Nothing it marks in sight, or what it marked didn't bring the subject a while after
+        // its press (a pane loads its viewer first): the box's eye brings it, once.
         const eye = showMe().query()
-        if (!marked && eye instanceof HTMLElement && !opened.has(eye)) {
+        if (
+          eye instanceof HTMLElement &&
+          !opened.has(eye) &&
+          (!marked || Date.now() - pressedAt > 4_000)
+        ) {
           opened.add(eye)
           await showMe().click()
         }

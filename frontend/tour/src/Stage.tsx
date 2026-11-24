@@ -484,10 +484,13 @@ export const TourStage = ({
   }, [line, onTouch])
   useTouch(marked, touch, !away && line !== undefined)
   // Its subject on screen at last, for this coach: its line is said from then on, wherever the
-  // person takes it after (out of sight, "Show me" offers it back), never its cue again.
-  const [presentFor, setPresentFor] = useState<Coach | null>(null)
-  if (coach && !away && scene.present && presentFor !== coach) setPresentFor(coach)
-  const present = coach !== null && presentFor === coach
+  // person takes it after (out of sight, "Show me" offers it back), never its cue again, even
+  // where another box (a teammate's question) took its place a while. For this run: the stage
+  // goes with it.
+  const [presentFor, setPresentFor] = useState<readonly Coach[]>([])
+  if (coach && !away && scene.present && !presentFor.includes(coach))
+    setPresentFor([...presentFor, coach])
+  const present = coach !== null && presentFor.includes(coach)
   // A subject the person had only to open (a sidebar panel) is touched by being on screen.
   const opened = present && coach?.opened === true
   useEffect(() => {

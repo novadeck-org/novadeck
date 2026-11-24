@@ -131,7 +131,7 @@ export const startStep: TourStep = {
   id: "start",
   act: 1,
   // No button: the run began on its window, in Canvas, as the person started it, the one window
-  // there ("Show me" still brings it back where the person took the view away).
+  // there ("Show me", once it's out of sight, travels back to it all the same).
   show: [],
   // A lead that names itself at once is done before its caption shows: it holds, so the first
   // beat is read.

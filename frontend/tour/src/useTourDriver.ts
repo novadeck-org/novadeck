@@ -409,6 +409,12 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
         : null
     if (panel) return commands.showPanel(panel)
     const again = showAgain(now, stepsFor(now), state)
+    // A step with nothing of its own to bring (the start, or the lead's own screen over it): the
+    // terminal its box points at, the lead's where it names none.
+    if (!hasShow(again)) {
+      const coach = coachNow(now, stepsFor(now), state)
+      return commands.travel(coach?.terminalId ?? now.terminalId)
+    }
     make(again.moves)
     if (again.tab) commands.openBarTab(again.tab.terminalId, again.tab.key)
   }, [workspace, commands, make])
