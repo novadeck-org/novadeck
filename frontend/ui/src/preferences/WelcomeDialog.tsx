@@ -79,10 +79,13 @@ const listed = (names: readonly string[]): string =>
   names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
 
 // What starting will install, so nothing about it is a surprise.
-const pluginNote = (names: readonly string[]): string =>
-  names.length === 0
-    ? "You can connect agents later in Preferences."
-    : `Adds a small plugin to ${listed(names)}. Remove it anytime in Preferences.`
+// What starting adds: the plugin of each agent it connects, never one connected already.
+const pluginNote = (names: readonly string[], connected: boolean): string =>
+  names.length > 0
+    ? `Adds a small plugin to ${listed(names)}. Remove it anytime in Preferences.`
+    : connected
+      ? "Nothing new to add. Manage your agents anytime in Preferences."
+      : "You can connect agents later in Preferences."
 
 const headline = "not a babysitter."
 
@@ -337,6 +340,11 @@ const WelcomeForm = ({
   // connects: one connected already stays so (see `kept`), as a first run on a fresh workspace,
   // a second one included, must never take Novadeck's plugin from the person's agents.
   const formRef = useRef<HTMLFormElement>(null)
+  // What the cards, the preview and the note show: the choices, with every agent kept ticked.
+  const shown: Choices = {
+    ...choices,
+    ...Object.fromEntries(agents.filter(kept).map(({ agent }) => [agent, true])),
+  }
   const submit = (): void => {
     for (const toggle of agents) {
       if (toggle.available && !toggle.busy && choices[toggle.agent] && !toggle.connected) {
@@ -421,7 +429,7 @@ const WelcomeForm = ({
         </div>
         <div className="welcome-enter flex min-h-0 flex-1 flex-col" style={at(500)}>
           <WelcomePreview
-            connected={choices}
+            connected={shown}
             chat={chatView !== undefined && showChat}
             spotlight={chatView !== undefined && (lookingAtChat.pointer || lookingAtChat.focus)}
           />
@@ -467,7 +475,7 @@ const WelcomeForm = ({
                     error={Boolean(toggle.error)}
                     name="agents"
                     value={toggle.agent}
-                    checked={kept(toggle) || choices[toggle.agent]}
+                    checked={shown[toggle.agent]}
                     disabled={!toggle.available}
                     // Fixed as busy is, so focus stays on it: one an install just connected has it.
                     busy={toggle.busy || kept(toggle)}
@@ -486,8 +494,9 @@ const WelcomeForm = ({
           >
             {pluginNote(
               agents
-                .filter((toggle) => toggle.available && choices[toggle.agent])
+                .filter((toggle) => toggle.available && choices[toggle.agent] && !kept(toggle))
                 .map((toggle) => agentLabels[toggle.agent]),
+              agents.some(kept),
             )}
           </p>
 

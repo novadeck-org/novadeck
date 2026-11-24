@@ -211,6 +211,11 @@ describe("leaving the welcome dialog", () => {
       "Already connected. Turn it off in Preferences.",
     )
     claude.click()
+    expect(claude.checked).toBe(true)
+    // Only what starting adds is named.
+    expect(document.body.textContent).toContain(
+      "Adds a small plugin to Codex. Remove it anytime in Preferences.",
+    )
     start().click()
     expect(connected).toEqual([["codex", true]])
   })
