@@ -1,0 +1,94 @@
+# read
+user: Read the sample
+tools: read [read] · sample.txt → 3 lines: alpha
+assistant: Done.
+
+# read-part
+user: Read part of the sample
+tools: read [read] · sample.txt | Call: read: 2 lines: offset: 2 → 3 lines: beta
+assistant: Done.
+
+# read-missing
+user: Read the missing file
+tools: read [read] · missing.txt · failed → 1 line: ENOENT: no such file or directory, access '/hom…
+assistant: Done.
+
+# command-passes
+user: Say hello
+tools: ran [run] · echo hello → 1 line: hello
+assistant: Done.
+
+# command-fails
+user: Fail loudly
+tools: ran [run] · echo boom >&2; exit 3 · exit 3 → 4 lines: boom
+assistant: Done.
+
+# no-match
+user: Grep for nothing
+tools: ran [run] · grep -n zzz sample.txt · exit 1 → 3 lines: (no output)
+assistant: Done.
+
+# not-found
+user: Run a missing program
+tools: ran [run] · no-such-program-here · exit 127 → 4 lines: /bin/bash: line 1: no-such-program-here: comman…
+assistant: Done.
+
+# timeout
+user: Wait too long
+tools: ran [run] · sleep 5; echo late · failed | Call: bash: 1 line: timeout: 1 → 1 line: Command timed out after 1 seconds
+assistant: Done.
+
+# search
+user: Search for beta
+tools: searched [search] · beta → 1 line: sample.txt:2: beta
+assistant: Done.
+
+# search-none
+user: Search for nothing
+tools: searched [search] · zzz → 1 line: No matches found
+assistant: Done.
+
+# find
+user: Find the text files
+tools: found files [search] · **/*.txt → 2 lines: long.txt
+assistant: Done.
+
+# ls
+user: List the folder
+tools: listed [read] · . → 3 lines: long.txt
+assistant: Done.
+
+# edit
+user: Change b
+tools: edited [write] · src/auth.ts +2 −1 → 5 lines: 1   const a = 1
+assistant: Done.
+
+# edit-many
+user: Change a and b
+tools: edited [write] · src/auth.ts · 2 edits +2 −2 → 5 lines: 1 - const a = 1
+assistant: Done.
+
+# edit-no-match
+user: Change what isn't there
+tools: edited [write] · src/auth.ts · failed | Call: edit: 1 line: edits: [{"oldText":"const z = 9","newText":"con… → 1 line: Could not find the exact text in src/auth.ts. T…
+assistant: Done.
+
+# new-file
+user: Write a new file
+tools: wrote [write] · new.txt | Call: write: 3 lines: content: → 1 line: Successfully wrote to new.txt
+assistant: Done.
+
+# overwrite
+user: Overwrite the sample
+tools: wrote [write] · sample.txt | Call: write: 2 lines: content: → 1 line: Successfully wrote to sample.txt
+assistant: Done.
+
+# long-edit
+user: Rewrite the long file
+tools: edited [write] · long.txt +30 −30 | Call: edit: 1 line: edits: [{"oldText":"row 1\nrow 2\nrow 3\nrow 4\… → 41 lines: 1 - row 1
+assistant: Done.
+
+# long-write
+user: Write a long file
+tools: wrote [write] · written.txt | Call: write: 61 lines: content: → 1 line: Successfully wrote to written.txt
+assistant: Done.

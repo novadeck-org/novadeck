@@ -5,7 +5,7 @@ import type { AgentDetail, TranscriptItem } from "@novadeck/protocol"
 import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { asked, gate, latest, tool, type Call } from "./model/script.js"
 import {
   answers,
@@ -25,6 +25,7 @@ import {
   wrappers,
   pointsBack,
   allowLabel,
+  lacking,
 } from "./scenarios.js"
 
 type Dialog = NonNullable<AgentDetail["requests"][number]["dialog"]>
@@ -90,82 +91,84 @@ for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
 
-    it("serves the chat again after a restart as it was: a tool call, a question and their answers", async ({
-      e2e: run,
-    }) => {
-      const { approval, asking } = setup
-      if (!approval || !asking) throw new Error(`${setup.name} has no approval or questions`)
-      run.model.use(
-        answers("Make the file", (call) => approval.request(call)),
-        answers("Ask me about the button", (call) => asking.questions(call, [colour])),
-        own((call) => (result(call)?.includes("Green") ? { text: "Green it is." } : undefined)),
-        own((call) => (result(call) !== undefined ? { text: "Made it." } : undefined)),
-        replies("Carry on", "Carried on."),
-      )
-      const t1 = await start(run, setup)
+    // A harness that asks nothing before a tool and has no question tool (pi) has neither to serve.
+    gated(it, lacking(setup, "approval", "questions"))(
+      "serves the chat again after a restart as it was: a tool call, a question and their answers",
+      async ({ e2e: run }) => {
+        const { approval, asking } = setup
+        if (!approval || !asking) throw new Error(`${setup.name} has no approval or questions`)
+        run.model.use(
+          answers("Make the file", (call) => approval.request(call)),
+          answers("Ask me about the button", (call) => asking.questions(call, [colour])),
+          own((call) => (result(call)?.includes("Green") ? { text: "Green it is." } : undefined)),
+          own((call) => (result(call) !== undefined ? { text: "Made it." } : undefined)),
+          replies("Carry on", "Carried on."),
+        )
+        const t1 = await start(run, setup)
 
-      // A tool call the chat allows, through the harness's own permission dialog.
-      const made = t1.mark()
-      await t1.prompt("Make the file")
-      const allow = await dialogOf(t1, "choices")
-      const yes = allow.dialog.options.find(
-        (each) => allowLabel(setup).test(each.label) && each.text === null,
-      )
-      if (!yes) throw new Error(`No yes in ${JSON.stringify(allow.dialog)}`)
-      await t1.answer(allow.ref, { dialog: allow.dialog.id, type: "choice", option: yes.id })
-      await t1.until("Made it.")
-      await through(t1, ["working", "settled"], { after: made })
+        // A tool call the chat allows, through the harness's own permission dialog.
+        const made = t1.mark()
+        await t1.prompt("Make the file")
+        const allow = await dialogOf(t1, "choices")
+        const yes = allow.dialog.options.find(
+          (each) => allowLabel(setup).test(each.label) && each.text === null,
+        )
+        if (!yes) throw new Error(`No yes in ${JSON.stringify(allow.dialog)}`)
+        await t1.answer(allow.ref, { dialog: allow.dialog.id, type: "choice", option: yes.id })
+        await t1.until("Made it.")
+        await through(t1, ["working", "settled"], { after: made })
 
-      // A question the chat answers, through the harness's own question tool.
-      await asking.enter?.(t1)
-      const askedAt = t1.mark()
-      await t1.prompt("Ask me about the button")
-      const question = await dialogOf(t1, "questions")
-      const [first] = question.dialog.questions
-      const green = first!.options.find(({ label }) => label === "Green")!
-      await t1.answer(question.ref, {
-        dialog: question.dialog.id,
-        type: "questions",
-        answers: [{ question: first!.id, options: [green.id] }],
-      })
-      await t1.until("Green it is.")
-      await through(t1, ["working", "settled"], { after: askedAt })
-      const before = await servedOnce(
-        t1,
-        (items) =>
-          items.some((one) => one.role === "assistant" && one.text.includes("Green it is.")),
-        "the chat to hold the answer's reply",
-      )
-      const calls = before.filter((one) => one.kind === "tool-call")
-      expect(calls.length).toBeGreaterThanOrEqual(2)
-      expect(
-        calls.every((call) =>
-          before.some((one) => one.kind === "tool-result" && one.call === call.call),
-        ),
-      ).toBe(true)
+        // A question the chat answers, through the harness's own question tool.
+        await asking.enter?.(t1)
+        const askedAt = t1.mark()
+        await t1.prompt("Ask me about the button")
+        const question = await dialogOf(t1, "questions")
+        const [first] = question.dialog.questions
+        const green = first!.options.find(({ label }) => label === "Green")!
+        await t1.answer(question.ref, {
+          dialog: question.dialog.id,
+          type: "questions",
+          answers: [{ question: first!.id, options: [green.id] }],
+        })
+        await t1.until("Green it is.")
+        await through(t1, ["working", "settled"], { after: askedAt })
+        const before = await servedOnce(
+          t1,
+          (items) =>
+            items.some((one) => one.role === "assistant" && one.text.includes("Green it is.")),
+          "the chat to hold the answer's reply",
+        )
+        const calls = before.filter((one) => one.kind === "tool-call")
+        expect(calls.length).toBeGreaterThanOrEqual(2)
+        expect(
+          calls.every((call) =>
+            before.some((one) => one.kind === "tool-result" && one.call === call.call),
+          ),
+        ).toBe(true)
 
-      await run.deck.restart()
+        await run.deck.restart()
 
-      // The resumed session's next prompt binds it where its prompt doesn't, and the chat
-      // is served from the transcript's start again: the same items, then the new turn's.
-      const resumed = await run.deck.restore(t1, { resume: setup.agent })
-      await resumed.reached("ready", { timeoutMs: 60_000 })
-      await prompted(resumed, setup)
-      // A chat prompt into the resumed session, whose turn settles: its first prompt is the
-      // person's, though nothing read its transcript yet (#635).
-      const carried = resumed.mark()
-      await resumed.prompt("Carry on")
-      await resumed.until("Carried on.")
-      await through(resumed, ["working", "settled"], { after: carried })
-      const after = await servedOnce(
-        resumed,
-        (items) =>
-          items.some((one) => one.role === "assistant" && one.text.includes("Carried on.")),
-        "the chat to hold the resumed turn",
-      )
-      expect(after.slice(0, before.length)).toEqual(before)
-      expect(userSaid(after, "Carry on")).toBeGreaterThanOrEqual(before.length)
-    })
+        // The resumed session's next prompt binds it where its prompt doesn't, and the chat
+        // is served from the transcript's start again: the same items, then the new turn's.
+        const resumed = await run.deck.restore(t1, { resume: setup.agent })
+        await resumed.reached("ready", { timeoutMs: 60_000 })
+        await prompted(resumed, setup)
+        // A chat prompt into the resumed session, whose turn settles: its first prompt is the
+        // person's, though nothing read its transcript yet (#635).
+        const carried = resumed.mark()
+        await resumed.prompt("Carry on")
+        await resumed.until("Carried on.")
+        await through(resumed, ["working", "settled"], { after: carried })
+        const after = await servedOnce(
+          resumed,
+          (items) =>
+            items.some((one) => one.role === "assistant" && one.text.includes("Carried on.")),
+          "the chat to hold the resumed turn",
+        )
+        expect(after.slice(0, before.length)).toEqual(before)
+        expect(userSaid(after, "Carry on")).toBeGreaterThanOrEqual(before.length)
+      },
+    )
 
     it("still shows where the person interrupted a turn once the runner restarts", async ({
       e2e: run,

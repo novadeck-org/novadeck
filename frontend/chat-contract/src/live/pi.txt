@@ -1,0 +1,10 @@
+# long-run
+user: Check it all
+tools: [4 tool calls · ran, read ×2, searched] ran [run] · ls → 3 lines: long.txt; read [read] · sample.txt → 3 lines: alpha; read [read] · src/auth.ts → 3 lines: const a = 1; searched [search] · TODO → 1 line: src/auth.ts:3: // TODO: check
+assistant: Checked.
+user: And the tests
+tools: [open: 4 tool calls · ran ×2, read, searched] running [run] · echo built …(running) → running; read [read] · sample.txt …(running) → running; searched [search] · FIXME …(running) → running; running [run] · echo tested …(running) → running
+
+# short-run
+user: Run it
+tools: read [read] · sample.txt …(running) → running; running [run] · echo ran …(running) → running

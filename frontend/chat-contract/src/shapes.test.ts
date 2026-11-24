@@ -3,6 +3,7 @@ import { shapes as claude } from "@novadeck/harness-claude/shapes"
 import { shapes as codex } from "@novadeck/harness-codex/shapes"
 import type { Shape } from "@novadeck/harness-core/shapes"
 import { shapes as opencode } from "@novadeck/harness-opencode/shapes"
+import { shapes as pi } from "@novadeck/harness-pi/shapes"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
 import { fixtures } from "./fixtures"
@@ -17,6 +18,7 @@ const shapesOf: Readonly<Record<AgentName, (line: string) => readonly Shape[]>> 
   codex,
   agy,
   opencode,
+  pi,
 }
 
 // The keys of the person's own words, each harness's.
@@ -29,6 +31,7 @@ const personKeys: Readonly<Record<AgentName, readonly string[]>> = {
   codex: ["item:message/user"],
   agy: ["step:USER_EXPLICIT/USER_INPUT"],
   opencode: ["prompt:text"],
+  pi: ["block:user/text"],
 }
 
 // What a slash command printed, which shows nothing when it printed nothing.

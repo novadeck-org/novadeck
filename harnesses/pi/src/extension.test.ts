@@ -112,18 +112,21 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       minimum: "1.1.0",
       unknownFrom: "2.0.0",
       prefix: "novadeck_",
+      stoppedFolder: "stopped",
       ...overrides,
     }),
   )
   const handlers = new Map<string, Handler[]>()
   const tools: Tool[] = []
   const sent: { message: Record<string, unknown>; options: Record<string, unknown> }[] = []
+  const entries: { type: string; data: unknown }[] = []
   const api = {
     on: (name: string, handler: Handler) =>
       handlers.set(name, [...(handlers.get(name) ?? []), handler]),
     registerTool: (tool: Tool) => tools.push(tool),
     sendMessage: (message: Record<string, unknown>, options: Record<string, unknown>) =>
       sent.push({ message, options }),
+    appendEntry: (type: string, data: unknown) => entries.push({ type, data }),
   }
   const module = (await import(pathToFileURL(file).href)) as { default: (pi: typeof api) => void }
   module.default(api)
@@ -143,7 +146,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       .split("\n")
       .filter(Boolean)
       .map((line) => JSON.parse(line) as Record<string, unknown>)
-  return { file, handlers, tools, sent, emit, reports, answer }
+  return { file, handlers, tools, sent, entries, emit, reports, answer }
 }
 
 const context = (overrides: Context = {}): Context => ({
@@ -346,6 +349,28 @@ describe("Novadeck's pi extension", () => {
         usage: { tokens: 1200, window: 200_000, model: "openai/gpt-6", effort: "high" },
       }),
       expect.objectContaining({ continued: 1 }),
+    ])
+  })
+
+  it("marks each run's end in a file of Novadeck's, however its Stop's report fared", async () => {
+    const pi = await load()
+    await pi.emit("agent_start")
+    await pi.emit("message_end", {
+      message: { role: "assistant", content: [], stopReason: "error", errorMessage: "500" },
+    })
+    await pi.emit("agent_before_settle", { entries: [] })
+    await pi.emit("agent_settled", { aborted: false })
+    await pi.emit("agent_start")
+    await pi.emit("agent_settled", { aborted: true })
+    // Beside the extension, never in pi's session file.
+    expect(pi.entries).toEqual([])
+    const marks = (await readFile(join(root, "stopped", "s1.jsonl"), "utf8"))
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as unknown)
+    expect(marks.slice(-2)).toEqual([
+      { type: "stopped", session_id: "s1", at: expect.any(Number), error: "error" },
+      { type: "stopped", session_id: "s1", at: expect.any(Number), error: "aborted" },
     ])
   })
 

@@ -64,6 +64,9 @@ const records: Readonly<Record<AgentName, readonly object[]>> = {
   // As recorded (src/recorded/opencode-words.json): the second prompt typed while the first's turn
   // ran, written when it was sent, so before the answer the agent gave the first.
   opencode: recordedScenarios("opencode-words.json").steering!,
+  // As recorded (src/recorded/pi-words.json): the second prompt typed while the first's turn ran,
+  // steered in after its call's result, before the answer to it.
+  pi: recordedScenarios("pi-words.json").steering!,
 }
 
 describe("which records start a turn", () => {

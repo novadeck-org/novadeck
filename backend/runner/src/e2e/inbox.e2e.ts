@@ -30,6 +30,10 @@ const parameters = (call: Call, name: string, reading: boolean): unknown => {
           : [item]
     })
     .map(record)
+    // A chat completions tool keeps its name and schema under `function` (pi's).
+    .map((item) =>
+      typeof item.function === "object" && item.function ? record(item.function) : item,
+    )
     .find((item) => item.name === name || item.name === "ask")
   return offered?.parameters ?? offered?.input_schema ?? offered?.parametersJsonSchema
 }
