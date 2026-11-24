@@ -313,17 +313,27 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
       process.on("SIGTERM", () => {})
       require("node:fs").appendFileSync("pids.txt", "stubborn " + process.pid + "\\n")
       setInterval(() => {}, 1000)`
-    const { root, startAgent, end } = await terminal()
+    const { pty, root, startAgent, end } = await terminal()
     writeFileSync(join(root, "stubborn.cjs"), stubborn)
     variants.stubborn = `${setsid} ${process.execPath} stubborn.cjs >/dev/null 2>&1 &`
     onTestFinished(() => {
       delete (variants as { stubborn?: string }).stubborn
     })
     const { pid, servers } = await startAgent(["stubborn"])
+    // A bound that leaves room for the two reads of the scope ending takes, as long as this
+    // machine takes them now: a quit gives them seconds, but a Mac running a night's whole
+    // suite takes over 600 ms for one `ps -E` alone, and a read the bound cuts ends nothing.
+    const read = Date.now()
+    await pty.leftovers({ listing })
+    const bound = 600 + 3 * (Date.now() - read)
     const began = Date.now()
-    await end(pid, { by: began + 600 })
-    await eventually(async () => !(await running(servers.get("stubborn")!)), "it to end", 3_000)
-    expect(Date.now() - began).toBeLessThan(2_000)
+    await end(pid, { by: began + bound })
+    await eventually(
+      async () => !(await running(servers.get("stubborn")!)),
+      "it to end",
+      bound + 3_000,
+    )
+    expect(Date.now() - began).toBeLessThan(bound + 1_400)
   })
 })
 
