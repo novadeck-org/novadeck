@@ -192,8 +192,8 @@ const matchRange = (
 
 // How far into a summary a match can end and still show on the one line a row has for it, at
 // the sidebar's narrowest; and how far before a match an excerpt starts, past that.
-const shown = 26
-const lead = 8
+const shown = 18
+const lead = 6
 
 // A summary cut to start a little before the match, with an ellipsis, when the match ends
 // further in than the row's line shows; the whole summary otherwise.

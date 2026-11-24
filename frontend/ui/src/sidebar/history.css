@@ -101,9 +101,16 @@
   top: 31px;
   bottom: auto;
 }
-/* A mark stands for the row's own click, which reaches through it. */
-.history-row-mark {
+/* Its slot lets the pointer through to the select button where nothing is shown; the mark
+   and the connection's button take it, as a tab's icons do, and a mark does the row's click. */
+.history-row :is(.sidebar-item-actions, .history-row-slot) {
   pointer-events: none;
+}
+.history-row .history-row-action {
+  pointer-events: auto;
+}
+.history-row-mark {
+  cursor: pointer;
 }
 .icon-button.history-row-action:focus-visible {
   outline-offset: -2px;

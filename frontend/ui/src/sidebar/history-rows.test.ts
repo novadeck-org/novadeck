@@ -208,6 +208,9 @@ describe("History's rows", () => {
       expect(summaryExcerpt("Short summary here", "short")).toBe("Short summary here")
       // Its line shows a match a little way in, so the summary stays whole.
       const whole = "Stripe webhook retries and signature checks"
+      expect(summaryExcerpt("Coupon codes in the cart and at checkout", "cart")).toBe(
+        "…in the cart and at checkout",
+      )
       expect(summaryExcerpt(whole, "webhook")).toBe(whole)
       // Further in, it starts a word or so before the match.
       expect(summaryExcerpt("Order receipts sent after the payment webhook", "webhook")).toBe(

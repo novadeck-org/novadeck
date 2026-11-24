@@ -153,6 +153,24 @@ describe("The History panel", () => {
     })
   })
 
+  context("under the pointer", () => {
+    it("restores from the restore mark that slides in, as from the row", async () => {
+      await openHistory()
+      const row = closed().getByRole("button", { name: "Restore Coupon codes" })
+      await row.hover()
+      const mark = row.element().closest(".history-row")!.querySelector(".history-row-mark")!
+      const box = mark.getBoundingClientRect()
+      // The mark is what the pointer lands on, and it does the row's click.
+      expect(
+        document
+          .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+          ?.closest(".history-row-mark"),
+      ).toBe(mark)
+      ;(mark as HTMLElement).click()
+      await expect.element(terminal("Coupon codes")).toBeVisible()
+    })
+  })
+
   context("from a row's menu", () => {
     it("restores it, as its click does", async () => {
       await openHistory()

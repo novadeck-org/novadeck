@@ -125,8 +125,9 @@ const HistoryRow = ({
               ]
             : []),
         ]
-  // The restore and show marks stand for the row's own click, which the pointer reaches
-  // through them; only the connection is a button of its own.
+  // The restore and show marks do the row's own click, under the pointer as a tab's icons do,
+  // and stay out of the keyboard's way and the accessible tree, where the row's button says
+  // it; only the connection is a button of its own.
   const action = connect ? (
     <Tooltip content={`Connect ${agentName(connect)} in Preferences`}>
       <button
@@ -139,11 +140,11 @@ const HistoryRow = ({
       </button>
     </Tooltip>
   ) : view.state === "ready" ? (
-    <span aria-hidden className={`${actionClasses} history-row-mark`}>
+    <span aria-hidden className={`${actionClasses} history-row-mark`} onClick={select}>
       <RotateCcw {...iconProps} />
     </span>
   ) : view.state === "open" ? (
-    <span aria-hidden className={`${actionClasses} history-row-mark`}>
+    <span aria-hidden className={`${actionClasses} history-row-mark`} onClick={select}>
       <ArrowRight {...iconProps} />
     </span>
   ) : undefined
