@@ -59,9 +59,31 @@ export const pi: AgentSetup = {
     run: (_call, command) => ({ calls: [{ name: "bash", input: { command } }] }),
     nested,
   },
-  prepare: async (sandbox, model, installed) => {
+  prepare: async (sandbox, model, installed, seed) => {
     const folder = agentFolder(sandbox.home)
     await mkdir(folder, { recursive: true, mode: 0o700 })
+    // A person's own prompt or tool hook: pi runs no hook commands, so an extension of theirs,
+    // in their agent folder's `extensions` (which pi loads beside Novadeck's), runs the script
+    // and waits for it, as pi waits for each extension's handler before going on. Its `input`
+    // comes as a prompt is sent, a queued one's too, as Claude Code's prompt hook does. A `.js`
+    // file: pi finds `.ts` and `.js` there, not `.mjs` (probed 2026-11-24, 1.6.0).
+    const hooks = [
+      ["input", seed?.promptHook],
+      ["tool_result", seed?.toolHook],
+    ].filter((each): each is [string, string] => each[1] !== undefined)
+    if (hooks.length > 0) {
+      await mkdir(join(folder, "extensions"), { recursive: true })
+      const run = (script: string) =>
+        `async () => { await new Promise((done) => spawn("node", [${JSON.stringify(join(sandbox.project, script))}], { stdio: "ignore" }).on("close", done).on("error", done)) }`
+      await writeFile(
+        join(folder, "extensions", "own-hooks.js"),
+        `import { spawn } from "node:child_process"
+export default function (pi) {
+${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script)})`).join("\n")}
+}
+`,
+      )
+    }
     await writeFile(
       join(folder, "models.json"),
       JSON.stringify({
