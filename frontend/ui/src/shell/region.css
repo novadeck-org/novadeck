@@ -632,10 +632,8 @@
    in the warning tint, one `.restart-item` per terminal at risk: `.restart-item-icon`,
    `.restart-item-words` over `.restart-item-where`, and `.restart-item-go`, an icon button
    to go to the terminal; `.restart-more` counts the rest. The card is `.update-card` and
-   `.whats-new`: tokens above, and --color-warning, --color-warning-fg for the well. Wide
-   enough that its head holds "Restart · 0.000.000" and "From 0.000.000" on one line. */
+   `.whats-new`: tokens above, and --color-warning, --color-warning-fg for the well. */
 .update-card.whats-new.restart-card {
-  width: 24.5rem;
   gap: 10px;
 }
 .restart-verdict {
@@ -724,6 +722,13 @@
   max-height: calc(100dvh - 7rem);
   gap: 8px;
   padding: 8px 14px 14px;
+}
+/* The cards whose tape names a release, a downloaded update's (`.restart-card`), what's new
+   after one (`.news-card`) and a portable copy's news (`.portable-card`): wide enough that
+   their head holds "Restart · 0.000.000" and "From 0.000.000" on one line, the same width for
+   all three. */
+.update-card.whats-new:is(.restart-card, .news-card, .portable-card) {
+  width: 24.5rem;
 }
 /* The tape at the start, lifted over the top edge, and the stamp and the × at the end: in
    one row. The tape always shows its whole version, as it tells people which version they
