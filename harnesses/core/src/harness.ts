@@ -265,6 +265,14 @@ export type Harness = {
    * of its own holds, is read back once its hooks and activity are gone.
    */
   readonly plans?: (line: string) => readonly WrittenPlan[]
+  /**
+   * Whether the shipping gate is its hook alone: no permission dialog of its own stands behind a
+   * hook that says nothing (opencode's built-in default allows a shell command, and pi never
+   * asks). The gate's deny is then the hook's refusal, a permitted command's permits are spent
+   * at the call, and where the runner gives no answer the relay refuses what looks like shipping
+   * (`backend/relay`, `hook_gated`, pinned equal to this by its `rule-cases.json`).
+   */
+  readonly hookGate?: true
   /** How much of each feature Novadeck tells of it, from the sources its adapter reads. */
   readonly coverage: AgentCoverage
   /**

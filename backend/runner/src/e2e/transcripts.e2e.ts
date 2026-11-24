@@ -230,11 +230,51 @@ const opencodeSteps: Steps = (project) => [
   send,
 ]
 
+// pi's tools are `bash`, `read` and `write`, with a `path` for the files.
+const piSteps: Steps = (project) => [
+  {
+    marker: "transcripts-bash",
+    kinds: ["run"],
+    title: /^Ran$/,
+    reply: () => ({
+      calls: [
+        {
+          name: "bash",
+          input: { command: "echo transcripts-bash" },
+        },
+      ],
+    }),
+  },
+  {
+    marker: "transcripts-read.txt",
+    kinds: ["read"],
+    title: /^Read$/,
+    reply: () => ({
+      calls: [{ name: "read", input: { path: join(project, "transcripts-read.txt") } }],
+    }),
+  },
+  {
+    marker: "transcripts-write.txt",
+    kinds: ["write"],
+    title: /^Wrote$/,
+    reply: () => ({
+      calls: [
+        {
+          name: "write",
+          input: { path: join(project, "transcripts-write.txt"), content: "written\n" },
+        },
+      ],
+    }),
+  },
+  send,
+]
+
 const stepsOf: Readonly<Record<AgentSetup["agent"], Steps>> = {
   claude: claudeSteps,
   codex: codexSteps,
   agy: agySteps,
   opencode: opencodeSteps,
+  pi: piSteps,
 }
 
 /** Reads the root actor's transcript, or none yet: the agent has not opened it. */
@@ -307,6 +347,8 @@ const stores: Readonly<Record<AgentSetup["agent"], readonly string[]>> = {
   // Its sessions are in SQLite (a binary file, never copied as text): the file the decoder
   // reads is the plugin's own JSONL, in Novadeck's folder, not under the home.
   opencode: [".local/share/opencode"],
+  // Its own session files: `sessions/--<folder>--/<time>_<id>.jsonl` in its agent folder.
+  pi: [".pi/agent/sessions"],
 }
 
 /** Copies the raw transcript of the run to `NOVADECK_E2E_TRACES`, the next pinned fixture. */

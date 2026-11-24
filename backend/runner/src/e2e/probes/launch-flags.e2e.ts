@@ -57,6 +57,13 @@ const base: { readonly [agent in AgentName]: Case } = {
     kept: ["--agent", "plan"],
     shows: /\bplan\b/i,
   },
+  // pi has no permission mode or sandbox to carry: its model and thinking level are what a
+  // resume gives back, and its footer says the level (`fake-sonnet • high`, probed 1.6.0).
+  pi: {
+    typed: "--thinking high",
+    kept: ["--thinking", "high"],
+    shows: /• high\b/,
+  },
 }
 
 // PROBE_TYPED, PROBE_KEPT (JSON) and PROBE_SHOWS (a pattern) probe other flags than the default.

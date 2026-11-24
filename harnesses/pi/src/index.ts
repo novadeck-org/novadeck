@@ -65,6 +65,8 @@ export const pi = {
   nonSession: { commands, flags: info, takesValue: valued, takesMany: [], print: kept.print },
   transcripts: { ...transcripts, shapes, conversational },
   wakes: false,
+  // It never asks: its extension's refusal of a shell command is the whole gate.
+  hookGate: true,
   records: false,
   coverage: {
     session: "complete",

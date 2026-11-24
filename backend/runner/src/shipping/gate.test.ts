@@ -127,6 +127,34 @@ describe("the shipping gate for opencode", () => {
   })
 })
 
+describe("the shipping gate for pi", () => {
+  const pi = (command: string) => ({
+    agent: "pi" as const,
+    event: "PreToolUse" as const,
+    terminalId: "t",
+    command,
+    cwd: "/main",
+  })
+
+  it("answers as opencode's hook does, as no dialog stands behind it: its permits are spent at the call", async () => {
+    const permitted = setup()
+    permitted.permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge it" })
+    const allowed = await permitted.gate.decide(pi("gh pr merge 5"))
+    expect(allowed).toMatchObject({ stdout: "", permitted: true })
+    expect(allowed?.covered?.permits.map((permit) => permit.key)).toEqual(["pr-merge:r/app#5"])
+    const denied = await setup().gate.decide(pi("gh pr merge 5"))
+    expect(JSON.parse(denied!.stdout)).toMatchObject({ decision: "deny" })
+    expect(JSON.parse(denied!.stdout).reason).toContain("request_permit")
+  })
+
+  it("has no bypass to read: a mode it is given changes nothing, and a command that ships nothing is left alone", async () => {
+    expect(await setup().gate.decide({ ...pi("gh pr merge 5"), mode: "bypass" })).toMatchObject({
+      stdout: expect.stringContaining("deny"),
+    })
+    expect(await setup().gate.decide(pi("git status"))).toBeUndefined()
+  })
+})
+
 describe("the shipping gate's new answers for opencode", () => {
   const opencode = (command: string) => ({
     agent: "opencode" as const,
@@ -376,7 +404,7 @@ describe("a standing permit's first use, in each harness", () => {
 })
 
 describe("the narrower merges and Codex without approvals, in each harness", () => {
-  const agents = ["claude", "codex", "agy", "opencode"] as const
+  const agents = ["claude", "codex", "agy", "opencode", "pi"] as const
 
   it("covers --auto and --admin only by their own permits, and an auto permit also a plain merge", async () => {
     for (const agent of agents) {
@@ -388,16 +416,20 @@ describe("the narrower merges and Codex without approvals, in each harness", () 
         const got = await gate.decide(
           input(command, {
             agent,
-            ...(agent === "agy" || agent === "opencode" ? { mode: "" } : {}),
+            ...(agent === "agy" || agent === "opencode" || agent === "pi" ? { mode: "" } : {}),
           }),
         )
         if (got === undefined) return "silent"
         if (got.permitted) return "permitted"
         return got.stdout === "" ? "silent" : got.stdout.includes('"allow"') ? "allow" : "deny"
       }
-      const allowed = { claude: "allow", codex: "silent", agy: "permitted", opencode: "permitted" }[
-        agent
-      ]
+      const allowed = {
+        claude: "allow",
+        codex: "silent",
+        agy: "permitted",
+        opencode: "permitted",
+        pi: "permitted",
+      }[agent]
       permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge five" })
       expect(await run("gh pr merge 5"), agent).toBe(allowed)
       expect(await run("gh pr merge 5 --auto"), agent).toBe("deny")

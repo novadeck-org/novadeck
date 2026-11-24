@@ -129,9 +129,13 @@ for (const setup of setups) {
         }
       }
       await t1.submit("After the change")
-      const said = { claude: "acceptEdits", codex: "plan", agy: "plan", opencode: "plan" }[
-        setup.agent
-      ]
+      const said = {
+        claude: "acceptEdits",
+        codex: "plan",
+        agy: "plan",
+        opencode: "plan",
+        pi: "plan",
+      }[setup.agent]
       await t1.poll(
         async () =>
           (await t1.transcript()).some(({ note }) => note?.type === "mode" && note.mode === said) ||

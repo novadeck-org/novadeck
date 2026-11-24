@@ -29,7 +29,13 @@ const approval = (
   request: {
     id: "r",
     kind: "plan",
-    tool: { claude: "ExitPlanMode", codex: "plan", agy: "artifact", opencode: "plan_exit" }[agent],
+    tool: {
+      claude: "ExitPlanMode",
+      codex: "plan",
+      agy: "artifact",
+      opencode: "plan_exit",
+      pi: "plan",
+    }[agent],
     subject: null,
     choices: [],
     subagent,
@@ -54,6 +60,8 @@ const sources = {
     source: "file",
     agent: "opencode",
   },
+  // pi has no plan mode: a row stands here only as every harness's table has one.
+  pi: { path: "/home/me/.pi/agent/plan.md", source: "file", agent: "pi" },
 } as const
 
 const plan = (
