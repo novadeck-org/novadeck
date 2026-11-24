@@ -36,6 +36,7 @@ describe("a file that may hold secrets", () => {
     const logins = [
       join(".claude", ".credentials.json"),
       join(".codex", "auth.json"),
+      join(".pi", "agent", "auth.json"),
       join(".config", "gh", "hosts.yml"),
       join(".config", "gcloud", "application_default_credentials.json"),
       join(".cargo", "credentials.toml"),
@@ -217,6 +218,7 @@ describe("a file that may hold secrets", () => {
       "NETRC",
       "NPM_CONFIG_USERCONFIG",
       "PGPASSFILE",
+      "PI_CODING_AGENT_DIR",
       "RCLONE_CONFIG",
     ])
   })

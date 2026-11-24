@@ -53,6 +53,8 @@ export type GateInput = {
   readonly mode?: string
   /** Codex's rollout, which says what the turn's sandbox and approval policy are. */
   readonly transcript?: string
+  /** The shell the command is written in, where it isn't a POSIX one (pi's `powershell` tool). */
+  readonly shell?: "powershell"
 }
 
 /** What a Codex turn runs under, as its rollout's `turn_context` says. */
@@ -316,7 +318,12 @@ export class Gate {
     // Antigravity told to skip every permission: nothing to replace.
     if (input.agent === "agy" && input.mode === agyBypassMode) return undefined
     if (input.agent === "opencode" && input.mode === opencodeBypassMode) return undefined
-    const reading = await readCommand(input.command, input.cwd, this.deps.lookups(input.terminalId))
+    const reading = await readCommand(
+      input.command,
+      input.cwd,
+      this.deps.lookups(input.terminalId),
+      input.shell,
+    )
     if (reading.kind === "none") return undefined
     const turn = input.agent === "codex" ? await this.deps.turn(input.transcript) : undefined
     if (input.agent === "codex") this.deps.turnSeen?.(input.terminalId, turn)

@@ -651,6 +651,7 @@ export class Shipping {
                 ? opencodeSkipsPermissions(call.launch) && { mode: opencodeBypassMode }
                 : call.mode !== undefined && { mode: call.mode }),
             ...(call.transcript !== undefined && { transcript: call.transcript }),
+            ...(call.shell !== undefined && { shell: call.shell }),
           })
           .then((got) => ({ got })),
         until - Date.now(),
@@ -668,7 +669,7 @@ export class Shipping {
     if (
       failed &&
       (hookGated(agent)
-        ? shipsCoarsely(call.command)
+        ? shipsCoarsely(call.command, call.shell)
         : agent === "agy" && shipsByRule(call.command))
     ) {
       if (saw) saw.denied = true

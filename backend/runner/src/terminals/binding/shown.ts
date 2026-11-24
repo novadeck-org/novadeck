@@ -4,7 +4,7 @@ import { basename } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PromptShown } from "@novadeck/harness-core/events"
-import type { Install } from "@novadeck/harness-core/harness"
+import type { Install, Where } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 import { foregroundProcess, openFiles, processSetting, type Pty } from "@novadeck/terminal/pty"
 
@@ -181,7 +181,7 @@ export class Shown {
     child: Pty,
     agent: AgentName,
   ): Promise<{
-    readonly where: Install & { readonly program?: string }
+    readonly where: Where
     readonly group: readonly number[]
     readonly pid: number | undefined
   } | null> {
@@ -194,6 +194,7 @@ export class Shown {
     const program = own?.program && basename(own.program) === agent ? own.program : undefined
     return {
       where: {
+        ...(own?.argv && { argv: own.argv }),
         env,
         home: env.HOME ?? install?.home ?? homedir(),
         platform: process.platform,
@@ -259,7 +260,7 @@ export class Shown {
   async promptTrust(
     record: Record,
     agent: AgentName,
-    where?: Install & { readonly program?: string },
+    where?: Where,
   ): Promise<"counts" | "untrusted" | "unknown"> {
     if (!(await this.host.connected(agent))) return "unknown"
     const trusted = await this.hooksTrustedIn(record, agent, where).catch(() => undefined)
@@ -274,7 +275,7 @@ export class Shown {
   async hooksTrustedIn(
     record: Record,
     agent: AgentName,
-    where?: Install & { readonly program?: string },
+    where?: Where,
   ): Promise<boolean | undefined> {
     const { cwd } = record.summary
     const options = this.host.options()

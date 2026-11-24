@@ -18,6 +18,7 @@ import { commands, info, kept, shims, valued } from "./shim.js"
 import { heldScreen, screenMarker, screenVersion, signedOut, title } from "./startup.js"
 import { followTranscript } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
+import { hooksTrusted } from "./trust.js"
 import { versionOf } from "./version.js"
 
 /** pi, as Novadeck's fifth harness: its extension, shim, transcripts, screens and input box. */
@@ -70,6 +71,7 @@ export const pi = {
   screenVersion,
   screenMarker,
   title,
+  hooksTrusted,
   launch,
   messaging,
   box,

@@ -340,13 +340,20 @@ fn ships(agent: &str, payload: &str) -> bool {
             };
             match name.as_str() {
                 Some(named) if named == tool => line.as_str().is_none_or(looks),
+                // pi's PowerShell tool: its names are read without regard to case (`GIT.EXE push`).
+                Some("powershell") if hook_gated(agent) => line
+                    .as_str()
+                    .is_none_or(|command| looks(&command.to_lowercase())),
                 Some(_) => false,
                 // No tool named: not a tool call this relay can read.
                 None => true,
             }
         }
         // Cut or not JSON: the command as far as it goes, or unknown, which counts.
-        Err(_) => command_in(payload, key).is_none_or(|(command, ended)| !ended || looks(&command)),
+        Err(_) => command_in(payload, key).is_none_or(|(command, ended)| {
+            // A hook-gated harness may be on PowerShell, which reads a name in any case.
+            !ended || looks(&command) || (hook_gated(agent) && looks(&command.to_lowercase()))
+        }),
     }
 }
 
@@ -362,11 +369,15 @@ fn runs_command(payload: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Whether a hook-gated harness's payload is about a `bash` call.
+/// Whether a hook-gated harness's payload is about a shell call: `bash`, or pi's `powershell`.
 fn runs_bash(payload: &str) -> bool {
     serde_json::from_str::<Value>(payload)
         .ok()
-        .and_then(|value| value["tool_name"].as_str().map(|name| name == "bash"))
+        .and_then(|value| {
+            value["tool_name"]
+                .as_str()
+                .map(|name| name == "bash" || name == "powershell")
+        })
         .unwrap_or(false)
 }
 
@@ -669,6 +680,35 @@ mod tests {
             "tool_input": { "command": command, "description": "d" },
         })
         .to_string()
+    }
+
+    /// pi's report of a `powershell` call: the same keys, the tool named `powershell`.
+    fn powershell_report(command: &str) -> String {
+        opencode_report(command).replace("\"tool_name\":\"bash\"", "\"tool_name\":\"powershell\"")
+    }
+
+    // pi's Windows shell tool is gated like `bash`, and its names are read in any case.
+    #[test]
+    fn reads_pis_powershell_calls_as_shell_calls_in_any_case() {
+        for command in [
+            "git push origin main",
+            "GIT.EXE PUSH origin main",
+            "Git Push -f origin main",
+            "gh pr create --title t",
+            "GH PR CREATE --title t",
+        ] {
+            let report = powershell_report(command);
+            assert!(report.contains("powershell"), "{command:?}");
+            assert!(ships("pi", &report), "{command:?}");
+            // Cut in the middle of the command: what may hide the shape counts as shipping.
+            let from = report.find("\"command\":\"").unwrap() + "\"command\":\"".len();
+            let cut: String = report.chars().take(from + 5).collect();
+            assert!(ships("pi", &cut), "{command:?}");
+        }
+        for command in ["Get-ChildItem", "git status", "GIT STATUS"] {
+            assert!(!ships("pi", &powershell_report(command)), "{command:?}");
+        }
+        assert!(runs_bash(&powershell_report("ls")));
     }
 
     #[test]

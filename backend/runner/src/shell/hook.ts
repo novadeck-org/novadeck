@@ -51,6 +51,8 @@ export type GateCall = {
   readonly conversation?: string
   /** opencode's id for the tool call, which its permission dialog's request names too. */
   readonly call?: string
+  /** The shell the command is written in, where it isn't a POSIX one: pi's `powershell` tool. */
+  readonly shell?: "powershell"
 }
 
 // The most of a command the gate takes; a longer one is refused by the reader's own limit.
@@ -91,13 +93,23 @@ const agyCall = (payload: Fields): { command: string; cwd: string | undefined } 
 const hookGatedCall = (
   payload: Fields,
   event: string,
-): { command: string; cwd: string | undefined; call: string | undefined } | undefined => {
+):
+  | {
+      command: string
+      cwd: string | undefined
+      call: string | undefined
+      shell?: "powershell"
+    }
+  | undefined => {
   if (event === "PreToolUse") {
-    if (payload.tool_name !== "bash") return undefined
+    // pi's Windows shell tool is `powershell`, where its `bash` is Git's: both are gated, each by
+    // its own quoting.
+    if (payload.tool_name !== "bash" && payload.tool_name !== "powershell") return undefined
     const command = commandOf(payload.tool_input)
     return command === undefined
       ? undefined
       : {
+          ...(payload.tool_name === "powershell" && { shell: "powershell" as const }),
           command,
           cwd: folderOf(payload, payload.tool_input),
           call: text(payload.call_id, 128),
@@ -466,6 +478,7 @@ export const relayHook = (
               conversation: text(payload.session_id, 128)!,
             }),
           ...(hookGatedRun?.call !== undefined && { call: hookGatedRun.call }),
+          ...(hookGatedRun?.shell !== undefined && { shell: hookGatedRun.shell }),
         }
   return askOf(agent.data, event) || gate
     ? {

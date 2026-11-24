@@ -29,6 +29,15 @@ export type Effort = (typeof efforts)[number]
 /** A model a harness can start with, and the efforts it takes. */
 export type Model = { readonly id: string; readonly efforts: readonly Effort[] }
 
+/**
+ * Where a harness runs in a terminal, as its hooks would be asked about there: the install,
+ * and its own program and the words it was started with, where the platform tells them (Linux).
+ */
+export type Where = Install & {
+  readonly program?: string
+  readonly argv?: readonly string[]
+}
+
 /** Where a harness lives on this machine, as its setup and inspection need it. */
 export type Install = {
   /** The person's login environment, which may move the harness's home. */
@@ -380,10 +389,7 @@ export type Harness = {
    * without them. `where` holds the terminal's own program and environment where the runner
    * can tell them. Undefined when the harness couldn't answer; trusted when omitted.
    */
-  readonly hooksTrusted?: (
-    where: Install & { readonly program?: string },
-    cwd: string,
-  ) => Promise<boolean | undefined>
+  readonly hooksTrusted?: (where: Where, cwd: string) => Promise<boolean | undefined>
   /**
    * Whether the session a title shows, whose id starts with `prefix`, is one it just
    * started as a new root (Codex's /clear), not another it only shows, as a forked side

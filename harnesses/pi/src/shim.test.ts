@@ -30,7 +30,10 @@ describe.skipIf(process.platform === "win32")("pi's shim", () => {
     // The real pi: prints the words it was given, one a line.
     const real = join(root, "real")
     await mkdir(real)
-    await writeFile(join(real, "pi"), '#!/bin/sh\nfor a in "$@"; do echo "$a"; done\n')
+    await writeFile(
+      join(real, "pi"),
+      '#!/bin/sh\n[ "$1" = --version ] && { echo 1.6.0; exit; }\nfor a in "$@"; do echo "$a"; done\n',
+    )
     await chmod(join(real, "pi"), 0o755)
     path = `${join(shell, "bin")}:${real}:/usr/bin:/bin`
   })
@@ -56,10 +59,30 @@ describe.skipIf(process.platform === "win32")("pi's shim", () => {
     expect(await words(["--mode", "text"])).toEqual(["-e", extension, "--mode", "text"])
   })
 
+  it("runs the program that says a version, never another one called pi", async () => {
+    // Ubuntu's apt `pi`, earlier on PATH: it prints digits of π and no version.
+    const apt = join(root, "apt")
+    await mkdir(apt)
+    await writeFile(join(apt, "pi"), "#!/bin/sh\necho 3.14159265358979\n")
+    await chmod(join(apt, "pi"), 0o755)
+    const earlier = `${join(shell, "bin")}:${apt}:${join(root, "real")}:/usr/bin:/bin`
+    expect(await words(["fix it"], { PATH: earlier })).toEqual(["-e", extension, "fix it"])
+    // PATH holds none that is pi, but its own installer's place does.
+    const home = join(root, "home")
+    await mkdir(join(home, ".pi", "agent", "bin"), { recursive: true })
+    await writeFile(
+      join(home, ".pi", "agent", "bin", "pi"),
+      '#!/bin/sh\n[ "$1" = --version ] && { echo 1.6.0; exit; }\necho installed\n',
+    )
+    await chmod(join(home, ".pi", "agent", "bin", "pi"), 0o755)
+    const onlyApt = `${join(shell, "bin")}:${apt}:/usr/bin:/bin`
+    expect(await words(["x"], { PATH: onlyApt, HOME: home })).toEqual(["installed"])
+  })
+
   it("runs pi's other commands, help, version and print runs as they are", async () => {
     expect(await words(["install", "npm:x"])).toEqual(["install", "npm:x"])
     expect(await words(["auth", "login", "openai"])).toEqual(["auth", "login", "openai"])
-    expect(await words(["--version"])).toEqual(["--version"])
+    expect(await words(["--version"])).toEqual(["1.6.0"])
     expect(await words(["-p", "hi"])).toEqual(["-p", "hi"])
     expect(await words(["--mode", "json", "hi"])).toEqual(["--mode", "json", "hi"])
   })

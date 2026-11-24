@@ -159,8 +159,12 @@ ${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script
     background: "it has no background subagents: it skips sub-agents (README, 1.6.0)",
     "background.command":
       "its bash tool takes `command` and `timeout` alone: it waits for the command (docs, 1.6.0)",
-    "hooks.off":
-      "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
+    // Where the platform tells a process's arguments (Linux), a pi started past the shim reads as held
+    // by its hooks (`hooksTrusted`); elsewhere Novadeck can't tell such a launch from any other.
+    ...(process.platform !== "linux" && {
+      "hooks.off":
+        "a pi started past Novadeck's shim has no extension, which only the process's arguments tell, and only Linux gives them (macOS and Windows: not read yet)",
+    }),
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
     mention:
