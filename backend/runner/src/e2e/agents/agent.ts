@@ -111,12 +111,6 @@ export type Trait =
   | "image"
   | "pluginCopy"
   | "mention"
-  /**
-   * A prompt given while a turn runs shows queued while the person's own prompt hooks still run on
-   * it, so an Escape then can give it back: absent where the harness queues it only once its hooks
-   * returned (pi's extensions' `input` handlers).
-   */
-  | "hookedQueue"
 
 /**
  * How a scenario makes the harness ask the person before a tool runs, and what that

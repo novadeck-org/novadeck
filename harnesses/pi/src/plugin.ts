@@ -15,6 +15,7 @@ export const events = [
   "SessionStart",
   "UserPromptSubmit",
   "Stop",
+  "StopHeld",
   "PreToolUse",
   "PostToolUse",
   "NestedToolUse",

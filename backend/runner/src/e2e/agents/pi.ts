@@ -159,8 +159,6 @@ ${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script
     background: "it has no background subagents: it skips sub-agents (README, 1.6.0)",
     "background.command":
       "its bash tool takes `command` and `timeout` alone: it waits for the command (docs, 1.6.0)",
-    hookedQueue:
-      "it queues a prompt given mid-turn only once every extension's `input` handler returned: while a person's slow one runs, nothing shows queued, and an Escape then aborts the turn and the prompt runs as a turn of its own once its handler is done, which Novadeck's extension, whose handler runs first, can't hold back without stopping the person's (probed 2026-11-24, 1.6.0, backups/pi-harness-2026-11-24/rig/slow-queue.mjs)",
     "hooks.off":
       "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
     "trust.hooks":
