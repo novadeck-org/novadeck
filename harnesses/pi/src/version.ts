@@ -5,11 +5,12 @@ import { stat } from "node:fs/promises"
  * The oldest pi this adapter works with. Its screens are the same from 1.0.0, when its TUI went
  * fullscreen, to 1.6.0 (probed 2026-11-24: 1.0.0, 1.3.0, 1.5.2 and 1.6.0, and 1.6.0's own binary,
  * drew every state of a turn alike, `backups/pi-harness-2026-11-24/fixtures-screens/versions`);
- * 0.87.1 drew them inline, in the terminal's own scrollback. 1.1.0 is the floor its extension
- * events set, read from its changelog (`registerTool`'s model-only exposure, `agent_before_settle`,
- * `agent_settled`, `ui_prompt_start`, `--session-id`).
+ * 0.87.1 drew them inline, in the terminal's own scrollback. Novadeck's extension works from
+ * before that (probed 2026-11-24 on 0.99.0, 1.0.0, 1.0.4, 1.1.0, 1.2.0, 1.3.0 and 1.6.0 against a
+ * fake model: its tools declared and called, the deliveries at a prompt, a tool call and a Stop, the
+ * gate's refusal, an extension's dialog told, `/new` bound again), so its screens set the floor.
  */
-export const minimum = "1.1.0"
+export const minimum = "1.0.0"
 
 /** The first release Novadeck doesn't know: pi 2. */
 export const unknownFrom = "2.0.0"

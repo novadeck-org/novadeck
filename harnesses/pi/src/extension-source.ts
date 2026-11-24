@@ -443,7 +443,10 @@ export default function novadeck(pi) {
 
   // A prompt's delivery goes in with it, as a message of Novadeck's after the person's.
   pi.on("before_agent_start", (event) => {
-    if (event.messageType !== "user" || forPrompt.length === 0) return
+    // A run a custom message started (pi.sendMessage with triggerTurn, 1.2.0 on) is no prompt's;
+    // before 1.2.0 the event has no messageType and fires for prompts alone.
+    const prompt = event.messageType === undefined || event.messageType === "user"
+    if (!prompt || forPrompt.length === 0) return
     return { message: { customType: "novadeck", content: forPrompt.splice(0).join("\n\n"), display: true } }
   })
 
