@@ -32,6 +32,7 @@ export const SidebarItem = ({
   below,
   after,
   selected,
+  disabled = false,
   selectLabel,
   tooltip,
   description,
@@ -58,6 +59,9 @@ export const SidebarItem = ({
   // Under the whole row, outside its select button, so it may hold buttons of its own.
   readonly after?: ReactNode
   readonly selected: boolean
+  // Its select button takes no click, though it stays focusable, as a row that can't do
+  // what its click would; the button is aria-disabled and onSelect isn't called.
+  readonly disabled?: boolean
   readonly selectLabel: string
   // On hover, where a row has more to say than it shows.
   readonly tooltip?: string
@@ -94,7 +98,8 @@ export const SidebarItem = ({
       aria-description={describers ? undefined : description}
       aria-describedby={describers || undefined}
       aria-current={selected ? "true" : undefined}
-      onClick={onSelect}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onSelect}
     >
       <span className={wideIcon ? sidebarRowWideIconClasses : sidebarRowIconClasses}>{icon}</span>
       <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">

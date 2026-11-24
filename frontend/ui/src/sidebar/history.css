@@ -1,151 +1,167 @@
-/* The History panel's rows (HistoryPanel.tsx), drawn as the Terminals panel's tabs: a
-   `.history-row` holding a `.history-row-select` button with its icon, a `.history-row-line`
-   (the title, and at its end `.history-row-end`: the day or time it closed, or what stands
-   there instead, in a `.history-row-end-text`; for a row that can be restored, the
-   `.history-row-restore` icon takes the date's place under the pointer or the keyboard's
-   focus) and a `.history-row-detail`: a plain terminal's `.history-row-folder`, in the tabs'
-   program font, and the start of its summary, two lines at most, a search's match lit. A row
-   that can't restore is hatched and quiet, as an ended terminal's tab, and says a word where
-   the time was; one that is restoring shows a spinner there.
+/* The History panel's rows (HistoryPanel.tsx), drawn as the Terminals panel's tabs are: a
+   `.history-row` is a sidebar item, with a terminal tab's detail line (tabs.css) and the
+   tab's motion. On that line, a `.history-glyph` (how the row stands, a spinner while it
+   restores), its `.history-row-program` (a plain terminal's folder) and `.history-row-end`,
+   where a tab holds its @handle: when it closed, the handle of the terminal it is open in, or
+   a word for why it can't come back. Under the line, its `.history-row-summary`, one line, a
+   search's match lit. At the end of the line, in a `.history-row-slot`, a
+   `.history-row-action`: a `.history-row-mark` for what its click does (restore, or show the
+   terminal it is open in), or the button that connects its agent. A row that can't restore
+   is hatched and quiet, as an ended terminal's tab.
 
    Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open"; on
-   its end, data-end="time" | "restoring" | "handle" | "word".
+   its end, data-end="time" | "handle" | "word".
 
    Tokens: none of its own; it reads the palette's (muted, strong, ink) and the tabs'
-   (--tab-process-font). */
+   (--tab-process-font, --tab-glyph-fg, --tab-ended-image, --tab-ended-fg, --tab-age-fg,
+   --tab-team-handle-fg). */
 .history-search {
   flex: none;
 }
+.history-search .field-indicator {
+  color: var(--color-muted);
+}
+/* The search's own clear button is a bright cross the field doesn't want. */
+.history-search input::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}
 
-/* The row, its select button, icon and title are a sidebar row's (SidebarItem.tsx's parts: the
-   item recipe and sidebar-item.css), so they read as the Terminals panel's. What follows is
-   the History row's own. */
-.history-row-select {
+.history-row .sidebar-item-select {
   cursor: pointer;
 }
-.history-row-restore {
-  position: absolute;
-  right: 0;
-  display: none;
-  color: var(--color-ink);
+.history-row[data-state="gone"] .sidebar-item-select,
+.history-row[data-state="disconnected"] .sidebar-item-select,
+.history-row[data-state="restoring"] .sidebar-item-select {
+  cursor: default;
 }
-/* Under the pointer or focus the restore icon takes the date's place, which keeps its room so
-   the title does not move. */
-.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-end-text {
-  visibility: hidden;
+
+/* The detail line, a tab's: the glyph and program in the program font, the end as a done
+   tab's age is. */
+.history-glyph,
+.history-row-program,
+.history-row-end {
+  font-family: var(--tab-process-font, var(--font-glyphs));
 }
-.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-restore {
-  display: block;
+.history-glyph {
+  color: var(--tab-glyph-fg, var(--color-ink));
 }
-.history-row-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  height: 18px;
+.history-glyph::before {
+  content: "\00a0";
 }
 .history-row-end {
-  position: relative;
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: flex-end;
-  color: var(--color-muted);
-  font-size: var(--text-caption);
-  line-height: 18px;
-  white-space: nowrap;
+  color: var(--tab-age-fg, var(--color-muted));
 }
-/* The terminal that holds its conversation now stands out, as where its click goes. */
+/* The terminal that holds its conversation now stands out, as where its click goes, lit as a
+   teammate's handle is. */
 .history-row-end[data-end="handle"] {
-  color: var(--color-strong);
+  color: var(--tab-team-handle-fg, var(--color-strong));
 }
-.history-row-detail {
-  display: -webkit-box;
-  overflow: hidden;
+.history-row-summary {
+  display: block;
+  margin-top: -2px;
   color: var(--color-muted);
   font-size: var(--text-caption);
   line-height: 16px;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
-.history-row-folder {
-  color: var(--color-ink);
-  font-family: var(--tab-process-font, var(--font-glyphs));
-}
-.history-row-detail mark {
+.history-row-summary mark {
   background: transparent;
   color: var(--color-strong);
 }
 
-/* Beside the select button, on the title's line: what a row that can't restore offers
-   instead. Hidden until the row is under the pointer or holds focus, and always there on a
-   screen with no pointer, where nothing hovers. */
-.history-row-actions {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-}
-.history-row:is(:hover, :focus-within) .history-row-actions {
-  opacity: 1;
-}
-/* Not connected is wider than a date, so with its plug showing it gives its room back to
-   the title. */
-.history-row[data-state="disconnected"]:has(.history-row-actions):is(:hover, :focus-within)
-  .history-row-end {
-  display: none;
-}
-.history-row[data-state="disconnected"]:has(.history-row-actions):is(:hover, :focus-within)
-  .history-row-line {
-  padding-right: 24px;
-}
-@media (hover: none) {
-  .history-row-actions {
-    opacity: 1;
-  }
-  .history-row[data-state="disconnected"]:has(.history-row-actions) .history-row-end {
-    display: none;
-  }
-  .history-row[data-state="disconnected"]:has(.history-row-actions) .history-row-line {
-    padding-right: 24px;
-  }
-}
-
-/* A row that can't restore now: hatched and quiet, as an ended terminal's tab. */
-.history-row[data-state="gone"],
-.history-row[data-state="disconnected"] {
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
-  );
-  color: var(--color-muted);
-}
-.history-row[data-state="gone"] .history-row-select,
-.history-row[data-state="disconnected"] .history-row-select,
-.history-row[data-state="restoring"] .history-row-select {
-  cursor: default;
-}
-
-/* The spinner is a column of frames with one line showing, stepped up by a transform, as
-   a tab's is (tabs.css). */
-.history-spinner {
-  display: block;
-  width: 1ch;
+/* The glyph, as a tab's: a braille spinner while it restores, stepped up by a transform (the
+   tabs' terminal-spin), a cross where what it needs is gone, a hollow mark where its agent
+   isn't connected. */
+.history-row[data-state="restoring"] .history-glyph {
   height: 1lh;
   overflow: hidden;
-  color: var(--color-strong);
-  font-family: var(--font-glyphs, var(--font-mono));
-  text-align: center;
 }
-.history-spinner::before {
+.history-row[data-state="restoring"] .history-glyph::before {
   display: block;
   white-space: pre;
   content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
   animation: terminal-spin 800ms steps(10) infinite;
+}
+.history-row[data-state="gone"] .history-glyph {
+  color: var(--tab-ended-fg, var(--color-muted));
+}
+.history-row[data-state="gone"] .history-glyph::before {
+  content: "×";
+}
+.history-row[data-state="disconnected"] .history-glyph {
+  color: var(--tab-ended-fg, var(--color-muted));
+}
+.history-row[data-state="disconnected"] .history-glyph::before {
+  content: "○";
+}
+
+/* Its action stays beside its detail line (9px padding, an 18px name, a 4px gap), however
+   tall the summary under it makes the row, as a tab's do. */
+.history-row .sidebar-item-actions {
+  top: 31px;
+  bottom: auto;
+}
+/* A mark stands for the row's own click, which reaches through it. */
+.history-row-mark {
+  pointer-events: none;
+}
+.icon-button.history-row-action:focus-visible {
+  outline-offset: -2px;
+}
+
+/* What its click does slides in from the row's end under the pointer or with keyboard
+   focus, after the same moment's wait as a tab's Hide and Rename; the end slides out to the
+   left as it comes, so nothing else on the line moves. At rest the end reaches into the room
+   the line keeps for the action, to stand where the action will. Without a pointer that
+   hovers, the action stays, and the end stands before it. */
+@media (hover: hover) {
+  .history-row-slot {
+    overflow: hidden;
+  }
+  .history-row-slot > * {
+    transition: transform var(--motion-layout) var(--ease-interface);
+  }
+  .history-row:not(:hover, :has(:focus-visible)) .history-row-slot > * {
+    transform: translateX(200%);
+  }
+  .history-row-end {
+    pointer-events: none;
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform var(--motion-layout) var(--ease-interface);
+  }
+  .history-row:has(.sidebar-item-actions) .history-row-end {
+    margin-right: calc(0px - var(--_sidebar-actions-space, 26px));
+  }
+  .history-row:has(.sidebar-item-actions):is(:hover, :has(:focus-visible)) .history-row-end {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+  .history-row:hover :is(.history-row-end, .history-row-slot > *) {
+    transition-delay: 60ms;
+  }
+}
+.history-row-end {
+  margin-left: auto;
+}
+
+/* A row that can't restore now: hatched and quiet, as an ended terminal's tab. */
+.history-row:is([data-state="gone"], [data-state="disconnected"]) {
+  background-image: var(
+    --tab-ended-image,
+    var(
+      --window-ended-image,
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 6px,
+        color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
+      )
+    )
+  );
+}
+.history-row:is([data-state="gone"], [data-state="disconnected"])
+  :is(.sidebar-item-select strong, .sidebar-item-icon) {
+  color: var(--tab-ended-fg, var(--color-muted));
 }
 
 .history-empty {
@@ -154,10 +170,4 @@
   color: var(--color-muted);
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
-}
-
-/* The search's own clear button is a bright cross the quiet field doesn't want. */
-.history-search input::-webkit-search-cancel-button {
-  appearance: none;
-  display: none;
 }

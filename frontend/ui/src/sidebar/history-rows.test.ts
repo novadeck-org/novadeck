@@ -88,10 +88,11 @@ describe("History's rows", () => {
   })
 
   context("when it can't", () => {
-    it("is inert while restoring, with a spinner where the date was", () => {
+    it("is inert while restoring, keeping when it closed (its glyph spins)", () => {
       expect(rowView(row({ availability: { state: "restoring" } }), now, undefined)).toMatchObject({
+        state: "restoring",
         inert: true,
-        end: { kind: "restoring" },
+        end: { kind: "time" },
       })
     })
 
@@ -197,24 +198,28 @@ describe("History's rows", () => {
       ])
     })
 
-    it("cuts a summary to start before a match that its two lines wouldn't show", () => {
+    it("cuts a summary to start before a match that its line wouldn't show", () => {
       const long =
         "Stripe signatures are checked on every delivery and the webhook retries are idempotent"
       const excerpt = summaryExcerpt(long, "idempotent")
       expect(excerpt.startsWith("…")).toBe(true)
       expect(excerpt.endsWith("idempotent")).toBe(true)
-      expect(excerpt.length).toBeLessThan(55)
+      expect(excerpt.length).toBeLessThan(30)
       expect(summaryExcerpt("Short summary here", "short")).toBe("Short summary here")
-      // Its two lines show a match a little way in, so the summary stays whole.
-      const whole = "Order receipts sent after the payment webhook"
+      // Its line shows a match a little way in, so the summary stays whole.
+      const whole = "Stripe webhook retries and signature checks"
       expect(summaryExcerpt(whole, "webhook")).toBe(whole)
+      // Further in, it starts a word or so before the match.
+      expect(summaryExcerpt("Order receipts sent after the payment webhook", "webhook")).toBe(
+        "…payment webhook",
+      )
     })
 
     it("keeps the start of a summary whose long match begins near it, and shows the match", () => {
       const summary =
         "Plan: migrate the billing webhooks to the new queue and then retire the old cron job after the weekend"
       const typed = "migrate the billing webhooks to the new queue"
-      // The match ends past the two lines, but starts within the lead: nothing to cut before it.
+      // The match ends past the line, but starts within the lead: nothing to cut before it.
       expect(summaryExcerpt(summary, typed)).toBe(summary)
       expect(
         litPieces(summaryExcerpt(summary, typed), typed).find((piece) => piece.lit)?.text,

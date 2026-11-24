@@ -38,10 +38,10 @@ describe("The History panel", () => {
       await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
     })
 
-    it("names a plain terminal's folder after its title", async () => {
+    it("names a plain terminal's folder after its title, where a tab names its program", async () => {
       await openHistory()
       const row = closed().getByRole("button", { name: "Restore pnpm dev" })
-      await expect.poll(() => row.element().textContent).toMatch(/^pnpm dev.*web$/)
+      await expect.poll(() => row.element().textContent).toMatch(/^pnpm devweb/)
     })
 
     it("shows a row's summary under its title, without the handle it had", async () => {
@@ -150,6 +150,31 @@ describe("The History panel", () => {
         .click()
       // @fox is the second terminal, "Dev server".
       await expect.element(terminal("Dev server")).toBeVisible()
+    })
+  })
+
+  context("from a row's menu", () => {
+    it("restores it, as its click does", async () => {
+      await openHistory()
+      await userEvent.click(closed().getByRole("button", { name: "Restore Coupon codes" }), {
+        button: "right",
+      })
+      await page.getByRole("menuitem", { name: "Restore" }).click()
+      await expect.element(terminal("Coupon codes")).toBeVisible()
+    })
+
+    it("offers a disconnected agent's connection, and no restore", async () => {
+      await openHistory()
+      // Forced, as a click waits for an aria-disabled button to take one; the menu doesn't.
+      await userEvent.click(
+        closed().getByRole("button", { name: "Release notes, not connected" }),
+        { button: "right", force: true },
+      )
+      await expect
+        .element(page.getByRole("menuitem", { name: "Restore" }))
+        .toHaveAttribute("aria-disabled", "true")
+      await page.getByRole("menuitem", { name: "Connect Codex…" }).click()
+      await expect.element(page.getByRole("dialog", { name: /Preferences/ })).toBeVisible()
     })
   })
 

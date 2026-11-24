@@ -1,16 +1,11 @@
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
-import {
-  sidebarListClasses,
-  sidebarRowClasses,
-  sidebarRowIconClasses,
-  sidebarRowNameClasses,
-  sidebarRowSelectClasses,
-} from "@novadeck/toolkit/SidebarItem"
+import { ContextMenu, type ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
+import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Plug, RotateCcw, Search } from "lucide-react"
-import { Fragment, useEffect, useId, useState, type ReactNode, memo } from "react"
+import { ArrowRight, Plug, RotateCcw, Search } from "lucide-react"
+import { Fragment, useEffect, useState, type ReactNode, memo } from "react"
 
 import {
   agentName,
@@ -32,7 +27,7 @@ const labelOf = (row: ClosedTerminal, view: RowView): string => {
     case "ready":
       return `Restore ${row.title}`
     case "open":
-      return `Show ${row.title}, open as ${view.end.kind === "handle" ? view.end.text : ""}`
+      return `Show ${row.title}, open as ${view.end.text}`
     case "restoring":
       return `${row.title}, restoring`
     case "gone":
@@ -54,11 +49,18 @@ const Lit = ({ text, typed }: { text: string; typed: string }): React.JSX.Elemen
   </>
 )
 
-// A row drawn as a terminal's tab: its icon and title, with when it closed at the end of the
-// title's line, and under them the start of its summary, cut to where a search found it (a
-// plain terminal's folder before it). Its handle isn't shown: a restore keeps it only where
-// it is still free in the session. Under the pointer or focus, a row that can be
-// restored shows the restore icon in its date's place.
+const iconProps = { size: 14, strokeWidth: 1.5 } as const
+const actionClasses = "history-row-action icon-button small dim quiet"
+
+// A row drawn as a terminal's tab is (TerminalTab.tsx), from the same sidebar item: its icon
+// and title, then its detail line, a glyph for how it stands (a spinner while it restores) and
+// its program, or a plain terminal's folder, with when it closed where a tab holds its
+// @handle, and under them the start of its summary, cut to where a search found it. Its
+// handle isn't shown: a restore keeps it only where it is still free in the session. Under
+// the pointer or focus what its click does slides in where the time was, as a tab's Hide and
+// Rename do over its handle: the restore mark, or the terminal it is open in; a row whose
+// agent isn't connected offers the connection there instead, as a button of its own. A
+// right-click opens the same as a menu.
 const HistoryRow = ({
   row,
   view,
@@ -78,81 +80,113 @@ const HistoryRow = ({
   onReveal: (terminalId: string) => void
   onConnect: (agent: AgentName) => void
 }): React.JSX.Element => {
-  const descriptionId = useId()
   const folder = rowFolder(row)
   const { availability } = row
+  const program = folder ?? row.program ?? row.agent ?? ""
   const description = [
     view.reason,
     `Closed ${closedFull(row.closedAt, now)}${row.closedBy ? ` by @${row.closedBy}` : ""}`,
   ]
     .filter(Boolean)
     .join(". ")
-  return (
-    <div
-      role="listitem"
-      className={`${sidebarRowClasses} history-row`}
-      data-state={view.state}
-      data-history-row={row.id}
-    >
-      <Tooltip content={rowTooltip(row, view, now)} placement="right-start">
-        <button
-          type="button"
-          className={`${sidebarRowSelectClasses} history-row-select`}
-          aria-label={labelOf(row, view)}
-          aria-describedby={descriptionId}
-          aria-disabled={view.inert || undefined}
-          onClick={() => {
-            if (view.inert) return
-            if (availability.state === "open") onReveal(availability.terminalId)
-            else onRestore(row)
-          }}
-        >
-          <span className={sidebarRowIconClasses}>{icon}</span>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="history-row-line">
-              <strong className={`${sidebarRowNameClasses()} min-w-0 flex-1`}>{row.title}</strong>
-              <span className="history-row-end" data-end={view.end.kind}>
-                {view.end.kind === "restoring" ? (
-                  <span className="history-spinner" aria-hidden="true" />
-                ) : (
-                  <>
-                    <span className="history-row-end-text">{view.end.text}</span>
-                    {view.state === "ready" && (
-                      <RotateCcw className="history-row-restore" size={14} strokeWidth={1.6} />
-                    )}
-                  </>
-                )}
-              </span>
+  const select = (): void => {
+    if (view.inert) return
+    if (availability.state === "open") onReveal(availability.terminalId)
+    else onRestore(row)
+  }
+  const connect = view.connect
+  // What its click does, and the connection it offers instead, as its menu.
+  const menu: ContextMenuAction[] =
+    availability.state === "open"
+      ? [
+          {
+            value: "show",
+            label: `Show ${view.end.text}`,
+            icon: <ArrowRight {...iconProps} />,
+            onSelect: select,
+          },
+        ]
+      : [
+          {
+            value: "restore",
+            label: "Restore",
+            icon: <RotateCcw {...iconProps} />,
+            disabled: view.inert,
+            onSelect: select,
+          },
+          ...(connect
+            ? [
+                {
+                  value: "connect",
+                  label: `Connect ${agentName(connect)}…`,
+                  icon: <Plug {...iconProps} />,
+                  onSelect: () => onConnect(connect),
+                },
+              ]
+            : []),
+        ]
+  // The restore and show marks stand for the row's own click, which the pointer reaches
+  // through them; only the connection is a button of its own.
+  const action = connect ? (
+    <Tooltip content={`Connect ${agentName(connect)} in Preferences`}>
+      <button
+        type="button"
+        className={actionClasses}
+        aria-label={`Connect ${agentName(connect)} in Preferences`}
+        onClick={() => onConnect(connect)}
+      >
+        <Plug {...iconProps} />
+      </button>
+    </Tooltip>
+  ) : view.state === "ready" ? (
+    <span aria-hidden className={`${actionClasses} history-row-mark`}>
+      <RotateCcw {...iconProps} />
+    </span>
+  ) : view.state === "open" ? (
+    <span aria-hidden className={`${actionClasses} history-row-mark`}>
+      <ArrowRight {...iconProps} />
+    </span>
+  ) : undefined
+  const item = (
+    <div className="contents" role="listitem">
+      <SidebarItem
+        name={row.title}
+        icon={icon}
+        detail={
+          <>
+            {/* One glyph wide in every state, so the text beside it never shifts. */}
+            <span aria-hidden className="history-glyph inline-block w-[1ch] shrink-0 text-center" />
+            <span className="history-row-program truncate">{program}</span>
+            <span className="history-row-end shrink-0" data-end={view.end.kind}>
+              {view.end.text}
             </span>
-            {(folder || row.summary) && (
-              <span className="history-row-detail">
-                {folder && <span className="history-row-folder">{folder}</span>}
-                {folder && row.summary && " "}
-                {row.summary && <Lit text={summaryExcerpt(row.summary, typed)} typed={typed} />}
-              </span>
-            )}
-          </span>
-        </button>
-      </Tooltip>
-      <span id={descriptionId} hidden>
-        {description}
-      </span>
-      {view.connect && (
-        <div className="history-row-actions">
-          <Tooltip content={`Connect ${agentName(view.connect)} in Preferences`}>
-            <button
-              type="button"
-              className="icon-button small dim quiet"
-              aria-label={`Connect ${agentName(view.connect)} in Preferences`}
-              onClick={() => onConnect(view.connect!)}
-            >
-              <Plug size={14} strokeWidth={1.6} />
-            </button>
-          </Tooltip>
-        </div>
-      )}
+          </>
+        }
+        {...(row.summary
+          ? {
+              below: (
+                <span className="history-row-summary truncate">
+                  <Lit text={summaryExcerpt(row.summary, typed)} typed={typed} />
+                </span>
+              ),
+            }
+          : {})}
+        selected={false}
+        disabled={view.inert}
+        selectLabel={labelOf(row, view)}
+        tooltip={rowTooltip(row, view, now)}
+        description={description}
+        onSelect={select}
+        className="history-row [--_sidebar-actions-space:26px]"
+        data-state={view.state}
+        data-history-row={row.id}
+        {...(action
+          ? { actions: <div className="history-row-slot flex items-center">{action}</div> }
+          : {})}
+      />
     </div>
   )
+  return <ContextMenu label={`${row.title} actions`} items={menu} trigger={item} />
 }
 
 // The sidebar's History panel: the terminals closed in this project, newest first, with a
@@ -219,7 +253,7 @@ const HistoryPanelView = ({
       onClose={onClose}
     >
       {rows.length > 0 && (
-        <label className="field quiet history-search flex h-9 shrink-0 items-center gap-2 px-2">
+        <label className="field history-search flex h-9 shrink-0 items-center gap-2 px-2.5">
           <Search size={14} className="field-indicator shrink-0" aria-hidden="true" />
           <input
             type="search"
