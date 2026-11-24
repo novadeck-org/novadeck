@@ -6,14 +6,15 @@
    safe) over its `.worktrees-group-rows`, under the panel's `.worktrees-origin` line (how old
    the remote's main is, with `.worktrees-fetch`). Parts of a row: `.worktrees-row`,
    `.worktrees-size` (the work's `+N −N`, in the tab's item marks' place, neutral),
-   `.worktrees-handle`, `.worktrees-branch` and `.worktrees-home` (its owner's handle, its
-   branch and where its work belongs when not main, "→ JIRA-123", the detail line), `.worktrees-facts` (what it says in words, a `.worktrees-fact` each, data-tone
+   `.worktrees-glyph`, `.worktrees-branch`, `.worktrees-home` and `.worktrees-handle` (a
+   glyph's slot, its branch, where its work belongs when not main, "→ JIRA-123", and its
+   owner's handle at the end, the detail line), `.worktrees-facts` (what it says in words, a `.worktrees-fact` each, data-tone
    bad | ink | muted | warn | ok), `.worktrees-file` (a file's name, wherever it is),
    `.worktrees-refusal`, `.worktrees-kept`, `.worktrees-branches` and `.worktrees-trail` (a
    file's lines, right-aligned in its row), `.worktrees-empty`, `.worktrees-pr` (the work's pull
-   request: "#812" after its state's glyph, a link to its page, data-state its state, beside the
-   trash button on the facts' line). The row's trash button is `.terminal-tab-revealed`, shown
-   under the pointer as a tab's Rename, and at rest on a safe row.
+   request: "#812" after its state's glyph, a link to its page, data-state its state, among the
+   facts). The row's trash button is a `.worktrees-action` in a `.worktrees-slot`, which slides
+   in over the handle under the pointer as a tab's Rename does, and shows at rest on a safe row.
 
    Hooks: on a row, data-standing (conflict | ci-failing | working | merged | closed | ready |
    draft | branch: its icon), data-safe, data-merged once its work is merged, data-conflict
@@ -38,37 +39,92 @@
   color: var(--color-ink);
 }
 
-/* The detail line: the handle, then the branch whole as far as it fits. */
+/* The detail line, a tab's: a glyph's slot, the branch whole as far as it fits, and at its end
+   the owner's handle, dim as a tab's is at rest. */
+.worktrees-row .sidebar-item-detail {
+  font-family: var(--tab-process-font, var(--font-glyphs));
+}
+.worktrees-glyph::before {
+  content: "\00a0";
+}
 .worktrees-handle {
-  font-family: var(--font-mono);
+  display: inline-flex;
+  justify-content: flex-end;
+  margin-left: auto;
   color: var(--color-muted);
+  opacity: var(--icon-button-dim-opacity, 0.5);
 }
 
-/* What it says in words, under the branch, wrapping when long. The trash button and the pull
-   request's mark sit at its end, so the detail line above keeps its full width. */
-.worktrees-row:has(.worktrees-facts) {
-  --_sidebar-actions-space: 0px;
+/* The trash button slides in from the row's end under the pointer or with keyboard focus,
+   after the same moment's wait as a tab's Hide and Rename, and the handle slides out to the
+   left as it comes; at rest the handle reaches into the room the line keeps for it, at least
+   the button's width, so the branch never runs under it. A safe row's trash shows at rest, in
+   the colour that says so, the handle before it. The slot clips, so a button the keyboard
+   focuses while it is slid out never stays scrolled into sight. Without a pointer that hovers,
+   the button stays, and the handle stands before it. */
+.worktrees-row {
+  --_sidebar-actions-space: 26px;
 }
-.worktrees-row:has(.worktrees-facts) .sidebar-item-actions {
-  top: 53px;
+.worktrees-row .sidebar-item-actions {
+  pointer-events: none;
 }
+.worktrees-row .worktrees-action {
+  pointer-events: auto;
+}
+.icon-button.worktrees-action:focus-visible {
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .worktrees-slot {
+    overflow: clip;
+  }
+  .worktrees-slot > * {
+    transition: transform var(--motion-layout) var(--ease-interface);
+  }
+  .worktrees-row:not(:hover, :has(:focus-visible), [data-safe="true"]) .worktrees-slot > * {
+    transform: translateX(200%);
+  }
+  .worktrees-handle {
+    pointer-events: none;
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform var(--motion-layout) var(--ease-interface);
+  }
+  .worktrees-row:not([data-safe="true"]) .worktrees-handle {
+    min-width: var(--_sidebar-actions-space);
+    margin-right: calc(0px - var(--_sidebar-actions-space));
+  }
+  .worktrees-row:not([data-safe="true"]):is(:hover, :has(:focus-visible)) .worktrees-handle {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+  .worktrees-row:hover :is(.worktrees-handle, .worktrees-slot > *) {
+    transition-delay: 60ms;
+  }
+}
+
 /* The selected row is the selected terminal's worktree, not what its click shows: a click
    still opens its changes. */
 .worktrees-row[data-selected="true"] .sidebar-item-select {
   cursor: pointer;
 }
+/* What it says in words, under the branch, wrapping when long, from where the detail line's
+   words start: the glyph's slot past the icon, a character of the detail line's mono, which the
+   facts' own sans words don't change. */
 .worktrees-facts {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 8px;
   margin-top: -8px;
-  padding: 0 34px 9px 32px;
+  padding: 0 10px 9px calc(32px + 1ch + 6px);
+  font-family: var(--tab-process-font, var(--font-glyphs));
   font-size: var(--text-caption);
   line-height: 16px;
   cursor: pointer;
 }
 .worktrees-fact {
   display: inline-flex;
+  font-family: var(--font-sans);
   align-items: center;
   gap: 3px;
   min-width: 0;
@@ -103,10 +159,9 @@
 }
 
 /* A safe row's trash button shows at rest, in the colour that says so. */
-.worktrees-row.terminal-tab[data-safe="true"] .icon-button.terminal-tab-revealed {
+.worktrees-row[data-safe="true"] .icon-button.worktrees-action {
   --icon-button-fg: var(--color-success-fg);
   --icon-button-dim-opacity: 1;
-  opacity: 1;
 }
 
 /* The groups, each a heading over its rows. */
@@ -229,7 +284,7 @@
 }
 
 /* The pull request's mark: its state's glyph and "#812" in the caption's mono, muted, an open
-   one in ink; under the pointer it underlines. It sits in the row's actions, before the trash button. */
+   one in ink; under the pointer it underlines. It follows its state among the facts. */
 .worktrees-pr {
   display: inline-flex;
   flex-shrink: 0;
@@ -345,7 +400,6 @@ a.worktrees-pr:focus-visible {
 }
 
 /* A trash button that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
-.worktrees-row .terminal-tab-action[aria-disabled="true"] {
-  cursor: default;
+.worktrees-row .worktrees-action[aria-disabled="true"] {
   opacity: 0.35;
 }

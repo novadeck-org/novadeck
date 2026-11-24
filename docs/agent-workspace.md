@@ -738,8 +738,9 @@ with every safety check again at that time:
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
   and what conflicts with main or another work (named by root, and its owner if it has one). A row
-  shows the owner terminal's title, or "No owner", its size, then the owner's handle and the branch,
-  and under them what it says in words, most telling first: a conflict ("Conflicts with
+  shows the owner terminal's title, or "No owner", its size, then, on a terminal tab's detail line,
+  the branch and, where a tab shows its handle, the owner's handle, and under them what it says in
+  words, most telling first: a conflict ("Conflicts with
   origin/main", or with another work's owner) or a failing CI in red, Working, the pull request's
   state followed by its number (a link to its page: No PR yet, Draft, Ready for review, Merged, PR
   closed; nothing while no forge is on), its CI (running, passed, no CI), commits not pushed and,
@@ -750,7 +751,8 @@ with every safety check again at that time:
   (no pull request), In review (an open one) and Done (merged, or its pull request closed), newest
   first in each; Done folds (kept in this browser) and holds Trash N safe, which closes every safe
   row, unforced, after one confirm that lists them, saying above the list why any that stopped
-  being safe stays. A safe row's trash button shows at rest, in green. Over the groups, a line says
+  being safe stays. A row's trash button slides in over its handle under the pointer or with the
+  keyboard on the row, as a tab's Hide and Rename do; a safe row's shows at rest, in green. Over the groups, a line says
   how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
   measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). Sizes are
   neutral: red is only for what needs the person. The panel lists only the open

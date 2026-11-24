@@ -141,11 +141,14 @@ const busyTip = "Its agent is working in this worktree. Close it once the turn e
 const closeTip = (row: ChangeRow): string =>
   row.close === "busy" ? busyTip : `Close the ${row.branch} worktree`
 
-// The row's detail line: its owner's handle, then its branch, then, where its work belongs on
-// another branch than main, "→ home", quiet and cut at its end where it is long (the branch gives way first).
+// The row's detail line, a tab's: a glyph's slot, its branch, then, where its work belongs on
+// another branch than main, "→ home", quiet and cut at its end where it is long (the branch gives
+// way first), and at the end, where a tab holds its @handle, its owner's handle, which the trash
+// button slides in over (worktrees.css).
 const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
-    {row.handle && <span className="worktrees-handle shrink-0">{row.handle}</span>}
+    {/* One glyph wide, as a tab's, so the line starts where a tab's program does. */}
+    <span aria-hidden className="worktrees-glyph inline-block w-[1ch] shrink-0" />
     <span className="worktrees-branch min-w-0 truncate" title={row.branch}>
       {row.branch}
     </span>
@@ -158,6 +161,7 @@ const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
         {row.home}
       </span>
     )}
+    <span className="worktrees-handle shrink-0">{row.handle}</span>
   </>
 )
 
@@ -230,9 +234,9 @@ const pullGlyphs: Readonly<Record<PullMark["state"], LucideIcon>> = {
   closed: GitPullRequestClosed,
 }
 
-// The work's pull request, "#812" after its state's glyph: a link to its page at the end of the
-// row's detail line, among the row's actions rather than in its select button (a link inside it
-// would be a control in a control), so it is reached by Tab and a click does not select the row.
+// The work's pull request, "#812" after its state's glyph: a link to its page after its state
+// among the row's facts, outside its select button (a link inside it would be a control in a
+// control), so it is reached by Tab and a click does not select the row.
 const PullMarkLink = ({ mark }: { mark: PullMark }): React.JSX.Element => {
   const Glyph = pullGlyphs[mark.state]
   const body = (
@@ -314,10 +318,10 @@ const ChangeItem = ({
       selected={selected}
       selectLabel={label}
       actions={
-        <div className="terminal-tab-actions flex items-center">
+        <div className="worktrees-slot flex items-center">
           <Tooltip content={closeTip(row)}>
             <button
-              className="terminal-tab-action icon-button small dim quiet terminal-tab-revealed"
+              className="worktrees-action icon-button small dim quiet"
               aria-label={`Close the ${row.branch} worktree of ${row.title}`}
               // Kept focusable so its tooltip says why it waits.
               aria-disabled={row.close === "busy" || undefined}
