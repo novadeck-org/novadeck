@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "Which Release runs a push to main cancels, which release-supersede.yml decides on Linux after a merge: on a pull request only its own test reads it."
+}
