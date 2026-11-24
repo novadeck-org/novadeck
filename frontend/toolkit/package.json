@@ -14,6 +14,7 @@
     "./ContextMenu": "./src/ContextMenu.tsx",
     "./Dialog": "./src/Dialog.tsx",
     "./drag-pull": "./src/drag-pull.ts",
+    "./drag-settled": "./src/drag-settled.ts",
     "./drag-pull.css": "./src/drag-pull.css",
     "./field.css": "./src/field.css",
     "./file-drops": "./src/file-drops.ts",
@@ -72,6 +73,7 @@
   "dependencies": {
     "@ark-ui/react": "^5.40.0",
     "@dnd-kit/abstract": "^0.5.3",
+    "@dnd-kit/state": "^0.5.3",
     "@novadeck/viewers": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.71.0",

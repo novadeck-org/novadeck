@@ -8,6 +8,7 @@ import {
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
+import { afterDrop } from "@novadeck/toolkit/drag-settled"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
@@ -162,15 +163,20 @@ export const PinsBar = ({
                 cursor,
               ]}
               onDragStart={() => setDragging(true)}
-              onDragEnd={(event) => {
+              onDragEnd={(event, manager) => {
                 setDragging(false)
-                setDrags((made) => made + 1)
                 const { source } = event.operation
-                if (!isSortable(source)) return
-                const id = String(source.id)
-                setFocusRequest({ id })
-                if (event.canceled || source.initialIndex === source.index) return
-                onMove(id, Math.min(source.index, pins.length - 1))
+                const id = isSortable(source) ? String(source.id) : null
+                const moved =
+                  isSortable(source) && !event.canceled && source.initialIndex !== source.index
+                const index = isSortable(source) ? source.index : 0
+                // Once the pin has slid into its place: the bar mounts anew in the saved order.
+                afterDrop(manager, () => {
+                  setDrags((made) => made + 1)
+                  if (id === null) return
+                  setFocusRequest({ id })
+                  if (moved) onMove(id, Math.min(index, pins.length - 1))
+                })
               }}
             >
               {items.map((project, index) => (

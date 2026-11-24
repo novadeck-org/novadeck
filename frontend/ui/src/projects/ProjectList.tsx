@@ -9,6 +9,7 @@ import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Project } from "@novadeck/core/types"
+import { afterDrop } from "@novadeck/toolkit/drag-settled"
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { arrangeProjects, pinLimit, type ProjectArrangement } from "./project-arrangement"
@@ -99,15 +100,20 @@ export const ProjectList = ({
           feedback,
           cursor,
         ]}
-        onDragEnd={(event) => {
-          if (list) scrolledTo.current = { list, top: list.scrollTop }
-          setDragged((count) => count + 1)
+        onDragEnd={(event, manager) => {
           const { source } = event.operation
-          if (!isSortable(source)) return
-          const id = String(source.id)
-          setFocusRequest({ id })
-          if (event.canceled || source.initialIndex === source.index) return
-          onMove(id, source.index)
+          const id = isSortable(source) ? String(source.id) : null
+          const moved =
+            isSortable(source) && !event.canceled && source.initialIndex !== source.index
+          const index = isSortable(source) ? source.index : 0
+          // Once the row has slid into its place: the list mounts anew in the saved order.
+          afterDrop(manager, () => {
+            if (list) scrolledTo.current = { list, top: list.scrollTop }
+            setDragged((count) => count + 1)
+            if (id === null) return
+            setFocusRequest({ id })
+            if (moved) onMove(id, index)
+          })
         }}
       >
         {pinned.length > 0 && (

@@ -1012,6 +1012,9 @@ importers:
       '@dnd-kit/abstract':
         specifier: ^0.5.3
         version: 0.5.3
+      '@dnd-kit/state':
+        specifier: ^0.5.3
+        version: 0.5.3
       '@novadeck/viewers':
         specifier: workspace:*
         version: link:../../libraries/viewers
