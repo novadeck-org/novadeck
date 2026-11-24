@@ -97,6 +97,9 @@ export const pi: AgentSetup = {
       PI_TELEMETRY: "0",
     }
   },
+  // Its steering gives queued prompts one at a time, each answered before the next (its
+  // default `steeringMode`, probed 2026-11-24, 1.6.0).
+  oneByOne: true,
   absent: {
     approval:
       "it asks nothing before a tool runs: its docs say it does not ask for approval before every tool call, and an extension's dialog is the person's own (docs/security.md, 1.6.0)",

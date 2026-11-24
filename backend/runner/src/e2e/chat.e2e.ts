@@ -837,10 +837,16 @@ for (const setup of setups) {
           const at = sent.map((prompt) =>
             items.findIndex((one) => one.role === "user" && one.text.includes(prompt)),
           )
-          const answered = items.findIndex(
-            (one) => one.role === "assistant" && one.kind === "text" && one.text.includes("Read:"),
+          const answers = items.flatMap((one, index) =>
+            one.role === "assistant" && one.kind === "text" && one.text.includes("Read:")
+              ? [index]
+              : [],
           )
-          const order = [result, ...at, answered]
+          const answered = answers[0]!
+          // One at a time (pi's), each prompt goes in after the answer to the one before it.
+          const order = setup.oneByOne
+            ? [result, ...at.flatMap((index) => [index, answers.find((one) => one > index)!])]
+            : [result, ...at, answered]
           expect(result).toBeGreaterThanOrEqual(0)
           expect(order).toEqual(order.toSorted((a, b) => a - b))
           expect(new Set(order).size).toBe(order.length)

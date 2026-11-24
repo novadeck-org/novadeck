@@ -324,6 +324,12 @@ export type AgentSetup = {
    */
   readonly merges?: true
   /**
+   * Whether prompts queued behind a running turn reach its agent one at a time, each answered
+   * before the next goes in, as pi's steering does by default (`steeringMode`, the person's own
+   * setting): its transcript then holds each prompt before its own answer.
+   */
+  readonly oneByOne?: true
+  /**
    * Hosts it tries through the proxy on every run, which no setting turns off: their
    * refused tunnels are expected. Any other refused tunnel is not.
    */
