@@ -10,6 +10,8 @@ import {
   type ProfileImages,
 } from "@novadeck/tui-input/box"
 
+import { signedOut } from "./startup.js"
+
 /**
  * pi's input box (probed 2026-11-24, 1.6.0, 120x40, 60x20 and 80x12; fixtures/input-box.probe.json
  * and busy.probe.json). It runs fullscreen on the alternate screen (since 1.0.0), and its box is
@@ -302,6 +304,9 @@ const secretTitle = /^\s*.*\b(?:API key|token|secret|password)\b.*$/i
 export const slice: SliceProfile = {
   agent: "pi",
   side: () => "below",
+  // With no provider it can reach, its footer names no model: a prompt there fails, so the box
+  // waiting empty is no idle (see `signedOut`).
+  notice: signedOut,
   secret: (rows) =>
     rows.some((row) => secretTitle.test(row)) &&
     rows.some((row) => /^\s*enter submit\s+escape\/ctrl\+c cancel\s*$/.test(row)),

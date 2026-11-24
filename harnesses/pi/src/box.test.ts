@@ -195,6 +195,11 @@ describe("pi's input box", () => {
   })
 
   context("with its own things drawn", () => {
+    it("says a footer that names no model is a notice to act on, not an idle", () => {
+      expect(slice.notice?.(screen("empty").rows)).toBe(true)
+      expect(slice.notice?.(screen("ready").rows)).toBe(false)
+    })
+
     it("reads the box over the / menu drawn under it", () => {
       expect(read("slash")).toMatchObject({ text: "/", first: 30, last: 30 })
       expect(slice.side(screen("slash"))).toBe("below")
