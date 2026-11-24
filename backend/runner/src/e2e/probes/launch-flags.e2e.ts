@@ -112,7 +112,9 @@ for (const setup of setups) {
           const since = Date.now()
           let text = await terminal.screen()
           while (!probe.shows.test(text) && Date.now() - since < 10_000) {
+            // eslint-disable-next-line no-await-in-loop -- Each read waits for the screen to change.
             await new Promise((resolve) => setTimeout(resolve, 250))
+            // eslint-disable-next-line no-await-in-loop -- As above.
             text = await terminal.screen()
           }
           found[`${label}Ms`] = Date.now() - since
