@@ -21,6 +21,8 @@ const readAhead = "1200px 0px"
 const lineHeight = 20
 // The heading's height, which stays on top.
 const headHeight = 40
+// How long a file's diff is on screen before it counts as seen: a fling past is not.
+const dwellMs = 500
 const mostHeld = 400
 
 const ExpandedFileBody = ({
@@ -52,13 +54,32 @@ const ExpandedFileBody = ({
   onShut: (path: string) => void
   onSeen: (path: string) => void
 }): React.JSX.Element => {
-  const loaded = useFileDiff(itemStore, target, itemId, stamp, near ? file.path : null, layers)
+  const loaded = useFileDiff(
+    itemStore,
+    target,
+    itemId,
+    stamp,
+    near && !shut ? file.path : null,
+    layers,
+  )
   const shown = useFileShown(file, loaded)
   const { run, layout, counts, notice } = shown
-  // Its diff, or what stands for it, on screen: the file is read.
+  // Its diff, or what stands for it, on screen a moment while the page shows: the file is read,
+  // once each time it comes on screen, so a file an agent changes while it is there stays
+  // unread until it comes again.
   const shownNow = seen && !shut && (loaded.state === "ready" || notice !== undefined)
+  const marked = useRef(false)
   useEffect(() => {
-    if (shownNow && !read) onSeen(file.path)
+    if (!seen) marked.current = false
+  }, [seen])
+  useEffect(() => {
+    if (!shownNow || read || marked.current) return
+    const timer = setTimeout(() => {
+      if (document.visibilityState === "hidden") return
+      marked.current = true
+      onSeen(file.path)
+    }, dwellMs)
+    return () => clearTimeout(timer)
   }, [file.path, onSeen, read, shownNow])
   const held = loaded.state === "ready" || notice ? undefined : heldHeight(file)
   return (
@@ -143,6 +164,8 @@ export const Expanded = ({
   onSeen: (path: string) => void
 }): React.JSX.Element => {
   const watchable = canWatch()
+  // The files by path, which a content that comes again with the same files keeps.
+  const paths = files.map((file) => file.path).join("\n")
   const [near, setNear] = useState<ReadonlySet<string>>(() => new Set())
   const [onScreen, setOnScreen] = useState<ReadonlySet<string>>(() => new Set())
   const list = useRef<HTMLDivElement>(null)
@@ -161,32 +184,34 @@ export const Expanded = ({
       },
       { root, rootMargin: readAhead },
     )
-    // On screen past the heading on top: a file only under it is not.
+    // A file's diff on screen past the heading on top: its heading alone is not.
     const screen = new IntersectionObserver(
       (entries) =>
         setOnScreen((now) => {
           const next = new Set(now)
           for (const entry of entries) {
-            const path = pathOf(entry)
+            const path = (entry.target as HTMLElement).closest<HTMLElement>("[data-path]")?.dataset
+              .path
             if (path === undefined) continue
             if (entry.isIntersecting) next.add(path)
             else next.delete(path)
           }
-          return next
+          return next.size === now.size && [...next].every((path) => now.has(path)) ? now : next
         }),
       { root, rootMargin: `-${headHeight}px 0px 0px 0px` },
     )
     for (const section of list.current?.querySelectorAll<HTMLElement>(".changes-stack-file") ??
       []) {
       ahead.observe(section)
-      screen.observe(section)
+      const body = section.querySelector(".changes-stack-body")
+      if (body) screen.observe(body)
     }
     return () => {
       ahead.disconnect()
       screen.disconnect()
     }
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The files drawn are the ones watched.
-  }, [files, scroller])
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The bodies drawn are the ones watched.
+  }, [paths, shut, scroller])
   return (
     <div ref={list} className="changes-stack" role="list" aria-label="Every file's diff">
       {files.map((file) => (

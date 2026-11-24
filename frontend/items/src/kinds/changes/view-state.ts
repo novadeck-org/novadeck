@@ -5,9 +5,10 @@ import type { Picked } from "./selection"
 
 // What the person has done in a change's pane, kept by item for as long as the session lives, so
 // a change shown again is as they left it: the layers picked, the file unfolded or opened, the
-// folders folded, and whether the tree is expanded into every file's diff. The files read are the backend's (the content's `read`); `read` here holds
-// each file opened by the content's stamp then, which grays it until the content comes again
-// (with the backend's word on it, or where the backend keeps none, with a change).
+// folders folded, and whether the tree is expanded into every file's diff (and which files'
+// diffs are hidden there). The files read are the backend's (the content's `read`); `read` here
+// holds each file opened by the content's stamp then, which grays it until the content comes
+// again (with the backend's word on it, or where the backend keeps none, with a change).
 
 export type ChangesView = {
   readonly picked: Picked

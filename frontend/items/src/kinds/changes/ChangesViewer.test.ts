@@ -1213,56 +1213,119 @@ describe("a change beside a terminal", () => {
       expect(scroller.scrollTop).toBe(300)
     })
 
-    it("marks a file read once its diff is on screen", async () => {
-      const watchers: { margin: string; on: IntersectionObserverCallback; seen: Element[] }[] = []
+    // What is near and on screen, as the test says: `fire` tells the live watchers of what reads
+    // ahead (`ahead`) or of what is on screen that the file's section or body comes or goes.
+    const watching = () => {
+      const watchers: {
+        margin: string
+        on: IntersectionObserverCallback
+        seen: Element[]
+        live: boolean
+      }[] = []
       vi.stubGlobal(
         "IntersectionObserver",
         class {
-          seen: Element[] = []
+          watcher: (typeof watchers)[number]
           constructor(on: IntersectionObserverCallback, options: IntersectionObserverInit) {
-            watchers.push({ margin: options.rootMargin ?? "", on, seen: this.seen })
+            this.watcher = { margin: options.rootMargin ?? "", on, seen: [], live: true }
+            watchers.push(this.watcher)
           }
           observe(element: Element) {
-            this.seen.push(element)
+            this.watcher.seen.push(element)
           }
-          disconnect() {}
+          disconnect() {
+            this.watcher.live = false
+          }
         },
       )
-      try {
-        const shown = show(change())
-        await expand(shown)
-        // Nothing is near yet, so nothing is read or asked for.
-        expect(shown.asked).toEqual([])
-        const fire = (ahead: boolean, path: string) =>
-          act(async () => {
-            for (const watcher of watchers.filter((each) => each.margin.startsWith("-") !== ahead))
-              watcher.on(
-                watcher.seen
-                  .filter((each) => (each as HTMLElement).dataset.path === path)
-                  .map(
-                    (element) =>
-                      ({ target: element, isIntersecting: true }) as IntersectionObserverEntry,
-                  ),
-                watcher as unknown as IntersectionObserver,
-              )
-          })
+      return (ahead: boolean, path: string, isIntersecting = true) =>
+        act(async () => {
+          for (const watcher of watchers.filter(
+            (each) => each.live && each.margin.startsWith("-") !== ahead,
+          ))
+            watcher.on(
+              watcher.seen
+                .filter((each) => each.closest<HTMLElement>("[data-path]")?.dataset.path === path)
+                .map(
+                  (element) => ({ target: element, isIntersecting }) as IntersectionObserverEntry,
+                ),
+              watcher as unknown as IntersectionObserver,
+            )
+        })
+    }
+    const wait = (ms: number) =>
+      act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, ms))
+      })
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
 
-        await fire(true, "src/auth/cookies.ts")
-        await shown.settle()
-        expect(shown.asked.map((each) => each.path)).toEqual(["src/auth/cookies.ts"])
-        expect(shown.marked).toEqual([])
+    it("reads a file's diff as it comes near, and marks it read once on screen a moment", async () => {
+      const fire = watching()
+      const shown = show(change())
+      await expand(shown)
+      // Nothing is near yet, so nothing is read or asked for.
+      expect(shown.asked).toEqual([])
 
-        await fire(false, "src/auth/cookies.ts")
-        await shown.settle()
-        expect(shown.marked).toEqual(["src/auth/cookies.ts"])
-        expect(
-          shown.container
-            .querySelector(".changes-stack-file .changes-crumbs")
-            ?.hasAttribute("data-read"),
-        ).toBe(true)
-      } finally {
-        vi.unstubAllGlobals()
-      }
+      await fire(true, "src/auth/cookies.ts")
+      await shown.settle()
+      expect(shown.asked.map((each) => each.path)).toEqual(["src/auth/cookies.ts"])
+      expect(shown.marked).toEqual([])
+
+      // A fling past is not a look.
+      await fire(false, "src/auth/cookies.ts")
+      await wait(100)
+      await fire(false, "src/auth/cookies.ts", false)
+      await wait(600)
+      expect(shown.marked).toEqual([])
+
+      await fire(false, "src/auth/cookies.ts")
+      await wait(600)
+      expect(shown.marked).toEqual(["src/auth/cookies.ts"])
+      expect(
+        shown.container
+          .querySelector(".changes-stack-file .changes-crumbs")
+          ?.hasAttribute("data-read"),
+      ).toBe(true)
+    })
+
+    it("leaves a file an agent changes while on screen unread, until it comes again", async () => {
+      const fire = watching()
+      const shown = show(change())
+      await expand(shown)
+      await fire(true, "src/auth/cookies.ts")
+      await fire(false, "src/auth/cookies.ts")
+      await shown.settle()
+      await wait(600)
+      expect(shown.marked).toEqual(["src/auth/cookies.ts"])
+
+      // The agent changes it: the content comes again without it read.
+      await shown.emit(change(), "2")
+      await shown.settle()
+      await wait(600)
+      expect(shown.marked).toEqual(["src/auth/cookies.ts"])
+      expect(
+        shown.container
+          .querySelector(".changes-stack-file .changes-crumbs")
+          ?.hasAttribute("data-read"),
+      ).toBe(false)
+
+      await fire(false, "src/auth/cookies.ts", false)
+      await fire(false, "src/auth/cookies.ts")
+      await wait(600)
+      expect(shown.marked).toEqual(["src/auth/cookies.ts", "src/auth/cookies.ts"])
+    })
+
+    it("reads no diff of a file whose diff is hidden", async () => {
+      const fire = watching()
+      const shown = show(change())
+      await expand(shown)
+      await shown.click(shown.container.querySelector(".changes-stack-file .changes-stack-fold"))
+
+      await fire(true, "src/auth/cookies.ts")
+      await shown.settle()
+      expect(shown.asked).toEqual([])
     })
   })
 

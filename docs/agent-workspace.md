@@ -409,10 +409,13 @@ the selection's files. **Expand all**, at the end of the Files line, lays the tr
 file's view one after another, in the tree's order (folded folders' files too): each row in view
 grows into its heading, which stays on top while its file scrolls by (a change's heading just
 under it), with a ⌄ that hides that file's diff. A file's diff is read as it comes within about a
-screen of the view, its place held by its line count until then, and a file whose diff has been
-on screen past its heading is read. J and K step between the headings; Collapse all or Esc folds
-the views back into their rows, the file at the top staying at the top. Lines are unified, in classic green and red from the
-theme's own `--color-success-fg` / `--color-danger-fg` inks (a sea green and a rose in Coolant),
+screen of the view, its place held by its line count until then (a hidden diff isn't read). A
+file whose diff has been on screen past its heading for half a second, while the window shows, is
+read, once each time it comes on screen: a file an agent changes while it is there stays unread
+until it comes again. J and K step between the headings; Collapse all or Esc folds the views back
+into their rows, the file at the top staying at the top (a file in a folded folder by the nearest
+row drawn before it). Lines are unified, in classic green and red from the theme's own
+`--color-success-fg` / `--color-danger-fg` inks (a sea green and a rose in Coolant),
 carried by the gutter: the number and sign sit on the ink at 20% (18% on a light scheme), the line
 on the ink at 5% (7%), with no bar. The changed tokens of a replaced line are marked, each
 changed run one mark at the ink's 30%, and lines whose tokens are the same with other

@@ -29,9 +29,10 @@ import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
 // since the merge base) to pick from, the files they changed as a tree, and one file at a time
-// opened into its changes, or the tree expanded into every file's changes one after another; or a compare an agent showed, a head's commits since it left a base,
-// which has no uncommitted work. Read-only. What was picked and opened is kept by item; the files read
-// are the backend's, kept until each changes again.
+// opened into its changes, or the tree expanded into every file's changes one after another; or
+// a compare an agent showed, a head's commits since it left a base, which has no uncommitted
+// work. Read-only. What was picked and opened is kept by item; the files read are the backend's,
+// kept until each changes again.
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
 
@@ -184,14 +185,20 @@ export const ChangesViewer = ({
     const box = scroller.current
     moving.current = null
     if (!move || !box) return
-    const anchor =
-      move.top === undefined
-        ? undefined
-        : [...box.querySelectorAll<HTMLElement>("[data-path]")].find(
-            (each) =>
-              each.dataset.path === move.top &&
-              each.matches(move.kind === "expand" ? ".changes-stack-file" : ".diff-file"),
-          )
+    const drawn = new Map(
+      [
+        ...box.querySelectorAll<HTMLElement>(
+          move.kind === "expand" ? ".changes-stack-file" : ".diff-file",
+        ),
+      ].map((each) => [each.dataset.path, each]),
+    )
+    // A file in a folded folder has no row: the nearest drawn before it stands for it.
+    const at = order.findIndex((file) => file.path === move.top)
+    const anchor = order
+      .slice(0, at + 1)
+      .toReversed()
+      .map((file) => drawn.get(file.path))
+      .find((each) => each !== undefined)
     const was = move.top === undefined ? undefined : move.from.get(move.top)
     box.scrollTop = 0
     if (anchor && was)
@@ -199,7 +206,7 @@ export const ChangesViewer = ({
         anchor.getBoundingClientRect().top - Math.max(was.top, box.getBoundingClientRect().top)
     if (move.kind === "expand") expandFrom(box, move.from)
     else collapseFrom(box, move.from)
-  }, [expanded])
+  }, [expanded, order])
   const shutFile = useCallback(
     (path: string) =>
       update((now) => ({
@@ -210,12 +217,14 @@ export const ChangesViewer = ({
       })),
     [update],
   )
-  const seeFile = useCallback(
-    (path: string) => {
-      if (!read.has(path)) markRead(path)
-    },
-    [markRead, read],
-  )
+  // The same each render, so a file marked read does not draw every file again.
+  const reading = useRef({ read, markRead })
+  useEffect(() => {
+    reading.current = { read, markRead }
+  })
+  const seeFile = useCallback((path: string) => {
+    if (!reading.current.read.has(path)) reading.current.markRead(path)
+  }, [])
   // J and K step to the next file's heading, or back to this one's, then the one before.
   const jump = (delta: number) => {
     const box = scroller.current

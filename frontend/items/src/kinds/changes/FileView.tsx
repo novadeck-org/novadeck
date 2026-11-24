@@ -2,7 +2,7 @@ import type { ChangeFileRun, ItemId } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { highlightLines, languageOf, type HighlightedLine } from "@novadeck/viewers/code"
 import { ChevronDown, ChevronLeft, ChevronUp } from "lucide-react"
-import { useEffect, useMemo, useState, type Ref } from "react"
+import { memo, useEffect, useMemo, useState, type Ref } from "react"
 
 import type { ItemStore } from "../../store/item-store"
 import {
@@ -182,7 +182,7 @@ const ChangeBlock = ({
   )
 }
 
-export const RunBody = ({
+const RunBodyOf = ({
   run,
   layout,
   path,
@@ -223,6 +223,9 @@ export const RunBody = ({
     </div>
   )
 }
+
+// Drawn again only for a new run or layout, not for each change of what is around it.
+export const RunBody = memo(RunBodyOf)
 
 /** What a file's view shows of its diff as read: the run and its layout, its counts, a notice in
  * place of its lines, a summary, and the name it was renamed from. */
