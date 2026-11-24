@@ -46,11 +46,14 @@ export const pi: AgentSetup = {
   running: /Working/,
   // A prompt given mid-turn shows dim above the box as `Steering: <prompt>`, until the turn's
   // tool calls end (probed 2026-11-24, 1.6.0, busy.probe.json `steerQueued`); an image's path,
-  // which goes in its box as text, leads it.
+  // which goes in its box as text, leads it, and a row too long for the screen ends cut, `...`
+  // (Windows CI's long upload path, 2026-11-24), where the prompt's words can't be seen.
   queued: (prompt) =>
-    new RegExp(`Steering: (?:\\S+ )?${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
-  // Under what is queued: `↳ Alt+Up to edit all queued messages`.
-  queueHint: /↳ Alt\+Up to edit all queued messages/,
+    new RegExp(
+      `Steering: (?:(?:\\S+ )?${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|\\S+\\.\\.\\.(?:\\n|$))`,
+    ),
+  // Under what is queued: `↳ Alt+Up to edit all queued messages` (`Alt+Q` on Windows, Windows CI 2026-11-24).
+  queueHint: /↳ Alt\+(?:Up|Q) to edit all queued messages/,
   // Escape puts queued messages back in its box a blank line apart (busy.probe.json `altUp`).
   queuedJoin: "\n\n",
   // Seeded with `folderTrusted: false`, the project holds `.pi/settings.json`, which it asks to
