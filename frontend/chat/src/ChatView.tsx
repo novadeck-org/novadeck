@@ -705,9 +705,8 @@ const ChatBody = ({
   // An agent starting shows its own screen once its start takes a while, as one held at a
   // folder-trust screen of its own: a quick start shows none of it.
   const startingLong = useHeldFor(starting, startScreenMs)
-  const unproven = starting
-    ? { reason: "starting" as const }
-    : session === null
+  const unproven =
+    session === null
       ? rest === false
         ? { reason: "screen" as const }
         : null
@@ -762,13 +761,14 @@ const ChatBody = ({
                 </button>
               )}
               {empty &&
+                !starting &&
                 (unproven ? (
                   <Unproven
                     reason={unproven.reason}
                     agent={name}
                     // One copy of the rows, the one that takes keys: a slice of its own, which
                     // draws under the log, is the screen's rows already.
-                    screen={slice === null && (!starting || startingLong) ? screen : null}
+                    screen={slice === null ? screen : null}
                     below={slice !== null}
                     onShowTerminal={onAnswerInTerminal}
                   />
@@ -800,6 +800,16 @@ const ChatBody = ({
                   onShowTerminal={onAnswerInTerminal}
                 />
               </ThumbsContext.Provider>
+              {starting && (
+                // After what the person sent meanwhile, and a resumed session's history.
+                <Unproven
+                  reason="starting"
+                  agent={name}
+                  screen={startingLong ? screen : null}
+                  below={false}
+                  onShowTerminal={onAnswerInTerminal}
+                />
+              )}
               {(status || listed.length > 0) && (
                 // While the agent works, or a shell runs, the log's last rows: the turn's clock and
                 // stop and a line for each shell. They scroll with the log.

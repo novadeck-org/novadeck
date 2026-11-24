@@ -475,6 +475,31 @@ describe("a chat with nothing to show", () => {
       expect(container.querySelector(".chat-live")).toBeNull()
     })
 
+    it("still says so with what the person sent meanwhile, and over a resumed session", async () => {
+      const view = rows("Resuming…")
+      const sent = inApp(createStore({ ...fresh, ...unbound, rest: false, screen: view }), {
+        starting: true,
+        // It waits for the agent: nothing answers yet.
+        send: () => new Promise(() => {}),
+      })
+      set(sent.container.querySelector("textarea")!, "hello")
+      await send(sent.container)
+      expect(bubbles(sent.container).map(([text]) => text)).toEqual(["hello"])
+      expect(sent.container.querySelector(".chat-unproven")?.textContent).toContain(
+        "Claude is starting.",
+      )
+      act(() => void vi.advanceTimersByTime(startScreenMs))
+      expect(sent.container.querySelector(".chat-live[data-inline]")?.textContent).toContain(
+        "Resuming…",
+      )
+      const resumed = inApp(createStore({ ...fresh, items: [userItem("Earlier words")] }), {
+        starting: true,
+      })
+      expect(resumed.container.querySelector(".chat-unproven")?.textContent).toContain(
+        "Claude is starting.",
+      )
+    })
+
     it("shows its own screen once its start takes a while, at the foot of its rows", () => {
       const view = rows("Do you trust the files in this folder?", "1. Yes", "2. No")
       const { container } = inApp(

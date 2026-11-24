@@ -348,6 +348,13 @@ for (const setup of setups)
       },
     )
 
+    e2e(setup)("says none for its commands that start no session", async ({ e2e: run }) => {
+      const t = await run.deck.open(`${setup.agent} --version`)
+      expect(t.summary().expecting ?? null).toBeNull()
+      await sleep(2000)
+      expect(t.summary().expecting ?? null).toBeNull()
+    })
+
     e2e(setup)("says none once its start comes to nothing", async ({ e2e: run }) => {
       // A program named after the agent that exits at once, as a failed start does.
       const folder = join(run.sandbox.root, "failing")

@@ -3212,10 +3212,12 @@ request stands behind it.
 While an agent starts, the chat shows from the start, so what the person types as it starts
 stays in the chat's box rather than landing in the agent's own as it draws. The startup watch
 tells which agent starts as `TerminalSummary.expecting`: the one the terminal was opened or
-woken to run, or one the person typed in its shell (its shim's word, a few dozen milliseconds
-after Enter), until a session binds, its prompt is known to show (`ready`), or its own box has
+woken to run for a session (not an agent's other commands, as `codex login`: `sessionLaunch`),
+or one the person typed in its shell (its shim's word, which it says only of a session, a few
+dozen milliseconds after Enter), until a session binds, its prompt is known to show (`ready`), or its own box has
 stood a delay (an agent whose harness tells neither); and none once the startup command
-ends with no agent, as a failed start does. Meanwhile the chat says the agent is starting, and a
+ends with no agent, as a failed start does. Its box having stood ends it for good, whatever shows
+over it later. Meanwhile the chat says the agent is starting, after anything already in it, and a
 prompt sent from it waits in the chat's queue until the agent can take it (`agentStarting`). Its
 own screen shows in the chat once the start has taken three seconds (`startScreenMs`), its keys
 passed to it (`agents.keys`) where the person clicks it, so a folder-trust or sign-in screen is

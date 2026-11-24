@@ -1314,10 +1314,7 @@ describe("runner backend", () => {
             terminalId,
             process: "claude",
           })
-          // Running, with nothing heard from it: the startup watch may tell it starts meanwhile.
-          const status = statusOf(app, terminalId).at(-1)?.status
-          expect(status).toMatchObject({ state: "running" })
-          expect(status).not.toHaveProperty("agent")
+          expect(statusOf(app, terminalId).at(-1)?.status).toEqual({ state: "running" })
         }, eventually)
         await typeInto(runner.client, terminalId, "kill SIGKILL\r")
         await vi.waitFor(

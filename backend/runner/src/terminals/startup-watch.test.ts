@@ -285,6 +285,26 @@ describe("the startup watch", () => {
         expect(changed).toBe(1)
       })
 
+      it("tells none for an agent's command that starts no session", async () => {
+        record.summary = { ...record.summary, command: "codex login", expecting: null }
+        drawn = shown(["Signing in…"], false)
+        await pass(3000)
+        expect(record.summary.expecting).toBeNull()
+        expect(changed).toBe(0)
+        record.summary = { ...record.summary, command: null }
+      })
+
+      it("doesn't tell it again once its box stood, whatever shows over it", async () => {
+        drawn = codexScreens.prompt
+        await pass(delayMs + 2000)
+        expect(record.summary.expecting).toBeNull()
+        // A menu of its own over the box, or a screen raised over it a moment later.
+        drawn = shown(["/model", "  gpt-6"])
+        await pass(3000)
+        expect(record.summary.expecting).toBeNull()
+        expect(changed).toBe(1)
+      })
+
       it("ends it once its prompt is known to show, or a session binds", async () => {
         await pass(1000)
         expect(record.summary.expecting).toBe("codex")
