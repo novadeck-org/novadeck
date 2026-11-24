@@ -131,6 +131,8 @@ export const shares = (wanted: readonly number[], total: number): number[] => {
   return out
 }
 
+const rulesText = "rules for the agent"
+
 const moreText = (count: number): string => `${gap}+${count} more`
 
 /**
@@ -273,7 +275,7 @@ export const layoutBlock = (
   const tail: Run[][] = []
   if ((options.extra ?? 0) > 0)
     tail.push([{ text: cut(`+${options.extra} more`, width), tone: dim }])
-  if (rules) tail.push([{ text: cut("rules for the agent", width), tone: dim }])
+  if (rules) tail.push([{ text: cut(rulesText, width), tone: dim }])
   // Notices that follow one another say one row, as on a ring row: one badge, each line once.
   const groups = groupsOf(parts)
   const room = rows - tail.length
@@ -349,13 +351,15 @@ export const layoutFull = (
       out.push(layoutRing(group, width))
       continue
     }
-    lines.forEach((line, index) =>
+    // Each line wrapped beside the badge, under where its words start.
+    const rows = lines.flatMap((line) => wrapText(line, width - badgeWidth - 1))
+    rows.forEach((row, index) =>
       out.push([
         index === 0
           ? { text: badgeText, tone: ink, badge: true }
           : { text: " ".repeat(badgeWidth), tone: dim },
         { text: " ", tone: dim },
-        { text: cut(line, width - badgeWidth - 1), tone: dim, italic: true },
+        { text: row, tone: dim, italic: true },
       ]),
     )
   }
@@ -365,21 +369,22 @@ export const layoutFull = (
   return layoutBlock(parts, width, Math.max(most, 1), { rules: false, extra })
 }
 
-// The words a drawing shows: its runs' text, without its blanks, separators, cuts and counts.
+// How many of the parts' characters a drawing shows: its runs' text, without its blanks,
+// separators, cuts, counts and a block's rules row, which say nothing of the parts.
 const wordsOf = (lines: readonly (readonly Run[])[]): number =>
   lines
+    .filter((runs) => !(runs.length === 1 && runs[0]!.text === rulesText))
     .flat()
     .filter((run) => !run.badge)
     .map((run) => run.text)
     .join("")
     .replace(/\+\d+ more|[\s·…]/g, "").length
 
-/** Whether `lines` show fewer of the parts' words than `layoutFull` does at `width`. */
-export const hidesWords = (
+/** Whether `full` (as `layoutFull` lays the parts out) shows more of their words than `lines`. */
+export const showsMore = (
+  full: readonly (readonly Run[])[],
   lines: readonly (readonly Run[])[],
-  parts: readonly RingPart[],
-  width: number,
-): boolean => parts.length > 0 && wordsOf(lines) < wordsOf(layoutFull(parts, width))
+): boolean => wordsOf(full) > wordsOf(lines)
 
 /**
  * Whether a block of `rows` rows gives each of the parts a row of its own, with a row for the

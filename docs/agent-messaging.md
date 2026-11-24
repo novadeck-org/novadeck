@@ -2844,11 +2844,14 @@ that row (never another row). The harness's own screen is untouched, and copying
 - **Opened in full on a click.** A drawing whose rows don't show all its words (a message cut with
   `…`, or ones counted in `+N more`) takes a pointer cursor, and a plain click on it opens it in
   place: every part in full over as many rows as it needs, each message wrapped under its sender,
-  notices one badge with a row per line, then the count beyond the 8 parts, framed, from its first
-  row down (up from the screen's foot when fewer rows are below, at most the screen's height). It
-  covers the rows below it until a click anywhere, a key typed or its drawing being dropped closes
-  it; it takes its own clicks, so none reaches the program under it. A drag that selects and a double
-  click stay the terminal's. The runner's cut at 240 characters still holds.
+  notices one badge with their lines wrapped beside it, then the count beyond the 8 parts, framed,
+  from its first row down (up from the screen's foot when fewer rows are below, at most the
+  screen's height; a drawing opens only where that shows more than its own rows). It opens 300 ms
+  after the click, once no second press followed: a double click (and a drag that selects) stays the
+  terminal's. It covers the rows below it until a press anywhere (outside the terminal too), a key,
+  a composition or a paste, or its drawing being dropped closes it. A press on it, and where the
+  program has the mouse (a TUI's mouse tracking) the press that opens or closes it, never reaches
+  the program; there it opens on the press. The runner's cut at 240 characters still holds.
 
 ### Message states
 

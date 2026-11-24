@@ -437,6 +437,24 @@ describe("opening a ring row in full on a click", () => {
     ),
     agent("newtz", "Done with the lexer; the fixtures are as they were.", 4),
   ]
+  // The real screen replayed, and where a click on its ring row lands.
+  const ringed = async (harness: string) => {
+    const played = await replay({ harness, cols: "80", name: "ring", renderer: "dom", told })
+    const { view, doorbell, element } = played
+    const entry = doorbell.audit().find((each) => each.key.startsWith("ring:"))!
+    const piece = entry.pieces[0]!
+    const screen = element.querySelector<HTMLElement>(".xterm-screen")!
+    const box = screen.getBoundingClientRect()
+    const cell = { w: box.width / view.terminal.cols, h: box.height / view.terminal.rows }
+    view.terminal.scrollToLine(Math.max(0, piece.row - 10))
+    await frame()
+    const position = {
+      x: (piece.x + 4) * cell.w,
+      y: (piece.row - view.terminal.buffer.active.viewportY + 0.5) * cell.h,
+    }
+    return { ...played, entry, screen, cell, position }
+  }
+
   for (const harness of harnesses)
     it(`opens and closes over ${harness}'s screen at 80 columns`, async () => {
       const { view, doorbell, element, bad } = await replay({
@@ -462,6 +480,7 @@ describe("opening a ring row in full on a click", () => {
       await userEvent.hover(screen, { position })
       expect(screen.style.cursor).toBe("pointer")
       await userEvent.click(screen, { position })
+      await expect.poll(() => doorbell.opened()).toBeDefined()
       const panel = element.querySelector<HTMLElement>("[data-novadeck-doorbell-open]")!
       expect(panel).not.toBeNull()
       const said = doorbell.opened()!.join(" ").replace(/\s+/g, " ")
@@ -476,4 +495,37 @@ describe("opening a ring row in full on a click", () => {
       expect(doorbell.opened()).toBeUndefined()
       expect(element.querySelector("[data-novadeck-doorbell-open]")).toBeNull()
     })
+
+  it("leaves a double click the terminal's: both presses reach it, nothing opens", async () => {
+    const { view, doorbell, screen, position } = await ringed("claude")
+    // What xterm's own listener on its element hears (a double click's second press selects a word).
+    const heard: number[] = []
+    const hear = (event: MouseEvent): void => void heard.push(event.detail)
+    view.terminal.element!.addEventListener("mousedown", hear)
+    await userEvent.dblClick(screen, { position })
+    // Past the wait a single click opens after.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    view.terminal.element!.removeEventListener("mousedown", hear)
+    expect(heard).toContain(2)
+    expect(doorbell.opened()).toBeUndefined()
+  })
+
+  it("keeps the presses that open and close it from a program that has the mouse", async () => {
+    const { view, doorbell, element, screen, position } = await ringed("claude")
+    const sent: string[] = []
+    const listening = view.terminal.onData((data) => sent.push(data))
+    // The program asks for presses (X10 and SGR reports).
+    await writeTo(view.terminal, "\x1b[?1000h\x1b[?1006h")
+    await userEvent.click(screen, { position })
+    expect(doorbell.opened()).toBeDefined()
+    await userEvent.click(element.querySelector<HTMLElement>("[data-novadeck-doorbell-open]")!)
+    expect(doorbell.opened()).toBeUndefined()
+    expect(sent.filter((data) => data.startsWith("\x1b[<") || data.startsWith("\x1b[M"))).toEqual(
+      [],
+    )
+    // A press off the drawings is the program's, as before.
+    await userEvent.click(screen, { position: { x: 4, y: 4 } })
+    expect(sent.some((data) => data.startsWith("\x1b[<"))).toBe(true)
+    listening.dispose()
+  })
 })

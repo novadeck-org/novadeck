@@ -11,10 +11,10 @@ import type {
 import { badgeOf, dimmed, legible } from "./doorbell-colour.js"
 import {
   blockFits,
-  hidesWords,
   layoutBlock,
   layoutFull,
   layoutRing,
+  showsMore,
   type RingPart,
   type Run,
   type Tone,
@@ -664,6 +664,7 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
 
   const remove = (entry: Entry): void => {
     if (opened?.entry === entry) close()
+    onLeave()
     for (const piece of entry.pieces) {
       piece.alt?.remove()
       piece.decoration?.dispose()
@@ -744,7 +745,13 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
       more: hit.more,
       x: left,
       width,
-      opens: pieces.length > 0 && hidesWords(lines, hit.parts, width),
+      // Opened, it shows more than its rows do: at most a screen's rows, as the opened drawing has.
+      opens:
+        pieces.length > 0 &&
+        showsMore(
+          layoutFull(hit.parts, width, { extra: hit.more, most: terminal.rows }),
+          lines.slice(0, pieces.length),
+        ),
     })
     stats.drawn += 1
     bind()
@@ -806,15 +813,8 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     element.style.cssText =
       "position:absolute;z-index:8;pointer-events:auto;cursor:pointer;user-select:none;"
     element.dataset["novadeckDoorbellOpen"] = entry.key
-    element.addEventListener("mousedown", (event) => {
-      event.preventDefault()
-      event.stopPropagation()
-    })
-    element.addEventListener("click", (event) => {
-      event.stopPropagation()
-      close()
-    })
     host.append(element)
+    document.addEventListener("mousedown", onOutside, true)
     opened = {
       entry,
       element,
@@ -824,8 +824,15 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
   }
 
   const close = (): void => {
-    opened?.element.remove()
+    if (!opened) return
+    opened.element.remove()
     opened = undefined
+    document.removeEventListener("mousedown", onOutside, true)
+  }
+
+  // A press outside the terminal (another pane, the sidebar) closes the opened drawing too.
+  const onOutside = (event: MouseEvent): void => {
+    if (!(event.target instanceof Node) || !terminal.element?.contains(event.target)) close()
   }
 
   // The drawing a click on the cell at buffer row `row`, column `col` would open.
@@ -864,18 +871,57 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     return { row: buffer().viewportY + row, col }
   }
 
-  // A plain click on a drawing that doesn't show all its words opens it; a click anywhere closes
+  // Whether the program has the mouse (a TUI's mouse tracking): xterm then sends it every press.
+  const tracking = (): boolean => terminal.modes.mouseTrackingMode !== "none"
+
+  // A plain click on a drawing that doesn't show all its words opens it; a press anywhere closes
   // the one open. A drag that selects, a double click and other buttons are the terminal's own.
+  // Pressed before xterm hears it (capture): a press on the opened drawing, or one that opens or
+  // closes a drawing while the program has the mouse, never reaches the program; a double click's
+  // second press closes it and goes on, so the word under it is selected as before.
   let pointing = false
-  const onClick = (event: MouseEvent): void => {
-    if (event.button !== 0 || event.detail > 1) return
+  // The press closed the opened drawing: its click opens nothing.
+  let closing = false
+  // A click opens its drawing once no second press has followed it: the second press of a double
+  // click lands where it would open, and the browser counts a press on another element as a first.
+  const doubleMs = 300
+  let pending: ReturnType<typeof setTimeout> | undefined
+  const cancel = (): void => {
+    clearTimeout(pending)
+    pending = undefined
+  }
+  const onPress = (event: MouseEvent): void => {
+    closing = false
+    cancel()
+    if (event.button !== 0) return
     if (opened) {
+      const onIt = event.target instanceof Node && opened.element.contains(event.target)
       close()
+      closing = true
+      if (event.detail > 1) return
+      if (onIt || tracking()) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
       return
     }
+    if (!tracking() || event.detail > 1) return
+    const cell = cellAt(event)
+    if (!cell || !entryAt(cell.row, cell.col)) return
+    event.preventDefault()
+    event.stopPropagation()
+    openAt(cell.row, cell.col)
+    closing = true
+  }
+  const onClick = (event: MouseEvent): void => {
+    if (closing || event.button !== 0 || event.detail > 1 || tracking()) return
     if (terminal.hasSelection()) return
     const cell = cellAt(event)
-    if (cell) openAt(cell.row, cell.col)
+    if (!cell || !entryAt(cell.row, cell.col)) return
+    pending = setTimeout(() => {
+      pending = undefined
+      if (!terminal.hasSelection()) openAt(cell.row, cell.col)
+    }, doubleMs)
   }
   const onMove = (event: MouseEvent): void => {
     const screen = screenOf()
@@ -900,7 +946,12 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
     const element = terminal.element
     if (bound || !element) return
     bound = element
+    element.addEventListener("mousedown", onPress, true)
     element.addEventListener("click", onClick)
+    // Typing closes the opened drawing: keys (a shortcut the app takes included), composing, a paste.
+    terminal.textarea?.addEventListener("keydown", close, true)
+    terminal.textarea?.addEventListener("compositionstart", close)
+    terminal.textarea?.addEventListener("paste", close, true)
     element.addEventListener("mousemove", onMove)
     element.addEventListener("mouseleave", onLeave)
   }
@@ -1068,8 +1119,6 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
       scanAll()
       forceScan = true
     }),
-    // A key typed closes the opened drawing: the person is back at the box.
-    terminal.onKey(() => close()),
     terminal.onScroll(() => placeOpened()),
     terminal.onSelectionChange(() => {
       const position = terminal.getSelectionPosition()
@@ -1133,7 +1182,12 @@ export const attachDoorbell = (terminal: Terminal, options: DoorbellOptions): Do
       subscriptions.forEach((subscription) => subscription.dispose())
       dropAll()
       close()
+      cancel()
+      bound?.removeEventListener("mousedown", onPress, true)
       bound?.removeEventListener("click", onClick)
+      terminal.textarea?.removeEventListener("keydown", close, true)
+      terminal.textarea?.removeEventListener("compositionstart", close)
+      terminal.textarea?.removeEventListener("paste", close, true)
       bound?.removeEventListener("mousemove", onMove)
       bound?.removeEventListener("mouseleave", onLeave)
       onLeave()

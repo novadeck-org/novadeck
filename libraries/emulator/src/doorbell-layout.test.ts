@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   blockFits,
-  hidesWords,
   layoutBlock,
   layoutFull,
   layoutRing,
   shares,
+  showsMore,
   type RingPart,
   type Run,
 } from "./doorbell-layout.js"
@@ -309,14 +309,31 @@ describe("a drawing opened in full", () => {
   })
 
   it("is worth opening only where the drawing doesn't show all the words", () => {
-    const short = [agent("newtz", "Start on the parser tests")]
-    expect(hidesWords([layoutRing(short, 80)], short, 80)).toBe(false)
-    const two = [agent("newtz", "Start on it"), agent("hushz", "Done")]
-    expect(hidesWords([layoutRing(two, 80)], two, 80)).toBe(false)
-    const long = [agent("newtz", "word ".repeat(30))]
-    expect(hidesWords([layoutRing(long, 60)], long, 60)).toBe(true)
+    const opens = (parts: readonly RingPart[], cols: number): boolean =>
+      showsMore(layoutFull(parts, cols), [layoutRing(parts, cols)])
+    expect(opens([agent("newtz", "Start on the parser tests")], 80)).toBe(false)
+    expect(opens([agent("newtz", "Start on it"), agent("hushz", "Done")], 80)).toBe(false)
+    expect(opens([agent("newtz", "word ".repeat(30))], 60)).toBe(true)
     const many = ["a", "b", "c", "d"].map((handle) => agent(handle, "Start on the parser tests"))
-    expect(hidesWords([layoutRing(many, 80)], many, 80)).toBe(true)
-    expect(hidesWords([layoutRing([], 80)], [], 80)).toBe(false)
+    expect(opens(many, 80)).toBe(true)
+    expect(opens([], 80)).toBe(false)
+  })
+
+  it("opens a block that cuts a few characters, its rules row saying none of the words", () => {
+    for (let n = 20; n <= 28; n += 1) {
+      const parts = [agent("newtz", `aaaaaaaa${" bb".repeat(n)}`)]
+      const block = layoutBlock(parts, 40, 3)
+      const cutShort = block.flat().some((run) => run.text === "…")
+      expect(showsMore(layoutFull(parts, 40), block)).toBe(cutShort)
+    }
+  })
+
+  it("wraps a notice's line in full beside its badge", () => {
+    const rows = layoutFull([notice("You notice shared resources are busy right now.")], 30)
+    expect(rows.map((runs) => text(runs).trimEnd())).toEqual([
+      " novadeck  You notice shared",
+      "           resources are busy",
+      "           right now.",
+    ])
   })
 })
