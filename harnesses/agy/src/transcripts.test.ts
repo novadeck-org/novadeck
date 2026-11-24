@@ -52,6 +52,21 @@ describe("what Antigravity says between turns", () => {
     expect(decoded(prompt("Go on"))[0]).toMatchObject({ note: { type: "mode", mode: "not-plan" } })
   })
 
+  // As a local 1.5.16 conversation holds it (2026-11-24), and as CI's 1.5.13 wrote one.
+  it("skips a failed model call", () => {
+    const retried = {
+      step_index: 1,
+      source: "SYSTEM",
+      type: "ERROR_MESSAGE",
+      status: "DONE",
+      error:
+        "API error (attempt 1): transport error (Unavailable, HTTP 503): No capacity available",
+      created_at: "2026-11-24T08:36:53Z",
+    }
+    expect(shapes(JSON.stringify(retried)).map(({ verdict }) => verdict)).toEqual(["skipped"])
+    expect(decoded(retried)).toEqual([])
+  })
+
   // Probed 2026-11-18 (1.5.9) by resuming a conversation of such steps under each verbosity: the
   // terminal draws a response's `thinking` as "Thought for 5s, 454 tokens" and one line of the
   // thought, or in its low verbosity as a token count; its whole text only once the person

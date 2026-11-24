@@ -2,6 +2,7 @@ import { commandFolder } from "@novadeck/harness-core/decode"
 import type { ToolKind } from "@novadeck/harness-core/events"
 import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
+  count,
   novadeckTool,
   oneLine,
   otherRun,
@@ -188,6 +189,11 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         title: "Workflow",
         detail: oneLine(textField(fields, "Description", "ScriptPath")),
       }
+    // update_steps (1.5.16) shows the person a live checklist, each call the whole list:
+    // `steps[{title, status}]`, as its schema in the request 1.5.16 sends says. It is
+    // Codex's update_plan, and shows its row.
+    case "update_steps":
+      return { kind: "plan", title: "Updated plan", detail: count(fields?.steps, "step") }
     default:
       return undefined
   }
@@ -244,5 +250,7 @@ export const kindOf = (tool: string, args: Fields): ToolKind => {
       ? "novadeck"
       : "work"
   if (tool === "run_command") return sleepOnly(textField(args, ...commandKeys)) ? "waiting" : "work"
+  // Its checklist only tracks, as Codex's update_plan does.
+  if (tool === "update_steps") return "bookkeeping"
   return "work"
 }

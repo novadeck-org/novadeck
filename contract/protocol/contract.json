@@ -1,5 +1,5 @@
 {
-  "revision": 13,
+  "revision": 14,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -719,6 +719,16 @@
                 {"type":"null"}
               ]
             },
+            "expecting": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["claude","codex","agy","opencode","pi","newer"],
+                  "x-open": {"since":3,"unknown":"placeholder"}
+                },
+                {"type":"null"}
+              ]
+            },
             "startup": {
               "anyOf": [
                 {
@@ -1104,7 +1114,7 @@
           "resume": {
             "type": "string",
             "enum": ["claude","codex","agy","opencode","pi"],
-            "x-since": {"pi":13}
+            "x-since": {"pi":14}
           },
           "command": {
             "type": "string",
@@ -1240,6 +1250,16 @@
             ]
           },
           "ready": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
+                "x-open": {"since":3,"unknown":"placeholder"}
+              },
+              {"type":"null"}
+            ]
+          },
+          "expecting": {
             "anyOf": [
               {
                 "type": "string",
@@ -1972,6 +1992,16 @@
                       {"type":"null"}
                     ]
                   },
+                  "expecting": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": ["claude","codex","agy","opencode","pi","newer"],
+                        "x-open": {"since":3,"unknown":"placeholder"}
+                      },
+                      {"type":"null"}
+                    ]
+                  },
                   "startup": {
                     "anyOf": [
                       {
@@ -2691,7 +2721,7 @@
           "resume": {
             "type": "string",
             "enum": ["claude","codex","agy","opencode","pi"],
-            "x-since": {"pi":13}
+            "x-since": {"pi":14}
           }
         },
         "required": ["terminalId","cols","rows"],
@@ -2813,6 +2843,16 @@
             ]
           },
           "ready": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["claude","codex","agy","opencode","pi","newer"],
+                "x-open": {"since":3,"unknown":"placeholder"}
+              },
+              {"type":"null"}
+            ]
+          },
+          "expecting": {
             "anyOf": [
               {
                 "type": "string",
@@ -4591,7 +4631,7 @@
           "agent": {
             "type": "string",
             "enum": ["claude","codex","agy","opencode","pi"],
-            "x-since": {"pi":13}
+            "x-since": {"pi":14}
           },
           "connected": {"type":"boolean"}
         },
@@ -8983,7 +9023,7 @@
           "agent": {
             "type": "string",
             "enum": ["claude","codex","agy","opencode","pi"],
-            "x-since": {"pi":13}
+            "x-since": {"pi":14}
           }
         },
         "additionalProperties": false

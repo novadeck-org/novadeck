@@ -2964,7 +2964,8 @@ output, not that the model acted on it.
     without the plugin) counts as work, which only spares a thread.
   - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`,
     `Skill`, `TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList` and `TaskGet` (never
-    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`.
+    `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`, Antigravity's
+    `update_steps`.
   - Waiting: Claude Code's `ScheduleWakeup`, and a shell call (Claude Code's and Codex's
     `Bash`, Codex's argv form unwrapped from its `bash -lc`, Antigravity's `run_command`)
     whose command is only sleeps, alone or joined by `;`, `&&` or newlines: `sleep` with
@@ -3231,11 +3232,26 @@ screen" (or "Waiting for you to sign in, in its terminal", or what holds its hoo
 tooltip, and the chat view gives way to the screen. It raises no Inbox entry: no
 request stands behind it.
 
-Chat also leaves the terminal visible until the agent's prompt or session is known, even
-before the startup watch has named its screen (as for an agent typed into an ordinary shell). A foreground
-process name alone doesn't make chat ready. The chat preference and draft stay kept, and
-chat appears once its prompt is recognized or its conversation is bound to a session. Hooks
-may stay silent; a process with neither readiness signal keeps showing its terminal.
+While an agent starts, the chat shows from the start, so what the person types as it starts
+stays in the chat's box rather than landing in the agent's own as it draws. The startup watch
+tells which agent starts as `TerminalSummary.expecting`: the one the terminal was opened or
+woken to run for a session (not an agent's other commands, as `codex login`: `sessionLaunch`),
+or one the person typed in its shell (its shim's word, which it says only of a session, a few
+dozen milliseconds after Enter), until a session binds, its prompt is known to show (`ready`), or its own box has
+stood a delay (an agent whose harness tells neither); and none once the startup command
+ends with no agent, as a failed start does. Its box having stood ends it for good, whatever shows
+over it later. Meanwhile the chat says the agent is starting, after anything already in it, and a
+prompt sent from it waits in the chat's queue until the agent can take it (`agentStarting`). Its
+own screen shows in the chat once the start has taken three seconds (`startScreenMs`), its keys
+passed to it (`agents.keys`) where the person clicks it, so a folder-trust or sign-in screen is
+there to answer before the watch names it; nothing of it takes the keys by itself. Once the
+watch names a screen that holds it (`startup`), the chat gives way to the terminal as above.
+
+Without that signal, as for a process the watch never expected, chat leaves the terminal visible
+until the agent's prompt or session is known: a foreground process name alone doesn't make chat
+ready. The chat preference and draft stay kept, and chat appears once its prompt is recognized or
+its conversation is bound to a session. A prompt the chat sent stands for its session meanwhile,
+as Codex, Antigravity and opencode bind theirs only with it, so the chat stays while it goes.
 
 ## Naming
 

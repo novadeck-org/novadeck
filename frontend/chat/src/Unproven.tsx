@@ -4,7 +4,8 @@ import type { Unproven as Reason } from "@novadeck/core/conversation/emptiness"
 import { LiveSlice } from "./Slice"
 
 // What the chat says when nothing shows and nothing proves the conversation empty, by why.
-const words: Record<Reason, (agent: string) => string> = {
+const words: Record<Reason | "starting", (agent: string) => string> = {
+  starting: (agent) => `${agent} is starting. What you send here goes once it's ready.`,
   lost: (agent) =>
     `The conversation isn't showing here: Novadeck can't find or read ${agent}'s transcript of it.`,
   unread: (agent) =>
@@ -25,7 +26,8 @@ export const Unproven = ({
   below,
   onShowTerminal,
 }: {
-  readonly reason: Reason
+  // `starting`: the agent is starting, and its screen shows what it does meanwhile.
+  readonly reason: Reason | "starting"
   readonly agent: string
   readonly screen: ChatSlice | null
   // Whether the agent's own rows show under the log, so not here too.

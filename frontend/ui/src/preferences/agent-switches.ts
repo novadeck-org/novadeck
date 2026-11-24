@@ -29,19 +29,34 @@ export const agentNote = ({
   return undefined
 }
 
+type Limit = NonNullable<AgentSwitch["limited"]>
+
 // What a connected agent's limit means for messaging with it, under its name; nothing
-// where none, or while it changes.
-const limitNotes: Readonly<Record<NonNullable<AgentSwitch["limited"]>, string>> = {
+// where none, or while it changes. The words of a reason, which any agent may have.
+const limitNotes: Readonly<Record<Limit, string>> = {
   "own-status-line":
     "It runs your own status line, which keeps Novadeck's out on Windows, so messages can't wake it until you've sent it a prompt. Removing your status line from its settings lifts this.",
   outdated:
-    "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (opencode upgrade) to turn them on.",
+    "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Updating it turns them on.",
   unsupported:
-    "Novadeck works with opencode 1 so far, so opencode 2 runs without sessions resuming, messages or the chat. Installing opencode 1 (1.18 or later) instead turns them on.",
+    "This version is newer than Novadeck knows, so it runs without sessions resuming, messages or the chat. Installing the release Novadeck works with instead turns them on.",
 }
 
-export const agentLimit = ({ connected, busy, limited }: AgentSwitch): string | undefined =>
-  !connected || busy || limited === undefined ? undefined : limitNotes[limited]
+// The words of one agent for a reason, where the agent's own command or versions say more: they
+// stand in place of the reason's.
+const agentLimitNotes: Readonly<Partial<Record<AgentName, Partial<Record<Limit, string>>>>> = {
+  opencode: {
+    outdated:
+      "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (opencode upgrade) to turn them on.",
+    unsupported:
+      "Novadeck works with opencode 1 so far, so opencode 2 runs without sessions resuming, messages or the chat. Installing opencode 1 (1.18 or later) instead turns them on.",
+  },
+}
+
+export const agentLimit = ({ agent, connected, busy, limited }: AgentSwitch): string | undefined =>
+  !connected || busy || limited === undefined
+    ? undefined
+    : (agentLimitNotes[agent]?.[limited] ?? limitNotes[limited])
 
 // What connecting means, shown above the switches.
 export const agentsExplanation =

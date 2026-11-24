@@ -319,3 +319,65 @@ const signedOut: {
       "it shows no sign-in screen at start: a missing key is a warning row and its first turn's error",
     )(`reads its sign-in screen as signed out${typed(how)}`, async () => {}),
 }
+
+// Which agent a terminal opened to run one starts (`TerminalSummary.expecting`), which the chat
+// shows from the start: told from the open until the agent's prompt shows, and gone once the
+// start comes to nothing, as a plain shell.
+for (const setup of setups)
+  describe.skipIf(!supported)(`${setup.name}, starting`, () => {
+    e2e(setup)("says which agent starts until its prompt shows", async ({ e2e: run }) => {
+      const t = await run.deck.open(setup.agent)
+      expect(t.summary().expecting).toBe(setup.agent)
+      await t.reached("ready", { timeoutMs: 60_000 })
+      await prompted(t, setup)
+      await t.poll(
+        () => (t.summary().expecting === null ? true : undefined),
+        "the start to be told over",
+        10_000,
+      )
+    })
+
+    e2e(setup)(
+      "says which agent the person typed starts, from its shim's word",
+      async ({ e2e: run }) => {
+        const t = await run.deck.open()
+        await t.submit(setup.agent)
+        await t.poll(
+          () => (t.summary().expecting === setup.agent ? true : undefined),
+          "the typed agent's start to be told",
+          30_000,
+        )
+        await t.reached("ready", { timeoutMs: 60_000 })
+        await prompted(t, setup)
+        await t.poll(
+          () => (t.summary().expecting === null ? true : undefined),
+          "the start to be told over",
+          10_000,
+        )
+      },
+    )
+
+    e2e(setup)("says none for its commands that start no session", async ({ e2e: run }) => {
+      const t = await run.deck.open(`${setup.agent} --version`)
+      expect(t.summary().expecting ?? null).toBeNull()
+      await sleep(2000)
+      expect(t.summary().expecting ?? null).toBeNull()
+    })
+
+    e2e(setup)("says none once its start comes to nothing", async ({ e2e: run }) => {
+      // A program named after the agent that exits at once, as a failed start does.
+      const folder = join(run.sandbox.root, "failing")
+      await mkdir(folder, { recursive: true })
+      const windows = process.platform === "win32"
+      const script = join(folder, windows ? `${setup.agent}.cmd` : setup.agent)
+      await writeFile(script, windows ? "@exit /b 1\r\n" : "#!/bin/sh\nexit 1\n", { mode: 0o755 })
+      const t = await run.deck.open(script)
+      expect(t.summary().expecting).toBe(setup.agent)
+      await t.poll(
+        () => (t.summary().expecting === null ? true : undefined),
+        "the failed start to be told over",
+        30_000,
+      )
+      expect(t.summary()).toMatchObject({ agent: null, ready: null, startup: null })
+    })
+  })

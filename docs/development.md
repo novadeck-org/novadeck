@@ -378,7 +378,9 @@ Agents:
   does, and an open pane says "The shells are gone." Rest leaves it at its prompt with nothing running or asking; the Inbox entries it wrote (a done report,
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
-  place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
+  place of whatever ran, whose hooks say nothing), an agent starting ("Agent starting", of the
+  chosen harness, before its prompt shows: its chat says so and holds what is sent), an agent
+  held at its startup screen (of the
   chosen harness) or Antigravity at its sign-in screen, before its first session, Claude Code
   bound at its prompt that says it isn't signed in ("Signed out at its prompt"), Codex held
   by its untrusted hooks ("Hooks not trusted") or the chosen harness with Novadeck's hooks off
