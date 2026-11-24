@@ -161,8 +161,12 @@ ${hooks.map(([event, script]) => `  pi.on(${JSON.stringify(event)}, ${run(script
       "its bash tool takes `command` and `timeout` alone: it waits for the command (docs, 1.6.0)",
     hookedQueue:
       "it queues a prompt given mid-turn only once every extension's `input` handler returned: while a person's slow one runs, nothing shows queued, and an Escape then aborts the turn and the prompt runs as a turn of its own once its handler is done, which Novadeck's extension, whose handler runs first, can't hold back without stopping the person's (probed 2026-11-24, 1.6.0, backups/pi-harness-2026-11-24/rig/slow-queue.mjs)",
-    "hooks.off":
-      "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
+    // Where the platform tells a process's arguments (Linux), a pi started past the shim reads as held
+    // by its hooks (`hooksTrusted`); elsewhere Novadeck can't tell such a launch from any other.
+    ...(process.platform !== "linux" && {
+      "hooks.off":
+        "a pi started past Novadeck's shim has no extension, which only the process's arguments tell, and only Linux gives them (macOS and Windows: not read yet)",
+    }),
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
     mention:

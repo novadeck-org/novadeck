@@ -124,8 +124,17 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
   // The setup's seed turns its plugin off for the launch (OPENCODE_PURE), the one way a
   // person's launch can leave it unloaded without a file of theirs.
   opencode: async () => {},
-  // Never run: a person has no way to launch pi without Novadeck's `-e` extension (`hooks.off`).
+  // Its extension comes with its shim's `-e`, so a launch past the shim has none (`bypassed`).
   pi: async () => {},
+}
+
+/**
+ * What a person's launch changes to start the agent past Novadeck's shim, for a harness whose
+ * hooks are the shim's own and nothing of its files: pi's program by an alias or its full path,
+ * which runs it with no `-e` (an empty NOVADECK_SHIMS says the same to the shim).
+ */
+const bypassed: { readonly [agent in AgentName]?: Readonly<Record<string, string | null>> } = {
+  pi: { NOVADECK_SHIMS: "" },
 }
 
 for (const setup of setups) {
@@ -140,7 +149,9 @@ for (const setup of setups) {
             const t = await launch(
               run,
               how,
-              how === "scripted" ? await wrapped(run, how, setup.agent, {}) : setup.agent,
+              how === "scripted" || bypassed[setup.agent]
+                ? await wrapped(run, how, setup.agent, bypassed[setup.agent] ?? {})
+                : setup.agent,
             )
             const review = setup.trust?.hooks
             if (review) {
