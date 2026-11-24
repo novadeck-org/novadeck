@@ -12,9 +12,26 @@ import { kept } from "./shim.js"
 const resumeGraceMs = 15_000
 
 /**
+ * What a resume names for `--session`: the session's file where its hooks named one, as pi opens a
+ * file in its own folder from any other, where an id from another folder than the session's asks
+ * to fork it first ("Session found in different project … Fork this session into current
+ * directory? [y/N]", probed 2026-11-24, 1.6.0); else its id. Only a file whose path every shell
+ * reads as one plain word, as the resume's words are joined into the command the person's shell
+ * runs: an absolute path to a `.jsonl` file, of letters, digits and `_ . / : @ + = -` (and `\`
+ * as a Windows path's separator).
+ */
+export const resumedBy = (session: string, transcript: string | undefined): string =>
+  transcript !== undefined &&
+  (/^\/[A-Za-z0-9_./:@+=-]+\.jsonl$/.test(transcript) ||
+    /^[A-Za-z]:\\[A-Za-z0-9_.\\:@+=-]+\.jsonl$/.test(transcript))
+    ? transcript
+    : session
+
+/**
  * How pi starts in a terminal. A new session's id is pi's own, which the extension reports as
  * the session starts; a resume names one with `--session`, which opens it in its own folder (pi's
- * `--session-id` would make a new, empty session of that id in another folder: docs/cli.md, 1.6.0).
+ * `--session-id` would make a new, empty session of that id in another folder: docs/cli.md, 1.6.0),
+ * by its file where it can (`resumedBy`).
  */
 export const launch: LaunchProfile = {
   start: ["pi"],
@@ -27,12 +44,12 @@ export const launch: LaunchProfile = {
       : sessionId !== null || (ready && readyMs >= resumeGraceMs)
         ? "failed"
         : "waiting",
-  resume: (session, choice = {}, carried = []) => [
+  resume: (session, choice = {}, carried = [], transcript) => [
     "pi",
     ...choose(choice),
     ...resumeFlags(carried, choice, kept),
     "--session",
-    session,
+    resumedBy(session, transcript),
   ],
   kept: (argv) => keptFlags(argv, kept),
   forgets: (words) => forgottenUnits(words, kept),

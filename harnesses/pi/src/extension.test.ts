@@ -149,6 +149,13 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
   return { file, handlers, tools, sent, entries, emit, reports, answer }
 }
 
+// The marks the extensions wrote of their Stops for the session "s1", beside them.
+const marks = async (): Promise<unknown[]> =>
+  (await readFile(join(root, "stopped", "s1.jsonl"), "utf8").catch(() => ""))
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as unknown)
+
 const context = (overrides: Context = {}): Context => ({
   cwd: "/home/person/project",
   sessionManager: {
@@ -320,6 +327,7 @@ describe("Novadeck's pi extension", () => {
 
   it("goes on in the same run with a Stop's delivery, and tells the run's end once", async () => {
     const pi = await load()
+    const marksBefore = (await marks()).length
     await pi.answer({ Stop: { deliver: "a message came" } })
     await pi.emit("agent_start")
     await pi.emit("message_end", {
@@ -350,6 +358,11 @@ describe("Novadeck's pi extension", () => {
       }),
       expect.objectContaining({ continued: 1 }),
     ])
+    // A mark for each Stop, the continued one's too, as the runner counts one for each.
+    expect((await marks()).slice(marksBefore)).toEqual([
+      { type: "stopped", session_id: "s1", at: expect.any(Number), error: null },
+      { type: "stopped", session_id: "s1", at: expect.any(Number), error: null },
+    ])
   })
 
   it("marks each run's end in a file of Novadeck's, however its Stop's report fared", async () => {
@@ -364,11 +377,7 @@ describe("Novadeck's pi extension", () => {
     await pi.emit("agent_settled", { aborted: true })
     // Beside the extension, never in pi's session file.
     expect(pi.entries).toEqual([])
-    const marks = (await readFile(join(root, "stopped", "s1.jsonl"), "utf8"))
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as unknown)
-    expect(marks.slice(-2)).toEqual([
+    expect((await marks()).slice(-2)).toEqual([
       { type: "stopped", session_id: "s1", at: expect.any(Number), error: "error" },
       { type: "stopped", session_id: "s1", at: expect.any(Number), error: "aborted" },
     ])

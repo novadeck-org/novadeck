@@ -215,7 +215,16 @@ for (const setup of setups) {
 
         const elsewhere = join(run.sandbox.project, inside)
         mkdirSync(elsewhere, { recursive: true })
-        const resume = harness.launch.resume!(id).join(" ")
+        // As the runner resumes it: with the file the session bound with, which a harness may take
+        // for its own (pi opens a file without asking to fork it from another folder).
+        const layout = new RegExp(layouts[setup.agent]!.source.replace("<id>", id))
+        const file = walk(run.sandbox.home).find((path) => layout.test(path))
+        const resume = harness.launch.resume!(
+          id,
+          undefined,
+          undefined,
+          file && join(run.sandbox.home, file),
+        ).join(" ")
         const moved = await run.deck.open(`cd "${elsewhere}" ${sep} ${resume}`)
         await moved.reached("ready", { timeoutMs: 30_000 })
         await prompted(moved, setup, 30_000)

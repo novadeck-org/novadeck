@@ -500,20 +500,43 @@ export default function novadeck(pi) {
     } catch {}
   })
 
-  const stop = (ctx, aborted) => {
+  // That a Stop was told, however its hook fared, in a file of Novadeck's own beside the
+  // extension (never the person's session file, which keeps only what pi and they put there),
+  // a line for each Stop, a continued one's too, as Claude Code writes a stop_hook_summary for
+  // each: a turn whose report never reached Novadeck still ends (transcript-watch.ts reads it).
+  const mark = (ctx, aborted) => {
+    try {
+      const id = ctx.sessionManager.getSessionId()
+      if (!/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/.test(id)) return
+      mkdirSync(join(here, config.stoppedFolder), { recursive: true })
+      appendFileSync(
+        join(here, config.stoppedFolder, id + ".jsonl"),
+        JSON.stringify({
+          type: "stopped",
+          session_id: id,
+          at: Date.now(),
+          error: aborted ? "aborted" : failure ? failure.name : null,
+        }) + "\n",
+      )
+    } catch {}
+  }
+
+  const stop = async (ctx, aborted) => {
     stopped = true
     let usage = null
     try {
       const used = ctx.getContextUsage()
       if (used) usage = { tokens: used.tokens ?? null, window: used.contextWindow ?? null, ...modelOf(ctx) }
     } catch {}
-    return report("Stop", {
+    const answer = await report("Stop", {
       ...where(ctx),
       last_assistant_message: reply,
       error: aborted ? { name: "aborted", message: null } : failure,
       usage,
       continued,
     })
+    mark(ctx, aborted)
+    return answer
   }
 
   // A run's end, while it can still go on: a delivery continues it, in the same run, as Claude
@@ -536,25 +559,6 @@ export default function novadeck(pi) {
     try {
       // An aborted run skips agent_before_settle: its Stop is told here, with nothing to deliver.
       if (!stopped) await stop(ctx, aborted)
-    } catch {}
-    // That the run is over, however its Stop's hook fared, in a file of Novadeck's own beside
-    // the extension (never the person's session file, which keeps only what pi and they put
-    // there): a turn whose report never reached Novadeck still ends (transcript-watch.ts reads
-    // it), as Claude Code's stop_hook_summary and opencode's stopped line end one.
-    try {
-      const id = ctx.sessionManager.getSessionId()
-      if (/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/.test(id)) {
-        mkdirSync(join(here, config.stoppedFolder), { recursive: true })
-        appendFileSync(
-          join(here, config.stoppedFolder, id + ".jsonl"),
-          JSON.stringify({
-            type: "stopped",
-            session_id: id,
-            at: Date.now(),
-            error: aborted ? "aborted" : failure ? failure.name : null,
-          }) + "\n",
-        )
-      }
     } catch {}
     reply = null
     failure = null
