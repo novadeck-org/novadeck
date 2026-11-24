@@ -9,6 +9,7 @@ import type { TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { nextWaitingChange } from "@novadeck/core/terminals/waiting"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
+import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
 import { useTourBusy, useTourOffer } from "@novadeck/tour/TourProvider"
 import {
   memo,
@@ -31,7 +32,6 @@ import {
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter } from "../shell/WorkspaceFooter"
 import { programIcon } from "../terminals/processes/profiles"
-import { useRenderAt } from "../terminals/useRenderAt"
 import { chatOfferDue, selectedAgentCanChat } from "./chat-offer"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"

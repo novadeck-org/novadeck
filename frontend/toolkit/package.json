@@ -62,6 +62,7 @@
     "./ToggleGroup": "./src/ToggleGroup.tsx",
     "./tone.css": "./src/tone.css",
     "./Tooltip": "./src/Tooltip.tsx",
+    "./useRenderAt": "./src/useRenderAt.ts",
     "./views": "./src/views.ts"
   },
   "scripts": {

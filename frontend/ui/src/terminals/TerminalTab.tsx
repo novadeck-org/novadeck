@@ -30,6 +30,7 @@ import {
   sidebarRowWideIconClasses,
 } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
 import { BellOff, Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, type ReactNode } from "react"
 
@@ -38,7 +39,6 @@ import { isProjectWindow } from "./project-window"
 import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
-import { useRenderAt } from "./useRenderAt"
 import {
   windowMenu,
   type MoveTo,

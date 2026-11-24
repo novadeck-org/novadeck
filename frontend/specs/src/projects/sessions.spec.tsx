@@ -269,9 +269,11 @@ describe("sessions sidebar", () => {
       await sidebarPanel("Sessions").click()
 
       await expect.element(sidebar()).toHaveAccessibleName("Sessions")
+      // Its line says the most pressing of what they show; the count is always in its
+      // description, with their names.
       await expect
-        .element(savedSessions().getByRole("listitem").getByText("6 terminals", { exact: true }))
-        .toBeVisible()
+        .element(savedSessions().getByRole("button", { name: /^Open / }))
+        .toHaveAccessibleDescription(/6 terminals: /)
       // The sample workspace has one session, and it is the one shown.
       await expect
         .element(savedSessions().getByRole("button", { name: /^Open / }))
@@ -302,9 +304,7 @@ describe("sessions sidebar", () => {
       await expect
         .element(savedSession(fresh).getByText("0 terminals", { exact: true }))
         .toBeVisible()
-      await expect
-        .element(savedSession(original).getByText("6 terminals", { exact: true }))
-        .toBeVisible()
+      await expect.element(savedSession(original)).toHaveAccessibleDescription(/6 terminals: /)
       await expect.element(workspaceSwitcher()).toHaveTextContent("storefront")
     })
   })

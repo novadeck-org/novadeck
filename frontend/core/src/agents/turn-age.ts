@@ -19,7 +19,12 @@ const unitOf = (elapsed: number): number => (elapsed < hour ? minute : elapsed <
 // doesn't tell when.
 export const turnAge = (terminal: TerminalMetadata, now = Date.now()): string | undefined => {
   const at = endedAt(terminal)
-  if (at === undefined) return undefined
+  return at === undefined ? undefined : shortAge(at, now)
+}
+
+// How long ago `at` was, short, as a tab says its turn's age: "now" within the first minute,
+// then "4m", "2h", "3d".
+export const shortAge = (at: number, now = Date.now()): string => {
   const elapsed = Math.max(0, now - at)
   if (elapsed < minute) return "now"
   const unit = unitOf(elapsed)
@@ -27,11 +32,15 @@ export const turnAge = (terminal: TerminalMetadata, now = Date.now()): string | 
   return `${Math.floor(elapsed / unit)}${suffix}`
 }
 
-// When that age next changes, so a view can render it again; undefined without one.
-export const nextTurnAge = (terminal: TerminalMetadata, now = Date.now()): number | undefined => {
-  const at = endedAt(terminal)
-  if (at === undefined) return undefined
+// When that short age next changes, so a view can render it again.
+export const nextShortAge = (at: number, now = Date.now()): number => {
   const elapsed = Math.max(0, now - at)
   const unit = unitOf(elapsed)
   return at + (Math.floor(elapsed / unit) + 1) * unit
+}
+
+// When that age next changes, so a view can render it again; undefined without one.
+export const nextTurnAge = (terminal: TerminalMetadata, now = Date.now()): number | undefined => {
+  const at = endedAt(terminal)
+  return at === undefined ? undefined : nextShortAge(at, now)
 }

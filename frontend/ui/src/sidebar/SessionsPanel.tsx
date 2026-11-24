@@ -9,12 +9,14 @@ import {
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
+import { nextShortAge, shortAge } from "@novadeck/core/agents/turn-age"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { sidebarListClasses, SidebarItem } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
 import { ArrowRight, Check, Layers2, Pencil, Plus, Trash2, X } from "lucide-react"
-import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sidebarCreateClasses } from "./SidebarPanel"
@@ -217,24 +219,41 @@ const SessionRow = ({
   const lines = mark?.lines ?? []
   const status = mark?.status
   const icon = <Layers2 size={14} strokeWidth={1.5} />
+  // Where a tab holds its @handle: how long ago it was last open, as a tab says its turn's
+  // age, "now" for the open one, nothing for one never opened, kept current. It slides out as
+  // the row's actions slide in (sidebar.css).
+  const visitedAt = active ? null : session.visitedAt
+  const when = active ? "now" : visitedAt === null ? "" : shortAge(visitedAt)
+  useRenderAt(visitedAt === null ? undefined : nextShortAge(visitedAt))
   const detail = (
     <>
-      <span className="shrink-0">{terminalsCount(terminalCount)}</span>
-      {/* It gives way to the actions beside it, never running under them. */}
-      {need ? (
-        <span className="session-running min-w-0 truncate">{need}</span>
-      ) : (
-        session.running > 0 && (
-          <span className="session-running min-w-0 truncate">{session.running} running</span>
-        )
-      )}
+      {/* One glyph wide, as a tab's, so the line starts where a tab's program does. */}
+      <span aria-hidden className="session-glyph inline-block w-[1ch] shrink-0" />
+      {/* The most pressing of what its terminals show, as a tab's line shows its program: what
+          needs the person, else how many run, else how many there are, which the tooltip and
+          description always say. */}
+      <span className="session-state min-w-0 truncate" data-need={need ? true : undefined}>
+        {need ??
+          (session.running > 0 ? `${session.running} running` : terminalsCount(terminalCount))}
+      </span>
+      <span className="session-when shrink-0">{when}</span>
     </>
   )
+  // Room on the detail line for the actions that slide in: a tab's 26px a button, or the
+  // words "Move here".
+  const space = picking
+    ? active
+      ? 0
+      : 84
+    : editing
+      ? 52
+      : 26 * (Number(renamable) + Number(removable))
   return (
     <SidebarItem
       ref={ref}
       handleRef={handleRef}
       className={`sessions-panel-entry${active ? " active" : ""}${editing ? " editing" : ""}${isDragSource ? " dragging" : ""}`}
+      style={space ? ({ "--_sidebar-actions-space": `${space}px` } as CSSProperties) : undefined}
       role="listitem"
       data-workspace-session={session.id}
       data-move-target={picking ? (active ? "here" : "yes") : undefined}
@@ -260,8 +279,18 @@ const SessionRow = ({
           </span>
         )
       }
-      description={[...(mark?.label ? [mark.label] : []), visited, ...lines, preview].join(". ")}
-      tooltip={[session.name, visited, ...lines, preview].join("\n")}
+      description={[
+        ...(mark?.label ? [mark.label] : []),
+        visited,
+        ...lines,
+        `${terminalsCount(terminalCount)}${terminalCount ? `: ${preview}` : ""}`,
+      ].join(". ")}
+      tooltip={[
+        session.name,
+        visited,
+        ...lines,
+        `${terminalsCount(terminalCount)}${terminalCount ? `: ${preview}` : ""}`,
+      ].join("\n")}
       onSelect={onSelect}
       onDoubleClick={renamable && !editing ? onBeginRename : undefined}
       detail={detail}
@@ -279,7 +308,7 @@ const SessionRow = ({
                 onSave={onRename}
                 onCancel={onCancelRename}
               />
-              <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden pr-[52px] whitespace-nowrap text-caption leading-[18px]">
+              <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden pr-[var(--_sidebar-actions-space,52px)] whitespace-nowrap text-caption leading-[18px]">
                 {detail}
               </span>
             </div>
@@ -289,13 +318,15 @@ const SessionRow = ({
       actions={
         picking ? (
           active ? undefined : (
-            <span className="session-move-here flex items-center gap-1" aria-hidden="true">
-              <ArrowRight size={13} strokeWidth={1.5} />
-              Move here
-            </span>
+            <div className="session-slot flex items-center">
+              <span className="session-move-here flex items-center gap-1" aria-hidden="true">
+                <ArrowRight size={13} strokeWidth={1.5} />
+                Move here
+              </span>
+            </div>
           )
         ) : renamable || removable ? (
-          <div className="session-actions flex items-center">
+          <div className="session-actions session-slot flex items-center">
             {editing ? (
               <>
                 <Tooltip content="Save">
