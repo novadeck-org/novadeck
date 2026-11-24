@@ -147,6 +147,25 @@ describe("the shipping gate for pi", () => {
     expect(JSON.parse(denied!.stdout).reason).toContain("request_permit")
   })
 
+  it("reads a command of its PowerShell tool as PowerShell does: any case, with no bash quoting", async () => {
+    const written = { ...pi("GIT.EXE push origin main"), shell: "powershell" as const }
+    expect(JSON.parse((await setup().gate.decide(written))!.stdout)).toMatchObject({
+      decision: "deny",
+    })
+    // Read as bash, the same words are no git: only PowerShell's reading knows them.
+    expect(await setup().gate.decide(pi("GIT.EXE push origin main"))).toBeUndefined()
+    const hidden = {
+      ...pi('echo "a\\"; git push origin main; echo "b"'),
+      shell: "powershell" as const,
+    }
+    expect((await setup().gate.decide(hidden))!.stdout).toContain("deny")
+    const permitted = setup()
+    permitted.permits.give("t", "pr-merge:r/app#5", false, { type: "quote", quote: "merge it" })
+    expect(
+      await permitted.gate.decide({ ...pi("gh.exe pr merge 5"), shell: "powershell" as const }),
+    ).toMatchObject({ stdout: "", permitted: true })
+  })
+
   it("has no bypass to read: a mode it is given changes nothing, and a command that ships nothing is left alone", async () => {
     expect(await setup().gate.decide({ ...pi("gh pr merge 5"), mode: "bypass" })).toMatchObject({
       stdout: expect.stringContaining("deny"),

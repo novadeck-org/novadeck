@@ -12,7 +12,7 @@
  */
 import { isAbsolute, resolve } from "node:path"
 
-import { parseShell, type Simple } from "./words.js"
+import { parseShell, type Shell, type Simple } from "./words.js"
 
 /** What kind of shipping an action is. */
 export type ActionKind =
@@ -121,6 +121,24 @@ const wrappers = new Set([
   "cmd",
 ])
 
+// What PowerShell runs a string or another program through, besides those: its names are read
+// without regard to case.
+const powershellWrappers = new Set([
+  "invoke-expression",
+  "iex",
+  "invoke-command",
+  "icm",
+  "start-process",
+  "saps",
+  "start-job",
+  "sajb",
+  "foreach-object",
+  "%",
+  "invoke-item",
+  "ii",
+  "wsl",
+])
+
 // Anything that moves a ref or the remote, as a verb of git or gh, wherever it is written.
 export const shippingVerbs = [
   "push",
@@ -169,12 +187,13 @@ export const readCommand = async (
   command: string,
   cwd: string,
   lookups: Lookups,
+  shell: Shell = "sh",
 ): Promise<Reading> => {
   if (command.length > maxCommand)
     return shippingText.test(command)
       ? { kind: "ships", actions: [], refusal: "it is too long for Novadeck to read" }
       : { kind: "none" }
-  return await readLine(command, cwd, lookups, 0)
+  return await readLine(command, cwd, lookups, 0, shell)
 }
 
 const readLine = async (
@@ -182,8 +201,9 @@ const readLine = async (
   start: string,
   lookups: Lookups,
   depth: number,
+  shell: Shell,
 ): Promise<Reading> => {
-  const parsed = parseShell(line)
+  const parsed = parseShell(line, shell)
   const actions: Action[] = []
   let refusal: string | undefined
   let remedy: string | undefined
@@ -202,16 +222,18 @@ const readLine = async (
       if (shippingText.test(inner)) refuse("it nests commands too deeply to read")
       continue
     }
-    const read = await readLine(inner, start, lookups, depth + 1)
+    const read = await readLine(inner, start, lookups, depth + 1, shell)
     if (read.kind === "ships")
       refuse("it ships inside a substitution or a subshell, which can't be read")
   }
   let first = true
   let redirected = false
   for (const simple of parsed.commands) {
-    const program = simple.words[0] === undefined ? "" : base(simple.words[0])
+    // PowerShell reads a program's name without regard to case: `GIT.EXE push` runs git.
+    const named = simple.words[0] === undefined ? "" : base(simple.words[0])
+    const program = shell === "powershell" ? named.toLowerCase() : named
     if (!simple.redirects.every(harmless)) redirected = true
-    const here = await readSimple(simple, program, cursor, lookups)
+    const here = await readSimple(simple, program, cursor, lookups, shell)
     if (here.kind === "cd") {
       first = false
       continue
@@ -257,18 +279,33 @@ const readSimple = async (
   program: string,
   cursor: Cursor,
   lookups: Lookups,
+  shell: Shell,
 ): Promise<Simply> => {
   const { words } = simple
   if (words.length === 0) return { kind: "none" }
-  if (program === "cd" || program === "pushd") {
+  // PowerShell's own ways to change folder and to come back: the first read as `cd` is, the
+  // second a move whose destination isn't known.
+  const powershellMoves = new Set(["chdir", "sl", "set-location", "push-location"])
+  if (shell === "powershell" && (program === "pop-location" || program === "popd")) {
+    cursor.readable = false
+    return { kind: "cd" }
+  }
+  if (
+    program === "cd" ||
+    program === "pushd" ||
+    (shell === "powershell" && powershellMoves.has(program))
+  ) {
     const dir = words[1]
     if (words.length === 2 && dir !== undefined && !simple.dynamic && dir !== "-")
       cursor.cwd = isAbsolute(dir) ? dir : resolve(cursor.cwd, dir)
     else cursor.readable = false
     return { kind: "cd" }
   }
-  if (wrappers.has(program)) {
-    return shippingText.test(words.slice(1).join(" ")) || shippingText.test(simple.text)
+  if (wrappers.has(program) || (shell === "powershell" && powershellWrappers.has(program))) {
+    // PowerShell's own words (its aliases, its verbs) are read in lower case.
+    const seen = (text: string): boolean =>
+      shippingText.test(shell === "powershell" ? text.toLowerCase() : text)
+    return seen(words.slice(1).join(" ")) || seen(simple.text)
       ? {
           kind: "ships",
           actions: [],

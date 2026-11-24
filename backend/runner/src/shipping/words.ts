@@ -37,8 +37,17 @@ export type Parsed = {
 
 const operators = ["&&", "||", ";;", ";", "|&", "|", "&"] as const
 
-/** Splits `line` as a shell would. */
-export const parseShell = (line: string): Parsed => {
+/** Which shell's quoting a line is read by: POSIX's, or PowerShell's. */
+export type Shell = "sh" | "powershell"
+
+/**
+ * Splits `line` as a shell would. PowerShell reads a backslash as an ordinary character, and its
+ * escape is the backtick, which this takes as an expansion it can't read (the command is
+ * `dynamic`), its next character kept as it stands: a quote after a backslash closes the string
+ * there, as PowerShell's does, so nothing after it hides inside a quote.
+ */
+export const parseShell = (line: string, shell: Shell = "sh"): Parsed => {
+  const ps = shell === "powershell"
   const commands: Simple[] = []
   const inner: string[] = []
   let dynamicAll = false
@@ -105,7 +114,15 @@ export const parseShell = (line: string): Parsed => {
       }
       continue
     }
-    if (c === "\\") {
+    if (ps && c === "`") {
+      // PowerShell's escape: the next character is a plain one, and the line isn't a static reading.
+      dynamic = dynamicAll = true
+      word += line[at + 1] ?? ""
+      written = true
+      at += 2
+      continue
+    }
+    if (c === "\\" && !ps) {
       if (line[at + 1] === "\n") {
         at += 2
         continue
@@ -128,7 +145,11 @@ export const parseShell = (line: string): Parsed => {
       at += 1
       while (at < n && line[at] !== '"') {
         const d = line[at]!
-        if (d === "\\" && /["\\$`\n]/.test(line[at + 1] ?? "")) {
+        if (ps && d === "`") {
+          dynamic = dynamicAll = true
+          word += line[at + 1] ?? ""
+          at += 2
+        } else if (!ps && d === "\\" && /["\\$`\n]/.test(line[at + 1] ?? "")) {
           if (line[at + 1] !== "\n") word += line[at + 1]
           at += 2
         } else if (d === "$" && line[at + 1] === "(") {
