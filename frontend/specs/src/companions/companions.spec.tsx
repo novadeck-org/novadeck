@@ -269,6 +269,51 @@ describe("The pane in Canvas", () => {
     await expect.poll(() => node.classList.contains("selected")).toBe(false)
     expect(getComputedStyle(reader).pointerEvents).toBe("none")
   })
+
+  context("with its window selected", () => {
+    const width = (): number => terminal("Build Studio").element().getBoundingClientRect().width
+    const ctrlWheel = async (over: Element, deltaY: number): Promise<void> => {
+      await userEvent.keyboard("{Control>}")
+      await userEvent.wheel(over, { delta: { y: deltaY } })
+      await userEvent.keyboard("{/Control}")
+    }
+
+    it("keeps the wheel over the pane, and lets Ctrl+wheel zoom the canvas", async () => {
+      await openShowcase("canvas")
+      await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+      const pane = companionPane("Build Studio")
+      await expect.element(pane).toBeVisible()
+      const before = await settled(width)
+
+      await userEvent.wheel(pane, { delta: { y: -300 } })
+      expect(await settled(width)).toBe(before)
+
+      await ctrlWheel(pane.element(), -100)
+      await expect.poll(width).toBeGreaterThan(before + 20)
+    })
+
+    it("leaves Ctrl+wheel to an image, which zooms itself, not the canvas", async () => {
+      await openShowcase("canvas")
+      await taskbarIcon("Build Studio", "2 images").click()
+      const image = companionPane("Build Studio").getByRole("img")
+      await expect.element(image).toBeVisible()
+      await expect.poll(() => image.element().closest("[data-sized]")).not.toBeNull()
+      const fitted = image.element().getBoundingClientRect().width
+      const before = await settled(width)
+
+      await ctrlWheel(image.element().closest(".image-viewer")!, -100)
+
+      await expect.poll(() => image.element().getBoundingClientRect().width).toBeGreaterThan(fitted)
+      expect(await settled(width)).toBe(before)
+
+      // The image keeps its zoom for the next time it shows, in a later test too: fitted again.
+      const zoom = companionPane("Build Studio").getByRole("button", {
+        name: /^Zoomed to .+ Back to fit$/,
+      })
+      await zoom.click()
+      await expect.poll(() => zoom.query()).toBeNull()
+    })
+  })
 })
 
 describe("The pane in Grid", () => {
