@@ -17,6 +17,15 @@ describe("An agent's switch", () => {
     expect(agentNote(antigravity)).toBeUndefined()
   })
 
+  it("gives opencode's own words for its version limits, and any other agent the reason's", () => {
+    const opencode: AgentSwitch = { ...antigravity, agent: "opencode", limited: "outdated" }
+    expect(agentLimit(opencode)).toMatch(/opencode upgrade/)
+    expect(agentLimit({ ...opencode, limited: "unsupported" })).toMatch(/opencode 2/)
+    for (const agent of ["claude", "codex", "agy"] as const)
+      for (const limited of ["outdated", "unsupported"] as const)
+        expect(agentLimit({ ...antigravity, agent, limited })).not.toMatch(/opencode/i)
+  })
+
   it("says nothing of a limit once off, while it changes, or without one", () => {
     expect(agentLimit({ ...antigravity, connected: false })).toBeUndefined()
     expect(agentLimit({ ...antigravity, busy: true })).toBeUndefined()
