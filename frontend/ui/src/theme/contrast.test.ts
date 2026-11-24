@@ -14,8 +14,8 @@
 //
 // A token is read from the theme's own block, then its shared block, then (for a scheme
 // other than the first) laid over the first scheme's, as the cascade does. A `var()` alias
-// resolves in that same set, and Coolant's grounds, `oklch(from var(--color-paper)
-// calc(l - n) c h)`, are computed. A failure names the theme, scheme, pair and ratio.
+// resolves in that same set, and Coolant's grounds, `oklab(from var(--color-paper)
+// calc(l - n) a b)`, are computed. A failure names the theme, scheme, pair and ratio.
 // `exceptions` lists the pairs a theme misses on purpose, each with its measured ratio and
 // reason. A pair under one may pass on its own, so a token can improve ground by ground;
 // once every pair under an exception passes, the test fails until the exception goes.
@@ -134,14 +134,15 @@ const colourOf = (tokens: Declarations, name: string, seen: string[] = []): Rgb 
     const n = parseInt(hex[1]!, 16)
     return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
   }
-  const relative = /^oklch\(from (var\(--[\w-]+\)) calc\(l ([+-]) ([\d.]+)\) c h\)$/.exec(value)
+  // Lightness moved in oklab keeps a and b, the same as moving it in oklch keeps chroma and hue.
+  const relative = /^oklab\(from (var\(--[\w-]+\)) calc\(l ([+-]) ([\d.]+)\) a b\)$/.exec(value)
   if (relative) {
     const base = colourOf(tokens, /--[\w-]+/.exec(relative[1]!)![0], [...seen, name])
     const [l, c, h] = toOklch(base)
     return fromOklch(l + (relative[2] === "-" ? -1 : 1) * Number(relative[3]), c, h)
   }
   throw new Error(
-    `${name}: cannot read "${value}"; use a hex colour, a var() alias or oklch(from …)`,
+    `${name}: cannot read "${value}"; use a hex colour, a var() alias or oklab(from …)`,
   )
 }
 

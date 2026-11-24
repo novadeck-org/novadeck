@@ -11,9 +11,10 @@
    (the chrome, the workspace) are set off their step to make up for what the grain does
    to them; re-measure them if the grain or a ground changes.
 
-   Plain steps are written as offsets from the paper in OKLCH lightness,
-   `oklch(from var(--color-paper) calc(l - n) c h)`, so they keep its hue and follow it
-   if it changes; a component token whose offset both schemes share is declared once
+   Plain steps are written as offsets from the paper in OK lightness,
+   `oklab(from var(--color-paper) calc(l - n) a b)`, so they keep its tint and follow it
+   if it changes. In oklab, not oklch: newer Chromium calls a grey this faint hueless, drops
+   its hue to `none` and draws the chroma left at hue 0, a brown; a component token whose offset both schemes share is declared once
    (foundation tokens are restated, as below). Warmer or tinted colours (strong lines,
    the selected outline, selection, tones) and the grain-compensated
    grounds stay literal.
@@ -32,15 +33,15 @@
   color-scheme: light;
 
   /* Grounds */
-  --color-canvas: oklch(from var(--color-paper) calc(l - 0.051) c h);
-  --color-shell: oklch(from var(--color-paper) calc(l - 0.03) c h);
+  --color-canvas: oklab(from var(--color-paper) calc(l - 0.051) a b);
+  --color-shell: oklab(from var(--color-paper) calc(l - 0.03) a b);
   --color-paper: #f5f3ee;
-  --color-soft: oklch(from var(--color-paper) calc(l - 0.057) c h);
+  --color-soft: oklab(from var(--color-paper) calc(l - 0.057) a b);
   /* Text */
   --color-ink: #181816;
   --color-muted: #5c5a55;
   /* Lines */
-  --color-line: oklch(from var(--color-paper) calc(l - 0.072) c h);
+  --color-line: oklab(from var(--color-paper) calc(l - 0.072) a b);
   --color-line-strong: #837e76;
   /* Emphasis: a deep teal, 4.7:1 on the paper, so it reads as a line or a ring too. */
   --color-strong: #007a72;
@@ -146,7 +147,7 @@
   /* Window: the selected window takes a stronger outline and lifts to the floating
      level. An ended terminal's line stays neutral, so the accent never reads as a
      state. */
-  --window-border-color: oklch(from var(--color-paper) calc(l - 0.091) c h);
+  --window-border-color: oklab(from var(--color-paper) calc(l - 0.091) a b);
   --window-selected-border-color: #bbb6ad;
   --window-selected-shadow: var(--shadow-floating);
   --window-phase-ended-border-color: var(--color-ink);
@@ -172,12 +173,12 @@
      wells, the thumb a lighter knob raised out of its track; on, the well fills flush
      with the accent, unshaded, so no rim shows. No borders, under the pointer either: an
      unchecked box's well deepens instead. */
-  --field-bg: oklch(from var(--color-paper) calc(l - 0.018) c h);
+  --field-bg: oklab(from var(--color-paper) calc(l - 0.018) a b);
   --field-shadow: inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 8%, transparent);
   --segmented-shadow:
     inset 0 1px 1px color-mix(in srgb, var(--color-shadow) 7%, transparent),
     0 1px 0 rgb(255 255 255 / 0.5);
-  --toggle-track-off-bg: oklch(from var(--color-paper) calc(l - 0.079) c h);
+  --toggle-track-off-bg: oklab(from var(--color-paper) calc(l - 0.079) a b);
   --toggle-track-off-border-color: transparent;
   --toggle-track-on-border-color: transparent;
   --toggle-track-shadow:
@@ -185,13 +186,13 @@
     inset 0 2px 5px -2px color-mix(in srgb, var(--color-shadow) 10%, transparent),
     0 1px 0 rgb(255 255 255 / 0.65);
   --toggle-track-on-shadow: none;
-  --toggle-thumb-bg: oklch(from var(--color-paper) calc(l + 0.027) c h);
+  --toggle-thumb-bg: oklab(from var(--color-paper) calc(l + 0.027) a b);
   --toggle-thumb-border-color: transparent;
   --toggle-thumb-shadow:
     0 1px 2px color-mix(in srgb, var(--color-shadow) 20%, transparent),
     0 1px 1px color-mix(in srgb, var(--color-shadow) 10%, transparent);
   --toggle-box-bg: var(--toggle-track-off-bg);
-  --toggle-box-hover-bg: oklch(from var(--color-paper) calc(l - 0.112) c h);
+  --toggle-box-hover-bg: oklab(from var(--color-paper) calc(l - 0.112) a b);
   --toggle-box-radius: var(--radius-control);
   --toggle-box-border-width: 0;
   --toggle-box-shadow:
@@ -205,7 +206,7 @@
   /* Fills inside a panel: a light step off the paper, where the soft ground would weigh
      on it. The lines an agent pointed at take a trace of the accent. */
   --artifact-code-pointed-bg: #e6eae4;
-  --prose-code-bg: oklch(from var(--color-paper) calc(l - 0.03) c h);
+  --prose-code-bg: oklab(from var(--color-paper) calc(l - 0.03) a b);
 
   /* Brand: the choice-card tiles are dark in both schemes, their glyphs the bright cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2e2d2a, #181816);
@@ -247,15 +248,15 @@
   color-scheme: dark;
 
   /* Grounds */
-  --color-canvas: oklch(from var(--color-paper) calc(l - 0.054) c h);
-  --color-shell: oklch(from var(--color-paper) calc(l - 0.03) c h);
+  --color-canvas: oklab(from var(--color-paper) calc(l - 0.054) a b);
+  --color-shell: oklab(from var(--color-paper) calc(l - 0.03) a b);
   --color-paper: #1d1f23;
-  --color-soft: oklch(from var(--color-paper) calc(l + 0.038) c h);
+  --color-soft: oklab(from var(--color-paper) calc(l + 0.038) a b);
   /* Text */
   --color-ink: #e8e9ed;
   --color-muted: #a2a6af;
   /* Lines */
-  --color-line: oklch(from var(--color-paper) calc(l + 0.074) c h);
+  --color-line: oklab(from var(--color-paper) calc(l + 0.074) a b);
   --color-line-strong: #6e7179;
   /* Emphasis: an electric cyan, kept to the few things it marks. */
   --color-strong: #00e5d6;
@@ -346,7 +347,7 @@
 
   /* Window: outlines here are softer than the line, since the ground around them is
      darker still; the ended line is a soft light grey. */
-  --window-border-color: oklch(from var(--color-paper) calc(l + 0.053) c h);
+  --window-border-color: oklab(from var(--color-paper) calc(l + 0.053) a b);
   --window-selected-border-color: #3d4047;
   --window-phase-ended-border-color: #cfd1d6;
 
@@ -355,23 +356,23 @@
   --segmented-shadow:
     inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 35%, transparent),
     0 1px 0 rgb(255 255 255 / 0.04);
-  --toggle-track-off-bg: oklch(from var(--color-paper) calc(l - 0.066) c h);
+  --toggle-track-off-bg: oklab(from var(--color-paper) calc(l - 0.066) a b);
   --toggle-track-shadow:
     inset 0 1px 3px color-mix(in srgb, var(--color-shadow) 60%, transparent),
     inset 0 2px 6px -2px color-mix(in srgb, var(--color-shadow) 45%, transparent),
     0 1px 0 rgb(255 255 255 / 0.05);
-  --toggle-thumb-bg: oklch(from var(--color-paper) calc(l + 0.104) c h);
+  --toggle-thumb-bg: oklab(from var(--color-paper) calc(l + 0.104) a b);
   --toggle-thumb-shadow:
     0 1px 2px color-mix(in srgb, var(--color-shadow) 65%, transparent),
     inset 0 1px 0 rgb(255 255 255 / 0.08);
-  --toggle-box-hover-bg: oklch(from var(--color-paper) calc(l - 0.085) c h);
+  --toggle-box-hover-bg: oklab(from var(--color-paper) calc(l - 0.085) a b);
   --toggle-box-shadow:
     inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 70%, transparent),
     0 1px 0 rgb(255 255 255 / 0.06);
 
   /* Fills inside a panel: a step lighter than it; the command form a step darker. */
   --artifact-code-pointed-bg: #24262b;
-  --prose-code-bg: oklch(from var(--color-paper) calc(l + 0.03) c h);
+  --prose-code-bg: oklab(from var(--color-paper) calc(l + 0.03) a b);
 
   /* Brand: the tile stays slate with a light edge, its glyph the cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2f3137, #24262b);
