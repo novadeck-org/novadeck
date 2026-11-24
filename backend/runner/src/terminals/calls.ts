@@ -241,6 +241,11 @@ export class Calls {
         }
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
+      const barred = policy.refuseAgent?.(
+        request.agent,
+        resolvePath(record.summary.cwd, request.cwd ?? "."),
+      )
+      if (barred) return refused(barred)
       const unfit = pinned ? undefined : await this.unfitChoice(request.agent, choice)
       if (unfit) return refused(unfit)
     }

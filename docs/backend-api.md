@@ -2519,15 +2519,20 @@ one from an earlier runner.
   anything is removed or started the runner gets a ticket from
   `${NOVADECK_TOUR_ENDPOINT ?? "https://novadeck.dev/tour/v1"}/tickets` (a 429 or 503 `error` is
   a `CONFLICT` whose message is the service's sentence, which the consent shows as it is; any
-  other failure is a `CONFLICT` saying the service couldn't be reached), and every shell that
-  starts in the tour's folder while the run lasts (the lead's, each teammate's: the Terminals
-  option `launchEnv`, `Tour.launchEnv`) gets `NOVADECK_OPENCODE_CONFIG`, which Novadeck's
-  plugin merges over opencode's loaded configuration for that process: the `openrouter`
-  provider with `baseURL` the endpoint and `apiKey` the ticket, `model` and `small_model` GPT-6
-  Luna, both agents `build` and `plan` on it with variant `medium`, and `enabled_providers` /
-  `disabled_providers` set so the person's lists can't leave it out (the person's files are never
-  written). opencode then calls `POST <endpoint>/chat/completions` with `Authorization: Bearer
-  <ticket>` and the effort as `reasoning.effort` (probed in `launch.ts`). `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
+  other failure is a `CONFLICT` saying the service couldn't be reached). The run's endpoint,
+  ticket and expiry are kept in `tour-runs.json` beside the database (the runner's own, mode 0600,
+  by the folder's name; never in the tour's folder or the workspace's schema; a new run takes its
+  folder's record over, and it goes once no project is open in the folder), and every shell that
+  starts in a tour folder with such a record (the lead's, each teammate's, a resumed terminal's
+  after a restart, and any after the person keeps the project or the ticket ends: the Terminals
+  option `launchEnv`, `Tour.launchEnv`) gets `NOVADECK_OPENCODE_CONFIG`, which Novadeck's plugin
+  merges over opencode's loaded configuration for that process, so the tour's agents never reach
+  for the person's own account and a dead ticket is the service's own 402. It holds the
+  `openrouter` provider with `baseURL` the endpoint and `apiKey` the ticket, `model` and
+  `small_model` GPT-6 Luna, both agents `build` and `plan` on it with variant `medium`, and
+  `enabled_providers` / `disabled_providers` set so the person's lists can't leave it out (the
+  person's files are never written). opencode then calls `POST <endpoint>/chat/completions` with
+  `Authorization: Bearer <ticket>` and the effort as `reasoning.effort` (probed in `launch.ts`). `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
   and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
@@ -2550,7 +2555,7 @@ one from an earlier runner.
   teammate the lead opens in the folder starts with the same write flags as the lead, for that
   launch only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
   command line carries them right after the model), and on the run's model and effort whatever
-  model the call names, never judged against the person's own models (`OpenPolicy.pinned`). Only the run's lead opens agents in the
+  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs opencode only.", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
   tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
   refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team.
   `removed` names the projects it removed. A second run while one is being readied is a

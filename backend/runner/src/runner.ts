@@ -29,6 +29,7 @@ import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { SeenTerminals } from "./terminals/seen.js"
 import { Uploads } from "./terminals/uploads.js"
+import { TourRecords } from "./tour/records.js"
 import type { TourAssets } from "./tour/seed.js"
 import { Tour } from "./tour/tour.js"
 import { Voice } from "./voice/service.js"
@@ -503,6 +504,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const projects = new Projects(store, terminals, items, worktrees)
   // In the person's home, where the agents are looked for too.
   const tour = new Tour({
+    // What each run was given, beside the database, so a runner started again still gives the
+    // tour's agents their provider (the file holds a ticket: the runner's owner's alone).
+    ...(options.database !== undefined &&
+      options.database !== ":memory:" && {
+        records: new TourRecords(join(dirname(options.database), "tour-runs.json")),
+      }),
     ...(options.tour !== undefined && { assets: options.tour }),
     ...(options.agents?.home !== undefined && { home: options.agents.home }),
     // Where the game's server command is looked for: the person's terminal's PATH.

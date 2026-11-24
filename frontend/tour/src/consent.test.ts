@@ -1,6 +1,6 @@
 import type { AgentConnection } from "@novadeck/core/port"
 
-import { offerTour, startingTour, tourAgentState, tourFailed } from "./consent"
+import { agentChanged, offerTour, startingTour, tourAgentState, tourFailed } from "./consent"
 import { describe, expect, it } from "./test"
 
 const connection = (
@@ -45,5 +45,36 @@ describe("The tour's consent", () => {
     expect(failed).toEqual({ starting: false, error: "You've taken today's free tours." })
     expect(startingTour(failed)).not.toHaveProperty("error")
     expect(tourFailed(starting, "nope").error).toBe("The tour couldn't start.")
+  })
+
+  it("is not ready where opencode is older than Novadeck works with, or newer than it knows", () => {
+    expect(tourAgentState([connection("opencode", { limited: "outdated" })])).toEqual({
+      step: "update",
+    })
+    expect(tourAgentState([connection("opencode", { limited: "unsupported" })])).toEqual({
+      step: "unsupported",
+    })
+    // What only the status line is limited by doesn't stop the tour.
+    expect(tourAgentState([connection("opencode", { limited: "own-status-line" })]).step).toBe(
+      "ready",
+    )
+  })
+
+  it("says why a connect didn't take, until another is tried", () => {
+    expect(
+      tourAgentState([connection("opencode", { connected: false, error: "Couldn't write it." })]),
+    ).toEqual({ step: "connect", error: "Couldn't write it." })
+    expect(
+      tourAgentState([
+        connection("opencode", { connected: false, busy: true, error: "Couldn't write it." }),
+      ]),
+    ).toEqual({ step: "connecting" })
+  })
+
+  it("forgets an error about starting once opencode's state changes, and keeps a start under way", () => {
+    const failed = tourFailed(startingTour(offerTour()), new Error("It wasn't connected."))
+    expect(agentChanged(failed)).toEqual({ starting: false })
+    const starting = startingTour(failed)
+    expect(agentChanged(starting)).toBe(starting)
   })
 })

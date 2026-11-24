@@ -71,6 +71,7 @@ describe("the open call", () => {
     let briefed = false
     let plain = 0
     let barred: string | undefined
+    let unwanted: AgentName | undefined
     let flagged: readonly string[] | undefined
     let given: { model: string; effort?: "low" | "max" } | undefined
     // How the client answers: it confirms the terminal in time, confirms it only after the
@@ -105,6 +106,10 @@ describe("the open call", () => {
         ),
       openPolicy: () => ({
         ...(barred !== undefined && { refusal: barred }),
+        ...(unwanted !== undefined && {
+          refuseAgent: (agent: AgentName) =>
+            agent === unwanted ? "Not that one here." : undefined,
+        }),
         ...(flagged !== undefined && { flags: () => flagged! }),
         ...(given !== undefined && { pinned: () => given }),
       }),
@@ -197,6 +202,7 @@ describe("the open call", () => {
       claims,
       opened,
       bar: (reason: string) => (barred = reason),
+      barAgent: (agent: AgentName) => (unwanted = agent),
       flag: (flags: readonly string[]) => (flagged = flags),
       give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
       mode: (next: AgentMode) => (mode = next),
@@ -516,6 +522,15 @@ describe("the open call", () => {
     })
     expect(run.asked).toEqual([])
     expect(run.sent).toEqual([])
+  })
+
+  it("refuses the one agent the host bars in the folder, and opens another", async () => {
+    const run = setup()
+    run.person()
+    run.barAgent("claude")
+    expect(await run.open({ agent: "claude" })).toEqual({ ok: false, reason: "Not that one here." })
+    expect(run.asked).toEqual([])
+    expect(await run.open({ agent: "codex" })).toMatchObject({ ok: true })
   })
 
   it("refuses a command that would start an agent session", async () => {

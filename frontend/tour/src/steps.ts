@@ -1,4 +1,3 @@
-import type { AgentName } from "@novadeck/core/harnesses"
 import type { ViewMode } from "@novadeck/core/types"
 
 import type { LeadState, PaneTab, TourRole, TourSignals } from "./signals"
@@ -117,7 +116,7 @@ export const nudgeOf = (step: TourStep, signals: TourSignals): TourRole =>
 // the person to do.
 const lineMs = 3_000
 
-// Act 1: in Canvas, a terminal opens and the person's own agent starts there, with its brief,
+// Act 1: in Canvas, a terminal opens and the tour's opencode agent starts there, with its brief,
 // and describes itself as the tour's lead.
 export const startStep: TourStep = {
   id: "start",
@@ -342,26 +341,16 @@ export const closingMoves: readonly Extract<TourMove, { kind: "fit-all" }>[] = [
 
 // What the tour says while the lead's agent holds at a screen of its own, whatever the step:
 // the person answers it in the agent's terminal, and the tour waits as long as that takes.
-export const screenCoach = (
-  screen: Extract<LeadState, { kind: "screen" }>["screen"],
-  agent: AgentName,
-): Coach => ({
+// opencode holds at none in practice (it has no trust, sign-in or hooks-review screen); the words
+// for each are for the one way it can't be followed: Novadeck's plugin kept out by the person's
+// own environment.
+export const screenCoach = (screen: Extract<LeadState, { kind: "screen" }>["screen"]): Coach => ({
   click: ["terminal"],
   line: "It wants an answer first.",
   note:
-    screen === "sign-in"
-      ? "It needs you to sign in: do it here, in its terminal. The tour goes on once you're in."
-      : screen === "hooks"
-        ? agent === "codex"
-          ? 'Codex asks you to trust Novadeck\'s hooks: pick "Trust all and continue" here, or review them first, and the tour goes on.'
-          : agent === "opencode"
-            ? "Novadeck can't load its plugin into opencode here, so it can't follow it: your environment sets both OPENCODE_CONFIG_CONTENT and OPENCODE_CONFIG, or OPENCODE_PURE. Unset one, then start it again here."
-            : "Novadeck's hooks are off for it, so Novadeck can't follow it. Turn hooks back on in its settings, then start it again here."
-        : agent === "claude"
-          ? 'Claude Code asks whether to trust the tour\'s folder, which Novadeck just made: pick "Yes, I trust this folder" here (it starts on "No"), and the tour goes on.'
-          : agent === "codex"
-            ? 'Codex asks whether to trust the tour\'s folder, which Novadeck just made: pick "Trust and continue" here, and the tour goes on.'
-            : "Answer it here, in its terminal: it's its own question, such as whether to trust the tour's folder. The tour goes on once you have.",
+    screen === "hooks"
+      ? "Novadeck can't load its plugin into opencode here, so it can't follow it: your environment sets both OPENCODE_CONFIG_CONTENT and OPENCODE_CONFIG, or OPENCODE_PURE. Unset one, then start it again here."
+      : "Answer it here, in its terminal: it's its own question. The tour goes on once you have.",
 })
 
 // What the tour says while a teammate's own question to the person waits in the Inbox: it isn't

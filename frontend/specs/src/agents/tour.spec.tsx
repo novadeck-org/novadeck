@@ -97,7 +97,7 @@ describe("The tour", () => {
         "Runs three opencode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
       )
       await consentSays(
-        "What the agents read and write goes to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
+        "What the agents read and write goes through novadeck.dev to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
       )
       await consentSays(
         "Works in a sandbox repo under ~/.novadeck, made fresh each time. A game you finish is yours to keep.",
@@ -119,7 +119,7 @@ describe("The tour", () => {
       expect(consent().getByRole("radio").query()).toBeNull()
     })
 
-    it("opens the Tour project with its agent starting on its cheapest model", async () => {
+    it("opens the Tour project with opencode starting on the tour's model", async () => {
       await openWorkspace(offered)
       const before = terminalTabNames()
       await offerFromHelp()
@@ -159,6 +159,19 @@ describe("The tour", () => {
         .not.toContain("Install adds")
       await start().click()
       await expectTourOpen()
+    })
+
+    it("says what to do where opencode is too old or too new for Novadeck to follow, and starts nothing", async () => {
+      await openWorkspace(`${offered}&opencode=outdated`)
+      await offerFromHelp({ connect: false })
+      await consentSays("Update it with `opencode upgrade`")
+      await expect.element(start()).toHaveAttribute("aria-disabled", "true")
+      await consent().getByRole("button", { name: "Not now" }).click()
+      await cleanup()
+      await openWorkspace(`${offered}&opencode=unsupported`)
+      await offerFromHelp({ connect: false })
+      await consentSays("it can't follow this opencode 2")
+      await expect.element(start()).toHaveAttribute("aria-disabled", "true")
     })
 
     it("says why it couldn't start, staying open to try again", async () => {

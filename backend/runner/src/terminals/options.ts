@@ -28,6 +28,8 @@ import type { TranscriptSealer } from "./sealing.js"
  */
 export type OpenPolicy = {
   readonly refusal?: string
+  /** Why `agent` may not be opened in `cwd`, the folder the call resolved (the tour runs opencode only). */
+  readonly refuseAgent?: (agent: AgentName, cwd: string) => string | undefined
   /** The flags for the agent opened in `cwd`, the folder the call resolved. */
   readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
   /**

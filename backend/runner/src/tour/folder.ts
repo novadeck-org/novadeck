@@ -122,7 +122,11 @@ export const insideFolder = (
 // given, or as it is with links resolved: a terminal's folder is reported as its shell or the
 // launcher resolved it, and the home folder or `~/.novadeck` may be a symlink. None if it is in
 // none of them.
-const folderOf = (path: string, home: string, platform: NodeJS.Platform): string | undefined => {
+export const folderOf = (
+  path: string,
+  home: string,
+  platform: NodeJS.Platform,
+): string | undefined => {
   const paths = platform === "win32" ? win32 : posix
   const root = tourFolder(home)
   const parent = dirname(root)

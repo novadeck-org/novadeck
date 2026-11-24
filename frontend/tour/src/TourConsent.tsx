@@ -18,7 +18,7 @@ const facts = [
   },
   {
     icon: Globe,
-    text: "What the agents read and write goes to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
+    text: "What the agents read and write goes through novadeck.dev to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
   },
   {
     icon: FolderLock,
@@ -37,6 +37,7 @@ export const TourConsentDialog = ({
   consent,
   agent,
   installing,
+  installError,
   onInstall,
   onConnect,
   onStart,
@@ -47,6 +48,8 @@ export const TourConsentDialog = ({
   readonly agent: TourAgentState
   // opencode's installer is running (in a terminal behind the dialog), or it is being connected after.
   readonly installing: boolean
+  // Why the last install didn't end with opencode installed and connected, where it didn't.
+  readonly installError?: string | undefined
   readonly onInstall: (command: string) => void
   readonly onConnect: () => void
   readonly onStart: () => void
@@ -73,6 +76,7 @@ export const TourConsentDialog = ({
           consent={shown}
           agent={agent}
           installing={installing}
+          installError={installError}
           onInstall={onInstall}
           onConnect={onConnect}
           onStart={onStart}
@@ -89,6 +93,12 @@ const steps = {
     note: "Install adds opencode to this computer with its own installer, then connects it to Novadeck. Pick it if you don't have opencode; the tour is the only reason to, and it stays installed after.",
     action: "Install opencode",
   },
+  update: {
+    note: "This opencode is older than Novadeck works with (1.18 or later), so it can't follow the tour's agents. Update it with `opencode upgrade`, then take the tour.",
+  },
+  unsupported: {
+    note: "Novadeck works with opencode 1 so far, so it can't follow this opencode 2. Install opencode 1 (1.18 or later) to take the tour.",
+  },
   connect: {
     note: "Connect adds Novadeck's small plugin to opencode, so the tour's agents can use Novadeck's tools. Pick it to take the tour; Preferences disconnects it again.",
     action: "Connect opencode",
@@ -99,6 +109,7 @@ const TourConsentBody = ({
   consent,
   agent,
   installing,
+  installError,
   onInstall,
   onConnect,
   onStart,
@@ -107,15 +118,19 @@ const TourConsentBody = ({
   readonly consent: TourConsent
   readonly agent: TourAgentState
   readonly installing: boolean
+  readonly installError?: string | undefined
   readonly onInstall: (command: string) => void
   readonly onConnect: () => void
   readonly onStart: () => void
   readonly onClose: () => void
 }): React.JSX.Element => {
-  const { starting, error } = consent
+  const { starting } = consent
+  // Why the tour can't start now, in words: its start's refusal, or why opencode isn't ready.
+  const error =
+    consent.error ?? agent.error ?? (agent.step === "install" ? installError : undefined)
   const { step, installer } = agent
   const waiting = starting || step === "connecting" || installing
-  const needed = step === "install" || step === "connect" ? steps[step] : undefined
+  const needed = step === "ready" || step === "connecting" ? undefined : steps[step]
   return (
     <>
       <SubjectBar>
@@ -156,7 +171,7 @@ const TourConsentBody = ({
               {step === "install" && installer === undefined && " Install it from opencode.ai."}
             </span>
           </span>
-          {(step === "connect" || installer !== undefined) && (
+          {(step === "connect" || (step === "install" && installer !== undefined)) && (
             <button
               type="button"
               className="button min-h-8 shrink-0 px-3 text-control"
@@ -167,7 +182,7 @@ const TourConsentBody = ({
                 else if (installer !== undefined) onInstall(installer)
               }}
             >
-              {installing ? "Installing…" : needed.action}
+              {installing ? "Installing…" : "action" in needed ? needed.action : null}
             </button>
           )}
         </div>

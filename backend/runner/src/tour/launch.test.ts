@@ -50,7 +50,7 @@ describe("the tour's ticket", () => {
   it("is read from the service's answer", async () => {
     await expect(
       fetchTicket("http://x/tour/v1", answering(200, { ticket: "abc_DEF-1", expiresAt: "t" })),
-    ).resolves.toBe("abc_DEF-1")
+    ).resolves.toEqual({ ticket: "abc_DEF-1", expiresAt: "t" })
   })
 
   it("asks at /tickets of the endpoint, which the environment may name", async () => {

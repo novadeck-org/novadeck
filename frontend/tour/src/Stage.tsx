@@ -394,7 +394,7 @@ const nameOf = (agent: AgentName): string => harnesses.find(({ id }) => id === a
 // The small line under an act's name on its wipe.
 const actLabel = (act: TourAct, agent: AgentName): string =>
   act === 1
-    ? `${nameOf(agent)} · your account · a sandbox repo`
+    ? `${nameOf(agent)} · Novadeck's model · a sandbox repo`
     : act === 2
       ? "Teammates your agent opens"
       : act === 3

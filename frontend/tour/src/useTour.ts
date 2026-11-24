@@ -3,6 +3,7 @@ import type { AgentConnection } from "@novadeck/core/port"
 import { useCallback, useMemo, useState } from "react"
 
 import {
+  agentChanged,
   offerTour,
   startingTour,
   tourAgent,
@@ -42,6 +43,12 @@ export const useTour = (
   const refresh = backend.agents?.refresh
   const set = backend.agents?.set
   const agent = useMemo(() => tourAgentState(connections), [connections])
+  // As opencode's state changes, an error about starting it is dropped (see `agentChanged`).
+  const [seen, setSeen] = useState(agent.step)
+  if (seen !== agent.step) {
+    setSeen(agent.step)
+    setConsent((current) => current && agentChanged(current))
+  }
   const offer = useCallback(() => {
     // One already starting stays as it is.
     setConsent((current) => (current?.starting ? current : offerTour()))

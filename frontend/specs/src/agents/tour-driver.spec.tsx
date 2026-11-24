@@ -121,7 +121,7 @@ describe("The tour's driver", () => {
     it("says so, with its screen's own words, and goes on once it's answered", async () => {
       await startTour(`${offered}&tourScreen=sign-in&tourScreenMs=1500`)
       await coachSays("It wants an answer first.")
-      await coachSays("sign in")
+      await coachSays("Answer it here, in its terminal")
       await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     })
 

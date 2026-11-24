@@ -222,21 +222,15 @@ describe("The tour's driver", () => {
     it("coaches a screen of the agent's own first, whatever the step", () => {
       const run = { ...begin(), step: 1 }
       expect(coachNow(run, steps, signals({ kind: "screen", screen: "sign-in" }))).toEqual(
-        screenCoach("sign-in", "claude"),
+        screenCoach("sign-in"),
       )
     })
 
     it("says each screen's own words", () => {
-      expect(screenCoach("sign-in", "claude").note).toMatch(/sign in/)
-      expect(screenCoach("startup", "agy").note).toMatch(/trust the tour's folder/)
-    })
-
-    it("says what each harness's hooks being off asks of the person", () => {
-      expect(screenCoach("hooks", "codex").note).toMatch(/Trust all and continue/)
-      expect(screenCoach("hooks", "claude").note).toMatch(/its settings/)
-      expect(screenCoach("hooks", "agy").note).not.toMatch(/\/hooks/)
+      expect(screenCoach("sign-in").note).toMatch(/its own question/)
+      expect(screenCoach("startup").note).toMatch(/its own question/)
       // opencode's hooks are Novadeck's plugin, which only the person's environment keeps out.
-      expect(screenCoach("hooks", "opencode").note).toMatch(/OPENCODE_CONFIG_CONTENT/)
+      expect(screenCoach("hooks").note).toMatch(/OPENCODE_CONFIG_CONTENT/)
     })
 
     it("says what its step says otherwise", () => {
@@ -1021,13 +1015,6 @@ describe("The tour, with an agent whose program ended", () => {
     )
     expect(coachNow(run, tourSteps, signals({ kind: "starting" }))).toBe(tourSteps[0]!.coach)
     expect(outcome.run?.step).toBe(0)
-  })
-
-  it("says exactly what to pick on the folder trust screen, by harness", () => {
-    expect(screenCoach("startup", "claude").note).toContain('"Yes, I trust this folder"')
-    expect(screenCoach("startup", "codex").note).toContain('"Trust and continue"')
-    expect(screenCoach("startup", "agy").note).toMatch(/trust the tour's folder/)
-    expect(screenCoach("startup", "claude").line).toBe("It wants an answer first.")
   })
 })
 

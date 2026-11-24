@@ -20,10 +20,12 @@ const unreachable =
  * message and so what the consent shows. Anything else it answers, or no answer, is a sentence
  * of ours. Nothing is changed by any of them.
  */
+export type Ticket = { readonly ticket: string; readonly expiresAt?: string | undefined }
+
 export const fetchTicket = async (
   endpoint: string,
   request: typeof fetch = fetch,
-): Promise<string> => {
+): Promise<Ticket> => {
   let response: Response
   try {
     response = await request(`${endpoint}/tickets`, {
@@ -40,7 +42,9 @@ export const fetchTicket = async (
     typeof body === "object" && body !== null ? (body as Record<string, unknown>)[name] : undefined
   if (response.ok) {
     const ticket = field("ticket")
-    if (typeof ticket === "string" && shape.test(ticket)) return ticket
+    const expires = field("expiresAt")
+    if (typeof ticket === "string" && shape.test(ticket))
+      return { ticket, ...(typeof expires === "string" && { expiresAt: expires }) }
     throw new DomainError("CONFLICT", unreachable)
   }
   const said = field("error")

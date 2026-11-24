@@ -113,14 +113,24 @@ export const demoBackend = (
   // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
   // Where the tour is offered (the experimental channel) opencode, the tour's agent, is listed too:
-  // installed and not connected, or not installed where the address says `&opencode=missing`.
+  // installed and not connected, or as the address says: `&opencode=missing` (not installed),
+  // `outdated` or `unsupported` (installed, with Novadeck unable to follow it).
+  const opencodeAs = addressParams().get("opencode")
   const agents = createStore<readonly AgentConnection[]>(
     addressParams().get("channel") === "experimental"
       ? [
           ...sampleAgents,
-          addressParams().get("opencode") === "missing"
+          opencodeAs === "missing"
             ? missingAgent("opencode")
-            : { agent: "opencode", available: true, connected: false, busy: false },
+            : {
+                agent: "opencode",
+                available: true,
+                connected: opencodeAs === "outdated" || opencodeAs === "unsupported",
+                busy: false,
+                ...((opencodeAs === "outdated" || opencodeAs === "unsupported") && {
+                  limited: opencodeAs,
+                }),
+              },
         ]
       : sampleAgents,
   )

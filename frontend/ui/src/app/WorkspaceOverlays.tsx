@@ -596,6 +596,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           consent={tour.consent}
           agent={tour.agent}
           installing={installs.installing.has(tourAgent)}
+          installError={installs.failures.get(tourAgent)}
           // The installer runs in a terminal behind the dialog, which stays open, and the tour
           // starts nothing of its own once opencode is there.
           onInstall={(command) => installs.install(tourAgent, command, { quiet: true })}

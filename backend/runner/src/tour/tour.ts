@@ -1,3 +1,6 @@
+import { homedir } from "node:os"
+import { basename } from "node:path"
+
 import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -16,6 +19,7 @@ import {
 } from "./brief.js"
 import {
   chooseTourFolder,
+  folderOf,
   hasMarker,
   insideFolder,
   inTourFolder,
@@ -33,10 +37,11 @@ import {
   tourWrites,
   type TourLaunch,
 } from "./launch.js"
+import { TourRecords } from "./records.js"
 import { bringHome, commitSandbox, laySandbox, releaseSandbox, requireGit } from "./repo.js"
 import { seedFiles, type TourAssets } from "./seed.js"
 import { findServing, freePort, versionOf } from "./serving.js"
-import { fetchTicket, tourEndpoint } from "./ticket.js"
+import { fetchTicket, tourEndpoint, type Ticket } from "./ticket.js"
 
 /** What the tour needs of the runner. */
 export type TourHost = {
@@ -57,7 +62,12 @@ export type TourHost = {
    * A ticket for one run, which the tour's agents' provider takes as its key (`fetchTicket`, from
    * the service at `tourEndpoint()`); a refusal is a `DomainError` in words for the person.
    */
-  readonly ticket?: () => Promise<string>
+  readonly ticket?: () => Promise<Ticket>
+  /**
+   * What the runs were given, by folder (`TourRecords`): kept in a file of the runner's own, so a
+   * runner started again still gives the tour's agents their provider. In memory where omitted.
+   */
+  readonly records?: TourRecords
   readonly projects: {
     readonly list: () => readonly Project[]
     readonly remove: (projectId: string) => Promise<void>
@@ -78,8 +88,6 @@ export type TourHost = {
 type Run = {
   readonly launch: TourLaunch
   readonly directory: string
-  /** What the run's terminals in its folder start with: the provider and model of its agents. */
-  readonly env: NodeJS.ProcessEnv
   /** The terminal the lead's brief was rung to. */
   lead?: string
 }
@@ -96,7 +104,12 @@ export class Tour {
   private facts: BriefFacts | undefined
   private run: Run | undefined
 
-  constructor(private readonly host: TourHost) {}
+  // What each folder's run was given, which outlives the run in memory (see `launchEnv`).
+  private readonly records: TourRecords
+
+  constructor(private readonly host: TourHost) {
+    this.records = host.records ?? new TourRecords()
+  }
 
   /**
    * Readies a run of the tour, always on opencode, GPT-6 Luna at medium effort, paid for by
@@ -139,7 +152,8 @@ export class Tour {
     const directory = await chooseTourFolder(this.host.home)
     // The ticket, before anything is removed or started: a refusal leaves the person's tour
     // project as it was.
-    const ticket = await (this.host.ticket ?? (() => fetchTicket(tourEndpoint())))()
+    const endpoint = tourEndpoint()
+    const given = await (this.host.ticket ?? (() => fetchTicket(endpoint)))()
     const serving = await (
       this.host.serving ?? (() => findServing(versionOf, freePort, this.host.environment?.()))
     )()
@@ -170,23 +184,45 @@ export class Tour {
     this.host.worktreesFolder()
     this.facts = { mate, serving }
     const launch = tourLaunch()
-    this.run = {
-      launch,
-      directory,
-      env: { NOVADECK_OPENCODE_CONFIG: tourConfig(tourEndpoint(), ticket) },
-    }
+    // This folder's earlier run, if any, is replaced: its agents are gone with its project.
+    this.records.set(basename(directory), {
+      endpoint,
+      ticket: given.ticket,
+      ...(given.expiresAt !== undefined && { expiresAt: given.expiresAt }),
+    })
+    this.run = { launch, directory }
     return { ...launch, directory, removed, page: serving !== null }
   }
 
   /**
    * What a new terminal starting in `cwd` gets in its environment on top of the person's: for one
-   * in the run's folder, the provider and model of the tour's agents (`tourConfig`), so the
-   * lead and every teammate it opens run on the ticket whatever the command line says, and
-   * their ticket is in no line of any screen or history. None elsewhere, and none once the
-   * person keeps the project (`keep`).
+   * in a folder of the tour (`tour`, `tour-2`, ...) that has a record of its run, the provider
+   * and model of the tour's agents (`tourConfig`), so the lead and every teammate it opens run on
+   * the run's ticket whatever the command line says, and the ticket is in no line of any screen
+   * or history. The record is what a restart left (`TourRecords`), and it stays through the person
+   * keeping the project and the ticket's end, so a tour terminal never reaches for the person's own
+   * account: a dead ticket is the service's own refusal. It goes with the folder's project: where
+   * none is open there any more, it is dropped. None elsewhere.
    */
   launchEnv(cwd: string): NodeJS.ProcessEnv | undefined {
-    return this.run && this.inTour(cwd) ? this.run.env : undefined
+    const folder = folderOf(
+      cwd,
+      this.host.home ?? homedir(),
+      this.host.platform ?? process.platform,
+    )
+    if (folder === undefined) return undefined
+    const name = basename(folder)
+    const run = this.records.get(name)
+    if (!run) return undefined
+    if (
+      !this.host.projects
+        .list()
+        .some((project) => insideFolder(project.cwd, folder, this.host.platform))
+    ) {
+      this.records.delete(name)
+      return undefined
+    }
+    return { NOVADECK_OPENCODE_CONFIG: tourConfig(run.endpoint, run.ticket) }
   }
 
   /**
@@ -290,6 +326,8 @@ export class Tour {
     // only where they start in it: one it opens elsewhere gets none.
     return terminalId === this.run?.lead
       ? {
+          refuseAgent: (agent, at) =>
+            agent !== tourAgent && this.inTour(at) ? "The tour runs opencode only." : undefined,
           flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
           pinned: (agent, at) =>
             agent === tourAgent && this.inTour(at)

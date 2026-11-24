@@ -27,7 +27,9 @@ import {
   type Serving,
 } from "./brief.js"
 import { tourFolder, tourMarker } from "./folder.js"
+import { TourRecords } from "./records.js"
 import { repositoryAssets, type TourAssets } from "./seed.js"
+import type { Ticket } from "./ticket.js"
 import { Tour, type TourHost } from "./tour.js"
 
 const conflict = (error: unknown): boolean =>
@@ -42,7 +44,9 @@ const tourIn = (
     projects?: Project[]
     connected?: readonly AgentName[]
     // The ticket the tour's service gives, or the refusal it makes; one by default.
-    ticket?: () => Promise<string>
+    ticket?: () => Promise<Ticket>
+    // What the runs were given, as a runner started again finds it.
+    records?: TourRecords
     notices?: [string, string][]
     shown?: readonly string[]
     // How each removal goes; at once by default.
@@ -68,7 +72,8 @@ const tourIn = (
     ...(options.assets !== undefined && { assets: options.assets }),
     serving: () => Promise.resolve(options.serving === undefined ? served : options.serving),
     connected: (agent) => Promise.resolve((options.connected ?? ["opencode"]).includes(agent)),
-    ticket: options.ticket ?? (() => Promise.resolve("TICKET_1")),
+    ticket: options.ticket ?? (() => Promise.resolve({ ticket: "TICKET_1" })),
+    ...(options.records !== undefined && { records: options.records }),
     projects: {
       list: () => projects.filter(({ id }) => !removed.includes(id)),
       remove: (id) => {
@@ -219,7 +224,7 @@ describe("readying the tour", () => {
     const { tour, removed } = tourIn(home, {
       connected: ["claude", "codex"],
       projects: [project("old-tour", tourFolder(home))],
-      ticket: () => (asked.push("ticket"), Promise.resolve("T")),
+      ticket: () => (asked.push("ticket"), Promise.resolve({ ticket: "T" })),
     })
     await expect(tour.prepare()).rejects.toSatisfy(conflict)
     expect(removed).toEqual([])
@@ -244,9 +249,15 @@ describe("readying the tour", () => {
     resources,
   }) => {
     const home = await scratchHome(resources)
-    const { tour } = tourIn(home, { ticket: () => Promise.resolve("TICKET_9") })
+    const projects: Project[] = []
+    const { tour } = tourIn(home, {
+      projects,
+      ticket: () => Promise.resolve({ ticket: "TICKET_9", expiresAt: "2099-01-01T00:00:00Z" }),
+    })
     expect(tour.launchEnv(tourFolder(home))).toBeUndefined()
     await tour.prepare()
+    // The client opens the folder as a project, and then starts its terminals.
+    projects.push(project("tour", tourFolder(home)))
     const config = JSON.parse(tour.launchEnv(tourFolder(home))!.NOVADECK_OPENCODE_CONFIG!)
     expect(config).toMatchObject({
       provider: { openrouter: { options: { apiKey: "TICKET_9" } } },
@@ -258,10 +269,61 @@ describe("readying the tour", () => {
       },
     })
     expect(config.provider.openrouter.options.baseURL).toMatch(/\/tour\/v1$|^http/)
-    // Only the tour's folder, and only while the run is the tour's.
+    // Only the tour's folders.
     expect(tour.launchEnv(join(home, "elsewhere"))).toBeUndefined()
+    // The person keeping the project changes nothing: its terminals never reach for their own account.
     await tour.keep()
-    expect(tour.launchEnv(tourFolder(home))).toBeUndefined()
+    expect(tour.launchEnv(join(tourFolder(home), "src"))).toBeDefined()
+  })
+
+  it("keeps the run for a runner started again, through keeping and the ticket's end, until the project goes", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const file = join(home, "tour-runs.json")
+    const projects: Project[] = []
+    const first = tourIn(home, {
+      projects,
+      records: new TourRecords(file),
+      ticket: () => Promise.resolve({ ticket: "TICKET_7", expiresAt: "2000-01-01T00:00:00Z" }),
+    })
+    await first.tour.prepare()
+    projects.push(project("tour", tourFolder(home)))
+    await first.tour.keep()
+    // The runner starts again: nothing of the run is in memory, the person's terminals resume.
+    const again = tourIn(home, { projects, records: new TourRecords(file) })
+    const env = again.tour.launchEnv(tourFolder(home))
+    expect(JSON.parse(env!.NOVADECK_OPENCODE_CONFIG!).provider.openrouter.options.apiKey).toBe(
+      "TICKET_7",
+    )
+    if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o600)
+    // The tour's folder only, the person's own never.
+    expect(again.tour.launchEnv(join(home, "code"))).toBeUndefined()
+    // Its project removed, the record goes with it, for good.
+    projects.length = 0
+    expect(again.tour.launchEnv(tourFolder(home))).toBeUndefined()
+    expect(
+      tourIn(home, {
+        projects: [project("tour", tourFolder(home))],
+        records: new TourRecords(file),
+      }).tour.launchEnv(tourFolder(home)),
+    ).toBeUndefined()
+  })
+
+  it("replaces a folder's record when a new run takes the folder", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    const projects: Project[] = []
+    let nth = 0
+    const { tour } = tourIn(home, {
+      projects,
+      ticket: () => Promise.resolve({ ticket: `T${(nth += 1)}` }),
+    })
+    await tour.prepare()
+    projects.push(project("a", tourFolder(home)))
+    await tour.prepare()
+    projects.push(project("b", tourFolder(home)))
+    const config = JSON.parse(tour.launchEnv(tourFolder(home))!.NOVADECK_OPENCODE_CONFIG!)
+    expect(config.provider.openrouter.options.apiKey).toBe("T2")
   })
 
   it("removes a project inside its folder too", async ({ resources }) => {
@@ -853,6 +915,15 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     const at = tourFolder(home)
     expect(policy.flags?.("opencode", at)).toEqual(["--agent", "build"])
     expect(policy.flags?.("claude", at)).toEqual([])
+  })
+
+  it("refuses any other harness in the tour's folder, in plain words", async ({ resources }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
+    const policy = tour.openPolicy("lead")
+    expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe("The tour runs opencode only.")
+    expect(policy.refuseAgent?.("opencode", tourFolder(home))).toBeUndefined()
+    expect(policy.refuseAgent?.("claude", "/h/code")).toBeUndefined()
   })
 
   it("pins a teammate on the run's model and effort whatever the lead names, in the tour's folder only", async ({

@@ -70,7 +70,8 @@ describe.skipIf(!supported)(opencode.name, () => {
       `opencode --model openrouter/openai/gpt-6-luna --variant medium ${tourWrites.join(" ")}`,
     )
     expect(typeof prepared.page).toBe("boolean")
-    // The provider and ticket come with the shells of its folder, and no other's.
+    // The provider and ticket come with the shells of its folder once it is a project, and no other's.
+    await run.deck.openAt(prepared.directory, prepared.command)
     const env = run.deck.tour.launchEnv(prepared.directory)
     expect(JSON.parse(env!.NOVADECK_OPENCODE_CONFIG!)).toMatchObject({
       provider: { openrouter: { options: { apiKey: "e2e_ticket-1" } } },
@@ -138,7 +139,6 @@ describe.skipIf(!supported)(opencode.name, () => {
     const first = await run.deck.tour.prepare()
     await run.deck.tour.keep()
     await expect(readdir(first.directory)).resolves.not.toContain(tourMarker)
-    expect(run.deck.tour.launchEnv(first.directory)).toBeUndefined()
     const second = await run.deck.tour.prepare()
     expect(second.directory).toBe(join(run.sandbox.home, ".novadeck", "tour-2"))
   })
