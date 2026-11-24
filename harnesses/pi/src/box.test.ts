@@ -184,8 +184,17 @@ describe("pi's input box", () => {
     it("reads a box led by ! as its shell mode", () => {
       for (const name of ["bang", "bangbang", "bangTyped", "bangTwoLines120x40"])
         expect(read(name)?.mode, name).toBe("shell")
-      expect(read("bangTyped")?.text).toBe("!echo from-bash")
+      expect(read("bangTyped")?.text).toBe("echo from-bash")
+      expect(read("bang")).toMatchObject({ text: "", mode: "shell" })
+      expect(read("bangbang")).toMatchObject({ text: "!", mode: "shell" })
       expect(read("typed")?.mode).toBe("prompt")
+    })
+
+    it("tells its shell mode from the screen's rows alone", () => {
+      expect(box.shell.footer(screen("bang").rows)).toBe(true)
+      expect(box.shell.footer(screen("bangTyped").rows)).toBe(true)
+      expect(box.shell.footer(screen("typed").rows)).toBe(false)
+      expect(box.shell.footer(screen("select").rows)).toBe(false)
     })
 
     it("runs a command given while a turn works at once", () => {
@@ -230,6 +239,12 @@ describe("pi's input box", () => {
         "model60",
       ])
         expect(read(name), name).toBeUndefined()
+    })
+
+    it("takes a row of ─ in a draft, wrapped at its end, for text, not a rule", () => {
+      const width = box.textWidth(120)
+      const draft = ["see", "─".repeat(width), "─".repeat(41) + " merge it"]
+      expect(box.read(withBox("ready", draft))?.text).toBe(draft.join("\n"))
     })
 
     it("reads no box under a panel that offers Escape, as /mcp's does", () => {

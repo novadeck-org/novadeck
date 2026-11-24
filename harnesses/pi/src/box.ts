@@ -39,9 +39,21 @@ import { signedOut } from "./startup.js"
 /** A box's top rule while a turn runs: a spinner (a braille cell) and what it does. */
 const workingRule = /^── [⠀-⣿] (?<words>\S.*?) ─{3,}\s*$/u
 
-/** Whether a row is a rule of the box's frame: from the first column, plain, scrolled or working. */
-const frame = (row: string | undefined): boolean =>
-  row !== undefined && row.startsWith("─") && (rule(row) || workingRule.test(row))
+/**
+ * Whether a row is a rule of the box's frame: from the first column to the last of a screen
+ * `width` wide, plain, scrolled or working. The box's own text never reaches the last column (a
+ * word reaches `columns - 1`), so a row of `─` typed or pasted in it, wrapped at its end, is no
+ * rule (an Inbox reply with a line of `─` in it, e2e inbox.e2e.ts).
+ */
+const frame = (row: string | undefined, width: number): boolean =>
+  row !== undefined &&
+  row.startsWith("─") &&
+  row.trimEnd().length >= width &&
+  (rule(row) || workingRule.test(row))
+
+/** The screen's width, as its widest row shows it, for rows read with nothing else: a rule spans it. */
+const widest = (rows: readonly string[]): number =>
+  rows.reduce((most, row) => Math.max(most, row.trimEnd().length), 0)
 
 /**
  * The key hints a dialog in the box's place ends with (probed 2026-11-24, 1.6.0,
@@ -79,10 +91,10 @@ type Frame = { readonly top: number; readonly bottom: number }
 const hintsOver = 4
 
 /** The rules the box lies between: the lowest frame rule on the screen, and the nearest one above it. */
-const rulesOf = (rows: readonly string[]): Frame | undefined => {
-  const bottom = rows.findLastIndex(frame)
+const rulesOf = (rows: readonly string[], width = widest(rows)): Frame | undefined => {
+  const bottom = rows.findLastIndex((row) => frame(row, width))
   if (bottom < 1) return undefined
-  const top = rows.slice(0, bottom).findLastIndex(frame)
+  const top = rows.slice(0, bottom).findLastIndex((row) => frame(row, width))
   return top < 0 || bottom - top < 2 ? undefined : { top, bottom }
 }
 
@@ -96,8 +108,8 @@ const dialogIn = (rows: readonly string[], { top, bottom }: Frame): boolean =>
   rows.slice(Math.max(top - hintsOver, 0), bottom).some(dialogHint)
 
 /** The rules of the box, where a box shows between them and no dialog does. */
-const frameOf = (rows: readonly string[]): Frame | undefined => {
-  const found = rulesOf(rows)
+const frameOf = (rows: readonly string[], width = widest(rows)): Frame | undefined => {
+  const found = rulesOf(rows, width)
   return found && !dialogIn(rows, found) ? found : undefined
 }
 
@@ -151,17 +163,31 @@ const withImageMarks = (lines: readonly string[], width: number): string => {
 /** How many columns of a row pi's box fills with text: all but one, for its cursor. */
 const textWidth = (columns: number): number => Math.max(columns - 1, 1)
 
+/** A screen of nothing but rows, for what reads the box from its text alone. */
+const textScreen = (rows: readonly string[]): ScreenText => ({
+  rows,
+  bright: rows,
+  columns: widest(rows),
+  cursor: { row: 0, column: 0 },
+  bracketedPaste: true,
+  alternate: true,
+})
+
 /** How its box reads off a screen. */
 const read = (screen: ScreenText): InputBox | undefined => {
   const rows = screen.rows.map((row) => row.trimEnd())
-  const framed = frameOf(rows)
+  const framed = frameOf(rows, screen.columns)
   if (!framed) return undefined
   const { top, bottom } = framed
   if (search.test(screen.rows.join("\n"))) return undefined
   const first = top + 1
   const last = bottom - 1
   const lines = rows.slice(first, last + 1)
-  const text = withImageMarks(lines, textWidth(screen.columns)).trimEnd()
+  const written = withImageMarks(lines, textWidth(screen.columns)).trimEnd()
+  // A leading `!` is its bash mode's marker (`!!` keeps its output from the model): what follows
+  // it is the command, as other programs' markers lead their box.
+  const shell = written.startsWith("!")
+  const text = shell ? written.slice(1) : written
   const hidden = [top, bottom].reduce(
     (sum, at) => sum + Number(/ [↑↓] (\d+) more /.exec(rows[at]!)?.[1] ?? 0),
     0,
@@ -169,7 +195,7 @@ const read = (screen: ScreenText): InputBox | undefined => {
   const blanks = compact(text) === "" && last > first
   const shown: InputBox = {
     text,
-    mode: text.startsWith("!") ? "shell" : "prompt",
+    mode: shell ? "shell" : "prompt",
     first,
     last,
     ...(hidden > 0 && { scrolled: true }),
@@ -275,12 +301,13 @@ export const box: BoxProfile = {
   // `!` in the box runs it in bash (Git Bash on Windows), `!!` too, without sending what it
   // printed to the model. Its lines run as written, a placeholder's text in full (`bangTwoLines`
   // of fixtures/input-box.probe.json). There is a session from the start, so a command starts
-  // none, and one given mid-turn runs at once (`bangMidTurn` of fixtures/bash.probe.json). Only
-  // the rule's colour marks the mode, so its footer says nothing of it.
+  // none, and one given mid-turn runs at once (`bangMidTurn` of fixtures/bash.probe.json). Its
+  // footer says nothing of the mode, which only the `!` and the rule's colour mark: the box's text
+  // read off the rows alone tells it.
   shell: {
     expands: true,
     starts: false,
-    footer: () => false,
+    footer: (rows) => read(textScreen(rows))?.mode === "shell",
     leave: erase,
     midTurn: "runs",
   },
