@@ -11,7 +11,7 @@ Before changing this repository, read each file in this list:
 
 # Harness Parity
 
-Every agent feature works the same in Claude Code, Codex, Antigravity and opencode. When one
+Every agent feature works the same in Claude Code, Codex, Antigravity, opencode and pi. When one
 harness lacks the signal a feature relies on, find and probe that harness's own
 equivalent: a hook, its transcript or rollout, its status line, or the screen. Don't
 ship a feature for some harnesses and leave the others behind. A gap no source can close

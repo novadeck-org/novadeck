@@ -1,6 +1,8 @@
 import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
+import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
+import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { Terminal } from "lucide-react"
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
@@ -19,6 +21,8 @@ const programIcons: Readonly<Record<string, typeof Terminal>> = {
   claude: ClaudeIcon,
   codex: CodexIcon,
   agy: AntigravityIcon,
+  opencode: OpencodeIcon,
+  pi: PiIcon,
 }
 
 // The screen's scale, measured on the avatar once it's laid out and again whenever it may

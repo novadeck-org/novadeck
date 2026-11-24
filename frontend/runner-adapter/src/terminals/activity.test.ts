@@ -38,6 +38,48 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
 const named = (name: string, argv: string[] | null = null) => summary({ process: { name, argv } })
 
 describe("terminal activity", () => {
+  context("while the agent the terminal was opened to run starts", () => {
+    for (const agent of ["claude", "codex", "agy", "opencode"] as const)
+      it(`says ${agent} starts, from the shell's prompt on`, () => {
+        // Before the agent's own process is seen, as on Windows, which sees none.
+        for (const process of [{ name: "zsh", argv: null }, null])
+          expect(terminalActivity(summary({ process, expecting: agent }))).toEqual({
+            status: { state: "running", expecting: agent },
+            process: agent,
+          })
+        expect(
+          terminalActivity(summary({ process: { name: agent, argv: null }, expecting: agent })),
+        ).toEqual({ status: { state: "running", expecting: agent }, process: agent })
+      })
+
+    it("gives way to its prompt, a session or one of its screens", () => {
+      const process = { name: "codex", argv: null }
+      const at = (change: Partial<TerminalSummary>) =>
+        terminalActivity(summary({ process, expecting: "codex", ...change })).status
+      expect(at({ ready: "codex" })).toEqual({ state: "running", agent: { working: false } })
+      expect(at({ agent: "codex" })).toEqual({ state: "running" })
+      expect(at({ startup: { agent: "codex", screen: "startup" } })).toEqual({
+        state: "running",
+        agent: { working: false, startup: "startup" },
+      })
+    })
+
+    it("reads as a change of status once it starts, and once it no longer does", () => {
+      expect(sameStatus({ state: "running" }, { state: "running", expecting: "codex" })).toBe(false)
+      expect(
+        sameStatus(
+          { state: "running", expecting: "codex" },
+          { state: "running", expecting: "codex" },
+        ),
+      ).toBe(true)
+    })
+
+    it("says nothing of a newer harness's, nor where a runner never tells", () => {
+      expect(terminalActivity(summary({ expecting: "newer" })).status).toEqual({ state: "idle" })
+      expect(terminalActivity(summary({})).status).toEqual({ state: "idle" })
+    })
+  })
+
   context("while a startup screen holds the agent expected there", () => {
     const startup = { agent: "codex", screen: "startup" } as const
 

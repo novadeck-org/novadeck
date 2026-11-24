@@ -42,8 +42,8 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
     "read_mcp_resource",
     "update_goal",
   ],
-  // run_workflow (1.5.9) has its row from its schema alone.
-  agy: ["list_resources", "read_resource", "run_workflow"],
+  // run_workflow (1.5.9) and update_steps (1.5.16) have their rows from their schemas alone.
+  agy: ["list_resources", "read_resource", "run_workflow", "update_steps"],
   // `list` and `multiedit` are in its tools' table, but 1.19.6 offered neither to the fake model in
   // any agent or model it was probed with (build and plan, an Anthropic-named and a GPT-named
   // model, with OPENCODE_EXPERIMENTAL and OPENCODE_ENABLE_EXA set), so no record of them

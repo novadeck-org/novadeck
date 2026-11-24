@@ -34,7 +34,7 @@ describe("the models call", () => {
     ).call(call)
     expect(answer).toEqual({
       ok: true,
-      models: { claude, codex: [], agy: [], opencode: [] },
+      models: { claude, codex: [], agy: [], opencode: [], pi: [] },
     })
   })
 

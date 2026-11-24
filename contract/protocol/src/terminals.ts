@@ -163,6 +163,11 @@ export const terminalSummary = z.strictObject({
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.
   ready: agentNameRead.nullable(),
+  // The agent the terminal was opened or woken to run, still starting: its own prompt hasn't
+  // shown and it reported no session yet. Null otherwise, once the startup command ended with
+  // none, and absent from a runner that never sets it (read as null). It stays set while one of
+  // the agent's own screens holds it (`startup`).
+  expecting: agentNameRead.nullable().optional(),
   // The agent expected there, held at one of its own screens that wait for the person, a
   // folder-trust, update, sign-in or onboarding screen, before it reported a session, or at
   // its own prompt with Novadeck's hooks off (`hooks`). Null otherwise, and once its prompt

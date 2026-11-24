@@ -12,7 +12,7 @@ import { singleLine } from "./text.js"
 //
 // A harness a later release added is marked with the revision it came in (`since`), so a UI asks
 // for it only of a runner that has it, and the window of runners it works with stays open.
-export const agentName = inputEnum(agentNames, { since: { pi: 13 } })
+export const agentName = inputEnum(agentNames, { since: { pi: 14 } })
 // An agent as a runner tells of it, which a UI reads tolerantly: one of a harness a newer
 // runner integrates and this UI doesn't is `newer`, a plain agent with no harness of its
 // own here. Inputs, and whatever the runner parses, keep `agentName`.

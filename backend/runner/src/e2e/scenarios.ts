@@ -25,6 +25,7 @@ const has = (setup: AgentSetup, trait: Trait): boolean => {
   if (trait === "plan") return setup.planning !== undefined
   if (trait === "forms") return setup.forms !== undefined
   if (trait === "pluginCopy") return setup.absent?.pluginCopy === undefined
+  if (trait === "hooks.off") return setup.absent?.["hooks.off"] === undefined
   return setup[trait] !== undefined
 }
 

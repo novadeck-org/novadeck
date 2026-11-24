@@ -2,6 +2,9 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { vi } from "vitest"
+
+import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { savedSession } from "./binding/standing.js"
 import {
@@ -14,6 +17,7 @@ import {
   resumeNote,
   resumeRefusal,
   sessionHeldElsewhere,
+  transcriptFor,
 } from "./resumes.js"
 
 describe("the task a restored worker starts again", () => {
@@ -63,6 +67,31 @@ describe("the session an agent asks to resume in a new terminal", () => {
     expect(claims().check("t1", "claude", "s-1", true, { model: "sonnet" }, launch)).toMatchObject({
       argv: ["claude", "--model", "sonnet", "--effort", "high", "--resume", "s-1"],
     })
+  })
+
+  it("gives its harness the transcript the session bound with, which the others leave out of their words", () => {
+    const transcript = "/home/me/.pi/agent/sessions/--p--/2026_s-1.jsonl"
+    const resume = vi.spyOn(harnesses.pi.launch, "resume")
+    // pi may take the file itself; every other harness's words are the same with it or without.
+    claims().check("t1", "pi", "s-1", true, undefined, undefined, transcript)
+    expect(resume).toHaveBeenCalledWith("s-1", undefined, undefined, transcript)
+    resume.mockRestore()
+    for (const agent of ["claude", "codex", "agy", "opencode"] as const)
+      expect(claims().check("t1", agent, "s-1", true, undefined, undefined, transcript)).toEqual(
+        claims().check("t1", agent, "s-1", true),
+      )
+  })
+
+  it("finds the transcript a session bound with in any row, the newest report first", () => {
+    const rows = [
+      { agents: { pi: { sessionId: "s-1", seq: 1, transcript: "/a/old.jsonl" } } },
+      { agents: { pi: { sessionId: "s-1", seq: 5, transcript: "/a/new.jsonl" } } },
+      { agents: { pi: { sessionId: "s-2", seq: 9, transcript: "/a/other.jsonl" } } },
+      { agents: { pi: { sessionId: "s-3", seq: 5 } } },
+    ]
+    expect(transcriptFor(rows, "pi", "s-1")).toBe("/a/new.jsonl")
+    expect(transcriptFor(rows, "pi", "s-3")).toBeUndefined()
+    expect(transcriptFor(rows, "claude", "s-1")).toBeUndefined()
   })
 
   it("finds the flags a session was launched with in any row, the newest report first", () => {
