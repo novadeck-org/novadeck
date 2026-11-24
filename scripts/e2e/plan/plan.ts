@@ -285,6 +285,17 @@ const shardsOn: ReadonlyMap<string, ReadonlyMap<string, number>> = new Map([
     ]),
   ],
   [
+    // pi's suite is opencode's less the scenarios it lacks (no approvals, questions, plans,
+    // background work or images), so its shards start as opencode's, and its recorded times
+    // (`durations.json`) start as opencode's, until a night records its own.
+    "pi",
+    new Map([
+      [systems.linux, 4],
+      [systems.windows, 3],
+      [systems.macos, 3],
+    ]),
+  ],
+  [
     "agy",
     new Map([
       [systems.linux, 3],

@@ -82,6 +82,12 @@ export type Harness = {
    */
   readonly fallbacks?: (install: Install) => readonly string[]
   /**
+   * Whether the program found under its name is the harness's: for a harness whose name another
+   * program shares (Ubuntu's `pi` prints digits of π), so that one is never taken for it, nor
+   * launched. Absent where nothing else goes by the name.
+   */
+  readonly identifies?: (program: string, install: Install) => Promise<boolean>
+  /**
    * The one-line command that installs it on `platform`, which Novadeck's terminal runs
    * for the person, so it works in any shell Novadeck starts there (see `installer.ts`).
    */

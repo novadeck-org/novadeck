@@ -47,6 +47,10 @@ export const pi: AgentSetup = {
   // A prompt given mid-turn shows dim above the box as `Steering: <prompt>`, until the turn's
   // tool calls end (probed 2026-11-24, 1.6.0, busy.probe.json `steerQueued`).
   queued: (prompt) => new RegExp(`Steering: ${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+  // Its `/session` prints the session's file, id and usage in the transcript, with no model call.
+  idleCommand: "/session",
+  // Its `/settings` opens a menu over the box, which the live-slice test closes with Escape.
+  view: "/settings",
   shell: {
     run: (_call, command) => ({ calls: [{ name: "bash", input: { command } }] }),
     nested,

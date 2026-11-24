@@ -52,7 +52,7 @@ flaky test (timing, a slow runner), or a job run out of its time limit.`,
 }
 
 const systemFor = (workflow: string): string => `You read the failures of a nightly CI run of
-Novadeck, a desktop terminal app that runs AI coding agents (Claude Code, Codex, Antigravity, opencode)
+Novadeck, a desktop terminal app that runs AI coding agents (Claude Code, Codex, Antigravity, opencode, pi)
 in its terminals. ${runs[workflow] ?? "A failure may be a change in Novadeck itself or a flaky test."}
 
 Say what most likely broke, in at most three plain sentences in "cause": name the harness and
@@ -65,7 +65,7 @@ engineer who will fix it. No headings, no markdown beyond inline code.`
 export const versionsOf = (log: string): string[] => [
   ...new Set(
     cleanLog(log).flatMap((line) => {
-      const match = /^(claude|codex|agy|opencode) (\d[\w.+-]*): /.exec(line.trim())
+      const match = /^(claude|codex|agy|opencode|pi) (\d[\w.+-]*): /.exec(line.trim())
       return match ? [`${match[1]} ${match[2]}`] : []
     }),
   ),

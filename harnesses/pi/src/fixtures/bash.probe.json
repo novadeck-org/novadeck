@@ -1,0 +1,394 @@
+{
+  "harness": "pi",
+  "source": "probed 2026-11-24 against pi 1.6.0 (npm @earendil-works/pi-coding-agent; rig: a fake OpenAI-compatible model, a PTY, Novadeck's headless emulator; backups/pi-harness-2026-11-24/rig)",
+  "how": "Each state read with `readScreen`: `rows` the rows that show anything, `bright` those whose dim cells blank some of their text, `lit` cells whose background stands out, `cursor` the cursor. Sizes: names ending 60 are 60x20, names ending in a size are that size, the rest 120x40. No colour query answered (the runner's headless emulator answers only DA), so pi draws its 16-colour theme. `!`/`!!` bash mode, a bash command mid-turn, ESC then a key at once (read as Alt+key), /name and /new.",
+  "version": "1.6.0",
+  "screens": {
+    "ready": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download."
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "bang": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 1
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "!                                                                                                                       ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "36": "!"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "bangbang": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "!!                                                                                                                      ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "36": "!!"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "bangTyped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 15
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "!echo from-bash                                                                                                         ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "36": "!echo from-bash"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "bangRan": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": " $ echo from-bash                                                                                                       ",
+        "13": " from-bash                                                                                                              ",
+        "15": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " $ echo from-bash"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "bangMidTurn": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": " $ echo from-bash                                                                                                       ",
+        "13": " from-bash                                                                                                              ",
+        "15": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": " SLOW during                                                                                                            ",
+        "21": " word0 word1 word2 word3 word4                                                                                          ",
+        "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "29": " $ echo mid-turn                                                                                                        ",
+        "31": " mid-turn                                                                                                               ",
+        "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "── ⠙ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " $ echo from-bash",
+        "18": " SLOW during",
+        "21": " word0 word1 word2 word3 word4",
+        "29": " $ echo mid-turn"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "bangMidTurnEsc": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": " $ echo from-bash                                                                                                       ",
+        "13": " from-bash                                                                                                              ",
+        "15": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": " SLOW during                                                                                                            ",
+        "21": " word0 word1 word2 word3 word4                                                                                          ",
+        "23": " Operation aborted                                                                                                      ",
+        "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "26": " $ echo mid-turn                                                                                                        ",
+        "28": " mid-turn                                                                                                               ",
+        "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " $ echo from-bash",
+        "18": " SLOW during",
+        "21": " word0 word1 word2 word3 word4",
+        "23": " Operation aborted",
+        "26": " $ echo mid-turn"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "escThenKey": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": " $ echo from-bash                                                                                                       ",
+        "13": " from-bash                                                                                                              ",
+        "15": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": " SLOW during                                                                                                            ",
+        "21": " word0 word1 word2 word3 word4                                                                                          ",
+        "23": " Operation aborted                                                                                                      ",
+        "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "26": " $ echo mid-turn                                                                                                        ",
+        "28": " mid-turn                                                                                                               ",
+        "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " $ echo from-bash",
+        "18": " SLOW during",
+        "21": " word0 word1 word2 word3 word4",
+        "23": " Operation aborted",
+        "26": " $ echo mid-turn"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "named": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": " $ echo from-bash                                                                                                       ",
+        "13": " from-bash                                                                                                              ",
+        "15": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": " SLOW during                                                                                                            ",
+        "21": " word0 word1 word2 word3 word4                                                                                          ",
+        "23": " Operation aborted                                                                                                      ",
+        "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "26": " $ echo mid-turn                                                                                                        ",
+        "28": " mid-turn                                                                                                               ",
+        "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "32": " Session name set: probe session                                                                                        ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project • probe session",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " $ echo from-bash",
+        "18": " SLOW during",
+        "21": " word0 word1 word2 word3 word4",
+        "23": " Operation aborted",
+        "26": " $ echo mid-turn"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "new": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "9": " ✓ New session started                                                                                                  ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "9": " ✓ New session started"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "afterNew": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "9": " ✓ New session started                                                                                                  ",
+        "13": " after new                                                                                                              ",
+        "16": " OK: after new                                                                                                          ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "↑1.2k ↓40 $0.004 0.6%/200k (auto)                                                                   fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "9": " ✓ New session started",
+        "13": " after new",
+        "16": " OK: after new"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    }
+  }
+}

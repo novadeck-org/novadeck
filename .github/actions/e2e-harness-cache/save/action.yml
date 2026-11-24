@@ -3,7 +3,7 @@ description: Saves one installed harness to the e2e cache, once its program is t
 
 inputs:
   harness:
-    description: The harness, a key of harnesses.json (claude, codex, agy, opencode).
+    description: The harness, a key of harnesses.json (claude, codex, agy, opencode, pi).
     required: true
   cache:
     description: The folder the harnesses install into (the job's NOVADECK_E2E_CACHE).
