@@ -40,6 +40,10 @@ export const lists: ShapeLists = {
   skipped: [
     // Subagents' messages and hooks' continuations.
     "step:SYSTEM/SYSTEM_MESSAGE",
+    // A model call that failed and that it retries, its `error` the API's ("API error
+    // (attempt 1): … HTTP 503 …"), with no content: its own state, as Claude Code's
+    // `record:system` is (seen 2026-11-24, 1.5.13 and 1.5.16).
+    "step:SYSTEM/ERROR_MESSAGE",
     // An image a tool read shows as the text beside it.
     "media:MODEL/GENERIC",
   ],

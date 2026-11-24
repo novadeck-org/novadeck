@@ -95,7 +95,8 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write_stdin",
     ],
   },
-  // Recorded from Antigravity 1.4.3, and checked on 1.5.7, 1.5.9, 1.5.12 and 1.5.13 (the pin, 2026-11-20).
+  // Recorded from Antigravity 1.4.3, and checked on 1.5.7, 1.5.9, 1.5.12, 1.5.13 (the pin, 2026-11-20)
+  // and 1.5.16 (2026-11-24).
   agy: {
     asking: ["ask_question"],
     other: [
@@ -122,6 +123,10 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       // title). Never asks the person: its schema (read from the request 1.5.7 sends) has no
       // question or prompt, only roster and model actions. Added in 1.5.7.
       "swarm",
+      // Shows the person a live checklist of its steps, each call the whole list. Never asks:
+      // its schema (read from the request 1.5.16 sends) takes only `steps[{title, status}]`.
+      // Added in 1.5.16.
+      "update_steps",
       "write_file",
     ],
   },

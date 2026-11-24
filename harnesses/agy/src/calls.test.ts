@@ -30,6 +30,7 @@ describe("an Antigravity tool call", () => {
     ["run_command", {}, "work"],
     ["write_file", { file_path: "/a" }, "work"],
     ["ask_question", {}, "work"],
+    ["update_steps", { steps: [] }, "bookkeeping"],
     ["mcp_novadeck_novadeck_send", {}, "novadeck"],
     ["mcp_novadeck_novadeck_new_tool", {}, "novadeck"],
     ["mcp_novadeck_other_send", {}, "work"],
