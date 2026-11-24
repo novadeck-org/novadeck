@@ -512,6 +512,14 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(flag(ui)).toBe(false)
   })
 
+  it("reveals the Experimental switch for the run once on, however it goes off", () => {
+    const ui = createUiStore(initial())
+    expect(ui.getSnapshot().experimentalRevealed).toBe(false)
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", true)
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", false)
+    expect(ui.getSnapshot().experimentalRevealed).toBe(true)
+  })
+
   it("shows the chat view as its preference says, whatever Experimental says", () => {
     const { preferences } = initial()
     expect(chatViewOn({ preferences: { ...preferences, chatView: true } })).toBe(true)

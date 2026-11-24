@@ -15,6 +15,13 @@ the workspace's signals and plays its steps, and what it draws over the workspac
   `TourConsent.tsx`) says what runs and where the agents' words go, and where opencode isn't
   installed or connected it offers Install (the app's installer, handed in by the app) or Connect
   right there. The model is Novadeck's, so none of the person's own agents is spent.
+- **The person moves the view, never the tour.** Starting a run puts the person in Canvas on its
+  lead's window; after that the tour opens, pans and zooms nothing of its own. A caption box whose
+  subject can be off screen or behind another tab carries an eye button (`TourStep.show`) that
+  brings it into view as the person presses it.
+- **No beat before its subject.** A step says nothing until what it's about is there (`ready`),
+  and a step with a `cue` says that (the person's part: open Files, open the pane) until its
+  subject is on screen, its own line only then.
 - **Its look is its own.** The tour is meant to stand apart from the app, so what it draws over
   the workspace (`print.css`) takes no colour from the app's themes: every colour set on
   `.tour-print` (and in the marks' own rules), none a theme token, and a theme's glow on text

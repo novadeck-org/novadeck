@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode }
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { useTileOnScreen, type TileVisibility } from "../tileVisibility"
 import type { TerminalNode } from "./types"
+import { zoomPastNoWheel } from "./wheel"
 
 // What a node draws its window from. Terminal content comes from the canvas's current render,
 // not from node data: node data reaches XYFlow a commit later, which would briefly show
@@ -47,6 +48,11 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
     [flyTo, id, legible, onScreen],
   )
   const body = useMemo(() => (tile ? render(tile, controls) : null), [controls, render, tile])
+  useEffect(() => {
+    const element = content.current
+    element?.addEventListener("wheel", zoomPastNoWheel, { passive: false })
+    return () => element?.removeEventListener("wheel", zoomPastNoWheel)
+  }, [])
   useEffect(() => {
     if (data.focusRequest === null) return
     content.current?.closest<HTMLElement>(".react-flow__node")?.focus({ preventScroll: true })

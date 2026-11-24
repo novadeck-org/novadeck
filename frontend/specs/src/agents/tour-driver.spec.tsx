@@ -55,6 +55,8 @@ describe("The tour's driver", () => {
     await startTour()
     await coachSays("That's your agent. It runs this job.")
     await expect.element(page.getByText(/^Act 1, Your agent\./)).toBeInTheDocument()
+    // The one window, in view as the tour began: its box has no eye to bring it.
+    expect(coach().getByRole("button", { name: "Show me" }).query()).toBeNull()
     // The agent describes itself as the tour's lead: its step is done, and holds until its
     // caption has been on screen 3 s, however soon the agent named itself.
     await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
@@ -87,8 +89,6 @@ describe("The tour's driver", () => {
         nudged: false,
         briefed: true,
         asked: false,
-        entered: true,
-        tabbed: false,
         doneAt: null,
         // The step it was at is another's here.
         stepId: "model",

@@ -1,13 +1,24 @@
 import type { PullRequest } from "@novadeck/core/forges"
 import { type ChangesContent, type Item } from "@novadeck/core/items"
-import { GitPullRequest } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { ChevronsDownUp, ChevronsUpDown, GitPullRequest } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { PaneTools, usePaneNote } from "../../pane-row"
+import { Expanded } from "./Expanded"
 import { FileTree } from "./FileTree"
 import { FileView } from "./FileView"
 import { LayerList } from "./LayerList"
+import { collapseFrom, expandFrom, placesIn } from "./motion"
 import { originNote } from "./origin-note"
 import { usePullRequest } from "./pull-requests"
 import { alone, idsOf, pick, selectedOf, selectionName } from "./selection"
@@ -18,9 +29,10 @@ import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
 // since the merge base) to pick from, the files they changed as a tree, and one file at a time
-// opened into its changes; or a compare an agent showed, a head's commits since it left a base,
-// which has no uncommitted work. Read-only. What was picked and opened is kept by item; the files read
-// are the backend's, kept until each changes again.
+// opened into its changes, or the tree expanded into every file's changes one after another; or
+// a compare an agent showed, a head's commits since it left a base, which has no uncommitted
+// work. Read-only. What was picked and opened is kept by item; the files read are the backend's,
+// kept until each changes again.
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
 
@@ -148,14 +160,101 @@ export const ChangesViewer = ({
     update,
     markRead,
   )
+  // The tree expanded into every file's diff, and back: the file at the top stays at the top, and
+  // each row in view grows into its heading (or its heading settles back into its row).
+  const expanded = view.expanded && order.length > 0
+  const scroller = useRef<HTMLDivElement>(null)
+  const moving = useRef<{
+    kind: "expand" | "collapse"
+    from: Map<string, DOMRect>
+    top: string | undefined
+  } | null>(null)
+  const setExpanded = useCallback(
+    (next: boolean) => {
+      const box = scroller.current
+      if (box) {
+        const from = placesIn(box, next ? ".diff-file" : ".changes-stack-head")
+        moving.current = { kind: next ? "expand" : "collapse", from, top: from.keys().next().value }
+      }
+      update((now) => ({ ...now, expanded: next }))
+    },
+    [update],
+  )
+  useLayoutEffect(() => {
+    const move = moving.current
+    const box = scroller.current
+    moving.current = null
+    if (!move || !box) return
+    const drawn = new Map(
+      [
+        ...box.querySelectorAll<HTMLElement>(
+          move.kind === "expand" ? ".changes-stack-file" : ".diff-file",
+        ),
+      ].map((each) => [each.dataset.path, each]),
+    )
+    // A file in a folded folder has no row: the nearest drawn before it stands for it.
+    const at = order.findIndex((file) => file.path === move.top)
+    const anchor = order
+      .slice(0, at + 1)
+      .toReversed()
+      .map((file) => drawn.get(file.path))
+      .find((each) => each !== undefined)
+    const was = move.top === undefined ? undefined : move.from.get(move.top)
+    box.scrollTop = 0
+    if (anchor && was)
+      box.scrollTop =
+        anchor.getBoundingClientRect().top - Math.max(was.top, box.getBoundingClientRect().top)
+    if (move.kind === "expand") expandFrom(box, move.from)
+    else collapseFrom(box, move.from)
+  }, [expanded, order])
+  const shutFile = useCallback(
+    (path: string) =>
+      update((now) => ({
+        ...now,
+        shut: now.shut.includes(path)
+          ? now.shut.filter((each) => each !== path)
+          : [...now.shut, path],
+      })),
+    [update],
+  )
+  // The same each render, so a file marked read does not draw every file again.
+  const reading = useRef({ read, markRead })
+  useEffect(() => {
+    reading.current = { read, markRead }
+  })
+  const seeFile = useCallback((path: string) => {
+    if (!reading.current.read.has(path)) reading.current.markRead(path)
+  }, [])
+  // J and K step to the next file's heading, or back to this one's, then the one before.
+  const jump = (delta: number) => {
+    const box = scroller.current
+    if (!box) return
+    const top = box.getBoundingClientRect().top
+    const sections = [...box.querySelectorAll<HTMLElement>(".changes-stack-file")]
+    const at = sections.findIndex((each) => each.getBoundingClientRect().bottom > top + 41)
+    if (at < 0) return
+    const here = sections[at]!.getBoundingClientRect().top
+    const to =
+      delta < 0 && here < top - 1
+        ? sections[at]
+        : sections[Math.min(Math.max(at + delta, 0), sections.length - 1)]
+    if (to) box.scrollTop += to.getBoundingClientRect().top - top
+  }
+
   const unfolded = order.some((file) => file.path === view.unfolded) ? view.unfolded : null
 
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!opened || event.metaKey || event.ctrlKey || event.altKey) return
-    if (event.key === "Escape") back()
-    else if (event.key === "j" || event.key === "J") step(1)
-    else if (event.key === "k" || event.key === "K") step(-1)
-    else return
+    if (!(opened || expanded) || event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.key === "Escape") {
+      if (opened) back()
+      else setExpanded(false)
+    } else if (event.key === "j" || event.key === "J") {
+      if (opened) step(1)
+      else jump(1)
+    } else if (event.key === "k" || event.key === "K") {
+      if (opened) step(-1)
+      else jump(-1)
+    } else return
     event.preventDefault()
     event.stopPropagation()
   }
@@ -196,12 +295,13 @@ export const ChangesViewer = ({
         className="changes-host"
         tabIndex={-1}
         // A pane over its terminal leaves the keys to a file that takes them.
-        data-pane-keys={opened ? "" : undefined}
+        data-pane-keys={opened || expanded ? "" : undefined}
         data-moving={phase?.kind}
         onKeyDown={keys}
         // A click on the file takes the keys, which a terminal beside it may have taken.
         onMouseDown={(event) => {
-          if (opened && !(event.target as Element).closest("button")) host.current?.focus()
+          if ((opened || expanded) && !(event.target as Element).closest("button"))
+            host.current?.focus({ preventScroll: true })
         }}
       >
         {listing && (
@@ -232,14 +332,56 @@ export const ChangesViewer = ({
                   <span className="changes-files-of">
                     {files.length === 0 ? "" : `${noun(files.length)} · ${name}`}
                   </span>
+                  {files.length > 0 && (
+                    <Tooltip
+                      content={
+                        expanded
+                          ? "Fold the diffs back into the tree · Esc"
+                          : "Show every file's diff, one after another"
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="changes-expand"
+                        aria-keyshortcuts={expanded ? "Escape" : undefined}
+                        onClick={() => setExpanded(!expanded)}
+                      >
+                        {expanded ? (
+                          <ChevronsDownUp size={14} strokeWidth={1.6} aria-hidden="true" />
+                        ) : (
+                          <ChevronsUpDown size={14} strokeWidth={1.6} aria-hidden="true" />
+                        )}
+                        {expanded ? "Collapse all" : "Expand all"}
+                      </button>
+                    </Tooltip>
+                  )}
                 </div>
-                <div className="changes-scroll">
+                <div
+                  ref={scroller}
+                  className="changes-scroll"
+                  data-expanded={expanded || undefined}
+                >
                   {files.length === 0 ? (
                     <div className="diff-empty">
                       {all.files === 0
                         ? `No changes against ${content.base}.`
                         : "The layers selected changed no files."}
                     </div>
+                  ) : expanded ? (
+                    <Expanded
+                      files={order}
+                      scroller={scroller}
+                      read={read}
+                      shut={view.shut}
+                      selectionName={name === "everything" ? undefined : name}
+                      itemStore={itemStore}
+                      target={target}
+                      itemId={item.id}
+                      stamp={diffStamp}
+                      layers={layers}
+                      onShut={shutFile}
+                      onSeen={seeFile}
+                    />
                   ) : (
                     <FileTree
                       rows={rows}
