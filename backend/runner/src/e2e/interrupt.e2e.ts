@@ -309,7 +309,7 @@ for (const setup of setups) {
         })
         await t1.reached("working", { after: mark })
         await t1.prompt(message)
-        await t1.until(/Press up to edit queued messages/)
+        await t1.until(setup.queueHint ?? /Press up to edit queued messages/)
         await sleep(1500)
         const stopped = await t1.interrupt()
         held.open()
@@ -354,7 +354,7 @@ for (const setup of setups) {
         })
         await t1.reached("working", { after: mark })
         await t1.prompt("Queued beta\nsecond line\nthird line\nfourth line\nfifth line")
-        await t1.until(/Press up to edit queued messages/)
+        await t1.until(setup.queueHint ?? /Press up to edit queued messages/)
         await t1.prompt("Queued gamma\nsecond line\nthird line\nfourth line\nfifth line")
         await sleep(2000)
         await expect(t1.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
@@ -426,7 +426,9 @@ for (const setup of setups) {
       await sleep(2500)
       await onStopped?.()
 
-      expect(stopped.returned).toBe(setup.queuedTaken ? null : "Queued beta\nQueued gamma")
+      expect(stopped.returned).toBe(
+        setup.queuedTaken ? null : ["Queued beta", "Queued gamma"].join(setup.queuedJoin ?? "\n"),
+      )
       // Words given back are the person's draft again, and none went: Claude Code's record
       // holds them, written as the queued turn started, which the chat shows no more.
       if (stopped.returned !== null) {
@@ -593,7 +595,7 @@ for (const setup of setups) {
           })
           await t1.reached("working", { after: mark })
           await t1.prompt(lines.join("\n"))
-          await t1.until(/Press up to edit queued messages/)
+          await t1.until(setup.queueHint ?? /Press up to edit queued messages/)
           await sleep(1500)
           await expect(t1.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
           held.open()

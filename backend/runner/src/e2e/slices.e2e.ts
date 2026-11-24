@@ -54,7 +54,9 @@ for (const setup of setups) {
       await until("the menu close", (latest) => latest?.slice === null)
       await sleep(300)
       keys(view)
-      await until("the filtered menu", (latest) => rows(latest).includes(view))
+      // Its rows name the command, with its `/` or without (pi's list `→ settings`).
+      const named = (latest: SliceChange | undefined) => rows(latest).includes(view.slice(1))
+      await until("the filtered menu", named)
       await sleep(300)
       keys("\r")
       await until("the command's view", (latest) => latest?.slice?.reason === "view")
@@ -68,7 +70,7 @@ for (const setup of setups) {
         pass(key)
         await sleep(90)
       }
-      await until("the menu, by keys", (latest) => rows(latest).includes(view))
+      await until("the menu, by keys", named)
       pass("\x1b[B")
       await sleep(300)
       pass("\x1b[A")
@@ -93,10 +95,12 @@ for (const setup of setups) {
       await sleep(300)
 
       // A mention: the words before it go as they are, and the menu comes up behind them.
-      pass("look at @")
-      await until("the @ menu", (latest) => latest?.slice?.reason === "menu")
-      pass("\x15")
-      await until("the @ menu close", (latest) => latest?.slice === null)
+      if (lacking(setup, "mention") === undefined) {
+        pass("look at @")
+        await until("the @ menu", (latest) => latest?.slice?.reason === "menu")
+        pass("\x15")
+        await until("the @ menu close", (latest) => latest?.slice === null)
+      }
       controller.abort()
       await reading
     })

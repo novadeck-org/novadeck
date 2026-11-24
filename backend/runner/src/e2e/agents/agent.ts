@@ -110,6 +110,7 @@ export type Trait =
   | "fork.inPlace"
   | "image"
   | "pluginCopy"
+  | "mention"
 
 /**
  * How a scenario makes the harness ask the person before a tool runs, and what that
@@ -308,6 +309,16 @@ export type AgentSetup = {
    * queue waits, as words a Stop gives back to the person.
    */
   readonly queuedTaken?: string
+  /**
+   * What the screen shows under messages queued behind a running turn, which the scenarios
+   * wait for: Claude Code's and Antigravity's `Press up to edit queued messages` where omitted.
+   */
+  readonly queueHint?: RegExp
+  /**
+   * What stands between messages a Stop gives back to the box: a line break where omitted;
+   * pi's box puts a blank line between them.
+   */
+  readonly queuedJoin?: string
   /**
    * How many Escapes a person presses to stop a turn: 2 where the first only arms the interrupt
    * (opencode's `esc again to interrupt`, which lapses in about 5 s), 1 where omitted.
