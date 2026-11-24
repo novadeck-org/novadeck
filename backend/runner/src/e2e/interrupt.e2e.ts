@@ -468,7 +468,7 @@ for (const setup of setups) {
       else await sleep(300)
     }
 
-    slow(
+    gated(slow, lacking(setup, "hookedQueue"))(
       "gives back both of two queued messages with their slow prompt hooks still running",
       ({ e2e: run }) => {
         seedSlowHook(run)
