@@ -19,34 +19,38 @@ const managerOf = (idle: { value: boolean }) =>
 
 describe("after a drop", () => {
   context("while the dropped row is still sliding into its place", () => {
-    it("waits, then runs once the drag has settled, and only once", () => {
+    it("waits, then runs once the drag has settled, and only once", async () => {
       const idle = signal(false)
       const runs: string[] = []
       afterDrop(managerOf(idle), () => runs.push("settled"))
       expect(runs).toEqual([])
       idle.value = true
+      await Promise.resolve()
       expect(runs).toEqual(["settled"])
       idle.value = false
       idle.value = true
+      await Promise.resolve()
       expect(runs).toEqual(["settled"])
     })
   })
 
   context("when the drag has already settled", () => {
-    it("runs at once", () => {
+    it("runs in the next microtask", async () => {
       const runs: string[] = []
       afterDrop(managerOf(signal(true)), () => runs.push("settled"))
+      await Promise.resolve()
       expect(runs).toEqual(["settled"])
     })
   })
 
   context("when the wait is stopped first", () => {
-    it("never runs", () => {
+    it("never runs", async () => {
       const idle = signal(false)
       const runs: string[] = []
       const stop = afterDrop(managerOf(idle), () => runs.push("settled"))
       stop()
       idle.value = true
+      await Promise.resolve()
       expect(runs).toEqual([])
     })
   })
