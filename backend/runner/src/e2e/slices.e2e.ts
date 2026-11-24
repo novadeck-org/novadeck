@@ -50,7 +50,8 @@ for (const setup of setups) {
       expect(seen.at(-1)?.slice?.columns).toBe(terminals.get(t.id).cols)
       keys("\x1b[B")
       await until("the mark move", (latest) => styled(latest) !== marked)
-      keys("\x15")
+      // Backspacing the key closes its menu on every harness; pi's Ctrl-U leaves it open.
+      keys("\x7f")
       await until("the menu close", (latest) => latest?.slice === null)
       await sleep(300)
       keys(view)
