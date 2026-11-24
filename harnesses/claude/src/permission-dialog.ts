@@ -93,18 +93,28 @@ const nameKey = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/
  * full: its text, as `detail`; undefined where the screen and the request differ at all.
  * A tool this doesn't know is never read.
  */
-const shows = (rows: readonly string[], title: number, facts: RequestFacts): string | undefined => {
+const shows = (
+  rows: readonly string[],
+  title: number,
+  facts: RequestFacts,
+  scrolled: boolean,
+): string | undefined => {
   const input = fieldsOf(facts.input)
   if (!input) return refuse("permission.shows.1")
   // Where a block's header is: the row under the dialog's top rule, as its label, without
   // whose request it is. A subagent's command has a tip under its label that wraps in a narrow
   // pane, above a description that may wrap too, so the label can be five rows above the block
   // (72 and 60 columns, 2026-11-23 probes). Where the top rule isn't in reach, as when it has
-  // scrolled away, the three rows above the block, as before.
+  // scrolled away, the three rows above the block, as before, and the screen's top row, which
+  // is the label when the rule above it is what scrolled (2.1.331: `↑ 1 more line` under the
+  // options, a two-row tip between the label and the description).
   const header = (open: number): string[] => {
     const from = Math.max(0, open - headerReach)
     const top = rows.slice(from, open).findLastIndex((each) => rule.test(each))
-    const above = top < 0 ? rows.slice(Math.max(0, open - 3), open) : [rows[from + top + 1] ?? ""]
+    const above =
+      top < 0
+        ? [...(scrolled ? rows.slice(0, 1) : []), ...rows.slice(Math.max(0, open - 3), open)]
+        : [rows[from + top + 1] ?? ""]
     return above.map((each) => labelOf(each.trim()))
   }
   switch (facts.tool) {
@@ -188,15 +198,18 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       if (!mcp) return refuse("permission.shows.19")
       const at = rows.findIndex((each, index) => index < title && each.endsWith("(MCP)"))
       const named = /^ (.+?) — (.+?) Tool: \(MCP\)$/.exec(rows[at] ?? "")
-      if (!named || at < 1 || labelOf(rows[at - 1]!.trim()) !== "Tool use")
-        return refuse("permission.shows.20")
+      // With the dialog's top scrolled away (`↑ 2 more lines` under its options, 2.1.331) the
+      // tool's row is the screen's first, and its `Tool use` label above it is not shown.
+      const labelled = at === 0 ? scrolled : labelOf(rows[at - 1]!.trim()) === "Tool use"
+      if (!named || !labelled) return refuse("permission.shows.20")
       if (nameKey(named[1]!) !== nameKey(mcp[1]!) || nameKey(named[2]!) !== nameKey(mcp[2]!)) {
         return refuse("permission.shows.21")
       }
-      // The arguments, one `name: value` row each, between ╌ rules; none, no rules.
-      const entries = Object.entries(input).map(
-        ([key, value]) => `${key}: ${JSON.stringify(value)}`,
-      )
+      // The arguments, one `name: value` row each, between ╌ rules; none, no rules. A string
+      // argument that is long may stand as `name:` over its text in a quote block, unquoted
+      // (2.1.331, a summary of 80 characters), its rows behind a bar three columns in; the screen says which, and the text must be
+      // the request's all the same.
+      const entries = Object.entries(input)
       const after = rows.slice(at + 1, title)
       const open = after.findIndex((each) => dashed.test(each))
       if (entries.length === 0) {
@@ -207,8 +220,15 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       if (open !== 0) return refuse("permission.shows.23")
       const close = after.findIndex((each, index) => index > 0 && dashed.test(each))
       if (close < 0) return refuse("permission.shows.24")
-      const args = quoted(after.slice(1, close))
-      return wraps(args, entries.join(" ")) ? args.join("\n") : refuse("permission.shows.25")
+      const args = quoted(after.slice(1, close).map((each) => each.replace(/^ {3}│(?: |$)/, " ")))
+      const expected = entries
+        .map(([key, value]) =>
+          typeof value === "string" && args.includes(`${key}:`)
+            ? `${key}: ${value}`
+            : `${key}: ${JSON.stringify(value)}`,
+        )
+        .join(" ")
+      return wraps(args, expected) ? args.join("\n") : refuse("permission.shows.25")
     }
   }
 }
@@ -224,11 +244,12 @@ export const permission = (
   if (at < 0) return refuse("permission.permission.2")
   const read = numbered(rows, at + 1, permissionOption, permissionContinuation)
   if (!read) return refuse("permission.permission.3")
-  const rest = scrolledAway.test(read.rest[0] ?? "") ? read.rest.slice(1) : read.rest
+  const scrolled = scrolledAway.test(read.rest[0] ?? "")
+  const rest = scrolled ? read.rest.slice(1) : read.rest
   if (rest.length > 1 || (rest.length === 1 && !footerIs(rest[0]!))) {
     return refuse("permission.permission.4")
   }
-  const detail = shows(rows, at, facts)
+  const detail = shows(rows, at, facts, scrolled)
   if (detail === undefined) return refuse("permission.permission.5")
   const title = permissionTitle.exec(rows[at]!)![1]!
   // "No" interrupts the turn and Claude Code asks "What should Claude do instead?": the

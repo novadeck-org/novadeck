@@ -176,3 +176,71 @@ describe("Claude Code's ExitPlanMode", () => {
     }
   })
 })
+
+// Claude Code 2.1.331's plan approval ("Yes, and use auto mode") in a narrow pane, as Ink wraps
+// it at 64 columns (written from a Grid tile's text, 2026-11-24; no saved screen): the question
+// breaks inside its last words, and the footer's file name goes on a second row.
+describe("Claude Code's ExitPlanMode in a narrow pane", () => {
+  const name = "wobbly-sparkling-ferret.md"
+  const facts: RequestFacts = {
+    kind: "plan",
+    tool: "ExitPlanMode",
+    input: { planFilePath: `/home/user/.claude/plans/${name}` },
+    cwd: null,
+  }
+  const drawn = (question: string[], footer: string[]): string[] => [
+    "─".repeat(64),
+    "   Ready to code?",
+    "   Here is Claude's plan:",
+    "╌".repeat(64),
+    "   Plan",
+    "   1. Do the thing",
+    "╌".repeat(64),
+    "─".repeat(64),
+    ...question,
+    "   ❯ 1. Yes, and use auto mode",
+    "     2. Yes, manually approve edits",
+    "     3. Tell Claude what to change",
+    "        shift+tab to approve with this feedback",
+    "",
+    ...footer,
+  ]
+  const footer = ["   ctrl+g to edit in Vim · ~/.claude/plans/", `   ${name}`]
+
+  it.each([
+    [["   Claude has written up a plan and is ready to execute. Would you", "   like to proceed?"]],
+    [["   Claude has written up a plan and is ready to execute. Would", "   you like to proceed?"]],
+    [
+      [
+        "   Claude has written up a plan and is ready to",
+        "   execute. Would you like to",
+        "   proceed?",
+      ],
+    ],
+  ])("reads the question wrapped over its last rows", (question) => {
+    const dialog = need(dialogs.read(drawn(question, footer), facts))
+    expect(dialog.dialog).toMatchObject({
+      type: "choices",
+      title: "Ready to code?",
+      options: [
+        { id: "1", label: "Yes, and use auto mode" },
+        { id: "2", label: "Yes, manually approve edits" },
+        { id: "3", label: "Tell Claude what to change", text: "field" },
+      ],
+    })
+    expect(pressed(dialog.keys(choice("2")))).toEqual(["2"])
+  })
+
+  it("still declines a question that is another", () => {
+    const other = [
+      "   Claude has written up a plan and is ready to execute. Would you",
+      "   like to leave?",
+    ]
+    expect(dialogs.read(drawn(other, footer), facts)).toBeUndefined()
+    const extra = [
+      "   Anything. Claude has written up a plan and is ready to execute.",
+      "   Would you like to proceed?",
+    ]
+    expect(dialogs.read(drawn(extra, footer), facts)).toBeUndefined()
+  })
+})
