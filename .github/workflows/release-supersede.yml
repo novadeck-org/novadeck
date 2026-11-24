@@ -3,11 +3,13 @@ name: Supersede Release
 # Release runs one at a time in its concurrency group: a merge while one runs waits as the
 # group's pending run, and a newer merge replaces that one. The run in progress still packaged
 # a commit main had moved past, holding a macOS runner, the scarcest, for its build. On each push
-# to main this cancels an older push's Release run while its Prepare or Package jobs still run
-# (scripts/release-supersede), so the newest commit's run starts at once and is the one that
-# publishes; its version counts from the newest published release, so the cancelled run's commits
-# are in it. A run that publishes, or is about to, finishes: a cancel inside release-it could leave
-# a tag without its release, which holds every release after it. A run by hand is never cancelled.
+# to main this cancels an older push's Release run while it still builds and its macOS package
+# hasn't reached a runner (scripts/release-supersede), so the newest commit's run starts at once
+# and is the one that publishes; its version counts from the newest published release, so the
+# cancelled run's commits are in it. A run whose macOS package runs is left to publish, or a busy
+# day's merges would keep throwing builds away and publish nothing; so is one that publishes, or
+# is about to: a cancel inside release-it could leave a tag without its release, which holds every
+# release after it. A run by hand is never cancelled.
 on:
   push:
     branches: [main]

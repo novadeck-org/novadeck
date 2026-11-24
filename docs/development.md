@@ -1919,10 +1919,11 @@ moving the repository needs no edit, and the version into `install.sh`, whose ba
 Commits determine release eligibility; versions are currently limited to patch
 increments. Documentation-only changes do not trigger a release. See
 [.release-it.json](../.release-it.json) for the release configuration.
-A merge supersedes the release of an earlier one that is still building: [Supersede
-Release](../.github/workflows/release-supersede.yml) cancels that run before it publishes, so
-the runners, macOS's above all, build only main's newest commit, whose release then carries
-both merges' changes. A run that publishes, or one started by hand, always finishes.
+A merge supersedes the release of an earlier one whose macOS package is still waiting for a
+runner: [Supersede Release](../.github/workflows/release-supersede.yml) cancels that run, so
+the scarce macOS runners build only main's newest commit, whose release then carries both
+merges' changes (unless the newer commit's own run fails, which then holds both). A run whose
+macOS package is building, one that publishes, and one started by hand always finish.
 
 Bump `engineInterface` in `engines/whisper/scripts/build.ts` (voice) or
 `engines/murmur/scripts/build.ts` (murmur) with any change to the server flags the

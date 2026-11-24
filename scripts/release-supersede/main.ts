@@ -24,22 +24,33 @@ export const publishJob = "Publish Experimental Release"
 /** release.yml's jobs before publishing: Prepare, and the packaging it calls (`Package / macOS`). */
 const builds = (name: string): boolean => name === "Prepare" || name.startsWith("Package /")
 
+/** The macOS package, the build that waits longest for a runner and takes longest on one. */
+export const macJob = "Package / macOS"
+
 /**
  * Whether a newer push's Release run supersedes `run`, so cancelling it lets the newer one
  * start: it was started by an older push (or dispatch of that kind), holds the group now (a
- * pending run is GitHub's to replace), and is still building. Never once its publishing job is
- * listed, nor when every build job is done and publishing is about to be: a cancel inside
- * release-it could leave a tag without its release, which holds every release after it. A run
- * by hand releases a version its commits don't call for, so it is never cancelled.
+ * pending run is GitHub's to replace), and is still building, with its macOS package not yet
+ * on a runner. Once that package runs, the run is left to publish: cancelling it would throw the
+ * build away and send the newer run's to the back of the macOS queue, so on a busy day nothing
+ * would publish at all. Never once its publishing job is listed, nor when every build job is done
+ * and publishing is about to be: a cancel inside release-it could leave a tag without its
+ * release, which holds every release after it. A run by hand releases a version its commits
+ * don't call for, so it is never cancelled.
  */
-export const superseded = (run: ReleaseRun, jobs: readonly Job[], newer: Newer): boolean =>
-  run.event !== "workflow_dispatch" &&
-  run.status !== "completed" &&
-  run.status !== "pending" &&
-  run.headSha !== newer.headSha &&
-  Date.parse(run.createdAt) < Date.parse(newer.createdAt) &&
-  !jobs.some((job) => job.name === publishJob) &&
-  jobs.some((job) => builds(job.name) && job.status !== "completed")
+export const superseded = (run: ReleaseRun, jobs: readonly Job[], newer: Newer): boolean => {
+  const mac = jobs.find((job) => job.name === macJob)
+  return (
+    run.event !== "workflow_dispatch" &&
+    run.status !== "completed" &&
+    run.status !== "pending" &&
+    run.headSha !== newer.headSha &&
+    Date.parse(run.createdAt) < Date.parse(newer.createdAt) &&
+    !jobs.some((job) => job.name === publishJob) &&
+    (mac === undefined || mac.status === "queued" || mac.status === "waiting") &&
+    jobs.some((job) => builds(job.name) && job.status !== "completed")
+  )
+}
 
 /** What `main` reads and does through GitHub, behind functions so tests run offline. */
 export type GitHub = {
@@ -81,7 +92,12 @@ export const commandGitHub = (repo: string): GitHub => ({
     return page.jobs.map(({ name, status }) => ({ name, status }))
   },
   cancel: async (runId) => {
-    await api(`repos/${repo}/actions/runs/${runId}/cancel`, "POST")
+    try {
+      await api(`repos/${repo}/actions/runs/${runId}/cancel`, "POST")
+    } catch (error) {
+      // 409: the run already finished or is being cancelled, as by another push's run just now.
+      if (!(error instanceof Error && error.message.includes("HTTP 409"))) throw error
+    }
   },
 })
 

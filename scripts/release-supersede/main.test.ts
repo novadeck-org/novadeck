@@ -41,6 +41,16 @@ describe("superseded", () => {
     expect(superseded(older(), [{ name: "Prepare", status: "in_progress" }], newer)).toBe(true)
   })
 
+  it("leaves a run whose macOS package is on a runner or done, so its build isn't thrown away", () => {
+    const mac = (status: string) =>
+      packaging.map((job) => (job.name === "Package / macOS" ? { ...job, status } : job))
+    expect(superseded(older(), mac("in_progress"), newer)).toBe(false)
+    const macDone = mac("completed").map((job) =>
+      job.name === "Package / Windows" ? { ...job, status: "in_progress" } : job,
+    )
+    expect(superseded(older(), macDone, newer)).toBe(false)
+  })
+
   it("leaves a run that publishes, or is about to", () => {
     expect(superseded(older(), [...done, { name: publishJob, status: "queued" }], newer)).toBe(
       false,
