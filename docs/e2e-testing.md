@@ -546,6 +546,13 @@ for (const setup of setups) {
   of their harnesses is selected. Such scenarios go in files ending in `.mixed.e2e.ts`,
   which CI's mixed job runs alone; `messaging.mixed.e2e.ts` passes a message round a
   ring of every harness, each hop's recipient rung for it.
+- **The tour's opencode** runs on a provider of the tour's own (`openrouter`, whatever its sandbox
+  config says), which speaks OpenAI's chat completions: the fake model always serves that dialect
+  (`model/chat.ts`, `Api` `"chat"`) and a fake tour service (`POST /tour/v1/tickets` answers its one
+  credential as the ticket), and `tour-story.ts`'s `fakeTourService` points the runner's
+  `NOVADECK_TOUR_ENDPOINT` at it. The sandbox's opencode catalog is seeded with the tour's model
+  (`seedTour`), as models.dev is refused. `tour.e2e.ts` runs its own ticket server instead, to refuse
+  as the website does (429, 503).
 - **The fake model** answers each call with the first rule that replies; `model.use`
   adds rules ahead of the earlier ones, and with none it answers "OK.". Rules may be
   async: a rule that awaits a `gate()` holds its reply, and so keeps that turn running,

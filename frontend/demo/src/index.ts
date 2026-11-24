@@ -112,7 +112,28 @@ export const demoBackend = (
   // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
   // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
-  const agents = createStore(sampleAgents)
+  // Where the tour is offered (the experimental channel) opencode, the tour's agent, is listed too:
+  // installed and not connected, or as the address says: `&opencode=missing` (not installed),
+  // `outdated` or `unsupported` (installed, with Novadeck unable to follow it).
+  const opencodeAs = addressParams().get("opencode")
+  const agents = createStore<readonly AgentConnection[]>(
+    addressParams().get("channel") === "experimental"
+      ? [
+          ...sampleAgents,
+          opencodeAs === "missing"
+            ? missingAgent("opencode")
+            : {
+                agent: "opencode",
+                available: true,
+                connected: opencodeAs === "outdated" || opencodeAs === "unsupported",
+                busy: false,
+                ...((opencodeAs === "outdated" || opencodeAs === "unsupported") && {
+                  limited: opencodeAs,
+                }),
+              },
+        ]
+      : sampleAgents,
+  )
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
   // and an install held at its first step where it asks for that (`&install=held`).
@@ -846,7 +867,7 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
     ),
   )
   // `&tourStart=fails` makes its first start fail, as a folder of the person's own does, and
-  // `&tourStart=unlisted` as Codex not signed in yet does. Its agent is played as a runner
+  // `&tourStart=tickets` as the tour's service with no free run left does. Its agent is played as a runner
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
   // itself until nudged, `&tourAgent=permission` has it ask the person's permission first, and
@@ -875,7 +896,7 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
     if (params.get("tourPage") === "none") backend.tour.goNoPage()
     if (params.get("tourKeep") === "fails") backend.tour.failKeep()
     if (params.get("tourStart") === "fails") backend.tour.failNext()
-    if (params.get("tourStart") === "unlisted") backend.tour.failNext("unlisted")
+    if (params.get("tourStart") === "tickets") backend.tour.failNext("tickets")
   }
   if (isDemoInbox(backend.inbox)) {
     const answer = params.get("inboxAnswer")

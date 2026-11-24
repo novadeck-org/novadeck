@@ -1,15 +1,7 @@
-import { TourNeedsAgent, type AgentConnection } from "@novadeck/core/port"
+import type { AgentConnection } from "@novadeck/core/port"
 
-import {
-  chooseAgent,
-  connectingAgent,
-  followAgents,
-  offerTour,
-  startingTour,
-  tourAgents,
-  tourFailed,
-} from "./consent"
-import { context, describe, expect, it } from "./test"
+import { agentChanged, offerTour, startingTour, tourAgentState, tourFailed } from "./consent"
+import { describe, expect, it } from "./test"
 
 const connection = (
   agent: AgentConnection["agent"],
@@ -17,91 +9,72 @@ const connection = (
 ): AgentConnection => ({ agent, available: true, connected: true, busy: false, ...state })
 
 describe("The tour's consent", () => {
-  it("offers the connected agents in Novadeck's order", () => {
-    const connections = [
-      connection("agy"),
-      connection("codex", { connected: false }),
-      connection("claude"),
-    ]
-    expect(tourAgents(connections)).toEqual(["claude", "agy"])
-    expect(offerTour(connections)).toEqual({ agent: "claude", starting: false })
+  it("is ready where opencode is installed and connected, whatever else is", () => {
+    expect(
+      tourAgentState([connection("opencode"), connection("claude", { connected: false })]),
+    ).toEqual({ step: "ready" })
+    expect(tourAgentState([connection("claude")])).toMatchObject({ step: "install" })
   })
 
-  it("leaves out an agent still connected once its program is gone", () => {
-    const connections = [connection("claude"), connection("codex", { available: false })]
-    expect(tourAgents(connections)).toEqual(["claude"])
-    expect(offerTour(connections, "codex")).toEqual({
-      agent: "claude",
-      starting: false,
-      preferred: "codex",
+  it("offers to install opencode where it isn't, with the installer the backend knows", () => {
+    expect(
+      tourAgentState([
+        connection("opencode", { available: false, connected: false, installer: "curl x | bash" }),
+      ]),
+    ).toEqual({ step: "install", installer: "curl x | bash" })
+    expect(tourAgentState([])).toEqual({ step: "install" })
+  })
+
+  it("offers to connect it where it is installed and Novadeck isn't connected, and waits while that is under way", () => {
+    expect(tourAgentState([connection("opencode", { connected: false })])).toEqual({
+      step: "connect",
+    })
+    expect(tourAgentState([connection("opencode", { connected: false, busy: true })])).toEqual({
+      step: "connecting",
     })
   })
 
-  it("opens on the agent asked for where it can run the tour", () => {
-    const connections = [connection("claude"), connection("codex")]
-    expect(offerTour(connections, "codex")).toMatchObject({ agent: "codex" })
+  it("leaves out opencode once its program is gone, though its plugin is still connected", () => {
+    expect(tourAgentState([connection("opencode", { available: false })]).step).toBe("install")
   })
 
-  it("offers an agent while it is being connected, and waits for it to start", () => {
-    const connections = [connection("codex", { connected: false, busy: true })]
-    expect(offerTour(connections, "codex")).toMatchObject({ agent: "codex" })
-    expect(connectingAgent(connections, "codex")).toBe(true)
-    expect(connectingAgent([connection("codex")], "codex")).toBe(false)
-  })
-
-  it("has no agent where none is connected, nor installed and being connected", () => {
-    const connections = [
-      connection("claude", { connected: false }),
-      connection("agy", { available: false, connected: false, busy: true }),
-    ]
-    expect(offerTour(connections)).toEqual({ agent: null, starting: false })
-  })
-
-  context("as the connections change while it is open", () => {
-    it("takes the agent it was offered on once that one shows", () => {
-      const offered = offerTour([], "codex")
-      expect(offered.agent).toBeNull()
-      const shown = followAgents(offered, [connection("claude"), connection("codex")])
-      expect(shown.agent).toBe("codex")
-    })
-
-    it("moves off an agent that was disconnected", () => {
-      const offered = offerTour([connection("claude"), connection("codex")], "claude")
-      const after = followAgents(chooseAgent(offered, "claude"), [connection("codex")])
-      expect(after.agent).toBe("codex")
-    })
-
-    it("keeps the agent it is starting with, whatever connects or goes", () => {
-      const starting = startingTour(offerTour([connection("claude")]))
-      expect(followAgents(starting, [connection("codex")])).toBe(starting)
-    })
-
-    it("stays the same consent where nothing it shows changed", () => {
-      const offered = offerTour([connection("claude")])
-      expect(followAgents(offered, [connection("claude"), connection("agy")])).toBe(offered)
-    })
-  })
-
-  it("keeps the agent while it starts, and says why it couldn't, starting over clean", () => {
-    const starting = startingTour(offerTour([connection("claude")]))
-    expect(chooseAgent(starting, "agy")).toBe(starting)
-    const failed = tourFailed(starting, new Error("The folder isn't Novadeck's."))
-    expect(failed).toMatchObject({
-      agent: "claude",
-      starting: false,
-      error: "The folder isn't Novadeck's.",
-    })
+  it("says why it couldn't start, starting over clean", () => {
+    const starting = startingTour(offerTour())
+    expect(starting).toEqual({ starting: true })
+    const failed = tourFailed(starting, new Error("You've taken today's free tours."))
+    expect(failed).toEqual({ starting: false, error: "You've taken today's free tours." })
     expect(startingTour(failed)).not.toHaveProperty("error")
     expect(tourFailed(starting, "nope").error).toBe("The tour couldn't start.")
   })
 
-  it("names the agent to start first where that is why it couldn't, until it starts again", () => {
-    const starting = startingTour(offerTour([connection("codex")]))
-    const failed = tourFailed(
-      starting,
-      new TourNeedsAgent("Codex hasn't listed its models.", "codex"),
+  it("is not ready where opencode is older than Novadeck works with, or newer than it knows", () => {
+    expect(tourAgentState([connection("opencode", { limited: "outdated" })])).toEqual({
+      step: "update",
+    })
+    expect(tourAgentState([connection("opencode", { limited: "unsupported" })])).toEqual({
+      step: "unsupported",
+    })
+    // What only the status line is limited by doesn't stop the tour.
+    expect(tourAgentState([connection("opencode", { limited: "own-status-line" })]).step).toBe(
+      "ready",
     )
-    expect(failed).toMatchObject({ needs: "codex", error: "Codex hasn't listed its models." })
-    expect(startingTour(failed)).not.toHaveProperty("needs")
+  })
+
+  it("says why a connect didn't take, until another is tried", () => {
+    expect(
+      tourAgentState([connection("opencode", { connected: false, error: "Couldn't write it." })]),
+    ).toEqual({ step: "connect", error: "Couldn't write it." })
+    expect(
+      tourAgentState([
+        connection("opencode", { connected: false, busy: true, error: "Couldn't write it." }),
+      ]),
+    ).toEqual({ step: "connecting" })
+  })
+
+  it("forgets an error about starting once opencode's state changes, and keeps a start under way", () => {
+    const failed = tourFailed(startingTour(offerTour()), new Error("It wasn't connected."))
+    expect(agentChanged(failed)).toEqual({ starting: false })
+    const starting = startingTour(failed)
+    expect(agentChanged(starting)).toBe(starting)
   })
 })

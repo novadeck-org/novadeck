@@ -1,78 +1,62 @@
-import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { TourNeedsAgent, type AgentConnection } from "@novadeck/core/port"
+import type { AgentName } from "@novadeck/core/harnesses"
+import type { AgentConnection } from "@novadeck/core/port"
 
-// The tour's consent, while it is offered: the agent it would run, whether it is starting,
-// and why it couldn't, in the backend's words.
+// The one agent the tour runs: opencode, on a model Novadeck pays for, so none of the person's
+// own agents is picked, and the consent never offers a choice.
+export const tourAgent: AgentName = "opencode"
+
+// The tour's consent, while it is offered: whether it is starting, and why it couldn't, in the
+// backend's words (its service refusing a free run, say).
 export type TourConsent = {
-  readonly agent: AgentName | null
   readonly starting: boolean
   readonly error?: string
-  // The agent to start first, where that is why it couldn't (`TourNeedsAgent`).
-  readonly needs?: AgentName
-  // The agent it was offered on, taken once it can run the tour, as one the welcome connects
-  // shows only after the offer.
-  readonly preferred?: AgentName
 }
 
-// The agents the tour can run, in Novadeck's order of harnesses: those installed and either
-// connected or being connected now, as the welcome's choices are once the person takes the tour
-// from it. One left connected after its program was removed (its plugin's files outlive it) is
-// not among them, as the tour couldn't start it.
-export const tourAgents = (connections: readonly AgentConnection[]): readonly AgentName[] =>
-  harnesses
-    .map(({ id }) => id)
-    .filter((id) =>
-      connections.some(
-        (each) => each.agent === id && each.available && (each.connected || each.busy),
-      ),
-    )
-
-// Whether the agent is still being connected, so the tour waits to start with it.
-export const connectingAgent = (
-  connections: readonly AgentConnection[],
-  agent: AgentName | null,
-): boolean => connections.some((each) => each.agent === agent && each.busy && !each.connected)
-
-// The consent as it opens: on the agent asked for where it can run the tour, else the first
-// that can; none where no agent is connected.
-export const offerTour = (
-  connections: readonly AgentConnection[],
-  preferred?: AgentName,
-): TourConsent => {
-  const agents = tourAgents(connections)
-  const agent = preferred !== undefined && agents.includes(preferred) ? preferred : agents[0]
-  return { agent: agent ?? null, starting: false, ...(preferred && { preferred }) }
+// Where opencode stands for the tour: `ready` to start; `connecting` while Novadeck is being
+// connected to it, which the tour waits for; `connect` where it is installed but Novadeck isn't
+// connected to it; `install` where it isn't installed, with the command that installs it where the
+// backend knows one; `update` where it is older than Novadeck works with and `unsupported` where
+// it is newer than Novadeck knows, as Preferences says of them, where the tour can't follow it.
+// `error` is why the last connect didn't take, in the backend's words.
+export type TourAgentState = {
+  readonly step: "ready" | "connecting" | "connect" | "install" | "update" | "unsupported"
+  readonly installer?: string
+  readonly error?: string
 }
 
-// Keeps the consent's agent one that can still run the tour, as connections change while it
-// is open; the same consent where nothing it shows changed.
-export const followAgents = (
-  consent: TourConsent,
-  connections: readonly AgentConnection[],
-): TourConsent => {
-  // Once it starts, the agent it starts with is the one it shows.
-  if (consent.starting) return consent
-  const agents = tourAgents(connections)
-  const { preferred } = consent
-  if (preferred !== undefined && agents.includes(preferred))
-    return consent.agent === preferred ? consent : { ...consent, agent: preferred }
-  if (consent.agent !== null && agents.includes(consent.agent)) return consent
-  const agent = agents[0] ?? null
-  return agent === consent.agent ? consent : { ...consent, agent }
+export const tourAgentState = (connections: readonly AgentConnection[]): TourAgentState => {
+  const found = connections.find(({ agent }) => agent === tourAgent)
+  if (!found?.available)
+    return {
+      step: "install",
+      ...(found?.installer !== undefined && { installer: found.installer }),
+    }
+  if (found.limited === "outdated") return { step: "update" }
+  if (found.limited === "unsupported") return { step: "unsupported" }
+  if (found.connected) return { step: "ready" }
+  return {
+    step: found.busy ? "connecting" : "connect",
+    ...(found.error !== undefined && !found.busy && { error: found.error }),
+  }
 }
 
-// The person's own pick, which every later change of connections keeps where it can.
-export const chooseAgent = (consent: TourConsent, agent: AgentName): TourConsent =>
-  consent.starting ? consent : { agent, starting: false, preferred: agent }
+export const offerTour = (): TourConsent => ({ starting: false })
 
 export const startingTour = (consent: TourConsent): TourConsent => {
-  const { error: _error, needs: _needs, ...rest } = consent
+  const { error: _error, ...rest } = consent
   return { ...rest, starting: true }
+}
+
+// An error about starting is about the state opencode was in as it came: once that changes (a
+// Connect that took, an install that ended), it no longer says anything true, and goes.
+export const agentChanged = (consent: TourConsent): TourConsent => {
+  if (consent.starting || consent.error === undefined) return consent
+  const { error: _stale, ...rest } = consent
+  return rest
 }
 
 export const tourFailed = (consent: TourConsent, error: unknown): TourConsent => ({
   ...consent,
   starting: false,
   error: error instanceof Error && error.message ? error.message : "The tour couldn't start.",
-  ...(error instanceof TourNeedsAgent && { needs: error.agent }),
 })

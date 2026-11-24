@@ -226,25 +226,27 @@ export class Calls {
     const { request } = read
     const policy: OpenPolicy =
       request.agent !== undefined ? this.host.openPolicy(call.terminalId) : {}
-    // A new agent the call names neither a model nor an effort for starts on the one its policy
-    // gives for the folder it asks for, if any, with that effort. A resume keeps its session's
-    // model, and an effort alone is refused as for every call (it needs a model).
-    const given =
-      request.agent !== undefined &&
-      request.model === undefined &&
-      request.effort === undefined &&
-      request.resume === undefined
-        ? policy.choice?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
+    // A new agent starts on the model and effort its policy pins for the folder it asks for, if
+    // any, whatever the call names. A resume keeps its session's model, and an effort alone is
+    // refused as for every call (it needs a model).
+    const pinned =
+      request.agent !== undefined && request.resume === undefined
+        ? policy.pinned?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
         : undefined
-    const choice = given
-      ? { model: given.model, ...(given.effort !== undefined && { effort: given.effort }) }
+    const choice = pinned
+      ? { model: pinned.model, ...(pinned.effort !== undefined && { effort: pinned.effort }) }
       : {
           ...(request.model !== undefined && { model: request.model }),
           ...(request.effort !== undefined && { effort: request.effort }),
         }
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
-      const unfit = await this.unfitChoice(request.agent, choice)
+      const barred = policy.refuseAgent?.(
+        request.agent,
+        resolvePath(record.summary.cwd, request.cwd ?? "."),
+      )
+      if (barred) return refused(barred)
+      const unfit = pinned ? undefined : await this.unfitChoice(request.agent, choice)
       if (unfit) return refused(unfit)
     }
     // Starting an agent is open_agent's: it alone says who leads the agent, and with what task.

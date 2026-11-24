@@ -57,9 +57,17 @@ export const sameTerminals = (
 export const useInstalls = (
   agents: Backend["agents"],
 ): {
-  readonly install: (agent: AgentName, command: string) => void
+  // `quiet`: once installed and connected, don't start the agent for the person to sign in.
+  readonly install: (
+    agent: AgentName,
+    command: string,
+    options?: { readonly quiet?: boolean },
+  ) => void
   // The agents whose installer runs now, until each one's end has been dealt with.
   readonly installing: ReadonlySet<AgentName>
+  // Why the last install of an agent didn't end with it installed and connected, in words, until
+  // it is installed again.
+  readonly failures: ReadonlyMap<AgentName, string>
 } => {
   const { commands } = useWorkspaceServices()
   // The installs under way: a store of their own, which an effect may change as it follows them.
@@ -79,13 +87,30 @@ export const useInstalls = (
   // installer is done, but the look that finds them may take a while.
   const [connecting] = useState(() => createStore<ReadonlySet<AgentName>>(new Set()))
   const settling = useSyncExternalStore(connecting.subscribe, connecting.getSnapshot)
+  // What the installs that ended without a ready agent said of it.
+  const [failed] = useState(() => createStore<ReadonlyMap<AgentName, string>>(new Map()))
+  const failures = useSyncExternalStore(failed.subscribe, failed.getSnapshot)
+  const fail = useCallback(
+    (agent: AgentName, why: string | undefined) =>
+      failed.update((now) => {
+        const next = new Map(now)
+        if (why === undefined) next.delete(agent)
+        else next.set(agent, why)
+        return next
+      }),
+    [failed],
+  )
 
   const start = useCallback(
-    (agent: AgentName, command: string) => {
+    (agent: AgentName, command: string, options?: { readonly quiet?: boolean }) => {
       const terminalId = commands.add({ title: `Install ${agentLabels[agent]}`, command })
-      installs.update((current) => [...current, { agent, terminalId, ran: false }])
+      fail(agent, undefined)
+      installs.update((current) => [
+        ...current,
+        { agent, terminalId, ran: false, ...(options?.quiet && { quiet: true as const }) },
+      ])
     },
-    [commands, installs],
+    [commands, installs, fail],
   )
 
   useEffect(() => {
@@ -107,7 +132,12 @@ export const useInstalls = (
       connecting.update((agentsNow) => new Set(agentsNow).add(install.agent))
       void connectInstalled(agents, install.agent)
         .then((outcome) => {
-          if (outcome !== "ready") return
+          if (outcome === "missing")
+            fail(
+              install.agent,
+              `The installer ended, but ${agentLabels[install.agent]} isn't on this computer. Its terminal shows why.`,
+            )
+          if (outcome !== "ready" || install.quiet) return
           startInstalled(commands, install, terminal.directory)
         })
         .finally(() => {
@@ -120,11 +150,11 @@ export const useInstalls = (
         })
     }
     if (changed) installs.update(() => next)
-  }, [pending, terminals, agents, commands, installs, connecting])
+  }, [pending, terminals, agents, commands, installs, connecting, fail])
 
   const installing = useMemo(
     () => new Set([...pending.map((install) => install.agent), ...settling]),
     [pending, settling],
   )
-  return useMemo(() => ({ install: start, installing }), [start, installing])
+  return useMemo(() => ({ install: start, installing, failures }), [start, installing, failures])
 }

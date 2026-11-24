@@ -1,4 +1,4 @@
-import { TourNeedsAgent, type TourRun } from "@novadeck/core/port"
+import type { TourRun } from "@novadeck/core/port"
 import type { Runner } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { describe, expect, it } from "vitest"
@@ -7,9 +7,9 @@ import { runnerTour } from "./backend"
 
 const run: TourRun = {
   directory: "/home/x/.novadeck/tour",
-  command: "codex --model gpt-6-luna",
+  command: "opencode --model openrouter/openai/gpt-6-luna",
   brief: "launch",
-  model: "gpt-6-luna",
+  model: "openrouter/openai/gpt-6-luna",
   removed: [],
   page: true,
 }
@@ -34,19 +34,7 @@ describe("The runner's tour", () => {
       tourAnswering(() => Promise.resolve(run)),
       track,
     )
-    await expect(tour.prepare("codex")).resolves.toEqual(run)
-  })
-
-  it("names the agent to start first where it hasn't listed its models", async () => {
-    const tour = runnerTour(
-      tourAnswering(() =>
-        Promise.reject(new WireError("MODELS_UNLISTED", "Codex hasn't listed its models.")),
-      ),
-      track,
-    )
-    const refused = await tour.prepare("codex").catch((error: unknown) => error)
-    expect(refused).toBeInstanceOf(TourNeedsAgent)
-    expect(refused).toMatchObject({ agent: "codex", message: "Codex hasn't listed its models." })
+    await expect(tour.prepare()).resolves.toEqual(run)
   })
 
   it("rings the artist's brief to the terminal, as the runner's call", async () => {
@@ -73,6 +61,6 @@ describe("The runner's tour", () => {
       tourAnswering(() => Promise.reject(conflict)),
       track,
     )
-    await expect(tour.prepare("claude")).rejects.toBe(conflict)
+    await expect(tour.prepare()).rejects.toBe(conflict)
   })
 })

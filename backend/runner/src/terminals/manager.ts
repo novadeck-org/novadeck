@@ -77,6 +77,7 @@ import { OpenRequests } from "./opens.js"
 import type { TerminalOptions } from "./options.js"
 import { TerminalPeers } from "./peers-host.js"
 import { PendingOwners } from "./pending-owners.js"
+import { positive } from "./positive.js"
 import { QueueNotices, queueEntries } from "./queue-notices.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor } from "./redaction.js"
@@ -126,13 +127,6 @@ type Create = {
 }
 type Size = { cols: number; rows: number }
 type Attach = { terminalId: string; afterSequence?: number; mode?: "control" | "observe" }
-
-const positive = (value: number | undefined, fallback: number): number => {
-  const result = value ?? fallback
-  if (!Number.isSafeInteger(result) || result < 1)
-    throw new RangeError("Terminal limits must be positive integers.")
-  return result
-}
 
 /**
  * Owns PTYs for one runner lifetime. Exited, unattached records are retained up to a
@@ -333,6 +327,7 @@ export class Terminals {
       install: options.install ?? (() => Promise.resolve(undefined)),
       models: options.models ?? (() => Promise.resolve([])),
       openPolicy: options.openPolicy ?? (() => ({})),
+      launchEnv: options.launchEnv ?? (() => undefined),
       hooksTrusted: options.hooksTrusted,
       items: options.items,
       platform: options.platform ?? process.platform,
@@ -898,6 +893,8 @@ export class Terminals {
         integration,
         env,
         startup || undefined,
+        // Its agent resumed (or restarted with its task), not started by a command typed anew.
+        input.command === undefined && Boolean(startup),
       )
       // A shell that can't take the resume leaves an unseen wake asleep, not a plain shell.
       if (asleep && !input.seen && !started.resumes)
@@ -1277,6 +1274,7 @@ export class Terminals {
               integration,
               env,
               resume ? { command: resume.argv.join(" ") } : undefined,
+              true,
             )
             const earlier =
               this.saves.transcripts && !started.resumes

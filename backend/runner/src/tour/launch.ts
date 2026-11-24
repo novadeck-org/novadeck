@@ -1,75 +1,83 @@
-import type { Choice, Model } from "@novadeck/harness-core/harness"
+import type { Effort } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import { commandLine } from "../terminals/commands.js"
 
 /**
- * The model each harness runs the tour on: its cheapest, which the person agreed to spend on
- * it. Claude Code's and Antigravity's lists are Novadeck's own, so their pick is always there;
- * Codex lists what its account offers, newest first, so the tour takes its first "luna"
- * (OpenAI's fast, affordable tier), or else the last it lists, its oldest.
+ * The agent the tour always runs: opencode (the owner's decision, 2026-11-23), on GPT-6 Luna at
+ * medium effort, paid for by Novadeck. The person's own agents, accounts and model lists play no
+ * part, so nothing of the tour is spent from them.
  */
-const cheapest: Readonly<Record<AgentName, (models: readonly Model[]) => Model | undefined>> = {
-  claude: (models) => models.find(({ id }) => id === "haiku"),
-  codex: (models) => models.find(({ id }) => id.endsWith("-luna")) ?? models.at(-1),
-  agy: (models) => models.find(({ id }) => id === "gemini-3.8-flash-low"),
-  // One of opencode's own free models where its list holds one (`opencode/<name>-free`), which
-  // spends nothing of the person's; else none, and `Tour.ready` refuses the tour (MODELS_UNLISTED)
-  // before anything is removed or started: the tour never runs on the person's own default model.
-  opencode: (models) => models.find(({ id }) => /^opencode\/.+-free$/.test(id)),
-}
+export const tourAgent = "opencode" satisfies AgentName
+export const tourModel = "openrouter/openai/gpt-6-luna"
+export const tourEffort: Effort = "medium"
 
-/** The cheapest model of `models` for `agent`, at the least effort it takes; none if none fits. */
-export const tourChoice = (agent: AgentName, models: readonly Model[]): Choice => {
-  const model = cheapest[agent](models)
-  if (!model) return {}
-  const [effort] = model.efforts
-  return { model: model.id, ...(effort !== undefined && { effort }) }
+/**
+ * The configuration the tour's opencode runs on, for each launch only, in `NOVADECK_OPENCODE_CONFIG`
+ * (which Novadeck's plugin merges over the loaded configuration, harnesses/opencode/src/plugin-source.ts;
+ * the person's files are never written): the `openrouter` provider pointed at Novadeck's service,
+ * with the run's ticket as its key, and the model for its sessions, titles (`small_model`) and
+ * both agents it starts as (`build`, `plan`), with the effort as their variant, which opencode
+ * takes from an agent only where the agent's model is the session's (session/prompt.ts, 1.19.6).
+ * `enabled_providers` and `disabled_providers` are set too, as arrays replace the person's own:
+ * the tour can't be left without its provider by their list, and spends nothing through another.
+ *
+ * Probed 2026-11-24 against the real opencode 1.19.6 (the newest this adapter supports) and a local
+ * OpenAI-compatible server, with Novadeck's own plugin loaded as the shim loads it
+ * (`OPENCODE_CONFIG_CONTENT`'s `plugin`, `NOVADECK_HOOK` set) and this configuration in
+ * `NOVADECK_OPENCODE_CONFIG`, whatever the person's own config said (it disabled `openrouter`):
+ * opencode calls `POST <baseURL>/chat/completions` (so `/tour/v1/chat/completions`, never
+ * `/responses`) with `Authorization: Bearer <apiKey>` and `"model": "openai/gpt-6-luna"` (the
+ * `openrouter/` prefix is opencode's provider id), `"max_tokens": 32000`, and the effort in the
+ * main call as `"reasoning": {"effort": "medium"}`. Its title call goes to the `small_model`, the
+ * same model, with `"reasoning": {"effort": "none"}` (1.2.10 sent `"reasoningEffort": "minimal"`).
+ */
+export const tourConfig = (endpoint: string, ticket: string): string => {
+  const agent = { model: tourModel, variant: tourEffort }
+  return JSON.stringify({
+    provider: { openrouter: { options: { baseURL: endpoint, apiKey: ticket } } },
+    enabled_providers: ["openrouter"],
+    disabled_providers: [],
+    model: tourModel,
+    small_model: tourModel,
+    agent: { build: agent, plan: agent },
+  })
 }
 
 /**
- * The flags that let the tour's agent write files in its own folder without asking, for this
+ * The flag that lets the tour's agent write files in its own folder without asking, for this
  * launch only: the lead writes the page the tour shows, and the one question the tour wants
- * the person to answer is a teammate's, not a permission. None of them touches the person's
- * settings, and each also keeps the agent out of a plan mode their settings may start it in.
- * - Claude Code: `--permission-mode acceptEdits`.
- * - Codex: its workspace-write sandbox, asking only where the model asks to go past it.
- * - Antigravity: `--mode accept-edits`.
- * - opencode: its build agent, which edits without asking unless the person's rules say so;
- *   its plan agent may not edit at all.
+ * the person to answer is a teammate's, not a permission. It touches none of the person's
+ * settings: opencode's build agent edits without asking unless the person's rules say so, and
+ * its plan agent may not edit at all.
  */
-export const tourWrites: Readonly<Record<AgentName, readonly string[]>> = {
-  claude: ["--permission-mode", "acceptEdits"],
-  codex: ["--sandbox", "workspace-write", "--ask-for-approval", "on-request"],
-  agy: ["--mode", "accept-edits"],
-  opencode: ["--agent", "build"],
-}
+export const tourWrites: readonly string[] = ["--agent", "build"]
 
 /**
- * How the tour starts its agent: the command line, with no prompt on it for any harness: the
- * lead's brief is rung by the doorbell once its prompt shows and its tools are listed
- * (`doorbell`, as `tour.brief` does), so the agent's own first prompt is Novadeck's notice, not
- * a line a harness may hold behind its startup screens.
+ * How the tour starts its agent: the command line, with no prompt on it: the lead's brief is
+ * rung by the doorbell once its prompt shows and its tools are listed (`doorbell`, as
+ * `tour.brief` does), so the agent's own first prompt is Novadeck's notice, not a line a harness
+ * may hold behind its startup screens. The model and effort are on the line (Novadeck's shim
+ * strips the effort and gives it as the agents' variant), and the provider is the
+ * configuration's (`tourConfig`), which the terminals of the tour's folder get in their
+ * environment (`Tour.launchEnv`).
  */
 export type TourLaunch = {
   readonly command: string
   readonly brief: "doorbell"
-  readonly model?: string
+  readonly model: string
 }
 
-export const tourLaunch = (
-  agent: AgentName,
-  place: { readonly models: readonly Model[] },
-): TourLaunch => {
-  const { launch } = harnesses[agent]
-  const choice = tourChoice(agent, place.models)
+export const tourLaunch = (): TourLaunch => {
+  const { launch } = harnesses[tourAgent]
   const [program = "", ...rest] = launch.start
   // Its options right after the program, as `open_agent` puts them.
-  const command = commandLine([program, ...launch.choose(choice), ...tourWrites[agent], ...rest])
-  return {
-    command,
-    brief: "doorbell",
-    ...(choice.model !== undefined && { model: choice.model }),
-  }
+  const command = commandLine([
+    program,
+    ...launch.choose({ model: tourModel, effort: tourEffort }),
+    ...tourWrites,
+    ...rest,
+  ])
+  return { command, brief: "doorbell", model: tourModel }
 }

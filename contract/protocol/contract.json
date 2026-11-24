@@ -1,7 +1,7 @@
 {
-  "revision": 11,
+  "revision": 12,
   "oldestClient": 11,
-  "oldestRunner": 11,
+  "oldestRunner": 12,
   "errors": {
     "AGENT_SETUP_FAILED": null,
     "ALREADY_ATTACHED": null,
@@ -8968,7 +8968,6 @@
       "input": {
         "type": "object",
         "properties": {"agent":{"type":"string","enum":["claude","codex","agy","opencode"]}},
-        "required": ["agent"],
         "additionalProperties": false
       },
       "output": {

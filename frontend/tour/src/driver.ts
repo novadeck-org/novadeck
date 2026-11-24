@@ -500,10 +500,6 @@ export const nextTick = (
   return times.length > 0 ? Math.min(...times) : null
 }
 
-// The harness a program is, by its name.
-const agentOfProgram = (program: string | null): AgentName | undefined =>
-  program === "claude" || program === "codex" || program === "agy" ? program : undefined
-
 // What the tour says now: a screen of the agent's own, or its stopping, comes first, whatever
 // the step.
 export const coachNow = (
@@ -512,16 +508,15 @@ export const coachNow = (
   signals: TourSignals,
 ): Coach | null => {
   const { lead } = signals
-  if (lead.kind === "screen") return screenCoach(lead.screen, run.agent)
+  if (lead.kind === "screen") return screenCoach(lead.screen)
   if (lead.kind === "ended") return endedCoach
   if (lead.kind === "left") return leftCoach(undefined)
   // A teammate's own screen, as its harness's own question (folder trust, sign-in): the person
   // answers it in that terminal, which the tour points at.
   const held = signals.teamScreen
   if (held) {
-    const agent = agentOfProgram(held.program) ?? run.agent
     return {
-      ...screenCoach(held.screen, agent),
+      ...screenCoach(held.screen),
       line: "A teammate wants an answer first.",
       terminalId: held.terminalId,
     }

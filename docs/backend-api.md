@@ -2447,8 +2447,11 @@ one from an earlier runner.
   (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
   them from device to device.
 
-- `tour.prepare({ agent })` readies a run of Novadeck's tour with the person's own agent
-  (`backend/runner/src/tour/`). The tour's project is a blank start for a browser game the
+- `tour.prepare()` readies a run of Novadeck's tour (`backend/runner/src/tour/`), always on
+  opencode with GPT-6 Luna at medium effort, paid for by Novadeck through its website
+  (revision 12; before it the input took the person's own `agent`, which is now optional and
+  ignored, so an older UI still works against a newer runner, and a UI of this build needs a
+  runner at 12). The tour's project is a blank start for a browser game the
   person chooses and can keep: plain JavaScript modules with no build step (`index.html`, the
   game in `src/` from `src/main.js`, `src/models.js` to load a model by name, falling back to the
   placeholder until it exists), three.js and Phaser to draw with, and every character, enemy and
@@ -2509,13 +2512,31 @@ one from an earlier runner.
   Windows Store alias stub doesn't count) runs the seed's `dev.mjs` or `dev.py` on a free port
   of 127.0.0.1 (bound to port 0, read, closed); with none, `page` is false and the lead's script
   has no serving steps.
-  `command` starts the agent there on its cheapest model (Claude Code's `haiku`, Codex's newest
-  `*-luna` or else the last it lists, Antigravity's `gemini-3.8-flash-low`, opencode's own free
-  `opencode/*-free`, each at its lowest effort; opencode with none of its free models listed is
-  `MODELS_UNLISTED`), taking edits in the folder without asking for this launch only
-  (`--permission-mode acceptEdits`, Codex's `--sandbox workspace-write --ask-for-approval
-  on-request`, `--mode accept-edits`, opencode's `--agent build`), with no prompt on it, and nothing written to the agent's
-  own settings. `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
+  `command` starts opencode there (`opencode --model openrouter/openai/gpt-6-luna --variant medium
+  --agent build`: its build agent takes edits in the folder without asking, for this launch only;
+  Novadeck's shim strips `--variant` and gives it as the agents' variant), with no prompt on it,
+  and nothing written to opencode's own settings. Its provider is not on the line: before
+  anything is removed or started the runner gets a ticket from
+  `${NOVADECK_TOUR_ENDPOINT ?? "https://novadeck.dev/tour/v1"}/tickets` (a 429 or 503 `error` is
+  a `CONFLICT` whose message is the service's sentence, which the consent shows as it is; any
+  other failure is a `CONFLICT` saying the service couldn't be reached). The run's endpoint,
+  ticket and expiry are kept in `tour-runs.json` beside the database (the runner's own, mode 0600,
+  by the folder's name; never in the tour's folder or the workspace's schema; a new run takes its
+  folder's record over, and it goes once no project is open in the folder), and every shell that
+  starts in a tour folder with such a record while the run is live (the lead's, each teammate's), and
+  afterwards, once the person keeps the project or in a runner started again, only a terminal being
+  resumed there (a restart, a restore or a resumed session, as the launch option says: it keeps the
+  model on its command line, so without the ticket it would reach for the person's own account, and
+  a dead ticket is the service's own 402); an agent the person opens anew in their project gets
+  their own configuration (the Terminals option `launchEnv`, `Tour.launchEnv`). What they get is
+  `NOVADECK_OPENCODE_CONFIG`, which Novadeck's plugin
+  merges over opencode's loaded configuration for that process, so the tour's agents never reach
+  for the person's own account and a dead ticket is the service's own 402. It holds the
+  `openrouter` provider with `baseURL` the endpoint and `apiKey` the ticket, `model` and
+  `small_model` GPT-6 Luna, both agents `build` and `plan` on it with variant `medium`, and
+  `enabled_providers` / `disabled_providers` set so the person's lists can't leave it out (the
+  person's files are never written). opencode then calls `POST <endpoint>/chat/completions` with
+  `Authorization: Bearer <ticket>` and the effort as `reasoning.effort` (probed in `launch.ts`). `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
   and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
@@ -2525,28 +2546,25 @@ one from an earlier runner.
   dialog) and ends its turn, opening no one while the approval is on screen; told the outcome, it
   `show`s the page where they approved it. Then (with the answer, where `page` is false) it
   names the game's three models (the player, an enemy, one more) and, in that one turn (a
-  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on the lead's own harness and its cheapest model, at its lowest
-  effort as above, each with its task as the message, the picks and the names written in for the
+  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on opencode, GPT-6 Luna at medium effort, as above, each with its task as the message, the picks and the names written in for the
   task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
   three models in a worktree on `models`, shows the first as soon as it exists, asks the person
   one thing about their look, then makes the other two; the Builder writes the game in `src/` in
   a worktree on `game`, loading the models by name, shows its changes, asks the person one thing
-  it should get next and makes that change; each tells the lead when done). No agent runs git. The texts are tuned
-  on Codex (its `*-luna`, low effort) alone; the other harnesses run them untuned. What each
-  agent is told of the shell follows its harness (`shellRule`, in the lead's script, both tasks
-  and the folder's note): Claude Code, Antigravity and opencode, which read and write files with
-  tools of their own, run no shell command; Codex, which reads files only through its shell, uses it to read
-  files and for nothing else (probed 2026-11-22, 0.171.0: told to run none, its agents couldn't
-  read the files they were to change). A
+  it should get next and makes that change; each tells the lead when done). No agent runs git. The texts were tuned
+  on Codex (its `*-luna`, low effort), and run on opencode's GPT-6 Luna at medium effort untuned
+  to it. What each agent is told of the shell follows its harness (`shellRule`, in the lead's
+  script, both tasks and the folder's note): opencode reads and writes files with tools of its
+  own and runs no shell command. A
   teammate the lead opens in the folder starts with the same write flags as the lead, for that
   launch only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
-  command line carries them right after the model). Only the run's lead opens agents in the
+  command line carries them right after the model), and on the run's model and effort whatever
+  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs opencode only.", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
   tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
   refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team.
   `removed` names the projects it removed. A second run while one is being readied is a
-  `CONFLICT`, as is an agent Novadeck isn't connected to. An agent whose cheapest model can't be
-  told is `MODELS_UNLISTED`: Codex lists its models (its `models_cache.json`) only once it has
-  started signed in. Neither changes anything. The client then opens the folder as a project and
+  `CONFLICT`, as are opencode not connected to Novadeck and a ticket the service refuses
+  (`MODELS_UNLISTED` is no longer raised). None changes anything. The client then opens the folder as a project and
   starts `command` in a terminal of it (`terminals.create`).
   Agent worktrees work for every terminal in the tour's folder whatever the person's "Agent
   worktrees" setting (never changed by the tour): the MCP server lists the worktree tools and

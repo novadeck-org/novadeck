@@ -18,6 +18,7 @@ import { harnessLogins, loginStore } from "./credentials.js"
 import { createDeck, type Deck, type DeckOptions } from "./deck.js"
 import { installHarness } from "./install.js"
 import { createE2ESandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./keychain.js"
+import { chat } from "./model/chat.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
 import { unknownShapes } from "./shapes.js"
 import { unsupported } from "./support.js"
@@ -92,7 +93,10 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         throw new Error(
           `${loginStore} holds a login of a harness under test (${logins.join(", ")}), which the sandbox can't hide from it: sign that harness out, or leave it out with NOVADECK_E2E_AGENTS`,
         )
-      const model = await startFakeModel({ dialects: setups.map((setup) => setup.dialect) })
+      // The chat completions dialect is the tour's opencode provider's, whichever harness runs.
+      const model = await startFakeModel({
+        dialects: [...setups.map((setup) => setup.dialect), chat],
+      })
       resources.defer(() => model.close())
       // What the runner heard and did, written where CI keeps it should the test fail;
       // nothing is wrapped where no trace is asked for.

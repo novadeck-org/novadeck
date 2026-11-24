@@ -174,7 +174,10 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
         () => later(tourPhaseMs.bind, work),
       )
     }
-    if (demoRun(harness).brief === "launch") return plan.permission ? askPermission() : work()
+    // A permission asked first is the agent's own, before any brief (as a trust screen is); the
+    // doorbell's harness otherwise starts only once rung.
+    if (plan.permission) return askPermission()
+    if (demoRun(harness).brief === "launch") return work()
     verbs.rest(key, terminal())
     when(
       (poke) => tour.briefed.subscribe(poke),

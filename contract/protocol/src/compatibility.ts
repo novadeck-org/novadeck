@@ -34,7 +34,9 @@ export const compatibility: Compatibility = {
   // 11: opencode, an agent the UI may name in an input (a resume, Preferences, the tour), which
   // runners before it refuse; and an agent's `limited` gains reasons (outdated, unsupported),
   // read tolerantly from here, which UIs before it don't.
-  revision: 11,
+  // 12: the tour runs on opencode alone, on a model of Novadeck's (`tour.prepare` takes no
+  // agent, which a runner before it requires).
+  revision: 12,
   oldestClient: 11,
-  oldestRunner: 11,
+  oldestRunner: 12,
 }

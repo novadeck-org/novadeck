@@ -3,11 +3,9 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentName, Project } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import { harnesses } from "../harnesses/registry.js"
 import {
   maxDeliveryBytes,
   novadeckSender,
@@ -29,11 +27,10 @@ import {
   type Serving,
 } from "./brief.js"
 import { tourFolder, tourMarker } from "./folder.js"
+import { TourRecords } from "./records.js"
 import { repositoryAssets, type TourAssets } from "./seed.js"
+import type { Ticket } from "./ticket.js"
 import { Tour, type TourHost } from "./tour.js"
-
-// Where a harness lives, for the model lists the tour picks from: Novadeck's own lists ignore it.
-const install: Install = { env: {}, home: "/home/x", platform: "linux", plugin: "/plugins" }
 
 const conflict = (error: unknown): boolean =>
   error instanceof DomainError && error.code === "CONFLICT"
@@ -46,11 +43,12 @@ const tourIn = (
   options: {
     projects?: Project[]
     connected?: readonly AgentName[]
+    // The ticket the tour's service gives, or the refusal it makes; one by default.
+    ticket?: () => Promise<Ticket>
+    // What the runs were given, as a runner started again finds it.
+    records?: TourRecords
     notices?: [string, string][]
     shown?: readonly string[]
-    models?: readonly Model[]
-    // Models by harness, over the harnesses' own lists.
-    lists?: Partial<Record<AgentName, readonly Model[]>>
     // How each removal goes; at once by default.
     removal?: () => Promise<void>
     // Each terminal's folder; the tour's own by default.
@@ -73,13 +71,9 @@ const tourIn = (
     home,
     ...(options.assets !== undefined && { assets: options.assets }),
     serving: () => Promise.resolve(options.serving === undefined ? served : options.serving),
-    connected: (agent) => Promise.resolve((options.connected ?? ["claude"]).includes(agent)),
-    models: (agent) =>
-      options.lists?.[agent]
-        ? Promise.resolve(options.lists[agent])
-        : options.models
-          ? Promise.resolve(options.models)
-          : harnesses[agent].launch.models(install),
+    connected: (agent) => Promise.resolve((options.connected ?? ["opencode"]).includes(agent)),
+    ticket: options.ticket ?? (() => Promise.resolve({ ticket: "TICKET_1" })),
+    ...(options.records !== undefined && { records: options.records }),
     projects: {
       list: () => projects.filter(({ id }) => !removed.includes(id)),
       remove: (id) => {
@@ -129,7 +123,7 @@ const readied = async (resources: Resources, options: Parameters<typeof tourIn>[
   const home = await scratchHome(resources)
   const notices: [string, string][] = []
   const made = tourIn(home, { notices, shown: ["lead", "mine", "next"], ...options })
-  await made.tour.prepare("claude")
+  await made.tour.prepare()
   return { ...made, notices, home }
 }
 
@@ -150,16 +144,18 @@ describe("readying the tour", () => {
   }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    const prepared = await tour.prepare("claude")
+    const prepared = await tour.prepare()
     const directory = tourFolder(home)
     expect(prepared).toMatchObject({
       directory,
       brief: "doorbell",
-      model: "haiku",
+      model: "openrouter/openai/gpt-6-luna",
       removed: [],
       page: true,
     })
-    expect(prepared.command).toMatch(/^claude --model haiku /)
+    expect(prepared.command).toBe(
+      "opencode --model openrouter/openai/gpt-6-luna --variant medium --agent build",
+    )
     const files = await filesOf(directory)
     expect(files).toEqual(
       expect.arrayContaining([
@@ -189,7 +185,7 @@ describe("readying the tour", () => {
     )
     // The tour's own maker of the model's shapes isn't part of the project.
     expect(files).not.toContain("make-shapes.mjs")
-    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("claude"))
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("opencode"))
     expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
     expect(JSON.parse(await readFile(join(directory, ".claude", "settings.json"), "utf8"))).toEqual(
       { permissions: { defaultMode: "acceptEdits" } },
@@ -207,7 +203,7 @@ describe("readying the tour", () => {
   it("says there is no page where the dev server can't run here", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home, { serving: null })
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ page: false })
+    await expect(tour.prepare()).resolves.toMatchObject({ page: false })
   })
 
   it("removes the projects open at its folder, and no other", async ({ resources }) => {
@@ -215,20 +211,125 @@ describe("readying the tour", () => {
     const { tour, removed } = tourIn(home, {
       projects: [project("old-tour", tourFolder(home)), project("mine", join(home, "code"))],
     })
-    const prepared = await tour.prepare("claude")
+    const prepared = await tour.prepare()
     expect(prepared.removed).toEqual(["old-tour"])
     expect(removed).toEqual(["old-tour"])
   })
 
-  it("refuses an agent Novadeck isn't connected to, changing nothing", async ({ resources }) => {
+  it("refuses where opencode isn't connected, changing nothing and asking for no ticket", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const asked: string[] = []
+    const { tour, removed } = tourIn(home, {
+      connected: ["claude", "codex"],
+      projects: [project("old-tour", tourFolder(home))],
+      ticket: () => (asked.push("ticket"), Promise.resolve({ ticket: "T" })),
+    })
+    await expect(tour.prepare()).rejects.toSatisfy(conflict)
+    expect(removed).toEqual([])
+    expect(asked).toEqual([])
+    await expect(readdir(tourFolder(home))).rejects.toThrow()
+  })
+
+  it("shows the service's refusal as it words it, changing nothing", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, removed } = tourIn(home, {
-      connected: ["claude"],
       projects: [project("old-tour", tourFolder(home))],
+      ticket: () => Promise.reject(new DomainError("CONFLICT", "You've used today's free tours.")),
     })
-    await expect(tour.prepare("codex")).rejects.toSatisfy(conflict)
+    await expect(tour.prepare()).rejects.toThrow("You've used today's free tours.")
     expect(removed).toEqual([])
     await expect(readdir(tourFolder(home))).rejects.toThrow()
+    // A refused run starts none, so a next one isn't "already starting".
+    await expect(tour.prepare()).rejects.toThrow("free tours")
+  })
+
+  it("gives the opencode of its terminals the ticket, and the service's address, in their environment", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const projects: Project[] = []
+    const { tour } = tourIn(home, {
+      projects,
+      ticket: () => Promise.resolve({ ticket: "TICKET_9", expiresAt: "2099-01-01T00:00:00Z" }),
+    })
+    expect(tour.launchEnv(tourFolder(home))).toBeUndefined()
+    await tour.prepare()
+    // The client opens the folder as a project, and then starts its terminals.
+    projects.push(project("tour", tourFolder(home)))
+    const config = JSON.parse(tour.launchEnv(tourFolder(home))!.NOVADECK_OPENCODE_CONFIG!)
+    expect(config).toMatchObject({
+      provider: { openrouter: { options: { apiKey: "TICKET_9" } } },
+      model: "openrouter/openai/gpt-6-luna",
+      small_model: "openrouter/openai/gpt-6-luna",
+      agent: {
+        build: { model: "openrouter/openai/gpt-6-luna", variant: "medium" },
+        plan: { model: "openrouter/openai/gpt-6-luna", variant: "medium" },
+      },
+    })
+    expect(config.provider.openrouter.options.baseURL).toMatch(/\/tour\/v1$|^http/)
+    // Only the tour's folders.
+    expect(tour.launchEnv(join(home, "elsewhere"))).toBeUndefined()
+    // Another run's terminal in the folder, started afresh by a command, gets it too while it is live.
+    expect(tour.launchEnv(join(tourFolder(home), "src"))).toBeDefined()
+    // The person keeping the project: what they open afresh there is theirs, with their own
+    // configuration; a terminal resumed there keeps the model on its line, so the ticket too.
+    await tour.keep()
+    expect(tour.launchEnv(join(tourFolder(home), "src"))).toBeUndefined()
+    expect(tour.launchEnv(join(tourFolder(home), "src"), true)).toBeDefined()
+  })
+
+  it("keeps the run for a runner started again, through keeping and the ticket's end, until the project goes", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const file = join(home, "tour-runs.json")
+    const projects: Project[] = []
+    const first = tourIn(home, {
+      projects,
+      records: new TourRecords(file),
+      ticket: () => Promise.resolve({ ticket: "TICKET_7", expiresAt: "2000-01-01T00:00:00Z" }),
+    })
+    await first.tour.prepare()
+    projects.push(project("tour", tourFolder(home)))
+    await first.tour.keep()
+    // The runner starts again: nothing of the run is in memory, the person's terminals resume.
+    const again = tourIn(home, { projects, records: new TourRecords(file) })
+    // A fresh agent the person opens is theirs; a resumed terminal keeps the tour's.
+    expect(again.tour.launchEnv(tourFolder(home))).toBeUndefined()
+    const env = again.tour.launchEnv(tourFolder(home), true)
+    expect(JSON.parse(env!.NOVADECK_OPENCODE_CONFIG!).provider.openrouter.options.apiKey).toBe(
+      "TICKET_7",
+    )
+    if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o600)
+    // The tour's folder only, the person's own never.
+    expect(again.tour.launchEnv(join(home, "code"), true)).toBeUndefined()
+    // Its project removed, the record goes with it, for good.
+    projects.length = 0
+    expect(again.tour.launchEnv(tourFolder(home), true)).toBeUndefined()
+    expect(
+      tourIn(home, {
+        projects: [project("tour", tourFolder(home))],
+        records: new TourRecords(file),
+      }).tour.launchEnv(tourFolder(home), true),
+    ).toBeUndefined()
+  })
+
+  it("replaces a folder's record when a new run takes the folder", async ({ resources }) => {
+    const home = await scratchHome(resources)
+    const projects: Project[] = []
+    let nth = 0
+    const { tour } = tourIn(home, {
+      projects,
+      ticket: () => Promise.resolve({ ticket: `T${(nth += 1)}` }),
+    })
+    await tour.prepare()
+    projects.push(project("a", tourFolder(home)))
+    await tour.prepare()
+    projects.push(project("b", tourFolder(home)))
+    const config = JSON.parse(tour.launchEnv(tourFolder(home))!.NOVADECK_OPENCODE_CONFIG!)
+    expect(config.provider.openrouter.options.apiKey).toBe("T2")
   })
 
   it("removes a project inside its folder too", async ({ resources }) => {
@@ -236,7 +337,7 @@ describe("readying the tour", () => {
     const { tour } = tourIn(home, {
       projects: [project("inside", join(tourFolder(home), "site"))],
     })
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ removed: ["inside"] })
+    await expect(tour.prepare()).resolves.toMatchObject({ removed: ["inside"] })
   })
 
   it("empties its folder only once a removal under way has closed its terminals", async ({
@@ -245,7 +346,7 @@ describe("readying the tour", () => {
     const home = await scratchHome(resources)
     const directory = tourFolder(home)
     const { tour: first } = tourIn(home)
-    await first.prepare("claude")
+    await first.prepare()
     let closed: () => void = () => {}
     let begun: () => void = () => {}
     const closing = new Promise<void>((resolve) => (begun = resolve))
@@ -256,7 +357,7 @@ describe("readying the tour", () => {
         return new Promise<void>((resolve) => (closed = resolve))
       },
     })
-    const prepared = tour.prepare("claude")
+    const prepared = tour.prepare()
     // Waited for, not timed: readying gets to the removal only after its git and its probes,
     // which take a while on a slow machine.
     await closing
@@ -269,42 +370,6 @@ describe("readying the tour", () => {
     expect(await readdir(directory)).not.toContain("scratch.html")
   })
 
-  it("refuses an agent whose cheapest model can't be told, changing nothing", async ({
-    resources,
-  }) => {
-    const home = await scratchHome(resources)
-    const { tour, removed } = tourIn(home, {
-      connected: ["codex"],
-      models: [],
-      projects: [project("old-tour", tourFolder(home))],
-    })
-    await expect(tour.prepare("codex")).rejects.toSatisfy(
-      (error: unknown) => error instanceof DomainError && error.code === "MODELS_UNLISTED",
-    )
-    expect(removed).toEqual([])
-    await expect(readdir(tourFolder(home))).rejects.toThrow()
-  })
-
-  it("tells an opencode user whose models hold no free one that signing in won't help, changing nothing", async ({
-    resources,
-  }) => {
-    const home = await scratchHome(resources)
-    const { tour, removed } = tourIn(home, {
-      connected: ["opencode"],
-      models: [{ id: "anthropic/claude-sonnet", efforts: [] }],
-      projects: [project("old-tour", tourFolder(home))],
-    })
-    const error = await tour.prepare("opencode").catch((caught: unknown) => caught)
-    expect(error).toBeInstanceOf(DomainError)
-    expect((error as DomainError).code).toBe("MODELS_UNLISTED")
-    expect((error as DomainError).message).toContain("none of its own free ones")
-    expect((error as DomainError).message).not.toContain("sign in")
-    expect(removed).toEqual([])
-    // With no model listed at all, signing in is the way.
-    const { tour: empty } = tourIn(home, { connected: ["opencode"], models: [] })
-    await expect(empty.prepare("opencode")).rejects.toThrow("sign in")
-  })
-
   it("says so in words where the seed's files can't be read, changing nothing", async ({
     resources,
   }) => {
@@ -314,7 +379,7 @@ describe("readying the tour", () => {
       assets: { ...real, seed: join(home, "missing") },
       projects: [project("old-tour", tourFolder(home))],
     })
-    const refused = await tour.prepare("claude").catch((error: unknown) => error)
+    const refused = await tour.prepare().catch((error: unknown) => error)
     expect(refused).toSatisfy(conflict)
     expect((refused as Error).message).toMatch(/project files couldn't be read/)
     expect(removed).toEqual([])
@@ -329,7 +394,7 @@ describe("readying the tour", () => {
     await mkdir(kept, { recursive: true })
     await writeFile(join(kept, "game.js"), "mine\n")
     const { tour, removed } = tourIn(home, { projects: [project("kept", kept)] })
-    const prepared = await tour.prepare("claude")
+    const prepared = await tour.prepare()
     expect(prepared.directory).toBe(tourFolder(home, 2))
     expect(prepared.removed).toEqual([])
     expect(removed).toEqual([])
@@ -341,9 +406,9 @@ describe("readying the tour", () => {
   }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    const first = await tour.prepare("claude")
+    const first = await tour.prepare()
     await writeFile(join(first.directory, "extra.txt"), "x")
-    const second = await tour.prepare("claude")
+    const second = await tour.prepare()
     expect(second.directory).toBe(first.directory)
     expect(await readdir(second.directory)).not.toContain("extra.txt")
   })
@@ -352,22 +417,16 @@ describe("readying the tour", () => {
     const home = await scratchHome(resources)
     await mkdir(join(home, ".novadeck"), { recursive: true })
     await writeFile(tourFolder(home), "not a folder")
-    await expect(tourIn(home).tour.prepare("claude")).rejects.toSatisfy(conflict)
+    await expect(tourIn(home).tour.prepare()).rejects.toSatisfy(conflict)
   })
 
   it("refuses a second run while the first is being readied", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    const first = tour.prepare("claude")
-    await expect(tour.prepare("claude")).rejects.toSatisfy(conflict)
+    const first = tour.prepare()
+    await expect(tour.prepare()).rejects.toSatisfy(conflict)
     await first
-    await expect(tour.prepare("claude")).resolves.toMatchObject({ brief: "doorbell" })
-  })
-
-  it("leaves Antigravity's start line to the doorbell", async ({ resources }) => {
-    const home = await scratchHome(resources)
-    const { tour } = tourIn(home, { connected: ["agy"] })
-    await expect(tour.prepare("agy")).resolves.toMatchObject({ brief: "doorbell" })
+    await expect(tour.prepare()).resolves.toMatchObject({ brief: "doorbell" })
   })
 })
 
@@ -377,15 +436,13 @@ const opened = (text: string): string[] =>
     ([, each]) => each!,
   )
 
-const luna: Model = { id: "gpt-e2e-luna", efforts: ["low", "medium"] }
-
 describe("the sandbox repo", () => {
   it("is a git repo on main with one commit by the tour, the marker and the libraries kept out of it", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const directory = tourFolder(home)
     const gitIn = (...args: string[]) =>
       execFileSync("git", ["-C", directory, ...args], {
@@ -417,11 +474,11 @@ describe("the sandbox repo", () => {
   }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const directory = tourFolder(home)
     const gitIn = (...args: string[]) =>
       execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim()
-    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("claude"))
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("opencode"))
     expect(gitIn("show", "HEAD:AGENTS.md")).toBe(projectNote.trim())
     expect(gitIn("status", "--porcelain")).toBe("")
     // A worktree made during the tour carries the project, not the tour's rules or settings.
@@ -436,7 +493,7 @@ describe("the sandbox repo", () => {
   }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const directory = tourFolder(home)
     const worktree = join(home, "worktree")
     execFileSync("git", ["-C", directory, "worktree", "add", "-b", "hero", worktree], {
@@ -450,10 +507,10 @@ describe("the sandbox repo", () => {
   it("is made afresh for each run, one commit again", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const directory = tourFolder(home)
     await writeFile(join(directory, "src", "main.js"), "changed\n")
-    await tour.prepare("claude")
+    await tour.prepare()
     expect(await readFile(join(directory, "src", "main.js"), "utf8")).toContain("placeholder")
     expect(
       execFileSync("git", ["-C", directory, "rev-list", "--count", "HEAD"], {
@@ -465,23 +522,20 @@ describe("the sandbox repo", () => {
   it("makes the folder agents' worktrees live in", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, folders } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     expect(folders()).toBe(1)
   })
 })
 
 describe("the brief's facts", () => {
-  it("has a lead's own harness open both teammates on its cheapest model, their tasks quoted", async ({
+  it("has the lead open both teammates on the tour's model, their tasks quoted", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const text = brief()
-    expect(opened(text)).toEqual([
-      'agent "claude", model "haiku", effort "low"',
-      'agent "claude", model "haiku", effort "low"',
-    ])
+    expect(opened(text)).toHaveLength(2)
     expect(text).toContain("> You are Modeller, a teammate in Novadeck's tour.")
     expect(text).toContain("> You are Builder, a teammate in Novadeck's tour.")
     expect(text).toContain(`branch "${branches.modeller}"`)
@@ -495,7 +549,7 @@ describe("the brief's facts", () => {
     const { tour, brief } = tourIn(home, {
       serving: { command: "python3 dev.py 6123", url: "http://127.0.0.1:6123/" },
     })
-    await tour.prepare("claude")
+    await tour.prepare()
     const text = brief()
     expect(text).toContain('`command` "python3 dev.py 6123"')
     expect(text).toContain("http://127.0.0.1:6123/")
@@ -512,7 +566,7 @@ describe("the brief's facts", () => {
   it("names neither where it can't", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home, { serving: null })
-    await tour.prepare("claude")
+    await tour.prepare()
     const text = brief()
     expect(text).not.toContain("dev.mjs")
     expect(text).not.toContain("dev.py")
@@ -520,39 +574,22 @@ describe("the brief's facts", () => {
     expect(text).not.toContain("Game server")
   })
 
-  it("keeps the teammates on the lead's harness and its cheapest model, whatever else is connected", async ({
+  it("has the lead open both teammates on opencode, GPT-6 Luna at medium, whatever else is connected", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
-    const { tour, brief } = tourIn(home, {
-      connected: ["claude", "codex", "agy"],
-      lists: { codex: [luna] },
-    })
-    await tour.prepare("agy")
+    const { tour, brief } = tourIn(home, { connected: ["claude", "codex", "agy", "opencode"] })
+    await tour.prepare()
     expect(opened(brief())).toEqual([
-      expect.stringMatching(/^agent "agy", model "/),
-      expect.stringMatching(/^agent "agy", model "/),
+      'agent "opencode", model "openrouter/openai/gpt-6-luna", effort "medium"',
+      'agent "opencode", model "openrouter/openai/gpt-6-luna", effort "medium"',
     ])
-    await tour.prepare("claude")
-    expect(opened(brief())[0]).toBe('agent "claude", model "haiku", effort "low"')
-    await tour.prepare("codex")
-    expect(opened(brief())[1]).toBe('agent "codex", model "gpt-e2e-luna", effort "low"')
-  })
-
-  it("leaves out an effort a model takes none of", async ({ resources }) => {
-    const home = await scratchHome(resources)
-    const { tour, brief } = tourIn(home, {
-      connected: ["codex"],
-      lists: { codex: [{ id: "gpt-e2e-luna", efforts: [] }] },
-    })
-    await tour.prepare("codex")
-    expect(opened(brief())[0]).toBe('agent "codex", model "gpt-e2e-luna"')
   })
 
   it("never names the person, and tells its agents not to", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const text = brief()
     expect(text).toContain(`Never use the person's name: say "you"`)
     expect(text).not.toMatch(/\bNAME\b/)
@@ -582,7 +619,7 @@ describe("ringing the tour's brief", () => {
     const home = await scratchHome(resources)
     const notices: [string, string][] = []
     const { tour } = tourIn(home, { notices, shown: ["t1"] })
-    await tour.prepare("claude")
+    await tour.prepare()
     tour.brief("t1")
     expect(notices).toHaveLength(1)
     const [id, text] = notices[0]!
@@ -616,7 +653,7 @@ describe("ringing the tour's brief", () => {
   it("refuses a terminal whose agent hasn't shown yet", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home, { shown: [] })
-    await tour.prepare("claude")
+    await tour.prepare()
     expect(() => tour.brief("t1")).toThrow(DomainError)
   })
 
@@ -624,7 +661,7 @@ describe("ringing the tour's brief", () => {
     const home = await scratchHome(resources)
     const notices: [string, string][] = []
     const { tour } = tourIn(home, { notices, shown: ["mine"], cwds: { mine: "/h/code" } })
-    await tour.prepare("claude")
+    await tour.prepare()
     expect(() => tour.brief("mine")).toThrow(/isn't one of the tour's/)
     expect(notices).toEqual([])
   })
@@ -800,7 +837,7 @@ describe("the person keeping the project", () => {
     await tour.keep()
     expect(tour.isTours("lead")).toBe(false)
     expect(tour.openPolicy("lead")).toEqual({})
-    const next = await tour.prepare("claude")
+    const next = await tour.prepare()
     expect(next.directory).toBe(tourFolder(home, 2))
     // The kept project is as the person left it.
     expect(await readdir(tourFolder(home))).toContain("src")
@@ -831,7 +868,7 @@ describe("the brief's wording", () => {
   }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const text = brief()
     expect(text).toContain("Never answer their questions to the")
     expect(text).toContain('"header":"The world"')
@@ -843,7 +880,7 @@ describe("what the folder's own instructions say", () => {
   it("holds no role and no step in the files a harness loads by itself", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home)
-    await tour.prepare("claude")
+    await tour.prepare()
     const folder = tourFolder(home)
     for (const name of ["AGENTS.md", "CLAUDE.md"]) {
       // eslint-disable-next-line no-await-in-loop -- Two small files.
@@ -874,7 +911,7 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     )
   })
 
-  it("starts the lead's agents with the tour's write flags, for each harness", async ({
+  it("starts the lead's opencode agents with its build agent, which edits unasked, and no other harness's", async ({
     resources,
   }) => {
     const { tour, brief, home } = await readied(resources)
@@ -882,51 +919,33 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     const policy = tour.openPolicy("lead")
     expect(policy.refusal).toBeUndefined()
     const at = tourFolder(home)
-    expect(policy.flags?.("claude", at)).toEqual(["--permission-mode", "acceptEdits"])
-    expect(policy.flags?.("codex", at)).toEqual([
-      "--sandbox",
-      "workspace-write",
-      "--ask-for-approval",
-      "on-request",
-    ])
-    expect(policy.flags?.("agy", at)).toEqual(["--mode", "accept-edits"])
-    // Its build agent edits without asking, where its plan agent may not edit at all.
     expect(policy.flags?.("opencode", at)).toEqual(["--agent", "build"])
+    expect(policy.flags?.("claude", at)).toEqual([])
   })
 
-  it("starts a teammate the lead names no model for on the run's teammate model, on its harness only", async ({
+  it("refuses any other harness in the tour's folder, in plain words", async ({ resources }) => {
+    const { tour, brief, home } = await readied(resources)
+    brief()
+    const policy = tour.openPolicy("lead")
+    expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe("The tour runs opencode only.")
+    expect(policy.refuseAgent?.("opencode", tourFolder(home))).toBeUndefined()
+    expect(policy.refuseAgent?.("claude", "/h/code")).toBeUndefined()
+  })
+
+  it("pins a teammate on the run's model and effort whatever the lead names, in the tour's folder only", async ({
     resources,
   }) => {
     const { tour, brief, home } = await readied(resources)
     brief()
     const policy = tour.openPolicy("lead")
     const at = tourFolder(home)
-    expect(policy.choice?.("claude", at)).toEqual({ model: "haiku", effort: "low" })
-    expect(policy.choice?.("codex", at)).toBeUndefined()
-    // One it opens outside the tour's folder keeps the person's own default.
-    expect(policy.choice?.("claude", "/h/code")).toBeUndefined()
-  })
-
-  it("starts an opencode teammate the lead names no model for on one of opencode's free models", async ({
-    resources,
-  }) => {
-    const home = await scratchHome(resources)
-    const models = [
-      { id: "anthropic/claude-sonnet", efforts: [] },
-      { id: "opencode/e2e-free", efforts: [] },
-    ]
-    const { tour, brief } = tourIn(home, {
-      shown: ["lead", "mine", "next"],
-      models,
-      connected: ["opencode"],
+    expect(policy.pinned?.("opencode", at)).toEqual({
+      model: "openrouter/openai/gpt-6-luna",
+      effort: "medium",
     })
-    await tour.prepare("opencode")
-    brief()
-    const policy = tour.openPolicy("lead")
-    const at = tourFolder(home)
-    expect(policy.choice?.("opencode", at)).toEqual({ model: "opencode/e2e-free" })
-    expect(policy.choice?.("claude", at)).toBeUndefined()
-    expect(policy.choice?.("opencode", "/h/code")).toBeUndefined()
+    expect(policy.pinned?.("claude", at)).toBeUndefined()
+    // One it opens outside the tour's folder keeps the person's own default.
+    expect(policy.pinned?.("opencode", "/h/code")).toBeUndefined()
   })
 
   it("gives the lead's agents no write flags where they start outside the tour's folder", async ({
@@ -935,8 +954,8 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     const { tour, brief, home } = await readied(resources)
     brief()
     const policy = tour.openPolicy("lead")
-    expect(policy.flags?.("claude", "/h/code")).toEqual([])
-    expect(policy.flags?.("codex", join(tourFolder(home), "sub"))).not.toEqual([])
+    expect(policy.flags?.("opencode", "/h/code")).toEqual([])
+    expect(policy.flags?.("opencode", join(tourFolder(home), "sub"))).not.toEqual([])
   })
 
   it("follows the run's folder, whichever of the tour's names it has", async ({ resources }) => {
@@ -945,7 +964,7 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     await writeFile(join(tourFolder(home), "mine.md"), "mine")
     const second = tourFolder(home, 2)
     const { tour } = tourIn(home, { cwds: { lead: second }, shown: ["lead"] })
-    await tour.prepare("claude")
+    await tour.prepare()
     tour.brief("lead")
     expect(tour.isTours("lead")).toBe(true)
     expect(tour.openPolicy("lead").flags).toBeDefined()
@@ -958,12 +977,12 @@ describe("what an agent's open_agent is subject to in the tour", () => {
       const linked = join(await scratchHome(resources), "home")
       await symlink(real, linked)
       const { tour } = tourIn(linked)
-      await tour.prepare("claude")
+      await tour.prepare()
       tour.brief("lead")
       const policy = tour.openPolicy("lead")
-      expect(policy.flags?.("claude", join(real, ".novadeck", "tour"))).toEqual([
-        "--permission-mode",
-        "acceptEdits",
+      expect(policy.flags?.("opencode", join(real, ".novadeck", "tour"))).toEqual([
+        "--agent",
+        "build",
       ])
       expect(tour.isTours("lead")).toBe(true)
     },

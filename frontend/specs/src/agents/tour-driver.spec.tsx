@@ -30,13 +30,13 @@ const bar = (): Locator => page.getByRole("region", { name: "Tour", exact: true 
 const barSays = (words: string): Promise<void> =>
   expect.poll(() => bar().query()?.textContent ?? "").toContain(words)
 
-// Starts the tour from the footer's Help menu with Claude Code, connected first in Preferences' Agents.
+// Starts the tour from the footer's Help menu with opencode, connected first in Preferences' Agents.
 const startTour = async (address = offered): Promise<void> => {
   await openWorkspace(address)
   await openPreferencesOn("Agents")
-  const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
-  await claude.click()
-  await expect.element(claude).toHaveAttribute("aria-checked", "true")
+  const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
+  await opencode.click()
+  await expect.element(opencode).toHaveAttribute("aria-checked", "true")
   await closePreferences()
   await takeTourFromHelp()
   await consent().getByRole("button", { name: "Start the tour" }).click()
@@ -121,18 +121,18 @@ describe("The tour's driver", () => {
     it("says so, with its screen's own words, and goes on once it's answered", async () => {
       await startTour(`${offered}&tourScreen=sign-in&tourScreenMs=1500`)
       await coachSays("It wants an answer first.")
-      await coachSays("sign in")
+      await coachSays("Answer it here, in its terminal")
       await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     })
 
-    it("says what folder trust asks", async () => {
+    it("says it's the agent's own question, such as folder trust, to answer in its terminal", async () => {
       await startTour(`${offered}&tourScreen=startup&tourScreenMs=1500`)
-      await coachSays('pick "Yes, I trust this folder" here (it starts on "No")')
+      await coachSays("Answer it here, in its terminal")
     })
 
-    it("says what Novadeck's hooks being off asks", async () => {
+    it("says what opencode's plugin not loading asks", async () => {
       await startTour(`${offered}&tourScreen=hooks&tourScreenMs=1500`)
-      await coachSays("Turn hooks back on in its settings")
+      await coachSays("Novadeck can't load its plugin into opencode here")
     })
   })
 
