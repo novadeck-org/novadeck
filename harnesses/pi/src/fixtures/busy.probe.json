@@ -1,0 +1,599 @@
+{
+  "harness": "pi",
+  "source": "probed 2026-11-24 against pi 1.6.0 (npm @earendil-works/pi-coding-agent; rig: a fake OpenAI-compatible model, a PTY, Novadeck's headless emulator; backups/pi-harness-2026-11-24/rig)",
+  "how": "Each state read with `readScreen`: `rows` the rows that show anything, `bright` those whose dim cells blank some of their text, `lit` cells whose background stands out, `cursor` the cursor. Sizes: names ending 60 are 60x20, names ending in a size are that size, the rest 120x40. No colour query answered (the runner's headless emulator answers only DA), so pi draws its 16-colour theme. A turn of the fake model streaming slowly: steering (Enter) and follow-up (Alt+Enter) queued, Alt+Up, Escape, Ctrl+C mid-turn, a 429 retried, Shift+Tab and Ctrl+P.",
+  "version": "1.6.0",
+  "screens": {
+    "ready": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.0%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download."
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "busy": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2                                                                                                      ",
+        "35": "── ⠼ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "steerQueued": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2 word3                                                                                                ",
+        "32": " Steering: steer me                                                                                                     ",
+        "33": " ↳ Alt+Up to edit all queued messages                                                                                   ",
+        "35": "── ⠙ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2 word3"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "followQueued": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2 word3 word4                                                                                          ",
+        "31": " Steering: steer me                                                                                                     ",
+        "32": " Follow-up: follow me                                                                                                   ",
+        "33": " ↳ Alt+Up to edit all queued messages                                                                                   ",
+        "35": "── ⠧ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2 word3 word4"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "altUp": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 9
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "16": " Restored 2 queued messages to editor                                                                                   ",
+        "33": "── ⠼ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "34": "steer me                                                                                                                ",
+        "36": "follow me                                                                                                               ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2 word3 word4 word5",
+        "34": "steer me",
+        "36": "follow me"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "escapedWithQueue": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 11
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "16": " Operation aborted                                                                                                      ",
+        "18": " Restored 2 queued messages to editor                                                                                   ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "steer again                                                                                                             ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "16": " Operation aborted",
+        "36": "steer again"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "escaped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "16": " Operation aborted                                                                                                      ",
+        "18": " Restored 2 queued messages to editor                                                                                   ",
+        "21": " SLOW second                                                                                                            ",
+        "24": " word0 word1 word2                                                                                                      ",
+        "26": " Operation aborted                                                                                                      ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "16": " Operation aborted",
+        "21": " SLOW second",
+        "24": " word0 word1 word2",
+        "26": " Operation aborted"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "ctrlCBusy": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▀▀█  v1.6.0                                                                                                            ",
+        "2": " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   ",
+        "3": " Press ctrl+o to show full startup help and loaded resources.                                                           ",
+        "5": " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  ",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "11": " SLOW first                                                                                                             ",
+        "14": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "16": " Operation aborted                                                                                                      ",
+        "18": " Restored 2 queued messages to editor                                                                                   ",
+        "21": " SLOW second                                                                                                            ",
+        "24": " word0 word1 word2                                                                                                      ",
+        "26": " Operation aborted                                                                                                      ",
+        "29": " SLOW third                                                                                                             ",
+        "32": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "35": "── ⠸ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " ▀▀█",
+        "2": " █▀ █",
+        "8": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "11": " SLOW first",
+        "14": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "16": " Operation aborted",
+        "21": " SLOW second",
+        "24": " word0 word1 word2",
+        "26": " Operation aborted",
+        "29": " SLOW third",
+        "32": " word0 word1 word2 word3 word4 word5"
+      },
+      "lit": {
+        "1": " ▀"
+      },
+      "alternate": true
+    },
+    "retrying": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " Warning: fd not found. Offline mode enabled, skipping download.                                                        ",
+        "4": " SLOW first                                                                                                             ",
+        "7": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "9": " Operation aborted                                                                                                      ",
+        "11": " Restored 2 queued messages to editor                                                                                   ",
+        "14": " SLOW second                                                                                                            ",
+        "17": " word0 word1 word2                                                                                                      ",
+        "19": " Operation aborted                                                                                                      ",
+        "22": " SLOW third                                                                                                             ",
+        "25": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "27": " Operation aborted                                                                                                      ",
+        "30": " LIMIT now                                                                                                              ",
+        "33": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "35": "── ⠇ Retrying (1/3) in 1s... (escape to cancel) ────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "1": " Warning: fd not found. Offline mode enabled, skipping download.",
+        "4": " SLOW first",
+        "7": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "9": " Operation aborted",
+        "14": " SLOW second",
+        "17": " word0 word1 word2",
+        "19": " Operation aborted",
+        "22": " SLOW third",
+        "25": " word0 word1 word2 word3 word4 word5",
+        "27": " Operation aborted",
+        "30": " LIMIT now",
+        "33": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "35": "── ⠇                                            ────────────────────────────────────────────────────────────────────────"
+      },
+      "alternate": true
+    },
+    "retrying2": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "2": " SLOW first                                                                                                             ",
+        "5": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "7": " Operation aborted                                                                                                      ",
+        "9": " Restored 2 queued messages to editor                                                                                   ",
+        "12": " SLOW second                                                                                                            ",
+        "15": " word0 word1 word2                                                                                                      ",
+        "17": " Operation aborted                                                                                                      ",
+        "20": " SLOW third                                                                                                             ",
+        "23": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "25": " Operation aborted                                                                                                      ",
+        "28": " LIMIT now                                                                                                              ",
+        "31": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "33": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "35": "── ⠼ Retrying (2/3) in 3s... (escape to cancel) ────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "2": " SLOW first",
+        "5": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "7": " Operation aborted",
+        "12": " SLOW second",
+        "15": " word0 word1 word2",
+        "17": " Operation aborted",
+        "20": " SLOW third",
+        "23": " word0 word1 word2 word3 word4 word5",
+        "25": " Operation aborted",
+        "28": " LIMIT now",
+        "31": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "33": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "35": "── ⠼                                            ────────────────────────────────────────────────────────────────────────"
+      },
+      "alternate": true
+    },
+    "retryEscaped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "0": " SLOW first                                                                                                             ",
+        "3": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "5": " Operation aborted                                                                                                      ",
+        "7": " Restored 2 queued messages to editor                                                                                   ",
+        "10": " SLOW second                                                                                                            ",
+        "13": " word0 word1 word2                                                                                                      ",
+        "15": " Operation aborted                                                                                                      ",
+        "18": " SLOW third                                                                                                             ",
+        "21": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "23": " Operation aborted                                                                                                      ",
+        "26": " LIMIT now                                                                                                              ",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "31": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "33": " Error: Retry failed after 2 attempts: Retry cancelled                                                                  ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                    fake-sonnet • medium"
+      },
+      "bright": {
+        "0": " SLOW first",
+        "3": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "5": " Operation aborted",
+        "10": " SLOW second",
+        "13": " word0 word1 word2",
+        "15": " Operation aborted",
+        "18": " SLOW third",
+        "21": " word0 word1 word2 word3 word4 word5",
+        "23": " Operation aborted",
+        "26": " LIMIT now",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "31": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "33": " Error: Retry failed after 2 attempts: Retry cancelled"
+      },
+      "alternate": true
+    },
+    "shiftTabone": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "3": " Operation aborted                                                                                                      ",
+        "5": " Restored 2 queued messages to editor                                                                                   ",
+        "8": " SLOW second                                                                                                            ",
+        "11": " word0 word1 word2                                                                                                      ",
+        "13": " Operation aborted                                                                                                      ",
+        "16": " SLOW third                                                                                                             ",
+        "19": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "21": " Operation aborted                                                                                                      ",
+        "24": " LIMIT now                                                                                                              ",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled                                                                  ",
+        "33": " Thinking level: high                                                                                                   ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                      fake-sonnet • high"
+      },
+      "bright": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "3": " Operation aborted",
+        "8": " SLOW second",
+        "11": " word0 word1 word2",
+        "13": " Operation aborted",
+        "16": " SLOW third",
+        "19": " word0 word1 word2 word3 word4 word5",
+        "21": " Operation aborted",
+        "24": " LIMIT now",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled"
+      },
+      "alternate": true
+    },
+    "shiftTabtwo": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "3": " Operation aborted                                                                                                      ",
+        "5": " Restored 2 queued messages to editor                                                                                   ",
+        "8": " SLOW second                                                                                                            ",
+        "11": " word0 word1 word2                                                                                                      ",
+        "13": " Operation aborted                                                                                                      ",
+        "16": " SLOW third                                                                                                             ",
+        "19": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "21": " Operation aborted                                                                                                      ",
+        "24": " LIMIT now                                                                                                              ",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled                                                                  ",
+        "33": " Thinking level: off                                                                                                    ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                              fake-sonnet • thinking off"
+      },
+      "bright": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "3": " Operation aborted",
+        "8": " SLOW second",
+        "11": " word0 word1 word2",
+        "13": " Operation aborted",
+        "16": " SLOW third",
+        "19": " word0 word1 word2 word3 word4 word5",
+        "21": " Operation aborted",
+        "24": " LIMIT now",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled"
+      },
+      "alternate": true
+    },
+    "shiftTabthree": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "3": " Operation aborted                                                                                                      ",
+        "5": " Restored 2 queued messages to editor                                                                                   ",
+        "8": " SLOW second                                                                                                            ",
+        "11": " word0 word1 word2                                                                                                      ",
+        "13": " Operation aborted                                                                                                      ",
+        "16": " SLOW third                                                                                                             ",
+        "19": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "21": " Operation aborted                                                                                                      ",
+        "24": " LIMIT now                                                                                                              ",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled                                                                  ",
+        "33": " Thinking level: minimal                                                                                                ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                   fake-sonnet • minimal"
+      },
+      "bright": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "3": " Operation aborted",
+        "8": " SLOW second",
+        "11": " word0 word1 word2",
+        "13": " Operation aborted",
+        "16": " SLOW third",
+        "19": " word0 word1 word2 word3 word4 word5",
+        "21": " Operation aborted",
+        "24": " LIMIT now",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled"
+      },
+      "alternate": true
+    },
+    "ctrlP": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 0
+      },
+      "rows": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7                                                                        ",
+        "3": " Operation aborted                                                                                                      ",
+        "5": " Restored 2 queued messages to editor                                                                                   ",
+        "8": " SLOW second                                                                                                            ",
+        "11": " word0 word1 word2                                                                                                      ",
+        "13": " Operation aborted                                                                                                      ",
+        "16": " SLOW third                                                                                                             ",
+        "19": " word0 word1 word2 word3 word4 word5                                                                                    ",
+        "21": " Operation aborted                                                                                                      ",
+        "24": " LIMIT now                                                                                                              ",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}                                 ",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled                                                                  ",
+        "33": " Switched to Fake Haiku                                                                                                 ",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "38": "~/project",
+        "39": "0.7%/200k (auto)                                                                                              fake-haiku"
+      },
+      "bright": {
+        "1": " word0 word1 word2 word3 word4 word5 word6 word7",
+        "3": " Operation aborted",
+        "8": " SLOW second",
+        "11": " word0 word1 word2",
+        "13": " Operation aborted",
+        "16": " SLOW third",
+        "19": " word0 word1 word2 word3 word4 word5",
+        "21": " Operation aborted",
+        "24": " LIMIT now",
+        "27": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "29": " Error: 429: {\"message\":\"Rate limit reached for fake-sonnet\",\"type\":\"rate_limit_error\"}",
+        "31": " Error: Retry failed after 2 attempts: Retry cancelled"
+      },
+      "alternate": true
+    }
+  }
+}
