@@ -45,8 +45,23 @@ export const pi: AgentSetup = {
   // While a turn runs, its top rule holds a spinner and `Working`.
   running: /Working/,
   // A prompt given mid-turn shows dim above the box as `Steering: <prompt>`, until the turn's
-  // tool calls end (probed 2026-11-24, 1.6.0, busy.probe.json `steerQueued`).
-  queued: (prompt) => new RegExp(`Steering: ${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+  // tool calls end (probed 2026-11-24, 1.6.0, busy.probe.json `steerQueued`); an image's path,
+  // which goes in its box as text, leads it.
+  queued: (prompt) =>
+    new RegExp(`Steering: (?:\\S+ )?${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+  // Under what is queued: `↳ Alt+Up to edit all queued messages`.
+  queueHint: /↳ Alt\+Up to edit all queued messages/,
+  // Escape puts queued messages back in its box a blank line apart (busy.probe.json `altUp`).
+  queuedJoin: "\n\n",
+  // Seeded with `folderTrusted: false`, the project holds `.pi/settings.json`, which it asks to
+  // trust before its TUI starts; `Trust` stands first, selected (dialogs.probe.json `trust`).
+  trust: {
+    folder: {
+      shows: /Trust project folder\?/,
+      select: "",
+      trusts: /→ Trust\s*$/m,
+    },
+  },
   // It has no `/clear`: `/new` starts a new session, as `session_start{reason:"new"}` says.
   clear: "/new",
   // Its `/quit` leaves it; it has no `/exit`.
@@ -59,7 +74,12 @@ export const pi: AgentSetup = {
     run: (_call, command) => ({ calls: [{ name: "bash", input: { command } }] }),
     nested,
   },
-  prepare: async (sandbox, model, installed) => {
+  prepare: async (sandbox, model, installed, seed) => {
+    // What a project brings in its `.pi` (here its settings) is what pi asks to trust.
+    if (seed?.folderTrusted === false) {
+      await mkdir(join(sandbox.project, ".pi"), { recursive: true })
+      await writeFile(join(sandbox.project, ".pi", "settings.json"), "{}\n")
+    }
     const folder = agentFolder(sandbox.home)
     await mkdir(folder, { recursive: true, mode: 0o700 })
     await writeFile(
@@ -121,8 +141,8 @@ export const pi: AgentSetup = {
       "a person has no way to launch pi without Novadeck's `-e` extension: `--no-extensions` still loads an explicit `-e`, and it has no pure mode (probed 2026-11-24, 1.6.0)",
     "trust.hooks":
       "it loads Novadeck's extension, passed with `-e`, with no review: every scenario's session binds unasked (1.6.0)",
-    "trust.folder":
-      "it asks to trust a folder only where the project holds `.pi` resources; the e2e project holds none (probed 2026-11-24, 1.6.0)",
+    mention:
+      "its @ menu lists files with `fd`, which it downloads at its first start online; the e2e sandbox runs it offline (`PI_OFFLINE`), where it has none (probed 2026-11-24, 1.6.0)",
     pluginCopy:
       "it keeps no copy of Novadeck's extension in its home: the shim passes the runner's own file for each launch",
     image:
