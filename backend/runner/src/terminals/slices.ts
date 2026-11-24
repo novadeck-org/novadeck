@@ -7,6 +7,7 @@
 import { readScreen, styledRows, type Screen } from "@novadeck/emulator/headless"
 import { readSlice, type Resting, type SliceProfile } from "@novadeck/harness-core/slices"
 import {
+  isAgentName,
   liveSlice,
   sliceLimits,
   type AgentName,
@@ -37,7 +38,9 @@ export type Slicing = {
 /**
  * What a look at the record's screen takes, with its dialogs as the tracker reads them, and
  * the agent whose prompt shows there before a session binds: Antigravity and Codex bind only
- * at a first prompt, and their menus come before it.
+ * at a first prompt, and their menus come before it. Before that, the agent starting there
+ * (`expecting`), whose screen the chat shows as it starts, and whose own screens, as a
+ * folder-trust one, take the keys the person passes them.
  */
 export const slicingOf = (
   record: Record | undefined,
@@ -45,7 +48,8 @@ export const slicingOf = (
   shown: AgentName | undefined,
 ): Slicing | undefined => {
   const bound = record?.bound
-  const agent = bound?.binding.agent ?? shown
+  const starting = record?.summary.expecting
+  const agent = bound?.binding.agent ?? shown ?? (isAgentName(starting) ? starting : undefined)
   if (!record || !agent) return undefined
   const { box, slice } = harnesses[agent]
   const child = record.terminal.pty

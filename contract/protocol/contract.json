@@ -1,5 +1,5 @@
 {
-  "revision": 12,
+  "revision": 13,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -719,6 +719,16 @@
                 {"type":"null"}
               ]
             },
+            "expecting": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["claude","codex","agy","opencode","newer"],
+                  "x-open": {"since":3,"unknown":"placeholder"}
+                },
+                {"type":"null"}
+              ]
+            },
             "startup": {
               "anyOf": [
                 {
@@ -1236,6 +1246,16 @@
             ]
           },
           "ready": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["claude","codex","agy","opencode","newer"],
+                "x-open": {"since":3,"unknown":"placeholder"}
+              },
+              {"type":"null"}
+            ]
+          },
+          "expecting": {
             "anyOf": [
               {
                 "type": "string",
@@ -1959,6 +1979,16 @@
                     ]
                   },
                   "ready": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": ["claude","codex","agy","opencode","newer"],
+                        "x-open": {"since":3,"unknown":"placeholder"}
+                      },
+                      {"type":"null"}
+                    ]
+                  },
+                  "expecting": {
                     "anyOf": [
                       {
                         "type": "string",
@@ -2805,6 +2835,16 @@
             ]
           },
           "ready": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["claude","codex","agy","opencode","newer"],
+                "x-open": {"since":3,"unknown":"placeholder"}
+              },
+              {"type":"null"}
+            ]
+          },
+          "expecting": {
             "anyOf": [
               {
                 "type": "string",

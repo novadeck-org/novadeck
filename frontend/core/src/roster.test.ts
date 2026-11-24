@@ -63,6 +63,20 @@ describe("a terminal's status", () => {
     expect(awake.terminals[0]).not.toHaveProperty("restoredProcess")
   })
 
+  it("keeps which agent starts, and lets it go once it no longer does", () => {
+    const roster = createRoster([
+      { id: "01", name: "Agent", directory: "/work", command: "", process: "", state: "idle" },
+    ])
+    const starting = setTerminalStatus(roster, "01", { state: "running", expecting: "codex" })
+    expect(starting.terminals[0]).toMatchObject({ state: "running", expecting: "codex" })
+    // The same status is no change.
+    expect(setTerminalStatus(starting, "01", { state: "running", expecting: "codex" })).toBe(
+      starting,
+    )
+    const ready = setTerminalStatus(starting, "01", { state: "running", agent: { working: false } })
+    expect(ready.terminals[0]).not.toHaveProperty("expecting")
+  })
+
   it("takes a program's command line with it, and drops it with the program", () => {
     const roster = createRoster([
       { id: "01", name: "Dev", directory: "/work", command: "", process: "zsh", state: "idle" },

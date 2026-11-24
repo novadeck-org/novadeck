@@ -700,6 +700,9 @@ export class Bindings {
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
+    // The agent starting there, as the startup watch tells it: none once its prompt shows or a
+    // session binds.
+    const expecting = bound || ready ? null : (record.summary.expecting ?? null)
     // Its prompt or a session ends a startup screen at once, not at the watch's next look,
     // but for a session whose prompt says it isn't signed in; a session that ends takes that
     // mark with it.
@@ -734,6 +737,7 @@ export class Bindings {
       summary.agentRan === agentRan &&
       summary.agent === agent &&
       summary.ready === ready &&
+      (summary.expecting ?? null) === expecting &&
       summary.startup === startup &&
       JSON.stringify(summary.activity) === JSON.stringify(activity) &&
       JSON.stringify(summary.telemetry) === JSON.stringify(telemetry) &&
@@ -747,6 +751,7 @@ export class Bindings {
       agentRan,
       agent,
       ready,
+      expecting,
       startup,
       activity,
       telemetry,

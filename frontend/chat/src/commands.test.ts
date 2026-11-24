@@ -18,7 +18,14 @@ import type { TerminalKey } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { rehomeTerminals } from "./by-terminal"
-import { createChatCommands, inDoubtNote, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
+import {
+  createChatCommands,
+  inDoubtNote,
+  ringRetryMs,
+  ringWaitMs,
+  startLookMs,
+  unseenMs,
+} from "./commands"
 import { chatDraftOf } from "./drafts"
 import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
@@ -61,6 +68,7 @@ const open = (
     putBox,
     clearBox,
     chatView = true,
+    starting,
   }: {
     readonly interrupt?: Conversations["interrupt"]
     readonly answer?: () => Promise<void>
@@ -70,6 +78,7 @@ const open = (
     readonly putBox?: Conversations["putBox"]
     readonly clearBox?: Conversations["clearBox"]
     readonly chatView?: boolean
+    readonly starting?: () => boolean
   } = {},
 ) => {
   const conversation = createStore<Conversation>({ ...noConversation, session, loaded: true })
@@ -101,6 +110,7 @@ const open = (
     locate: (asked) => (here && asked.terminalId === here.terminalId ? here : null),
     context: () => context,
     chatView: () => chatView,
+    ...(starting && { starting }),
   })
   const phases = () =>
     chatSendsOf(chat.store.getSnapshot().sends, context, "01").map(({ text, phase }) => [
@@ -271,6 +281,41 @@ describe("the chat's send queue", () => {
     await commands.takeBox(key)
     expect(asked).toEqual([])
     expect(draft()).toBe("from the chat")
+  })
+
+  describe("while its agent starts", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("holds what is sent until the agent is ready, in order", async () => {
+      let starting = true
+      const { commands, phases, sent } = open(null, { starting: () => starting })
+      void commands.sendChat(key, "first", null)
+      void commands.sendChat(key, "second", null)
+      expect(phases()).toEqual([
+        ["first", "queued"],
+        ["second", "queued"],
+      ])
+      await vi.advanceTimersByTimeAsync(startLookMs * 8)
+      expect(sent).toEqual([])
+      // Its prompt shows: the terminal says so, looked at in turn.
+      starting = false
+      await vi.advanceTimersByTimeAsync(startLookMs)
+      expect(sent).toEqual(["first"])
+      expect(phases()).toEqual([
+        ["first", "sent"],
+        ["second", "queued"],
+      ])
+    })
+
+    it("goes on as the conversation tells of its session, without waiting for a look", async () => {
+      let starting = true
+      const { commands, sent, tell } = open(null, { starting: () => starting })
+      void commands.sendChat(key, "hello", null)
+      starting = false
+      tell({ agent: "claude", session: "s1" })
+      expect(sent).toEqual(["hello"])
+    })
   })
 
   describe("while the doorbell rings its agent", () => {

@@ -262,6 +262,13 @@ export const atStartupScreen = (
   setStatus(key, { state: "running", agent: { working: false, startup: screen } }),
 ]
 
+// An agent the terminal was opened to run, still starting before its prompt shows: its chat
+// shows already, and holds what is sent until it is ready.
+export const agentStarting = (key: TerminalKey, agent: AgentName): BackendAction[] => [
+  setProcess(key, agent),
+  setStatus(key, { state: "running", expecting: agent }),
+]
+
 export const resting: AgentStatus = { working: false }
 
 // Context and rate limits, as an agent's records tell them.

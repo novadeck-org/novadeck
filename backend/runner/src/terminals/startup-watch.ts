@@ -156,6 +156,8 @@ export type StartupHost<R extends WatchedRecord> = {
     readonly expected: (terminalId: string) => AgentName | null
     /** The agent whose hooks were found not to run there, with no session bound, if any. */
     readonly untrustedAgent: (terminalId: string) => AgentName | undefined
+    /** The agent whose own empty prompt shows there, before any session bound. */
+    readonly shownAgent: (terminalId: string) => AgentName | undefined
   }
   readonly shown: () => {
     /**
@@ -253,6 +255,7 @@ export class StartupWatch<R extends WatchedRecord> {
     if (run !== record.terminal.pty || launch.terminal !== record.summary.id) return
     if (record.bound || !isAgentName(program) || this.liveLaunch(record) !== undefined) return
     this.launches.set(trackKey(record), { agent: program, at: this.now() })
+    this.tell(record)
     this.noticed(record)
   }
 
@@ -330,9 +333,34 @@ export class StartupWatch<R extends WatchedRecord> {
       if (record.bound) looking ||= this.looksBound(record, track)
       else if (!this.agentIn(record)) this.show(record, null, false)
       else if (!track?.prompted) looking = true
+      // Past its box, as the looks found it now.
+      this.tell(record)
       if (record.summary.startup) looking = true
     }
     if (!looking) this.pause()
+  }
+
+  /**
+   * Shows in the summary the agent starting in the terminal (`TerminalSummary.expecting`): the
+   * one the watch looks for there, until a session binds, its prompt is known to show, or its
+   * own box has stood a delay, as for an agent whose harness tells neither. Its prompt or a
+   * session ends it at once too (`Bindings.publishAgent`).
+   */
+  private tell(record: R): void {
+    const expecting = this.starting(record)
+    if ((record.summary.expecting ?? null) === expecting) return
+    record.summary = { ...record.summary, expecting }
+    this.host.changed(record)
+  }
+
+  private starting(record: R): AgentName | null {
+    const { bound, summary } = record
+    const track = this.tracks.get(trackKey(record))
+    // Its box stood a delay: it started, whether or not its harness says so.
+    const boxed = track?.box != null && this.now() - track.box >= this.delayMs
+    return bound || track?.prompted || boxed || this.host.messaging().shownAgent(summary.id)
+      ? null
+      : (this.agentIn(record) ?? null)
   }
 
   // The agent the watch looks for in a terminal: the one Novadeck expects there, else one the
@@ -437,8 +465,10 @@ export class StartupWatch<R extends WatchedRecord> {
       this.host.messaging().untrustedAgent(record.summary.id),
       agent && held ? { agent, screen: record.startupScreen?.screen ?? screen ?? "startup" } : null,
     )
-    if (startup === record.summary.startup) return
-    record.summary = { ...record.summary, startup }
+    const expecting = this.starting(record)
+    if (startup === record.summary.startup && expecting === (record.summary.expecting ?? null))
+      return
+    record.summary = { ...record.summary, startup, expecting }
     this.host.changed(record)
   }
 }

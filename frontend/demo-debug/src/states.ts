@@ -21,6 +21,7 @@ import { createNewerChat } from "./newer"
 import { createDemoNotices } from "./notices"
 import { createChatPermits } from "./permits"
 import {
+  agentStarting,
   atStartupScreen,
   agentRanHere,
   backToPrompt,
@@ -412,6 +413,7 @@ const gallery: readonly {
   { name: "Asks (MCP)", state: (key, harness) => runAgent(key, harness), asks: "text" },
   { name: "Needs a sign-in", state: (key, harness) => runAgent(key, harness), asks: "action" },
   { name: "Unheard agent", state: (key, harness) => unheardAgent(key, harness) },
+  { name: "Agent starting", state: (key, harness) => agentStarting(key, harness) },
   { name: "At its startup screen", state: (key, harness) => atStartupScreen(key, harness) },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
@@ -1043,6 +1045,11 @@ export const createDemoStates = (
           "Unheard agent",
           "The chosen harness, its hooks silent",
           (key, { dispatch, harness }) => dispatch(unheardAgent(key, harness)),
+        ),
+        setting(
+          "Agent starting",
+          "The chosen harness starting, before its prompt shows: with the chat view on, its chat says it is starting, and what is sent waits as queued",
+          (key, { dispatch, harness }) => dispatch(agentStarting(key, harness)),
         ),
         setting(
           "At its startup screen",

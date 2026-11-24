@@ -1045,6 +1045,7 @@ export class Terminals {
     )
     this.messaging.expect(id, agent)
     record.expecting = agent
+    record.summary = { ...record.summary, expecting: agent }
     if (agent) this.startups.start()
   }
 

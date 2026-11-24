@@ -16,9 +16,9 @@ import { createStore, type Store } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
-import { ChatView } from "./ChatView"
+import { ChatView, startScreenMs } from "./ChatView"
 import { createChatCommands } from "./commands"
 import { forgetClaimed } from "./Requests"
 import {
@@ -59,7 +59,10 @@ const inApp = (
     refuse = [],
     personFace,
     terminal = () => {},
+    starting = false,
   }: {
+    // Whether the agent is starting, before its prompt shows.
+    readonly starting?: boolean
     // Called as the person asks for the terminal.
     readonly terminal?: () => void
     // The person's face, as the app gives it.
@@ -130,6 +133,7 @@ const inApp = (
           terminalName: "T",
           program,
           agent: undefined,
+          starting,
           compact: false,
           draft: chatDraftOf(state.drafts, context, "01"),
           onDraft: (text) => commands.setChatDraft("01", text),
@@ -446,6 +450,43 @@ describe("a chat with nothing to show", () => {
       screen.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
     })
     expect(keys).toEqual(["\r"])
+  })
+
+  describe("while the agent starts", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+    const unbound = {
+      agent: null,
+      session: null,
+      loaded: false,
+      records: { state: "reading" },
+    } as const
+
+    it("says so, and keeps its box the one that takes the keys", () => {
+      const view = rows("Welcome to Claude Code", "1. Dark mode")
+      const { container } = inApp(
+        createStore({ ...fresh, ...unbound, rest: false, screen: view, slice: view }),
+        { starting: true },
+      )
+      expect(container.querySelector(".chat-empty")?.textContent).toContain(
+        "Claude is starting. What you send here goes once it's ready.",
+      )
+      // Nothing of its own stands under the log to take the keys as it draws.
+      expect(container.querySelector(".chat-live")).toBeNull()
+    })
+
+    it("shows its own screen once its start takes a while, at the foot of its rows", () => {
+      const view = rows("Do you trust the files in this folder?", "1. Yes", "2. No")
+      const { container } = inApp(
+        createStore({ ...fresh, ...unbound, rest: false, screen: view }),
+        { starting: true },
+      )
+      expect(container.querySelector(".chat-live[data-inline]")).toBeNull()
+      act(() => void vi.advanceTimersByTime(startScreenMs))
+      const screen = container.querySelector(".chat-live[data-inline]")
+      expect(screen?.textContent).toContain("Do you trust the files in this folder?")
+      expect(document.activeElement).not.toBe(screen?.querySelector(".chat-slice"))
+    })
   })
 
   it("shows no verdict once there is something said", () => {
