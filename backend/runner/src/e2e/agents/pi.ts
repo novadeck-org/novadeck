@@ -24,8 +24,11 @@ export const pi: AgentSetup = {
   agent: "pi",
   name: "pi",
   dialect: chat,
-  // Its footer shows the model and thinking level (`fake-sonnet • medium`) from the first draw.
-  banner: /fake-sonnet/,
+  // Its footer shows the model and thinking level (`fake-sonnet • medium`) from the first draw,
+  // and its header, `… ! bash …`, which it draws some 40 ms after that footer: a screen read
+  // between them is no first screen whole (probed 2026-11-24, 1.6.0; chat.e2e "refuses "!"" counts
+  // the header's `!`).
+  banner: /! bash[\s\S]*fake-sonnet/,
   // Its extension's session start comes as it starts, before any prompt (to confirm).
   bindsAtReady: true,
   // What a delivery leaves in the session stays in its later model calls: a `custom_message`
