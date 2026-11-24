@@ -221,14 +221,17 @@ const unknownHidden = 400
  * before it. Rows out of sight count too (probed 2026-11-24, 1.6.0: three lines with the cursor at
  * the end, in the middle of the first line or of the last, a paste placeholder among words, a
  * line wrapped over three rows, and 30 lines scrolled `↓ 18 more` all emptied; backups rig
- * `erase.mjs`). Never Ctrl-C: it clears the box too, but two within about a second end pi, a draft
- * or not (`draftCleared`, `emptyOnce` of fixtures/input-box.probe.json), and a later clear of
- * Novadeck's could come that soon.
+ * `erase.mjs`). Ctrl-U leaves a menu the draft held open (`/he`) over the emptied box, where a
+ * later Enter would pick from it, so a space and a Backspace close it (probed 2026-11-24, 1.6.0:
+ * `/he`, `try /mod`, `!ls` and a `/th` under a line all emptied with no menu left; rig
+ * `erase-menu.mjs`). Never Ctrl-C: it clears the box too, but two within about a second end pi, a
+ * draft or not (`draftCleared`, `emptyOnce` of fixtures/input-box.probe.json), and a later clear
+ * of Novadeck's could come that soon.
  */
 const erase = (box: InputBox): string => {
   const hidden = box.scrolled ? (outOfSight.get(box) ?? unknownHidden) : 0
   const lines = box.last - box.first + 1 + hidden
-  return "\x1b[B".repeat(lines - 1) + "\x05\x15\x15".repeat(lines)
+  return `${"\x1b[B".repeat(lines - 1)}${"\x05\x15\x15".repeat(lines)} \x7f`
 }
 
 /**

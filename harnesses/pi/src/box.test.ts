@@ -162,9 +162,9 @@ describe("pi's input box", () => {
 
   context("emptied", () => {
     it("goes Down to the last line, then takes each line with Ctrl-E and Ctrl-U twice", () => {
-      expect(box.erase?.(read("typed")!)).toBe("\x05\x15\x15")
+      expect(box.erase?.(read("typed")!)).toBe("\x05\x15\x15 \x7f")
       expect(box.erase?.(read("pasteMulti")!)).toBe(
-        `${"\x1b[B".repeat(2)}${"\x05\x15\x15".repeat(3)}`,
+        `${"\x1b[B".repeat(2)}${"\x05\x15\x15".repeat(3)} \x7f`,
       )
     })
 
@@ -309,7 +309,7 @@ describe("pi's input box", () => {
     })
 
     it("takes the images out with the rest of the box", () => {
-      expect(box.images?.discard(withBox("ready", [path]))).toBe("\x05\x15\x15")
+      expect(box.images?.discard(withBox("ready", [path]))).toBe("\x05\x15\x15 \x7f")
       expect(box.images?.alone).toBe(true)
       expect(box.images?.after).toBe(" ")
     })
