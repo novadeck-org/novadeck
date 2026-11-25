@@ -46,18 +46,17 @@ export const powershellTools = ["--tools", "-bash,+powershell"] as const
 const quoted = (path: string): string => `'${path.replaceAll("'", `'\\''`)}'`
 
 /**
- * The launcher for Linux and macOS: fetches the program through the runner where it isn't in
- * place, showing its progress (`novadeck-relay fetch pi`), then starts it with Novadeck's
- * extension and its own agent folder, with pi's check for a newer version off, as Novadeck pins
- * the version. Not on PATH: Novadeck types its path.
+ * The launcher for Linux and macOS: asks the runner for the program each time
+ * (`novadeck-relay fetch pi`), which refuses while Novadeck's pi is switched off in Preferences >
+ * Experimental, answers at once when it is in place, and otherwise fetches it, the relay showing
+ * the progress. Then it starts it with Novadeck's extension and its own agent folder, with pi's
+ * check for a newer version off, as Novadeck pins the version. Not on PATH: Novadeck types its path.
  */
 export const posixLauncher = (pi: BundledPi): string => `#!/bin/sh
 ${header("#", "launcher for its own pi")}
-# Starts Novadeck's own pi, fetching it first where it isn't in place.
+# Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
 novadeck_program=${quoted(pi.program)}
-if ! [ -x "$novadeck_program" ]; then
-  ${quoted(pi.relay)} fetch pi || exit 1
-fi
+${quoted(pi.relay)} fetch pi || exit 1
 PI_CODING_AGENT_DIR=${quoted(pi.home)}
 PI_SKIP_VERSION_CHECK=1
 ${bundledMark}=bundled
@@ -81,12 +80,10 @@ const cmdPath = (path: string, called = false): string =>
 
 export const cmdLauncher = (pi: BundledPi): string => `@echo off
 ${header("rem", "launcher for its own pi")}
-rem Starts Novadeck's own pi, fetching it first where it isn't in place.
+rem Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
 setlocal
 set "novadeck_program=${cmdPath(pi.program)}"
-if exist "%novadeck_program%" goto have
 call "${cmdPath(pi.relay, true)}" fetch pi || exit /b 1
-:have
 set "PI_CODING_AGENT_DIR=${cmdPath(pi.home)}"
 set "PI_SKIP_VERSION_CHECK=1"
 set "${bundledMark}=bundled"

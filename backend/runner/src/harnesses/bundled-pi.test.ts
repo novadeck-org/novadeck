@@ -10,6 +10,7 @@ import { describe, expect, it } from "../test.js"
 import { folder, sha256 } from "../testing/engines.js"
 import type { Resources } from "../testing/resources.js"
 import {
+  BundledPi,
   buildFolder,
   buildFor,
   bundledPiFolder,
@@ -19,6 +20,7 @@ import {
   pinnedPi,
   progressLine,
   type PinnedPi,
+  turnOnLine,
 } from "./bundled-pi.js"
 
 const licenceText = "MIT License\n\nCopyright (c) pi's authors\n"
@@ -62,7 +64,7 @@ const fakeRelease = async (
   }
 }
 
-const linux = { platform: "linux", arch: "x64" } as const
+const linux = { platform: "linux", arch: "x64", enabled: true } as const
 
 describe("the pinned pi", () => {
   it("names a build, with its checksum, for every system Novadeck ships for", () => {
@@ -245,8 +247,89 @@ describe("fetching Novadeck's pi", () => {
 
   it("refuses a system pi has no build for", async ({ resources }) => {
     await expect(
-      fetchBundledPi({ data: await folder(resources), platform: "freebsd", arch: "x64" }),
+      fetchBundledPi({
+        data: await folder(resources),
+        platform: "freebsd",
+        arch: "x64",
+        enabled: true,
+      }),
     ).rejects.toThrow("pi has no build for this system (freebsd-x64).")
+  })
+})
+
+describe("Novadeck's pi behind its Experimental switch", () => {
+  // The service over a fake release, with the switch as `on` says.
+  const service = async (resources: Resources, on: { value: boolean }) => {
+    const release = await fakeRelease(resources)
+    const data = await folder(resources)
+    const states: string[] = []
+    const pi = new BundledPi({
+      data,
+      enabled: () => on.value,
+      env: {
+        NOVADECK_BUNDLED_PI_SOURCE: release.source,
+        NOVADECK_BUNDLED_PI_LICENCE: release.licence,
+      },
+      platform: "linux",
+      arch: "x64",
+      pinned: release.pinned,
+    })
+    pi.follow(() => states.push(pi.state().state))
+    return { pi, data, release, states }
+  }
+
+  it("fetches nothing while off, and says how to turn it on", async ({ resources }) => {
+    const { pi, data, release } = await service(resources, { value: false })
+
+    pi.switched()
+    await expect(pi.fetch("pi", () => {})).rejects.toThrow(turnOnLine)
+    await expect(fetchBundledPi({ data, ...linux, ...release, enabled: false })).rejects.toThrow(
+      "Turn on Novadeck Agent in Preferences > Experimental.",
+    )
+
+    expect(pi.state()).toEqual({ state: "off" })
+    expect(await readdir(data)).toEqual([])
+  })
+
+  it("starts its fetch as it is switched on, telling where it stands", async ({ resources }) => {
+    const on = { value: true }
+    const { pi, states } = await service(resources, on)
+
+    pi.switched()
+    await expect.poll(() => pi.state().state).toBe("ready")
+
+    expect(states.at(0)).toBe("downloading")
+    expect(states.at(-1)).toBe("ready")
+    // A launch then starts the copy in place at once.
+    await pi.fetch("pi", () => {})
+    expect(pi.state()).toEqual({ state: "ready" })
+    // Switched off, it stops launches, and keeps the copy.
+    on.value = false
+    pi.switched()
+    expect(pi.state()).toEqual({ state: "off" })
+    await expect(pi.fetch("pi", () => {})).rejects.toThrow(turnOnLine)
+  })
+
+  it("says why a fetch failed, and tries again as it is switched on again", async ({
+    resources,
+  }) => {
+    const on = { value: true }
+    const { pi, release } = await service(resources, on)
+    const licence = release.licence
+    await writeFile(licence, "Another licence")
+
+    pi.switched()
+    await expect.poll(() => pi.state().state).toBe("failed")
+    expect(pi.state().error).toContain("damaged")
+
+    await writeFile(licence, licenceText)
+    pi.switched()
+    await expect.poll(() => pi.state().state).toBe("ready")
+  })
+
+  it("fetches only its own pi", async ({ resources }) => {
+    const { pi } = await service(resources, { value: true })
+    await expect(pi.fetch("claude", () => {})).rejects.toThrow("Novadeck has no claude of its own.")
   })
 })
 

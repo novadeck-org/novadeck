@@ -209,6 +209,7 @@ export class Terminals {
       | "baseEnv"
       | "shellArgs"
       | "shellFiles"
+      | "bundledPi"
       | "records"
       | "closed"
       | "projects"
@@ -782,7 +783,7 @@ export class Terminals {
       savedChanged: (row) => this.streams.savedChanged(row),
       names: () => this.names,
     })
-    this.launcher.integrate(options.shellFiles)
+    this.launcher.integrate(options.shellFiles, options.bundledPi)
     this.sleepers.start()
     this.hibernation.start()
     this.queueNotices.start()

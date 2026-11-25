@@ -1,7 +1,7 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import type { ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { AgentMode } from "@novadeck/core/port"
+import type { AgentMode, BundledPiFetchState } from "@novadeck/core/port"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
@@ -23,6 +23,7 @@ import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentModePicker } from "./AgentModePicker"
 import { AgentSwitches } from "./AgentSwitches"
+import { bundledPiDescription, bundledPiLabel, bundledPiNote } from "./bundled-pi"
 import { builtInFont, fontChoices, isBundled } from "./font-choices"
 import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
 import { ForgeSwitches } from "./ForgeSwitches"
@@ -228,6 +229,7 @@ export const Preferences = ({
   agentModes,
   agentMode,
   shippingGate,
+  bundledPi,
   tour = false,
   worktrees,
   forges,
@@ -286,6 +288,13 @@ export const Preferences = ({
   // has none.
   shippingGate?: {
     readonly enabled: boolean
+    readonly onChange: (enabled: boolean) => void
+  }
+  // Whether Novadeck's own pi is on, an Experimental feature the backend keeps, and where its
+  // download stands; absent where it has none, as a runner from before it.
+  bundledPi?: {
+    readonly enabled: boolean
+    readonly fetch: BundledPiFetchState
     readonly onChange: (enabled: boolean) => void
   }
   // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
@@ -479,6 +488,19 @@ export const Preferences = ({
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),
       disabled: !shippingGate,
+    },
+    {
+      id: "bundled-pi",
+      label: bundledPiLabel,
+      description: bundledPiDescription,
+      checked: bundledPi?.enabled ?? false,
+      onToggle: (enabled: boolean) => bundledPi?.onChange(enabled),
+      disabled: !bundledPi,
+      // Only where the runner has it: one from before it (revision 16) never offers the row.
+      hidden: !bundledPi,
+      note: bundledPi && bundledPiNote(bundledPi.enabled, bundledPi.fetch),
+      // Switched on again, a failed download is tried again.
+      retry: () => bundledPi?.onChange(true),
     },
   ]
   const lastView = value.enabledViews.length === 1
@@ -1098,15 +1120,36 @@ export const Preferences = ({
           {hasExperimental && (
             <TabPanel value="experimental" className={panelClasses}>
               <div className={settingsCardClasses}>
-                {experimentalToggles.map(
-                  ({ id, label, description, checked, onToggle, disabled }) => (
+                {experimentalToggles
+                  .filter((toggle) => !("hidden" in toggle && toggle.hidden))
+                  .map(({ id, label, description, checked, onToggle, disabled, ...more }) => (
                     <div key={id} className={`preference-row ${settingRowClasses}`}>
-                      <SettingText
-                        id={`${id}-label`}
-                        label={label}
-                        description={description}
-                        descriptionId={`${id}-description`}
-                      />
+                      <span className="flex min-w-0 flex-col gap-1">
+                        <SettingText
+                          id={`${id}-label`}
+                          label={label}
+                          description={description}
+                          descriptionId={`${id}-description`}
+                        />
+                        {"note" in more && more.note && (
+                          <span
+                            className="settings-note flex flex-wrap items-center gap-x-2 gap-y-1 text-control leading-5"
+                            data-experimental-note={id}
+                            {...(more.note.error ? { "data-tone": "danger", role: "alert" } : {})}
+                          >
+                            <span>{more.note.text}</span>
+                            {more.note.error && (
+                              <button
+                                type="button"
+                                className="button min-h-7 px-2.5 text-control"
+                                onClick={more.retry}
+                              >
+                                Try again
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </span>
                       <Switch
                         checked={checked}
                         onChange={onToggle}
@@ -1115,8 +1158,7 @@ export const Preferences = ({
                         disabled={disabled}
                       />
                     </div>
-                  ),
-                )}
+                  ))}
               </div>
               {forges && (
                 <Section title="Forge integrations" description={forgesExplanation}>

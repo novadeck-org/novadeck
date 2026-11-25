@@ -1237,9 +1237,11 @@ the relay, the hook launcher prints what `relay.json` would, as it is written fr
 same tables.
 
 **Fetch**, run by the launcher of Novadeck's own pi (`shell/bundled/pi`, from
-harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` where its program isn't in place
-yet: the runner downloads the pinned build for its system (`harnesses/bundled-pi.ts`) and the
-relay shows its progress in the terminal.
+harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` before each start: the runner answers
+at once where the program is in place, and otherwise downloads the pinned build for its system
+(`harnesses/bundled-pi.ts`), the relay showing its progress in the terminal. While Novadeck
+Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner refuses with
+`Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started.
 
 1. The relay sends `{"relay":2,"kind":"fetch","terminalId","token","name"}`.
 2. The runner answers a line `{"progress":"<line>"}` for each step (a download's whole

@@ -2,6 +2,7 @@ import type { PortableState } from "@novadeck/core/desktop/portable"
 import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { forgeNames, type ForgeConnection } from "@novadeck/core/forges"
+import type { BundledPiFetchState } from "@novadeck/core/port"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { beforeEach, vi } from "vitest"
@@ -411,6 +412,17 @@ describe("the IS_EXPERIMENTAL flag", () => {
     const enabled = createStore(true)
     const shippingGate = { enabled, set: (on: boolean) => enabled.update(() => on) }
     watchExperimental(updates(Promise.resolve("stable")), () => {}, { shippingGate })
+    await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
+  })
+
+  it("turns Novadeck Agent off where the channel is stable", async () => {
+    const enabled = createStore(true)
+    const bundledPi = {
+      enabled,
+      fetch: createStore<BundledPiFetchState>({ state: "ready" }),
+      set: (on: boolean) => enabled.update(() => on),
+    }
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, { bundledPi })
     await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
   })
 

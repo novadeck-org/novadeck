@@ -39,6 +39,7 @@ import {
   type Approval as RunnerApproval,
   type TerminalExit,
   type PageLook,
+  type RunnerSettingsState,
   type TerminalRequest,
   type TerminalRequestAnswer,
   type TerminalSummary,
@@ -211,6 +212,10 @@ export type RunnerBackendOptions = {
   // Whether the shipping gate is on (an Experimental switch), as the runner said at startup;
   // not offered when absent.
   readonly shippingGate?: boolean
+  // Whether Novadeck's own pi is on (an Experimental switch), and where its download stands, as
+  // the runner said at startup; not offered when absent, as from a runner before revision 16.
+  readonly bundledPi?: boolean
+  readonly bundledPiFetch?: RunnerSettingsState["bundledPiFetch"]
   // Whether the runner lets agents open worktrees, as it said at startup; not offered when
   // absent.
   readonly worktrees?: boolean

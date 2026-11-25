@@ -16,6 +16,9 @@ import {
 
 const run = promisify(execFile)
 
+// What the runner says while Novadeck's pi is switched off (backend/runner's harnesses/bundled-pi.ts).
+const turnOn = "Turn on Novadeck Agent in Preferences > Experimental."
+
 // The fake pi prints its words, one a line, then what its environment says of Novadeck's pi.
 const fakePi = (platform: NodeJS.Platform): string =>
   platform === "win32"
@@ -41,15 +44,16 @@ describe("Novadeck's pi launcher", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "pi-bundled-"))
     const program = join(root, "data", "bundled", "pi", "1.6.0-abc", windows ? "pi.cmd" : "pi")
-    // A relay whose fetch puts the program in place, saying so on stderr, or fails where the
-    // folder `offline` exists.
+    // A relay that answers as the runner does: refused where the folder `off` exists (switched
+    // off), at once where the program is in place, else a fetch that puts it there, saying so on
+    // stderr, or fails where the folder `offline` exists.
     const relay = join(root, windows ? "relay.cmd" : "relay")
     const folder = join(program, "..")
     await writeFile(
       relay,
       windows
-        ? `@echo off\r\nif exist "${join(root, "offline")}" (echo Novadeck couldn't get pi: offline 1>&2 & exit /b 1)\r\necho fetching %2 1>&2\r\nmkdir "${folder}"\r\ncopy /y "${join(root, "fake.cmd")}" "${program}" >nul\r\n`
-        : `#!/bin/sh\n[ -d '${join(root, "offline")}' ] && { echo "Novadeck couldn't get pi: offline" >&2; exit 1; }\necho "fetching $2" >&2\nmkdir -p '${folder}'\ncp '${join(root, "fake")}' '${program}'\nchmod 755 '${program}'\n`,
+        ? `@echo off\r\nif exist "${join(root, "off")}" (echo Novadeck couldn't get pi: ${turnOn.replace(">", "^>")} 1>&2 & exit /b 1)\r\nif exist "${program}" exit /b 0\r\nif exist "${join(root, "offline")}" (echo Novadeck couldn't get pi: offline 1>&2 & exit /b 1)\r\necho fetching %2 1>&2\r\nmkdir "${folder}"\r\ncopy /y "${join(root, "fake.cmd")}" "${program}" >nul\r\n`
+        : `#!/bin/sh\n[ -d '${join(root, "off")}' ] && { echo "Novadeck couldn't get pi: ${turnOn}" >&2; exit 1; }\n[ -x '${program}' ] && exit 0\n[ -d '${join(root, "offline")}' ] && { echo "Novadeck couldn't get pi: offline" >&2; exit 1; }\necho "fetching $2" >&2\nmkdir -p '${folder}'\ncp '${join(root, "fake")}' '${program}'\nchmod 755 '${program}'\n`,
       { mode: 0o755 },
     )
     await writeFile(join(root, windows ? "fake.cmd" : "fake"), fakePi(process.platform), {
@@ -121,6 +125,20 @@ describe("Novadeck's pi launcher", () => {
     expect(lines(failed?.stdout ?? "")).toEqual([])
   })
 
+  it("starts nothing while Novadeck's pi is switched off, though it is in place", async () => {
+    await launch([])
+    await mkdir(join(root, "off"))
+
+    const failed = await launch(["go"]).then(
+      () => undefined,
+      (error: { code?: number; stdout?: string; stderr?: string }) => error,
+    )
+
+    expect(failed?.code).toBe(1)
+    expect(failed?.stderr).toContain(`Novadeck couldn't get pi: ${turnOn}`)
+    expect(lines(failed?.stdout ?? "")).toEqual([])
+  })
+
   it.runIf(windows)("gives pi its powershell tools only where it finds no bash", async () => {
     const empty = join(root, "nowhere")
     await mkdir(empty)
@@ -164,7 +182,8 @@ describe("Novadeck's pi launcher's text", () => {
     const file = bundledLauncher("linux", { ...pi, home: "/home/o'neil/agent" })
     expect(file).toMatchObject({ path: "pi", mode: 0o700 })
     expect(file.content).toContain(`PI_CODING_AGENT_DIR='/home/o'\\''neil/agent'`)
-    expect(posixLauncher(pi)).toContain(`'/data/shell/novadeck-relay' fetch pi || exit 1`)
+    // It asks the runner each time, which refuses while switched off.
+    expect(posixLauncher(pi)).toContain(`\n'/data/shell/novadeck-relay' fetch pi || exit 1\n`)
   })
 
   it("on Windows looks for bash where pi does before giving it powershell", () => {

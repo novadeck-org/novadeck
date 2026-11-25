@@ -16,6 +16,7 @@
     "./agents/turns": "./src/agents/turns.ts",
     "./feedback": "./src/feedback.ts",
     "./files": "./src/files.ts",
+    "./bundled-pi": "./src/bundled-pi.ts",
     "./forges": "./src/forges.ts",
     "./history": "./src/history.ts",
     "./inbox": "./src/inbox.ts",

@@ -6,6 +6,8 @@ import { randomUUID } from "node:crypto"
 import { chmod, mkdir, readdir, rename, rm } from "node:fs/promises"
 import { join } from "node:path"
 
+import type { BundledPiFetch } from "@novadeck/protocol"
+
 import { download, DownloadError, locate } from "../engines/download.js"
 import { extract } from "../engines/unpack.js"
 import { exists } from "../files.js"
@@ -125,6 +127,8 @@ export const progressLine = (version: string, received: number, size: number): s
 export type FetchOptions = {
   /** Novadeck's data folder. */
   readonly data: string
+  /** Whether the person turned Novadeck's pi on (Preferences > Experimental): off, it is refused. */
+  readonly enabled: boolean
   readonly platform?: NodeJS.Platform
   readonly arch?: string
   readonly pinned?: PinnedPi
@@ -136,8 +140,13 @@ export type FetchOptions = {
   /** Where the licence is, in place of its URL. */
   readonly licence?: string | undefined
   readonly progress?: FetchProgress
+  /** Hears the bytes the archive's download has so far, of its size, at each whole percent. */
+  readonly bytes?: (received: number, size: number) => void
   readonly stallMs?: number
 }
+
+/** What a fetch or a launch says while Novadeck's pi is switched off. */
+export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
 
 // Renames `from` to `to`, again for a moment on Windows, where an antivirus scanning a file just
 // unpacked holds its folder (EPERM, EBUSY, EACCES).
@@ -238,6 +247,7 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
     pinned = pinnedPi,
     progress = () => {},
   } = options
+  if (!options.enabled) return Promise.reject(new DownloadError(turnOnLine))
   const build = buildFor(platform, arch, pinned)
   if (!build)
     return Promise.reject(
@@ -286,6 +296,7 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
             if (percent === shown) return
             shown = percent
             say(progressLine(pinned.version, received, build.size))
+            options.bytes?.(received, build.size)
           },
         },
         options.stallMs ?? stallMs,
@@ -309,20 +320,103 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
 }
 
 /**
- * The runner's answer to a launcher's fetch (`ReportHandlers.fetch`): Novadeck's pi, from the
- * release, or from where `NOVADECK_BUNDLED_PI_SOURCE` and `NOVADECK_BUNDLED_PI_LICENCE` say, as a
- * test or a build with a copy of its own names them. Any other name is refused. Any process of
- * the person's can reach the runner's endpoint, which is theirs alone, so the terminal it names
- * isn't checked: all it can ask is the pinned, checked download.
+ * Novadeck's own pi in a runner, behind its Experimental switch (settings' `bundledPi`): on, it
+ * is fetched in the background at once, and again as the runner starts while it isn't in place;
+ * off, nothing fetches or starts, and a copy in place is kept. `state` is where the fetch stands,
+ * for Preferences' row, each change told to those who `follow` it. `fetch` is the runner's answer to a
+ * launcher (`ReportHandlers.fetch`), and what the tour calls ahead of a launch. Archives come from
+ * the release, or from where `NOVADECK_BUNDLED_PI_SOURCE` and `NOVADECK_BUNDLED_PI_LICENCE` say,
+ * as a test or a build with a copy of its own names them. Any process of the person's can reach
+ * the runner's endpoint, which is theirs alone, so a launcher's terminal isn't checked: all it can
+ * ask is the pinned, checked download.
  */
-export const bundledFetch =
-  (data: string, env: NodeJS.ProcessEnv = process.env) =>
-  async (name: string, progress: FetchProgress): Promise<void> => {
+export class BundledPi {
+  private current: BundledPiFetch = { state: "off" }
+  // Who hears each change of the state.
+  private readonly hearing = new Set<() => void>()
+  // Which switching the fetch under way began with: a later one's state stands over it.
+  private turn = 0
+
+  constructor(
+    private readonly host: {
+      /** Novadeck's data folder. */
+      readonly data: string
+      /** Whether the switch is on, read live. */
+      readonly enabled: () => boolean
+      readonly env?: NodeJS.ProcessEnv
+      readonly platform?: NodeJS.Platform
+      readonly arch?: string
+      readonly pinned?: PinnedPi
+    },
+  ) {}
+
+  /** Where the fetch stands. */
+  state(): BundledPiFetch {
+    return this.current
+  }
+
+  /** Calls `listener` at each change of the state; the returned function stops it. */
+  follow(listener: () => void): () => void {
+    this.hearing.add(listener)
+    return () => this.hearing.delete(listener)
+  }
+
+  /**
+   * The switch was set, or the runner started: on, the fetch begins in the background, or the
+   * copy in place is ready, and one that failed is tried again; off, the state says so.
+   */
+  switched(): void {
+    this.turn += 1
+    if (!this.host.enabled()) return this.set({ state: "off" })
+    if (this.current.state === "downloading") return
+    void this.fetch("pi", () => {}).catch(() => {})
+  }
+
+  /** Fetches Novadeck's `name` (`pi`), telling `progress`; refused while switched off. */
+  async fetch(name: string, progress: FetchProgress): Promise<void> {
     if (name !== "pi") throw new DownloadError(`Novadeck has no ${name} of its own.`)
-    await fetchBundledPi({
-      data,
+    const { env = process.env } = this.host
+    const turn = this.turn
+    const enabled = this.host.enabled()
+    const options = {
+      data: this.host.data,
+      enabled,
       progress,
       source: env.NOVADECK_BUNDLED_PI_SOURCE,
       licence: env.NOVADECK_BUNDLED_PI_LICENCE,
-    })
+      ...(this.host.platform !== undefined && { platform: this.host.platform }),
+      ...(this.host.arch !== undefined && { arch: this.host.arch }),
+      ...(this.host.pinned !== undefined && { pinned: this.host.pinned }),
+    }
+    if (!enabled) return void (await fetchBundledPi(options))
+    const build = buildFor(
+      this.host.platform ?? process.platform,
+      this.host.arch ?? process.arch,
+      this.host.pinned,
+    )
+    const program = build && bundledPiProgram(this.host.data, build, this.host.pinned?.version)
+    if (program === undefined || !(await exists(program)))
+      this.set({ state: "downloading", received: 0, ...(build && { size: build.size }) })
+    try {
+      await fetchBundledPi({
+        ...options,
+        bytes: (received, size) => {
+          if (turn === this.turn) this.set({ state: "downloading", received, size })
+        },
+      })
+      if (turn === this.turn) this.set({ state: "ready" })
+    } catch (error) {
+      if (turn === this.turn)
+        this.set({
+          state: "failed",
+          error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+        })
+      throw error
+    }
   }
+
+  private set(state: BundledPiFetch): void {
+    this.current = state
+    for (const listener of this.hearing) listener()
+  }
+}

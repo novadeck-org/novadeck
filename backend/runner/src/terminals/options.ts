@@ -4,6 +4,7 @@ import type { ProcessTrees, PtyOptions } from "@novadeck/terminal/pty"
 import type { InterruptOptions, PromptOptions } from "@novadeck/tui-input"
 
 import type { CompanionItems } from "../companions/items.js"
+import type { BundledPi } from "../harnesses/bundled-pi.js"
 import type { DoorbellOptions } from "../messaging/doorbell.js"
 import type { InboxRecords } from "../messaging/inbox.js"
 import type { MessageRecords } from "../messaging/records.js"
@@ -77,6 +78,8 @@ export type TerminalOptions = {
    * them, shells start as they are and no agent session is reported.
    */
   shellFiles?: Promise<InstalledShell | undefined>
+  /** Novadeck's own pi, which its launcher has fetch it; none is fetched when omitted. */
+  bundledPi?: Pick<BundledPi, "fetch">
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
   /** The git worktrees agents open and own, and whether they are on; agents get none when omitted. */
