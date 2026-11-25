@@ -33,6 +33,23 @@ export const agentProcess = (record: Pick<Record, "bound"> | undefined): number 
 }
 
 /**
+ * How long, in milliseconds, the agent bound to this terminal is left running before its end:
+ * what its harness says it needs after a turn's end (`Harness.saveMs`) less what has passed
+ * since its latest turn's end was told (`lastTurn.at`). None once it has had it, while it works
+ * (ending a turn is a stop the person chose), or before any turn of its has ended.
+ */
+export const savingMs = (
+  record: Pick<Record, "bound"> | undefined,
+  now: number = Date.now(),
+): number => {
+  const bound = record?.bound
+  const ended = bound?.activity.lastTurn?.at
+  if (!bound || bound.activity.state !== "idle" || ended === undefined) return 0
+  const save = harnesses[bound.binding.agent].saveMs
+  return save === undefined ? 0 : Math.max(0, ended + save - now)
+}
+
+/**
  * What the harnesses of a terminal's agents run apart from it (`Harness.apart`), found by
  * each session's own transcript: the bound session's, and with none bound, each harness's
  * latest session there. A harness's service started from this terminal sits in its scope,
@@ -72,4 +89,5 @@ export const closing = (records: {
 }) => ({
   follows: (id: string) => agentProcess(records.get(id)),
   apart: (id: string) => apartOf(records.get(id)),
+  settle: (id: string) => savingMs(records.get(id)),
 })

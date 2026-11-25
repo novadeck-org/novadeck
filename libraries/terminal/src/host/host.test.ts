@@ -8,7 +8,7 @@ import type { ApartProcess } from "../pty/apart.js"
 import type { Listing } from "../pty/descendants.js"
 import type { NativeSpawn, ProcessTrees } from "../pty/pty.js"
 import { nativeStandIn } from "../testing.js"
-import { createTerminalHost, type TerminalHostOptions } from "./host.js"
+import { createTerminalHost, settleFor, type TerminalHostOptions } from "./host.js"
 import type { RunSpec } from "./terminal.js"
 
 type Program = ReturnType<typeof nativeStandIn>
@@ -24,7 +24,9 @@ const shellPid = 2 ** 30
 const hostOf = (
   limits: Partial<TerminalHostOptions["limits"]> = {},
   failed?: TerminalHostOptions["failed"],
-  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill" | "apart">> = {},
+  more: Partial<
+    Pick<TerminalHostOptions, "follows" | "listing" | "kill" | "apart" | "settle">
+  > = {},
 ) => {
   const programs: Program[] = []
   const native: NativeSpawn = (...args) => {
@@ -275,6 +277,10 @@ describe("a terminal host's limits", () => {
   })
 })
 
+// No process under any terminal, at once: the platform's own listing (`ps` on macOS) answers on
+// its own clock, which fake timers don't move.
+const idle: Listing = () => Promise.resolve([])
+
 describe("a terminal host's close", () => {
   it("ends the program, then keeps the closed terminal for its viewers until they're done", async () => {
     const { host, programs, open } = hostOf()
@@ -295,6 +301,42 @@ describe("a terminal host's close", () => {
     expect(await viewer.next()).toMatchObject({ done: true })
     expect(host.draining("a")).toBe(false)
     expect(host.terminal("a")).toBeUndefined()
+  })
+
+  // Real time: the end's own work before its hangup (the process listing, the foreground's)
+  // takes the platform's time, which fake timers don't move (macOS's `ps`).
+  const kills = (program: Program): string[] =>
+    program.calls.filter((call) => call.startsWith("kill"))
+
+  it("leaves the program running for what it still saves, then ends it", async () => {
+    const { programs, host, open } = hostOf({}, undefined, { listing: idle, settle: () => 400 })
+    open("a")
+    const started = Date.now()
+    const closing = host.terminate("a")
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(kills(programs[0]!)).toEqual([])
+    await vi.waitFor(() => expect(kills(programs[0]!)).not.toEqual([]), { timeout: 5_000 })
+    expect(Date.now() - started).toBeGreaterThanOrEqual(390)
+    programs[0]!.exit(0)
+    await closing
+  })
+
+  it("ends the wait at once when the program exits by itself meanwhile", async () => {
+    const { programs, host, open } = hostOf({}, undefined, { listing: idle, settle: () => 10_000 })
+    open("a")
+    const started = Date.now()
+    const closing = host.terminate("a")
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    programs[0]!.exit(0)
+    await closing
+    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(kills(programs[0]!)).toEqual([])
+  })
+
+  it("leaves a program all it asks to save, but no more than 1.5 s as the host shuts down", () => {
+    expect(settleFor(2_000, false)).toBe(2_000)
+    expect(settleFor(2_000, true)).toBe(1_500)
+    expect(settleFor(400, true)).toBe(400)
   })
 
   it("ends an exited terminal's close at once", async () => {
