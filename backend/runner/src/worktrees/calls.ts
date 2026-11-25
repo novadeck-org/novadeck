@@ -11,6 +11,7 @@ import { bareHandle, mention } from "../terminals/handles.js"
 import type { LeadsHost } from "../terminals/leads.js"
 import { peerOf } from "../terminals/peers-host.js"
 import type { Record } from "../terminals/record.js"
+import { titleRefusal } from "../terminals/titles.js"
 import type { WorktreeRecord } from "./records.js"
 import { homeSaid, type OriginBranch, type Worktrees } from "./worktrees.js"
 
@@ -74,9 +75,12 @@ export const offRefusal =
   "Agent worktrees are off: the user can turn them on in Novadeck's Preferences, under " +
   "Experimental. Work in your terminal's own checkout."
 
+// A worktree's title is read as a terminal's own is, then checked by `titleRefusal`.
+const titleText = z.string().max(4096)
 const openRequest = z.strictObject({
   repo: z.string().min(1).optional(),
   branch: z.string().min(1).max(255),
+  title: titleText,
   from: z.string().min(1).max(255).optional(),
   group: z.string().min(1).max(80).optional(),
   home: z.string().min(1).max(255).optional(),
@@ -84,6 +88,7 @@ const openRequest = z.strictObject({
 const takeRequest = z.strictObject({
   path: z.string().min(1),
   home: z.string().min(1).max(255).optional(),
+  title: titleText.optional(),
 })
 const closeRequest = z.strictObject({ path: z.string().min(1), force: z.boolean().optional() })
 const giveRequest = z.strictObject({
@@ -93,6 +98,15 @@ const giveRequest = z.strictObject({
 
 type Failure = { readonly ok: false; readonly reason: string }
 const refused = (reason: string): Failure => ({ ok: false, reason })
+
+/** A worktree's title as kept, trimmed; or why it can't be (see `titleRefusal`). */
+export const worktreeTitle = (
+  said: string,
+): { readonly ok: true; readonly title: string } | Failure => {
+  const kept = said.trim()
+  const why = titleRefusal(kept)
+  return why === undefined ? { ok: true, title: kept } : refused(`Worktree: ${why}`)
+}
 
 const read = <T>(
   schema: z.ZodType<T>,
@@ -182,6 +196,10 @@ export type WorktreeAnswer =
       readonly home?: string
       /** take_worktree: home was given but stays as it was (the worktree isn't yours yet). */
       readonly homeKept?: true
+      /** open_worktree and take_worktree: its title; absent where it has none. */
+      readonly title?: string
+      /** take_worktree: a title was given but stays as it was, as `homeKept`. */
+      readonly titleKept?: true
       /** take_worktree: it was yours already. */
       readonly already?: true
       /** take_worktree: the person was asked; the worktree isn't yours yet. */
@@ -238,10 +256,12 @@ export class WorktreeCalls {
     const read1 = read(
       openRequest,
       call.request,
-      "open_worktree needs branch, and takes only repo, from, group and home besides.",
+      "open_worktree needs branch and title, and takes only repo, from, group and home besides.",
     )
     if (!read1.ok) return read1
     const { request } = read1
+    const titled = worktreeTitle(request.title)
+    if (!titled.ok) return titled
     const opened = await service.open({
       projectId,
       terminalId: call.terminalId,
@@ -251,6 +271,7 @@ export class WorktreeCalls {
       from: request.from,
       group: request.group,
       home: request.home,
+      title: titled.title,
     })
     if (!opened.ok) return opened
     return {
@@ -262,6 +283,7 @@ export class WorktreeCalls {
       ...(opened.tracking !== undefined && { tracking: opened.tracking }),
       instructions: opened.instructions,
       ...(opened.home !== undefined && { home: opened.home }),
+      ...(opened.title !== undefined && { title: opened.title }),
     }
   }
 
@@ -272,36 +294,52 @@ export class WorktreeCalls {
     const read1 = read(
       takeRequest,
       call.request,
-      "take_worktree needs path, and takes only home besides.",
+      "take_worktree needs path, and takes only home and title besides.",
     )
     if (!read1.ok) return read1
+    const { home } = read1.request
+    const titled =
+      read1.request.title === undefined ? undefined : worktreeTitle(read1.request.title)
+    if (titled && !titled.ok) return titled
+    const title = titled?.title
     const taken = await service.take({
       projectId,
       terminalId: call.terminalId,
       cwd: record.summary.cwd,
       path: read1.request.path,
-      home: read1.request.home,
+      home,
+      title,
     })
     if (!taken.ok) return taken
     if ("approval" in taken) {
-      const { home } = read1.request
+      // What was given stays as it was: home and title are set only on a worktree that is yours.
+      const kept = {
+        ...(home !== undefined && { homeKept: true as const }),
+        ...(title !== undefined && { titleKept: true as const }),
+      }
       if (this.host.agentMode() !== "swarm") {
         const asked = this.ask(call, record, service, taken.approval)
-        return asked.ok && home !== undefined ? { ...asked, homeKept: true } : asked
+        return asked.ok ? { ...asked, ...kept } : asked
       }
       const now = await this.takeNow(call, record, service, taken.approval)
-      if (!now.ok || home === undefined) return now
-      // Its own now: taken again with home, which sets it as for one's own.
-      const homed = await service.take({
+      if (!now.ok) return now
+      // Its own now: taken again, with home and title where given, which sets them as for one's
+      // own, and reads its title for the answer.
+      const again = await service.take({
         projectId,
         terminalId: call.terminalId,
         cwd: record.summary.cwd,
         path: taken.approval.path,
         home,
+        title,
       })
-      return homed.ok && !("approval" in homed)
-        ? { ...now, ...(homed.home !== undefined && { home: homed.home }) }
-        : { ...now, homeKept: true }
+      return again.ok && !("approval" in again)
+        ? {
+            ...now,
+            ...(again.home !== undefined && { home: again.home }),
+            ...(again.title !== undefined && { title: again.title }),
+          }
+        : { ...now, ...kept }
     }
     return {
       ok: true,
@@ -309,6 +347,7 @@ export class WorktreeCalls {
       branch: taken.branch,
       ...(taken.already && { already: true as const }),
       ...(taken.home !== undefined && { home: taken.home }),
+      ...(taken.title !== undefined && { title: taken.title }),
     }
   }
 
@@ -408,6 +447,29 @@ export class WorktreeCalls {
       asked: true,
       ...(owner && { owner: owner.summary.handle }),
     }
+  }
+
+  /**
+   * Titles a worktree the caller owns, for `describe`: `path` its folder, absolute or relative to
+   * the caller's, `said` the title. Why not, where it can't be.
+   */
+  async retitle(
+    call: Call,
+    path: string,
+    said: string,
+  ): Promise<{ readonly ok: true; readonly branch: string; readonly title: string } | Failure> {
+    const context = this.context(call, unansweredCalls.describe)
+    if ("ok" in context) return context
+    const { record, service } = context
+    const titled = worktreeTitle(said)
+    if (!titled.ok) return titled
+    const done = await service.retitle({
+      terminalId: call.terminalId,
+      cwd: record.summary.cwd,
+      path,
+      title: titled.title,
+    })
+    return done.ok ? { ok: true, branch: done.row.branch, title: titled.title } : done
   }
 
   async close(call: Call): Promise<WorktreeAnswer> {

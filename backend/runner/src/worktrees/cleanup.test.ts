@@ -73,6 +73,7 @@ const it = base.extend<{ fx: Fixture }>({
     resources.defer(() => worktrees.stop())
     const work = async (branch: string, committed = true): Promise<string> => {
       const opened = await worktrees.open({
+        title: "Some work",
         projectId: project,
         terminalId: "t1",
         cwd: repo,

@@ -80,6 +80,7 @@ const it = base.extend<{ fx: Fixture }>({
 
 const open = (f: Fixture, branch: string, extra: object = {}, terminalId = "t1") =>
   f.worktrees.open({
+    title: "Some work",
     projectId: f.project,
     terminalId,
     cwd: f.repo,
@@ -198,6 +199,7 @@ describe("opening a worktree", () => {
     await fetcher.fetchNow([join(origin.repo, ".git")])
     await fetcher.idle()
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -221,6 +223,7 @@ describe("opening a worktree", () => {
     const pushed = origin.branch("feat")
     const { worktrees } = recording(resources, f)
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -253,6 +256,7 @@ describe("opening a worktree", () => {
     const head = git(origin.repo, "rev-parse", "HEAD")
     const { worktrees } = recording(resources, f)
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -276,6 +280,7 @@ describe("opening a worktree", () => {
     git(origin.repo, "remote", "set-url", "origin", join(f.other, "gone.git"))
     const { worktrees } = recording(resources, f)
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -291,6 +296,7 @@ describe("opening a worktree", () => {
     await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
     const { fetches, worktrees } = recording(resources, f)
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -311,6 +317,7 @@ describe("opening a worktree", () => {
     const head = git(origin.repo, "rev-parse", "HEAD")
     const { worktrees } = recording(resources, f)
     const given = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -335,6 +342,7 @@ describe("opening a worktree", () => {
       const { fetches, fetcher, worktrees } = recording(resources, f, 400)
       const started = Date.now()
       const opened = await worktrees.open({
+        title: "Some work",
         projectId: "p2",
         terminalId: "t1",
         cwd: origin.repo,
@@ -401,6 +409,7 @@ describe("opening a worktree", () => {
     })
     resources.defer(() => void worktrees.stop())
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -455,6 +464,7 @@ describe("opening a worktree", () => {
     origin.land("c.txt")
     git(origin.repo, "remote", "set-url", "origin", join(f.root, "nowhere.git"))
     const opened = await f.worktrees.open({
+      title: "Some work",
       projectId: "p2",
       terminalId: "t1",
       cwd: origin.repo,
@@ -472,6 +482,7 @@ describe("opening a worktree", () => {
     await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
     const from = async (branch: string) => {
       const opened = await f.worktrees.open({
+        title: "Some work",
         projectId: "p2",
         terminalId: "t1",
         cwd: origin.repo,
@@ -509,6 +520,7 @@ describe("opening a worktree", () => {
   }) => {
     mkdirSync(join(f.repo, "src"))
     const opened = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t1",
       cwd: f.repo,
@@ -517,6 +529,7 @@ describe("opening a worktree", () => {
     })
     expect(opened).toMatchObject({ ok: true })
     const nowhere = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t1",
       cwd: f.other,
@@ -541,6 +554,7 @@ describe("opening a worktree", () => {
     const elsewhere = repository(temporary({ defer: () => {} }, "wt-twin"), "api")
     expect(await open(f, "one", { group: "g" })).toMatchObject({ ok: true })
     const twin = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t1",
       cwd: elsewhere,
@@ -1371,6 +1385,7 @@ describe("a folder that is in no git repository", () => {
     const plain = join(f.other, "notes")
     mkdirSync(plain)
     const opened = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t1",
       cwd: plain,
@@ -1401,6 +1416,7 @@ describe("a folder that is in no git repository", () => {
     mkdirSync(broken)
     writeFileSync(join(broken, ".git"), "gitdir: /nowhere/at/all\n")
     const opened = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t1",
       cwd: broken,
@@ -1412,6 +1428,7 @@ describe("a folder that is in no git repository", () => {
     })
     expect(opened.ok ? "" : opened.reason).not.toContain("changed in place")
     const typo = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t1",
       cwd: f.repo,
@@ -1503,6 +1520,7 @@ describe("a worktree's home", () => {
     git(lead.path, "add", "-A")
     git(lead.path, "commit", "--quiet", "-m", "lead")
     const mate = await f.worktrees.open({
+      title: "Some work",
       projectId: f.project,
       terminalId: "t2",
       cwd: lead.path,

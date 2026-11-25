@@ -7,6 +7,7 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -19,7 +20,7 @@ import { timing } from "../checkouts/git.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { describe, expect, it as base } from "../test.js"
-import { nextWake, Works, type Removal, type Tracked } from "./works.js"
+import { nextWake, shownTitle, Works, type Removal, type Tracked } from "./works.js"
 
 const hasGit = (() => {
   try {
@@ -244,6 +245,15 @@ const current = async (works: Works): Promise<Map<string, Work>> => {
   }
   return found
 }
+
+describe("a work's title", () => {
+  it("is one line, its spaces collapsed, cut to the contract's length", () => {
+    expect(shownTitle(undefined)).toBeUndefined()
+    expect(shownTitle(" \n\u200b ")).toBeUndefined()
+    expect(shownTitle("a\nb\r\n c")).toBe("a b c")
+    expect(shownTitle("é".repeat(100))).toBe("é".repeat(80))
+  })
+})
 
 describe("when the works' poll passes next", () => {
   it("is `every` from now where no checkout is due sooner", () => {
@@ -560,6 +570,42 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     main.git("checkout", "--quiet", "main")
     const landed = await current(works)
     expect(landed.get(agent.root)).toMatchObject({ files: [], merged: true, home: "JIRA-123" })
+  })
+
+  it("carries the title its branch's key holds, as one clean line, and none where it has none", async ({
+    fixture,
+    resources,
+  }) => {
+    const agent = fixture.worktree("agent")
+    const { works } = open(() => [{ terminalId: terminal(1), root: agent.root }])
+    resources.defer(() => works.close())
+    expect((await current(works)).get(agent.root)).not.toHaveProperty("title")
+    agent.git("config", "branch.agent.novadeckTitle", "Rounding fix")
+    expect((await current(works)).get(agent.root)).toMatchObject({ title: "Rounding fix" })
+    // Set by hand, as anyone may: told as one line.
+    agent.git("config", "branch.agent.novadeckTitle", "Two\tparts\u0007 here  ")
+    expect((await current(works)).get(agent.root)).toMatchObject({ title: "Two parts here" })
+  })
+
+  it("says when the worktree last changed: its last commit, or an uncommitted file since", async ({
+    fixture,
+    resources,
+  }) => {
+    const agent = fixture.worktree("agent")
+    const { works } = open(() => [{ terminalId: terminal(1), root: agent.root }])
+    resources.defer(() => works.close())
+    const committed = Number(agent.git("show", "-s", "--format=%ct", "HEAD").trim()) * 1000
+    expect((await current(works)).get(agent.root)?.changedAt).toBe(committed)
+    // An uncommitted file, changed after the commit.
+    agent.write("new.txt", "new\n")
+    const later = new Date(committed + 3_600_000)
+    utimesSync(join(agent.root, "new.txt"), later, later)
+    expect((await current(works)).get(agent.root)?.changedAt).toBe(later.getTime())
+    // A file deleted later still: by its folder's time, which the deletion moved.
+    rmSync(join(agent.root, "b.txt"))
+    const deleted = new Date(committed + 7_200_000)
+    utimesSync(agent.root, deleted, deleted)
+    expect((await current(works)).get(agent.root)?.changedAt).toBe(deleted.getTime())
   })
 
   it("reads a worktree as merged once home fast-forwarded to it, and not before", async ({

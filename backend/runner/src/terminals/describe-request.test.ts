@@ -23,7 +23,27 @@ describe("what a description says its work waits on", () => {
   it("names the fields a description takes", () => {
     expect(readDescribeRequest({ title: "T", summary: "S", other: 1 })).toEqual({
       ok: false,
-      reason: "A description takes only `title`, `summary` and `waitingFor`.",
+      reason:
+        "A description takes only `title`, `summary`, `waitingFor`, `worktree` and `worktreeTitle`.",
+    })
+  })
+
+  it("takes a worktree and its title only together", () => {
+    const together =
+      "`worktree` and `worktreeTitle` go together: the folder of a worktree you own, and its title."
+    expect(readDescribeRequest({ title: "T", summary: "S", worktree: "/w" })).toEqual({
+      ok: false,
+      reason: together,
+    })
+    expect(readDescribeRequest({ title: "T", summary: "S", worktreeTitle: "W" })).toEqual({
+      ok: false,
+      reason: together,
+    })
+    expect(
+      readDescribeRequest({ title: "T", summary: "S", worktree: "/w", worktreeTitle: "W" }),
+    ).toEqual({
+      ok: true,
+      request: { title: "T", summary: "S", worktree: "/w", worktreeTitle: "W" },
     })
   })
 })

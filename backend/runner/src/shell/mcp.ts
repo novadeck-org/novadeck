@@ -1399,7 +1399,9 @@ const team: Tool<Listing> = {
   failed: "Novadeck couldn't list your team.",
 }
 
-const describe: Tool<unknown> = {
+const describe: Tool<{
+  readonly worktree?: { readonly branch: string; readonly title: string }
+}> = {
   name: "describe",
   description:
     "Describe your own Novadeck terminal with a title and a summary, each one short line on " +
@@ -1409,7 +1411,8 @@ const describe: Tool<unknown> = {
     "what Novadeck names the terminal with when nothing else has named it: the user, the " +
     "agent that opened it, or its local model, which all come first. Other agents read the " +
     "summary in their agents listing to tell terminals apart and route work, and Novadeck " +
-    "may name the terminal from it. It only ever describes your own terminal. Call it when " +
+    "may name the terminal from it. It only ever describes your own terminal, and with " +
+    "worktree, titles a worktree you own. Call it when " +
     "Novadeck's automatic notice asks, first thing once you are given work, or when the " +
     "work moves to another subject; progress alone is no reason to update it. waitingFor " +
     "is the one exception: what your work waits on, which other agents see in their listing; " +
@@ -1435,13 +1438,26 @@ const describe: Tool<unknown> = {
           "What your work waits on, as one short line; an empty string clears it. Left out, what you said before stays.",
         maxLength: 200,
       },
+      worktree: {
+        type: "string",
+        description:
+          "The folder of a worktree you own, which worktreeTitle then titles, as open_worktree's title does.",
+      },
+      worktreeTitle: {
+        type: "string",
+        description: "That worktree's new title.",
+        maxLength: 80,
+      },
     },
     required: ["title", "summary"],
     additionalProperties: false,
   },
   call: "describe",
-  request: (args) => picked(args, ["title", "summary", "waitingFor"]),
-  said: () => "Described this terminal.",
+  request: (args) => picked(args, ["title", "summary", "waitingFor", "worktree", "worktreeTitle"]),
+  said: (answer) =>
+    answer.worktree
+      ? `Described this terminal, and titled the worktree on ${answer.worktree.branch} "${answer.worktree.title}".`
+      : "Described this terminal.",
   failed: "Novadeck couldn't describe the terminal.",
 }
 
@@ -1729,6 +1745,10 @@ type Worktree = {
   readonly home?: string
   /** take_worktree: home was given but stays as it was. */
   readonly homeKept?: true
+  /** open_worktree and take_worktree: its title; absent where it has none. */
+  readonly title?: string
+  /** take_worktree: a title was given but stays as it was. */
+  readonly titleKept?: true
   readonly already?: true
   readonly asked?: true
   readonly owner?: string
@@ -1792,6 +1812,12 @@ const openWorktree: Tool<Worktree> = {
         type: "string",
         description: "The branch: new, or an existing one here or on origin to check out.",
       },
+      title: {
+        type: "string",
+        description:
+          "What the work there is, in one short line, which names the worktree in Novadeck; it replaces an existing branch's.",
+        maxLength: 80,
+      },
       repo: {
         type: "string",
         description:
@@ -1817,11 +1843,11 @@ const openWorktree: Tool<Worktree> = {
           "folder's HEAD, else the repository's main.",
       },
     },
-    required: ["branch"],
+    required: ["branch", "title"],
     additionalProperties: false,
   },
   call: "openWorktree",
-  request: (args) => picked(args, ["branch", "repo", "from", "group", "home"]),
+  request: (args) => picked(args, ["branch", "title", "repo", "from", "group", "home"]),
   said: (answer) =>
     "Opened the worktree " +
     answer.path +
@@ -1856,8 +1882,8 @@ const takeWorktree: Tool<Worktree> = {
         "Novadeck asks them and this answers at once; the outcome comes as a message from " +
         "Novadeck once your turn ends, and its owner is told if they agree. ") +
     "Use " +
-    "it to carry on work from a session that is stuck or gone, or, with home, to set or " +
-    "change the home of a worktree you own already. Refused while the user has " +
+    "it to carry on work from a session that is stuck or gone, or, with home or title, to set " +
+    "or change them on a worktree you own already. Refused while the user has " +
     "agent worktrees off.",
   inputSchema: {
     type: "object",
@@ -1874,12 +1900,18 @@ const takeWorktree: Tool<Worktree> = {
           "any time on one you own, and on one that becomes yours by this call; when left " +
           "out, its home stays.",
       },
+      title: {
+        type: "string",
+        description:
+          "Sets the worktree's title, what the work there is in one short line, as home is set; when left out, its title stays.",
+        maxLength: 80,
+      },
     },
     required: ["path"],
     additionalProperties: false,
   },
   call: "takeWorktree",
-  request: (args) => picked(args, ["path", "home"]),
+  request: (args) => picked(args, ["path", "home", "title"]),
   said: (answer) =>
     (answer.asked
       ? "Asked the user to let you take the worktree " +
@@ -1908,6 +1940,12 @@ const takeWorktree: Tool<Worktree> = {
           "instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) if it has them.") +
     (answer.homeKept
       ? " Its home stays as it was: home is set only on a worktree that is yours."
+      : "") +
+    (answer.titleKept
+      ? " Its title stays as it was: a title is set only on a worktree that is yours."
+      : "") +
+    (!answer.asked && answer.title === undefined
+      ? " It has no title: take_worktree with title gives it one."
       : ""),
   failed: "Novadeck couldn't take the worktree.",
 }

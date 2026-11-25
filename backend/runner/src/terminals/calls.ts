@@ -905,6 +905,13 @@ export class Calls {
     const summary = cleanSummary(read.request.summary)
     const refusal = summaryRefusal(summary)
     if (refusal) return refused(refusal)
+    // A worktree it titles too goes first: refused, nothing of the description changes.
+    const { worktree, worktreeTitle } = read.request
+    const titled =
+      worktree === undefined || worktreeTitle === undefined
+        ? undefined
+        : await this.worktrees.retitle(call, worktree, worktreeTitle)
+    if (titled && !titled.ok) return titled
     // Drift is measured from where its work is now.
     const facts = await this.host.peers().facts(peerOf(record))
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
@@ -919,6 +926,8 @@ export class Calls {
     this.host.retitle(record)
     this.host.save(record)
     if (!unchanged) this.host.summarized(record.summary.id)
-    return { ok: true }
+    return titled
+      ? { ok: true, worktree: { branch: titled.branch, title: titled.title } }
+      : { ok: true }
   }
 }

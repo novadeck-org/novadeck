@@ -38,9 +38,15 @@ describe("a branch's keys, parsed", () => {
         "branch.feat/v1.2.novadeckbase\nabc123\0" +
         "branch.feat/v1.2.novadeckmade\ntrue\0" +
         "branch.other.novadeckmade\0" +
-        "branch.off.novadeckmade\nno\0",
+        "branch.off.novadeckmade\nno\0" +
+        "branch.feat/v1.2.novadecktitle\nFix the: rounding\0",
     )
-    expect(keys.get("feat/v1.2")).toEqual({ home: "JIRA-123", base: "abc123", made: true })
+    expect(keys.get("feat/v1.2")).toEqual({
+      home: "JIRA-123",
+      base: "abc123",
+      made: true,
+      title: "Fix the: rounding",
+    })
     // A boolean set with no value is true, as git reads it.
     expect(keys.get("other")).toEqual({ made: true })
     expect(keys.get("off")).toEqual({ made: false })
@@ -69,6 +75,11 @@ describe("a branch's keys in git config", () => {
     expect(await keysOfBranch(worktree, "agent")).toEqual({ base: "abc", made: true })
     // Unsetting what isn't there leaves it as asked.
     expect(await writeKeys(root, "agent", { home: null })).toBe(true)
+    expect(await writeKeys(worktree, "agent", { title: "Rounding fix · ünïcode" })).toBe(true)
+    expect(git(root, "config", "--get", "branch.agent.novadeckTitle")).toBe(
+      "Rounding fix · ünïcode",
+    )
+    expect((await keysOfBranch(root, "agent")).title).toBe("Rounding fix · ünïcode")
   })
 
   it("reads a change made by hand, and follows a renamed branch", async ({ root }) => {
