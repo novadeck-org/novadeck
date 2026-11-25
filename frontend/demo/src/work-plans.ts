@@ -63,7 +63,6 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: null,
     branch: "agent/promo-banner",
     minutesAgo: 600,
-    changedMinutesAgo: 1600,
     pullRequest: { number: 801, state: "closed" },
     uncommitted: 0,
     files: [file("src/promo/Banner.tsx", 18, 2, { read: true })],

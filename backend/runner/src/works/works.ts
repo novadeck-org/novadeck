@@ -59,6 +59,8 @@ export type Tracked = {
   readonly terminalId: string | null
   /** When it was recorded, in epoch milliseconds: the time of a work that differs from nothing. */
   readonly createdAt: number
+  /** Made elsewhere and taken in (take_worktree), rather than made by Novadeck. */
+  readonly adopted?: boolean | undefined
   /** The commit it started from; undefined where that is not known. */
   readonly base?: string | undefined
   /** When its repository's origin was last fetched; undefined if never. */
@@ -1044,6 +1046,7 @@ export class Works {
       terminalId,
       projectId,
       createdAt,
+      adopted,
       fetchedAt,
       commonDir: repository,
       read,
@@ -1086,8 +1089,12 @@ export class Works {
         base: read.base,
         ...(read.home !== undefined && { home: read.home }),
         ...(title !== undefined && { title }),
-        // Never before Novadeck tracked it: a worktree just made from older commits is new work.
-        changedAt: Math.max(read.changedAt ?? 0, createdAt),
+        // One Novadeck made changed no earlier than then: made from older commits, it is new work.
+        // One taken in was there before, untouched as long as its files say.
+        changedAt:
+          adopted === true
+            ? (read.changedAt ?? createdAt)
+            : Math.max(read.changedAt ?? 0, createdAt),
         merged: read.merged,
         // Only a main that a fetch moves (a remote-tracking ref) is as old as the fetch.
         ...(fetchedAt !== undefined && read.base.startsWith("origin/") && { fetchedAt }),

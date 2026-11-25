@@ -1392,7 +1392,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(await take({ ok: true, path: "/w", branch: "b", already: true })).toContain(
       "It has no title",
     )
-    expect(await take({ ok: true, path: "/w", branch: "b", title: "T" })).not.toContain("no title")
+    const titled = await take({ ok: true, path: "/w", branch: "b", title: "T" })
+    expect(titled).not.toContain("no title")
+    expect(titled).toContain('(branch b, titled "T")')
     expect(
       await take({ ok: true, path: "/w", branch: "b", asked: true, titleKept: true }),
     ).toContain("Its title stays as it was")

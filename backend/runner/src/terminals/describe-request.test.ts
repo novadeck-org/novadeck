@@ -39,6 +39,10 @@ describe("what a description says its work waits on", () => {
       ok: false,
       reason: together,
     })
+    // A blank pair, as some models fill every optional field, is none.
+    expect(
+      readDescribeRequest({ title: "T", summary: "S", worktree: "", worktreeTitle: "" }),
+    ).toEqual({ ok: true, request: { title: "T", summary: "S" } })
     expect(
       readDescribeRequest({ title: "T", summary: "S", worktree: "/w", worktreeTitle: "W" }),
     ).toEqual({

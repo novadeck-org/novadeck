@@ -1928,12 +1928,14 @@ const takeWorktree: Tool<Worktree> = {
           " (branch " +
           answer.branch +
           (answer.home === undefined ? "" : ", home " + answer.home) +
+          (answer.title === undefined ? "" : `, titled "${answer.title}"`) +
           ") is yours already."
         : "You now own the worktree " +
           answer.path +
           " (branch " +
           answer.branch +
           (answer.home === undefined ? "" : ", home " + answer.home) +
+          (answer.title === undefined ? "" : `, titled "${answer.title}"`) +
           ")" +
           (answer.from ? ", which " + mention(answer.from) + " owned and is told" : "") +
           ". Work there with absolute paths and git -C, never cd and then git, and read its " +

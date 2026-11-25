@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import type { PullRequest } from "@novadeck/protocol"
 import { z } from "zod"
 
+import { keysOfBranch } from "../checkouts/home.js"
 import { noticeText } from "../messaging/notice-format.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import type { ApprovalOutcome } from "../terminals/approvals.js"
@@ -119,10 +120,11 @@ const read = <T>(
 
 /** What agents are told when a worktree's ownership changes hands. */
 export const worktreeNotice = {
-  taken: (path: string, branch: string): string =>
+  taken: (path: string, branch: string, untitled = false): string =>
     noticeText("Worktrees", {
       facts: `The user approved: you now own the worktree on branch ${branch}.`,
       details: [path],
+      ...(untitled && { actions: ["It has no title: take_worktree with title gives it one."] }),
     }),
   lost: (taker: string, path: string, branch: string): string =>
     noticeText("Worktrees", {
@@ -428,7 +430,9 @@ export class WorktreeCalls {
             return tell(call.terminalId, worktreeNotice.off(path))
           if (!(await service.transfer(path, ownerId, call.terminalId)))
             return tell(call.terminalId, worktreeNotice.moved(path))
-          tell(call.terminalId, worktreeNotice.taken(path, branch))
+          const untitled =
+            existsSync(path) && (await keysOfBranch(path, branch)).title === undefined
+          tell(call.terminalId, worktreeNotice.taken(path, branch, untitled))
           // Its old owner's agent, if it still runs or sleeps, learns on its next turn or wake.
           if (this.ownerOf(ownerId)) {
             tell(ownerId, worktreeNotice.lost(caller.summary.handle, path, branch))

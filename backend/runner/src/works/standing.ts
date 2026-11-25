@@ -39,6 +39,19 @@ export const uncommittedOf = async (
   return paths === undefined ? undefined : paths.length + snapshot.secret.length + snapshot.large
 }
 
+/**
+ * When a file last changed: its own time, or for one deleted, its nearest folder's that is
+ * still there, which the deletion moved (the checkout's own at most). 0 where none is.
+ */
+const touchedAt = async (root: string, file: string): Promise<number> => {
+  for (let at = file; ; at = dirname(at)) {
+    // eslint-disable-next-line no-await-in-loop -- Up the folders, to the first that is there.
+    const info = await lstat(at).catch(() => undefined)
+    if (info) return info.mtimeMs
+    if (at === root || dirname(at) === at) return 0
+  }
+}
+
 /** How many uncommitted paths `changedAtOf` looks at, at most. */
 const statsAtMost = 500
 
@@ -61,15 +74,7 @@ export const changedAtOf = async (
     0,
     statsAtMost,
   )
-  const times = await Promise.all(
-    paths.map(async (path) => {
-      const file = join(root, path)
-      const info =
-        (await lstat(file).catch(() => undefined)) ??
-        (await lstat(dirname(file)).catch(() => undefined))
-      return info?.mtimeMs ?? 0
-    }),
-  )
+  const times = await Promise.all(paths.map((path) => touchedAt(root, join(root, path))))
   return Math.max(seconds * 1000, ...times)
 }
 

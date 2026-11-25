@@ -37,7 +37,16 @@ export const readDescribeRequest = (
 ):
   | { readonly ok: true; readonly request: DescribeRequest }
   | { readonly ok: false; readonly reason: string } => {
-  const parsed = describeRequest.safeParse(value)
+  // Some models fill every optional field with "": a blank worktree pair is none.
+  const given =
+    typeof value === "object" && value !== null
+      ? Object.fromEntries(
+          Object.entries(value).filter(
+            ([key, field]) => !((key === "worktree" || key === "worktreeTitle") && field === ""),
+          ),
+        )
+      : value
+  const parsed = describeRequest.safeParse(given)
   if (parsed.success) return { ok: true, request: parsed.data }
   const [issue] = parsed.error.issues
   const field = issue?.path[0]

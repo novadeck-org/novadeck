@@ -139,6 +139,16 @@ describe("opening a worktree", () => {
     expect(git(opened.path, "branch", "--show-current")).toBe("side")
   })
 
+  it("gives an existing branch the title it is opened with, in place of the one it had", async ({
+    fx: f,
+  }) => {
+    git(f.repo, "branch", "titled")
+    git(f.repo, "config", "branch.titled.novadeckTitle", "Before")
+    const opened = await open(f, "titled", { title: "After" })
+    expect(opened).toMatchObject({ ok: true, existing: true, title: "After" })
+    expect(git(f.repo, "config", "--get", "branch.titled.novadeckTitle")).toBe("After")
+  })
+
   // A fetcher that records the fetches it runs, which `every` makes due always when 0.
   const recordingFetcher = (
     resources: { defer: (cleanup: () => void) => void },
@@ -586,6 +596,25 @@ describe("taking a worktree", () => {
       branch: "scripted",
       base: git(f.repo, "rev-parse", "HEAD"),
     })
+    expect(taken).not.toHaveProperty("title")
+  })
+
+  it("titles one some other tool made as it records it, where a title is given", async ({
+    fx: f,
+  }) => {
+    const path = join(f.other, "made-titled")
+    git(f.repo, "worktree", "add", "-b", "scripted-titled", path)
+    const taken = await f.worktrees.take({
+      projectId: f.project,
+      terminalId: "t1",
+      cwd: f.repo,
+      path,
+      title: "Scripted work",
+    })
+    expect(taken).toMatchObject({ ok: true, branch: "scripted-titled", title: "Scripted work" })
+    expect(git(f.repo, "config", "--get", "branch.scripted-titled.novadeckTitle")).toBe(
+      "Scripted work",
+    )
   })
 
   it("refuses the main checkout, a folder in no repository, and a detached worktree", async ({

@@ -231,6 +231,19 @@ describe("worktree calls", () => {
     })
   })
 
+  it("says on the person's yes when the worktree taken has no title", async ({ fx }) => {
+    const opened = await fx.calls.open(fx.call("t1", { title: "Theirs", branch: "un" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    git(fx.repo, "config", "--unset", "branch.un.novadeckTitle")
+    expect(await fx.calls.take(fx.call("t2", { path: opened.path }))).toMatchObject({ asked: true })
+    fx.asked[0]!.settle("confirmed")
+    await vi.waitFor(() =>
+      expect(fx.notices.find(({ id }) => id === "t2")?.text).toContain(
+        "It has no title: take_worktree with title gives it one.",
+      ),
+    )
+  })
+
   it("retitles only a worktree the caller owns, for describe", async ({ fx }) => {
     const opened = await fx.calls.open(fx.call("t1", { title: "Old", branch: "rt" }))
     if (!opened.ok) throw new Error(opened.reason)

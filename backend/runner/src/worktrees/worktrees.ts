@@ -749,8 +749,7 @@ export class Worktrees {
       return refused(
         `That worktree is on ${live ?? "a detached HEAD"} now, not ${branch}, so its title stays.`,
       )
-    if (!(await writeKeys(path, branch, { title })))
-      return refused("git couldn't write the worktree's title.")
+    await this.keyed(path, branch, { title })
     return { ok: true }
   }
 
