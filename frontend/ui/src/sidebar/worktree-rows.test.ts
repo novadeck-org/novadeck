@@ -3,19 +3,24 @@ import type { Work, WorkFile } from "@novadeck/core/works"
 
 import { describe, expect, it } from "../test"
 import {
+  chainOf,
   checksBar,
   closeMode,
   conflictWords,
+  descendantsOf,
   dormantMs,
+  litOf,
   needOf,
   orderedWorks,
   originOf,
   ownerOpen,
   pullMark,
+  roleOf,
   selectedRoot,
   stateOf,
   targetOf,
   worktreeRows,
+  worktreeTeams,
 } from "./worktree-rows"
 
 const file = (path: string, added: number, removed: number): WorkFile => ({
@@ -409,5 +414,75 @@ describe("the origin line", () => {
       originOf([work("a", 1, { base: "origin/main", fetchedAt: at - 59 * 60_000 })], at),
     ).toEqual({ text: "origin/main, 59 min ago", stale: false })
     expect(originOf([work("a", 1)], at)).toBeUndefined()
+  })
+})
+
+describe("teams of worktrees", () => {
+  // `lead` on main; `a` and `b` head to its branch, `c` to `a`'s; `x` stands alone.
+  const works = [
+    work("lead", 1),
+    work("a", 4, { home: "feat/lead", base: "origin/feat/lead" }),
+    work("x", 5),
+    work("b", 2, { pullRequest: pull("open", { base: "feat/lead" }) }),
+    work("c", 3, { home: "feat/a", base: "origin/feat/a" }),
+  ]
+  const teams = worktreeTeams(works)
+  const roots = (list: readonly string[]) => list.map((root) => root.slice(3))
+
+  it("hangs a worktree under the one whose branch it heads to, its members newest first", () => {
+    expect(roots(teams.order.map((each) => each.root))).toEqual(["x", "lead", "a", "c", "b"])
+    expect(teams.teams.map(({ lead, workers }) => [lead.slice(3), roots(workers)])).toEqual([
+      ["lead", ["a", "b"]],
+      ["a", ["c"]],
+    ])
+  })
+
+  it("knows the leads above a worktree and those under it", () => {
+    expect(roots(chainOf(teams, "/r/c"))).toEqual(["a", "lead"])
+    expect(chainOf(teams, "/r/x")).toEqual([])
+    expect(roots(descendantsOf(teams, "/r/lead"))).toEqual(["a", "c", "b"])
+  })
+
+  it("lights the selected worktree's teams and the way up", () => {
+    const lit = litOf(teams, "/r/a")
+    expect(lit.full.map((team) => team.lead.slice(3))).toEqual(["lead", "a"])
+    expect(litOf(teams, "/r/c").path).toEqual([{ lead: "/r/lead", child: "/r/a" }])
+    expect(litOf(teams, undefined)).toEqual({ full: [], path: [] })
+  })
+
+  it("tints the selected worktree's whole tree, leads as leads", () => {
+    expect(roleOf(teams, "/r/lead", "/r/c")).toBe("lead")
+    expect(roleOf(teams, "/r/a", "/r/c")).toBe("lead")
+    expect(roleOf(teams, "/r/b", "/r/c")).toBe("worker")
+    expect(roleOf(teams, "/r/x", "/r/c")).toBeUndefined()
+    expect(roleOf(teams, "/r/lead", "/r/x")).toBeUndefined()
+  })
+
+  it("leaves a target no worktree has open as it is", () => {
+    const alone = worktreeTeams([work("a", 1, { home: "release", base: "origin/release" })])
+    expect(alone.teams).toEqual([])
+  })
+
+  it("breaks a ring of worktrees heading to each other at its newest", () => {
+    const ring = worktreeTeams([
+      work("a", 1, { home: "feat/b", base: "origin/feat/b" }),
+      work("b", 2, { home: "feat/a", base: "origin/feat/a" }),
+    ])
+    expect(roots(ring.order.map((each) => each.root))).toEqual(["b", "a"])
+    expect(ring.teams.map(({ lead, workers }) => [lead.slice(3), roots(workers)])).toEqual([
+      ["b", ["a"]],
+    ])
+  })
+
+  it("gives each row the leads above it", () => {
+    expect(
+      worktreeRows(works, new Map(), now).map((row) => [row.work.root.slice(3), roots(row.above)]),
+    ).toEqual([
+      ["x", []],
+      ["lead", []],
+      ["a", ["lead"]],
+      ["c", ["a", "lead"]],
+      ["b", ["lead"]],
+    ])
   })
 })

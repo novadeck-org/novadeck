@@ -5,7 +5,7 @@ import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, eventually, expect, it } from "../test"
-import { WorktreesPanel } from "./WorktreesPanel"
+import { WorktreesPanel, type WorktreesWire } from "./WorktreesPanel"
 
 const mounted: Rendered[] = []
 afterEach(() => mounted.splice(0).forEach((page) => page.unmount()))
@@ -56,6 +56,10 @@ const show = (
     // Handles by terminal id, bare.
     handles?: ReadonlyMap<string, string>
     fetch?: () => Promise<void>
+    // The leads folded, and what takes the fold and the wire.
+    folded?: readonly string[]
+    onFold?: (lead: string) => void
+    onWire?: (wire: WorktreesWire | null, taken?: HTMLElement | null) => void
   } = {},
 ) => {
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
@@ -83,6 +87,9 @@ const show = (
     onCloseWork,
     ...(options.handles ? { handles: options.handles } : {}),
     ...(options.fetch ? { onFetch: options.fetch } : {}),
+    ...(options.folded ? { folded: options.folded } : {}),
+    ...(options.onFold ? { onFold: options.onFold } : {}),
+    ...(options.onWire ? { onWire: options.onWire } : {}),
   }
   const page = render(createElement(WorktreesPanel, props))
   mounted.push(page)
@@ -565,5 +572,75 @@ describe("the panel's origin line", () => {
   it("isn't drawn where nothing was fetched", () => {
     const { page } = show([work("a")])
     expect(page.container.querySelector(".worktrees-origin")).toBeNull()
+  })
+})
+
+describe("a team of worktrees", () => {
+  // `lead`, and `a` and `b` heading to its branch.
+  const team = () => [
+    work("lead", { firstSeenAt: 1 }),
+    work("a", { firstSeenAt: 3, home: "feat/lead", base: "origin/feat/lead" }),
+    work("b", { firstSeenAt: 2, home: "feat/lead", base: "origin/feat/lead" }),
+    work("x", { firstSeenAt: 4 }),
+  ]
+
+  it("lists its members right under their lead, a level in", () => {
+    const { rows, row } = show(team())
+    expect(rows().map((each) => each.dataset.worktreesRow)).toEqual([
+      "/w/x",
+      "/w/lead",
+      "/w/a",
+      "/w/b",
+    ])
+    expect(row("a").dataset.teamLevel).toBe("1")
+    expect(row("lead").dataset.teamLevel).toBeUndefined()
+  })
+
+  it("tints the selected worktree's team, its lead as the lead", () => {
+    const { row } = show(team(), { selectedId: "t-a" })
+    expect(row("lead").dataset.team).toBe("lead")
+    expect(row("b").dataset.team).toBe("worker")
+    expect(row("x").dataset.team).toBeUndefined()
+  })
+
+  it("lends the wire its list, teams and what lights", () => {
+    // What the app's store holds: a list taken back leaves another's in place.
+    let held: WorktreesWire | null = null
+    const onWire = vi.fn<(wire: WorktreesWire | null, taken?: HTMLElement | null) => void>(
+      (wire, taken) => {
+        held = wire ?? (held?.list === taken ? null : held)
+      },
+    )
+    const { page } = show(team(), { selectedId: "t-b", onWire })
+    const wire = held as WorktreesWire | null
+    expect(wire!.list).toBe(page.container.querySelector(".worktrees-list"))
+    expect(wire!.teams).toEqual([{ lead: "/w/lead", workers: ["/w/a", "/w/b"] }])
+    expect(wire!.levels).toEqual([0])
+    expect(wire!.selected).toBe("/w/b")
+    expect(wire!.lit.full).toEqual(wire!.teams)
+    page.unmount()
+    expect(held).toBeNull()
+  })
+
+  it("folds its members into their lead's row, unless the person is on one", () => {
+    const onFold = vi.fn<(lead: string) => void>()
+    const { row } = show(team(), { folded: ["/w/lead"], onFold, selectedId: "t-x" })
+    expect(row("a").dataset.teamFold).toBe("away")
+    expect(row("b").dataset.teamFold).toBe("away")
+    const folded = [...row("lead").querySelectorAll<HTMLElement>("[data-team-fold-row]")]
+    expect(folded.map((each) => each.dataset.teamFoldRow)).toEqual(["/w/a", "/w/b"])
+    expect(folded[0]!.textContent).toContain("feat/a")
+    expect(label(row("lead"))).toMatch(/, 2 worktrees folded under it$/)
+    const kept = show(team(), { folded: ["/w/lead"], onFold, selectedId: "t-a" })
+    expect(kept.row("a").dataset.teamFold).toBe("shown")
+    expect(kept.row("b").dataset.teamFold).toBe("away")
+    // The one the person is on stays in place: only the other is folded under the lead.
+    expect(label(kept.row("lead"))).toMatch(/, 1 worktree folded under it$/)
+  })
+
+  it("shows a folded member when its row in the lead is clicked", () => {
+    const { row, onSelect } = show(team(), { folded: ["/w/lead"], onFold: () => {} })
+    act(() => row("lead").querySelector<HTMLElement>('[data-team-fold-row="/w/b"]')!.click())
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ root: "/w/b" }), "t-b")
   })
 })

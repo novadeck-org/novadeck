@@ -11,7 +11,7 @@ import { shortcutBindings } from "../interaction/shortcuts"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
 import { panelLabels } from "../sidebar/panel-labels"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
-import { WorktreesPanel } from "../sidebar/WorktreesPanel"
+import { WorktreesPanel, type WorktreesWire } from "../sidebar/WorktreesPanel"
 import { programIcon } from "../terminals/processes/profiles"
 import { TerminalTabs } from "../terminals/TerminalTabs"
 
@@ -61,6 +61,13 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
         handles?: ReadonlyMap<string, string>
         // Fetches origin now for the open project; absent where the backend can't.
         onFetch?: () => Promise<void>
+        // Its folded teams and the team wire's share (WorktreesPanel's own props).
+        folded?: readonly string[]
+        preview?: string | undefined
+        unfolding?: string | undefined
+        folding?: string | undefined
+        onFold?: (lead: string) => void
+        onWire?: (wire: WorktreesWire | null, list?: HTMLElement | null) => void
       }
     | undefined
   onHide: () => void

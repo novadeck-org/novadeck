@@ -58,6 +58,12 @@ import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
 import { WorkspaceStage } from "./WorkspaceStage"
+import {
+  createWorktreesWireStore,
+  worktreesFoldContext,
+  WorktreesWireContext,
+  type WorktreesWireStore,
+} from "./worktrees-wire"
 
 /** A panel beside the workspace, as the content preview's debug panel is. */
 export type WorkspacePanel = ComponentType<{
@@ -218,6 +224,52 @@ const TeamWireSection = ({
   )
 }
 
+// The Worktrees panel's teams on the rail's border, as the Terminals list's (TeamWireSection):
+// a worktree heading to another open worktree's branch hangs under it, lit for the selected
+// worktree's, folded from the gutter beside a lead. The panel lends its list and teams
+// (worktrees-wire.ts); one list's wire shows at a time, as they share the list's scroll timeline.
+const WorktreesWireSection = ({
+  shown,
+  store,
+}: {
+  shown: boolean
+  store: WorktreesWireStore
+}): React.JSX.Element | null => {
+  const wire = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const { ui } = useWorkspaceServices()
+  const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
+  const context = worktreesFoldContext(projectId)
+  const folded = useUiState((state) => state.foldedTeams[context] ?? noLeads)
+  const unfolding = useUiState((state) =>
+    state.unfolding?.context === context ? state.unfolding.lead : undefined,
+  )
+  const onFold = useCallback((lead: string) => toggleTeamFold(ui, context, lead), [ui, context])
+  const onPreview = useCallback(
+    (lead: string | null) => previewTeamFold(ui, lead === null ? null : { context, lead }),
+    [ui, context],
+  )
+  if (!wire) return null
+  return (
+    <TeamWire
+      rowAttribute="data-worktrees-row"
+      kind="worktrees"
+      teams={wire.teams}
+      levels={wire.levels}
+      chains={wire.chains}
+      lit={wire.lit}
+      above={wire.above}
+      selected={wire.selected}
+      shown={shown}
+      list={wire.list}
+      folded={folded}
+      unfolding={unfolding}
+      onFold={onFold}
+      onPreview={onPreview}
+    />
+  )
+}
+const noLeads: readonly string[] = []
+
 // What a backend without worktrees made: none.
 const noneMade = createStore<WorksMade>(new Map())
 
@@ -287,6 +339,8 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
   // The Terminals list on screen, which the team wire draws beside.
   const [tabList] = useState(createTabListStore)
+  // The Worktrees panel's list and teams, which their wire draws beside.
+  const [worktreesWire] = useState(createWorktreesWireStore)
   const voice = useDictationController(services)
   useKeyboard(voice?.dictation)
   const { backend } = services
@@ -350,61 +404,72 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
             <VisitorBar />
             {!besideSidebar && <HeaderSection />}
             <TabListContext.Provider value={tabList}>
-              <MoveSessionsProvider>
-                <div
-                  className="workspace-body relative flex min-h-0 flex-1"
-                  data-titlebar={besideSidebar || undefined}
-                  // Open only where the sidebar sits beside the rail: on a narrow screen it
-                  // is a drawer over the page, and the header keeps clear of the buttons.
-                  data-sidebar={desktop && !zen && !sidebarCollapsed ? "open" : "closed"}
-                >
-                  {sidebarRail()}
-                  {besideSidebar && <div className="rail-titlebar" aria-hidden="true" />}
-                  <TeamWireSection
-                    shown={
-                      !zen &&
-                      !sidebarCollapsed &&
-                      shell.sidebarVisible &&
-                      sidebarPanel === "terminals"
-                    }
-                    tabList={tabList}
-                  />
-                  <WorkspacePanels
-                    collapsed={zen || sidebarCollapsed}
-                    mobileOpen={!zen && sidebar}
-                    onMobileOpenChange={(open) => {
-                      if (!open) hideSidebar()
-                    }}
-                    mobileRail={sidebarRail(true)}
-                    mobileLabel={panelLabels[sidebarPanel]}
-                    mobileWide={sidebarPanel === "inbox"}
-                    mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
-                    sidebar={<SidebarSection />}
-                    titlebar={besideSidebar}
+              <WorktreesWireContext.Provider value={worktreesWire}>
+                <MoveSessionsProvider>
+                  <div
+                    className="workspace-body relative flex min-h-0 flex-1"
+                    data-titlebar={besideSidebar || undefined}
+                    // Open only where the sidebar sits beside the rail: on a narrow screen it
+                    // is a drawer over the page, and the header keeps clear of the buttons.
+                    data-sidebar={desktop && !zen && !sidebarCollapsed ? "open" : "closed"}
                   >
-                    {besideSidebar ? (
-                      <div className="workspace-column flex h-full min-h-0 min-w-0 flex-1 flex-col">
-                        <HeaderSection />
-                        <WorkspaceStage canvas={canvas} />
-                      </div>
-                    ) : (
-                      <WorkspaceStage canvas={canvas} />
-                    )}
-                  </WorkspacePanels>
-                  {zen && (
-                    <ZenDockWithBadge
-                      view={view}
-                      enabledViews={enabledViews}
-                      onCreate={() => add()}
-                      onViewChange={(next) => {
-                        if (next !== view) changeView(next)
-                      }}
-                      onInbox={() => toggleSidebar("inbox")}
-                      onExit={exitZen}
+                    {sidebarRail()}
+                    {besideSidebar && <div className="rail-titlebar" aria-hidden="true" />}
+                    <TeamWireSection
+                      shown={
+                        !zen &&
+                        !sidebarCollapsed &&
+                        shell.sidebarVisible &&
+                        sidebarPanel === "terminals"
+                      }
+                      tabList={tabList}
                     />
-                  )}
-                </div>
-              </MoveSessionsProvider>
+                    <WorktreesWireSection
+                      shown={
+                        !zen &&
+                        !sidebarCollapsed &&
+                        shell.sidebarVisible &&
+                        sidebarPanel === "worktrees"
+                      }
+                      store={worktreesWire}
+                    />
+                    <WorkspacePanels
+                      collapsed={zen || sidebarCollapsed}
+                      mobileOpen={!zen && sidebar}
+                      onMobileOpenChange={(open) => {
+                        if (!open) hideSidebar()
+                      }}
+                      mobileRail={sidebarRail(true)}
+                      mobileLabel={panelLabels[sidebarPanel]}
+                      mobileWide={sidebarPanel === "inbox"}
+                      mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
+                      sidebar={<SidebarSection />}
+                      titlebar={besideSidebar}
+                    >
+                      {besideSidebar ? (
+                        <div className="workspace-column flex h-full min-h-0 min-w-0 flex-1 flex-col">
+                          <HeaderSection />
+                          <WorkspaceStage canvas={canvas} />
+                        </div>
+                      ) : (
+                        <WorkspaceStage canvas={canvas} />
+                      )}
+                    </WorkspacePanels>
+                    {zen && (
+                      <ZenDockWithBadge
+                        view={view}
+                        enabledViews={enabledViews}
+                        onCreate={() => add()}
+                        onViewChange={(next) => {
+                          if (next !== view) changeView(next)
+                        }}
+                        onInbox={() => toggleSidebar("inbox")}
+                        onExit={exitZen}
+                      />
+                    )}
+                  </div>
+                </MoveSessionsProvider>
+              </WorktreesWireContext.Provider>
             </TabListContext.Provider>
             <FooterSection />
             <WorkspaceOverlays />

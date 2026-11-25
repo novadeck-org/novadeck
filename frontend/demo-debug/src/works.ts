@@ -157,6 +157,30 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
+              label: "Heads to another worktree",
+              hint: "Open Worktrees: the selected terminal's worktree (made now if it had none) heads to another worktree's branch, so it hangs under that one on the team wire at the rail's border, lit while either is selected; point beside the lead, or use the lead's menu (right-click), to fold its team into its row. Run again to send it back to main",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (!key) return
+                const at = placed(workspace(), key)
+                const own = works.ownedBy(key.terminalId)
+                const project = works.worksOf(key.projectId)
+                // Back to main where it heads to another worktree already; else to one that
+                // doesn't head to it, so the two don't go round.
+                if (own?.home !== undefined && project.some((work) => work.branch === own.home)) {
+                  works.setHome(at, undefined)
+                  return
+                }
+                const other = project.find(
+                  (work) =>
+                    work.root !== own?.root &&
+                    work.branch !== null &&
+                    (own?.branch == null || work.home !== own.branch),
+                )
+                if (other) works.setHome(at, other.branch!)
+              },
+            },
+            {
               label: "Untitled worktree",
               hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) is named by its branch, in mono, as one made by hand or before titles. Run again to title it "Checkout rounding fix"',
               run: ({ selected, workspace }) => {
@@ -245,7 +269,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Every row state in Worktrees",
-              hint: "Open Worktrees: the project's rows become one in each state, newest first: ⣤ checks running into prod, ⠹ changing, a draft's bar, ? checks passed and approved, ! conflict into pi-harness, · empty, ✗ checks failed, a bar of 25 checks, a quiet row, ✓ landed (safe), ✓ with files left (!), × closed and hatched, z an untitled branch with no agent (!), ○ unreadable",
+              hint: "Open Worktrees: the project's rows become one in each state, newest first: ⣤ checks running into prod, ⠹ changing, a draft's bar, ? checks passed and approved, pi harness leading a team on the rail's wire (! conflict, · empty, and a nested member), ✗ checks failed, a bar of 25 checks, a quiet row, ✓ landed (safe), ✓ with files left (!), × closed and hatched, z an untitled branch with no agent (!), ○ unreadable",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 const session = key && sessionOf(workspace(), key)
