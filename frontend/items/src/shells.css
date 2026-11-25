@@ -108,7 +108,7 @@
   background: var(--_failed, var(--color-danger-fg));
 }
 .shells-log {
-  padding: 0 0 8px;
+  padding: 6px 0 8px;
   font-family: var(--font-mono);
   font-size: var(--text-code);
   line-height: var(--text-code--line-height);

@@ -104,9 +104,12 @@
     overflow: auto;
     background-color: var(--pane-well-bg, var(--color-shell));
   }
+  /* Only the listing fades, so the well under the crumbs keeps its edge. */
   .folder-scroll[data-faded] {
-    opacity: 0.45;
     pointer-events: none;
+  }
+  .folder-scroll[data-faded] > * {
+    opacity: 0.45;
   }
 
   /* Grid. */
