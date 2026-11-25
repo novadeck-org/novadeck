@@ -35,6 +35,7 @@ import {
   type MintedDevice,
   type MurmurSettings,
   type MurmurState,
+  type OriginFailing,
   type PageLook,
   type PageLookAnswer,
   type PageTrouble,
@@ -615,6 +616,12 @@ export type Runner = {
      * fetch has ended, failed or not.
      */
     fetch(projectId: string): Promise<void>
+    /**
+     * The repositories of the project's works whose origin fails to fetch now, oldest failure
+     * first; read from what the runner keeps, without git (revision 19; ask
+     * `supports("works.origins")` first).
+     */
+    origins(projectId: string): Promise<readonly OriginFailing[]>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -1206,6 +1213,7 @@ export const connectRunner = async (
         call((client) => client.works.close({ root, ...(force && { force }) })),
       preview: (projectId, path) => call((client) => client.works.preview({ projectId, path })),
       fetch: (projectId) => call((client) => client.works.fetch({ projectId })),
+      origins: (projectId) => call((client) => client.works.origins({ projectId })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

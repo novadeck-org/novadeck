@@ -365,11 +365,6 @@ export type ChangesContent = {
   // The ref a compare an agent showed measures against `base`; absent for a checkout's own
   // change, which is its work against main.
   readonly head?: string | undefined
-  // For a compare that reads a remote-tracking ref: when the repository's origin was last fetched,
-  // in milliseconds since the epoch (absent if never), and why its last fetch failed, if it did.
-  readonly origin?:
-    | { readonly fetchedAt?: number | undefined; readonly failed?: string | undefined }
-    | undefined
   readonly layers: readonly ChangeLayer[]
   // The files the change as a whole differs from main by, as git lists the range from main to
   // the newest layer: its own counts, not its layers' added up.

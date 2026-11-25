@@ -1,5 +1,4 @@
 import type { LitTeams, Team } from "@novadeck/core/derivations"
-import { fetchAge, staleFetchMs } from "@novadeck/core/fetch-age"
 import type { PullRequest, PullRequestCheck, PullRequestReview } from "@novadeck/core/forges"
 import type { Work } from "@novadeck/core/works"
 import type { GlyphPhase, GlyphWait } from "@novadeck/toolkit/PhaseGlyph"
@@ -295,24 +294,6 @@ export const needOf = (
   if (pull?.state === "open" && pull.ci === "passed")
     return { need: "ask", why: "Checks passed: yours to merge" }
   return undefined
-}
-
-// How long ago the remote's main was fetched, in words for the panel's top line ("origin/main,
-// 12 min ago"), and whether that is old enough to say so (an hour): from the works measured
-// against a remote's main, the oldest fetch. None where no work is, or none was fetched.
-export const originOf = (
-  works: readonly Work[],
-  now: number,
-): { readonly text: string; readonly stale: boolean } | undefined => {
-  const fetched = works.filter(
-    (work) => work.base.startsWith("origin/") && work.fetchedAt !== undefined,
-  )
-  if (fetched.length === 0) return undefined
-  const oldest = fetched.reduce((a, b) => (b.fetchedAt! < a.fetchedAt! ? b : a))
-  return {
-    text: `${oldest.base}, ${fetchAge(oldest.fetchedAt!, now)}`,
-    stale: now - oldest.fetchedAt! >= staleFetchMs,
-  }
 }
 
 // What its trash button does: waits while the owner's agent is working in the worktree.

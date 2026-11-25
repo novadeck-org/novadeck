@@ -10,14 +10,13 @@
    changes_requested | required | none); on its detail line `.worktrees-target`,
    `.worktrees-route-mark` (the chevron) and `.worktrees-branch` ("main ‹ branch"). Its actions,
    a `.worktrees-slot` of `.worktrees-action`s (the pull request's page, `.worktrees-trash`),
-   fade in over the handle as a tab's do. Above the list: `.worktrees-origin` (how old the
-   remote's main is, with `.worktrees-fetch`), `.worktrees-refusal`; in the header
+   fade in over the handle as a tab's do. Above the list: `.worktrees-refusal`; in the header
    `.worktrees-sweep` (Trash N); `.worktrees-kept` in the dialogs; `.worktrees-empty`.
 
    Hooks: on a row, data-state (changing | checks | empty | rest | dormant | landed | failed |
    over | unknown: its glyph, with data-ended on over), data-untitled (its name is its branch,
    in mono), data-need (unblock | ask), data-safe, data-pull-request (its state); on
-   `.worktrees-branch`, data-unread; on `.worktrees-origin`, data-stale once main is an hour old.
+   `.worktrees-branch`, data-unread.
 
    Tokens: none of its own; it reads the palette's (ink, muted, line-strong, success-fg,
    danger-fg, syntax-keyword, note-fg) and the tab's (--tab-process-font,
@@ -219,51 +218,9 @@
   background: var(--color-soft);
   color: var(--color-ink);
 }
-.worktrees-sweep:focus-visible,
-.worktrees-fetch:focus-visible {
+.worktrees-sweep:focus-visible {
   outline: 2px solid var(--focus-ring-color, var(--color-ink));
   outline-offset: 1px;
-}
-
-/* How old the remote's main is, over the list: amber once an hour old. */
-.worktrees-origin {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 24px;
-  margin: 8px 4px 0 10px;
-  font-size: var(--text-caption);
-  color: var(--color-muted);
-}
-.worktrees-origin svg {
-  flex-shrink: 0;
-}
-.worktrees-origin[data-stale="true"] {
-  color: var(--color-warning-fg);
-}
-.worktrees-origin + .worktrees-list {
-  margin-top: 4px;
-}
-.worktrees-fetch {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  height: 22px;
-  margin-left: auto;
-  padding: 0 8px;
-  border: var(--border-width) solid var(--color-line);
-  border-radius: var(--radius-control, 4px);
-  background: none;
-  color: var(--color-ink);
-  font-size: var(--text-caption);
-  cursor: pointer;
-}
-.worktrees-fetch:hover:not(:disabled) {
-  background: var(--color-soft);
-}
-.worktrees-fetch:disabled {
-  color: var(--color-muted);
-  cursor: default;
 }
 
 /* Why a close was refused, above the list. */

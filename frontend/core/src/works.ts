@@ -110,6 +110,14 @@ export type WorksMade = ReadonlyMap<string, number>
 export const madeOne = (made: WorksMade, projectId: string): WorksMade =>
   new Map(made).set(projectId, (made.get(projectId) ?? 0) + 1)
 
+// A repository of a project's works whose origin fails to fetch: its folder's name, git's reason
+// for the last failure, and when the fetches began failing, in milliseconds since the epoch.
+export type OriginFailing = {
+  readonly repository: string
+  readonly said: string
+  readonly since: number
+}
+
 export type Works = {
   readonly state: Store<WorksState>
   // How many worktrees the backend began tracking since this backend began, by project id (an
@@ -139,6 +147,10 @@ export type Works = {
   // pull requests are as of now; resolves once each fetch has ended, failed or not (a failure
   // keeps the last `fetchedAt`). Absent where a backend can't fetch.
   readonly fetch?: (projectId: string) => Promise<void>
+  // The repositories of the project's works whose origin fails to fetch now, oldest failure first:
+  // none while every last fetch succeeded, or where the backend can't tell. Cheap to ask often.
+  // Absent where a backend can't fetch.
+  readonly origins?: (projectId: string) => Promise<readonly OriginFailing[]>
   // A file of the project, by its path from the project's folder, as it would be once the
   // project's works merge onto main, read now: main's copy and what each work carries onto it.
   // Rejects when the backend cannot say.

@@ -1604,7 +1604,13 @@ export const runnerBackend = (
   // History, followed the same way.
   const history = createRunnerHistory(runner.history, track)
   // Works, read once at the start and followed while the Worktrees panel is watched.
-  const works = createRunnerWorks(runner.works, track)
+  const works = createRunnerWorks(
+    runner.works,
+    track,
+    () =>
+      typeof (runner as Partial<typeof runner>).supports === "function" &&
+      runner.supports("works.origins"),
+  )
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
   // then. Called whenever a shell is created or started afresh.

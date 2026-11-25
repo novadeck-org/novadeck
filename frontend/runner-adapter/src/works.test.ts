@@ -1,5 +1,5 @@
 import type { WorksMade } from "@novadeck/core/works"
-import type { Work, WorkClosing, WorkMade, WorkPreview } from "@novadeck/protocol"
+import type { OriginFailing, Work, WorkClosing, WorkMade, WorkPreview } from "@novadeck/protocol"
 import type { WorkWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
@@ -36,24 +36,31 @@ const followed = (
     close?: (root: string, force?: boolean) => Promise<WorkClosing>
     preview?: (projectId: string, path: string) => Promise<WorkPreview>
     fetch?: (projectId: string) => Promise<void>
+    origins?: (projectId: string) => Promise<readonly OriginFailing[]>
   } = {},
+  tellsOrigins = true,
 ) => {
   const stream = channel<WorkWatchItem>()
   const made = channel<WorkMade>()
   const shown: string[] = []
   let watches = 0
-  const { works, stop, readOnce } = createRunnerWorks({
-    watch: () => ((watches += 1), stream.iterator),
-    made: () => made.iterator,
-    look: calls.look ?? (async () => {}),
-    show: async (at, terminalId) => (
-      shown.push(terminalId === undefined ? at : `${at} on ${terminalId}`),
-      { itemId: `item-${at}` }
-    ),
-    close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
-    preview: calls.preview ?? (async () => ({ main: null, works: [], renames: [] })),
-    fetch: calls.fetch ?? (async () => {}),
-  })
+  const { works, stop, readOnce } = createRunnerWorks(
+    {
+      watch: () => ((watches += 1), stream.iterator),
+      made: () => made.iterator,
+      look: calls.look ?? (async () => {}),
+      show: async (at, terminalId) => (
+        shown.push(terminalId === undefined ? at : `${at} on ${terminalId}`),
+        { itemId: `item-${at}` }
+      ),
+      close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
+      preview: calls.preview ?? (async () => ({ main: null, works: [], renames: [] })),
+      fetch: calls.fetch ?? (async () => {}),
+      origins: calls.origins ?? (async () => []),
+    },
+    undefined,
+    () => tellsOrigins,
+  )
   const release = works.watch()
   const ids = () =>
     works.state
@@ -77,6 +84,7 @@ const restarting = () => {
     close: async () => ({ closed: true as const, branchDeleted: false }),
     preview: async () => ({ main: null, works: [], renames: [] }),
     fetch: async () => {},
+    origins: async () => [],
   })
   const state = () => runner.works.state.getSnapshot()
   return { ...runner, streams, mades, state, watches: () => watches }
@@ -228,6 +236,7 @@ describe("Works, as the runner reports them", () => {
       close: async () => ({ closed: true as const, branchDeleted: false }),
       preview: async () => ({ main: null, works: [], renames: [] }),
       fetch: async () => {},
+      origins: async () => [],
     })
     expect(watches).toBe(0)
   })
@@ -258,6 +267,7 @@ describe("Works, as the runner reports them", () => {
       close: async () => ({ closed: true as const, branchDeleted: false }),
       preview: async () => ({ main: null, works: [], renames: [] }),
       fetch: async () => {},
+      origins: async () => [],
     })
     readOnce()
     stop()
@@ -362,6 +372,7 @@ describe("reading the works once, as the backend starts", () => {
       close: async () => ({ closed: true as const, branchDeleted: false }),
       preview: async () => ({ main: null, works: [], renames: [] }),
       fetch: async () => {},
+      origins: async () => [],
     })
     const state = () => runner.works.state.getSnapshot()
     return { ...runner, stream, state, watches: () => watches }
@@ -491,6 +502,15 @@ describe("looking at and showing a work", () => {
     expect(asked).toEqual(["p"])
   })
 
+  it("asks the runner which of a project's origins fail to fetch, and an older runner none", async () => {
+    const failing = [{ repository: "novadeck", said: "Could not resolve host", since: 5 }]
+    const asked: string[] = []
+    const origins = async (project: string) => (asked.push(project), failing)
+    expect(await followed({ origins }).works.origins?.("p")).toEqual(failing)
+    expect(await followed({ origins }, false).works.origins?.("p")).toEqual([])
+    expect(asked).toEqual(["p"])
+  })
+
   it("closes a worktree by its root and says what was kept, or passes the runner's refusal on", async () => {
     const closed: [string, boolean | undefined][] = []
     const { works } = followed({
@@ -552,6 +572,7 @@ describe("Worktrees made, as the runner reports them", () => {
       close: async () => ({ closed: true as const, branchDeleted: false }),
       preview: async () => ({ main: null, works: [], renames: [] }),
       fetch: async () => {},
+      origins: async () => [],
     })
     expect(mades).toBe(0)
     readOnce()

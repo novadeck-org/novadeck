@@ -119,6 +119,7 @@ const noWorks = {
   closeWork: () => Promise.reject(new DomainError("NOT_FOUND")),
   preview: () => Promise.resolve({ main: null, works: [], renames: [] }),
   fetch: () => Promise.resolve(),
+  origins: () => [],
 }
 
 // What the Files panel's checkout state is without a worktrees service: nothing to say or move.
@@ -467,6 +468,7 @@ export const createRouter = (options: {
         works.closeWork(input.root, input.force === true),
       ),
       fetch: api.works.fetch.handler(({ input }) => works.fetch(input.projectId)),
+      origins: api.works.origins.handler(({ input }) => works.origins(input.projectId)),
     },
     companions: {
       list: api.companions.list.handler(({ input }) => {

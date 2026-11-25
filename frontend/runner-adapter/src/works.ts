@@ -35,6 +35,8 @@ export const createRunnerWorks = (
   calls: Runner["works"],
   // Keeps a call the backend waits for before it stops, as its other calls are.
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
+  // Whether the runner tells which origins fail to fetch (`works.origins`, revision 19).
+  tellsOrigins: () => boolean = () => true,
 ): RunnerWorks => {
   const state = createStore<WorksState>({ works: [], synced: false, reported: false })
   // The worktrees made since the backend started, counted by project for as long as it lives:
@@ -185,6 +187,9 @@ export const createRunnerWorks = (
     close: (root, force) => track(calls.close(root, force)),
     preview: (projectId, path) => track(calls.preview(projectId, path)),
     fetch: (projectId) => track(calls.fetch(projectId)),
+    // An older runner can't tell: it reads as none failing.
+    origins: (projectId) =>
+      tellsOrigins() ? track(calls.origins(projectId)) : Promise.resolve([]),
   }
   const readOnce = (): void => {
     followMade()
