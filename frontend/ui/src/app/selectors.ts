@@ -10,9 +10,9 @@ import type {
   WorkspaceState,
   WorkspaceTarget,
 } from "@novadeck/core/types"
+import type { FoldedTeams } from "@novadeck/toolkit/team-fold"
 
 import { sidebarVisible, type FocusPreview } from "../shell/shell-state"
-import type { FoldedTeams } from "../terminals/team-fold"
 import type { UiState } from "./ui-store"
 
 // The active session's state; the workspace always has one once seeded.

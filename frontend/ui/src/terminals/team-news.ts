@@ -48,12 +48,23 @@ const togetherMs = 150
 // as Grid while its tiles settle around a new teammate's tile; later, it is old news.
 const keptMs = 5000
 
+// Whose teams a view draws: the terminals' (the rail's, Grid's and Canvas's wires, which share
+// their news), or another list's, as a sidebar panel's own leads and members, kept apart so
+// neither list's teams read as new to the other's.
+export type TeamKind = string
+const terminalTeams: TeamKind = "terminals"
+
 export type TeamNews = {
-  // Notes that a view draws the current session's teams as they are at `now`, and says which
-  // pieces enter there: those new since the session's teams were last drawn anywhere, those
-  // another view began to play a moment ago, and those that came since this view last drew
-  // (`since`, none for a view drawing for the first time).
-  readonly draw: (teams: readonly Team[], now: number, since?: number) => ReadonlySet<string>
+  // Notes that a view draws the current session's teams of a kind as they are at `now`, and
+  // says which pieces enter there: those new since that kind's teams were last drawn anywhere,
+  // those another view began to play a moment ago, and those that came since this view last
+  // drew (`since`, none for a view drawing for the first time).
+  readonly draw: (
+    teams: readonly Team[],
+    now: number,
+    since?: number,
+    kind?: TeamKind,
+  ) => ReadonlySet<string>
 }
 
 // One per App: `session` names the session the views show now.
@@ -61,8 +72,8 @@ export const createTeamNews = (session: () => string): TeamNews => {
   const drawn = new Map<string, Crews>()
   const came = new Map<string, ReadonlyMap<string, number>>()
   return {
-    draw: (teams, now, since) => {
-      const key = session()
+    draw: (teams, now, since, kind = terminalTeams) => {
+      const key = kind === terminalTeams ? session() : `${kind} ${session()}`
       const pieces = new Set(
         teams.flatMap(({ lead, workers }) => [
           teamPiece(lead),
@@ -93,9 +104,14 @@ const enteringMs = 1000
 
 const none: ReadonlySet<string> = new Set()
 
-// The pieces of `teams` entering in a view, while it `shows` them: each for as long as its
-// entrance plays. Without the App's TeamNews nothing enters.
-export const useEnteringPieces = (teams: readonly Team[], shows: boolean): ReadonlySet<string> => {
+// The pieces of `teams` (of `kind`, the terminals' unless said) entering in a view, while it
+// `shows` them: each for as long as its entrance plays. Without the App's TeamNews nothing
+// enters.
+export const useEnteringPieces = (
+  teams: readonly Team[],
+  shows: boolean,
+  kind: TeamKind = terminalTeams,
+): ReadonlySet<string> => {
   const news = useContext(TeamNewsContext)
   // What enters in this view, kept beside it: the layout effect below notes what it drew there
   // and the view draws what enters before that frame paints.
@@ -108,13 +124,13 @@ export const useEnteringPieces = (teams: readonly Team[], shows: boolean): Reado
   useLayoutEffect(() => {
     if (!news || !shows) return
     const now = performance.now()
-    const pieces = news.draw(teams, now, drew.current)
+    const pieces = news.draw(teams, now, drew.current, kind)
     drew.current = now
     if (!pieces.size) return
     view.update((current) => new Set([...current, ...pieces]))
     clearTimeout(timer.current)
     timer.current = setTimeout(() => view.update(() => none), enteringMs)
-  }, [news, teams, shows, view])
+  }, [news, teams, shows, view, kind])
   useEffect(() => () => clearTimeout(timer.current), [])
   return entering
 }

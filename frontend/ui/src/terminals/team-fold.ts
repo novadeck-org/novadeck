@@ -1,11 +1,9 @@
 // Teams the person folded into their leads in the Terminals list. Teammates are top-level
 // tabs like any agent's; folding is for someone who only follows the lead: it hides the
 // teammates' tabs from the list, and nothing else (Grid, Canvas, the switcher and the Inbox
-// still show them). Remembered on this computer, by session, by the lead's terminal.
-
-// Each session's folded leads, by session context (`currentContext`), most recently changed
-// session last.
-export type FoldedTeams = Readonly<Record<string, readonly string[]>>
+// still show them). Remembered on this computer, by session, by the lead's terminal. How a row
+// stands in the folds is the toolkit's (team-fold.ts), for any sidebar list with teams.
+import { type FoldedTeams } from "@novadeck/toolkit/team-fold"
 
 export const noFoldedTeams: FoldedTeams = {}
 
@@ -15,9 +13,6 @@ export const foldedTeamsStorageKey = "novadeck.folded-teams"
 // person's sessions over months don't pile up in storage.
 const rememberedSessions = 50
 
-export const isFolded = (folded: FoldedTeams, context: string, lead: string): boolean =>
-  folded[context]?.includes(lead) ?? false
-
 // Folds the lead's team, or shows it again if it was folded.
 export const toggleFolded = (folded: FoldedTeams, context: string, lead: string): FoldedTeams => {
   const leads = folded[context] ?? []
@@ -26,18 +21,6 @@ export const toggleFolded = (folded: FoldedTeams, context: string, lead: string)
   const kept = Object.entries(rest).slice(-(rememberedSessions - 1))
   return Object.fromEntries(next.length ? [...kept, [context, next]] : kept)
 }
-
-// Whether a terminal's tab folds away: one under a folded lead, at any depth (a fold covers the
-// teams its teammates lead too), unless the person is on it, or on one below it, which shows in
-// its place with the leads between (as when an Inbox entry took them there) and folds away again
-// once they move on. `above` is the leads above it, nearest first; `kept` says the person is on
-// it or below it.
-export const foldsAway = (
-  folded: FoldedTeams,
-  context: string,
-  above: readonly string[],
-  kept: boolean,
-): boolean => !kept && above.some((lead) => isFolded(folded, context, lead))
 
 const isLeads = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.length > 0 && value.every((id) => typeof id === "string")

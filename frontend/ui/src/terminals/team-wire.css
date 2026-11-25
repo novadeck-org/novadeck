@@ -144,7 +144,7 @@
 /* Folding a lead's teammates out of the list (TeamWire.tsx, app/team-fold.ts): the gutter
    beside the lead's tab takes the pointer, and pointing there shows what a click does. The
    wire reels in: its ticks pull back into the line, then the line winds up into the lead's
-   cursor, which lights and blinks as a cursor does, while the teammates' tabs dim (tabs.css).
+   cursor, which lights and blinks as a cursor does, while the teammates' tabs dim (the toolkit's team-rows.css).
    Folded, a dashed ghost of the wire runs down from the cursor beside the lead's rows for its
    teammates, a tick into each: what a click unfolds, without guessing where in the list the
    tabs come back. */
@@ -198,7 +198,7 @@
 }
 /* Past the settled wire's stillness: the armed cursor blinks however long it has rested. */
 /* A team under that lead reels in with it, the whole fold previewed: its ticks pull back, its
-   line winds up, and its lead's cursor dims with its tab (tabs.css). */
+   line winds up, and its lead's cursor dims with its tab (the toolkit's team-rows.css). */
 .team-wire-shape[data-reeling] > .team-wire-tap {
   transform: scaleX(0);
 }

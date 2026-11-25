@@ -106,6 +106,7 @@
 @import "@novadeck/chat/chat.css" layer(components);
 @import "@novadeck/requests/requests.css" layer(components);
 @import "./terminals/tabs.css" layer(components);
+@import "@novadeck/toolkit/team-rows.css" layer(components);
 @import "./terminals/team-wire.css" layer(components);
 @import "./terminals/close-team.css" layer(components);
 @import "./terminals/switcher.css" layer(components);

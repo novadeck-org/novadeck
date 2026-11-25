@@ -26,7 +26,8 @@ and a feature can't import the shell.
 - **`markdown.css` is imported just before `chat.css`**, not with the recipes above, so the
   Markdown's rules still come after the Inbox's and win their ties as they always did.
 - **A context styles a control from outside.** The sidebar item's base rules are
-  `sidebar-item.css`; what the terminal tabs or the team wire add to it stays with them.
+  `sidebar-item.css`; what the terminal tabs or the team wire add to it stays with them, but
+  for what any list's rows share in teams (`team-rows.css`, `TeamFoldRows`, `team-fold.ts`).
 
 ## Subpaths
 
