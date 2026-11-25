@@ -1,8 +1,8 @@
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { PullRequest as FoundPullRequest } from "@novadeck/forges"
 import {
-  forgeLimits,
   previewLimits,
   pullRequest as pullRequestSchema,
   workLimits,
@@ -33,6 +33,7 @@ import {
 import type { Held } from "../checkouts/repository.js"
 import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
+import { wirePullRequest } from "../forges/wire.js"
 import { logs } from "../log.js"
 import { folderOf, projectPathOf, repoPath } from "./folder.js"
 import { landedByReflog } from "./landed.js"
@@ -126,7 +127,7 @@ export type WorksOptions = {
    * The pull request of a branch in the repository at `commonDir`, where one is known; the
    * works carry it and know nothing else of where it comes from.
    */
-  readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
+  readonly pullRequest?: (commonDir: string, branch: string) => FoundPullRequest | undefined
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
@@ -397,15 +398,12 @@ export class Works {
   }
 
   /**
-   * A pull request as the wire takes it (a long title cut), or undefined where it still isn't
-   * one: a forge's odd answer must not fail every work's stream.
+   * A pull request as the wire takes it (wire.ts: its fields, a long title cut), or undefined
+   * where it still isn't one: a forge's odd answer must not fail every work's stream.
    */
-  private validPullRequest(found: PullRequest | undefined): PullRequest | undefined {
+  private validPullRequest(found: FoundPullRequest | undefined): PullRequest | undefined {
     if (found === undefined) return undefined
-    const parsed = pullRequestSchema.safeParse({
-      ...found,
-      title: found.title.slice(0, forgeLimits.title),
-    })
+    const parsed = pullRequestSchema.safeParse(wirePullRequest(found))
     if (parsed.success) return parsed.data
     log.warn("works.pull-request-invalid", "A forge's pull request does not fit the contract")
     return undefined

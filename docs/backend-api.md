@@ -1295,7 +1295,14 @@ uncommitted === 0 && unpushed === 0)`, never while its pull request is open or a
 ignores `unpushed`, as a squash merge often deletes its remote branch. Each is absent where it couldn't be
 read. Its `pullRequest` (from the forges the person switched on) carries `ci` for an open one: `failing`,
 `running`, `passed` or `none` (none ran), absent where the forge couldn't say or the pull request is
-merged or closed.
+merged or closed. Since revision 16 it also carries `base`, the branch it targets, whatever its state;
+for an open one `checks`, each check on its latest commit (`name`, and `state` of `passed`, `failed`,
+`running` or `waiting`, for a runner, an approval or an earlier job), in the forge's order, at most 100,
+absent where `ci` is or the forge listed none; and `review`: `approved`, `changes_requested`,
+`required` or `none`, absent where the forge couldn't say. libraries/forges' README says how each forge's
+terms map to these. The runner keeps more of each check than the work carries (its runner kind, since
+when), for the agents' listing (`wirePullRequest` in `backend/runner/src/forges/wire.ts` picks the
+work's fields).
 `works.fetch({ projectId })` fetches origin now in every repository the project's works are in, through the
 worktrees service's fetcher (a fetch already under way is waited for, not repeated), reads those works
 again and answers once every fetch has ended, failed or not (a failure keeps `fetchedAt`); a project with

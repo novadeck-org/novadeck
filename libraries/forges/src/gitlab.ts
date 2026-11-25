@@ -10,6 +10,7 @@ import type {
   Ran,
   Remote,
   Repository,
+  Review,
   Run,
   Token,
 } from "./forge.js"
@@ -117,7 +118,7 @@ const candidate = (item: unknown): Candidate | undefined => {
       url,
       title,
       state: draft ? "draft" : state,
-      ...(state === "open" && typeof target === "string" && target !== "" && { base: target }),
+      ...(typeof target === "string" && target !== "" && { base: target }),
     },
     at: time(mr["merged_at"]) || time(mr["closed_at"]) || time(mr["updated_at"]),
   }
@@ -140,15 +141,15 @@ const pipelines: Record<string, Ci> = {
 }
 
 // An open merge request's pipeline, which only the single-request endpoint carries
-// (`head_pipeline`, null where none ran). Absent where it can't be read: this never fails the
-// lookup, which already has the request itself.
-const ciOf = async (
+// (`head_pipeline`, null where none ran), with its jobs, and where its review stands. Absent
+// where it can't be read: this never fails the lookup, which already has the request itself.
+const detailsOf = async (
   fetch: Fetch,
   auth: Token,
   repo: Repository & { readonly forge: "gitlab" },
   base: string,
   number: number,
-): Promise<{ readonly ci: Ci; readonly checks?: readonly Check[] } | undefined> => {
+): Promise<Pick<PullRequest, "ci" | "checks" | "review"> | undefined> => {
   const answer = await send(
     fetch,
     `${base}/${number}`,
@@ -156,13 +157,47 @@ const ciOf = async (
     { signIn: signIn(repo.host) },
   )
   if (!("body" in answer)) return undefined
-  const pipeline = record(record(answer.body)?.["head_pipeline"])
-  if (pipeline === undefined) return { ci: "none" }
-  const status = pipeline["status"]
+  const mr = record(answer.body)
+  const pipeline = record(mr?.["head_pipeline"])
+  const status = pipeline?.["status"]
   const ci = (typeof status === "string" ? pipelines[status] : undefined) ?? "none"
-  if (ci !== "running" || typeof pipeline["id"] !== "number") return { ci }
-  const checks = await checksOf(fetch, auth, repo, pipeline["id"])
-  return { ci, ...(checks && checks.length > 0 && { checks }) }
+  const id = pipeline?.["id"]
+  const [checks, review] = await Promise.all([
+    typeof id === "number" ? checksOf(fetch, auth, repo, id) : undefined,
+    reviewOf(fetch, auth, base, repo, number, mr?.["detailed_merge_status"]),
+  ])
+  return {
+    ci,
+    ...(checks && checks.length > 0 && { checks }),
+    ...(review !== undefined && { review }),
+  }
+}
+
+// Where an open merge request's review stands: a reviewer's request for changes, as its merge
+// status says (GitLab 17.1 and later), outranks approvals; then the approvals it still needs, as
+// its approval rules count them (none on GitLab Free), and those it has. Where the approvals
+// can't be read, only a merge status of `not_approved` says anything.
+const reviewOf = async (
+  fetch: Fetch,
+  auth: Token,
+  base: string,
+  repo: Repository & { readonly forge: "gitlab" },
+  number: number,
+  status: unknown,
+): Promise<Review | undefined> => {
+  if (status === "requested_changes") return "changes_requested"
+  const answer = await send(
+    fetch,
+    `${base}/${number}/approvals`,
+    { headers: headers(auth.value) },
+    { signIn: signIn(repo.host) },
+  )
+  const approvals = "body" in answer ? record(answer.body) : undefined
+  if (approvals === undefined) return status === "not_approved" ? "required" : undefined
+  const left = approvals["approvals_left"]
+  if ((typeof left === "number" && left > 0) || status === "not_approved") return "required"
+  const by = approvals["approved_by"]
+  return Array.isArray(by) && by.length > 0 ? "approved" : "none"
 }
 
 // When a pending job was queued: the Jobs API has no `queued_at`, only `queued_duration`, the
@@ -174,9 +209,34 @@ const queuedSince = (job: Record<string, unknown>): number => {
   return time(job["created_at"])
 }
 
-// A pipeline's jobs waiting for a runner or running, with the tags that say what kind of runner
-// each needs; a job still `created` waits on an earlier stage, not on a runner. Never fails the
-// lookup.
+// A job's status (https://docs.gitlab.com/api/jobs/), as a check: a job `created` or
+// `scheduled` waits on an earlier one, or a timer, not on a runner; one waiting for a resource
+// waits on its resource group's earlier job. `preparing` has a runner, readying it. Manual and
+// skipped jobs ran nothing and aren't listed, nor are ones waiting on an outside callback.
+const jobStates: Record<string, { readonly state: Check["state"]; readonly hold?: Check["hold"] }> =
+  {
+    success: { state: "passed" },
+    failed: { state: "failed" },
+    canceled: { state: "failed" },
+    canceling: { state: "failed" },
+    running: { state: "running" },
+    preparing: { state: "running" },
+    pending: { state: "queued" },
+    waiting_for_resource: { state: "held", hold: "concurrency" },
+    created: { state: "held", hold: "earlier" },
+    scheduled: { state: "held", hold: "earlier" },
+  }
+
+// A job's place in its pipeline: the API lists the newest job first.
+const order = (job: Record<string, unknown>): number =>
+  typeof job["id"] === "number" ? job["id"] : 0
+
+/** How many of a pipeline's jobs are asked. */
+const jobsAsked = 100
+
+// A pipeline's latest jobs (not those retried since), first to last, with the tags that say
+// what kind of runner each needs. A failed job allowed to fail passes, as its pipeline counts
+// it. Never fails the lookup.
 const checksOf = async (
   fetch: Fetch,
   auth: Token,
@@ -185,30 +245,40 @@ const checksOf = async (
 ): Promise<Check[] | undefined> => {
   const answer = await send(
     fetch,
-    `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/pipelines/${pipeline}/jobs?scope[]=pending&scope[]=running&per_page=100`,
+    `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/pipelines/${pipeline}/jobs?per_page=${jobsAsked}`,
     { headers: headers(auth.value) },
     { signIn: signIn(repo.host) },
   )
   if (!("body" in answer) || !Array.isArray(answer.body)) return undefined
-  return answer.body.flatMap((item): Check[] => {
+  const jobs = answer.body.flatMap((item) => {
     const job = record(item)
-    const name = job?.["name"]
-    if (job === undefined || typeof name !== "string") return []
-    const running = job["status"] === "running"
-    if (!running && job["status"] !== "pending") return []
-    const at = running ? time(job["started_at"]) : queuedSince(job)
-    const tags = Array.isArray(job["tag_list"])
-      ? job["tag_list"].filter((tag): tag is string => typeof tag === "string")
-      : []
-    return [
-      {
-        name,
-        state: running ? "running" : "queued",
-        ...(at > 0 && { since: at }),
-        ...(tags.length > 0 && { runner: tags.join(" ") }),
-      },
-    ]
+    return job === undefined ? [] : [job]
   })
+  return jobs
+    .toSorted((one, other) => order(one) - order(other))
+    .flatMap((job): Check[] => {
+      const name = job["name"]
+      const known = jobStates[String(job["status"])]
+      if (typeof name !== "string" || known === undefined) return []
+      if (known.state === "failed" && job["status"] === "failed" && job["allow_failure"] === true)
+        return [{ name, state: "passed" }]
+      if (known.state === "passed" || known.state === "failed")
+        return [{ name, state: known.state }]
+      if (known.state === "held") return [{ name, state: "held", hold: known.hold }]
+      const running = known.state === "running"
+      const at = running ? time(job["started_at"]) : queuedSince(job)
+      const tags = Array.isArray(job["tag_list"])
+        ? job["tag_list"].filter((tag): tag is string => typeof tag === "string")
+        : []
+      return [
+        {
+          name,
+          state: known.state,
+          ...(at > 0 && { since: at }),
+          ...(tags.length > 0 && { runner: tags.join(" ") }),
+        },
+      ]
+    })
 }
 
 const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) => {
@@ -232,15 +302,15 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
     const pull = choose(answer.body.flatMap((item) => candidate(item) ?? []))
     if (pull !== undefined) found.set(branch, pull)
   }
-  // One more request for each open one.
+  // A few more requests for each open one: itself, its pipeline's jobs and its approvals.
   const open = [...found].filter(([, pull]) => pull.state === "open" || pull.state === "draft")
-  const cis = await pooled(open, async ([branch, pull]) => ({
+  const details = await pooled(open, async ([branch, pull]) => ({
     branch,
     pull,
-    ci: await ciOf(fetch, auth, repo, base, pull.number),
+    more: await detailsOf(fetch, auth, repo, base, pull.number),
   }))
-  for (const { branch, pull, ci } of cis)
-    if (ci !== undefined) found.set(branch, { ...pull, ...ci })
+  for (const { branch, pull, more } of details)
+    if (more !== undefined) found.set(branch, { ...pull, ...more })
   return found
 }
 

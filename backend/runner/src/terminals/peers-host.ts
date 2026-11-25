@@ -1,12 +1,8 @@
 import { existsSync } from "node:fs"
 import { basename, isAbsolute, relative } from "node:path"
 
-import type {
-  CompanionItem,
-  PullRequest,
-  TerminalMessages,
-  TerminalRings,
-} from "@novadeck/protocol"
+import type { PullRequest } from "@novadeck/forges"
+import type { CompanionItem, TerminalMessages, TerminalRings } from "@novadeck/protocol"
 
 import { keysOfBranch } from "../checkouts/home.js"
 import { planTitle } from "../companions/content.js"

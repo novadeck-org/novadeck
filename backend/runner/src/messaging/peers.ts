@@ -1,12 +1,7 @@
 import { basename, isAbsolute, relative } from "node:path"
 
-import type {
-  AgentActivity,
-  AgentName,
-  CompanionItem,
-  PullRequest,
-  StartupScreen,
-} from "@novadeck/protocol"
+import type { PullRequest } from "@novadeck/forges"
+import type { AgentActivity, AgentName, CompanionItem, StartupScreen } from "@novadeck/protocol"
 import { redact } from "@novadeck/secrets"
 
 import { isLoopback } from "../config.js"

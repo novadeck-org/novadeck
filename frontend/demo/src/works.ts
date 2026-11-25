@@ -1,4 +1,4 @@
-import type { PullRequest } from "@novadeck/core/forges"
+import type { PullRequest, PullRequestCheck } from "@novadeck/core/forges"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type Store } from "@novadeck/core/store"
@@ -77,12 +77,13 @@ export type WorkPlan = {
   readonly conflicts?: readonly string[]
   // The owner's agent is mid-turn in it, so its trash button waits.
   readonly working?: true
-  // Its pull request on the forge, as the row's mark shows it, and how its checks stand where
-  // it is open (none ran when left out).
+  // Its pull request on the forge, as the row's mark shows it, and how its checks and review
+  // stand where it is open (none ran, and none asked for, when left out).
   readonly pullRequest?: {
     readonly number: number
     readonly state: PullRequest["state"]
     readonly ci?: PullRequest["ci"]
+    readonly review?: PullRequest["review"]
   }
   // How many paths hold changes not committed: as many as the plan has files, or none for a
   // merged one, when left out.
@@ -91,20 +92,54 @@ export type WorkPlan = {
   readonly unpushed?: number
 }
 
-// A pull request of the demo's: its page is on the forge's host, which no one opens.
-// Only an open one (or a draft) has checks: none ran when `ci` is left out.
+// The checks of a demo pull request whose checks stand so, one by one: the same four pipelines,
+// each as far along as `ci` says.
+const demoChecks: Readonly<
+  Record<NonNullable<PullRequest["ci"]>, readonly PullRequestCheck[] | undefined>
+> = {
+  none: undefined,
+  passed: [
+    { name: "lint", state: "passed" },
+    { name: "typecheck", state: "passed" },
+    { name: "test (linux)", state: "passed" },
+    { name: "test (macos)", state: "passed" },
+  ],
+  running: [
+    { name: "lint", state: "passed" },
+    { name: "typecheck", state: "passed" },
+    { name: "test (linux)", state: "running" },
+    { name: "test (macos)", state: "waiting" },
+  ],
+  failing: [
+    { name: "lint", state: "passed" },
+    { name: "typecheck", state: "passed" },
+    { name: "test (linux)", state: "failed" },
+    { name: "test (macos)", state: "passed" },
+  ],
+}
+
+// A pull request of the demo's: its page is on the forge's host, which no one opens. It
+// targets main. Only an open one (or a draft) has checks and a review: none ran when `ci` is
+// left out, and none was asked for when `review` is.
 export const demoPullRequest = (
   number: number,
   state: PullRequest["state"],
   title = `Change ${number}`,
   ci: NonNullable<PullRequest["ci"]> = "none",
-): PullRequest => ({
-  number,
-  state,
-  title,
-  url: `https://github.com/novadeck-demo/storefront/pull/${number}`,
-  ...((state === "open" || state === "draft") && { ci }),
-})
+  review: NonNullable<PullRequest["review"]> = "none",
+): PullRequest => {
+  const open = state === "open" || state === "draft"
+  const checks = open ? demoChecks[ci] : undefined
+  return {
+    number,
+    state,
+    title,
+    url: `https://github.com/novadeck-demo/storefront/pull/${number}`,
+    base: "main",
+    ...(open && { ci, review }),
+    ...(checks && { checks }),
+  }
+}
 
 // Whether closing a work leaves nothing that lives only there, by the runner's rule: merged with
 // nothing uncommitted, or its pull request closed with nothing uncommitted or unpushed; never
@@ -244,6 +279,7 @@ export const worksFromPlans = (
               plan.pullRequest.state,
               undefined,
               plan.pullRequest.ci,
+              plan.pullRequest.review,
             ),
           }),
         },
@@ -416,6 +452,8 @@ export type DemoWorksControl = {
   // The work's pull request has its checks in this state (an open one made where it had none
   // or was done).
   readonly setCi: (root: string, ci: NonNullable<PullRequest["ci"]>) => void
+  // The work's pull request's review stands so (an open one made where it had none or was done).
+  readonly setReview: (root: string, review: NonNullable<PullRequest["review"]>) => void
   // The terminal's worktree holds `count` uncommitted paths, whatever else it is.
   readonly setUncommitted: (at: Placed, count: number) => void
   // The terminal's worktree belongs on the branch `home` (not main), or on main again.
@@ -754,6 +792,7 @@ export const createDemoWorks = (
             pullState,
             pullRequest?.title,
             pullRequest?.ci,
+            pullRequest?.review,
           ),
         }),
       })),
@@ -765,6 +804,18 @@ export const createDemoWorks = (
           pullRequest?.state === "draft" ? "draft" : "open",
           pullRequest?.title,
           ci,
+          pullRequest?.review,
+        ),
+      })),
+    setReview: (root, review) =>
+      change(root, ({ pullRequest, ...work }) => ({
+        ...work,
+        pullRequest: demoPullRequest(
+          pullRequest?.number ?? 812,
+          pullRequest?.state === "draft" ? "draft" : "open",
+          pullRequest?.title,
+          pullRequest?.ci,
+          review,
         ),
       })),
     setUncommitted: (at, count) => {

@@ -12,7 +12,8 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { PullRequest, Work, WorkMade } from "@novadeck/protocol"
+import type { PullRequest } from "@novadeck/forges"
+import type { Work, WorkMade } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { timing } from "../checkouts/git.js"
@@ -2234,6 +2235,38 @@ describe.skipIf(!hasGit)("the pull request of a work", () => {
     ])
   })
 
+  it("carries an open pull request's target, checks and review in the contract's words", async ({
+    fixture,
+    resources,
+  }) => {
+    // Every open pull request a forge finds names its target and the runner kinds of its
+    // unfinished checks, which the contract doesn't carry: the work keeps its pull request.
+    const works = withLookup(fixture.main.root, () => ({
+      ...request,
+      ci: "running",
+      base: "main",
+      checks: [
+        { name: "lint", state: "passed" },
+        { name: "mac", state: "queued", since: 1, runner: "macos-latest" },
+        { name: "deploy", state: "held", hold: "approval" },
+      ],
+      review: "required",
+    }))
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(fixture.main.root)?.pullRequest).toEqual({
+      ...request,
+      ci: "running",
+      base: "main",
+      checks: [
+        { name: "lint", state: "passed" },
+        { name: "mac", state: "waiting" },
+        { name: "deploy", state: "waiting" },
+      ],
+      review: "required",
+    })
+  })
+
   it("is left out of a work the lookup knows none for", async ({ fixture, resources }) => {
     const works = withLookup(fixture.main.root, () => undefined)
     resources.defer(() => works.close())
@@ -2265,7 +2298,7 @@ describe.skipIf(!hasGit)("the pull request of a work", () => {
     resources.defer(() => works.close())
     const stop = new AbortController()
     resources.defer(() => stop.abort())
-    const seen: (PullRequest | undefined)[] = []
+    const seen: (Work["pullRequest"] | undefined)[] = []
     for await (const change of works.watch("owner", stop.signal)) {
       if (change.type === "synced") known = request
       if (change.type === "changed") seen.push(change.work.pullRequest)

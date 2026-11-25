@@ -71,28 +71,46 @@ export type PullRequest = {
   // How its checks stand on its latest commit, for an open one. Absent where the forge couldn't
   // say (a token that can't read checks, a read that failed), and on a merged or closed one.
   readonly ci?: Ci | undefined
-  // The branch it targets, where the forge says (a stacked pull request targets another's branch).
+  // The branch it targets (a stacked pull request targets another's branch), whatever its state,
+  // where the forge says.
   readonly base?: string | undefined
-  // The checks of an open one that have not finished, where the forge could list them; absent
-  // where it couldn't, which says nothing of whether any run.
+  // The checks of an open one on its latest commit, finished or not, in the forge's order, where
+  // the forge could list them; absent where it couldn't, which says nothing of whether any ran.
+  // A check that was skipped, or waits for a person to start it by hand, is not one.
   readonly checks?: readonly Check[] | undefined
+  // Where its review stands, for an open one, where the forge could say.
+  readonly review?: Review | undefined
 }
 
 /**
- * A check that has not finished: waiting for a runner (`queued`), running, or `held` by
- * something other than a runner shortage (`hold` says what: an environment's approval, or a
- * concurrency group's earlier run). `since` is when it was queued or started, epoch
- * milliseconds, where the forge says. `runner` names the kind of runner it needs or holds
- * (GitHub's `runs-on` labels, GitLab's job tags, Azure's agent pool), where the forge says; a
- * forge that can't leaves it out.
+ * One check on a pull request's latest commit: `passed` or `failed` once finished (cancelled,
+ * timed out or errored is failed; neutral, or a failure allowed to fail, is passed); before
+ * that, waiting for a runner (`queued`), running, or `held` by something other than a runner
+ * shortage (`hold` says what: an environment's approval, a concurrency group's earlier run, or
+ * an earlier job or stage of its own pipeline). `since` is when an unfinished one was queued or
+ * started, epoch milliseconds, where the forge says. `runner` names the kind of runner an
+ * unfinished one needs or holds (GitHub's `runs-on` labels, GitLab's job tags, Azure's agent
+ * pool), where the forge says; a forge that can't leaves it out.
  */
 export type Check = {
   readonly name: string
-  readonly state: "queued" | "running" | "held"
-  readonly hold?: "approval" | "concurrency" | undefined
+  readonly state: "queued" | "running" | "held" | "passed" | "failed"
+  readonly hold?: "approval" | "concurrency" | "earlier" | undefined
   readonly since?: number | undefined
   readonly runner?: string | undefined
 }
+
+/** Whether a check has yet to finish. */
+export const unfinished = (check: Check): boolean =>
+  check.state === "queued" || check.state === "running" || check.state === "held"
+
+/**
+ * Where a pull request's review stands: `approved` (as many approvals as it needs, or at least
+ * one where none is required), `changes_requested` (a reviewer asked for changes, which outranks
+ * approvals), `required` (it needs an approval it doesn't have), or `none` (no review asked for
+ * and none given).
+ */
+export type Review = "approved" | "changes_requested" | "required" | "none"
 
 /** How a pull request's checks stand: one failed, any still running, all passed, or none ran. */
 export type Ci = "failing" | "running" | "passed" | "none"

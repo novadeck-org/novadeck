@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import type { PullRequest } from "@novadeck/forges"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { AgentName, PullRequest, TerminalSummary } from "@novadeck/protocol"
+import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
 import { apply, started, summary as activitySummary, type Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"

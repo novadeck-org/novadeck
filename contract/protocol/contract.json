@@ -1,5 +1,5 @@
 {
-  "revision": 15,
+  "revision": 16,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -5143,7 +5143,30 @@
                       "url": {"type":"string","maxLength":2048,"format":"uri"},
                       "title": {"type":"string","maxLength":512},
                       "state": {"type":"string","enum":["draft","open","merged","closed"]},
-                      "ci": {"type":"string","enum":["failing","running","passed","none"]}
+                      "ci": {"type":"string","enum":["failing","running","passed","none"]},
+                      "base": {"type":"string","minLength":1,"maxLength":256},
+                      "checks": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {"type":"string","minLength":1,"maxLength":256},
+                            "state": {
+                              "type": "string",
+                              "enum": ["passed","failed","running","waiting"],
+                              "x-open": {"since":16,"unknown":"drop"}
+                            }
+                          },
+                          "required": ["name","state"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "review": {
+                        "type": "string",
+                        "enum": ["approved","changes_requested","required","none"],
+                        "x-open": {"since":16,"unknown":{"fallback":"none"}}
+                      }
                     },
                     "required": ["number","url","title","state"],
                     "additionalProperties": false

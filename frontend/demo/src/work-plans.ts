@@ -30,7 +30,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     project: "storefront",
     terminal: "Tests",
     minutesAgo: 38,
-    pullRequest: { number: 814, state: "open", ci: "failing" },
+    pullRequest: { number: 814, state: "open", ci: "failing", review: "changes_requested" },
     unpushed: 1,
     conflicts: ["Checkout implementation"],
     files: [
@@ -43,7 +43,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Checkout review",
     minutesAgo: 140,
     working: true,
-    pullRequest: { number: 816, state: "open", ci: "running" },
+    pullRequest: { number: 816, state: "open", ci: "running", review: "required" },
     files: [file("src/checkout/Checkout.tsx", 6, 2, { read: true })],
   },
   {
@@ -51,7 +51,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Build",
     minutesAgo: 300,
     fetchedMinutesAgo: 47,
-    pullRequest: { number: 818, state: "open", ci: "passed" },
+    pullRequest: { number: 818, state: "open", ci: "passed", review: "approved" },
     uncommitted: 0,
     files: [
       file("vite.config.ts", 9, 3, { read: true }),

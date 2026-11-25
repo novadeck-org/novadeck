@@ -1,5 +1,4 @@
-import type { Check } from "@novadeck/forges"
-import type { PullRequest } from "@novadeck/protocol"
+import type { Check, PullRequest } from "@novadeck/forges"
 
 import { mention } from "../terminals/handles.js"
 import { quotedText } from "../terminals/troubles.js"
@@ -10,13 +9,8 @@ import type { Peer, Whereabouts } from "./peers.js"
 // checks and the kind of runner each needs or holds, whose work is based on whose, and what an
 // agent says its own waits on. Nothing here says what anyone should do.
 
-/** A branch's pull request with what a forge told of its base branch and unfinished checks. */
-export type CiPullRequest = PullRequest & {
-  /** The branch it targets, where the forge says. */
-  readonly base?: string | undefined
-  /** Its checks that have not finished, where the forge could list them. */
-  readonly checks?: readonly Check[] | undefined
-}
+/** A branch's pull request with what a forge told of its base branch and checks. */
+export type CiPullRequest = PullRequest
 
 /** Whose work is based on another terminal's, and how it is known. */
 export type Stack = {
@@ -51,12 +45,24 @@ export type Pull = {
   readonly checks: readonly Check[]
 }
 
+/**
+ * Whether a check holds or waits for a runner, or is held by an approval or a concurrency group:
+ * one finished, or waiting on an earlier job of its own pipeline, is nothing to settle with others.
+ */
+const pending = (check: Check): boolean =>
+  check.state === "queued" ||
+  check.state === "running" ||
+  (check.state === "held" && check.hold !== "earlier")
+
 /** The pull requests with unfinished checks among a terminal's worktrees. */
 export const pullsOf = (
-  worktrees: readonly { readonly branch: string; readonly pullRequest?: PullRequest | undefined }[],
+  worktrees: readonly {
+    readonly branch: string
+    readonly pullRequest?: CiPullRequest | undefined
+  }[],
 ): Pull[] =>
   worktrees.flatMap(({ branch, pullRequest }) => {
-    const checks = (pullRequest as CiPullRequest | undefined)?.checks ?? []
+    const checks = (pullRequest?.checks ?? []).filter(pending)
     return pullRequest && checks.length > 0 ? [{ number: pullRequest.number, branch, checks }] : []
   })
 

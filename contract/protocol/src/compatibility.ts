@@ -42,7 +42,9 @@ export const compatibility: Compatibility = {
   // (`agents.watch`, an agent's `lost`).
   // 15: pi, an agent the UI may name in an input (a resume, Preferences), marked since 15
   // (`inputEnum`), so a runner at 14 stays in the window and a UI asks for it only of a runner at 15.
-  revision: 15,
+  // 16: a work's pull request says its target branch, its checks one by one and where its review
+  // stands (`base`, `checks`, `review`), the checks' state and the review read tolerantly.
+  revision: 16,
   oldestClient: 11,
   oldestRunner: 12,
 }

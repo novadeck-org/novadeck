@@ -10,8 +10,10 @@ export {
   type Ran,
   type Remote,
   type Repository,
+  type Review,
   type Run,
   type Token,
+  unfinished,
 } from "./forge.js"
 export { parseRemote } from "./remote.js"
 export { github } from "./github.js"

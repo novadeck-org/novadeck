@@ -28,13 +28,33 @@ runs wherever those can, and tests script them. Pure JavaScript, for Node and th
     --show-token` where a keyring login leaves the config's token empty; `az account
     get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798`.
   - `pullRequests(fetch, token, repository, branches)`: a map of branch to `PullRequest`
-    (`number`, `url`, `title`, `state` of `draft`, `open`, `merged` or `closed`). GitHub asks one
+    (`number`, `url`, `title`, `state` of `draft`, `open`, `merged` or `closed`; `base`, the
+    branch it targets, whatever its state; and for an open one `ci`, how its checks stand,
+    `checks`, each check on its latest commit, and `review`, where its review stands). GitHub asks one
     GraphQL query per repository, an aliased `pullRequests(headRefName:)` for each branch (forty
     to a query); GitLab and Azure DevOps ask their REST list once per branch. A branch with
     several pull requests answers its open one, else the latest merged, else the latest closed. A
     pull request from a fork is never taken for the repository's own, though its branch has the
     same name. A branch with none is not in the map, and a repository the token can't see answers
     an empty map.
+    - `checks`: each a `Check` (`name`, `state` of `passed`, `failed`, `queued`, `running` or
+      `held`, with `hold` of `approval`, `concurrency` or `earlier`; `since` and `runner` on an
+      unfinished one where the forge says; `unfinished(check)` tells the last three apart).
+      GitHub: the head commit's check runs and statuses (100 at most), in the rollup's order,
+      neutral passing, cancelled, timed out and the like failing, skipped ones left out; the
+      runner labels come from the Actions REST API, asked only while a check is queued or
+      running. GitLab: the head pipeline's latest jobs (100 at most), first to last, a failure
+      allowed to fail passing, manual and skipped jobs left out. Azure DevOps: the newest build
+      of each pipeline on the pull request's merge ref (100 builds asked), then each status
+      context's newest post (as `genre/name`). Absent where `ci` couldn't be read.
+    - `review`: `approved`, `changes_requested`, `required` or `none`. GitHub: its
+      `reviewDecision` where a branch rule requires reviews, else each reviewer's latest
+      approving or change-requesting review. GitLab: a merge status of `requested_changes`
+      (GitLab 17.1 and later), then the approvals endpoint's `approvals_left` and `approved_by`
+      (no approval rules on GitLab Free, so `required` there only by merge status). Azure
+      DevOps: the reviewers' votes (a rejection or a wait for the author is
+      `changes_requested`; a required reviewer without a vote, or a blocking minimum number of
+      reviewers policy not yet met, is `required`).
   - `signIn(host)`: the command the person runs to sign the tool in.
 - `repositoryOf(remote, signedIn, among)`: the repository a remote names among the forges given,
   trying hosts a forge is known by before hosts it is merely signed in to.

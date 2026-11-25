@@ -159,6 +159,8 @@ export {
   forgeNameRead,
   type PullRequest,
   pullRequest,
+  type PullRequestCheck,
+  pullRequestCheck,
 } from "./forges.js"
 export {
   dialogTextLimits,

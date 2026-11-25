@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   checksLine,
+  type CiPullRequest,
   coordinationLines,
   partiesOf,
   pullsOf,
@@ -134,6 +135,48 @@ describe("a terminal's checks line", () => {
     expect(pullsOf([{ branch: "b", pullRequest }, { branch: "c" }])).toEqual([
       { number: 3, branch: "b", checks: pullRequest.checks },
     ])
+  })
+
+  it("takes only the checks a runner, an approval or a concurrency group holds", () => {
+    const withChecks = (checks: CiPullRequest["checks"]): CiPullRequest => ({
+      number: 4,
+      url: "https://example.com/4",
+      title: "T",
+      state: "open",
+      ci: "running",
+      checks,
+    })
+    const holding = [
+      { name: "mac", state: "queued" as const },
+      { name: "linux", state: "running" as const },
+      { name: "deploy", state: "held" as const, hold: "approval" as const },
+      { name: "build", state: "held" as const, hold: "concurrency" as const },
+    ]
+    expect(
+      pullsOf([
+        {
+          branch: "b",
+          pullRequest: withChecks([
+            { name: "lint", state: "passed" },
+            { name: "unit", state: "failed" },
+            ...holding,
+            { name: "later", state: "held", hold: "earlier" },
+          ]),
+        },
+      ]),
+    ).toEqual([{ number: 4, branch: "b", checks: holding }])
+    // A pull request whose checks all finished, or wait only on earlier ones, holds nothing.
+    expect(
+      pullsOf([
+        {
+          branch: "c",
+          pullRequest: withChecks([
+            { name: "lint", state: "passed" },
+            { name: "later", state: "held", hold: "earlier" },
+          ]),
+        },
+      ]),
+    ).toEqual([])
   })
 })
 

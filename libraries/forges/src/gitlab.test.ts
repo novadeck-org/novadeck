@@ -7,7 +7,12 @@ import type { Repository } from "./forge.js"
 import { gitlab } from "./gitlab.js"
 import { parseRemote } from "./remote.js"
 
-const server = setupServer()
+// A merge request's approvals, which every open one's lookup asks: by default none needed or given.
+const server = setupServer(
+  http.get("https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/merge_requests/:iid/approvals", () =>
+    HttpResponse.json({ approvals_required: 0, approvals_left: 0, approved_by: [] }),
+  ),
+)
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
@@ -353,6 +358,110 @@ describe("gitlab unfinished checks", () => {
         runner: "macos arm",
       },
       { name: "old", state: "queued", since: Date.parse("2026-01-01T09:30:00Z") },
+      { name: "later", state: "held", hold: "earlier" },
     ])
+  })
+})
+
+describe("gitlab merge request facts", () => {
+  const jobs = "https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/9/jobs"
+  it("lists every job of the head pipeline, first to last, finished or not", async () => {
+    server.use(
+      byBranch({ a: [mr(1, "opened", { target_branch: "main" })] }),
+      http.get(`${url}/1`, () => HttpResponse.json({ head_pipeline: { id: 9, status: "failed" } })),
+      // The API lists the newest job first.
+      http.get(jobs, () =>
+        HttpResponse.json([
+          { id: 8, name: "deploy", status: "manual" },
+          { id: 7, name: "docs", status: "skipped" },
+          { id: 6, name: "wait", status: "waiting_for_resource" },
+          { id: 5, name: "e2e", status: "canceled" },
+          { id: 4, name: "flaky", status: "failed", allow_failure: true },
+          { id: 3, name: "unit", status: "failed", allow_failure: false },
+          { id: 2, name: "lint", status: "success" },
+          { id: 1, name: "build", status: "success" },
+        ]),
+      ),
+    )
+    const found = mapOf(await gitlab.pullRequests(fetch, token, repo, ["a"])).get("a")
+    expect(found?.ci).toBe("failing")
+    expect(found?.checks).toEqual([
+      { name: "build", state: "passed" },
+      { name: "lint", state: "passed" },
+      { name: "unit", state: "failed" },
+      { name: "flaky", state: "passed" },
+      { name: "e2e", state: "failed" },
+      { name: "wait", state: "held", hold: "concurrency" },
+    ])
+  })
+
+  it("keeps the target branch of a merged or closed merge request", async () => {
+    server.use(
+      byBranch({
+        m: [mr(1, "merged", { merged_at: "2026-01-01T00:00:00Z", target_branch: "feature" })],
+        c: [mr(2, "closed", { closed_at: "2026-01-01T00:00:00Z", target_branch: "main" })],
+      }),
+    )
+    const found = mapOf(await gitlab.pullRequests(fetch, token, repo, ["m", "c"]))
+    expect(found.get("m")).toMatchObject({ state: "merged", base: "feature" })
+    expect(found.get("c")).toMatchObject({ state: "closed", base: "main" })
+    expect(found.get("m")).not.toHaveProperty("review")
+  })
+
+  describe("review", () => {
+    const reviews = async (
+      cases: Record<string, { status?: string; approvals?: Record<string, unknown> | 403 }>,
+    ) => {
+      const branches = Object.keys(cases)
+      server.use(
+        byBranch(
+          Object.fromEntries(branches.map((branch, at) => [branch, [mr(at + 1, "opened")]])),
+        ),
+        ...branches.flatMap((branch, at) => {
+          const { status, approvals } = cases[branch]!
+          return [
+            http.get(`${url}/${at + 1}`, () =>
+              HttpResponse.json({
+                head_pipeline: null,
+                ...(status !== undefined && { detailed_merge_status: status }),
+              }),
+            ),
+            ...(approvals === undefined
+              ? []
+              : [
+                  http.get(`${url}/${at + 1}/approvals`, () =>
+                    approvals === 403
+                      ? new HttpResponse("{}", { status: 403 })
+                      : HttpResponse.json(approvals),
+                  ),
+                ]),
+          ]
+        }),
+      )
+      const map = mapOf(await gitlab.pullRequests(fetch, token, repo, branches))
+      return Object.fromEntries([...map].map(([branch, one]) => [branch, one.review]))
+    }
+    const approved = { approved_by: [{ user: { username: "x" } }] }
+    it("reads requested changes, approvals still needed, and approvals given", async () => {
+      expect(
+        await reviews({
+          a: { status: "requested_changes", approvals: { approvals_left: 0, ...approved } },
+          b: { status: "not_approved", approvals: { approvals_left: 1, approved_by: [] } },
+          c: { status: "mergeable", approvals: { approvals_left: 1, ...approved } },
+          d: { status: "mergeable", approvals: { approvals_left: 0, ...approved } },
+          e: { status: "mergeable", approvals: { approved_by: [] } },
+          f: { status: "not_approved", approvals: 403 },
+          g: { status: "mergeable", approvals: 403 },
+        }),
+      ).toEqual({
+        a: "changes_requested",
+        b: "required",
+        c: "required",
+        d: "approved",
+        e: "none",
+        f: "required",
+        g: undefined,
+      })
+    })
   })
 })

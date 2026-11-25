@@ -335,7 +335,8 @@ describe("github", () => {
         }),
       )
       await github.pullRequests(fetch, token, repo, ["a"])
-      expect(sent).toContain("statusCheckRollup { state contexts(first: 50)")
+      expect(sent).toContain("statusCheckRollup { state contexts(first: 100)")
+      expect(sent).toContain("reviewDecision latestOpinionatedReviews(first: 20)")
     })
     it("leaves ci absent where the answer says the checks could not be read", async () => {
       server.use(
@@ -591,5 +592,175 @@ describe("github unfinished checks", () => {
       { name: "deploy", state: "held", hold: "approval" },
       { name: "build", state: "held", hold: "concurrency" },
     ])
+  })
+})
+
+describe("github pull request facts", () => {
+  afterEach(() => forgetJobs())
+  const head = (state: string, nodes: unknown[]) => ({
+    commits: {
+      nodes: [{ commit: { oid: "abc", statusCheckRollup: { state, contexts: { nodes } } } }],
+    },
+  })
+  const find = async () => mapOf(await github.pullRequests(fetch, token, repo, ["a"])).get("a")
+
+  it("lists finished checks as passed or failed, and leaves skipped ones out", async () => {
+    let asked = false
+    server.use(
+      answer({
+        a: [
+          pr(
+            1,
+            "OPEN",
+            head("FAILURE", [
+              { __typename: "CheckRun", name: "lint", status: "COMPLETED", conclusion: "SUCCESS" },
+              { __typename: "CheckRun", name: "docs", status: "COMPLETED", conclusion: "NEUTRAL" },
+              { __typename: "CheckRun", name: "mac", status: "COMPLETED", conclusion: "SKIPPED" },
+              { __typename: "CheckRun", name: "unit", status: "COMPLETED", conclusion: "FAILURE" },
+              { __typename: "CheckRun", name: "e2e", status: "COMPLETED", conclusion: "CANCELLED" },
+              {
+                __typename: "CheckRun",
+                name: "slow",
+                status: "COMPLETED",
+                conclusion: "TIMED_OUT",
+              },
+              { __typename: "StatusContext", context: "ci/ext", state: "SUCCESS" },
+              { __typename: "StatusContext", context: "ci/bad", state: "ERROR" },
+            ]),
+          ),
+        ],
+      }),
+      http.get("https://api.github.com/repos/o/r/actions/runs", () => {
+        asked = true
+        return HttpResponse.json({ workflow_runs: [] })
+      }),
+    )
+    const found = await find()
+    expect(found?.ci).toBe("failing")
+    expect(found?.checks).toEqual([
+      { name: "lint", state: "passed" },
+      { name: "docs", state: "passed" },
+      { name: "unit", state: "failed" },
+      { name: "e2e", state: "failed" },
+      { name: "slow", state: "failed" },
+      { name: "ci/ext", state: "passed" },
+      { name: "ci/bad", state: "failed" },
+    ])
+    // Nothing left to run, so no runner is asked of.
+    expect(asked).toBe(false)
+  })
+
+  it("lists finished checks beside unfinished ones, asking runners only of the unfinished", async () => {
+    server.use(
+      answer({
+        a: [
+          pr(
+            1,
+            "OPEN",
+            head("PENDING", [
+              { __typename: "CheckRun", name: "lint", status: "COMPLETED", conclusion: "SUCCESS" },
+              { __typename: "CheckRun", name: "unit", status: "IN_PROGRESS" },
+            ]),
+          ),
+        ],
+      }),
+      http.get("https://api.github.com/repos/o/r/actions/runs", () =>
+        HttpResponse.json({ workflow_runs: [{ id: 77, status: "in_progress" }] }),
+      ),
+      http.get("https://api.github.com/repos/o/r/actions/runs/77/jobs", () =>
+        HttpResponse.json({
+          jobs: [
+            { name: "unit", status: "in_progress", labels: ["ubuntu-latest"] },
+            { name: "lint", status: "completed", labels: ["ubuntu-latest"] },
+          ],
+        }),
+      ),
+    )
+    expect((await find())?.checks).toEqual([
+      { name: "lint", state: "passed" },
+      { name: "unit", state: "running", runner: "ubuntu-latest" },
+    ])
+  })
+
+  it("lists no checks where the rollup couldn't be read", async () => {
+    server.use(
+      http.post("https://api.github.com/graphql", () =>
+        HttpResponse.json({
+          data: {
+            repository: {
+              p0: {
+                nodes: [
+                  pr(1, "OPEN", {
+                    commits: { nodes: [{ commit: { oid: "abc", statusCheckRollup: null } }] },
+                  }),
+                ],
+              },
+            },
+          },
+          errors: [
+            {
+              type: "FORBIDDEN",
+              path: [
+                "repository",
+                "p0",
+                "nodes",
+                0,
+                "commits",
+                "nodes",
+                0,
+                "commit",
+                "statusCheckRollup",
+              ],
+            },
+          ],
+        }),
+      ),
+    )
+    const found = await find()
+    expect(found).not.toHaveProperty("ci")
+    expect(found).not.toHaveProperty("checks")
+  })
+
+  it("keeps the target branch of a merged or closed pull request", async () => {
+    server.use(
+      answer({
+        a: [pr(1, "MERGED", { mergedAt: "2026-01-01T00:00:00Z", baseRefName: "feature" })],
+        b: [pr(2, "CLOSED", { closedAt: "2026-01-01T00:00:00Z", baseRefName: "main" })],
+      }),
+    )
+    const found = mapOf(await github.pullRequests(fetch, token, repo, ["a", "b"]))
+    expect(found.get("a")).toMatchObject({ state: "merged", base: "feature" })
+    expect(found.get("b")).toMatchObject({ state: "closed", base: "main" })
+    expect(found.get("a")).not.toHaveProperty("review")
+    expect(found.get("a")).not.toHaveProperty("checks")
+  })
+
+  it("reads the review decision, else each reviewer's latest say", async () => {
+    const reviews = (...states: string[]) => ({
+      latestOpinionatedReviews: { nodes: states.map((state) => ({ state })) },
+    })
+    server.use(
+      answer({
+        a: [pr(1, "OPEN", { reviewDecision: "APPROVED", ...reviews("APPROVED") })],
+        b: [pr(2, "OPEN", { reviewDecision: "CHANGES_REQUESTED" })],
+        c: [pr(3, "OPEN", { reviewDecision: "REVIEW_REQUIRED", ...reviews() })],
+        d: [pr(4, "OPEN", { reviewDecision: null, ...reviews("APPROVED", "CHANGES_REQUESTED") })],
+        e: [pr(5, "OPEN", { reviewDecision: null, ...reviews("APPROVED") })],
+        f: [pr(6, "OPEN", { reviewDecision: null, ...reviews() })],
+        g: [pr(7, "OPEN", { isDraft: true })],
+      }),
+    )
+    const found = mapOf(
+      await github.pullRequests(fetch, token, repo, ["a", "b", "c", "d", "e", "f", "g"]),
+    )
+    expect(Object.fromEntries([...found].map(([branch, one]) => [branch, one.review]))).toEqual({
+      a: "approved",
+      b: "changes_requested",
+      c: "required",
+      d: "changes_requested",
+      e: "approved",
+      f: "none",
+      g: "none",
+    })
   })
 })
