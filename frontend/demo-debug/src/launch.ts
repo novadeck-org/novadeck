@@ -6,7 +6,11 @@ import type { DemoActionGroup } from "./types"
 // The panel's group for the launch demo's beats (`?demo=launch`): one action per cue of the
 // launch walkthrough, fired by the capture at the frame it wants, numbered by the video's beat.
 // Nothing for any other demo.
-export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionGroup[] =>
+export const launchGroups = (
+  cues: LaunchCues | undefined,
+  // Boots the demo again, as an action that says `reboots` does itself.
+  reboot: () => void,
+): readonly DemoActionGroup[] =>
   cues
     ? [
         {
@@ -144,6 +148,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               reboots: true,
               run: () => {
                 launchFiles.on = true
+                reboot()
               },
             },
           ],

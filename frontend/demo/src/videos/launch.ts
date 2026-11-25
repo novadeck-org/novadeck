@@ -1066,10 +1066,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const steps = createStore<Readonly<Record<number, number>>>({})
   const blocks = new Map<string, Block>()
   const lineBlock = (text: string, first: boolean, agent: ChatAgent): Block => {
-    const id = `${first ? agent : ""}|${text}`
+    const id = `${first || agent === "opencode" ? agent : ""}|${text}`
     const known = blocks.get(id)
     if (known) return known
-    const made = first ? resultBlock([text], agent) : logBlock(text)
+    // OpenCode's output is all one indent, with no marked first line.
+    const made = first || agent === "opencode" ? resultBlock([text], agent) : logBlock(text)
     blocks.set(id, made)
     return made
   }

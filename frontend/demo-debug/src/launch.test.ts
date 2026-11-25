@@ -1,4 +1,5 @@
 import type { LaunchCues } from "@novadeck/demo/videos/launch"
+import { launchFiles } from "@novadeck/demo/videos/launch-files"
 import { vi } from "vitest"
 
 import { launchGroups } from "./launch"
@@ -36,12 +37,12 @@ const cues = (): { [Name in keyof LaunchCues]: ReturnType<typeof fire> } => ({
 
 describe("the debug panel's Launch group", () => {
   it("is absent from every demo but the launch one", () => {
-    expect(launchGroups(undefined)).toEqual([])
+    expect(launchGroups(undefined, vi.fn())).toEqual([])
   })
 
   it("has one action for each beat's cue, numbered by the beat, each firing its cue", () => {
     const fired = cues()
-    const [group] = launchGroups(fired as unknown as LaunchCues)
+    const [group] = launchGroups(fired as unknown as LaunchCues, vi.fn())
     expect(group).toMatchObject({ section: "Agents", title: "Launch" })
     const order = [
       ["3 ·", "states"],
@@ -81,5 +82,17 @@ describe("the debug panel's Launch group", () => {
       expect(fired[order[index]![1]]).toHaveBeenCalled()
     })
     expect(Object.values(fired).every((cue) => cue.mock.calls.length > 0)).toBe(true)
+  })
+
+  it("boots the demo again, with the Files panel on, from its last action", () => {
+    const reboot = vi.fn<() => void>()
+    const [group] = launchGroups(cues() as unknown as LaunchCues, reboot)
+    try {
+      void group!.actions.at(-1)!.run({} as DemoActionContext)
+      expect(launchFiles.on).toBe(true)
+      expect(reboot).toHaveBeenCalledTimes(1)
+    } finally {
+      launchFiles.on = false
+    }
   })
 })

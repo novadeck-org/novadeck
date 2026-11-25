@@ -122,30 +122,40 @@ export const answerMessage = (messages: DemoMessages, askId: string) =>
 
 // The call an agent's harness names its command run with, in the project's folder `home`.
 export const runCall = (job: Pick<Job, "agent" | "command" | "plan">, call: string, home: string) =>
-  job.agent === "claude" || job.agent === "opencode" || job.agent === "pi"
-    ? use(
+  job.agent === "opencode" || job.agent === "pi"
+    ? // Both name their shell tool `bash` (harnesses/opencode's and harnesses/pi's tools).
+      use(
         call,
-        "Bash",
-        { command: job.command, description: job.plan },
+        "bash",
+        job.agent === "pi"
+          ? { command: job.command }
+          : { command: job.command, description: job.plan },
         { kind: "run", title: "Ran", detail: job.command },
       )
-    : job.agent === "codex"
+    : job.agent === "claude"
       ? use(
           call,
-          "exec_command",
-          { cmd: job.command, workdir: home },
+          "Bash",
+          { command: job.command, description: job.plan },
           { kind: "run", title: "Ran", detail: job.command },
         )
-      : use(
-          call,
-          "run_command",
-          {
-            CommandLine: job.command,
-            Cwd: home,
-            toolAction: job.plan,
-          },
-          { kind: "run", title: "Ran", detail: job.command },
-        )
+      : job.agent === "codex"
+        ? use(
+            call,
+            "exec_command",
+            { cmd: job.command, workdir: home },
+            { kind: "run", title: "Ran", detail: job.command },
+          )
+        : use(
+            call,
+            "run_command",
+            {
+              CommandLine: job.command,
+              Cwd: home,
+              toolAction: job.plan,
+            },
+            { kind: "run", title: "Ran", detail: job.command },
+          )
 
 // What answering a request that is declined (No) leaves: the agent waits for what the person
 // says next. So does a chat about a question with no words.

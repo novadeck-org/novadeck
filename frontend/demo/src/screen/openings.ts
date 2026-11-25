@@ -61,11 +61,24 @@ export const banner =
     if (agent === "pi")
       return [
         [span(" ▀▀█  ", "muted"), span("v1.6.0", "bold")],
-        [span(" █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash", "muted")],
+        [
+          span(
+            " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more",
+            "muted",
+          ),
+        ],
+        [span(" Press ctrl+o to show full startup help and loaded resources.", "muted")],
+        gap,
+        [
+          span(
+            " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.",
+            "muted",
+          ),
+        ],
         gap,
       ]
-    if (agent === "opencode")
-      return [...wrap([span("▣  OpenCode", "bold"), span(`  ${directory}`, "muted")], width), gap]
+    // OpenCode's session has no header: the person's turn is its first row.
+    if (agent === "opencode") return []
     if (agent === "claude")
       return [...wrap([span("✳ Claude Code", "bold"), span(`  ${directory}`, "muted")], width), gap]
     const name: Line = [span(">_ Codex", "bold")]

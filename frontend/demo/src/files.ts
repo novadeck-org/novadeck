@@ -584,8 +584,8 @@ export const createDemoFiles = (
     return () => cancel?.()
   }
 
-  // Each writing agent's turns while a simulation runs.
-  let running = new Map<string, () => void>()
+  // The writing agents' turns of the simulation running now, which `release` starts off.
+  let active: ReadonlyMap<string, () => void> | undefined
   // Agents whose terminal closed, which never write again.
   const closed = new Set<string>()
   // How a started simulation stops one agent; before it starts, dropping the cursor is all.
@@ -607,7 +607,8 @@ export const createDemoFiles = (
     // agent that stops working loses the cursor it started with.
     const moving = !lessMotion() && !stillRequested()
     // Each writing agent's turns, while its agent works.
-    running = new Map<string, () => void>()
+    const running = new Map<string, () => void>()
+    active = running
     const setWorking = (handle: string, on: boolean): void => {
       if (on && moving && !closed.has(handle) && !running.has(handle))
         running.set(handle, work(handle))
@@ -630,6 +631,7 @@ export const createDemoFiles = (
     return () => {
       unwatch?.()
       running.forEach((stop) => stop())
+      if (active === running) active = undefined
       stopWriting = (handle) => endTurn(handle)
       // No cursor is left blinking.
       change((project) => ({ ...project, writing: {} }))
@@ -653,7 +655,7 @@ export const createDemoFiles = (
     release: () => {
       if (!held) return
       held = false
-      running.forEach((_, handle) => write(handle))
+      active?.forEach((_, handle) => write(handle))
     },
   }
 }
