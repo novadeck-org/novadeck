@@ -132,7 +132,11 @@ describe("Novadeck's pi launcher", () => {
     const none = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: tools }
     // Its command line as cmd gives it: a .cmd file splits its words at a comma too, pi.exe
     // doesn't.
-    const raw = (out: string) => lines(out).find((line) => line.startsWith("raw="))
+    // Its blanks run together: an empty %novadeck_tools% leaves two.
+    const raw = (out: string) =>
+      lines(out)
+        .find((line) => line.startsWith("raw="))
+        ?.replaceAll(/\s+/g, " ")
     const without = raw((await launch(["go"], none)).stdout)
     expect(without?.endsWith(`novadeck.mjs" ${powershellTools.join(" ")} go`)).toBe(true)
     // Git Bash where Git for Windows puts it.
