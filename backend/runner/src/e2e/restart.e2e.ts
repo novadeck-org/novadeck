@@ -6,6 +6,7 @@ import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
+import type { Reach } from "./history.js"
 import { asked, gate, latest, tool, type Call } from "./model/script.js"
 import {
   answers,
@@ -404,9 +405,14 @@ for (const setup of setups) {
       expect(first?.messages.map((one) => [one.from, one.to, one.state])).toEqual([
         ["moth", "fox", "queued"],
       ])
-      await through(resumed, ["ready", "ringing", "working", holds("moth", "fox", "delivered")], {
-        timeoutMs: 60_000,
-      })
+      // Antigravity 1.5.17 goes on with the turn the restart interrupted as it starts ("Resuming 1
+      // conversation(s) interrupted by server restart"), when the ring's hook had it mid-turn: the
+      // message reaches it in that turn, by its own hook, with no ring to wait for.
+      const steps: Reach[] =
+        setup.agent === "agy"
+          ? [holds("moth", "fox", "delivered")]
+          : ["ready", "ringing", "working", holds("moth", "fox", "delivered")]
+      await through(resumed, steps, { timeoutMs: 60_000 })
       // At least once: the ring's hook may have printed it before the runner stopped, its
       // acknowledgement lost, and the agent then holds it twice, as the same message.
       const rung = await run.model.waitFor((call) => delivered(call, "moth"), { after: calls })

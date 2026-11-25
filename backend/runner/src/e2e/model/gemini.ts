@@ -46,10 +46,54 @@ const textOf = (parts: readonly Part[]): string =>
     .map((one) => one.text)
     .join("\n")
 
+/**
+ * A system message Antigravity 1.5.17 writes into the conversation, appended to a tool's
+ * result or, as a step of its own, a user turn: what it says between its tags.
+ */
+const systemMessage =
+  /\n*The following is a <SYSTEM_MESSAGE> not actually sent by the user\.[^\n]*\n+<SYSTEM_MESSAGE>\n([\s\S]*?)\n<\/SYSTEM_MESSAGE>/g
+
+/**
+ * What no script is about: Antigravity's own efficiency reminder, which it puts after a step
+ * that made one call (its `work_efficiently` hook, in 1.5.17), and its notice that a process
+ * it started stopped the background tasks of a conversation ("due to server restart"), which
+ * a second Antigravity does as it starts and resumes the first's conversation (a nested
+ * `agy -p`, as the scenarios run one, or a terminal opened beside it).
+ */
+const noise = [
+  /^Reminder: work efficiently\./,
+  /\[Notice\] All your (?:subagents and )?background tasks have been stopped due to server restart/,
+]
+
+// The text without the system messages that are noise; the others, a subagent's report among
+// them, stay.
+const withoutNoise = (text: string): string =>
+  text.replace(systemMessage, (block, said: string) =>
+    noise.some((each) => each.test(said.trim())) ? "" : block,
+  )
+
+/**
+ * A tool call a second process stopped: the conversation it resumed holds its result as
+ * cancelled, though the process that ran it goes on and gives the result it ends with, in
+ * the request that follows. A cancellation by the person has no such notice, and stays.
+ */
+const stopped = (response: unknown): boolean => {
+  const error = record(response).error
+  return (
+    typeof error === "string" &&
+    error.startsWith("Tool execution was canceled") &&
+    withoutNoise(error) !== error
+  )
+}
+
 // A tool's result as text: its `output` when it gives one, else all of it.
 const resultOf = (response: unknown): string => {
   const output = record(response).output
-  return typeof output === "string" ? output : JSON.stringify(response ?? {})
+  if (typeof output === "string") return withoutNoise(output)
+  const error = record(response).error
+  return typeof error === "string"
+    ? JSON.stringify({ ...record(response), error: withoutNoise(error) })
+    : JSON.stringify(response ?? {})
 }
 
 // How many pictures a value holds, anywhere in it: Gemini's inline data of an image type,
@@ -122,7 +166,7 @@ const turnsOf = (one: z.infer<typeof content>): Turn[] => {
   const responses = one.parts.filter((each) => each.functionResponse).length
   const beside = responses === 1 ? imagesIn(one.parts.filter((each) => !each.functionResponse)) : 0
   const results: Turn[] = one.parts.flatMap(({ functionResponse: result }) =>
-    result
+    result && !stopped(result.response)
       ? [
           {
             role: "tool" as const,
@@ -133,13 +177,16 @@ const turnsOf = (one: z.infer<typeof content>): Turn[] => {
         ]
       : [],
   )
-  const text = textOf(one.parts)
+  const said = textOf(one.parts)
+  // What is left of a user turn that held noise alone is no turn.
+  const text = withoutNoise(said)
   if (one.role !== "model")
-    return text || results.length === 0
+    return text || (said === "" && results.length === 0)
       ? [...results, { role: "user", text, ...withImages(imagesIn(one.parts)) }]
       : results
   const calls = one.parts.flatMap(({ functionCall: call }) => (call ? [callOf(call)] : []))
-  return text || calls.length > 0 || results.length === 0
+  // A content holding only results a second process stopped is no turn.
+  return text || calls.length > 0 || (results.length === 0 && responses === 0)
     ? [{ role: "assistant", text, calls }, ...results]
     : results
 }

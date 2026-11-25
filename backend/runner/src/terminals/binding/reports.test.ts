@@ -18,7 +18,7 @@ import {
   worktreesOnNotice,
 } from "../nudges.js"
 import type { Record } from "../record.js"
-import { Reports, withoutAside, type ReportsHost } from "./reports.js"
+import { namesHeldConversation, Reports, withoutAside, type ReportsHost } from "./reports.js"
 
 describe("a root turn's prompt told from the transcript", () => {
   // Their hooks name the prompt (UserPromptSubmit), so a session bound at its prompt, as a
@@ -74,6 +74,36 @@ describe("a session its harness keeps beside its root", () => {
     expect(await withoutAside([side], undefined)).toEqual([side])
     expect(await withoutAside([turn], aside)).toEqual([turn])
     expect(aside).not.toHaveBeenCalled()
+  })
+})
+
+describe("a conversation another terminal's agent holds", () => {
+  const turn = (sessionId: string): HarnessEvent => ({
+    type: "turn-started",
+    agent: "agy",
+    sessionId,
+    instance: "2",
+    startedAt: 1,
+    cause: "harness",
+  })
+  const holding = (id: string, sessionId: string): Record =>
+    ({
+      summary: { id },
+      bound: { binding: { agent: "agy", sessionId, instance: "1" } },
+    }) as unknown as Record
+  const records = new Map([
+    ["first", holding("first", "held")],
+    ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
+  ])
+
+  it("is named by a report of a terminal that never bound it, as a process that resumed it", () => {
+    expect(namesHeldConversation(records, "second", [turn("held")])).toBe(true)
+  })
+
+  it("is the holder's own to name, and another conversation any terminal's", () => {
+    expect(namesHeldConversation(records, "first", [turn("held")])).toBe(false)
+    expect(namesHeldConversation(records, "second", [turn("new")])).toBe(false)
+    expect(namesHeldConversation(records, "second", [])).toBe(false)
   })
 })
 

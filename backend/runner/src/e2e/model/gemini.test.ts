@@ -323,3 +323,66 @@ describe("gemini tool results with pictures", () => {
     ])
   })
 })
+
+describe("Antigravity's own system messages in a conversation", () => {
+  const wrapped = (said: string): string =>
+    `\n\nThe following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.\n\n<SYSTEM_MESSAGE>\n${said}\n</SYSTEM_MESSAGE>`
+  const reminder = wrapped(
+    "Reminder: work efficiently. In this turn, issue in parallel every search.",
+  )
+  const restart = wrapped(
+    "[Message] timestamp=2026-11-25T09:06:10Z sender=system priority=MESSAGE_PRIORITY_NORMAL content=[Notice] All your background tasks have been stopped due to server restart. Please resume your work.",
+  )
+  const idle = wrapped(
+    "[Message] timestamp=2026-11-25T09:06:10Z sender=system priority=MESSAGE_PRIORITY_NORMAL content=Subagent abc has gone idle.",
+  )
+  const asked = { role: "user", parts: [{ text: "Run it" }] }
+  const ran = {
+    role: "model",
+    parts: [{ functionCall: { id: "c1", name: "run_command", args: { CommandLine: "ls" } } }],
+  }
+  const answered = (response: object) => ({
+    role: "model",
+    parts: [{ functionResponse: { id: "c1", name: "run_command", response } }],
+  })
+  const turns = (...contents: object[]) =>
+    parse("gemini-3.1-pro-preview", { contents: [asked, ran, ...contents] }).turns
+
+  it("leaves out the efficiency reminder and the restart notice from a tool's result", () => {
+    expect(turns(answered({ output: `Done.${reminder}${restart}` })).at(-1)).toEqual({
+      role: "tool",
+      id: "c1",
+      text: "Done.",
+    })
+  })
+
+  it("keeps another system message, as a subagent's report", () => {
+    expect(turns(answered({ output: `Done.${reminder}${idle}` })).at(-1)).toMatchObject({
+      text: `Done.${idle}`,
+    })
+  })
+
+  it("drops a user turn that held only the reminder, and keeps the words beside it", () => {
+    const only = turns(answered({ output: "Done." }), {
+      role: "user",
+      parts: [{ text: reminder.trim() }],
+    })
+    expect(only.map((turn) => turn.role)).toEqual(["user", "assistant", "tool"])
+    const beside = turns(answered({ output: "Done." }), {
+      role: "user",
+      parts: [{ text: `Next.${reminder}` }],
+    })
+    expect(beside.at(-1)).toEqual({ role: "user", text: "Next." })
+  })
+
+  it("leaves out a result a second process cancelled, but not the person's cancellation", () => {
+    const stopped = turns(answered({ error: `Tool execution was canceled${restart}` }))
+    expect(stopped.map((turn) => turn.role)).toEqual(["user", "assistant"])
+    const person = turns(answered({ error: "Tool execution was canceled" }))
+    expect(person.at(-1)).toEqual({
+      role: "tool",
+      id: "c1",
+      text: '{"error":"Tool execution was canceled"}',
+    })
+  })
+})
