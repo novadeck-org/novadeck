@@ -319,14 +319,14 @@ export class WorktreeCalls {
       const row = taken.approval
       // Another's worktree keeps its home, and its title where it has one: the title given names
       // one that has none, once it is the caller's.
-      const titled =
+      const hasTitle =
         title !== undefined &&
         existsSync(row.path) &&
         (await keysOfBranch(row.path, row.branch)).title !== undefined
-      const given = titled ? undefined : title
+      const given = hasTitle ? undefined : title
       const kept = {
         ...(home !== undefined && { homeKept: true as const }),
-        ...(titled && { titleKept: true as const }),
+        ...(hasTitle && { titleKept: true as const }),
       }
       if (this.host.agentMode() !== "swarm") {
         const asked = this.ask(call, record, service, row, given)
@@ -351,7 +351,7 @@ export class WorktreeCalls {
             ...now,
             ...(again.home !== undefined && { home: again.home }),
             ...(again.title !== undefined && { title: again.title }),
-            ...(titled && { titleKept: true as const }),
+            ...(hasTitle && { titleKept: true as const }),
           }
         : { ...now, ...kept }
     }
