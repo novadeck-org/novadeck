@@ -192,6 +192,28 @@ describe("Novadeck's pi extension", () => {
     expect((await load()).handlers.size).toBe(0)
   })
 
+  // pi names its process "pi", which leaves the relay no words to read: the extension sends its
+  // own, but never an --api-key's value.
+  it("tells the words pi was started with, but no key, and none past what a report takes whole", async () => {
+    const started = process.argv
+    try {
+      process.argv = [process.execPath, "pi", "--api-key", "sk-1", "--api-key=sk-2", "--no-tools"]
+      const pi = await load()
+      await pi.emit("session_start", { reason: "startup" })
+      await pi.emit("session_compact", {})
+      expect((await pi.reports()).map((report) => report.argv)).toEqual([
+        ["--api-key", "", "--api-key=", "--no-tools"],
+        ["--api-key", "", "--api-key=", "--no-tools"],
+      ])
+      process.argv = [process.execPath, "pi", ...Array.from({ length: 51 }, () => "--no-tools")]
+      const many = await load()
+      await many.emit("session_start", { reason: "startup" })
+      expect((await many.reports())[0]).not.toHaveProperty("argv")
+    } finally {
+      process.argv = started
+    }
+  })
+
   it("binds a session as it starts, and gives pi Novadeck's tools as its own", async () => {
     const pi = await load()
     await pi.emit("session_start", { reason: "startup" })

@@ -158,8 +158,10 @@ const cases: { readonly [agent in AgentName]: readonly Case[] } = {
   // Novadeck's plugin adds its tools' allow to the configuration opencode loaded, so the
   // bare launch is the one that matters.
   opencode: [{ label: "bare", words: () => "" }],
-  // Novadeck's extension registers its tools itself, with nothing for the person to allow.
-  pi: [{ label: "bare", words: () => "" }],
+  // None: Novadeck's tools are its extension's, which only the shim loads (`-e`), so past the shim
+  // pi has none of them to ask about, and binds no session (nightly, 2026-11-25, 1.6.0). With the
+  // shim the extension registers them, with nothing for the person to allow.
+  pi: [],
 }
 
 const slug = (label: string): string => label.replace(/[^a-z0-9]+/gi, "-")
@@ -211,60 +213,59 @@ const past: { readonly [agent in AgentName]: string } = {
 
 for (const setup of setups) {
   const agent = setup.agent
-  describe.skipIf(!supported || process.env.NOVADECK_E2E_PROBES === undefined)(
-    `probe: Novadeck's tools unasked in ${setup.name}`,
-    () => {
-      const it = e2e(setup)
-      // PROBE_CASES names the cases to run, by their labels with dashes for spaces.
-      const only = process.env.PROBE_CASES?.split(",")
-      for (const probe of cases[agent].filter((one) => !only || only.includes(slug(one.label))))
-        it(probe.label, async ({ e2e: run }) => {
-          if (probe.seeded) seedAllow(run, agent)
-          probe.prepare?.(run)
-          const found: Record<string, unknown> = { case: probe.label }
-          run.model.use(
-            own((call) => {
-              const describeIt = tool(call, "describe")
-              return describeIt && asked(call, "Describe this terminal")
-                ? { calls: [{ name: describeIt, input: { title: "Heron", summary: "Heron." } }] }
-                : undefined
-            }),
-            own((call) =>
-              result(call)?.includes("Described this terminal")
-                ? { text: "Described unasked." }
-                : undefined,
-            ),
+  describe.skipIf(
+    !supported || process.env.NOVADECK_E2E_PROBES === undefined || cases[agent].length === 0,
+  )(`probe: Novadeck's tools unasked in ${setup.name}`, () => {
+    const it = e2e(setup)
+    // PROBE_CASES names the cases to run, by their labels with dashes for spaces.
+    const only = process.env.PROBE_CASES?.split(",")
+    for (const probe of cases[agent].filter((one) => !only || only.includes(slug(one.label))))
+      it(probe.label, async ({ e2e: run }) => {
+        if (probe.seeded) seedAllow(run, agent)
+        probe.prepare?.(run)
+        const found: Record<string, unknown> = { case: probe.label }
+        run.model.use(
+          own((call) => {
+            const describeIt = tool(call, "describe")
+            return describeIt && asked(call, "Describe this terminal")
+              ? { calls: [{ name: describeIt, input: { title: "Heron", summary: "Heron." } }] }
+              : undefined
+          }),
+          own((call) =>
+            result(call)?.includes("Described this terminal")
+              ? { text: "Described unasked." }
+              : undefined,
+          ),
+        )
+        const words = probe.words(run)
+        found.command = `${past[agent]} ${words}`.trim()
+        const terminal = await run.deck.open(found.command as string)
+        await terminal.reached("ready", { timeoutMs: 60_000 })
+        // Claude Code offers to keep auto mode as the default before its prompt.
+        if (probe.label.includes("auto mode"))
+          await terminal.confirm(/❯ Yes, set auto mode as my default/, async () => {})
+        if (!probe.positional) {
+          await prompted(terminal, setup)
+          await terminal.submit("Describe this terminal")
+        }
+        try {
+          await terminal.until("Described unasked.", 30_000)
+          found.ran = true
+        } catch {
+          found.ran = false
+        }
+        found.screen = await terminal.screen()
+        if (out) {
+          mkdirSync(out, { recursive: true })
+          const name = slug(probe.label)
+          writeFileSync(
+            join(out, `${agent}.${name}.tools-unasked.probe.json`),
+            JSON.stringify(found, null, 2),
           )
-          const words = probe.words(run)
-          found.command = `${past[agent]} ${words}`.trim()
-          const terminal = await run.deck.open(found.command as string)
-          await terminal.reached("ready", { timeoutMs: 60_000 })
-          // Claude Code offers to keep auto mode as the default before its prompt.
-          if (probe.label.includes("auto mode"))
-            await terminal.confirm(/❯ Yes, set auto mode as my default/, async () => {})
-          if (!probe.positional) {
-            await prompted(terminal, setup)
-            await terminal.submit("Describe this terminal")
-          }
-          try {
-            await terminal.until("Described unasked.", 30_000)
-            found.ran = true
-          } catch {
-            found.ran = false
-          }
-          found.screen = await terminal.screen()
-          if (out) {
-            mkdirSync(out, { recursive: true })
-            const name = slug(probe.label)
-            writeFileSync(
-              join(out, `${agent}.${name}.tools-unasked.probe.json`),
-              JSON.stringify(found, null, 2),
-            )
-          }
-          expect(found).toBeDefined()
-        })
-    },
-  )
+        }
+        expect(found).toBeDefined()
+      })
+  })
 }
 
 // Antigravity through its shim, the person's own rule in settings.json: they pick "always

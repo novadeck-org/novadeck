@@ -5,14 +5,15 @@ import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
 import { adapterFolder } from "../../testing/adapters.js"
 import { setups } from "../agents/index.js"
-import { describe, e2e, supported } from "../fixture.js"
+import { describe, e2e, gated, supported } from "../fixture.js"
 import { installHarness } from "../install.js"
-import { answers, own, result, running, start } from "../scenarios.js"
+import { answers, lacking, own, result, running, start } from "../scenarios.js"
 import { sleep } from "./support.js"
 
 // PROBE, not a test of Novadeck: how each harness draws a permission for a command far
 // taller than its screen, and for two such commands that start and end alike asked at once,
-// and what Novadeck reads of it. The pinned release writes each harness's
+// and what Novadeck reads of it; a harness that asks nothing before a tool runs is skipped, with its
+// setup's reason. The pinned release writes each harness's
 // fixtures/tall.probe.json; TALL_PROBE_OUT sends any other run's somewhere else to compare.
 //
 // Run: NOVADECK_E2E_PROBES=1 pnpm --filter @novadeck/runner exec vitest run \
@@ -48,7 +49,7 @@ for (const setup of setups) {
       ["wide", [wide]],
       ["twins", [script("twin"), `${script("twin")}\necho the second`]],
     ] as const) {
-      it(`draws ${name}`, async ({ e2e: run }) => {
+      gated(it, lacking(setup, "approval"))(`draws ${name}`, async ({ e2e: run }) => {
         run.model.use(
           answers("Make the file", (call) => running(setup.approval!.request(call), ...commands)),
           own((call) => (result(call) !== undefined ? { text: "Noted." } : undefined)),

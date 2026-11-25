@@ -56,8 +56,9 @@ export const pi: AgentSetup = {
     new RegExp(
       `Steering: (?:(?:\\S+ )?${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|\\S+\\.\\.\\.(?:\\n|$))`,
     ),
-  // Under what is queued: `↳ Alt+Up to edit all queued messages` (`Alt+Q` on Windows, Windows CI 2026-11-24).
-  queueHint: /↳ Alt\+(?:Up|Q) to edit all queued messages/,
+  // Under what is queued: `↳ Alt+Up to edit all queued messages` (`Alt+Q` on Windows, Windows CI
+  // 2026-11-24; `Option+Up` on macOS, macOS CI 2026-11-25).
+  queueHint: /↳ (?:Alt|Option)\+(?:Up|Q) to edit all queued messages/,
   // A prompt entered mid-turn goes through every extension's `input` handler (Novadeck's tells the
   // runner) before pi queues it, so a turn whose reply comes in that time (the test's held reply,
   // let go as the prompt is entered) can end first: the Stop's message, then the prompt.
