@@ -751,7 +751,8 @@ with every safety check again at that time:
   worktree's title (`Work.title`; its branch in mono where it has none), then its pull request's
   number tinted by state (draft muted, open green, merged violet, closed rust) over a 2px bar: a
   segment per check (passed, failed, running, waiting; one per state, as wide as its share, past
-  twelve) and its review (approved, changes requested, approval missing, none asked for), none once
+  twelve) and its review (approved, changes requested, approval missing; none where no review was
+  asked for or given, as a repository that asks for none would show it on every row), none once
   merged or closed. Its detail line is the worktree's state in the tab's glyphs (`PhaseGlyph`: ⠹
   while its owner's agent works in it, ⣤ while its pull request's checks run, · nothing in it yet,
   blank at rest, z untouched a day (`Work.changedAt`), ✓ landed in its target, ✗ checks failed, ×

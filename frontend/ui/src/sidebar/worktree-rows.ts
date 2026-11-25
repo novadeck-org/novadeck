@@ -96,14 +96,16 @@ export const pullMark = ({ number, state, url }: PullRequest): PullMark => {
 
 // An open pull request's checks and review as the bar under its number draws them: a segment per
 // check (passed, failed, running, then waiting), or, past `barChecks`, one per state as wide as
-// its share; then its review, a step apart. `words` says it all, the bar's tooltip.
+// its share; then its review, a step apart, only where one was asked for or given (a repository
+// that asks for none would show the same empty segment on every row). `words` says it all, the
+// bar's tooltip.
 export type ChecksBar = {
   readonly segments: readonly {
     readonly key: string
     readonly state: PullRequestCheck["state"]
     readonly weight: number
   }[]
-  readonly review: PullRequestReview | undefined
+  readonly review: Exclude<PullRequestReview, "none"> | undefined
   readonly words: string
 }
 
@@ -112,11 +114,10 @@ export const barChecks = 12
 
 const checkOrder: readonly PullRequestCheck["state"][] = ["passed", "failed", "running", "waiting"]
 
-const reviewWords: Readonly<Record<PullRequestReview, string>> = {
+const reviewWords: Readonly<Record<Exclude<PullRequestReview, "none">, string>> = {
   approved: "approved",
   changes_requested: "changes requested",
   required: "approval missing",
-  none: "no review asked for",
 }
 
 const plural = (count: number, one: string, many: string): string =>
@@ -125,7 +126,9 @@ const plural = (count: number, one: string, many: string): string =>
 export const checksBar = (pull: PullRequest): ChecksBar | undefined => {
   if (pull.state !== "open" && pull.state !== "draft") return undefined
   const checks = pull.checks ?? []
-  if (checks.length === 0 && pull.review === undefined) return undefined
+  // No review asked for, and none given, is nothing to draw or say.
+  const asked = pull.review === "none" ? undefined : pull.review
+  if (checks.length === 0 && asked === undefined) return undefined
   const counts = new Map(
     checkOrder.map((state) => [state, checks.filter((check) => check.state === state).length]),
   )
@@ -146,10 +149,10 @@ export const checksBar = (pull: PullRequest): ChecksBar | undefined => {
     counts.get("running")! > 0 && `${counts.get("running")} running`,
     counts.get("waiting")! > 0 && `${counts.get("waiting")} waiting`,
   ].filter(Boolean)
-  const review = pull.review && reviewWords[pull.review]
+  const review = asked && reviewWords[asked]
   return {
     segments,
-    review: pull.review,
+    review: asked,
     words: [said.join(", "), review].filter(Boolean).join("; "),
   }
 }
