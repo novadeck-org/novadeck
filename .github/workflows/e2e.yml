@@ -336,9 +336,10 @@ jobs:
   # system. A harness's probes run in six jobs (`slice`), as in one they took over 90
   # minutes (`interrupt-held-reply` alone 35 to 40, the ask probes and `box-leftover`
   # 10 to 20 each; the files run one after another): the held reply's runs in halves, then
-  # the box probes, the ask probes, `agent-exit`, and the rest, so a new probe lands in
-  # `rest`, and no job takes much over 30 minutes. `agent-exit` has its own since `rest`
-  # grew to 45 to 59 minutes of its 60 by 2026-11-25, opencode's `agent-exit` 13 to 19 of them.
+  # the box probes, the ask probes, the long ones, and the rest, so a new probe lands in
+  # `rest`, and no job takes much over 30 minutes. The long ones have their own since `rest`
+  # grew to 45 to 59 minutes of its 60 by 2026-11-25: `agent-exit` took opencode 13 to 19,
+  # and with `add-dir-git`, `startup-screens` and `queued-stop` Claude Code 18 of its 56.
   probes:
     if: github.event_name == 'schedule' || inputs.probes
     name: Probes (${{ matrix.setup.name }}, ${{ matrix.slice.name }})
@@ -382,11 +383,15 @@ jobs:
               name: asks,
               files: src/e2e/probes/claude-ask src/e2e/probes/claude-elicit src/e2e/probes/codex-ask src/e2e/probes/agy-ask,
             }
-          - { id: exit, name: exit, files: src/e2e/probes/agent-exit.e2e.ts }
+          - {
+              id: long,
+              name: long ones,
+              files: src/e2e/probes/agent-exit.e2e.ts src/e2e/probes/add-dir-git.e2e.ts src/e2e/probes/startup-screens.e2e.ts src/e2e/probes/queued-stop.e2e.ts,
+            }
           - {
               id: rest,
               name: rest,
-              files: src/e2e/probes --exclude **/interrupt-held-reply.e2e.ts --exclude **/agent-exit.e2e.ts --exclude **/box-leftover.e2e.ts --exclude **/ring-reading.e2e.ts --exclude **/claude-ask* --exclude **/claude-elicit* --exclude **/codex-ask* --exclude **/agy-ask*,
+              files: src/e2e/probes --exclude **/interrupt-held-reply.e2e.ts --exclude **/agent-exit.e2e.ts --exclude **/add-dir-git.e2e.ts --exclude **/startup-screens.e2e.ts --exclude **/queued-stop.e2e.ts --exclude **/box-leftover.e2e.ts --exclude **/ring-reading.e2e.ts --exclude **/claude-ask* --exclude **/claude-elicit* --exclude **/codex-ask* --exclude **/agy-ask*,
             }
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache

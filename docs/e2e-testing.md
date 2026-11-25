@@ -944,7 +944,7 @@ probe output, and keep their own loader.
 
 Pull requests' E2E jobs leave the probes out (`vitest.e2e.config.ts` runs them only when
 `NOVADECK_E2E_PROBES` is set); the nightly runs them, in six Probes jobs per harness on
-Linux (the held reply's two halves, the box probes, the ask probes, `agent-exit`, and the rest: a job's
+Linux (the held reply's two halves, the box probes, the ask probes, the long ones (`agent-exit`, `add-dir-git`, `startup-screens`, `queued-stop`), and the rest: a job's
 files run one after another, and in one job they took over 90 minutes),
 against each harness's latest release (a dispatch with `probes` runs them too, at the
 versions it names). That's where they pay:
