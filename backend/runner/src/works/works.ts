@@ -1,6 +1,7 @@
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { PullRequest as FoundPullRequest } from "@novadeck/forges"
 import {
   forgeLimits,
   previewLimits,
@@ -126,7 +127,7 @@ export type WorksOptions = {
    * The pull request of a branch in the repository at `commonDir`, where one is known; the
    * works carry it and know nothing else of where it comes from.
    */
-  readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
+  readonly pullRequest?: (commonDir: string, branch: string) => FoundPullRequest | undefined
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
@@ -397,14 +398,20 @@ export class Works {
   }
 
   /**
-   * A pull request as the wire takes it (a long title cut), or undefined where it still isn't
-   * one: a forge's odd answer must not fail every work's stream.
+   * A pull request as the wire takes it (only the contract's fields, a long title cut), or
+   * undefined where it still isn't one: a forge's odd answer must not fail every work's stream.
+   * The forge tells more than the contract carries (an open pull request's target branch, its
+   * unfinished checks, for the agents' listing), which the strict schema would refuse.
    */
-  private validPullRequest(found: PullRequest | undefined): PullRequest | undefined {
+  private validPullRequest(found: FoundPullRequest | undefined): PullRequest | undefined {
     if (found === undefined) return undefined
+    const { number, url, title, state, ci } = found
     const parsed = pullRequestSchema.safeParse({
-      ...found,
-      title: found.title.slice(0, forgeLimits.title),
+      number,
+      url,
+      title: title.slice(0, forgeLimits.title),
+      state,
+      ...(ci !== undefined && { ci }),
     })
     if (parsed.success) return parsed.data
     log.warn("works.pull-request-invalid", "A forge's pull request does not fit the contract")
