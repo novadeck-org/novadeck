@@ -22,6 +22,16 @@ const fakePi = (platform: NodeJS.Platform): string =>
     ? '@echo off\r\n:next\r\nif "%~1"=="" goto env\r\necho %~1\r\nshift\r\ngoto next\r\n:env\r\necho dir=%PI_CODING_AGENT_DIR%\r\necho mark=%NOVADECK_PI%\r\necho check=%PI_SKIP_VERSION_CHECK%\r\n'
     : '#!/bin/sh\nfor a in "$@"; do echo "$a"; done\necho "dir=$PI_CODING_AGENT_DIR"\necho "mark=$NOVADECK_PI"\necho "check=$PI_SKIP_VERSION_CHECK"\n'
 
+// `env` laid over `base` as Windows reads names, without case: its own `Path` would otherwise
+// stand beside a given `PATH`, and the child take either.
+const over = (base: NodeJS.ProcessEnv, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
+  const given = new Set(Object.keys(env).map((name) => name.toUpperCase()))
+  return {
+    ...Object.fromEntries(Object.entries(base).filter(([name]) => !given.has(name.toUpperCase()))),
+    ...env,
+  }
+}
+
 describe("Novadeck's pi launcher", () => {
   let root: string
   let pi: BundledPi
@@ -63,7 +73,7 @@ describe("Novadeck's pi launcher", () => {
     windows
       ? // cmd by its full path: a test's own PATH may not hold it.
         run(process.env.ComSpec ?? "cmd.exe", ["/d", "/c", launcher, ...args], {
-          env: { ...process.env, NOVADECK_TERMINAL_ID: "t1", ...env },
+          env: { ...over(process.env, env), NOVADECK_TERMINAL_ID: "t1" },
         })
       : run(launcher, args, {
           env: { PATH: "/usr/bin:/bin", NOVADECK_TERMINAL_ID: "t1", ...env },
