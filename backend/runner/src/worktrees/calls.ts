@@ -200,8 +200,10 @@ export type WorktreeAnswer =
       readonly homeKept?: true
       /** open_worktree and take_worktree: its title; absent where it has none. */
       readonly title?: string
-      /** take_worktree: a title was given but stays as it was, as `homeKept`. */
+      /** take_worktree: a title was given but the worktree has one, which stays. */
       readonly titleKept?: true
+      /** take_worktree, asked: the title given is set on a yes, as the worktree has none. */
+      readonly titleOnYes?: true
       /** take_worktree: it was yours already. */
       readonly already?: true
       /** take_worktree: the person was asked; the worktree isn't yours yet. */
@@ -314,32 +316,42 @@ export class WorktreeCalls {
     })
     if (!taken.ok) return taken
     if ("approval" in taken) {
-      // What was given stays as it was: home and title are set only on a worktree that is yours.
+      const row = taken.approval
+      // Another's worktree keeps its home, and its title where it has one: the title given names
+      // one that has none, once it is the caller's.
+      const titled =
+        title !== undefined &&
+        existsSync(row.path) &&
+        (await keysOfBranch(row.path, row.branch)).title !== undefined
+      const given = titled ? undefined : title
       const kept = {
         ...(home !== undefined && { homeKept: true as const }),
-        ...(title !== undefined && { titleKept: true as const }),
+        ...(titled && { titleKept: true as const }),
       }
       if (this.host.agentMode() !== "swarm") {
-        const asked = this.ask(call, record, service, taken.approval)
-        return asked.ok ? { ...asked, ...kept } : asked
+        const asked = this.ask(call, record, service, row, given)
+        return asked.ok
+          ? { ...asked, ...kept, ...(given !== undefined && { titleOnYes: true as const }) }
+          : asked
       }
       const now = await this.takeNow(call, record, service, taken.approval)
       if (!now.ok) return now
-      // Its own now: taken again, with home and title where given, which sets them as for one's
-      // own, and reads its title for the answer.
+      // Its own now: taken again, with home where given and the title where it had none, which
+      // sets them as for one's own, and reads its title for the answer.
       const again = await service.take({
         projectId,
         terminalId: call.terminalId,
         cwd: record.summary.cwd,
-        path: taken.approval.path,
+        path: row.path,
         home,
-        title,
+        title: given,
       })
       return again.ok && !("approval" in again)
         ? {
             ...now,
             ...(again.home !== undefined && { home: again.home }),
             ...(again.title !== undefined && { title: again.title }),
+            ...(titled && { titleKept: true as const }),
           }
         : { ...now, ...kept }
     }
@@ -398,7 +410,14 @@ export class WorktreeCalls {
    * Asks the person to let the caller take a worktree another terminal owns. The call
    * doesn't wait for them: it answers `asked` at once, and both agents hear the outcome as a notice.
    */
-  private ask(call: Call, caller: Record, service: Worktrees, row: WorktreeRecord): WorktreeAnswer {
+  private ask(
+    call: Call,
+    caller: Record,
+    service: Worktrees,
+    row: WorktreeRecord,
+    /** The title it takes on a yes, as it has none. */
+    title?: string,
+  ): WorktreeAnswer {
     const ownerId = row.terminalId!
     const waiting = this.host.approvals().refusal(ownerId)
     if (waiting)
@@ -430,6 +449,13 @@ export class WorktreeCalls {
             return tell(call.terminalId, worktreeNotice.off(path))
           if (!(await service.transfer(path, ownerId, call.terminalId)))
             return tell(call.terminalId, worktreeNotice.moved(path))
+          if (title !== undefined)
+            await service.retitle({
+              terminalId: call.terminalId,
+              cwd: caller.summary.cwd,
+              path,
+              title,
+            })
           const untitled =
             existsSync(path) && (await keysOfBranch(path, branch)).title === undefined
           tell(call.terminalId, worktreeNotice.taken(path, branch, untitled))

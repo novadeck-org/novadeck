@@ -1397,7 +1397,10 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(titled).toContain('(branch b, titled "T")')
     expect(
       await take({ ok: true, path: "/w", branch: "b", asked: true, titleKept: true }),
-    ).toContain("Its title stays as it was")
+    ).toContain("It keeps its own title")
+    expect(
+      await take({ ok: true, path: "/w", branch: "b", asked: true, titleOnYes: true }),
+    ).toContain("It has no title, so it takes yours if they agree.")
     delete answersBy.worktrees
     delete answersBy.takeWorktree
   })

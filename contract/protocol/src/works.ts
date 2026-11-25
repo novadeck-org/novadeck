@@ -76,6 +76,9 @@ export const workConflict = z.discriminatedUnion("with", [
 // by hand or before titles. `changedAt` is when the worktree last changed, in epoch
 // milliseconds: the newest of its last commit's time and its uncommitted files' modification
 // times, and for a worktree Novadeck made, never before it made it; absent from runners before it.
+// It can move back (a change reverted or stashed), and an untracked file kept out of the
+// snapshot as a secret (`.env`) moves it only with another change: it tells a worktree left
+// untouched a while, not each edit.
 // `uncommitted` is how many paths hold changes not committed (staged, unstaged or untracked,
 // not ignored); `unpushed` how many of HEAD's commits no remote-tracking branch holds (all of
 // its own where nothing was pushed). `safe` where closing it leaves nothing that lives only

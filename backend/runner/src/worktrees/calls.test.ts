@@ -224,10 +224,42 @@ describe("worktree calls", () => {
     })
     expect(git(fx.repo, "config", "--get", "branch.tt.novadeckTitle")).toBe("Second")
     fx.state.mode = "swarm"
+    // Taken at once, it keeps the title it has.
     expect(await fx.calls.take(fx.call("t2", { path, title: "Theirs" }))).toMatchObject({
       ok: true,
       from: "moth",
-      title: "Theirs",
+      title: "Second",
+      titleKept: true,
+    })
+    expect(git(fx.repo, "config", "--get", "branch.tt.novadeckTitle")).toBe("Second")
+  })
+
+  it("gives another's untitled worktree the title it is taken with, on the person's yes or at once", async ({
+    fx,
+  }) => {
+    const opened = await fx.calls.open(fx.call("t1", { title: "Gone", branch: "ut" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    git(fx.repo, "config", "--unset", "branch.ut.novadeckTitle")
+    expect(await fx.calls.take(fx.call("t2", { path, title: "Mine" }))).toMatchObject({
+      asked: true,
+      titleOnYes: true,
+    })
+    // Nothing set until they agree: git finds no such key.
+    expect(() => git(fx.repo, "config", "--get", "branch.ut.novadeckTitle")).toThrow()
+    fx.asked[0]!.settle("confirmed")
+    await vi.waitFor(() =>
+      expect(fx.notices.find(({ id }) => id === "t2")?.text).toContain("you now own"),
+    )
+    expect(git(fx.repo, "config", "--get", "branch.ut.novadeckTitle")).toBe("Mine")
+    expect(fx.notices.find(({ id }) => id === "t2")?.text).not.toContain("no title")
+    // Back to its first owner's, untitled, and taken at once.
+    expect(await fx.calls.give(fx.call("t2", { path, to: "moth" }))).toMatchObject({ ok: true })
+    git(fx.repo, "config", "--unset", "branch.ut.novadeckTitle")
+    fx.state.mode = "swarm"
+    expect(await fx.calls.take(fx.call("t2", { path, title: "Mine again" }))).toMatchObject({
+      ok: true,
+      title: "Mine again",
     })
   })
 

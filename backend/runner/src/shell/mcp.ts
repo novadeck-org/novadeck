@@ -1747,8 +1747,10 @@ type Worktree = {
   readonly homeKept?: true
   /** open_worktree and take_worktree: its title; absent where it has none. */
   readonly title?: string
-  /** take_worktree: a title was given but stays as it was. */
+  /** take_worktree: a title was given but the worktree has one, which stays. */
   readonly titleKept?: true
+  /** take_worktree, asked: the title given is set on a yes, as the worktree has none. */
+  readonly titleOnYes?: true
   readonly already?: true
   readonly asked?: true
   readonly owner?: string
@@ -1903,7 +1905,7 @@ const takeWorktree: Tool<Worktree> = {
       title: {
         type: "string",
         description:
-          "Sets the worktree's title, what the work there is in one short line, as home is set; when left out, its title stays.",
+          "Sets the worktree's title, what the work there is in one short line: on one you own, or on another's that has none; when left out, its title stays.",
         maxLength: 80,
       },
     },
@@ -1943,9 +1945,8 @@ const takeWorktree: Tool<Worktree> = {
     (answer.homeKept
       ? " Its home stays as it was: home is set only on a worktree that is yours."
       : "") +
-    (answer.titleKept
-      ? " Its title stays as it was: a title is set only on a worktree that is yours."
-      : "") +
+    (answer.titleKept ? " It keeps its own title; describe can change it once it is yours." : "") +
+    (answer.titleOnYes ? " It has no title, so it takes yours if they agree." : "") +
     (!answer.asked && answer.title === undefined
       ? " It has no title: take_worktree with title gives it one."
       : ""),
