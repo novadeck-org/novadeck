@@ -5,7 +5,7 @@ import type { Harness } from "@novadeck/harness-core/harness"
 import { hookCommand, hookSeconds, type Dialect } from "@novadeck/harness-core/hook-command"
 
 import { extensionSource } from "./extension-source.js"
-import { ownProvider, ownProviderConfig, ownService } from "./own-model.js"
+import { ownProvider, ownProviderConfig, ownService, ownUnavailable } from "./own-model.js"
 import { minimum, unknownFrom } from "./version.js"
 
 /**
@@ -85,7 +85,12 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
       stoppedFolder,
       pidVariable,
       continueCap,
-      own: { provider: ownProvider, variables: ownService, config: ownProviderConfig },
+      own: {
+        provider: ownProvider,
+        variables: ownService,
+        config: ownProviderConfig,
+        unavailable: ownUnavailable,
+      },
       // Only while the Experimental shipping gate is on: off, the extension is as it always was.
       ...(machine.shippingGate === true && { gate: true }),
     }),

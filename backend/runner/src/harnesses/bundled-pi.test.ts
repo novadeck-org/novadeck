@@ -368,8 +368,10 @@ describe("Novadeck's pi behind its Experimental switch", () => {
     pi.switched()
     // Another terminal's launcher is refused as ever.
     await expect(pi.fetch("pi", () => {}, "elsewhere")).rejects.toThrow(turnOnLine)
-    // The tour's own terminal starts it.
+    // The tour's own terminal starts it, and the switch going off then stops nothing of it.
     await pi.fetch("pi", () => {}, "tour-lead")
+    expect(pi.state()).toEqual({ state: "ready" })
+    pi.switched()
     expect(pi.state()).toEqual({ state: "ready" })
     // The tour asking for it gives its program, and the switch going off stops nothing more.
     await expect(pi.want()).resolves.toContain(bundledPiFolder(data))

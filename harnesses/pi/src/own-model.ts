@@ -21,6 +21,13 @@ export const ownProvider = "novadeck"
 export const ownModelId = "gpt-6-luna"
 export const ownModel = `${ownProvider}/${ownModelId}`
 
+/**
+ * Where the provider points in Novadeck's pi where its terminal has no service (outside the
+ * tour): a port of this computer's that nothing listens on, so a session of the model resumed
+ * there fails at once, never going on with another model on the person's own keys.
+ */
+export const ownUnavailable = "http://127.0.0.1:9/novadeck-unavailable"
+
 /** The variables a terminal of Novadeck's pi is given the service's base URL and key in. */
 export const ownService = {
   baseUrl: "NOVADECK_PI_BASE_URL",

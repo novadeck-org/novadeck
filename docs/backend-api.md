@@ -1252,7 +1252,10 @@ transcript lies in Novadeck's pi's own agent folder (`ownPiSession`) is Novadeck
 resume, a sleeper's wake and a History restore start `novadeck-pi --session <file>`
 (`Claims.own`), needing no connection of the person's pi; a sleeper of it is never stuck on
 their pi, and History finds its conversation by that file. Disconnecting the person's own pi in
-Preferences still forgets every pi session the runner kept, Novadeck's pi's among them.
+Preferences still forgets every pi session the runner kept, Novadeck's pi's among them. On Windows
+the launcher gives pi `--tools -bash,+powershell` for that launch where it finds no bash of
+Windows' own: no Git Bash in either Program Files, and no `bash.exe` on PATH but WSL's launchers
+(System32's, WindowsApps'), which pi would otherwise take and which run commands in Linux.
 
 1. The relay sends `{"relay":2,"kind":"fetch","terminalId","token","name"}`.
 2. The runner answers a line `{"progress":"<line>"}` for each step (a download's whole
@@ -2584,8 +2587,11 @@ one from an earlier runner.
   `gpt-6-luna` (`harnesses/pi/src/own-model.ts`: OpenAI's Chat Completions, OpenRouter's
   reasoning field, `max_completion_tokens`, its context held under the 272k past which it costs
   double), and takes both out of pi's environment before anything runs, so no command of the
-  agent's (its bash or powershell tool) and no pi started from one sees the key. Nothing is
-  written to pi's settings or models. pi then calls `POST <endpoint>/chat/completions` with
+  agent's (its bash or powershell tool) and no pi started from one sees the key. Without them
+  (a session of Novadeck's pi restored outside the tour) the provider points at an address that
+  refuses, so the session fails there rather than going on with another model on the person's
+  own keys, as pi does with a session's model it can't find. Nothing is written to pi's settings
+  or models. pi then calls `POST <endpoint>/chat/completions` with
   `Authorization: Bearer <ticket>`, streaming with its usage, and the effort as
   `reasoning.effort` (probed in `own-model.ts`, against the live service too). `brief` is always
   `doorbell`: the lead's script reaches it by `tour.brief`.
@@ -2613,7 +2619,9 @@ one from an earlier runner.
   person's pi need not be connected), and on the run's model and effort whatever
   model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs Novadeck's own pi only…", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
   tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
-  refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team.
+  refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team. The
+  lead's terminal is kept with the run's record (`tour.brief` writes it), so the lead resumed in a
+  runner started again still opens its teammates.
   `removed` names the projects it removed. A second run while one is being readied is a
   `CONFLICT`, as are Novadeck's pi that can't be had and a ticket the service refuses
   (`MODELS_UNLISTED` is no longer raised). None changes anything. The client then opens the folder as a project and

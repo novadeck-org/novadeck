@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { extensionSource, type ExtensionConfig } from "./extension-source.js"
-import { ownProvider, ownProviderConfig, ownService } from "./own-model.js"
+import { ownProvider, ownProviderConfig, ownService, ownUnavailable } from "./own-model.js"
 import { events } from "./plugin.js"
 
 /**
@@ -122,6 +122,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
         provider: ownProvider,
         variables: ownService,
         config: ownProviderConfig,
+        unavailable: ownUnavailable,
       },
       ...overrides,
     }),
@@ -326,10 +327,20 @@ describe("Novadeck's pi extension", () => {
       expect(theirs.providers).toEqual([])
       expect(process.env[ownService.key]).toBeUndefined()
 
-      // A key pi would read as a variable or a command is no key of the service's.
+      // A key pi would read as a variable or a command is no key of the service's; with none,
+      // Novadeck's model points where nothing answers, so a session of it resumed outside the
+      // tour never goes on with the person's own keys.
       own(true)
       process.env[ownService.key] = "$HOME"
-      expect((await load()).providers).toEqual([])
+      const unavailable = { baseUrl: ownUnavailable, apiKey: "unavailable" }
+      expect((await load()).providers).toEqual([
+        { name: "novadeck", config: { ...ownProviderConfig, ...unavailable } },
+      ])
+      own(true)
+      delete process.env[ownService.key]
+      expect((await load()).providers).toEqual([
+        { name: "novadeck", config: { ...ownProviderConfig, ...unavailable } },
+      ])
     } finally {
       if (given.NOVADECK_PI === undefined) delete process.env.NOVADECK_PI
       else process.env.NOVADECK_PI = given.NOVADECK_PI

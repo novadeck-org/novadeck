@@ -58,6 +58,8 @@ export type ExtensionConfig = {
     readonly provider: string
     readonly variables: { readonly baseUrl: string; readonly key: string }
     readonly config: object
+    /** Where the provider points without the service: an address that refuses at once. */
+    readonly unavailable: string
   }
 }
 
@@ -379,12 +381,20 @@ const trusts = (store, folder) => {
 }
 
 export default function novadeck(pi) {
-  // Novadeck's model, in its own pi alone, where its terminal was given the service: before
-  // anything else, as pi picks the model it starts on once its extensions are loaded. A key is
-  // a plain word (no "$" or "!" that pi would read as a variable or a command).
-  if (ownPi && service && /^[A-Za-z0-9_-]+$/.test(service.key)) {
+  // Novadeck's model, in its own pi alone: before anything else, as pi picks the model it starts
+  // on once its extensions are loaded. With the service its terminal was given, a key being a
+  // plain word (no "$" or "!" that pi would read as a variable or a command); without it, at an
+  // address that refuses, so a session of Novadeck's model resumed where the service isn't
+  // given fails there rather than going on with another model on the person's own keys, which
+  // pi does with a session's model it can't find (probed 2026-11-25, 1.6.0).
+  if (ownPi) {
+    const given = service && /^[A-Za-z0-9_-]+$/.test(service.key)
     try {
-      pi.registerProvider(config.own.provider, { ...config.own.config, baseUrl: service.baseUrl, apiKey: service.key })
+      pi.registerProvider(config.own.provider, {
+        ...config.own.config,
+        baseUrl: given ? service.baseUrl : config.own.unavailable,
+        apiKey: given ? service.key : "unavailable",
+      })
     } catch {}
   }
   if (!process.env.NOVADECK_HOOK) return

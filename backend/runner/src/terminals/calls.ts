@@ -258,14 +258,22 @@ export class Calls {
       const refusal = this.host.messaging().refusal(call.terminalId, request.message, request.agent)
       if (refusal) return refused(refusal)
     }
-    // A program of Novadeck's own for the folder it asks for needs no connection of the person's.
+    // A program of Novadeck's own for the folder it asks for needs no connection of the person's,
+    // nor does a session of Novadeck's own pi to resume (`Claims.own`).
     const word =
       request.agent !== undefined && request.resume === undefined
         ? policy.program?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
         : undefined
+    const ownSession =
+      request.agent !== undefined &&
+      request.resume !== undefined &&
+      this.host
+        .claims()
+        .own(request.agent, transcriptFor(this.host.rows(), request.agent, request.resume))
     if (
       request.agent !== undefined &&
       word === undefined &&
+      !ownSession &&
       !(await this.host.launcher().connected(request.agent))
     )
       return refused(

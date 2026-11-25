@@ -48,7 +48,16 @@ export const useTour = (
     tour?.agent.subscribe ?? never,
     () => tour?.agent.getSnapshot() ?? off,
   )
-  const agent = useMemo(() => tourAgentNote(fetched), [fetched])
+  // Why the runner refused to download Pi at all (one that can't start it), while it hasn't
+  // started one: told as a failed download is, with Try again.
+  const [refused, setRefused] = useState<string | undefined>(undefined)
+  const agent = useMemo(
+    (): TourAgentNote =>
+      refused !== undefined && fetched.state === "off"
+        ? { step: "failed", text: refused }
+        : tourAgentNote(fetched),
+    [fetched, refused],
+  )
   // As Pi's state changes, an error about starting it is dropped (see `agentChanged`).
   const [seen, setSeen] = useState(agent.step)
   if (seen !== agent.step) {
@@ -56,10 +65,14 @@ export const useTour = (
     setConsent((current) => current && agentChanged(current))
   }
   const fetch = tour?.fetch
-  // Asking for the download: a runner that can't start it says why, which the consent shows.
+  // Asking for the download: a runner that can't start it says why, which the consent shows
+  // with Try again.
   const download = useCallback(() => {
+    setRefused(undefined)
     fetch?.().catch((error: unknown) =>
-      setConsent((current) => current && (current.starting ? current : tourFailed(current, error))),
+      setRefused(
+        error instanceof Error && error.message ? error.message : "Pi's download couldn't start.",
+      ),
     )
   }, [fetch])
   const offer = useCallback(() => {

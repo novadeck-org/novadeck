@@ -452,6 +452,8 @@ export class BundledPi {
     const allowed = () =>
       this.host.enabled() || (terminalId !== undefined && this.host.allows?.(terminalId) === true)
     if (!allowed()) throw new DownloadError(turnOnLine)
+    // A tour's terminal's ask is the tour's (`want`): the switch going off stops nothing of it.
+    if (!this.host.enabled()) this.wanted = true
     try {
       await this.ensure(progress)
     } catch (error) {

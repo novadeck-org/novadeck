@@ -302,6 +302,23 @@ export class Tour {
       tourBrief({ ...this.facts, lead: mention(this.host.handleOf(terminalId)) }),
     )
     this.run.lead = terminalId
+    // Kept with the run's record, so the lead resumed in a runner started again still opens
+    // its teammates (`openPolicy`).
+    const name = basename(this.run.directory)
+    const kept = this.records.get(name)
+    if (kept) this.records.set(name, { ...kept, lead: terminalId })
+  }
+
+  // Whether the terminal leads the tour's run in its folder: the run's lead in memory, or, in a
+  // runner started again, the lead its folder's record names, while the folder is still the tour's.
+  private leads(terminalId: string, cwd: string): boolean {
+    if (this.run) return terminalId === this.run.lead
+    const folder = folderOf(
+      cwd,
+      this.host.home ?? homedir(),
+      this.host.platform ?? process.platform,
+    )
+    return folder !== undefined && this.records.get(basename(folder))?.lead === terminalId
   }
 
   /**
@@ -388,7 +405,7 @@ export class Tour {
     if (!this.inTour(cwd)) return {}
     // The lead's teammates write in the folder unasked, for that launch only (`tourWrites`), and
     // only where they start in it: one it opens elsewhere gets none.
-    return terminalId === this.run?.lead
+    return this.leads(terminalId, cwd)
       ? {
           refuseAgent: (agent, at) =>
             agent !== tourAgent && this.inTour(at)

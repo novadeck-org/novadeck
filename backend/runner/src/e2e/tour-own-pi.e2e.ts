@@ -164,18 +164,31 @@ describe.skipIf(!supported)(`${ownPi.name} in the tour`, () => {
   })
 })
 
-// On Windows without Git Bash: the sandbox's Program Files folders hold no Git, and no folder of its
-// PATH holds a bash.exe, so pi finds no bash by its own search (docs/windows.md, 1.6.0) and
-// Novadeck's launcher gives it `--tools -bash,+powershell`.
+// WSL's launchers, which Novadeck's launcher passes over (they run commands in Linux).
+const wslFolder = (entry: string): boolean =>
+  /\\(?:Windows\\System32|Microsoft\\WindowsApps)\\?$/i.test(entry)
+
+// On Windows without Git Bash: the sandbox's Program Files folders hold no Git, and its PATH keeps
+// no folder with a bash.exe but WSL's launchers (Git's own go, as a computer without Git has none),
+// so Novadeck's launcher gives pi `--tools -bash,+powershell`.
 const noGit: AgentSetup = {
   ...ownPi,
   prepare: async (sandbox, model, installed, seed) => {
-    const folders = {
+    const prepared = await ownPi.prepare(sandbox, model, installed, seed)
+    const env = { ...sandbox.env, ...prepared }
+    // Windows names it Path; one key only, as two spellings would both reach the child.
+    const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH"
+    const kept = (env[key] ?? "")
+      .split(delimiter)
+      .filter((entry) => wslFolder(entry) || !existsSync(join(entry, "bash.exe")))
+      .join(delimiter)
+    return {
+      ...prepared,
+      [key]: kept,
       ProgramFiles: join(sandbox.root, "Program Files"),
       "ProgramFiles(x86)": join(sandbox.root, "Program Files (x86)"),
       ProgramW6432: join(sandbox.root, "Program Files"),
     }
-    return { ...(await ownPi.prepare(sandbox, model, installed, seed)), ...folders }
   },
 }
 
@@ -186,13 +199,7 @@ describe.skipIf(!supported || process.platform !== "win32")(
 
     it("starts with its powershell tool in place of bash, and the lead runs a command in it", async ({
       e2e: run,
-      skip,
     }) => {
-      // A bash.exe anywhere on the sandbox's own PATH (the WSL launcher in System32, where the
-      // feature is on) is one pi finds, so there is no Git-less start to test here.
-      const path = run.sandbox.env.Path ?? run.sandbox.env.PATH ?? ""
-      if (path.split(delimiter).some((entry) => existsSync(join(entry, "bash.exe"))))
-        skip("a bash.exe is on the sandbox's PATH")
       const { lead, restore } = await leadOf(run, noGit)
       try {
         run.model.use(

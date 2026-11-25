@@ -370,6 +370,22 @@ describe("readying the tour", () => {
     ).toBeUndefined()
   })
 
+  it("lets the lead, resumed in a runner started again, open its teammates, and no one else", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const file = join(home, "tour-runs.json")
+    const projects: Project[] = []
+    const first = tourIn(home, { projects, records: new TourRecords(file) })
+    await first.tour.prepare()
+    projects.push(project("tour", tourFolder(home)))
+    first.tour.brief("lead")
+    // The runner starts again: nothing of the run is in memory.
+    const again = tourIn(home, { projects, records: new TourRecords(file) })
+    expect(again.tour.openPolicy("lead").program?.("pi", tourFolder(home))).toBe("novadeck-pi")
+    expect(again.tour.openPolicy("mate").refusal).toMatch(/only the lead of Novadeck's tour/i)
+  })
+
   it("replaces a folder's record when a new run takes the folder", async ({ resources }) => {
     const home = await scratchHome(resources)
     const projects: Project[] = []
