@@ -137,6 +137,13 @@ const hook = (event, payload) =>
     child.stdin.end(JSON.stringify({ hook_event_name: event, ...payload }))
   })
 
+// The words pi was started with, for a SessionStart: it names its process "pi" (process.title),
+// which leaves the relay none to read, while its own argv keeps them. Only while they reach the
+// runner whole, as it keeps at most 50 of a list and may cut a text past 200 characters: past that,
+// none, so the runner keeps what it had.
+const argv = process.argv.slice(2)
+const launch = argv.length <= 50 && argv.every((word) => word.length <= 200) ? { argv } : {}
+
 // An answer's JSON, from the last line of what the hook printed that is JSON: the relay prints
 // its answer as one line, last, and anything printed before it (a Windows shell's AutoRun, a
 // profile) is not part of it, so it can't hide a deny.
@@ -416,10 +423,7 @@ export default function novadeck(pi) {
       failure = null
       stopped = false
       continued = 0
-      // The words pi was started with: it names its process "pi" (process.title), which leaves
-      // the relay none to read, while its own argv keeps them.
-      const argv = process.argv.slice(2)
-      await report("SessionStart", { ...at, source, version: version ?? null, ...modelOf(ctx), argv })
+      await report("SessionStart", { ...at, source, version: version ?? null, ...modelOf(ctx), ...launch })
       writeModels(ctx)
     } catch {}
     await registerTools()
@@ -466,7 +470,7 @@ export default function novadeck(pi) {
 
   pi.on("session_compact", async (_event, ctx) => {
     try {
-      await report("SessionStart", { ...where(ctx), source: "compact", version: version ?? null })
+      await report("SessionStart", { ...where(ctx), source: "compact", version: version ?? null, ...launch })
     } catch {}
   })
 

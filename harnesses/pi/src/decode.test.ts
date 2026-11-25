@@ -192,7 +192,7 @@ describe("pi's reports, as Novadeck's extension made them (probed 2026-11-24, 1.
 })
 
 // pi names its process `pi`, so the relay reads it as started with no words (Linux, 1.6.0): the
-// flags a resume gives back come from what the extension sends.
+// flags a resume gives back come from what the extension sends, and only from that.
 describe("the words pi was started with", () => {
   const start = reportsOf("SessionStart")[0]!
   const launchOf = (payload: Payload, launch?: readonly string[]) =>
@@ -207,9 +207,9 @@ describe("the words pi was started with", () => {
     })
   })
 
-  it("are what the relay read where the extension sent none, or more than it would take", () => {
-    expect(launchOf(start, ["--no-mcp"])).toMatchObject({ launch: ["--no-mcp"] })
-    const many = { ...start, argv: Array.from({ length: 129 }, () => "--no-tools") }
-    expect(launchOf(many, ["--no-mcp"])).toMatchObject({ launch: ["--no-mcp"] })
+  // A compaction's report from an older extension, or words too many to reach the runner whole:
+  // the session keeps what its start told (bindings' mergeLaunch), never the relay's empty read.
+  it("are none where the extension sent none, whatever the relay read", () => {
+    expect(launchOf({ ...start, source: "compact" }, [])).not.toHaveProperty("launch")
   })
 })

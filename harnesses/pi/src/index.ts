@@ -23,20 +23,16 @@ import { hooksTrusted } from "./trust.js"
 import { versionOf } from "./version.js"
 
 /**
- * The words pi was started with, as its extension sends them in SessionStart's `argv`: pi names
- * its process `pi` (`process.title`), so the relay reads it as started with none (seen on Linux,
- * 2026-11-25, 1.6.0), and a resume lost the flags pi forgets. What the relay read stands where
- * the extension sent none or a list past the relay's own bounds.
+ * The words pi was started with, as its extension sends them in a SessionStart's `argv`, and only
+ * those: pi names its process `pi` (`process.title`), so the relay reads it as started with none
+ * (seen on Linux, 2026-11-25, 1.6.0), which would drop the flags pi forgets. A report with no
+ * `argv` tells none, and the session keeps what it had.
  */
-export const launchOf = (
-  report: Pick<Report, "launch" | "payload">,
-): readonly string[] | undefined => {
+export const launchOf = (report: Pick<Report, "payload">): readonly string[] | undefined => {
   const { argv } = report.payload
-  return Array.isArray(argv) &&
-    argv.length <= 128 &&
-    argv.every((word) => typeof word === "string" && word.length <= 4096)
+  return Array.isArray(argv) && argv.every((word) => typeof word === "string")
     ? (argv as readonly string[])
-    : report.launch
+    : undefined
 }
 
 /** pi, as Novadeck's fifth harness: its extension, shim, transcripts, screens and input box. */
