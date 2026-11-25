@@ -251,6 +251,24 @@ describe("Novadeck's pi extension", () => {
     await pi.emit("session_shutdown", { reason: "quit" })
   })
 
+  it("leaves the person's models alone in Novadeck's own pi", async () => {
+    const before = process.env.NOVADECK_PI
+    process.env.NOVADECK_PI = "bundled"
+    try {
+      await rm(join(root, "models.json"), { force: true })
+      const pi = await load()
+      await pi.emit("session_start", { reason: "startup" })
+      expect(await pi.reports()).toEqual([
+        expect.objectContaining({ hook_event_name: "SessionStart" }),
+      ])
+      await expect(readFile(join(root, "models.json"), "utf8")).rejects.toThrow("ENOENT")
+      await pi.emit("session_shutdown", { reason: "quit" })
+    } finally {
+      if (before === undefined) delete process.env.NOVADECK_PI
+      else process.env.NOVADECK_PI = before
+    }
+  })
+
   it("gives a prompt's delivery to the model right after the prompt", async () => {
     const pi = await load()
     await pi.answer({ UserPromptSubmit: { deliver: "<novadeck-messages>hi</novadeck-messages>" } })

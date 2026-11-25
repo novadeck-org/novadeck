@@ -525,3 +525,85 @@ fn gives_only_opencodes_shell_calls_the_long_limit_while_the_runner_hangs() {
         serde_json::from_str(String::from_utf8_lossy(&bash.stdout).trim()).unwrap();
     assert_eq!(printed["decision"], "deny");
 }
+
+/// A fetch through a runner that answers `lines`, then ends: what the relay printed on
+/// stdout and stderr, whether it succeeded, and the first line the runner read.
+#[cfg(unix)]
+fn fetched(name: &str, lines: &[&str]) -> (String, String, bool, String) {
+    let runner = runner::Runner::new(name);
+    let fetch = runner
+        .relay(&["fetch", "pi"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let (mut stream, hello) = runner.accept();
+    for line in lines {
+        stream.write_all(format!("{line}\n").as_bytes()).unwrap();
+    }
+    drop(stream);
+    let output = fetch.wait_with_output().unwrap();
+    (
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+        output.status.success(),
+        hello,
+    )
+}
+
+#[cfg(unix)]
+#[test]
+fn fetches_through_the_runner_showing_its_progress() {
+    let (stdout, stderr, ok, hello) = fetched(
+        "fetch-ready",
+        &[
+            r#"{"progress":"Downloading pi 1.6.0: 1.0 of 59.0 MB (1%)"}"#,
+            r#"{"progress":"Unpacking pi 1.6.0"}"#,
+            r#"{"ready":true}"#,
+        ],
+    );
+    assert!(ok);
+    assert!(hello.contains(r#""kind":"fetch""#), "{hello}");
+    assert!(hello.contains(r#""name":"pi""#), "{hello}");
+    assert!(hello.contains(r#""terminalId":"t1""#), "{hello}");
+    assert_eq!(stdout, "");
+    // Not a terminal: one line under the other.
+    assert_eq!(
+        stderr,
+        "Downloading pi 1.6.0: 1.0 of 59.0 MB (1%)\nUnpacking pi 1.6.0\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn fails_with_the_runners_reason_or_its_own() {
+    let (_, stderr, ok, _) = fetched(
+        "fetch-failed",
+        &[r#"{"error":"Could not reach github.com. Check the connection."}"#],
+    );
+    assert!(!ok);
+    assert_eq!(
+        stderr,
+        "Novadeck couldn't get pi: Could not reach github.com. Check the connection.\n"
+    );
+    // The runner went away before it said either.
+    let (_, stderr, ok, _) = fetched("fetch-gone", &[r#"{"progress":"Unpacking pi 1.6.0"}"#]);
+    assert!(!ok);
+    assert!(
+        stderr.ends_with(
+            "Novadeck couldn't get pi: Novadeck stopped answering while it fetched it.\n"
+        ),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn fetches_nothing_outside_a_novadeck_terminal() {
+    let output = relay(&["fetch", "pi"]).output().unwrap();
+    assert!(!output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "Novadeck's pi starts only in a Novadeck terminal.\n"
+    );
+}

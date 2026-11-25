@@ -667,6 +667,72 @@ describe("relay hooks", () => {
   })
 })
 
+describe("relay fetches", () => {
+  const fetchLine = (given: Record<string, unknown> = {}) =>
+    JSON.stringify({ relay: 2, kind: "fetch", terminalId: "t", token, name: "pi", ...given })
+
+  it("tells a fetch's progress, then that it is ready", async ({ resources }) => {
+    const asked: string[] = []
+    const reports = await listenForReports(
+      handlers({
+        fetch: async (name, progress) => {
+          asked.push(name)
+          progress("Downloading pi 1.6.0: 1.0 of 2.0 MB (50%)")
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          progress("Unpacking pi 1.6.0")
+        },
+      }),
+    )
+    resources.defer(() => reports.close())
+
+    expect(await relay(reports.endpoint, [fetchLine()])).toEqual([
+      { progress: "Downloading pi 1.6.0: 1.0 of 2.0 MB (50%)" },
+      { progress: "Unpacking pi 1.6.0" },
+      { ready: true },
+    ])
+    expect(asked).toEqual(["pi"])
+  })
+
+  it("waits past the read limit for a fetch that takes long", async ({ resources }) => {
+    const reports = await listenForReports(
+      handlers({ fetch: () => new Promise((resolve) => setTimeout(resolve, 150)) }),
+      { readMs: 50 },
+    )
+    resources.defer(() => reports.close())
+
+    expect(await relay(reports.endpoint, [fetchLine()])).toEqual([{ ready: true }])
+  })
+
+  it("says why a fetch failed", async ({ resources }) => {
+    const reports = await listenForReports(
+      handlers({ fetch: () => Promise.reject(new Error("Could not reach github.com.")) }),
+    )
+    resources.defer(() => reports.close())
+
+    expect(await relay(reports.endpoint, [fetchLine()])).toEqual([
+      { error: "Could not reach github.com." },
+    ])
+  })
+
+  it("fetches nothing for a line without a terminal, a name or anyone to fetch it", async ({
+    resources,
+  }) => {
+    const fetched: string[] = []
+    const reports = await listenForReports(
+      handlers({ fetch: (name) => Promise.resolve(void fetched.push(name)) }),
+    )
+    resources.defer(() => reports.close())
+    const none = { error: "Novadeck has nothing to fetch by that name." }
+
+    expect(await relay(reports.endpoint, [fetchLine({ token: "nope" })])).toEqual([none])
+    expect(await relay(reports.endpoint, [fetchLine({ name: 1 })])).toEqual([none])
+    expect(fetched).toEqual([])
+    const without = await listenForReports(handlers({}))
+    resources.defer(() => without.close())
+    expect(await relay(without.endpoint, [fetchLine()])).toEqual([none])
+  })
+})
+
 describe("what isn't a relay's", () => {
   it("ends a first line that isn't a relay's without an answer, taking nothing", async ({
     resources,

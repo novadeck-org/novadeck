@@ -337,6 +337,12 @@ export type ReportHandlers = {
     session: string,
     listed: boolean,
   ) => void
+  /**
+   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`pi`): settles once it is in
+   * place, telling its `progress` in lines a person reads, or fails with a reason a person reads.
+   * Absent, every fetch fails.
+   */
+  readonly fetch?: (name: string, progress: (line: string) => void) => Promise<void>
 }
 
 export type Reports = {
@@ -475,6 +481,27 @@ export const listenForReports = async (
     socket.setTimeout(readMs, () => socket.destroy())
     take(from)
   }
+  /**
+   * Answers a relay's fetch (`novadeck-relay fetch <name>`, which a launcher of Novadeck's own pi
+   * runs where its program isn't in place) with a line for each step of its progress,
+   * `{ progress }`, then `{ ready: true }` or `{ error }`, and ends. A download takes as long as it
+   * takes; the fetch itself gives up on one that stalls.
+   */
+  const serveFetch = async (socket: Socket, value: Fields): Promise<void> => {
+    const say = (line: object) => {
+      if (socket.writable) socket.write(`${JSON.stringify(line)}\n`)
+    }
+    const { name } = value
+    try {
+      if (!sender(value) || typeof name !== "string" || !handlers.fetch)
+        throw new Error("Novadeck has nothing to fetch by that name.")
+      await handlers.fetch(name, (progress) => say({ progress }))
+      say({ ready: true })
+    } catch (error) {
+      say({ error: error instanceof Error ? error.message : String(error) })
+    }
+    socket.end()
+  }
   // Every connection, so closing ends the sessions that stay open.
   const sockets = new Set<Socket>()
   // Half open: a relay that ends its side after its hook still reads the answer, where the
@@ -518,6 +545,14 @@ export const listenForReports = async (
         socket.setTimeout(0)
         socket.off("data", first)
         serveHook(socket, value, text.slice(end + 1)).catch(() => socket.destroy())
+        return
+      }
+      if (object(value) && version !== undefined && value.kind === "fetch") {
+        // A download's own wait, which holds no runner open.
+        socket.setTimeout(0)
+        socket.unref()
+        socket.off("data", first)
+        serveFetch(socket, value).catch(() => socket.destroy())
         return
       }
       if (object(value) && version !== undefined && value.kind === "mcp") {

@@ -1236,6 +1236,23 @@ everything it started at the deadline. Without
 the relay, the hook launcher prints what `relay.json` would, as it is written from the
 same tables.
 
+**Fetch**, run by the launcher of Novadeck's own pi (`shell/bundled/pi`, from
+harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` where its program isn't in place
+yet: the runner downloads the pinned build for its system (`bundled/pi.ts`) and the
+relay shows its progress in the terminal.
+
+1. The relay sends `{"relay":2,"kind":"fetch","terminalId","token","name"}`.
+2. The runner answers a line `{"progress":"<line>"}` for each step (a download's whole
+   percent, then unpacking), then `{"ready":true}` or `{"error":"<reason>"}`, and ends the
+   connection. A download takes as long as it takes; the runner gives up on one that sends
+   nothing for 30 s. Launches fetching at once share one download.
+3. The relay writes each progress line to stderr, over the last on a terminal, one under
+   the other elsewhere; it exits 0 once ready, and otherwise 1 with
+   `Novadeck couldn't get pi: <reason>`. Outside Novadeck's terminals it fails at once.
+
+The runner doesn't check the terminal's token for a fetch: its endpoint is the person's
+alone, and all a fetch can ask is the pinned, checksummed download.
+
 On Windows the runner also runs the relay for what it would otherwise start PowerShell
 or taskkill for:
 

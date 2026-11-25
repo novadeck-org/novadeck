@@ -434,8 +434,10 @@ export default function novadeck(pi) {
     await registerTools()
   })
 
-  // The models pi can run here, with the efforts each takes, for Novadeck's model picker.
+  // The models pi can run here, with the efforts each takes, for Novadeck's model picker: the
+  // person's pi's, never Novadeck's own pi's (its launcher's NOVADECK_PI), whose models are its own.
   const writeModels = (ctx) => {
+    if (process.env.NOVADECK_PI === "bundled") return
     try {
       const levels = piAi.getSupportedThinkingLevels
       const models = ctx.modelRegistry.getAvailable().map((model) => ({
