@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
+import type { PullRequest as FoundPullRequest } from "@novadeck/forges"
 import type { PullRequest, Work, WorkMade } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -2183,7 +2184,7 @@ describe.skipIf(!hasGit)("the pull request of a work", () => {
   // A Works over the main checkout whose pull request lookup is `lookup`.
   const withLookup = (
     root: string,
-    lookup: (commonDir: string, branch: string) => PullRequest | undefined,
+    lookup: (commonDir: string, branch: string) => FoundPullRequest | undefined,
   ) =>
     new Works({
       tracked: () => [
@@ -2232,6 +2233,23 @@ describe.skipIf(!hasGit)("the pull request of a work", () => {
     expect(works.branches()).toEqual([
       { commonDir: join(fixture.main.root, ".git"), branch: "renamed" },
     ])
+  })
+
+  it("carries an open pull request whose forge tells more than the contract does", async ({
+    fixture,
+    resources,
+  }) => {
+    // Every open pull request a forge finds names its target branch, and its unfinished checks
+    // with their runner kinds, which the agents' listing reads and the work doesn't carry.
+    const works = withLookup(fixture.main.root, () => ({
+      ...request,
+      ci: "running",
+      base: "main",
+      checks: [{ name: "mac", state: "queued", since: 1, runner: "macos-latest" }],
+    }))
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(fixture.main.root)?.pullRequest).toEqual({ ...request, ci: "running" })
   })
 
   it("is left out of a work the lookup knows none for", async ({ fixture, resources }) => {
