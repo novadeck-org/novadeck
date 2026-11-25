@@ -169,6 +169,29 @@
   .worktrees-row:not(:hover, :has(:focus-visible)) .worktrees-trash[aria-disabled="true"] {
     opacity: 0;
   }
+  /* At rest "target ‹ branch" runs up to the handle's own words, not to the actions' room the
+     handle keeps (sidebar-item.css). Under the pointer the actions stand over the line's end, so
+     what runs there fades out under them: a mask whose clear band, the actions' width, slides in
+     from past the line's end with the actions' own timing, while the handle slides away. */
+  .worktrees-row .sidebar-item-handle {
+    min-width: 0;
+  }
+  .worktrees-row .sidebar-item-detail {
+    --_fade: 12px;
+    mask-image: linear-gradient(
+      to left,
+      transparent var(--_sidebar-actions-space),
+      #000 calc(var(--_sidebar-actions-space) + var(--_fade))
+    );
+    mask-repeat: no-repeat;
+    mask-size: calc(100% + var(--_sidebar-actions-space) + var(--_fade)) 100%;
+    mask-position: 0 0;
+    transition: mask-position var(--motion-feedback) var(--ease-interface);
+  }
+  .worktrees-row:is(:hover, :has(:focus-visible)) .sidebar-item-detail {
+    mask-position: calc(0px - var(--_sidebar-actions-space) - var(--_fade)) 0;
+    transition-delay: 60ms;
+  }
 }
 
 /* The selected row is the selected terminal's worktree, not what its click shows: a click
