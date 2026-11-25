@@ -68,13 +68,16 @@ impl Shown {
     }
 }
 
-/// The agent's name as Novadeck's app shows it, with a capital (`pi` → `Pi`).
-fn titled(name: &str) -> String {
-    let mut chars = name.chars();
-    chars
-        .next()
-        .map(|first| first.to_uppercase().chain(chars).collect())
-        .unwrap_or_default()
+/// The agent's name as Novadeck's app shows it (`harnesses.ts`): `pi` → `Pi`.
+fn titled(name: &str) -> &str {
+    match name {
+        "claude" => "Claude Code",
+        "codex" => "Codex",
+        "agy" => "Antigravity",
+        "opencode" => "OpenCode",
+        "pi" => "Pi",
+        other => other,
+    }
 }
 
 /// Fetches `name` through the terminal's runner; false, with its reason on stderr, if it fails.

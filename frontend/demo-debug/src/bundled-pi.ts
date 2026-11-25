@@ -29,7 +29,7 @@ export const bundledPiGroups = (
         },
         {
           label: "Downloading, size unknown",
-          hint: `${where}: the switch on, the note reads Downloading pi…`,
+          hint: `${where}: the switch on, the note reads Downloading Pi…`,
           run: () => pi.show(true, { state: "downloading" }),
         },
         {
