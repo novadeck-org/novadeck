@@ -164,7 +164,7 @@ export const scripted = ({
   tourRevision,
 }: {
   // Where the runner has a tour, the contract revision it is at (it serves `tour.fetch` from
-  // 19); absent, as a runner without one.
+  // 20); absent, as a runner without one.
   tourRevision?: number
   shown: readonly Saved[]
   // Whether Novadeck's own pi is on, as a runner from revision 16 says; absent, as one before it.
@@ -241,7 +241,7 @@ export const scripted = ({
     supports: (path: string) =>
       (follows &&
         (path === "settings.watch" || path === "preferences.get" || path === "agents.watch")) ||
-      (path === "tour.fetch" && (tourRevision ?? 0) >= 19),
+      (path === "tour.fetch" && (tourRevision ?? 0) >= 20),
     preferences: {
       get: unused,
       set: note("preference", () => answers.preference()),

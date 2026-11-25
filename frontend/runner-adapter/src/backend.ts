@@ -2438,7 +2438,7 @@ export const runnerBackend = (
     boot: boot.store,
     ...switches,
     ...(person && { preferences: person.preferences }),
-    // Only from a runner at revision 19: one before it runs the tour on opencode.
+    // Only from a runner at revision 20: one before it runs the tour on opencode.
     ...(runner.tour &&
       has("tour.fetch") && {
         // The tours it removes are this window's to remove, as it opens the new one: the projects

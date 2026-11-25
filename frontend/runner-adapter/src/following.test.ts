@@ -48,7 +48,7 @@ describe("following another device", () => {
     })
 
     it("shows where the tour's pi download stands while the Experimental switch is off", async () => {
-      const app = scripted({ shown: [], follows: true, bundledPi: false, tourRevision: 19 })
+      const app = scripted({ shown: [], follows: true, bundledPi: false, tourRevision: 20 })
       const { agent } = app.backend.tour!
       expect(agent.getSnapshot()).toEqual({ state: "off" })
       app.settingsChanges.push(

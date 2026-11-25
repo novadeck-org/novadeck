@@ -1117,7 +1117,7 @@ export const contract = {
   // Novadeck's tour, a live run of Novadeck's own agent in a folder of Novadeck's.
   tour: {
     // Readies a run, always on Novadeck's own pi with GPT-6 Luna at medium effort, paid for by
-    // Novadeck (revision 19; from 12 to 18 on opencode, and before 12 on the person's own agent,
+    // Novadeck (revision 20; from 12 to 19 on opencode, and before 12 on the person's own agent,
     // named in `agent`, which is now ignored, so an older UI still works against a newer runner):
     // waits for Novadeck's pi to be in place (`fetch`), gets a ticket from the tour's service,
     // removes the projects open at the tour's folder, closing their terminals, empties the folder
@@ -1132,7 +1132,7 @@ export const contract = {
     // `bundledPiFetch`, which says so while the switch is off too. Asking while one is under way
     // or once it is in place changes nothing. A runner that can't start Novadeck's pi (no shell
     // files) is a CONFLICT.
-    fetch: procedure.meta({ since: 19 }).input(z.void()).output(z.void()),
+    fetch: procedure.meta({ since: 20 }).input(z.void()).output(z.void()),
     // Rings the tour's start line to the agent in the terminal, where its launch line took
     // none (`brief: "doorbell"`): the doorbell delivers it once the agent's prompt shows. One
     // whose agent hasn't shown in the terminal yet, or that isn't in the tour's folder, is a CONFLICT.

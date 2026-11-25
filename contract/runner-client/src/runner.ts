@@ -929,7 +929,7 @@ export type Runner = {
   readonly tour: {
     /** Readies a run (`tour.prepare`), on Novadeck's own pi and model: its folder emptied and briefed, its launch line. */
     prepare(): Promise<TourPrepared>
-    /** Starts downloading Novadeck's own pi for the tour (`tour.fetch`, revision 19), whatever its switch; answers at once. */
+    /** Starts downloading Novadeck's own pi for the tour (`tour.fetch`, revision 20), whatever its switch; answers at once. */
     fetch(): Promise<void>
     /** Rings the tour's start line to the agent in the terminal (`tour.brief`). */
     brief(terminalId: string): Promise<void>

@@ -160,8 +160,8 @@ describe("the Novadeck Agent setting", () => {
 })
 
 describe("the tour", () => {
-  it("isn't offered by a runner at revision 18, which runs the tour on opencode", () => {
-    const app = scripted({ shown: [], tourRevision: 18 })
+  it("isn't offered by a runner at revision 19, which runs the tour on opencode", () => {
+    const app = scripted({ shown: [], tourRevision: 19 })
     expect(app.backend.tour).toBeUndefined()
     app.stop()
   })
@@ -172,8 +172,8 @@ describe("the tour", () => {
     app.stop()
   })
 
-  it("asks the runner to download Novadeck's pi from revision 19", async () => {
-    const app = scripted({ shown: [], bundledPi: false, tourRevision: 19 })
+  it("asks the runner to download Novadeck's pi from revision 20", async () => {
+    const app = scripted({ shown: [], bundledPi: false, tourRevision: 20 })
     const { agent, fetch } = app.backend.tour!
     expect(agent.getSnapshot()).toEqual({ state: "off" })
     await fetch()
