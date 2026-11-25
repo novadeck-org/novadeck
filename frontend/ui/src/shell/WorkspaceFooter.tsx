@@ -151,7 +151,8 @@ export const WorkspaceFooter = ({
           bar's height, so the sandbox notice it anchors rises from the bar's top edge. */}
       <span className="footer-middle relative flex items-center self-stretch">
         <FooterSandbox sandbox={sandbox} hidden={hidden} />
-        {!hidden && <FooterOrigin origin={origin} />}
+        {/* Keyed by project: a fetch under way is the project's it was started for. */}
+        {!hidden && <FooterOrigin key={origin?.projectId} origin={origin} />}
       </span>
       {/* Two groups: the subscriptions, then the buttons and chips (`.footer-misc`), set
           apart only while both show something (region.css). */}

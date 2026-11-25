@@ -491,21 +491,17 @@ describe("what the demo's works hold, and whether closing them is safe", () => {
   })
 
   it("fetches origin at once, moving its project's fetch time to now", async () => {
-    let now = 5_000_000
+    const now = 5_000_000
     const demo = createDemoWorks(works, { now: () => now })
     await demo.fetch?.("storefront")
     expect(demo.worksOf("storefront").every((work) => work.fetchedAt === now)).toBe(true)
-    const at = { projectId: "storefront", terminalId: works[0]!.terminalId!, root: works[0]!.root }
-    now += 1_000
-    demo.fetchedAgo(at, 180)
-    expect(demo.ownedBy(works[0]!.terminalId!)?.fetchedAt).toBe(now - 180 * 60_000)
   })
 
   it("tells a project's origin failing until the person's fetch reaches it", async () => {
     const now = 5_000_000
     const demo = createDemoWorks(works, { now: () => now })
     expect(await demo.origins?.("storefront")).toEqual([])
-    demo.failOrigin("storefront", 120, "Could not resolve host: github.com")
+    demo.failOrigin("storefront", "storefront", 120, "Could not resolve host: github.com")
     expect(await demo.origins?.("storefront")).toEqual([
       {
         repository: "storefront",

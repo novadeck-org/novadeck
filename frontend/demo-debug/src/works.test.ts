@@ -14,6 +14,7 @@ const workspace = {
   projects: [
     {
       id: "storefront",
+      directory: "/home/demo/projects/storefront",
       history: [{ id: session.id, state: { roster: { terminals: session.terminals } } }],
     },
   ],
@@ -100,7 +101,10 @@ describe("the debug panel's Worktrees group", () => {
       const before = Date.now()
       run("Origin fetch failing", 1)
       const [failed] = await works.origins!(key(1).projectId)
-      expect(failed?.said).toBe("Could not resolve host: github.com")
+      expect(failed).toMatchObject({
+        repository: "storefront",
+        said: "Could not resolve host: github.com",
+      })
       const ago = before - failed!.since
       expect(ago).toBeGreaterThan(2 * 60 * 60_000 - 60_000)
       expect(ago).toBeLessThan(2 * 60 * 60_000 + 60_000)

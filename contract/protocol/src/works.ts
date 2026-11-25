@@ -15,6 +15,8 @@ export const workLimits = {
   branch: 256,
   conflicts: 32,
   title: 80,
+  // The repositories `works.origins` names at most.
+  origins: 32,
 } as const
 
 const count = z.number().int().min(0)

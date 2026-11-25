@@ -684,11 +684,14 @@ export type DemoWorksControl = {
   readonly changedAgo: (at: Placed, minutes: number) => void
   // The terminal's worktree has `count` commits no remote holds.
   readonly setUnpushed: (at: Placed, count: number) => void
-  // The terminal's worktree's origin was last fetched `minutes` ago.
-  readonly fetchedAgo: (at: Placed, minutes: number) => void
-  // The project's origin has failed to fetch for `minutes`, for git's reason `said`, until the
-  // next fetch the person asks for, which reaches it.
-  readonly failOrigin: (projectId: string, minutes: number, said: string) => void
+  // The project's repository `repository` has failed to fetch its origin for `minutes`, for git's
+  // reason `said`, until the next fetch the person asks for, which reaches it.
+  readonly failOrigin: (
+    projectId: string,
+    repository: string,
+    minutes: number,
+    said: string,
+  ) => void
   // The owner's agent is mid-turn in the terminal's first worktree, or no longer.
   readonly setWorking: (terminalId: string, working: boolean) => void
   // The next close is refused, as when git status couldn't be read.
@@ -1090,17 +1093,8 @@ export const createDemoWorks = (
       const { root } = ensure(at)
       change(root, (work) => ({ ...work, unpushed: count }))
     },
-    fetchedAgo: (at, minutes) => {
-      const { root } = ensure(at)
-      // A fetched main is the remote's, as the runner measures it once origin was fetched.
-      change(root, (work) => ({
-        ...work,
-        base: "origin/main",
-        fetchedAt: now() - minutes * minute,
-      }))
-    },
-    failOrigin: (projectId, minutes, said) => {
-      failing.set(projectId, { repository: projectId, said, since: now() - minutes * minute })
+    failOrigin: (projectId, repository, minutes, said) => {
+      failing.set(projectId, { repository, said, since: now() - minutes * minute })
     },
     orphan: (root) => change(root, (work) => ({ ...work, terminalId: null, working: false })),
     setWorking: (terminalId, working) => {

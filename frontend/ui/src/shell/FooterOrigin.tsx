@@ -5,11 +5,12 @@ import { CloudOff } from "lucide-react"
 import { useState } from "react"
 
 export type FooterOriginProps = {
-  // The open project's repositories whose origin has failed to fetch for a while, oldest first.
+  // The open project, whose fetch a click starts.
+  readonly projectId: string
+  // Its repositories whose origin has failed to fetch for a while, oldest first.
   readonly failing: readonly OriginFailing[]
   // Fetches the project's origins now; resolves once each fetch has ended, failed or not.
   readonly onRetry: () => Promise<void>
-  readonly now: number
 }
 
 // What the tooltip says: how long each repository has failed to fetch and git's reason, then
@@ -29,6 +30,16 @@ export const originText = (failing: readonly OriginFailing[], now: number): stri
 // have kept failing (`useFailingOrigins`), and goes with the first one that succeeds. It is the
 // one place the app says so: the Worktrees panel, the Files panel and a change's diff say nothing
 // of how old origin is.
+// The tooltip's words, read as it opens, so "for 3 h" is as of then.
+const OriginWords = ({
+  failing,
+}: {
+  readonly failing: readonly OriginFailing[]
+}): React.JSX.Element => {
+  const [now] = useState(Date.now)
+  return <span className="whitespace-pre-line">{originText(failing, now)}</span>
+}
+
 export const FooterOrigin = ({
   origin,
 }: {
@@ -37,11 +48,7 @@ export const FooterOrigin = ({
   const [fetching, setFetching] = useState(false)
   if (!origin || origin.failing.length === 0) return null
   return (
-    <Tooltip
-      content={
-        <span className="whitespace-pre-line">{originText(origin.failing, origin.now)}</span>
-      }
-    >
+    <Tooltip content={<OriginWords failing={origin.failing} />}>
       <button
         type="button"
         className="footer-action footer-update cursor-pointer gap-1.5 font-bold"

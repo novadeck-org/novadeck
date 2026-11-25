@@ -298,8 +298,15 @@ export class MainFetcher {
           state.failures += 1
           state.nextAt = at + Math.min(longestWaitMs, this.every * 2 ** state.failures)
         }
-        state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
-        state.failingSince ??= at
+        // A repository with no origin (one made by `git init`, as the tour's, or with its remote
+        // named otherwise) has nothing to fetch: that is no failure to tell.
+        if (done.kind === "exit" && !(await this.hasOrigin(commonDir))) {
+          state.failed = undefined
+          state.failingSince = undefined
+        } else {
+          state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
+          state.failingSince ??= at
+        }
         log.debug("worktrees.fetch-failed", "Novadeck could not fetch a repository's origin", {
           data: { commonDir, kind: done.kind, said: done.said },
         })
@@ -307,6 +314,15 @@ export class MainFetcher {
     })().finally(() => this.under.delete(commonDir))
     this.under.set(commonDir, run)
     return run
+  }
+
+  /** Whether the repository has a remote named origin: git config names its address. */
+  private async hasOrigin(commonDir: string): Promise<boolean> {
+    const said = await this.run(homeOf(commonDir), ["config", "--get", "remote.origin.url"], {
+      cap: 4096,
+    })
+    // Only git's own word that there is none (exit 1) says so; anything else may be passing.
+    return said.ok || said.kind !== "exit" || said.status !== 1
   }
 
   /** What a git run that reaches the repository's origin runs with: see `fetchEnv`. */

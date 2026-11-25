@@ -20,7 +20,9 @@ type Call = {
 }
 
 // A fake git that records what it is asked, answers a failing fetch where `failing` says so.
-const fake = (options: { failing?: (cwd: string) => boolean; sshCommand?: string } = {}) => {
+const fake = (
+  options: { failing?: (cwd: string) => boolean; sshCommand?: string; noOrigin?: boolean } = {},
+) => {
   const calls: Call[] = []
   let running = 0
   let most = 0
@@ -32,6 +34,10 @@ const fake = (options: { failing?: (cwd: string) => boolean; sshCommand?: string
       ...(limit.ms !== undefined && { ms: limit.ms }),
       ...(limit.graceMs !== undefined && { graceMs: limit.graceMs }),
     })
+    if (args[0] === "config" && args.includes("remote.origin.url"))
+      return options.noOrigin
+        ? { ok: false, kind: "exit", status: 1, said: "" }
+        : { ok: true, out: "git@example.com:a/b.git\n", cut: false }
     if (args[0] === "config")
       return options.sshCommand
         ? { ok: true, out: `${options.sshCommand}\n`, cut: false }
@@ -122,6 +128,15 @@ describe("fetching origins", () => {
     await fetcher.fetchNow(["/r/api/.git"])
     expect(fetcher.failingSince("/r/api/.git")).toBeUndefined()
     expect(fetcher.failure("/r/api/.git")).toBeUndefined()
+  })
+
+  it("tells no failure for a repository with no origin, which has nothing to fetch", async () => {
+    const git = fake({ failing: () => true, noOrigin: true })
+    const fetcher = new MainFetcher({ run: git.run, environment: {} })
+    await fetcher.fetchDue(["/r/local/.git"])
+    expect(git.fetches()).toHaveLength(1)
+    expect(fetcher.failure("/r/local/.git")).toBeUndefined()
+    expect(fetcher.failingSince("/r/local/.git")).toBeUndefined()
   })
 
   it("runs in the repository's folder, changing nothing but origin's refs, with a long timeout and a grace", async () => {

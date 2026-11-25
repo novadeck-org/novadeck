@@ -2,6 +2,7 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
+import { longFailing } from "../app/use-failing-origins"
 import { describe, expect, it } from "../test"
 import { originText } from "./FooterOrigin"
 import { WorkspaceFooter } from "./WorkspaceFooter"
@@ -24,9 +25,11 @@ const show = (origin?: Parameters<typeof WorkspaceFooter>[0]["origin"], hidden =
 describe("the footer's word on origin", () => {
   it("is a chip in the middle while the open project's origin keeps failing to fetch, and none otherwise", () => {
     expect(show()()).toBeNull()
-    expect(show({ failing: [], onRetry: async () => {}, now })()).toBeNull()
-    expect(show({ failing, onRetry: async () => {}, now }, true)()).toBeNull()
-    expect(show({ failing, onRetry: async () => {}, now })()?.textContent).toBe("Can't fetch")
+    expect(show({ projectId: "p", failing: [], onRetry: async () => {} })()).toBeNull()
+    expect(show({ projectId: "p", failing, onRetry: async () => {} }, true)()).toBeNull()
+    expect(show({ projectId: "p", failing, onRetry: async () => {} })()?.textContent).toBe(
+      "Can't fetch",
+    )
   })
 
   it("says which repository, for how long and git's reason, then what a click does", () => {
@@ -43,12 +46,20 @@ describe("the footer's word on origin", () => {
     const onRetry = vi.fn<() => Promise<void>>(
       () => new Promise<void>((resolve) => (end = resolve)),
     )
-    const chip = show({ failing, onRetry, now })
+    const chip = show({ projectId: "p", failing, onRetry })
     act(() => chip()!.click())
     expect(onRetry).toHaveBeenCalledOnce()
     expect(chip()?.textContent).toBe("Fetching…")
     expect(chip()?.disabled).toBe(true)
     await act(async () => end())
     expect(chip()?.textContent).toBe("Can't fetch")
+  })
+})
+
+describe("which failing origins the footer tells", () => {
+  it("only those failing an hour or more, as the runner's own fetches retry a passing blip", () => {
+    const young = { repository: "web", said: "timeout", since: now - 59 * 60_000 }
+    expect(longFailing([...failing, young], now)).toEqual(failing)
+    expect(longFailing([young], now)).toEqual([])
   })
 })

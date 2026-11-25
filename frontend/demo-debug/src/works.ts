@@ -204,9 +204,18 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             {
               label: "Origin fetch failing",
               hint: "The footer: the selected terminal's project has failed to fetch its origin for 2 h, so within 20 s its middle shows Can't fetch, git's reason in its tooltip; a click fetches and clears it",
-              run: ({ selected }) => {
+              run: ({ selected, workspace }) => {
                 const key = selected()
-                if (key) works.failOrigin(key.projectId, 120, "Could not resolve host: github.com")
+                if (!key) return
+                // Named as the runner names it: by its folder.
+                const folder = workspace()?.projects.find((each) => each.id === key.projectId)
+                const repository = folder?.directory.split(/[\\/]/).findLast(Boolean) ?? "project"
+                works.failOrigin(
+                  key.projectId,
+                  repository,
+                  120,
+                  "Could not resolve host: github.com",
+                )
               },
             },
             {

@@ -728,7 +728,7 @@ export class Works {
             ]
       })
       .toSorted((a, b) => a.since - b.since)
-      .slice(0, workLimits.conflicts)
+      .slice(0, workLimits.origins)
   }
 
   /** The work at `root`, read now if nobody is watching to keep them current. */

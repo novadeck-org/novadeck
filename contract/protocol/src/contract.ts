@@ -742,7 +742,7 @@ export const contract = {
     origins: procedure
       .meta({ since: 19 })
       .input(z.strictObject({ projectId: id }))
-      .output(z.array(originFailing).max(workLimits.conflicts)),
+      .output(z.array(originFailing).max(workLimits.origins)),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.
