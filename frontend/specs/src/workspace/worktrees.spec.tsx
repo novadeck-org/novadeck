@@ -172,6 +172,22 @@ describe("The Worktrees panel", () => {
       await userEvent.click(gutter()!)
       await expect.poll(() => byFolder("agent-build")?.dataset.teamFold).not.toBe("away")
     })
+
+    it("folds it from the lead's menu too, for the keyboard and touch", async () => {
+      await openWorkspace(storefront)
+      await expect.element(rows().first()).toBeVisible()
+      worktreeHeadsTo("agent/build", "agent/tests")
+      await row("Cache the build between runs").click()
+      await expect.poll(() => byFolder("agent-build")?.dataset.teamLevel).toBe("1")
+
+      await row("Tests", "agent/tests").click({ button: "right" })
+      await page.getByRole("menuitem", { name: "Fold 1 worktree" }).click()
+      await expect.poll(() => byFolder("agent-build")?.dataset.teamFold).toBe("away")
+
+      await row("Tests", "agent/tests").click({ button: "right" })
+      await page.getByRole("menuitem", { name: "Show 1 worktree" }).click()
+      await expect.poll(() => byFolder("agent-build")?.dataset.teamFold).not.toBe("away")
+    })
   })
 
   context("when a row is picked", () => {

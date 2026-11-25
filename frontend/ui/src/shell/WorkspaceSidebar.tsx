@@ -67,7 +67,7 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
         unfolding?: string | undefined
         folding?: string | undefined
         onFold?: (lead: string) => void
-        onWire?: (wire: WorktreesWire | null) => void
+        onWire?: (wire: WorktreesWire | null, list?: HTMLElement | null) => void
       }
     | undefined
   onHide: () => void

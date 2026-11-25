@@ -255,8 +255,11 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const wireStore = useContext(WorktreesWireContext)
   const onWire = useCallback(
-    (wire: WorktreesWire | null): void => {
-      wireStore?.update(() => wire)
+    (wire: WorktreesWire | null, taken?: HTMLElement | null): void => {
+      // A panel taking back its list leaves another's in place.
+      wireStore?.update((current) =>
+        wire !== null ? wire : current === null || current.list === taken ? null : current,
+      )
     },
     [wireStore],
   )

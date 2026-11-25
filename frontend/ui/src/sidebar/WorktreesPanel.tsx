@@ -1,6 +1,7 @@
 import type { LitTeams, Team } from "@novadeck/core/derivations"
 import type { Work, WorkClosing } from "@novadeck/core/works"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { NeedMark } from "@novadeck/toolkit/NeedMark"
 import { PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 import { SidebarItem, SidebarItemHandle, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
@@ -132,6 +133,7 @@ const WorktreeItem = ({
   fold,
   foldedRows,
   foldedCount,
+  foldTeam,
   onSelect,
   onClose,
 }: {
@@ -144,13 +146,48 @@ const WorktreeItem = ({
   // A folded lead's members, under its line, and how many fold away into it, which its label says.
   foldedRows: ReactNode
   foldedCount: number
+  // On a lead: its menu's way to fold its members into its row or show them again, which the
+  // keyboard, touch and a narrow window, where the rail's gutter isn't drawn, reach.
+  foldTeam:
+    | { readonly count: number; readonly folded: boolean; readonly onToggle: () => void }
+    | undefined
   onSelect: (work: Work) => void
   onClose: (row: WorktreeRow) => void
 }): React.JSX.Element => {
   const { work } = row
   const url = row.pullRequest?.url
   const level = row.above.length
-  return (
+  // Its menu, as a terminal's tab's: its pull request's page, its team's fold, and closing it.
+  const menu: ContextMenuItem[] = [
+    ...(url
+      ? [
+          {
+            value: "open-pull-request",
+            label: `Open ${row.pullRequest!.text} in the browser`,
+            icon: <ExternalLink size={14} strokeWidth={1.5} />,
+            onSelect: () => void window.open(url, "_blank", "noopener,noreferrer"),
+          },
+        ]
+      : []),
+    ...(foldTeam
+      ? [
+          {
+            value: "fold-team",
+            label: `${foldTeam.folded ? "Show" : "Fold"} ${foldTeam.count} ${foldTeam.count === 1 ? "worktree" : "worktrees"}`,
+            onSelect: foldTeam.onToggle,
+          },
+        ]
+      : []),
+    {
+      value: "close",
+      label: "Close worktree",
+      icon: <Trash2 size={14} strokeWidth={1.5} />,
+      disabled: row.close === "busy",
+      separated: url !== undefined || foldTeam !== undefined,
+      onSelect: () => onClose(row),
+    },
+  ]
+  const item = (
     <SidebarItem
       role="listitem"
       className={`terminal-tab worktrees-row ${teamFoldRowClasses}${selected ? " selected" : ""}`}
@@ -208,6 +245,13 @@ const WorktreeItem = ({
       {...(level ? { "data-team-level": Math.min(level, 3) } : {})}
       // Room for its actions: one button, or two with its pull request's page.
       style={{ "--_sidebar-actions-space": url ? "52px" : "26px" } as React.CSSProperties}
+    />
+  )
+  return (
+    <ContextMenu
+      label={`${row.name} actions`}
+      items={menu}
+      trigger={<div className="contents">{item}</div>}
     />
   )
 }
@@ -476,8 +520,9 @@ const WorktreesPanelView = ({
   folding?: string | undefined
   // Folds a lead's team or shows it again; without it, no team folds.
   onFold?: (lead: string) => void
-  // Takes what the team wire draws on the rail, as it changes.
-  onWire?: (wire: WorktreesWire | null) => void
+  // Takes what the team wire draws on the rail, as it changes; null with the list it lent, as
+  // that list goes.
+  onWire?: (wire: WorktreesWire | null, list?: HTMLElement | null) => void
 }): React.JSX.Element => {
   const [last, setLast] = useState<{ root: string; on: string | undefined } | undefined>()
   // What the dialog asks about, and what went wrong last, as one line under a name.
@@ -513,7 +558,7 @@ const WorktreesPanelView = ({
   }
   const selected = selectedRoot(works, selectedId, last)
   // The wire on the rail joins each lead to its members, lit for the selected worktree's teams.
-  const wire = useMemo((): WorktreesWire => {
+  const fresh = useMemo((): WorktreesWire => {
     const chains = teams.teams.map(({ lead }) => chainOf(teams, lead))
     return {
       list,
@@ -525,14 +570,24 @@ const WorktreesPanelView = ({
       selected: selected ?? "",
     }
   }, [list, teams, selected])
+  // Kept the same while its teams and lights are, so each change of the works doesn't measure the
+  // wire afresh; settled during render, as the rows' own state is.
+  const [wire, setWire] = useState(fresh)
+  // The list is compared as an element; the rest by value.
+  const sameWire =
+    wire.list === fresh.list &&
+    JSON.stringify({ ...wire, list: null }) === JSON.stringify({ ...fresh, list: null })
+  if (!sameWire) setWire(fresh)
+  const lent = sameWire ? wire : fresh
   useLayoutEffect(() => {
-    onWire?.(wire)
-  }, [onWire, wire])
+    onWire?.(lent)
+  }, [onWire, lent])
+  // Taken back as its list goes, unless another panel's list is lent by then.
   useEffect(
     () => () => {
-      onWire?.(null)
+      onWire?.(null, list)
     },
-    [onWire],
+    [onWire, list],
   )
   // How each row stands in its leads' folds (the toolkit's rowFold), as a terminal's tab does.
   const foldOf = (row: WorktreeRow): RowFold | undefined => {
@@ -694,7 +749,23 @@ const WorktreesPanelView = ({
                   />
                 )
               }
-              foldedCount={foldsIn(row.work.root) ? descendantsOf(teams, row.work.root).length : 0}
+              foldedCount={
+                foldsIn(row.work.root)
+                  ? descendantsOf(teams, row.work.root).filter((root) => {
+                      const member = byRoot.get(root)
+                      return member !== undefined && foldOf(member) === "away"
+                    }).length
+                  : 0
+              }
+              foldTeam={
+                onFold && teams.teams.some((each) => each.lead === row.work.root)
+                  ? {
+                      count: descendantsOf(teams, row.work.root).length,
+                      folded: foldsIn(row.work.root),
+                      onToggle: () => onFold(row.work.root),
+                    }
+                  : undefined
+              }
               onSelect={(work) => show(work, row)}
               onClose={(each) => close(each, false)}
             />

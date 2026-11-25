@@ -59,7 +59,7 @@ const show = (
     // The leads folded, and what takes the fold and the wire.
     folded?: readonly string[]
     onFold?: (lead: string) => void
-    onWire?: (wire: WorktreesWire | null) => void
+    onWire?: (wire: WorktreesWire | null, taken?: HTMLElement | null) => void
   } = {},
 ) => {
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
@@ -604,16 +604,22 @@ describe("a team of worktrees", () => {
   })
 
   it("lends the wire its list, teams and what lights", () => {
-    const onWire = vi.fn<(wire: WorktreesWire | null) => void>()
+    // What the app's store holds: a list taken back leaves another's in place.
+    let held: WorktreesWire | null = null
+    const onWire = vi.fn<(wire: WorktreesWire | null, taken?: HTMLElement | null) => void>(
+      (wire, taken) => {
+        held = wire ?? (held?.list === taken ? null : held)
+      },
+    )
     const { page } = show(team(), { selectedId: "t-b", onWire })
-    const wire = onWire.mock.calls.at(-1)![0]!
-    expect(wire.list).toBe(page.container.querySelector(".worktrees-list"))
-    expect(wire.teams).toEqual([{ lead: "/w/lead", workers: ["/w/a", "/w/b"] }])
-    expect(wire.levels).toEqual([0])
-    expect(wire.selected).toBe("/w/b")
-    expect(wire.lit.full).toEqual(wire.teams)
+    const wire = held as WorktreesWire | null
+    expect(wire!.list).toBe(page.container.querySelector(".worktrees-list"))
+    expect(wire!.teams).toEqual([{ lead: "/w/lead", workers: ["/w/a", "/w/b"] }])
+    expect(wire!.levels).toEqual([0])
+    expect(wire!.selected).toBe("/w/b")
+    expect(wire!.lit.full).toEqual(wire!.teams)
     page.unmount()
-    expect(onWire).toHaveBeenLastCalledWith(null)
+    expect(held).toBeNull()
   })
 
   it("folds its members into their lead's row, unless the person is on one", () => {
@@ -628,6 +634,8 @@ describe("a team of worktrees", () => {
     const kept = show(team(), { folded: ["/w/lead"], onFold, selectedId: "t-a" })
     expect(kept.row("a").dataset.teamFold).toBe("shown")
     expect(kept.row("b").dataset.teamFold).toBe("away")
+    // The one the person is on stays in place: only the other is folded under the lead.
+    expect(label(kept.row("lead"))).toMatch(/, 1 worktree folded under it$/)
   })
 
   it("shows a folded member when its row in the lead is clicked", () => {

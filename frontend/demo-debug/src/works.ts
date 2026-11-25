@@ -158,17 +158,26 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Heads to another worktree",
-              hint: "Open Worktrees: the selected terminal's worktree (made now if it had none) heads to another worktree's branch, so it hangs under that one on the team wire at the rail's border, lit while either is selected; point beside the lead to fold its team into its row. Run again to send it back to main",
+              hint: "Open Worktrees: the selected terminal's worktree (made now if it had none) heads to another worktree's branch, so it hangs under that one on the team wire at the rail's border, lit while either is selected; point beside the lead, or use the lead's menu (right-click), to fold its team into its row. Run again to send it back to main",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
                 const at = placed(workspace(), key)
                 const own = works.ownedBy(key.terminalId)
-                const other = works
-                  .worksOf(key.projectId)
-                  .find((work) => work.root !== own?.root && work.branch !== null)
-                if (own?.home !== undefined || !other) works.setHome(at, undefined)
-                else works.setHome(at, other.branch!)
+                const project = works.worksOf(key.projectId)
+                // Back to main where it heads to another worktree already; else to one that
+                // doesn't head to it, so the two don't go round.
+                if (own?.home !== undefined && project.some((work) => work.branch === own.home)) {
+                  works.setHome(at, undefined)
+                  return
+                }
+                const other = project.find(
+                  (work) =>
+                    work.root !== own?.root &&
+                    work.branch !== null &&
+                    (own?.branch == null || work.home !== own.branch),
+                )
+                if (other) works.setHome(at, other.branch!)
               },
             },
             {

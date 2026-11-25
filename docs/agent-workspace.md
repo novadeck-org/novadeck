@@ -765,10 +765,11 @@ with every safety check again at that time:
   pointer the handle gives way to the pull request's page and the trash button, full strength on a
   safe row and dim on any other, which asks first. A worktree whose target is the branch another
   open worktree has is that one's member, as a teammate is its lead's in the Terminals list
-  (`worktreeTeams`): it stands right under it, a member that leads its own a level in, joined on
+  (`worktreeTeams`): it stands right under it (and a member's own members a step further in), joined on
   the rail's border by the same team wire (`TeamWire` with `kind` "worktrees", mounted from App with
   the list the panel lends it, `app/worktrees-wire.ts`), the selected worktree's tree tinted and its
-  wire lit. Pointing beside a lead previews its fold and a click folds its members into its row
+  wire lit. Pointing beside a lead previews its fold and a click folds its members into its row,
+  as does the lead's menu (Fold N worktrees / Show N worktrees), which a keyboard or touch reaches
   (the toolkit's `TeamFoldRows`: ├ └, glyph, title, `!` `?`), kept in the ui store per project
   as the Terminals list's folds are per session; a member the person is on stays in place. A
   target no worktree has open stays a plain `target ‹ branch`; worktrees heading to each other's
