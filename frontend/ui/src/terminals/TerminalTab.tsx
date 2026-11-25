@@ -31,6 +31,7 @@ import {
   sidebarRowIconClasses,
   sidebarRowWideIconClasses,
 } from "@novadeck/toolkit/SidebarItem"
+import type { RowFold } from "@novadeck/toolkit/team-fold"
 import { teamFoldRowClasses } from "@novadeck/toolkit/TeamFoldRows"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
@@ -151,7 +152,7 @@ export const TerminalTab = ({
   releaseLead?: ReleaseLead | undefined
   // How a teammate's tab stands in its lead's fold (app/team-fold.ts): folded away, previewed,
   // unfolding or shown (team-rows.css).
-  fold?: "away" | "preview" | "unfolding" | "shown" | undefined
+  fold?: RowFold | undefined
   // How many leads stand above it: from two, a nested team's tab, it steps in a little per
   // level (team-rows.css).
   level?: number

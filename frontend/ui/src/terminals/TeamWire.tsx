@@ -1,7 +1,7 @@
 import type { LitTeams, Team } from "@novadeck/core/derivations"
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react"
 
-import { memberPiece, teamPiece, useEnteringPieces } from "./team-news"
+import { memberPiece, teamPiece, useEnteringPieces, type TeamKind } from "./team-news"
 import {
   foldGutter,
   wireShape,
@@ -168,7 +168,7 @@ const measureWires = (
   return { frame, wires }
 }
 
-// Every team's wire on the rail's border, while the Terminals list shows: the border between
+// Every team's wire on the rail's border, while the list shows (the Terminals list's, or another): the border between
 // the rail and the sidebar is drawn from each team's topmost tab to its bottommost, a block
 // cursor marks the lead, and a tick runs from the wire to each worker's tab. Every wire
 // rests, dim, so who leads whom shows without selecting anything; the selected terminal's
@@ -189,9 +189,12 @@ const measureWires = (
 //
 // The Terminals list draws it over its tabs (App.tsx); any sidebar list whose rows are sidebar
 // items naming their member (`rowAttribute`) can draw one over its own leads and members, with
-// the rows' team looks and a folded lead's rows (the toolkit's team-rows.css, TeamFoldRows).
+// the rows' team looks and a folded lead's rows (the toolkit's team-rows.css, TeamFoldRows), and
+// its own `kind` of teams. One list's wire shows at a time: the list lends it the one scroll
+// timeline (`--team-wire-list`).
 export const TeamWire = ({
   rowAttribute,
+  kind,
   teams,
   levels = noLevels,
   chains = noChains,
@@ -208,6 +211,9 @@ export const TeamWire = ({
   // The attribute naming each row of the list by its member's id, as a terminal's tab's
   // data-terminal-tab-id: the wire finds a team's rows by it.
   rowAttribute: string
+  // Whose teams these are, for what of them is new (team-news.ts): the terminals' for the
+  // Terminals list, which share their news with Grid and Canvas; another list names its own.
+  kind?: TeamKind | undefined
   teams: readonly Team[]
   // How many leads stand above each team's lead, in the teams' order: its lane; and the leads
   // above it, nearest first, space-separated, whose folds fade its wire too.
@@ -242,7 +248,7 @@ export const TeamWire = ({
   // came, which holds it until they leave.
   const [armed, setArmed] = useState<string | undefined>(undefined)
   const spent = useRef<string | undefined>(undefined)
-  const entering = useEnteringPieces(teams, shown && list !== null)
+  const entering = useEnteringPieces(teams, shown && list !== null, kind)
   // Measures the wires now, while a run keeps them on the tabs.
   const measureNow = useRef<(() => void) | undefined>(undefined)
 

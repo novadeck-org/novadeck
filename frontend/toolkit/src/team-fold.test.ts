@@ -43,5 +43,9 @@ describe("a member's row in its leads' folds", () => {
       "shown",
     )
     expect(rowFold({ ...open, unfolding: { context: "p/s", lead: "lead" } })).toBe("unfolding")
+    // A lead already folded has nothing left to preview: its members are away.
+    expect(rowFold({ ...base, kept: true, preview: { context: "p/s", lead: "lead" } })).toBe(
+      "shown",
+    )
   })
 })

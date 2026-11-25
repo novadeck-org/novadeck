@@ -51,6 +51,22 @@ describe("the team news the views share", () => {
     })
   })
 
+  context("when another list draws its own teams", () => {
+    it("keeps their news apart, so neither list's teams play as new to the other", () => {
+      const { news } = sessions()
+      news.draw([team("a", "b")], 0)
+      expect([...news.draw([team("w", "x")], 1000, undefined, "worktrees")]).toEqual([])
+      // Back on the terminals' teams, and the worktrees' again: nothing new to either.
+      expect([...news.draw([team("a", "b")], 2000)]).toEqual([])
+      expect([...news.draw([team("w", "x")], 3000, undefined, "worktrees")]).toEqual([])
+      // A worktree team that forms plays there alone.
+      expect([
+        ...news.draw([team("w", "x"), team("y", "z")], 4000, undefined, "worktrees"),
+      ]).toEqual([teamPiece("y")])
+      expect([...news.draw([team("a", "b")], 4050)]).toEqual([])
+    })
+  })
+
   context("when a team changes", () => {
     it("plays the change once", () => {
       const { news } = sessions()

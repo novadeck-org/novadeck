@@ -20,6 +20,7 @@
    --tab-fold-preview-opacity (0.4): a member's row while a click beside its lead would fold it
    away. --tab-team-step (6px): how far a nested team's row steps in per level; the wire's lanes
    are as wide (TeamWire.tsx). --tab-process-font (--font-glyphs): the folded rows.
+   --tab-sleeping-name-fg (the ink at 62%): an asleep member's name in a folded row.
    --tab-subagent-fg (muted): a folded row, and its count. --tab-subagent-rule-fg (line-strong):
    its branch, as a tab's subagent rows'. --tab-glyph-fg (ink): a folded row under the pointer
    or selected. */
@@ -58,7 +59,7 @@
   content: none;
 }
 
-/* A lead's fold (app/team-fold.ts). Teammates are top-level tabs; a person who only follows
+/* A lead's fold (team-fold.ts). Teammates are top-level tabs; a person who only follows
    the lead folds them out of the list by pointing beside the lead's tab (TeamWire.tsx) or from
    its menu. A teammate's tab collapses into the tab above as it folds away, and unrolls from it
    as its team comes back; while the person points beside the lead, the tabs a click would
