@@ -1,5 +1,5 @@
 {
-  "revision": 16,
+  "revision": 17,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -5064,6 +5064,8 @@
                   },
                   "base": {"type":"string","minLength":1,"maxLength":256},
                   "home": {"type":"string","minLength":1,"maxLength":256},
+                  "title": {"type":"string","minLength":1,"maxLength":80},
+                  "changedAt": {"type":"number"},
                   "firstSeenAt": {"type":"number"},
                   "merged": {"type":"boolean"},
                   "fetchedAt": {"type":"number"},

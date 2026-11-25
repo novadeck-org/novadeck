@@ -121,7 +121,7 @@ export const modellerTask = (
 ): string => `You are Modeller, a teammate in Novadeck's tour. ${picks(lead)} You make them;
 Builder writes the game. ${tools} ${manners(agent)}
 1. Call \`describe\` with title "Modeller" and summary "Makes the game's 3D models".
-2. Call \`open_worktree\` with branch "${branches.modeller}". Its result names the worktree's folder.
+2. Call \`open_worktree\` with branch "${branches.modeller}" and title "Models". Its result names its folder.
    Work only there, by absolute path, never in your own folder.
 3. Read ${modelsGuide} there: it says how to make a model.
 4. Make models/[[one]].gltf there as it says. Then call
@@ -143,7 +143,7 @@ export const builderTask = (
 ): string => `You are Builder, a teammate in Novadeck's tour. ${picks(lead)} Modeller
 makes them; until one exists, the placeholder shows in its place. ${tools} ${manners(agent)}
 1. Call \`describe\` with title "Builder" and summary "Writes the game".
-2. Call \`open_worktree\` with branch "${branches.builder}". Its result names the worktree's folder.
+2. Call \`open_worktree\` with branch "${branches.builder}" and title "Game". Its result names its folder.
    Work only there, by absolute path, never in your own folder.
 3. Read README.md, ${gameEntry} and src/models.js there.
 4. Write the game in src/ there, from ${gameEntry}, in one go: small and playable, its goal

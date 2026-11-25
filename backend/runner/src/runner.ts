@@ -580,15 +580,18 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const works = new Works({
     pullRequest: (commonDir, branch) => forges.pullRequest(commonDir, branch),
     tracked: () =>
-      worktrees.all().map(({ path, projectId, terminalId, createdAt, commonDir, base }) => ({
-        commonDir,
-        root: path,
-        projectId,
-        terminalId,
-        createdAt,
-        base,
-        fetchedAt: worktrees.fetchedAt(commonDir),
-      })),
+      worktrees
+        .all()
+        .map(({ path, projectId, terminalId, createdAt, commonDir, base, adopted }) => ({
+          commonDir,
+          root: path,
+          projectId,
+          terminalId,
+          createdAt,
+          adopted,
+          base,
+          fetchedAt: worktrees.fetchedAt(commonDir),
+        })),
     presences: async () =>
       (await terminals.checkouts()).map(({ terminalId, root, working }) => ({
         terminalId,

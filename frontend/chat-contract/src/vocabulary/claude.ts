@@ -178,7 +178,7 @@ export const claudeVocabulary: readonly Written[] = [
         [`${novadeck}open_terminal`, { command: "npm run dev", title: "dev" }, "Opened 03"],
         [`${novadeck}close_terminal`, { to: "builder" }, "Closed"],
         [`${novadeck}close_terminal`, {}, "Closed"],
-        [`${novadeck}open_worktree`, { branch: "feat/login" }, "Opened"],
+        [`${novadeck}open_worktree`, { branch: "feat/login", title: "Login page" }, "Opened"],
         [`${novadeck}take_worktree`, { path: "/home/user/.novadeck/worktrees/p/g/api" }, "Took"],
         [
           `${novadeck}give_worktree`,

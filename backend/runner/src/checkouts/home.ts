@@ -10,7 +10,8 @@ import { branchAt, commonDir, mainBranch, type Main } from "./repository.js"
 // - `branch.<b>.novadeckHome`, the branch its work belongs on, where that isn't the repository's
 //   main (a worktree opened with `home`, or `from` a branch, as `JIRA-123`);
 // - `branch.<b>.novadeckBase`, the commit it started from;
-// - `branch.<b>.novadeckMade`, whether Novadeck made the branch.
+// - `branch.<b>.novadeckMade`, whether Novadeck made the branch;
+// - `branch.<b>.novadeckTitle`, what its work is, in one short line its agent gave.
 // Git moves them with a renamed branch and drops them with a deleted one, and plain `git config`
 // reads them in any harness or script. Only the runner writes them: an agent's sandbox may hold
 // `.git` read-only. See architecture/worktree-home.md in the workspace.
@@ -20,10 +21,16 @@ export type BranchKeys = {
   readonly home?: string
   readonly base?: string
   readonly made?: boolean
+  readonly title?: string
 }
 
 /** The keys' names as written; git compares variable names without case. */
-const names = { home: "novadeckHome", base: "novadeckBase", made: "novadeckMade" } as const
+const names = {
+  home: "novadeckHome",
+  base: "novadeckBase",
+  made: "novadeckMade",
+  title: "novadeckTitle",
+} as const
 
 const small = { cap: 256 * 1024 }
 
@@ -36,7 +43,7 @@ const truthy = (value: string): boolean => ["true", "yes", "on", "1", ""].includ
  * may hold dots and git prints the variable lowercased.
  */
 export const parseKeys = (out: string): ReadonlyMap<string, BranchKeys> => {
-  const found = new Map<string, { home?: string; base?: string; made?: boolean }>()
+  const found = new Map<string, { home?: string; base?: string; made?: boolean; title?: string }>()
   for (const entry of out.split("\0")) {
     if (entry === "") continue
     const at = entry.indexOf("\n")
@@ -50,6 +57,7 @@ export const parseKeys = (out: string): ReadonlyMap<string, BranchKeys> => {
     if (variable === names.home.toLowerCase() && value !== "") keys.home = value
     else if (variable === names.base.toLowerCase() && value !== "") keys.base = value
     else if (variable === names.made.toLowerCase()) keys.made = truthy(value.toLowerCase())
+    else if (variable === names.title.toLowerCase() && value !== "") keys.title = value
     else continue
     found.set(branch, keys)
   }
@@ -129,7 +137,12 @@ const retriesMs = [50, 150, 400]
 export const writeKeys = async (
   folder: string,
   branch: string,
-  keys: { readonly home?: string | null; readonly base?: string | null; readonly made?: boolean },
+  keys: {
+    readonly home?: string | null
+    readonly base?: string | null
+    readonly made?: boolean
+    readonly title?: string | null
+  },
 ): Promise<boolean> => {
   let ok = true
   for (const [field, value] of Object.entries(keys) as [keyof typeof names, unknown][]) {
