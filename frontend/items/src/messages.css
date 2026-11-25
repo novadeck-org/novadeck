@@ -18,12 +18,12 @@
    "danger" on a row's chip; data-kind and data-open on an entry's label.
 
    Tokens, each optional (its fallback in brackets):
-   --message-border-color (line): under the chat's head.
    --message-fg (ink): names and a row's unread preview.
    --message-meta-fg (muted): handles, times, previews and notes.
    --avatar-hue-1-fg … --avatar-hue-8-fg (terminal-ansi magenta, red, yellow, blue,
      magenta-bright, green, red-bright, cyan): the hues handles take by their word's rank,
      on their critters and the bubbles they send.
+   --pane-well-bg (shell): the well a chat's conversation sits in.
    --avatar-you-fg (strong mixed with muted): the person's, on their imp and bubbles.
    --avatar-led-lift (0%): how far a lit cell goes toward --avatar-glint-fg, so dark hues
      still glow on the screen.
@@ -35,7 +35,6 @@
 .message-view {
   --_fg: var(--message-fg, var(--color-ink));
   --_meta-fg: var(--message-meta-fg, var(--color-muted));
-  --_border-color: var(--message-border-color, var(--color-line));
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -191,7 +190,10 @@
   gap: 6px 10px;
   min-height: 44px;
   padding: 6px 14px;
-  border-bottom: var(--border-width) solid var(--_border-color);
+}
+/* A chat's conversation sits in the well, apart from the heads over it. */
+.message-scroll:has(> .message-chat) {
+  background: var(--pane-well-bg, var(--color-shell));
 }
 .message-back {
   margin-left: -6px;

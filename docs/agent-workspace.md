@@ -383,7 +383,7 @@ most 2,000 lines, around the line pointed at, and its miniature its first 40.
 A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
 on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
 not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest
-first (short hash, subject, time, `+N −N`), then a "Files" tree, as the Files panel draws its
+first (short hash, subject, time, `+N −N`), in a well (`--pane-well-bg`) that sets them apart, then a "Files" tree, as the Files panel draws its
 own, of what the selected rows changed together (for one row its own counts, for a range or all of
 them the range's own as git lists it, names coloured by how the file changed, folders with guides), and a hint line saying what a click does. All rows are
 selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
@@ -401,7 +401,7 @@ tab's own fold and transition), each a fact (where the change sits, `+N −N`), 
 Enter, or the `›` at the row's end (shown where the pointer is, on the unfolded row, and always
 where nothing hovers) opens the file. The **file view** is the row grown into a plain heading (‹ back, the folder
 dim and the name in body type, the file's counts, ⌃ ⌄ and "N of M" within the selection), a line of
-what the file came to, and its changes, each headed by where it sits ("2/4 in requireUser()", "new
+what the file came to (the two together in the well, `--pane-well-bg`), and its changes, each headed by where it sits ("2/4 in requireUser()", "new
 refreshSession()") and the lines it spans; a change past 36 rows shows its start and end with
 "N more changed lines · +N −N · Show", and the unchanged stretches between changes are folded
 with a click to show them. Esc or ‹ shrinks the heading back into its row; J and K step through
@@ -536,7 +536,7 @@ with every safety check again at that time:
   drawn from where the person was looking; one over 256 MB with its files loads as too large to
   preview. Its peek is a still of it.
   A folder (`show {"file": {"path": "<dir>/"}}`, or the person's "Open in the pane" on a
-  Files panel row, kind `folder`) is listed, read-only, as a grid of thumbnails or a list
+  Files panel row, kind `folder`) is listed, read-only, in a well under its path, as a grid of thumbnails or a list
   (newest first, or by name or size): the runner reads its entries (name, kind by extension
   (an `.obj` by its first bytes too, so a compiled object file is a plain file, not a model),
   size, modified time, and what a folder inside holds), watches it with the file system's own

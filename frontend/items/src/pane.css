@@ -50,6 +50,8 @@
    --pane-stack-fg (muted), --pane-stack-name-fg (ink): a sheet's label, and its kind or
    name.
    --pane-tabs-border-color (line): the row's line.
+   --pane-well-bg (shell): the well a kind sets one part apart in (Changes' layers and a file's
+   heading, a shell's output, a chat, a folder's files), each kind's recipe saying where.
    --pane-tab-new-bg (ink): the dot at the end of a sheet behind that holds something new.
    --pane-tab-fg (muted), --pane-tab-hover-fg (ink): a tab.
    --pane-tab-open-fg (ink): the tab shown.
