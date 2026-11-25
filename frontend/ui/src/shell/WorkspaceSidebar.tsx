@@ -56,11 +56,11 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
         titles: ReadonlyMap<string, string>
         selectedId: string | undefined
         onSelect: (work: Work, on: string | undefined) => Promise<void>
-        // Whether a file of a work can be opened so: it is in the open project.
-        canOpenFile: (work: Work, path: string) => boolean
-        // Opens a file of a work in the project window as a preview of what the works merge to.
-        onOpenFile: (work: Work, path: string) => void
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
+        // Each terminal's handle, bare, by id, where it has one.
+        handles?: ReadonlyMap<string, string>
+        // Fetches origin now for the open project; absent where the backend can't.
+        onFetch?: () => Promise<void>
       }
     | undefined
   onHide: () => void

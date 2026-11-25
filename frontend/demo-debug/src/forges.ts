@@ -76,27 +76,27 @@ const states: readonly {
   {
     label: "No pull request",
     state: undefined,
-    hint: "Open Worktrees: the row has no #812 at its detail line's end, and its work's changes item has no #812 chip in its row",
+    hint: "Open Worktrees: the selected row has no #812 at its name line's end, and its work's changes item has no #812 chip in its row",
   },
   {
     label: "Pull request: draft",
     state: "draft",
-    hint: "Open Worktrees: the row's detail line ends in a muted dashed glyph and #812, a link Tab reaches; select the row to open its changes item, whose row has a #812 chip to open in the browser",
+    hint: "Open Worktrees: the selected row's name line ends in a muted #812; hover the row: its open-in-browser button stands where its handle was; select it to open its changes item, whose row has a #812 chip",
   },
   {
     label: "Pull request: open",
     state: "open",
-    hint: "Open Worktrees: the row's detail line ends in #812 in the text color; its changes item's row has a #812 chip",
+    hint: "Open Worktrees: the selected row's #812 is green; its changes item's row has a #812 chip",
   },
   {
     label: "Pull request: merged",
     state: "merged",
-    hint: "Open Worktrees: the row's #812 has a merge glyph, while the row's own merged icon follows git as before",
+    hint: "Open Worktrees: the selected row's #812 turns violet and its glyph a bold green ✓ (landed), with no bar under the number",
   },
   {
     label: "Pull request: closed",
     state: "closed",
-    hint: "Open Worktrees: the row's #812 has a closed glyph, muted",
+    hint: "Open Worktrees: the selected row's #812 turns rust, its glyph a ×, and the row is hatched as an ended tab is",
   },
 ]
 
@@ -110,27 +110,27 @@ const checks: readonly {
   {
     label: "CI failing",
     ci: "failing",
-    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows its checks failing, in the failing color",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) has a red segment in its bar, and its glyph is a bold red ✗",
   },
   {
     label: "CI running",
     ci: "running",
-    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows its checks running",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) has gray segments still running or waiting in its bar, and its glyph is ⣤",
   },
   {
     label: "CI passed",
     ci: "passed",
-    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows its checks passed",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) has an all-green bar, and a bold amber ? follows its branch (checks passed: yours to merge)",
   },
   {
     label: "No CI",
     ci: "none",
-    hint: "Open Worktrees: the selected row's pull request #812 (made open where it had none) shows no checks, as one that ran none does",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) has no check segments, only its review's",
   },
 ]
 
 // Where a pull request's review stands, set on the selected terminal's work: an open pull request
-// is made where it had none. The works carry it; no row shows it yet.
+// is made where it had none: the last segment of the bar under its number.
 const reviews: readonly {
   readonly label: string
   readonly review: NonNullable<PullRequest["review"]>
@@ -139,22 +139,22 @@ const reviews: readonly {
   {
     label: "Review approved",
     review: "approved",
-    hint: "The selected row's pull request #812 (made open where it had none) carries an approved review; no row shows it yet",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) ends its bar in a green review segment",
   },
   {
     label: "Changes requested",
     review: "changes_requested",
-    hint: "The selected row's pull request #812 (made open where it had none) carries a request for changes; no row shows it yet",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) ends its bar in a red review segment",
   },
   {
     label: "Review required",
     review: "required",
-    hint: "The selected row's pull request #812 (made open where it had none) carries a review it still needs; no row shows it yet",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) ends its bar in an outlined review segment (approval missing)",
   },
   {
     label: "No review",
     review: "none",
-    hint: "The selected row's pull request #812 (made open where it had none) carries no review, none asked for",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) ends its bar in a faint outlined review segment (none asked for)",
   },
 ]
 

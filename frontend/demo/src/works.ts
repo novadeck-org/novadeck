@@ -296,6 +296,205 @@ export const worksFromPlans = (
   })
 }
 
+// ---- Every row state at once ----
+
+// The checks of a gallery pull request, by how many stand each way: passed, running, failed,
+// waiting, named as CI jobs are.
+const checksOf = (
+  passed: number,
+  running = 0,
+  failed = 0,
+  waiting = 0,
+): readonly PullRequestCheck[] =>
+  (
+    [
+      ["passed", passed],
+      ["running", running],
+      ["failed", failed],
+      ["waiting", waiting],
+    ] as const
+  ).flatMap(([state, count]) =>
+    Array.from({ length: count }, (_, index) => ({ name: `${state} job ${index + 1}`, state })),
+  )
+
+// One row of the gallery: what differs from a quiet worktree with one file, owned by the
+// session's terminals in turn.
+type GalleryRow = {
+  readonly title?: string
+  readonly branch: string
+  readonly owner?: false
+  readonly home?: string
+  readonly files?: number
+  readonly merged?: true
+  readonly working?: true
+  readonly conflicts?: true
+  readonly changedHoursAgo?: number
+  readonly unread?: true
+  readonly unreadable?: true
+  readonly uncommitted?: number
+  readonly pull?: Omit<PullRequest, "url" | "title">
+}
+
+const galleryRows: readonly GalleryRow[] = [
+  {
+    title: "Login crash on expired session",
+    branch: "hotfix/login-crash",
+    home: "prod",
+    pull: {
+      number: 1261,
+      state: "open",
+      ci: "running",
+      base: "prod",
+      checks: checksOf(4, 3),
+      review: "required",
+    },
+  },
+  {
+    title: "CSP header blocks the font",
+    branch: "hotfix/csp-font",
+    home: "prod",
+    working: true,
+    unread: true,
+  },
+  {
+    title: "Post media from placeholders",
+    branch: "post-media-placeholders",
+    working: true,
+    unread: true,
+    pull: {
+      number: 1255,
+      state: "draft",
+      ci: "running",
+      checks: checksOf(3, 2, 0, 2),
+      review: "none",
+    },
+  },
+  {
+    title: "Shared sidebar hover menu",
+    branch: "sidebar-hover-menu",
+    pull: { number: 1254, state: "open", ci: "passed", checks: checksOf(7), review: "approved" },
+  },
+  {
+    title: "pi parity map and e2e",
+    branch: "pi-parity-map",
+    home: "pi-harness",
+    conflicts: true,
+    pull: {
+      number: 1257,
+      state: "open",
+      ci: "passed",
+      base: "pi-harness",
+      checks: checksOf(7),
+      review: "changes_requested",
+    },
+  },
+  { title: "pi screens and install", branch: "pi-screens-install", home: "pi-harness", files: 0 },
+  {
+    title: "Broken question card",
+    branch: "fix/question-card",
+    pull: {
+      number: 1239,
+      state: "open",
+      ci: "failing",
+      checks: checksOf(6, 0, 1),
+      review: "required",
+    },
+  },
+  {
+    title: "Retry budget for flaky specs",
+    branch: "ci/retry-budget",
+    pull: {
+      number: 1262,
+      state: "open",
+      ci: "running",
+      checks: checksOf(14, 5, 0, 6),
+      review: "required",
+    },
+  },
+  { title: "Sidebar scroll margin", branch: "sidebar-scroll-margin" },
+  {
+    title: "Tour beats wait for actions",
+    branch: "tour-gated-beats",
+    files: 0,
+    merged: true,
+    pull: { number: 1248, state: "merged" },
+  },
+  {
+    title: "Release notes hold",
+    branch: "release-notes-hold",
+    files: 0,
+    merged: true,
+    uncommitted: 2,
+  },
+  {
+    title: "Canvas Ctrl+wheel zoom",
+    branch: "canvas-ctrl-wheel-zoom",
+    pull: { number: 1246, state: "closed" },
+    uncommitted: 0,
+  },
+  { branch: "fix/gitless-projects", owner: false, changedHoursAgo: 96, uncommitted: 3 },
+  { title: "Old experiment", branch: "old-experiment", unreadable: true },
+]
+
+// One worktree in each state the Worktrees panel's rows draw, for the project, owned by its
+// terminals in turn (one with none), newest first.
+export const galleryWorks = (
+  projectId: string,
+  owners: readonly string[],
+  now: number,
+): readonly Work[] =>
+  galleryRows.map((row, index) => {
+    const files = Array.from({ length: row.files ?? 1 }, (_, each) =>
+      fileOf(
+        planFile(`src/${slug(row.branch)}-${each + 1}.ts`, 12, 3, row.unread ? {} : { read: true }),
+        now - index * minute,
+      ),
+    )
+    const uncommitted = row.uncommitted ?? files.length
+    const work = standing(
+      summed(
+        {
+          root: worktreeRoot(projectId, row.branch),
+          terminalId:
+            row.owner === false || owners.length === 0 ? null : owners[index % owners.length]!,
+          projectId,
+          working: row.working === true,
+          branch: row.branch,
+          base: row.home ? `origin/${row.home}` : "origin/main",
+          ...(row.home && { home: row.home }),
+          ...(row.title && { title: row.title }),
+          changedAt: now - (row.changedHoursAgo ?? 0) * 60 * minute - index * minute,
+          firstSeenAt: now - index * 10 * minute,
+          merged: row.merged === true,
+          // Main's remote is the oldest fetched, so the panel's top line names it.
+          fetchedAt: now - (row.home ? 2 : 5) * minute,
+          added: 0,
+          removed: 0,
+          unreadAdded: 0,
+          unreadRemoved: 0,
+          files: [],
+          truncated: false,
+          folder: { repo: "", project: "" },
+          conflicts: row.conflicts ? [{ with: "main" }] : [],
+          uncommitted,
+          unpushed: 0,
+          ...(row.pull && {
+            pullRequest: {
+              ...row.pull,
+              title: row.title ?? row.branch,
+              url: `https://github.com/novadeck-demo/storefront/pull/${row.pull.number}`,
+            },
+          }),
+        },
+        files,
+      ),
+    )
+    if (!row.unreadable) return work
+    // What couldn't be read is left out, as the runner leaves it.
+    const { uncommitted: _uncommitted, unpushed: _unpushed, safe: _safe, ...unread } = work
+    return unread
+  })
+
 // ---- Changes to a work, as pure steps ----
 
 // Lines it gains, all unread: in its first file, or in a file of its own when it has none.
@@ -484,6 +683,9 @@ export type DemoWorksControl = {
   readonly remove: (root: string) => void
   // Every worktree of the project is closed.
   readonly removeAll: (projectId: string) => void
+  // The project's worktrees become one in each state a row draws (galleryWorks), owned by these
+  // terminals in turn.
+  readonly gallery: (projectId: string, owners: readonly string[]) => void
   readonly ownedBy: (terminalId: string) => Work | undefined
   readonly worksOf: (projectId: string) => readonly Work[]
 }
@@ -894,6 +1096,14 @@ export const createDemoWorks = (
       state.update((current) => ({
         ...current,
         works: current.works.filter((work) => work.projectId !== projectId),
+      })),
+    gallery: (projectId, owners) =>
+      state.update((current) => ({
+        ...current,
+        works: [
+          ...current.works.filter((work) => work.projectId !== projectId),
+          ...galleryWorks(projectId, owners, now()),
+        ],
       })),
     ownedBy,
     worksOf: (projectId) =>

@@ -14,15 +14,16 @@ const storefront = "/projects/storefront/sessions/initial/focus?panel=worktrees"
 const apiService = "/projects/api-service/sessions/initial/focus?panel=worktrees"
 const showcase = "/projects/studio/sessions/initial/focus?demo=showcase&panel=worktrees"
 
-// The panel's rows stand in a list per group (Needs you, In progress, In review, Done).
+// The panel's rows stand in one list, newest first.
 const list = () => page.getByRole("region", { name: /^Worktrees( \d+)?$/ })
 const rows = () =>
   list()
     .getByRole("listitem")
-    .getByRole("button", { name: /^(?!Close the |Preview )/ })
-// A row's accessible label starts as `Title, @handle, branch,` (no handle where it has none).
+    .getByRole("button", { name: /^(?!Close the |Open #)/ })
+// A row's accessible label starts with its title (its branch where it has none) and says
+// `branch into target` further on.
 const named = (title: string, branch = "") =>
-  new RegExp(`^${title}, (?:@[\\w-]+, )?${branch === "" ? "[^,]*" : branch},`)
+  new RegExp(`^${title}, .*${branch === "" ? "[^,]*" : branch} into `)
 const row = (title: string, branch = "") =>
   list().getByRole("button", { name: named(title, branch) })
 const labels = () =>
@@ -35,8 +36,7 @@ const itemOf = (title: string, branch = "") =>
     .filter({ has: page.getByRole("button", { name: named(title, branch) }) })
 const trash = (title: string, branch: string) =>
   itemOf(title, branch).getByRole("button", { name: /^Close the / })
-// Presses a row's trash button, which comes in under the pointer: the row first (a safe row's
-// shows at rest).
+// Presses a row's trash button, which comes in under the pointer.
 const pressTrash = async (title: string, branch: string): Promise<void> => {
   await row(title, branch).hover()
   await trash(title, branch).click()
@@ -53,38 +53,19 @@ describe("The Worktrees panel", () => {
       await expect.element(page.getByRole("heading", { name: "Worktrees 7" })).toBeVisible()
     })
 
-    it("lists them by what's next (Needs you, In progress, In review, Done), newest first in each, and says where each stands", async () => {
+    it("lists them flat, newest first, and says where each stands and goes", async () => {
       await openWorkspace(storefront)
 
       await expect.element(rows().first()).toBeVisible()
       expect(labels()).toEqual([
-        "Tests, @owl, agent/tests, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation, CI failing, ready for review, 1 commit not pushed",
-        "Checkout implementation, @moth, agent/checkout-implementation, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests, draft, no CI, 3 commits not pushed",
-        "Build, @raven, agent/build-cache, 0 files changed, no PR yet",
-        "Checkout review, @crow, agent/checkout-review, 1 file changed, 6 lines added, 2 removed, working, ready for review, CI running",
-        "Build, @raven, agent/build, 2 files changed, 11 lines added, 5 removed, ready for review, CI passed",
-        "No owner, agent/promo-banner, 1 file changed, 18 lines added, 2 removed, PR closed, safe to trash",
-        "Build, @raven, agent/build-lint, 0 files changed, merged, safe to trash",
+        "Cache the build between runs, nothing in it yet, agent/build-cache into main, @raven",
+        "Tests, #814, open pull request, 3 of 4 checks passed, 1 failed; changes requested, checks failed, agent/tests into main, Conflicts with Checkout implementation, @owl",
+        "Checkout implementation, #812, draft pull request, no review asked for, agent/checkout-implementation into main, Conflicts with main, Tests, @moth",
+        "Checkout review, #816, open pull request, 2 of 4 checks passed, 1 running, 1 waiting; approval missing, files changing, agent/checkout-review into main, @crow",
+        "Build, #818, open pull request, 4 of 4 checks passed; approved, agent/build into main, Checks passed: yours to merge, @raven",
+        "agent/promo-banner, #801, closed pull request, pull request closed, agent/promo-banner into main, no agent",
+        "Lint fixes for the build, #809, merged pull request, landed in main, agent/build-lint into main, @raven",
       ])
-    })
-
-    it("shows the total lines top right, and nothing for a worktree that differs from nothing", async () => {
-      await openWorkspace(storefront)
-
-      await expect.element(itemOf("Tests", "agent/tests").getByText("+85")).toBeVisible()
-      await expect.element(itemOf("Build", "agent/build").getByText("+11")).toBeVisible()
-      await expect
-        .element(itemOf("Build", "agent/build-cache").getByText(/^\+\d/))
-        .not.toBeInTheDocument()
-    })
-
-    it("marks a merged work, and not one just made", async () => {
-      await openWorkspace(storefront)
-
-      await expect
-        .element(itemOf("Build", "agent/build-lint"))
-        .toHaveAttribute("data-merged", "true")
-      await expect.element(itemOf("Build", "agent/build-cache")).not.toHaveAttribute("data-merged")
     })
 
     it("lists another project's works once that project is open, and names no project", async () => {
@@ -92,8 +73,8 @@ describe("The Worktrees panel", () => {
 
       await expect.element(page.getByRole("heading", { name: "Worktrees 2" })).toBeVisible()
       expect(labels()).toEqual([
-        "Tests, @owl, agent/tests, 1 file changed, 47 lines added, 5 removed, no PR yet",
-        "Checkout implementation, @moth, agent/checkout-implementation, 2 files changed, 92 lines added, 11 removed, no PR yet",
+        "Tests, agent/tests into main, @owl",
+        "Checkout implementation, agent/checkout-implementation into main, @moth",
       ])
       await expect.element(list().getByText("api-service")).not.toBeInTheDocument()
     })
@@ -113,18 +94,29 @@ describe("The Worktrees panel", () => {
       await expect.element(row("Build")).not.toBeInTheDocument()
     })
 
-    it("marks a work in conflict, and names what it conflicts with", async () => {
+    it("marks a merged work landed, and one just made empty", async () => {
       await openWorkspace(storefront)
 
-      await expect.element(itemOf("Tests", "agent/tests")).toHaveAttribute("data-conflict", "true")
-      await expect.element(itemOf("Build", "agent/build")).not.toHaveAttribute("data-conflict")
+      await expect
+        .element(itemOf("Lint fixes for the build"))
+        .toHaveAttribute("data-state", "landed")
+      await expect
+        .element(itemOf("Cache the build between runs"))
+        .toHaveAttribute("data-state", "empty")
+    })
+
+    it("marks a work in conflict with !, and one whose checks passed with ?", async () => {
+      await openWorkspace(storefront)
+
+      await expect.element(itemOf("Tests", "agent/tests")).toHaveAttribute("data-need", "unblock")
+      await expect.element(itemOf("Build", "agent/build")).toHaveAttribute("data-need", "ask")
+      await expect.element(itemOf("Checkout review")).not.toHaveAttribute("data-need")
     })
   })
 
   context("when a row is picked", () => {
-    it("selects its terminal and unfolds its files under the row", async () => {
+    it("selects its terminal", async () => {
       await openWorkspace(storefront)
-      await expect.element(page.getByTitle("src/cart/Cart.test.tsx")).not.toBeVisible()
 
       await row("Tests").click()
 
@@ -132,19 +124,15 @@ describe("The Worktrees panel", () => {
       await expectSelected("Tests")
       await sidebarPanel("Worktrees").click()
       await expect.element(itemOf("Tests")).toHaveAttribute("data-selected", "true")
-      await expect.element(page.getByTitle("src/cart/Cart.test.tsx")).toBeVisible()
-      await expect
-        .element(itemOf("Tests").getByTitle("src/checkout/Checkout.test.tsx"))
-        .toBeVisible()
     })
 
     it("keeps the clicked worktree selected among its owner's others", async () => {
       await openWorkspace(storefront)
 
-      await row("Build", "agent/build-cache").click()
+      await row("Cache the build between runs").click()
 
       await expect
-        .element(itemOf("Build", "agent/build-cache"))
+        .element(itemOf("Cache the build between runs"))
         .toHaveAttribute("data-selected", "true")
       await expect.element(itemOf("Build", "agent/build")).toHaveAttribute("data-selected", "false")
     })
@@ -189,10 +177,10 @@ describe("The Worktrees panel", () => {
     it("closes a worktree that differs from nothing at once", async () => {
       await openWorkspace(storefront)
 
-      await pressTrash("Build", "agent/build-cache")
+      await pressTrash("Cache the build between runs", "agent/build-cache")
 
       await expect.element(dialog()).not.toBeInTheDocument()
-      await expect.element(row("Build", "agent/build-cache")).not.toBeInTheDocument()
+      await expect.element(row("Cache the build between runs")).not.toBeInTheDocument()
     })
 
     it("waits while the owner's agent is working in the worktree", async () => {
@@ -209,33 +197,32 @@ describe("The Worktrees panel", () => {
       await expect.element(row("Checkout review")).toBeVisible()
     })
 
-    it("closes a safe worktree with no owner at once, its trash button shown at rest", async () => {
+    it("closes a safe worktree with no owner at once, its trash at full strength", async () => {
       await openWorkspace(storefront)
 
-      await expect.element(itemOf("No owner")).toBeVisible()
-      await expect.element(itemOf("No owner")).toHaveAttribute("data-safe", "true")
-      // In its place with the pointer elsewhere, not out of sight as an unsafe row's is.
-      await page.getByRole("heading", { name: /^Worktrees/ }).hover()
-      const button = trash("No owner", "agent/promo-banner").element()
-      await expect.poll(() => getComputedStyle(button).transform).toBe("none")
+      await expect.element(itemOf("agent/promo-banner")).toHaveAttribute("data-safe", "true")
+      await row("agent/promo-banner").hover()
+      const button = trash("agent/promo-banner", "agent/promo-banner").element()
       await expect.poll(() => getComputedStyle(button).opacity).toBe("1")
-      await trash("No owner", "agent/promo-banner").click()
+      await trash("agent/promo-banner", "agent/promo-banner").click()
 
-      await expect.element(itemOf("No owner")).not.toBeInTheDocument()
+      await expect.element(itemOf("agent/promo-banner")).not.toBeInTheDocument()
       await expect.element(dialog()).not.toBeInTheDocument()
     })
 
-    it("trashes every safe worktree after one confirm, and keeps the rest", async () => {
+    it("trashes every safe worktree from the header after one confirm, and keeps the rest", async () => {
       await openWorkspace(storefront)
 
-      await list().getByRole("button", { name: "Trash 2 safe" }).click()
+      await page.getByRole("button", { name: "Trash 2 safe worktrees" }).click()
       const sweep = page.getByRole("alertdialog", { name: /Trash 2 worktrees\?/ })
-      await expect.element(sweep.getByText("No owner (agent/promo-banner)")).toBeVisible()
-      await expect.element(sweep.getByText("Build (agent/build-lint)")).toBeVisible()
+      await expect.element(sweep.getByText("agent/promo-banner")).toBeVisible()
+      await expect
+        .element(sweep.getByText("Lint fixes for the build (agent/build-lint)"))
+        .toBeVisible()
       await sweep.getByRole("button", { name: "Trash them" }).click()
 
-      await expect.element(itemOf("No owner")).not.toBeInTheDocument()
-      await expect.element(itemOf("Build", "agent/build-lint")).not.toBeInTheDocument()
+      await expect.element(itemOf("agent/promo-banner")).not.toBeInTheDocument()
+      await expect.element(itemOf("Lint fixes for the build")).not.toBeInTheDocument()
       await expect.element(page.getByRole("heading", { name: "Worktrees 5" })).toBeVisible()
     })
   })

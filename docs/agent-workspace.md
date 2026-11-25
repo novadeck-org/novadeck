@@ -746,25 +746,28 @@ with every safety check again at that time:
   It is not the close side's "merged" below (HEAD is in main, which a fresh
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
-  and what conflicts with main or another work (named by root, and its owner if it has one). A row
-  shows the owner terminal's title, or "No owner", its size, then, on a terminal tab's detail line,
-  the branch and, where a tab shows its handle, the owner's handle, and under them what it says in
-  words, most telling first: a conflict ("Conflicts with
-  origin/main", or with another work's owner) or a failing CI in red, Working, the pull request's
-  state followed by its number (a link to its page: No PR yet, Draft, Ready for review, Merged, PR
-  closed; nothing while no forge is on), its CI (running, passed, no CI), commits not pushed and,
-  on a done one that isn't safe, files not committed, in amber, and "safe to trash" in green. Its
-  icon is that first fact (a red triangle or cross, the Terminals panel's spinner while its agent
-  works, a merge, closed, ready or draft pull request glyph, else a branch). Rows stand in groups by
-  what is next (`worktree-rows.ts` `groupOf`): Needs you (a conflict, or its CI failing), In progress
-  (no pull request), In review (an open one) and Done (merged, or its pull request closed), newest
-  first in each; Done folds (kept in this browser) and holds Trash N safe, which closes every safe
-  row, unforced, after one confirm that lists them, saying above the list why any that stopped
-  being safe stays. A row's trash button fades in over its handle under the pointer or with the
-  keyboard on the row, as a tab's Hide and Rename do; a safe row's shows at rest, in green. Over the groups, a line says
+  and what conflicts with main or another work (named by root, and its owner if it has one). The
+  rows stand in one flat list, newest first, each drawn as a terminal's tab with the toolkit's
+  shared parts (`worktree-rows.ts`, design `worktrees-prs` round 28). Its name line is the
+  worktree's title (`Work.title`; its branch in mono where it has none), then its pull request's
+  number tinted by state (draft muted, open green, merged violet, closed rust) over a 2px bar: a
+  segment per check (passed, failed, running, waiting; one per state, as wide as its share, past
+  twelve) and its review (approved, changes requested, approval missing, none asked for), none once
+  merged or closed. Its detail line is the worktree's state in the tab's glyphs (`PhaseGlyph`: ⠹
+  while its owner's agent works in it, ⣤ while its pull request's checks run, · nothing in it yet,
+  blank at rest, z untouched a day (`Work.changedAt`), ✓ landed in its target, ✗ checks failed, ×
+  its pull request closed, hatched as an ended tab, ○ git's standing unreadable), then where its
+  work goes, `target ‹ branch` (the pull request's base, else its home, else main), then the tab's
+  need mark (`NeedMark`): `!` where it can't go on (a conflict, files or commits left after it
+  landed or closed, work only here with no agent on it), `?` once an open pull request's checks
+  passed, each with its reason as a tooltip; and at the end, where a tab holds its handle, the
+  owner's handle (`SidebarItemHandle`), or "no agent". Unread lines brighten the branch. Under the
+  pointer the handle gives way to the pull request's page and the trash button, full strength on a
+  safe row and dim on any other, which asks first. The header holds Trash N, which closes every
+  safe row, unforced, after one confirm that lists them, saying above the list why any that
+  stopped being safe stays. Over the list, a line says
   how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
-  measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). Sizes are
-  neutral: red is only for what needs the person. The panel lists only the open
+  measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). The panel lists only the open
   project's worktrees (the runner reports every project's, and the UI keeps those whose
   `projectId` is the open project's), and a click
   shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
@@ -774,8 +777,8 @@ with every safety check again at that time:
   person as the actor, through the worktrees service's removal (see "Worktrees": uncommitted work, and commits only a detached HEAD reaches, are kept on
   `refs/novadeck/kept/` refs, and the branch goes only when Novadeck made it and main holds all of
   it). The panel
-  always asks the runner to close unforced; the runner's own standing decides, not the files the row
-  lists. A worktree is merged when HEAD is an ancestor of main, or merging it changes nothing, into
+  always asks the runner to close unforced; the runner's own standing decides, not what the row
+  shows. A worktree is merged when HEAD is an ancestor of main, or merging it changes nothing, into
   main or, where that conflicts, into the commit its work landed in (the test Works uses, so squash
   and rebase merges count, also once main has changed the same lines again) and holds no uncommitted file, and then it
   closes with no question. Otherwise the runner answers `closed: false` with what it holds, and the

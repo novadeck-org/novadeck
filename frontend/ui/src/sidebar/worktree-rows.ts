@@ -1,37 +1,82 @@
 import { fetchAge, staleFetchMs } from "@novadeck/core/fetch-age"
-import type { PullRequest } from "@novadeck/core/forges"
-import type { Work, WorkFile } from "@novadeck/core/works"
+import type { PullRequest, PullRequestCheck, PullRequestReview } from "@novadeck/core/forges"
+import type { Work } from "@novadeck/core/works"
+import type { GlyphPhase, GlyphWait } from "@novadeck/toolkit/PhaseGlyph"
 
 // The Worktrees panel's rows, from the open project's works (one per tracked worktree, keyed by
-// its root): which come first, what each row says and which files it lists. The component only
-// draws them.
+// its root): their order and what each row says. A row is drawn as a terminal's tab: its title
+// and pull request on the first line, then what the worktree does in the tab's glyphs, where its
+// work goes ("main ‹ branch"), what it needs of the person (! or ?) and whose it is. The
+// component only draws them.
 
-// How many rows the selected work unfolds under its line before the last counts the rest.
-export const branchRows = 6
+// What a worktree is doing, in the tab's glyph vocabulary (PhaseGlyph): files changing now (its
+// owner's agent is mid-turn in it), waiting on its pull request's checks, nothing in it yet, at
+// rest, untouched a day or more, landed in its target, its checks failed, its pull request
+// closed, or what it holds couldn't be read.
+export type WorktreeState =
+  | "changing"
+  | "checks"
+  | "empty"
+  | "rest"
+  | "dormant"
+  | "landed"
+  | "failed"
+  | "over"
+  | "unknown"
 
-// One file as a row shows it: its base name, its lines and whether the conflict is in it.
-export type FileView = {
-  readonly path: string
-  readonly name: string
-  readonly conflict: boolean
-  readonly status: WorkFile["status"]
-  readonly added: number
-  readonly removed: number
+// How long a worktree goes untouched before it reads as dormant: a day.
+export const dormantMs = 24 * 60 * 60_000
+
+// Each state as a phase glyph draws it, and in words for a screen reader (none at rest).
+export const stateGlyphs: Readonly<
+  Record<
+    WorktreeState,
+    {
+      readonly phase: GlyphPhase
+      readonly failed?: true
+      readonly wait?: GlyphWait
+    }
+  >
+> = {
+  changing: { phase: "running" },
+  // Checks under way: the wait mark a quarter filled, as a tab's wake-up coming near.
+  checks: { phase: "waiting", wait: { kind: "wake", fill: 1 } },
+  empty: { phase: "starting" },
+  rest: { phase: "idle" },
+  dormant: { phase: "sleeping" },
+  landed: { phase: "done" },
+  failed: { phase: "done", failed: true },
+  over: { phase: "ended" },
+  unknown: { phase: "unheard" },
 }
 
-// A row under the selected work: a file, or the count of those past the last row.
-export type BranchView =
-  | { readonly kind: "file"; readonly file: FileView }
-  | { readonly kind: "more"; readonly text: string }
+const stateWords = (state: WorktreeState, target: string): string | undefined =>
+  ({
+    changing: "files changing",
+    checks: "checks running",
+    empty: "nothing in it yet",
+    rest: undefined,
+    dormant: "untouched for a day or more",
+    landed: `landed in ${target}`,
+    failed: "checks failed",
+    over: "pull request closed",
+    unknown: "what it holds can't be read",
+  })[state]
 
-// What a row's trash button does: asks the runner to close the worktree, which answers at once or says what
-// it holds for the person to confirm; or is not available because the owner's agent is
-// mid-turn in it. Whether to ask is the runner's to say, not the row's files.
+// What a worktree needs of the person, as a tab's need mark says it: `!` where its work can't go
+// on without them (a conflict, files left behind after it landed, work only here with no agent
+// on it), `?` where it waits on their call (its pull request's checks passed). `why` says it in
+// words, the mark's tooltip.
+export type RowNeed = { readonly need: "unblock" | "ask"; readonly why: string }
+
+// What its trash button does: asks the runner to close the worktree, which answers at once or
+// says what it holds for the person to confirm; or waits, as its owner's agent is mid-turn in it.
+// Whether to ask is the runner's to say, not the row's.
 export type CloseMode = "close" | "busy"
 
-// A work's pull request as its row's mark shows it: "#812" after a glyph of its state, the words
-// a screen reader gets ("#812, draft pull request, opens in browser": its visible words first, so
-// voice control finds it) and the page it opens; none for an address that is not a web page.
+// A work's pull request as its row shows it: "#812" tinted by its state, the words a screen
+// reader gets ("#812, draft pull request") and the page it opens; none for an address that is
+// not a web page.
 export type PullMark = {
   readonly state: PullRequest["state"]
   readonly text: string
@@ -44,114 +89,97 @@ export const pullMark = ({ number, state, url }: PullRequest): PullMark => {
   return {
     state,
     text: `#${number}`,
-    label: `#${number}, ${state} pull request${web ? ", opens in browser" : ""}`,
+    label: `#${number}, ${state} pull request`,
     url: web ? url : undefined,
   }
 }
 
-// The group a work is listed under, by what the person would do with it next: what needs them
-// (a conflict, its CI failing), what is still being made (no pull request yet), what waits on a
-// review (an open pull request) and what is done (merged, or its pull request closed).
-export type Group = "needs" | "progress" | "review" | "done"
-
-export const groups: readonly { readonly key: Group; readonly title: string }[] = [
-  { key: "needs", title: "Needs you" },
-  { key: "progress", title: "In progress" },
-  { key: "review", title: "In review" },
-  { key: "done", title: "Done" },
-]
-
-// Where a work stands, as the row's icon says it: its most telling fact, in that order.
-export type Standing =
-  | "conflict"
-  | "ci-failing"
-  | "working"
-  | "merged"
-  | "closed"
-  | "ready"
-  | "draft"
-  | "branch"
-
-// One fact a row says in words, under its branch: red only for what needs the person, amber for
-// what lives only here, green for what is safe to trash. `glyph` is a small mark before it.
-export type Fact = {
-  readonly text: string
-  readonly tone: "bad" | "ink" | "muted" | "warn" | "ok"
-  readonly glyph?: "ci-passed" | "ci-failing" | "ci-running" | "unpushed" | "uncommitted"
-  // It says the pull request's state, so its number (a link to its page) follows it.
-  readonly pull?: true
+// An open pull request's checks and review as the bar under its number draws them: a segment per
+// check (passed, failed, running, then waiting), or, past `barChecks`, one per state as wide as
+// its share; then its review, a step apart. `words` says it all, the bar's tooltip.
+export type ChecksBar = {
+  readonly segments: readonly {
+    readonly key: string
+    readonly state: PullRequestCheck["state"]
+    readonly weight: number
+  }[]
+  readonly review: PullRequestReview | undefined
+  readonly words: string
 }
 
-export type ChangeRow = {
+// How many checks the bar draws one by one; more stand as one segment per state.
+export const barChecks = 12
+
+const checkOrder: readonly PullRequestCheck["state"][] = ["passed", "failed", "running", "waiting"]
+
+const reviewWords: Readonly<Record<PullRequestReview, string>> = {
+  approved: "approved",
+  changes_requested: "changes requested",
+  required: "approval missing",
+  none: "no review asked for",
+}
+
+const plural = (count: number, one: string, many: string): string =>
+  `${count} ${count === 1 ? one : many}`
+
+export const checksBar = (pull: PullRequest): ChecksBar | undefined => {
+  if (pull.state !== "open" && pull.state !== "draft") return undefined
+  const checks = pull.checks ?? []
+  if (checks.length === 0 && pull.review === undefined) return undefined
+  const counts = new Map(
+    checkOrder.map((state) => [state, checks.filter((check) => check.state === state).length]),
+  )
+  const segments =
+    checks.length > barChecks
+      ? checkOrder.flatMap((state) =>
+          counts.get(state)! > 0 ? [{ key: state, state, weight: counts.get(state)! }] : [],
+        )
+      : checkOrder.flatMap((state) =>
+          checks
+            .filter((check) => check.state === state)
+            .map((check, at) => ({ key: `${check.name}#${at}`, state, weight: 1 })),
+        )
+  const said = [
+    checks.length > 0 &&
+      `${counts.get("passed")} of ${plural(checks.length, "check", "checks")} passed`,
+    counts.get("failed")! > 0 && `${counts.get("failed")} failed`,
+    counts.get("running")! > 0 && `${counts.get("running")} running`,
+    counts.get("waiting")! > 0 && `${counts.get("waiting")} waiting`,
+  ].filter(Boolean)
+  const review = pull.review && reviewWords[pull.review]
+  return {
+    segments,
+    review: pull.review,
+    words: [said.join(", "), review].filter(Boolean).join("; "),
+  }
+}
+
+export type WorktreeRow = {
   readonly work: Work
-  // The owner terminal's title, or "No owner".
-  readonly title: string
-  // The owner terminal's handle as people see it ("@moth"), where it has one.
+  // Its title, as its agent gave it; its branch where it has none (made by hand, or before
+  // titles), which the row sets in mono.
+  readonly name: string
+  readonly untitled: boolean
+  // The owner terminal's title, "Closed terminal" or "No owner", for what names the row in words.
+  readonly owner: string
+  // The owner terminal's handle, bare ("moth"), where it has one.
   readonly handle: string | undefined
-  readonly group: Group
-  readonly standing: Standing
-  // What it says under its branch, most telling first.
-  readonly facts: readonly Fact[]
-  // Closing it leaves nothing that lives only here (the runner's word): the trash button shows
-  // at rest, and Trash N safe takes it.
-  readonly safe: boolean
+  readonly state: WorktreeState
+  readonly need: RowNeed | undefined
+  // Where its work goes: its pull request's target, else its home, else the main branch.
+  readonly target: string
   // The branch, or "detached".
   readonly branch: string
-  // The branch its work belongs on, where that is not main; none for most.
-  readonly home: string | undefined
-  readonly close: CloseMode
-  // It conflicts, and was not merged.
-  readonly conflict: boolean
-  // What the conflict is with, in words ("Conflicts with main"), or none.
-  readonly conflictWords: string | undefined
-  // The work was merged ("Merged" in words); it wins over a conflict, which a merged work's
-  // old branch may still have with what main changed since.
-  readonly merged: boolean
-  // How old the main branch it is measured against is ("main as of 12 min ago"), or none where
-  // its repository's origin was never fetched.
-  readonly mainWords: string | undefined
-  // Its pull request on the forge, where one was found; the git-based `merged` stays as it is.
+  // Lines changed the person hasn't read yet: its branch brightens, as a tab's program does.
+  readonly unread: boolean
   readonly pullRequest: PullMark | undefined
-  readonly files: readonly FileView[]
-  readonly branches: readonly BranchView[]
-}
-
-const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1)
-
-const view = (file: WorkFile): FileView => ({
-  path: file.path,
-  name: baseName(file.path),
-  conflict: file.conflict,
-  status: file.status,
-  added: file.added,
-  removed: file.removed,
-})
-
-// The files, conflicting ones first, then the biggest change.
-export const orderedFiles = (files: readonly WorkFile[]): readonly FileView[] =>
-  files
-    .map((file, index) => ({ file, index }))
-    .toSorted(
-      (a, b) =>
-        Number(b.file.conflict) - Number(a.file.conflict) ||
-        b.file.added + b.file.removed - (a.file.added + a.file.removed) ||
-        a.index - b.index,
-    )
-    .map(({ file }) => view(file))
-
-// The rows an unfolded work lists: every file up to `branchRows`, or past that (or where the
-// work lists fewer files than it changes) one row fewer, the last counting the rest.
-export const branchViews = (
-  files: readonly FileView[],
-  truncated: boolean,
-): readonly BranchView[] => {
-  const crowded = files.length > branchRows || (truncated && files.length === branchRows)
-  const shown = crowded ? files.slice(0, branchRows - 1) : files
-  const rows: BranchView[] = shown.map((file) => ({ kind: "file", file }))
-  const rest = files.length - shown.length
-  if (rest > 0) rows.push({ kind: "more", text: `+${rest} more` })
-  else if (truncated) rows.push({ kind: "more", text: "and more" })
-  return rows
+  readonly bar: ChecksBar | undefined
+  // Closing it leaves nothing that lives only here (the runner's word): its trash is full
+  // strength, and Trash N safe takes it.
+  readonly safe: boolean
+  readonly close: CloseMode
+  // What a screen reader hears for the row.
+  readonly label: string
 }
 
 // Whether the owner is a terminal still open, which has a bar to show a work on.
@@ -160,14 +188,14 @@ export const ownerOpen = (
   titles: ReadonlyMap<string, string>,
 ): boolean => terminalId !== null && titles.has(terminalId)
 
-// Whose a work is, as a row names it: its owner's title, "Closed terminal" for an owner no
-// longer among the terminals (it is in History), "No owner" without one.
+// Whose a work is, in words: its owner's title, "Closed terminal" for an owner no longer among
+// the terminals (it is in History), "No owner" without one.
 export const ownerTitle = (
   terminalId: string | null,
   titles: ReadonlyMap<string, string>,
 ): string => (terminalId === null ? "No owner" : (titles.get(terminalId) ?? "Closed terminal"))
 
-// What a work conflicts with, in words: main (or the home it is measured against), and the
+// What a work conflicts with, in words: main (or the target it is measured against), and the
 // other works by their owners' titles (or, with none, their branches).
 export const conflictWords = (
   work: Work,
@@ -189,86 +217,69 @@ export const conflictWords = (
   return `Conflicts with ${names.join(", ")}`
 }
 
-// What a work's conflict is with, as its row says it: main by the branch it is measured
-// against ("origin/main"), the other works by their owners.
-const conflictFact = (
+// The branch a work's work goes to: its pull request's target, else the home it was opened with,
+// else the main branch it's measured against, without its remote.
+export const targetOf = (work: Work): string =>
+  work.pullRequest?.base ?? work.home ?? work.base.replace(/^origin\//, "")
+
+// Whether its work is in its target: git says merged, or its pull request was.
+const landedOf = (work: Work): boolean => work.merged || work.pullRequest?.state === "merged"
+
+// What a worktree is doing, most telling first: a working agent wins, then what its pull request
+// or git says is over, then its checks, then whether it can be read, and how long it was left.
+export const stateOf = (work: Work, now: number): WorktreeState => {
+  const pull = work.pullRequest
+  if (work.working) return "changing"
+  if (!landedOf(work) && pull?.state === "closed") return "over"
+  if (landedOf(work)) return "landed"
+  if (pull?.ci === "failing") return "failed"
+  if (pull?.ci === "running") return "checks"
+  if (work.uncommitted === undefined) return "unknown"
+  if (work.changedAt !== undefined && now - work.changedAt >= dormantMs) return "dormant"
+  if (work.files.length === 0 && !pull && (work.unpushed ?? 0) === 0) return "empty"
+  return "rest"
+}
+
+// What a worktree needs of the person, `!` before `?`.
+export const needOf = (
   work: Work,
   titles: ReadonlyMap<string, string>,
   works: readonly Work[],
-): string | undefined => conflictWords(work, titles, works, work.base)
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`
-
-// The group a work is listed under. Merged wins over a conflict (a merged work's old branch may
-// still conflict with what main changed since), and a closed pull request is done too.
-export const groupOf = (work: Work): Group => {
+): RowNeed | undefined => {
   const pull = work.pullRequest
-  if (work.merged || pull?.state === "merged" || pull?.state === "closed") return "done"
-  if (work.conflicts.length > 0 || pull?.ci === "failing") return "needs"
-  return pull ? "review" : "progress"
-}
-
-// Where a work stands, for its row's icon.
-export const standingOf = (work: Work): Standing => {
-  const pull = work.pullRequest
-  const done = work.merged || pull?.state === "merged"
-  if (!done && pull?.state !== "closed") {
-    if (work.conflicts.length > 0) return "conflict"
-    if (pull?.ci === "failing") return "ci-failing"
+  const landed = landedOf(work)
+  const over = !landed && pull?.state === "closed"
+  const uncommitted = work.uncommitted ?? 0
+  const unpushed = work.unpushed ?? 0
+  const target = targetOf(work)
+  if (!landed && !over) {
+    const conflict = conflictWords(work, titles, works, target)
+    if (conflict) return { need: "unblock", why: conflict }
   }
-  if (work.working) return "working"
-  if (done) return "merged"
-  if (pull?.state === "closed") return "closed"
-  if (pull?.state === "open") return "ready"
-  if (pull?.state === "draft") return "draft"
-  return "branch"
-}
-
-// What a row says under its branch, most telling first. `forges` is whether pull requests are
-// looked for at all: while none is, the row says nothing of one, not even that there is none.
-export const factsOf = (
-  work: Work,
-  titles: ReadonlyMap<string, string>,
-  works: readonly Work[],
-  forges: boolean,
-): readonly Fact[] => {
-  const pull = work.pullRequest
-  const merged = work.merged || pull?.state === "merged"
-  const closed = !merged && pull?.state === "closed"
-  const open = pull?.state === "open" || pull?.state === "draft"
-  const facts: Fact[] = []
-  const conflict = merged || closed ? undefined : conflictFact(work, titles, works)
-  if (conflict) facts.push({ text: conflict, tone: "bad" })
-  if (open && pull.ci === "failing")
-    facts.push({ text: "CI failing", tone: "bad", glyph: "ci-failing" })
-  if (work.working) facts.push({ text: "Working", tone: "ink" })
-  const numbered = pull ? ({ pull: true } as const) : {}
-  if (merged) facts.push({ text: "Merged", tone: work.safe ? "ok" : "muted", ...numbered })
-  else if (closed) facts.push({ text: "PR closed", tone: work.safe ? "ok" : "muted", ...numbered })
-  else if (pull?.state === "open")
-    facts.push({ text: "Ready for review", tone: "ink", ...numbered })
-  else if (pull?.state === "draft") facts.push({ text: "Draft", tone: "muted", ...numbered })
-  else if (forges) facts.push({ text: "No PR yet", tone: "muted" })
-  if (open && pull.ci === "running")
-    facts.push({ text: "CI running", tone: "muted", glyph: "ci-running" })
-  if (open && pull.ci === "passed")
-    facts.push({ text: "CI passed", tone: "muted", glyph: "ci-passed" })
-  if (open && pull.ci === "none") facts.push({ text: "no CI", tone: "muted" })
-  if (!merged && (work.unpushed ?? 0) > 0)
-    facts.push({
-      text: `${plural(work.unpushed!, "commit", "commits")} not pushed`,
-      tone: "warn",
-      glyph: "unpushed",
-    })
-  if ((merged || closed) && !work.safe && (work.uncommitted ?? 0) > 0)
-    facts.push({
-      text: `${plural(work.uncommitted!, "file", "files")} not committed`,
-      tone: "warn",
-      glyph: "uncommitted",
-    })
-  if (work.safe) facts.push({ text: "safe to trash", tone: "ok" })
-  return facts
+  if ((landed || over) && work.safe === false && uncommitted + unpushed > 0) {
+    const left = [
+      uncommitted > 0 && `${plural(uncommitted, "file", "files")} not committed`,
+      unpushed > 0 && `${plural(unpushed, "commit", "commits")} not pushed`,
+    ]
+      .filter(Boolean)
+      .join(", ")
+    return {
+      need: "unblock",
+      why: `${landed ? `Landed in ${target}` : "Pull request closed"}; ${left} here`,
+    }
+  }
+  if (!landed && !over && !ownerOpen(work.terminalId, titles) && uncommitted + unpushed > 0) {
+    const only = [
+      uncommitted > 0 && plural(uncommitted, "file", "files"),
+      unpushed > 0 && plural(unpushed, "commit", "commits"),
+    ]
+      .filter(Boolean)
+      .join(" and ")
+    return { need: "unblock", why: `${only} only here, and no agent on it` }
+  }
+  if (pull?.state === "open" && pull.ci === "passed")
+    return { need: "ask", why: "Checks passed: yours to merge" }
+  return undefined
 }
 
 // How long ago the remote's main was fetched, in words for the panel's top line ("origin/main,
@@ -283,17 +294,11 @@ export const originOf = (
   )
   if (fetched.length === 0) return undefined
   const oldest = fetched.reduce((a, b) => (b.fetchedAt! < a.fetchedAt! ? b : a))
-  const words = mainWords(oldest.fetchedAt, now)!.replace(/^main as of /, "")
   return {
-    text: `${oldest.base}, ${words}`,
+    text: `${oldest.base}, ${fetchAge(oldest.fetchedAt!, now)}`,
     stale: now - oldest.fetchedAt! >= staleFetchMs,
   }
 }
-
-// How old main is, in words, from when the repository's origin was last fetched; none when it
-// never was. Rounded down to the minute, hour or day, so it does not change by the second.
-export const mainWords = (fetchedAt: number | undefined, now: number): string | undefined =>
-  fetchedAt === undefined ? undefined : `main as of ${fetchAge(fetchedAt, now)}`
 
 // What its trash button does: waits while the owner's agent is working in the worktree.
 export const closeMode = (work: Work): CloseMode => (work.working ? "busy" : "close")
@@ -319,35 +324,47 @@ export const orderedWorks = (works: readonly Work[]): readonly Work[] =>
     .toSorted((a, b) => b.work.firstSeenAt - a.work.firstSeenAt || b.index - a.index)
     .map(({ work }) => work)
 
-export const changeRows = (
+export const worktreeRows = (
   works: readonly Work[],
   titles: ReadonlyMap<string, string>,
   now = Date.now(),
   handles: ReadonlyMap<string, string> = new Map(),
-  forges = true,
-): readonly ChangeRow[] =>
+): readonly WorktreeRow[] =>
   orderedWorks(works).map((work) => {
-    const files = orderedFiles(work.files)
-    // Done (merged, or its pull request closed) wins over a conflict, as its group and icon say.
-    const words =
-      groupOf(work) === "done" ? undefined : conflictWords(work, titles, works, work.home ?? "main")
+    const branch = work.branch ?? "detached"
+    const target = targetOf(work)
+    const state = stateOf(work, now)
+    const need = needOf(work, titles, works)
+    const owner = ownerTitle(work.terminalId, titles)
+    const handle = work.terminalId === null ? undefined : handles.get(work.terminalId)
+    const pullRequest = work.pullRequest ? pullMark(work.pullRequest) : undefined
+    const bar = work.pullRequest ? checksBar(work.pullRequest) : undefined
+    const name = work.title ?? branch
+    const label = [
+      name,
+      pullRequest && [pullRequest.label, bar?.words].filter(Boolean).join(", "),
+      stateWords(state, target),
+      `${branch} into ${target}`,
+      need?.why,
+      handle ? `@${handle}` : "no agent",
+    ]
+      .filter(Boolean)
+      .join(", ")
     return {
       work,
-      title: ownerTitle(work.terminalId, titles),
-      handle: work.terminalId === null ? undefined : handles.get(work.terminalId),
-      group: groupOf(work),
-      standing: standingOf(work),
-      facts: factsOf(work, titles, works, forges),
+      name,
+      untitled: work.title === undefined,
+      owner,
+      handle,
+      state,
+      need,
+      target,
+      branch,
+      unread: work.unreadAdded + work.unreadRemoved > 0,
+      pullRequest,
+      bar,
       safe: work.safe === true,
-      branch: work.branch ?? "detached",
-      home: work.home,
       close: closeMode(work),
-      conflict: words !== undefined,
-      conflictWords: words,
-      merged: work.merged || work.pullRequest?.state === "merged",
-      mainWords: mainWords(work.fetchedAt, now),
-      pullRequest: work.pullRequest ? pullMark(work.pullRequest) : undefined,
-      files,
-      branches: branchViews(files, work.truncated),
+      label,
     }
   })
