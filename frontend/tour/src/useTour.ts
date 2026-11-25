@@ -1,60 +1,74 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { AgentConnection } from "@novadeck/core/port"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 
 import {
   agentChanged,
   offerTour,
   startingTour,
   tourAgent,
-  tourAgentState,
+  tourAgentNote,
   tourFailed,
-  type TourAgentState,
+  type TourAgentNote,
   type TourConsent,
 } from "./consent"
 import { startTour, type TourEffects, type TourStarted } from "./start"
 import type { TourHost } from "./tour-host"
 
+const never = (): (() => void) => () => {}
+const off = { state: "off" } as const
+
 export type TourOffer = {
   // The consent while it is offered, null otherwise.
   readonly consent: TourConsent | null
-  // Where opencode stands for the tour: ready, being connected, to connect, or to install.
-  readonly agent: TourAgentState
+  // Where Pi's download stands for the tour: under way, failed, or ready to start.
+  readonly agent: TourAgentNote
+  // Opens the consent and starts Pi's download in the background, so it is usually in place
+  // before the person presses Start.
   readonly offer: () => void
   readonly start: () => void
-  // Connects Novadeck to opencode, installed but not yet connected, as its switch in Preferences does.
-  readonly connect: () => void
+  // Tries Pi's download again, once it failed.
+  readonly retry: () => void
   readonly close: () => void
 }
 
 /**
  * The tour as the app offers it: the consent, and starting the run once the person agrees.
  * The consent closes once the tour's project and terminal are open; one the backend refused
- * stays open with its reason. Absent (`undefined`) where the backend has no tour.
+ * stays open with its reason. Absent (`undefined`) where the backend has no tour (one whose
+ * runner is older than the tour on Pi).
  */
 export const useTour = (
   { backend, commands }: Pick<TourHost, "backend" | "commands">,
-  connections: readonly AgentConnection[],
   // A run started, for the tour's driver to follow.
   onStarted: (agent: AgentName, started: TourStarted) => void,
 ): TourOffer | undefined => {
   const [consent, setConsent] = useState<TourConsent | null>(null)
   const { tour } = backend
-  const refresh = backend.agents?.refresh
-  const set = backend.agents?.set
-  const agent = useMemo(() => tourAgentState(connections), [connections])
-  // As opencode's state changes, an error about starting it is dropped (see `agentChanged`).
+  const fetched = useSyncExternalStore(
+    tour?.agent.subscribe ?? never,
+    () => tour?.agent.getSnapshot() ?? off,
+  )
+  const agent = useMemo(() => tourAgentNote(fetched), [fetched])
+  // As Pi's state changes, an error about starting it is dropped (see `agentChanged`).
   const [seen, setSeen] = useState(agent.step)
   if (seen !== agent.step) {
     setSeen(agent.step)
     setConsent((current) => current && agentChanged(current))
   }
+  const fetch = tour?.fetch
+  // Asking for the download: a runner that can't start it says why, which the consent shows.
+  const download = useCallback(() => {
+    fetch?.().catch((error: unknown) =>
+      setConsent((current) => current && (current.starting ? current : tourFailed(current, error))),
+    )
+  }, [fetch])
   const offer = useCallback(() => {
     // One already starting stays as it is.
     setConsent((current) => (current?.starting ? current : offerTour()))
-    // A program installed or removed since the agents were last looked at shows or goes.
-    void refresh?.()
-  }, [refresh])
+    // Asking for the tour is the consent to download Pi: it starts now (one under way or in
+    // place changes nothing, and a failed one is tried again).
+    download()
+  }, [download])
   const start = useCallback(() => {
     if (!tour || !consent || consent.starting || agent.step !== "ready") return
     setConsent(startingTour(consent))
@@ -78,9 +92,9 @@ export const useTour = (
         agent,
         offer,
         start,
-        connect: () => set?.(tourAgent, true),
+        retry: download,
         close: () => setConsent((current) => (current?.starting ? current : null)),
       },
-    [tour, consent, agent, offer, start, set],
+    [tour, consent, agent, offer, start, download],
   )
 }

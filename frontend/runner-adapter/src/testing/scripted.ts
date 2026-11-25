@@ -161,7 +161,11 @@ export const scripted = ({
   move = () => new Promise<never>(() => {}),
   follows = false,
   bundledPi,
+  tourRevision,
 }: {
+  // Where the runner has a tour, the contract revision it is at (it serves `tour.fetch` from
+  // 19); absent, as a runner without one.
+  tourRevision?: number
   shown: readonly Saved[]
   // Whether Novadeck's own pi is on, as a runner from revision 16 says; absent, as one before it.
   bundledPi?: boolean
@@ -235,8 +239,9 @@ export const scripted = ({
   const api = {
     watch: () => statuses.iterator,
     supports: (path: string) =>
-      follows &&
-      (path === "settings.watch" || path === "preferences.get" || path === "agents.watch"),
+      (follows &&
+        (path === "settings.watch" || path === "preferences.get" || path === "agents.watch")) ||
+      (path === "tour.fetch" && (tourRevision ?? 0) >= 19),
     preferences: {
       get: unused,
       set: note("preference", () => answers.preference()),
@@ -282,6 +287,16 @@ export const scripted = ({
         return connect(agent, connected)
       }),
     },
+    ...(tourRevision !== undefined && {
+      tour: {
+        fetch: note("tour fetch", async () => {}),
+        prepare: unused,
+        brief: unused,
+        nudge: unused,
+        artist: unused,
+        keep: unused,
+      },
+    }),
     forges: {
       list: listForges as never,
       set: note("forges", (input) => {

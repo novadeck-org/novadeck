@@ -1,67 +1,49 @@
 import type { Effort } from "@novadeck/harness-core/harness"
+import { ownProgram } from "@novadeck/harness-pi/bundled"
+import { ownModel, ownService } from "@novadeck/harness-pi/own-model"
 import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import { commandLine } from "../terminals/commands.js"
 
 /**
- * The agent the tour always runs: opencode (the owner's decision, 2026-11-23), on GPT-6 Luna at
- * medium effort, paid for by Novadeck. The person's own agents, accounts and model lists play no
- * part, so nothing of the tour is spent from them.
+ * The agent the tour always runs: Novadeck's own pi (the owner's decision, 2026-11-25, after
+ * opencode from 2026-11-23), which Novadeck downloads itself (harnesses/bundled-pi.ts), on GPT-6
+ * Luna at medium effort through Novadeck's model service, paid for by Novadeck. The person's own
+ * agents, accounts and model lists play no part, so nothing of the tour is spent from them, and
+ * nothing need be installed or connected.
  */
-export const tourAgent = "opencode" satisfies AgentName
-export const tourModel = "openrouter/openai/gpt-6-luna"
+export const tourAgent = "pi" satisfies AgentName
+export const tourModel = ownModel
 export const tourEffort: Effort = "medium"
 
 /**
- * The configuration the tour's opencode runs on, for each launch only, in `NOVADECK_OPENCODE_CONFIG`
- * (which Novadeck's plugin merges over the loaded configuration, harnesses/opencode/src/plugin-source.ts;
- * the person's files are never written): the `openrouter` provider pointed at Novadeck's service,
- * with the run's ticket as its key, and the model for its sessions, titles (`small_model`) and
- * both agents it starts as (`build`, `plan`), with the effort as their variant, which opencode
- * takes from an agent only where the agent's model is the session's (session/prompt.ts, 1.19.6).
- * `enabled_providers` and `disabled_providers` are set too, as arrays replace the person's own:
- * the tour can't be left without its provider by their list, and spends nothing through another.
- *
- * Probed 2026-11-24 against the real opencode 1.19.6 (the newest this adapter supports) and a local
- * OpenAI-compatible server, with Novadeck's own plugin loaded as the shim loads it
- * (`OPENCODE_CONFIG_CONTENT`'s `plugin`, `NOVADECK_HOOK` set) and this configuration in
- * `NOVADECK_OPENCODE_CONFIG`, whatever the person's own config said (it disabled `openrouter`):
- * opencode calls `POST <baseURL>/chat/completions` (so `/tour/v1/chat/completions`, never
- * `/responses`) with `Authorization: Bearer <apiKey>` and `"model": "openai/gpt-6-luna"` (the
- * `openrouter/` prefix is opencode's provider id), `"max_tokens": 32000`, and the effort in the
- * main call as `"reasoning": {"effort": "medium"}`. Its title call goes to the `small_model`, the
- * same model, with `"reasoning": {"effort": "none"}` (1.2.10 sent `"reasoningEffort": "minimal"`).
+ * What a terminal of the tour's folder is given in its environment, for each launch only: the
+ * model service's base URL and the run's ticket as its key, in the variables Novadeck's
+ * extension registers the service's model from in Novadeck's own pi (harnesses/pi's
+ * own-model.ts), taking them out of pi's environment before the agent runs anything. Nothing is
+ * written: no settings file of pi's, and no command line holds the ticket.
  */
-export const tourConfig = (endpoint: string, ticket: string): string => {
-  const agent = { model: tourModel, variant: tourEffort }
-  return JSON.stringify({
-    provider: { openrouter: { options: { baseURL: endpoint, apiKey: ticket } } },
-    enabled_providers: ["openrouter"],
-    disabled_providers: [],
-    model: tourModel,
-    small_model: tourModel,
-    agent: { build: agent, plan: agent },
-  })
-}
+export const tourEnv = (endpoint: string, ticket: string): NodeJS.ProcessEnv => ({
+  [ownService.baseUrl]: endpoint,
+  [ownService.key]: ticket,
+})
 
 /**
- * The flag that lets the tour's agent write files in its own folder without asking, for this
- * launch only: the lead writes the page the tour shows, and the one question the tour wants
- * the person to answer is a teammate's, not a permission. It touches none of the person's
- * settings: opencode's build agent edits without asking unless the person's rules say so, and
- * its plan agent may not edit at all.
+ * The flags the tour's agents start with besides the model, for that launch only: none, as pi
+ * asks no permission for an edit or a command (it has no such dialog), and the tour's own rules
+ * keep its agents from the shell.
  */
-export const tourWrites: readonly string[] = ["--agent", "build"]
+export const tourWrites: readonly string[] = []
 
 /**
  * How the tour starts its agent: the command line, with no prompt on it: the lead's brief is
  * rung by the doorbell once its prompt shows and its tools are listed (`doorbell`, as
  * `tour.brief` does), so the agent's own first prompt is Novadeck's notice, not a line a harness
- * may hold behind its startup screens. The model and effort are on the line (Novadeck's shim
- * strips the effort and gives it as the agents' variant), and the provider is the
- * configuration's (`tourConfig`), which the terminals of the tour's folder get in their
- * environment (`Tour.launchEnv`).
+ * may hold behind its startup screens. It starts Novadeck's own pi by its word (`ownProgram`),
+ * which the terminal's shell runs as its launcher; the model and effort are on the line, and the
+ * service it reaches is the environment's (`tourEnv`), which the terminals of the tour's folder
+ * get (`Tour.launchEnv`).
  */
 export type TourLaunch = {
   readonly command: string
@@ -71,10 +53,10 @@ export type TourLaunch = {
 
 export const tourLaunch = (): TourLaunch => {
   const { launch } = harnesses[tourAgent]
-  const [program = "", ...rest] = launch.start
+  const [, ...rest] = launch.start
   // Its options right after the program, as `open_agent` puts them.
   const command = commandLine([
-    program,
+    ownProgram,
     ...launch.choose({ model: tourModel, effort: tourEffort }),
     ...tourWrites,
     ...rest,

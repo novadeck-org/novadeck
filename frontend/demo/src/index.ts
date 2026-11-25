@@ -113,28 +113,7 @@ export const demoBackend = (
   // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
   // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
-  // Where the tour is offered (the experimental channel) opencode, the tour's agent, is listed too:
-  // installed and not connected, or as the address says: `&opencode=missing` (not installed),
-  // `outdated` or `unsupported` (installed, with Novadeck unable to follow it).
-  const opencodeAs = addressParams().get("opencode")
-  const agents = createStore<readonly AgentConnection[]>(
-    addressParams().get("channel") === "experimental"
-      ? [
-          ...sampleAgents,
-          opencodeAs === "missing"
-            ? missingAgent("opencode")
-            : {
-                agent: "opencode",
-                available: true,
-                connected: opencodeAs === "outdated" || opencodeAs === "unsupported",
-                busy: false,
-                ...((opencodeAs === "outdated" || opencodeAs === "unsupported") && {
-                  limited: opencodeAs,
-                }),
-              },
-        ]
-      : sampleAgents,
-  )
+  const agents = createStore<readonly AgentConnection[]>(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
   // and an install held at its first step where it asks for that (`&install=held`).
@@ -868,7 +847,9 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ),
     ),
   )
-  // `&tourStart=fails` makes its first start fail, as a folder of the person's own does, and
+  // `&tourPi=download` has Pi, the tour's agent, not in place as the tour is asked for (a download
+  // plays), `&tourPi=fails` has the first download fail, its retry playing it; else it is in
+  // place. `&tourStart=fails` makes its first start fail, as a folder of the person's own does, and
   // `&tourStart=tickets` as the tour's service with no free run left does. Its agent is played as a runner
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
@@ -899,6 +880,8 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
     if (params.get("tourKeep") === "fails") backend.tour.failKeep()
     if (params.get("tourStart") === "fails") backend.tour.failNext()
     if (params.get("tourStart") === "tickets") backend.tour.failNext("tickets")
+    const piAs = params.get("tourPi")
+    if (piAs === "download" || piAs === "fails") backend.tour.startWithout(piAs)
   }
   if (isDemoInbox(backend.inbox)) {
     const answer = params.get("inboxAnswer")

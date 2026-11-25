@@ -25,18 +25,9 @@ const expectTourOpen = async (): Promise<void> => {
   await expectSelected(terminalTabNames()[0]!)
 }
 
-// Offers the tour from the footer's Help menu; with `connect`, opencode is connected first,
-// in Preferences' Agents (the demo starts with none).
-const offerFromHelp = async ({ connect = true } = {}): Promise<void> => {
-  if (connect) {
-    await openPreferencesOn("Agents")
-    const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
-    await opencode.click()
-    await expect.element(opencode).toHaveAttribute("aria-checked", "true")
-    await closePreferences()
-  }
-  await takeTourFromHelp()
-}
+// Offers the tour from the footer's Help menu; the demo has Pi in place, unless its address says
+// otherwise (`&tourPi=`).
+const offerFromHelp = (): Promise<void> => takeTourFromHelp()
 
 // The footer offers the tour only with its own switch on, in Preferences → Experimental.
 beforeEach(switchTourOn)
@@ -87,14 +78,12 @@ describe("The tour", () => {
     it("asks first, saying what it runs, where, and how to stop it", async () => {
       await openWorkspace(offered)
       await offerFromHelp()
-      await consentSays(
-        "opencode agents lead a small team that builds a little browser game you choose.",
-      )
+      await consentSays("Pi agents lead a small team that builds a little browser game you choose.")
       await consentSays(
         "You answer a question or two, approve one command, and play the game at the end.",
       )
       await consentSays(
-        "Runs three opencode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+        "Runs three Pi agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
       )
       await consentSays(
         "What the agents read and write goes through novadeck.dev to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
@@ -102,6 +91,7 @@ describe("The tour", () => {
       await consentSays(
         "Works in a sandbox repo under ~/.novadeck, made fresh each time. A game you finish is yours to keep.",
       )
+      await consentSays("Downloads Pi, Novadeck's own agent, once: about 50–60 MB.")
       await consentSays("Close the tour's terminal to stop it at any time.")
       await expect.element(start()).toHaveFocus()
     })
@@ -114,12 +104,12 @@ describe("The tour", () => {
       await expect.element(codex).toHaveAttribute("aria-checked", "true")
       await closePreferences()
       await offerFromHelp()
-      await consentSays("Runs three opencode agents")
+      await consentSays("Runs three Pi agents")
       expect(consent().getByRole("radiogroup").query()).toBeNull()
       expect(consent().getByRole("radio").query()).toBeNull()
     })
 
-    it("opens the Tour project with opencode starting on the tour's model", async () => {
+    it("opens the Tour project with Pi starting on the tour's model", async () => {
       await openWorkspace(offered)
       const before = terminalTabNames()
       await offerFromHelp()
@@ -138,40 +128,31 @@ describe("The tour", () => {
       expect(terminalTabNames()).toEqual(before)
     })
 
-    it("offers to connect opencode right there where Novadeck isn't connected to it, and starts once it is", async () => {
-      await openWorkspace(offered)
-      await offerFromHelp({ connect: false })
-      await consentSays("Connect adds Novadeck's small plugin to opencode")
-      await consent().getByRole("button", { name: "Connect opencode" }).click()
-      await expect.poll(() => consent().query()?.textContent ?? "").not.toContain("Connect adds")
+    it("downloads Pi as it is offered, says how far it is, and starts once it is in place", async () => {
+      await openWorkspace(`${offered}&tourPi=download`)
+      await offerFromHelp()
+      await consentSays("Downloading Pi")
+      await consentSays("MB")
+      const waiting = consent().getByRole("button", { name: "Waiting for Pi…" })
+      await expect.element(waiting).toHaveAttribute("aria-disabled", "true")
+      await expect.element(start(), { timeout: 15_000 }).toBeVisible()
+      expect(consent().query()?.textContent).not.toContain("Downloading Pi")
       await start().click()
       await expectTourOpen()
     })
 
-    it("offers to install opencode right there where it isn't installed, and starts once it is installed and connected", async () => {
-      await openWorkspace(`${offered}&opencode=missing`)
-      await offerFromHelp({ connect: false })
-      await consentSays("Install adds opencode to this computer")
-      await consentSays("curl -fsSL https://opencode.ai/install | bash")
-      await consent().getByRole("button", { name: "Install opencode" }).click()
-      await expect
-        .poll(() => consent().query()?.textContent ?? "", { timeout: 15_000 })
-        .not.toContain("Install adds")
+    it("says why Pi's download failed, with a Try again that downloads it again", async () => {
+      await openWorkspace(`${offered}&tourPi=fails`)
+      await offerFromHelp()
+      await consentSays("Could not reach github.com. Check the connection.")
+      const waiting = consent().getByRole("button", { name: "Start the tour" })
+      await expect.element(waiting).toHaveAttribute("aria-disabled", "true")
+      await consent().getByRole("button", { name: "Try again" }).click()
+      await consentSays("Downloading Pi")
+      await expect.element(start(), { timeout: 15_000 }).not.toHaveAttribute("aria-disabled")
+      expect(consent().getByRole("button", { name: "Try again" }).query()).toBeNull()
       await start().click()
       await expectTourOpen()
-    })
-
-    it("says what to do where opencode is too old or too new for Novadeck to follow, and starts nothing", async () => {
-      await openWorkspace(`${offered}&opencode=outdated`)
-      await offerFromHelp({ connect: false })
-      await consentSays("Update it with `opencode upgrade`")
-      await expect.element(start()).toHaveAttribute("aria-disabled", "true")
-      await consent().getByRole("button", { name: "Not now" }).click()
-      await cleanup()
-      await openWorkspace(`${offered}&opencode=unsupported`)
-      await offerFromHelp({ connect: false })
-      await consentSays("it can't follow this opencode 2")
-      await expect.element(start()).toHaveAttribute("aria-disabled", "true")
     })
 
     it("says why it couldn't start, staying open to try again", async () => {

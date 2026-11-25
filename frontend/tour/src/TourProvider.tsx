@@ -7,7 +7,6 @@ import {
   useContext,
   useMemo,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react"
 
@@ -26,8 +25,6 @@ const DriverContext = createContext<TourDriver | undefined>(undefined)
 // Whether a run is on its way: begun, or kept through a reload, with its machinery still loading.
 const LoadingContext = createContext(false)
 
-const always = (): (() => void) => () => {}
-const noAgents: readonly never[] = []
 const nothing = (): void => {}
 
 // The driver while no run is followed, or before the machinery has loaded: it shows nothing.
@@ -57,7 +54,6 @@ export const TourProvider = ({
   readonly host: TourHost
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const { backend } = host
   // Whether the machinery is wanted, and the run to begin when it has loaded.
   const [wanted, setWanted] = useState(tourKept)
   const [live, setLive] = useState<TourDriver | null>(null)
@@ -75,11 +71,7 @@ export const TourProvider = ({
   )
   const started = useCallback(() => setStarting(null), [])
   const driver = useMemo(() => live ?? idle(begin), [live, begin])
-  const connections = useSyncExternalStore(
-    backend.agents?.state.subscribe ?? always,
-    () => backend.agents?.state.getSnapshot() ?? noAgents,
-  )
-  const offer = useTour(host, connections, begin)
+  const offer = useTour(host, begin)
   return (
     <DriverContext value={driver}>
       <LoadingContext value={wanted && live === null}>

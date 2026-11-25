@@ -4,9 +4,9 @@
 // picker, and never reads or writes `~/.pi`.
 import { randomUUID } from "node:crypto"
 import { chmod, mkdir, readdir, rename, rm } from "node:fs/promises"
-import { join } from "node:path"
+import { join, posix, win32 } from "node:path"
 
-import type { BundledPiFetch } from "@novadeck/protocol"
+import type { AgentName, BundledPiFetch } from "@novadeck/protocol"
 
 import { download, DownloadError, locate } from "../engines/download.js"
 import { extract } from "../engines/unpack.js"
@@ -97,6 +97,27 @@ export const bundledPiFolder = (data: string): string => join(data, "bundled", "
  * folder of Novadeck's, never the person's `~/.pi/agent`. It outlives a new pinned version.
  */
 export const bundledPiHome = (data: string): string => join(bundledPiFolder(data), "agent")
+
+/**
+ * Whether a pi session is Novadeck's own pi's, by its transcript: its sessions are kept in its own
+ * agent folder (`bundledPiHome`, its `PI_CODING_AGENT_DIR`), and the person's pi never writes
+ * there. False with no transcript, which pi names as its session starts.
+ */
+export const ownPiSession = (
+  transcript: string | undefined,
+  data: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean => {
+  if (transcript === undefined) return false
+  const paths = platform === "win32" ? win32 : posix
+  const fold = (text: string) =>
+    platform === "win32" || platform === "darwin" ? text.toLowerCase() : text
+  const inner = paths.relative(
+    fold(paths.resolve(bundledPiHome(data))),
+    fold(paths.resolve(transcript)),
+  )
+  return inner !== "" && inner.split(paths.sep)[0] !== ".." && !paths.isAbsolute(inner)
+}
 
 /** The folder a build unpacks to: its version and the start of its checksum. */
 export const buildFolder = (
@@ -359,6 +380,8 @@ export class BundledPi {
     | undefined
   // A run stopped and not yet settled, which the next waits for, as its files are still going.
   private settling: Promise<void> = Promise.resolve()
+  // Whether the tour asked for it (`want`), which the switch going off doesn't undo.
+  private wanted = false
 
   constructor(
     private readonly host: {
@@ -366,6 +389,11 @@ export class BundledPi {
       readonly data: string
       /** Whether the switch is on, read live. */
       readonly enabled: () => boolean
+      /**
+       * Whether the terminal's launcher may start it whatever the switch says: one of the tour's,
+       * which the person asked for (`want`). None but the switch's where omitted.
+       */
+      readonly allows?: (terminalId: string) => boolean
       readonly env?: NodeJS.ProcessEnv
       readonly platform?: NodeJS.Platform
       readonly arch?: string
@@ -390,6 +418,8 @@ export class BundledPi {
    * a fetch under way stops and the state says off.
    */
   switched(): void {
+    // The tour's download goes on, and its state stands, whatever the switch.
+    if (this.wanted) return void this.ensure().catch(() => {})
     if (!this.host.enabled()) {
       const { run } = this
       if (run) {
@@ -405,17 +435,41 @@ export class BundledPi {
     void this.ensure().catch(() => {})
   }
 
-  /** Fetches Novadeck's `name` (`pi`), telling `progress`; refused while switched off. */
-  async fetch(name: string, progress: FetchProgress): Promise<void> {
+  /**
+   * Whether `agent`'s session, by its transcript, is this pi's (`ownPiSession`): it resumes on
+   * Novadeck's own pi, with no connection of the person's.
+   */
+  owns(agent: AgentName, transcript: string | undefined): boolean {
+    return agent === "pi" && ownPiSession(transcript, this.host.data, this.host.platform)
+  }
+
+  /**
+   * Fetches Novadeck's `name` (`pi`) for a launcher in `terminalId`, telling `progress`; refused
+   * while switched off, but for a terminal the host allows it in (the tour's).
+   */
+  async fetch(name: string, progress: FetchProgress, terminalId?: string): Promise<void> {
     if (name !== "pi") throw new DownloadError(`Novadeck has no ${name} of its own.`)
-    if (!this.host.enabled()) throw new DownloadError(turnOnLine)
+    const allowed = () =>
+      this.host.enabled() || (terminalId !== undefined && this.host.allows?.(terminalId) === true)
+    if (!allowed()) throw new DownloadError(turnOnLine)
     try {
       await this.ensure(progress)
     } catch (error) {
       // Switched off meanwhile: the launch is refused as any while off.
-      if (!this.host.enabled()) throw new DownloadError(turnOnLine)
+      if (!allowed()) throw new DownloadError(turnOnLine)
       throw error
     }
+  }
+
+  /**
+   * The tour asks for it, whatever the switch says, as the person asking for the tour is their
+   * consent: the download starts in the background, joins one under way, or tries one that
+   * failed again, and its state is told as the switch's is; from then on the switch going off
+   * stops nothing. Resolves with its program once in place; rejects with the download's error.
+   */
+  want(): Promise<string> {
+    this.wanted = true
+    return this.ensure()
   }
 
   // The run under way, joined, or a new one.

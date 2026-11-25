@@ -2,13 +2,7 @@ import { beforeEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { switchTourOn, takeTourFromHelp } from "../support/help"
-import {
-  closePreferences,
-  findDialog,
-  openPreferencesOn,
-  preferencesDialog,
-  pressShortcut,
-} from "../support/keyboard"
+import { findDialog, pressShortcut } from "../support/keyboard"
 import { switchProject, workspaceSwitcher } from "../support/sessions"
 import { closeConfirmation, confirmClose, tabAction } from "../support/terminals"
 import { coach, coachSays, consent, expectLookAt, windowNamed } from "../support/tour"
@@ -30,14 +24,9 @@ const bar = (): Locator => page.getByRole("region", { name: "Tour", exact: true 
 const barSays = (words: string): Promise<void> =>
   expect.poll(() => bar().query()?.textContent ?? "").toContain(words)
 
-// Starts the tour from the footer's Help menu with opencode, connected first in Preferences' Agents.
+// Starts the tour from the footer's Help menu; the demo has Pi in place.
 const startTour = async (address = offered): Promise<void> => {
   await openWorkspace(address)
-  await openPreferencesOn("Agents")
-  const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
-  await opencode.click()
-  await expect.element(opencode).toHaveAttribute("aria-checked", "true")
-  await closePreferences()
   await takeTourFromHelp()
   await consent().getByRole("button", { name: "Start the tour" }).click()
   await expect.element(consent()).not.toBeInTheDocument()
@@ -130,9 +119,9 @@ describe("The tour's driver", () => {
       await coachSays("Answer it here, in its terminal")
     })
 
-    it("says what opencode's plugin not loading asks", async () => {
+    it("says Novadeck can't follow it until a screen of its hooks is answered", async () => {
       await startTour(`${offered}&tourScreen=hooks&tourScreenMs=1500`)
-      await coachSays("Novadeck can't load its plugin into opencode here")
+      await coachSays("Novadeck can't follow it until that's answered")
     })
   })
 

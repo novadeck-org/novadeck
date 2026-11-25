@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { extensionSource, type ExtensionConfig } from "./extension-source.js"
+import { ownProvider, ownProviderConfig, ownService } from "./own-model.js"
 import { events } from "./plugin.js"
 
 /**
@@ -117,6 +118,11 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       stoppedFolder: "stopped",
       pidVariable: "NOVADECK_PI_PID",
       continueCap: 20,
+      own: {
+        provider: ownProvider,
+        variables: ownService,
+        config: ownProviderConfig,
+      },
       ...overrides,
     }),
   )
@@ -124,7 +130,10 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
   const tools: Tool[] = []
   const sent: { message: Record<string, unknown>; options: Record<string, unknown> }[] = []
   const entries: { type: string; data: unknown }[] = []
+  const providers: { name: string; config: Record<string, unknown> }[] = []
   const api = {
+    registerProvider: (name: string, config: Record<string, unknown>) =>
+      providers.push({ name, config }),
     on: (name: string, handler: Handler) =>
       handlers.set(name, [...(handlers.get(name) ?? []), handler]),
     registerTool: (tool: Tool) => tools.push(tool),
@@ -153,7 +162,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
   // The pid each hook was given as pi's own, in order.
   const pids = async () =>
     (await readFile(`${log}.pid`, "utf8").catch(() => "")).split("\n").filter(Boolean)
-  return { file, handlers, tools, sent, entries, emit, reports, pids, answer }
+  return { file, handlers, tools, sent, entries, providers, emit, reports, pids, answer }
 }
 
 // The marks the extensions wrote of their Stops for the session "s1", beside them.
@@ -278,6 +287,54 @@ describe("Novadeck's pi extension", () => {
       if (before === undefined) delete process.env.NOVADECK_PI
       else process.env.NOVADECK_PI = before
       delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+    }
+  })
+
+  it("registers Novadeck's model in its own pi alone, and keeps the service's key from the agent's commands", async () => {
+    const given = { NOVADECK_PI: process.env.NOVADECK_PI }
+    const own = (on: boolean) => {
+      // A process's first load decides, as pi loads the extension once per process.
+      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+      delete (globalThis as { novadeckService?: unknown }).novadeckService
+      if (on) process.env.NOVADECK_PI = "bundled"
+      else delete process.env.NOVADECK_PI
+      process.env[ownService.baseUrl] = "https://novadeck.dev/tour/v1"
+      process.env[ownService.key] = "tkt_abc-123"
+    }
+    try {
+      own(true)
+      const pi = await load()
+      expect(pi.providers).toEqual([
+        {
+          name: "novadeck",
+          config: {
+            ...ownProviderConfig,
+            baseUrl: "https://novadeck.dev/tour/v1",
+            apiKey: "tkt_abc-123",
+          },
+        },
+      ])
+      // Out of the environment, which the commands pi runs (its bash tool) and a pi started
+      // from them inherit; loaded again, as on /reload, it still has them.
+      expect(process.env[ownService.baseUrl]).toBeUndefined()
+      expect(process.env[ownService.key]).toBeUndefined()
+      expect((await load()).providers).toHaveLength(1)
+
+      // The person's pi registers nothing, but takes them out all the same.
+      own(false)
+      const theirs = await load()
+      expect(theirs.providers).toEqual([])
+      expect(process.env[ownService.key]).toBeUndefined()
+
+      // A key pi would read as a variable or a command is no key of the service's.
+      own(true)
+      process.env[ownService.key] = "$HOME"
+      expect((await load()).providers).toEqual([])
+    } finally {
+      if (given.NOVADECK_PI === undefined) delete process.env.NOVADECK_PI
+      else process.env.NOVADECK_PI = given.NOVADECK_PI
+      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+      delete (globalThis as { novadeckService?: unknown }).novadeckService
     }
   })
 

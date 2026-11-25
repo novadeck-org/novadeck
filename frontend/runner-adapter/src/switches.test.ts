@@ -159,6 +159,29 @@ describe("the Novadeck Agent setting", () => {
   })
 })
 
+describe("the tour", () => {
+  it("isn't offered by a runner at revision 18, which runs the tour on opencode", () => {
+    const app = scripted({ shown: [], tourRevision: 18 })
+    expect(app.backend.tour).toBeUndefined()
+    app.stop()
+  })
+
+  it("isn't offered by a runner without a tour", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.tour).toBeUndefined()
+    app.stop()
+  })
+
+  it("asks the runner to download Novadeck's pi from revision 19", async () => {
+    const app = scripted({ shown: [], bundledPi: false, tourRevision: 19 })
+    const { agent, fetch } = app.backend.tour!
+    expect(agent.getSnapshot()).toEqual({ state: "off" })
+    await fetch()
+    expect(app.of("tour fetch")).toEqual([[]])
+    app.stop()
+  })
+})
+
 describe("the agents' mode setting", () => {
   it("shows what the runner said, and changes it there", async () => {
     const app = scripted({ shown: [] })

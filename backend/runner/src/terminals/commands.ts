@@ -1,6 +1,7 @@
 import { basename, win32 } from "node:path"
 
 import { quotedLine } from "@novadeck/harness-core/prompts"
+import { ownProgram } from "@novadeck/harness-pi/bundled"
 import type { AgentName } from "@novadeck/protocol"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -92,9 +93,11 @@ export const expectedAgent = (
   return programOf(command === undefined ? [] : commandWords(command, platform), platform)
 }
 
-// The agent whose program a command's words start with, by its file name.
+// The agent whose program a command's words start with, by its file name; Novadeck's own pi's
+// word (`ownProgram`) is pi's.
 const programOf = (words: readonly string[], platform: NodeJS.Platform): AgentName | null => {
   const [first = ""] = words
+  if (first === ownProgram) return "pi"
   const base = platform === "win32" ? win32.basename(first) : basename(first)
   // Windows file names are not case-sensitive.
   const bare = base.replace(/\.(?:exe|cmd)$/i, "")

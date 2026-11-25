@@ -927,8 +927,10 @@ export type Runner = {
   }
   /** Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's. */
   readonly tour: {
-    /** Readies a run (`tour.prepare`), on opencode and Novadeck's model: its folder emptied and briefed, its launch line. */
+    /** Readies a run (`tour.prepare`), on Novadeck's own pi and model: its folder emptied and briefed, its launch line. */
     prepare(): Promise<TourPrepared>
+    /** Starts downloading Novadeck's own pi for the tour (`tour.fetch`, revision 19), whatever its switch; answers at once. */
+    fetch(): Promise<void>
     /** Rings the tour's start line to the agent in the terminal (`tour.brief`). */
     brief(terminalId: string): Promise<void>
     /** Rings the tour's agent in the terminal to carry on with its brief (`tour.nudge`). */
@@ -1326,6 +1328,7 @@ export const connectRunner = async (
     },
     tour: {
       prepare: () => call((client) => client.tour.prepare({})),
+      fetch: () => call((client) => client.tour.fetch()),
       brief: (terminalId) => call((client) => client.tour.brief({ terminalId })),
       nudge: (terminalId) => call((client) => client.tour.nudge({ terminalId })),
       artist: (terminalId) => call((client) => client.tour.artist({ terminalId })),

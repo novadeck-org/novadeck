@@ -1157,7 +1157,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     restore: async ({ id }, { resume } = {}) =>
       openInUse(runner, {
         id,
-        sessionId: session.id,
+        // Its own session: a terminal of the tour's project (`openAt`) is saved in that project's.
+        sessionId: runner.store.terminal(id)?.sessionId ?? session.id,
         // As the router gives a create without a folder; a saved terminal starts in its own.
         cwd: options.project,
         restore: true,

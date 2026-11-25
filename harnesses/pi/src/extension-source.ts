@@ -49,6 +49,16 @@ export type ExtensionConfig = {
    * answer, and is refused where it says so. Absent otherwise.
    */
   readonly gate?: boolean
+  /**
+   * The model Novadeck pays for, which the extension registers in Novadeck's own pi alone
+   * (own-model.ts): the provider's name, the variables its base URL and key come in, and the rest
+   * of its configuration.
+   */
+  readonly own: {
+    readonly provider: string
+    readonly variables: { readonly baseUrl: string; readonly key: string }
+    readonly config: object
+  }
 }
 
 /** The extension's module for `config`, as pi loads it (through jiti, which maps pi's packages). */
@@ -101,6 +111,18 @@ const textOf = (content) =>
 globalThis.novadeckOwnPi ??= process.env.NOVADECK_PI === "bundled"
 delete process.env.NOVADECK_PI
 const ownPi = globalThis.novadeckOwnPi
+
+// The model service Novadeck pays for, as the terminal gives it (own-model.ts), read once per
+// process and taken out of the environment, so no command the agent runs, nor a pi started from
+// one, has its key. Kept on the process, as novadeckOwnPi is.
+globalThis.novadeckService ??= (() => {
+  const baseUrl = process.env[config.own.variables.baseUrl]
+  const key = process.env[config.own.variables.key]
+  return baseUrl && key ? { baseUrl, key } : null
+})()
+delete process.env[config.own.variables.baseUrl]
+delete process.env[config.own.variables.key]
+const service = globalThis.novadeckService
 
 // Runs Novadeck's hook command for event with payload on its input, and gives what it printed;
 // nothing outside Novadeck's terminals, nor where it fails or runs past its time.
@@ -357,6 +379,14 @@ const trusts = (store, folder) => {
 }
 
 export default function novadeck(pi) {
+  // Novadeck's model, in its own pi alone, where its terminal was given the service: before
+  // anything else, as pi picks the model it starts on once its extensions are loaded. A key is
+  // a plain word (no "$" or "!" that pi would read as a variable or a command).
+  if (ownPi && service && /^[A-Za-z0-9_-]+$/.test(service.key)) {
+    try {
+      pi.registerProvider(config.own.provider, { ...config.own.config, baseUrl: service.baseUrl, apiKey: service.key })
+    } catch {}
+  }
   if (!process.env.NOVADECK_HOOK) return
   const version = typeof piAgent.VERSION === "string" ? piAgent.VERSION : undefined
   // Nothing to report: the runner reads the version itself (limited.ts) and says so.

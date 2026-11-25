@@ -10,10 +10,10 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
-import type { TourRun } from "@novadeck/core/port"
+import type { BundledPiFetchState, TourRun } from "@novadeck/core/port"
 import { sameArgv } from "@novadeck/core/roster"
 import { projectFromSeed } from "@novadeck/core/seed"
-import { createStore } from "@novadeck/core/store"
+import { createStore, type Store } from "@novadeck/core/store"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { createTerminalRegistry } from "@novadeck/core/terminals/registry"
 import { sameTitleSource } from "@novadeck/core/terminals/title-source"
@@ -138,9 +138,13 @@ const settleLimitMs = 3_000
 export const runnerTour = (
   tour: Runner["tour"],
   track: <T>(work: Promise<T>) => Promise<T>,
+  // Where the download of Novadeck's pi, the tour's agent, stands (the runner's settings).
+  agent: Store<BundledPiFetchState>,
   // Wraps each prepare, which removes the tours before on the runner itself.
   preparing: (work: Promise<TourRun>) => Promise<TourRun> = (work) => work,
 ): NonNullable<Backend["tour"]> => ({
+  agent,
+  fetch: () => track(tour.fetch()),
   prepare: () => preparing(track(tour.prepare())),
   brief: (terminalId) => track(tour.brief(terminalId)),
   nudge: (terminalId) => track(tour.nudge(terminalId)),
@@ -1489,6 +1493,7 @@ export const runnerBackend = (
     take: takeSettings,
     followAgents,
     stopAgents,
+    piDownload,
     ...switches
   } = runnerSwitches(runner, options, track)
   // Whether the runner has the call, as one from before it has none: the shipping gate's
@@ -1731,7 +1736,7 @@ export const runnerBackend = (
   )
   // The runner's settings and the person's preferences as another client changes them, where
   // the runner tells (`settings.watch`, `preferences.watch`).
-  const has = (path: "settings.watch" | "preferences.get"): boolean =>
+  const has = (path: "settings.watch" | "preferences.get" | "tour.fetch"): boolean =>
     typeof (runner as Partial<typeof runner>).supports === "function" && runner.supports(path)
   let settingsStream: AsyncIterableIterator<unknown> | undefined
   const followSettings = (): void => {
@@ -2433,23 +2438,25 @@ export const runnerBackend = (
     boot: boot.store,
     ...switches,
     ...(person && { preferences: person.preferences }),
-    ...(runner.tour && {
-      // The tours it removes are this window's to remove, as it opens the new one: the projects
-      // feed holds what goes meanwhile, and lets go only of what the run didn't remove.
-      tour: runnerTour(runner.tour, track, async (work) => {
-        tourPreparing += 1
-        let removed: readonly string[] = []
-        try {
-          const run = await work
-          removed = run.removed
-          return run
-        } finally {
-          tourPreparing -= 1
-          for (const projectId of removed) removedProjects.add(projectId)
-          liveProjects?.released()
-        }
+    // Only from a runner at revision 19: one before it runs the tour on opencode.
+    ...(runner.tour &&
+      has("tour.fetch") && {
+        // The tours it removes are this window's to remove, as it opens the new one: the projects
+        // feed holds what goes meanwhile, and lets go only of what the run didn't remove.
+        tour: runnerTour(runner.tour, track, piDownload, async (work) => {
+          tourPreparing += 1
+          let removed: readonly string[] = []
+          try {
+            const run = await work
+            removed = run.removed
+            return run
+          } finally {
+            tourPreparing -= 1
+            for (const projectId of removed) removedProjects.add(projectId)
+            liveProjects?.released()
+          }
+        }),
       }),
-    }),
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
     ...(options.showScale ? { showScale: options.showScale } : {}),

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { AgentName, Project } from "@novadeck/protocol"
+import type { Project } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import {
@@ -42,7 +42,8 @@ const tourIn = (
   home: string,
   options: {
     projects?: Project[]
-    connected?: readonly AgentName[]
+    // Novadeck's own pi: in place by default; `false` for a runner without it, or a download.
+    ownPi?: false | (() => Promise<string>)
     // The ticket the tour's service gives, or the refusal it makes; one by default.
     ticket?: () => Promise<Ticket>
     // What the runs were given, as a runner started again finds it.
@@ -71,7 +72,9 @@ const tourIn = (
     home,
     ...(options.assets !== undefined && { assets: options.assets }),
     serving: () => Promise.resolve(options.serving === undefined ? served : options.serving),
-    connected: (agent) => Promise.resolve((options.connected ?? ["opencode"]).includes(agent)),
+    ...(options.ownPi !== false && {
+      ownPi: options.ownPi ?? (() => Promise.resolve("/data/bundled/pi/1.6.0/pi/pi")),
+    }),
     ticket: options.ticket ?? (() => Promise.resolve({ ticket: "TICKET_1" })),
     ...(options.records !== undefined && { records: options.records }),
     projects: {
@@ -149,13 +152,11 @@ describe("readying the tour", () => {
     expect(prepared).toMatchObject({
       directory,
       brief: "doorbell",
-      model: "openrouter/openai/gpt-6-luna",
+      model: "novadeck/gpt-6-luna",
       removed: [],
       page: true,
     })
-    expect(prepared.command).toBe(
-      "opencode --model openrouter/openai/gpt-6-luna --variant medium --agent build",
-    )
+    expect(prepared.command).toBe("novadeck-pi --model novadeck/gpt-6-luna --thinking medium")
     const files = await filesOf(directory)
     expect(files).toEqual(
       expect.arrayContaining([
@@ -185,7 +186,7 @@ describe("readying the tour", () => {
     )
     // The tour's own maker of the model's shapes isn't part of the project.
     expect(files).not.toContain("make-shapes.mjs")
-    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("opencode"))
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("pi"))
     expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n")
     expect(JSON.parse(await readFile(join(directory, ".claude", "settings.json"), "utf8"))).toEqual(
       { permissions: { defaultMode: "acceptEdits" } },
@@ -216,20 +217,59 @@ describe("readying the tour", () => {
     expect(removed).toEqual(["old-tour"])
   })
 
-  it("refuses where opencode isn't connected, changing nothing and asking for no ticket", async ({
+  it.for([
+    ["can't start Novadeck's own pi", false, "can't start its own Pi"],
+    [
+      "can't download it",
+      () => Promise.reject(new Error("Pi's download failed: no answer from github.com.")),
+      "couldn't download Pi, so the tour can't start. Pi's download failed: no answer",
+    ],
+  ] as const)(
+    "refuses where it %s, changing nothing and asking for no ticket",
+    async ([, ownPi, said], { resources }) => {
+      const home = await scratchHome(resources)
+      const asked: string[] = []
+      const { tour, removed } = tourIn(home, {
+        ownPi,
+        projects: [project("old-tour", tourFolder(home))],
+        ticket: () => (asked.push("ticket"), Promise.resolve({ ticket: "T" })),
+      })
+      await expect(tour.prepare()).rejects.toSatisfy(conflict)
+      await expect(tour.prepare()).rejects.toThrow(said)
+      expect(removed).toEqual([])
+      expect(asked).toEqual([])
+      await expect(readdir(tourFolder(home))).rejects.toThrow()
+    },
+  )
+
+  it("waits for Novadeck's own pi before anything else, and asks for its download ahead", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
     const asked: string[] = []
-    const { tour, removed } = tourIn(home, {
-      connected: ["claude", "codex"],
-      projects: [project("old-tour", tourFolder(home))],
+    let done: (program: string) => void = () => {}
+    const { tour } = tourIn(home, {
+      ownPi: () => (
+        asked.push("pi"),
+        new Promise<string>((resolve) => {
+          done = resolve
+        })
+      ),
       ticket: () => (asked.push("ticket"), Promise.resolve({ ticket: "T" })),
     })
-    await expect(tour.prepare()).rejects.toSatisfy(conflict)
-    expect(removed).toEqual([])
-    expect(asked).toEqual([])
-    await expect(readdir(tourFolder(home))).rejects.toThrow()
+    // The consent asks ahead, and answers at once.
+    tour.fetch()
+    expect(asked).toEqual(["pi"])
+    const prepared = tour.prepare()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(asked).toEqual(["pi", "pi"])
+    done("/data/pi")
+    await expect(prepared).resolves.toMatchObject({
+      command: expect.stringMatching(/^novadeck-pi /),
+    })
+    expect(asked).toEqual(["pi", "pi", "ticket"])
+    // A runner that can't start it refuses the ask too.
+    expect(() => tourIn(home, { ownPi: false }).tour.fetch()).toThrow("can't start its own Pi")
   })
 
   it("shows the service's refusal as it words it, changing nothing", async ({ resources }) => {
@@ -245,7 +285,7 @@ describe("readying the tour", () => {
     await expect(tour.prepare()).rejects.toThrow("free tours")
   })
 
-  it("gives the opencode of its terminals the ticket, and the service's address, in their environment", async ({
+  it("gives the Novadeck pi of its terminals the ticket, and the service's address, in their environment", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
@@ -258,17 +298,10 @@ describe("readying the tour", () => {
     await tour.prepare()
     // The client opens the folder as a project, and then starts its terminals.
     projects.push(project("tour", tourFolder(home)))
-    const config = JSON.parse(tour.launchEnv(tourFolder(home))!.NOVADECK_OPENCODE_CONFIG!)
-    expect(config).toMatchObject({
-      provider: { openrouter: { options: { apiKey: "TICKET_9" } } },
-      model: "openrouter/openai/gpt-6-luna",
-      small_model: "openrouter/openai/gpt-6-luna",
-      agent: {
-        build: { model: "openrouter/openai/gpt-6-luna", variant: "medium" },
-        plan: { model: "openrouter/openai/gpt-6-luna", variant: "medium" },
-      },
-    })
-    expect(config.provider.openrouter.options.baseURL).toMatch(/\/tour\/v1$|^http/)
+    const env = tour.launchEnv(tourFolder(home))!
+    expect(env.NOVADECK_PI_KEY).toBe("TICKET_9")
+    expect(env.NOVADECK_PI_BASE_URL).toMatch(/\/tour\/v1$|^http/)
+    expect(Object.keys(env).toSorted()).toEqual(["NOVADECK_PI_BASE_URL", "NOVADECK_PI_KEY"])
     // Only the tour's folders.
     expect(tour.launchEnv(join(home, "elsewhere"))).toBeUndefined()
     // Another run's terminal in the folder, started afresh by a command, gets it too while it is live.
@@ -278,6 +311,29 @@ describe("readying the tour", () => {
     await tour.keep()
     expect(tour.launchEnv(join(tourFolder(home), "src"))).toBeUndefined()
     expect(tour.launchEnv(join(tourFolder(home), "src"), true)).toBeDefined()
+  })
+
+  it("lets Novadeck's own pi start in a terminal of a remembered run's folder alone, kept or not", async ({
+    resources,
+  }) => {
+    const home = await scratchHome(resources)
+    const projects: Project[] = []
+    const { tour } = tourIn(home, {
+      projects,
+      cwds: { lead: tourFolder(home), sub: join(tourFolder(home), "src"), mine: "/h/code" },
+    })
+    // No run yet.
+    expect(tour.paysFor("lead")).toBe(false)
+    await tour.prepare()
+    // Not before its project is open.
+    expect(tour.paysFor("lead")).toBe(false)
+    projects.push(project("tour", tourFolder(home)))
+    expect(tour.paysFor("lead")).toBe(true)
+    expect(tour.paysFor("sub")).toBe(true)
+    expect(tour.paysFor("mine")).toBe(false)
+    // Kept by the person, its sessions still resume on it.
+    await tour.keep()
+    expect(tour.paysFor("lead")).toBe(true)
   })
 
   it("keeps the run for a runner started again, through keeping and the ticket's end, until the project goes", async ({
@@ -299,9 +355,7 @@ describe("readying the tour", () => {
     // A fresh agent the person opens is theirs; a resumed terminal keeps the tour's.
     expect(again.tour.launchEnv(tourFolder(home))).toBeUndefined()
     const env = again.tour.launchEnv(tourFolder(home), true)
-    expect(JSON.parse(env!.NOVADECK_OPENCODE_CONFIG!).provider.openrouter.options.apiKey).toBe(
-      "TICKET_7",
-    )
+    expect(env!.NOVADECK_PI_KEY).toBe("TICKET_7")
     if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o600)
     // The tour's folder only, the person's own never.
     expect(again.tour.launchEnv(join(home, "code"), true)).toBeUndefined()
@@ -328,8 +382,7 @@ describe("readying the tour", () => {
     projects.push(project("a", tourFolder(home)))
     await tour.prepare()
     projects.push(project("b", tourFolder(home)))
-    const config = JSON.parse(tour.launchEnv(tourFolder(home))!.NOVADECK_OPENCODE_CONFIG!)
-    expect(config.provider.openrouter.options.apiKey).toBe("T2")
+    expect(tour.launchEnv(tourFolder(home))!.NOVADECK_PI_KEY).toBe("T2")
   })
 
   it("removes a project inside its folder too", async ({ resources }) => {
@@ -478,7 +531,7 @@ describe("the sandbox repo", () => {
     const directory = tourFolder(home)
     const gitIn = (...args: string[]) =>
       execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim()
-    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("opencode"))
+    expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(sandboxNote("pi"))
     expect(gitIn("show", "HEAD:AGENTS.md")).toBe(projectNote.trim())
     expect(gitIn("status", "--porcelain")).toBe("")
     // A worktree made during the tour carries the project, not the tour's rules or settings.
@@ -574,15 +627,15 @@ describe("the brief's facts", () => {
     expect(text).not.toContain("Game server")
   })
 
-  it("has the lead open both teammates on opencode, GPT-6 Luna at medium, whatever else is connected", async ({
+  it("has the lead open both teammates on Novadeck's pi, GPT-6 Luna at medium", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
-    const { tour, brief } = tourIn(home, { connected: ["claude", "codex", "agy", "opencode"] })
+    const { tour, brief } = tourIn(home)
     await tour.prepare()
     expect(opened(brief())).toEqual([
-      'agent "opencode", model "openrouter/openai/gpt-6-luna", effort "medium"',
-      'agent "opencode", model "openrouter/openai/gpt-6-luna", effort "medium"',
+      'agent "pi", model "novadeck/gpt-6-luna", effort "medium"',
+      'agent "pi", model "novadeck/gpt-6-luna", effort "medium"',
     ])
   })
 
@@ -833,7 +886,7 @@ describe("the person keeping the project", () => {
     const { tour, brief, home } = await readied(resources)
     brief()
     expect(tour.isTours("lead")).toBe(true)
-    expect(tour.openPolicy("lead").flags).toBeDefined()
+    expect(tour.openPolicy("lead").program).toBeDefined()
     await tour.keep()
     expect(tour.isTours("lead")).toBe(false)
     expect(tour.openPolicy("lead")).toEqual({})
@@ -911,7 +964,7 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     )
   })
 
-  it("starts the lead's opencode agents with its build agent, which edits unasked, and no other harness's", async ({
+  it("starts the lead's teammates on Novadeck's own pi, with no flag besides the model", async ({
     resources,
   }) => {
     const { tour, brief, home } = await readied(resources)
@@ -919,16 +972,20 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     const policy = tour.openPolicy("lead")
     expect(policy.refusal).toBeUndefined()
     const at = tourFolder(home)
-    expect(policy.flags?.("opencode", at)).toEqual(["--agent", "build"])
-    expect(policy.flags?.("claude", at)).toEqual([])
+    expect(policy.program?.("pi", at)).toBe("novadeck-pi")
+    expect(policy.flags?.("pi", at)).toEqual([])
+    expect(policy.program?.("claude", at)).toBeUndefined()
   })
 
   it("refuses any other harness in the tour's folder, in plain words", async ({ resources }) => {
     const { tour, brief, home } = await readied(resources)
     brief()
     const policy = tour.openPolicy("lead")
-    expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe("The tour runs opencode only.")
-    expect(policy.refuseAgent?.("opencode", tourFolder(home))).toBeUndefined()
+    expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe(
+      'The tour runs Novadeck\'s own pi only: open your teammates with agent "pi".',
+    )
+    expect(policy.refuseAgent?.("opencode", tourFolder(home))).toBeDefined()
+    expect(policy.refuseAgent?.("pi", tourFolder(home))).toBeUndefined()
     expect(policy.refuseAgent?.("claude", "/h/code")).toBeUndefined()
   })
 
@@ -939,23 +996,20 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     brief()
     const policy = tour.openPolicy("lead")
     const at = tourFolder(home)
-    expect(policy.pinned?.("opencode", at)).toEqual({
-      model: "openrouter/openai/gpt-6-luna",
-      effort: "medium",
-    })
+    expect(policy.pinned?.("pi", at)).toEqual({ model: "novadeck/gpt-6-luna", effort: "medium" })
     expect(policy.pinned?.("claude", at)).toBeUndefined()
     // One it opens outside the tour's folder keeps the person's own default.
-    expect(policy.pinned?.("opencode", "/h/code")).toBeUndefined()
+    expect(policy.pinned?.("pi", "/h/code")).toBeUndefined()
   })
 
-  it("gives the lead's agents no write flags where they start outside the tour's folder", async ({
+  it("starts the person's own pi where the lead opens one outside the tour's folder", async ({
     resources,
   }) => {
     const { tour, brief, home } = await readied(resources)
     brief()
     const policy = tour.openPolicy("lead")
-    expect(policy.flags?.("opencode", "/h/code")).toEqual([])
-    expect(policy.flags?.("opencode", join(tourFolder(home), "sub"))).not.toEqual([])
+    expect(policy.program?.("pi", "/h/code")).toBeUndefined()
+    expect(policy.program?.("pi", join(tourFolder(home), "sub"))).toBe("novadeck-pi")
   })
 
   it("follows the run's folder, whichever of the tour's names it has", async ({ resources }) => {
@@ -967,11 +1021,11 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     await tour.prepare()
     tour.brief("lead")
     expect(tour.isTours("lead")).toBe(true)
-    expect(tour.openPolicy("lead").flags).toBeDefined()
+    expect(tour.openPolicy("lead").program).toBeDefined()
   })
 
   it.skipIf(process.platform === "win32")(
-    "gives write flags to an agent that starts in the tour's folder by its real path, where the home is a link",
+    "starts Novadeck's pi for an agent that starts in the tour's folder by its real path, where the home is a link",
     async ({ resources }) => {
       const real = await scratchHome(resources)
       const linked = join(await scratchHome(resources), "home")
@@ -980,10 +1034,7 @@ describe("what an agent's open_agent is subject to in the tour", () => {
       await tour.prepare()
       tour.brief("lead")
       const policy = tour.openPolicy("lead")
-      expect(policy.flags?.("opencode", join(real, ".novadeck", "tour"))).toEqual([
-        "--agent",
-        "build",
-      ])
+      expect(policy.program?.("pi", join(real, ".novadeck", "tour"))).toBe("novadeck-pi")
       expect(tour.isTours("lead")).toBe(true)
     },
   )

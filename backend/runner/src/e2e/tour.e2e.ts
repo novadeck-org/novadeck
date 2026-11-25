@@ -7,16 +7,17 @@ import { join } from "node:path"
 import { afterAll, beforeAll } from "vitest"
 
 import { tourMarker } from "../tour/folder.js"
-import { tourWrites } from "../tour/launch.js"
-import { opencode } from "./agents/opencode.js"
+import { ownPi } from "./agents/own-pi.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
+import { ownPiFromCache } from "./own-pi-cache.js"
 import { seedTour } from "./tour-story.js"
 
-// Novadeck's tour (docs/tour.md), the runner's side of it, on opencode alone: `tour.prepare` gets a
-// ticket from the tour's service (here a fake one at NOVADECK_TOUR_ENDPOINT, which the runner
-// reads as it asks), readies its folder, and answers the line that starts opencode there; its
-// provider comes with the shells of that folder. The story with the agents themselves is
-// tour-story.e2e.ts's, which waits on a fake model that speaks the provider's dialect.
+// Novadeck's tour (docs/tour.md), the runner's side of it, on Novadeck's own pi alone:
+// `tour.prepare` has the runner download its own pi (from the e2e cache's copy, as a mirror), gets
+// a ticket from the tour's service (here a fake one at NOVADECK_TOUR_ENDPOINT, which the runner
+// reads as it asks), readies its folder, and answers the line that starts Novadeck's pi there; the
+// service's address and the ticket come with the shells of that folder. The story with the agents
+// themselves is tour-story.e2e.ts's, which waits on a fake model that speaks the service's dialect.
 
 // The tour's folder, as the sandbox's home holds it.
 const folder = join(".novadeck", "tour")
@@ -27,8 +28,10 @@ const asked: string[] = []
 let refusal: { status: number; error: string } | undefined
 let server: Server
 const previous = process.env.NOVADECK_TOUR_ENDPOINT
+let restorePi: (() => void) | undefined
 
 beforeAll(async () => {
+  restorePi = await ownPiFromCache()
   server = createServer((request, response) => {
     asked.push(`${request.method} ${request.url}`)
     response.setHeader("content-type", "application/json")
@@ -44,15 +47,16 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  restorePi?.()
   if (previous === undefined) delete process.env.NOVADECK_TOUR_ENDPOINT
   else process.env.NOVADECK_TOUR_ENDPOINT = previous
   await new Promise((resolve) => server.close(resolve))
 })
 
-describe.skipIf(!supported)(opencode.name, () => {
-  const it = e2e.seeded({ trustedInHome: [folder] }, opencode)
+describe.skipIf(!supported)(ownPi.name, () => {
+  const it = e2e.seeded({ trustedInHome: [folder] }, ownPi)
 
-  it("readies the tour's folder with a ticket, and a launch line on GPT-6 Luna, with its write flag for this launch only", async ({
+  it("readies the tour's folder with a ticket, and a launch line on GPT-6 Luna, with the service and ticket in its folder's shells only", async ({
     e2e: run,
   }) => {
     await seedTour(run)
@@ -65,17 +69,17 @@ describe.skipIf(!supported)(opencode.name, () => {
     expect(prepared.removed).toEqual([])
     // No prompt on the line: its brief is rung to it once it is up.
     expect(prepared.brief).toBe("doorbell")
-    expect(prepared.model).toBe("openrouter/openai/gpt-6-luna")
-    expect(prepared.command).toBe(
-      `opencode --model openrouter/openai/gpt-6-luna --variant medium ${tourWrites.join(" ")}`,
-    )
+    expect(prepared.model).toBe("novadeck/gpt-6-luna")
+    // Novadeck's own pi by its word, which the shell turns into its launcher: no flag for edits.
+    expect(prepared.command).toBe("novadeck-pi --model novadeck/gpt-6-luna --thinking medium")
     expect(typeof prepared.page).toBe("boolean")
-    // The provider and ticket come with the shells of its folder once it is a project, and no other's.
+    // The service and ticket come with the shells of its folder once it is a project, and no
+    // other's; nothing of opencode's.
     await run.deck.openAt(prepared.directory, prepared.command)
     const env = run.deck.tour.launchEnv(prepared.directory)
-    expect(JSON.parse(env!.NOVADECK_OPENCODE_CONFIG!)).toMatchObject({
-      provider: { openrouter: { options: { apiKey: "e2e_ticket-1" } } },
-      model: "openrouter/openai/gpt-6-luna",
+    expect(env).toEqual({
+      NOVADECK_PI_BASE_URL: process.env.NOVADECK_TOUR_ENDPOINT,
+      NOVADECK_PI_KEY: "e2e_ticket-1",
     })
     expect(run.deck.tour.launchEnv(run.sandbox.home)).toBeUndefined()
     // The folder's own files hold no script, and no ticket: it reaches the lead as a notice.

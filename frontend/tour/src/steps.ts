@@ -125,7 +125,7 @@ export const nudgeOf = (step: TourStep, signals: TourSignals): TourRole =>
 // the person to do.
 const lineMs = 3_000
 
-// Act 1: in Canvas, a terminal opens and the tour's opencode agent starts there, with its brief,
+// Act 1: in Canvas, a terminal opens and the tour's Pi agent starts there, with its brief,
 // and describes itself as the tour's lead.
 export const startStep: TourStep = {
   id: "start",
@@ -368,15 +368,14 @@ export const stepsOf = (page: boolean): readonly TourStep[] => played[page ? "pa
 
 // What the tour says while the lead's agent holds at a screen of its own, whatever the step:
 // the person answers it in the agent's terminal, and the tour waits as long as that takes.
-// opencode holds at none in practice (it has no trust, sign-in or hooks-review screen); the words
-// for each are for the one way it can't be followed: Novadeck's plugin kept out by the person's
-// own environment.
+// Pi holds at none in practice (Novadeck's own pi has no trust, sign-in or hooks-review screen);
+// the words are for a screen it might show all the same.
 export const screenCoach = (screen: Extract<LeadState, { kind: "screen" }>["screen"]): Coach => ({
   click: ["terminal"],
   line: "It wants an answer first.",
   note:
     screen === "hooks"
-      ? "Novadeck can't load its plugin into opencode here, so it can't follow it: your environment sets both OPENCODE_CONFIG_CONTENT and OPENCODE_CONFIG, or OPENCODE_PURE. Unset one, then start it again here."
+      ? "Novadeck can't follow it until that's answered. Answer it in its terminal, then the tour goes on."
       : "Answer it here, in its terminal: it's its own question. The tour goes on once you have.",
 })
 

@@ -258,7 +258,16 @@ export class Calls {
       const refusal = this.host.messaging().refusal(call.terminalId, request.message, request.agent)
       if (refusal) return refused(refusal)
     }
-    if (request.agent !== undefined && !(await this.host.launcher().connected(request.agent)))
+    // A program of Novadeck's own for the folder it asks for needs no connection of the person's.
+    const word =
+      request.agent !== undefined && request.resume === undefined
+        ? policy.program?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
+        : undefined
+    if (
+      request.agent !== undefined &&
+      word === undefined &&
+      !(await this.host.launcher().connected(request.agent))
+    )
       return refused(
         `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't ` +
           `${request.message === undefined ? "report its sessions" : "take the task"}; the user ` +
@@ -334,6 +343,7 @@ export class Calls {
                 choice,
                 request.message !== undefined,
                 policy.flags?.(request.agent, cwd),
+                word,
               )
     } catch (error) {
       if (!(error instanceof RangeError)) throw error
@@ -561,6 +571,8 @@ export class Calls {
     choice: { readonly model?: string; readonly effort?: Effort },
     withTask: boolean,
     flags: readonly string[] = [],
+    // The word it starts by in place of its harness's own (`OpenPolicy.program`).
+    word?: string,
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce?: string }> {
     const { launch } = harnesses[agent]
     const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
@@ -570,7 +582,7 @@ export class Calls {
       : undefined
     const [program = "", ...rest] = prompted ?? launch.start
     // Right after the program, so before any flag of a prompt's that takes the line.
-    const command = commandLine([program, ...launch.choose(choice), ...flags, ...rest])
+    const command = commandLine([word ?? program, ...launch.choose(choice), ...flags, ...rest])
     return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }
 

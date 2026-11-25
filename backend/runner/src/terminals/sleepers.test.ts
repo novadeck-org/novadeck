@@ -56,6 +56,8 @@ const setup = (
     done?: boolean
     turnAt?: number
     restorable?: () => Promise<boolean>
+    /** The transcript of a session that is Novadeck's own pi's (`Claims.own`). */
+    own?: string
     create?: (row: ListedTerminal) => Promise<unknown>
   } = {},
 ) => {
@@ -106,7 +108,11 @@ const setup = (
       reports: () => ({ tell: null, done: options.done ? { subject: "x", at: 5 } : null }),
       lastTurnAt: () => options.turnAt ?? null,
     }),
-    claims: () => new Claims({ boundElsewhere: () => options.taken === true }),
+    claims: () =>
+      new Claims({
+        boundElsewhere: () => options.taken === true,
+        ownPi: (agent, transcript) => agent === "pi" && transcript === options.own,
+      }),
     connected: () => Promise.resolve(harness.connected),
     ...(options.connections && {
       connections: {
@@ -312,6 +318,32 @@ describe("sleepers", () => {
     expect(sleepers.restable(running, "claude")).toBe(true)
     connect(false)
     expect(sleepers.restable(running, "claude")).toBe(false)
+  })
+
+  it("keeps Novadeck's own pi's sleepers wakeable and restable without the person's pi", async () => {
+    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const theirs = "/home/p/.pi/agent/sessions/--t--/1_two.jsonl"
+    const { sleepers, calls } = setup(
+      [
+        row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } }),
+        row("b", "pi", { pi: { sessionId: "two", seq: 1, transcript: theirs } }),
+      ],
+      { connected: false, connections: true, own, wanted: new Set(["a"]) },
+    )
+    sleepers.start()
+    // The person's pi's sleeper waits for their pi; Novadeck's own wakes.
+    await vi.waitFor(() => expect(sleepers.stuckOn("b")).toBe(true))
+    await vi.waitFor(() => expect(sleepers.asleep("a")).toBe(false))
+    expect(sleepers.stuckOn("a")).toBe(false)
+    expect(calls.some((call) => call.startsWith("stuck a") || call.startsWith("failed a"))).toBe(
+      false,
+    )
+    const running = (transcript: string) => ({
+      summary: { id: "a", sessionId: "s" },
+      agents: { pi: { sessionId: "one", seq: 1, transcript } },
+    })
+    expect(sleepers.restable(running(own), "pi")).toBe(true)
+    expect(sleepers.restable(running(theirs), "pi")).toBe(false)
   })
 
   it("stops following the harnesses' connections once it stops", () => {

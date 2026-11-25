@@ -209,11 +209,6 @@ describe("Agent Chat's offer", () => {
         JSON.stringify({ chatView: false, onboardingTour: true }),
       )
       await openWorkspace("/?demo=agents&tourStory=off&channel=experimental")
-      await openPreferencesOn("Agents")
-      const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
-      await opencode.click()
-      await expect.element(opencode).toHaveAttribute("aria-checked", "true")
-      await closePreferences()
       await takeTourFromHelp()
       await page
         .getByRole("dialog", { name: "Take the tour" })

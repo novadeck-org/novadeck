@@ -127,8 +127,11 @@ const noCheckouts = {
   update: () => Promise.resolve({ ok: false as const, said: "There is nothing to update." }),
 }
 
-const noTour: Pick<Tour, "prepare" | "brief" | "nudge" | "artist" | "keep"> = {
+const noTour: Pick<Tour, "prepare" | "fetch" | "brief" | "nudge" | "artist" | "keep"> = {
   prepare: () => Promise.reject(new DomainError("CONFLICT", "No tour is offered.")),
+  fetch: () => {
+    throw new DomainError("CONFLICT", "No tour is offered.")
+  },
   brief: () => {
     throw new DomainError("CONFLICT", "No tour is offered.")
   },
@@ -204,7 +207,8 @@ export const createRouter = (options: {
   const works = options.works ?? noWorks
   const checkouts = options.checkouts ?? noCheckouts
   const forges = options.forges ?? noForges
-  const tour: Pick<Tour, "prepare" | "brief" | "nudge" | "artist" | "keep"> = options.tour ?? noTour
+  const tour: Pick<Tour, "prepare" | "fetch" | "brief" | "nudge" | "artist" | "keep"> =
+    options.tour ?? noTour
   const devices: Pick<Devices, "mint" | "list" | "revoke"> = options.devices ?? noDevices
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
@@ -642,6 +646,7 @@ export const createRouter = (options: {
     },
     tour: {
       prepare: api.tour.prepare.handler(() => tour.prepare()),
+      fetch: api.tour.fetch.handler(() => tour.fetch()),
       brief: api.tour.brief.handler(({ input }) => tour.brief(input.terminalId)),
       nudge: api.tour.nudge.handler(({ input }) => tour.nudge(input.terminalId)),
       artist: api.tour.artist.handler(({ input }) => tour.artist(input.terminalId)),

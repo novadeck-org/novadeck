@@ -1,9 +1,9 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { AgentConnection } from "@novadeck/core/port"
+import type { BundledPiFetchState } from "@novadeck/core/port"
 
-// The one agent the tour runs: opencode, on a model Novadeck pays for, so none of the person's
-// own agents is picked, and the consent never offers a choice.
-export const tourAgent: AgentName = "opencode"
+// The one agent the tour runs: Novadeck's own pi, on a model Novadeck pays for, so none of the
+// person's own agents is picked, and the consent never offers a choice.
+export const tourAgent: AgentName = "pi"
 
 // The tour's consent, while it is offered: whether it is starting, and why it couldn't, in the
 // backend's words (its service refusing a free run, say).
@@ -12,31 +12,32 @@ export type TourConsent = {
   readonly error?: string
 }
 
-// Where opencode stands for the tour: `ready` to start; `connecting` while Novadeck is being
-// connected to it, which the tour waits for; `connect` where it is installed but Novadeck isn't
-// connected to it; `install` where it isn't installed, with the command that installs it where the
-// backend knows one; `update` where it is older than Novadeck works with and `unsupported` where
-// it is newer than Novadeck knows, as Preferences says of them, where the tour can't follow it.
-// `error` is why the last connect didn't take, in the backend's words.
-export type TourAgentState = {
-  readonly step: "ready" | "connecting" | "connect" | "install" | "update" | "unsupported"
-  readonly installer?: string
-  readonly error?: string
+// Where Pi's download stands for the tour, in words: `waiting` while it is not in place yet (not
+// asked for, or under way), `failed` with why, and `ready` to start.
+export type TourAgentNote = {
+  readonly step: "waiting" | "ready" | "failed"
+  readonly text?: string
 }
 
-export const tourAgentState = (connections: readonly AgentConnection[]): TourAgentState => {
-  const found = connections.find(({ agent }) => agent === tourAgent)
-  if (!found?.available)
-    return {
-      step: "install",
-      ...(found?.installer !== undefined && { installer: found.installer }),
-    }
-  if (found.limited === "outdated") return { step: "update" }
-  if (found.limited === "unsupported") return { step: "unsupported" }
-  if (found.connected) return { step: "ready" }
-  return {
-    step: found.busy ? "connecting" : "connect",
-    ...(found.error !== undefined && !found.busy && { error: found.error }),
+const megabytes = (bytes: number): string => (bytes / 1_000_000).toFixed(1)
+
+export const tourAgentNote = (fetch: BundledPiFetchState): TourAgentNote => {
+  switch (fetch.state) {
+    case "ready":
+      return { step: "ready" }
+    case "failed":
+      return { step: "failed", text: fetch.error || "Pi's download failed." }
+    case "downloading":
+      return {
+        step: "waiting",
+        text:
+          fetch.received !== undefined && fetch.size !== undefined
+            ? `Downloading Pi: ${megabytes(fetch.received)} of ${megabytes(fetch.size)} MB`
+            : "Downloading Pi…",
+      }
+    default:
+      // Asked for, and the runner hasn't said yet.
+      return { step: "waiting", text: "Downloading Pi…" }
   }
 }
 
@@ -47,8 +48,8 @@ export const startingTour = (consent: TourConsent): TourConsent => {
   return { ...rest, starting: true }
 }
 
-// An error about starting is about the state opencode was in as it came: once that changes (a
-// Connect that took, an install that ended), it no longer says anything true, and goes.
+// An error about starting is about the state Pi was in as it came: once that changes (a download
+// that failed now ready, a retry under way), it no longer says anything true, and goes.
 export const agentChanged = (consent: TourConsent): TourConsent => {
   if (consent.starting || consent.error === undefined) return consent
   const { error: _stale, ...rest } = consent

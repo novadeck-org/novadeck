@@ -1241,7 +1241,18 @@ harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` before each start: the
 at once where the program is in place, and otherwise downloads the pinned build for its system
 (`harnesses/bundled-pi.ts`), the relay showing its progress in the terminal. While Novadeck
 Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner refuses with
-`Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started.
+`Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started; but
+for a terminal in a folder of the tour's whose run it remembers, with its project open
+(`Tour.paysFor`): the person asked for the tour, and the tour's sessions resume there after a
+restart or once the project is kept.
+
+Commands start it by the word `novadeck-pi` (harnesses/pi's `ownProgram`), which the runner turns
+into the launcher's path as the shell starts the command (`ownPiStartup`). A pi session whose
+transcript lies in Novadeck's pi's own agent folder (`ownPiSession`) is Novadeck's pi's: its
+resume, a sleeper's wake and a History restore start `novadeck-pi --session <file>`
+(`Claims.own`), needing no connection of the person's pi; a sleeper of it is never stuck on
+their pi, and History finds its conversation by that file. Disconnecting the person's own pi in
+Preferences still forgets every pi session the runner kept, Novadeck's pi's among them.
 
 1. The relay sends `{"relay":2,"kind":"fetch","terminalId","token","name"}`.
 2. The runner answers a line `{"progress":"<line>"}` for each step (a download's whole
@@ -2479,10 +2490,15 @@ one from an earlier runner.
   them from device to device.
 
 - `tour.prepare()` readies a run of Novadeck's tour (`backend/runner/src/tour/`), always on
-  opencode with GPT-6 Luna at medium effort, paid for by Novadeck through its website
-  (revision 12; before it the input took the person's own `agent`, which is now optional and
-  ignored, so an older UI still works against a newer runner, and a UI of this build needs a
-  runner at 12). The tour's project is a blank start for a browser game the
+  Novadeck's own pi (the pinned pi `harnesses/bundled-pi.ts` downloads, agent `pi`) with GPT-6 Luna
+  at medium effort, paid for by Novadeck through its website (revision 19; from 12 to 18 it ran
+  opencode, and before 12 the input took the person's own `agent`, which is now optional and
+  ignored, so an older UI still works against a newer runner; a UI of this build offers the tour
+  only to a runner at 19). First of all it waits for Novadeck's pi to be in place
+  (`BundledPi.want`: the download the consent asked for ahead with `tour.fetch`, joined, started or
+  tried again, whatever the Experimental switch says); a runner without shell files, which can't
+  start it, and a download that fails are a `CONFLICT` ("Novadeck couldn't download Pi, so the
+  tour can't start." and the download's own words). The tour's project is a blank start for a browser game the
   person chooses and can keep: plain JavaScript modules with no build step (`index.html`, the
   game in `src/` from `src/main.js`, `src/models.js` to load a model by name, falling back to the
   placeholder until it exists), three.js and Phaser to draw with, and every character, enemy and
@@ -2543,10 +2559,13 @@ one from an earlier runner.
   Windows Store alias stub doesn't count) runs the seed's `dev.mjs` or `dev.py` on a free port
   of 127.0.0.1 (bound to port 0, read, closed); with none, `page` is false and the lead's script
   has no serving steps.
-  `command` starts opencode there (`opencode --model openrouter/openai/gpt-6-luna --variant medium
-  --agent build`: its build agent takes edits in the folder without asking, for this launch only;
-  Novadeck's shim strips `--variant` and gives it as the agents' variant), with no prompt on it,
-  and nothing written to opencode's own settings. Its provider is not on the line: before
+  `command` starts Novadeck's own pi there (`novadeck-pi --model novadeck/gpt-6-luna --thinking
+  medium`; pi asks no permission for an edit, so no write flag), with no prompt on it, and nothing
+  written to pi's settings. `novadeck-pi` is the word Novadeck stores and compares the command
+  by (`ownProgram`; `expectedAgent` reads it as `pi`): as the terminal's shell starts it, the
+  runner puts the launcher's path there in the form that shell runs a quoted path (`ownPiStartup`,
+  `programWord`: `& '…'` in PowerShell), so the stored line holds no path of the computer's, and a
+  person typing the word runs nothing. Its model service is not on the line: before
   anything is removed or started the runner gets a ticket from
   `${NOVADECK_TOUR_ENDPOINT ?? "https://novadeck.dev/tour/v1"}/tickets` (a 429 or 503 `error` is
   a `CONFLICT` whose message is the service's sentence, which the consent shows as it is; any
@@ -2556,18 +2575,20 @@ one from an earlier runner.
   folder's record over, and it goes once no project is open in the folder), and every shell that
   starts in a tour folder with such a record while the run is live (the lead's, each teammate's), and
   afterwards, once the person keeps the project or in a runner started again, only a terminal being
-  resumed there (a restart, a restore or a resumed session, as the launch option says: it keeps the
-  model on its command line, so without the ticket it would reach for the person's own account, and
-  a dead ticket is the service's own 402); an agent the person opens anew in their project gets
-  their own configuration (the Terminals option `launchEnv`, `Tour.launchEnv`). What they get is
-  `NOVADECK_OPENCODE_CONFIG`, which Novadeck's plugin
-  merges over opencode's loaded configuration for that process, so the tour's agents never reach
-  for the person's own account and a dead ticket is the service's own 402. It holds the
-  `openrouter` provider with `baseURL` the endpoint and `apiKey` the ticket, `model` and
-  `small_model` GPT-6 Luna, both agents `build` and `plan` on it with variant `medium`, and
-  `enabled_providers` / `disabled_providers` set so the person's lists can't leave it out (the
-  person's files are never written). opencode then calls `POST <endpoint>/chat/completions` with
-  `Authorization: Bearer <ticket>` and the effort as `reasoning.effort` (probed in `launch.ts`). `brief` is always `doorbell`: the lead's script reaches it by `tour.brief`.
+  resumed there (a restart, a restore or a resumed session, as the launch option says: its session
+  resumes on Novadeck's pi with the model it kept, which without the ticket has no service to
+  reach, and a dead ticket is the service's own 402); an agent the person opens anew in their
+  project gets none of it (the Terminals option `launchEnv`, `Tour.launchEnv`). What they get is
+  `NOVADECK_PI_BASE_URL` (the endpoint) and `NOVADECK_PI_KEY` (the ticket), from which Novadeck's
+  extension, in Novadeck's own pi alone, registers the `novadeck` provider and its one model,
+  `gpt-6-luna` (`harnesses/pi/src/own-model.ts`: OpenAI's Chat Completions, OpenRouter's
+  reasoning field, `max_completion_tokens`, its context held under the 272k past which it costs
+  double), and takes both out of pi's environment before anything runs, so no command of the
+  agent's (its bash or powershell tool) and no pi started from one sees the key. Nothing is
+  written to pi's settings or models. pi then calls `POST <endpoint>/chat/completions` with
+  `Authorization: Bearer <ticket>`, streaming with its usage, and the effort as
+  `reasoning.effort` (probed in `own-model.ts`, against the live service too). `brief` is always
+  `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
   and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
@@ -2577,30 +2598,37 @@ one from an earlier runner.
   dialog) and ends its turn, opening no one while the approval is on screen; told the outcome, it
   `show`s the page where they approved it. Then (with the answer, where `page` is false) it
   names the game's three models (the player, an enemy, one more) and, in that one turn (a
-  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on opencode, GPT-6 Luna at medium effort, as above, each with its task as the message, the picks and the names written in for the
+  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on Novadeck's pi (agent `pi`), GPT-6 Luna at medium effort, as above, each with its task as the message, the picks and the names written in for the
   task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
   three models in a worktree on `models`, shows the first as soon as it exists, asks the person
   one thing about their look, then makes the other two; the Builder writes the game in `src/` in
   a worktree on `game`, loading the models by name, shows its changes, asks the person one thing
   it should get next and makes that change; each tells the lead when done). No agent runs git. The texts were tuned
-  on Codex (its `*-luna`, low effort), and run on opencode's GPT-6 Luna at medium effort untuned
+  on Codex (its `*-luna`, low effort), and run on pi's GPT-6 Luna at medium effort untuned
   to it. What each agent is told of the shell follows its harness (`shellRule`, in the lead's
-  script, both tasks and the folder's note): opencode reads and writes files with tools of its
+  script, both tasks and the folder's note): pi reads and writes files with tools of its
   own and runs no shell command. A
-  teammate the lead opens in the folder starts with the same write flags as the lead, for that
-  launch only (`OpenPolicy.flags`, through the Terminals option `openPolicy`, so `open_agent`'s
-  command line carries them right after the model), and on the run's model and effort whatever
-  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs opencode only.", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
+  teammate the lead opens in the folder is Novadeck's own pi too (`OpenPolicy.program`, through
+  the Terminals option `openPolicy`: `open_agent`'s command line starts with `novadeck-pi`, and the
+  person's pi need not be connected), and on the run's model and effort whatever
+  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs Novadeck's own pi only…", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
   tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
   refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team.
   `removed` names the projects it removed. A second run while one is being readied is a
-  `CONFLICT`, as are opencode not connected to Novadeck and a ticket the service refuses
+  `CONFLICT`, as are Novadeck's pi that can't be had and a ticket the service refuses
   (`MODELS_UNLISTED` is no longer raised). None changes anything. The client then opens the folder as a project and
   starts `command` in a terminal of it (`terminals.create`).
   Agent worktrees work for every terminal in the tour's folder whatever the person's "Agent
   worktrees" setting (never changed by the tour): the MCP server lists the worktree tools and
   the calls go through (`WorktreesWiring.enabled(terminalId)`), the folder counts as ready for
   the agent's process once it exists, and each worktree's changes are shown on its owner's bar.
+- `tour.fetch()` (revision 19) starts downloading Novadeck's own pi for the tour, whatever its
+  Experimental switch says (the person asking for the tour is the consent), joins a download
+  under way or tries a failed one again (`BundledPi.want`), and answers at once; from then on the
+  switch going off stops nothing. Where it stands is the runner settings' `bundledPiFetch`, which
+  says so while the switch is off too (UIs before 19 show it only while the switch is on). The
+  consent asks for it as it opens, so the download is mostly done by Start. A runner without
+  shell files, which can't start Novadeck's pi, is a `CONFLICT`.
 - `tour.brief({ terminalId })` rings the lead's script (composed of the run last readied) to the
   agent in the terminal, as Novadeck's notice, for every harness: the doorbell delivers it once
   the agent's prompt shows and its MCP tools are listed. It records the terminal as the run's

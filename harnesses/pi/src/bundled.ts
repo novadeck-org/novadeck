@@ -18,6 +18,14 @@ export type BundledPi = {
 }
 
 /**
+ * The word a command line starts Novadeck's own pi with, in place of its launcher's path: the
+ * runner stores and compares commands with it, and turns it into the launcher's path, in the
+ * form the terminal's shell runs (`programWord`), as the shell starts the command. It is on no
+ * PATH, so a person who types it runs nothing; agent `pi` is its agent.
+ */
+export const ownProgram = "novadeck-pi"
+
+/**
  * Says to Novadeck's extension that it runs in Novadeck's own pi: what it writes for the
  * person's pi (the models their picker offers) it leaves alone.
  */

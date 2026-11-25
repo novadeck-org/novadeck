@@ -47,6 +47,26 @@ describe("following another device", () => {
       app.stop()
     })
 
+    it("shows where the tour's pi download stands while the Experimental switch is off", async () => {
+      const app = scripted({ shown: [], follows: true, bundledPi: false, tourRevision: 19 })
+      const { agent } = app.backend.tour!
+      expect(agent.getSnapshot()).toEqual({ state: "off" })
+      app.settingsChanges.push(
+        settings({
+          bundledPi: false,
+          bundledPiFetch: { state: "downloading", received: 2_000_000, size: 59_000_000 },
+        }),
+      )
+      await settled()
+      expect(agent.getSnapshot()).toEqual({
+        state: "downloading",
+        received: 2_000_000,
+        size: 59_000_000,
+      })
+      expect(app.backend.bundledPi!.enabled.getSnapshot()).toBe(false)
+      app.stop()
+    })
+
     it("shows each switch as another device left it", async () => {
       const app = scripted({ shown: [], follows: true, inboxOrder: [], inboxSnoozed: [] })
       app.settingsChanges.push(

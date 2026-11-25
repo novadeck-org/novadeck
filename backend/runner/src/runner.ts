@@ -456,6 +456,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       : new BundledPi({
           data: dirname(options.shell),
           enabled: () => store.settings.runner().bundledPi === true,
+          // The tour's terminals start it whatever its switch says: the person asked for the tour.
+          allows: (terminalId) => tour.paysFor(terminalId),
         })
   bundledPi?.switched()
   const terminals = new Terminals({
@@ -528,7 +530,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...(options.agents?.home !== undefined && { home: options.agents.home }),
     // Where the game's server command is looked for: the person's terminal's PATH.
     environment: () => agents.environment(),
-    connected: (agent) => agents.connected(agent),
+    // Novadeck's own pi, which the tour's agents run, downloaded whatever its switch says.
+    ...(bundledPi && { ownPi: () => bundledPi.want() }),
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),

@@ -4,12 +4,13 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { samePath } from "@novadeck/harness-core/paths"
+import { ownModel } from "@novadeck/harness-pi/own-model"
 import type { AgentName, Approval } from "@novadeck/protocol"
 
 import { tourBriefMark } from "../messaging/messages.js"
 import { branches, gameEntry, keptLine, kinds, projectNote, worlds } from "../tour/brief.js"
 import { tourMarker } from "../tour/folder.js"
-import { tourWrites } from "../tour/launch.js"
+import { tourEffort } from "../tour/launch.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { arrivals, poll, type DeckTerminal } from "./deck.js"
@@ -45,42 +46,8 @@ export const folder = join(".novadeck", "tour")
 /** A git name in the sandbox's config, which no brief calls the person by. */
 export const gitName = "Ada Lovelace"
 
-/**
- * opencode's catalog of models, which none has yet in a sandbox (its fetch of models.dev is refused):
- * the `openrouter` provider with the one model the tour runs on, as models.dev lists them (probed
- * 2026-11-24), so the tour's configuration finds it and its `medium` variant offline.
- */
-const catalog = {
-  openrouter: {
-    id: "openrouter",
-    env: ["OPENROUTER_API_KEY"],
-    npm: "@openrouter/ai-sdk-provider",
-    api: "https://openrouter.ai/api/v1",
-    name: "OpenRouter",
-    models: {
-      "openai/gpt-6-luna": {
-        id: "openai/gpt-6-luna",
-        name: "GPT-6 Luna",
-        attachment: true,
-        reasoning: true,
-        reasoning_options: [
-          { type: "effort", values: ["none", "low", "medium", "high", "xhigh", "max"] },
-        ],
-        tool_call: true,
-        temperature: false,
-        modalities: { input: ["text", "image"], output: ["text"] },
-        limit: { context: 1_050_000, input: 922_000, output: 128_000 },
-        cost: { input: 0.1, output: 0.5 },
-      },
-    },
-  },
-}
-
-/** What the sandbox needs before the tour is readied: opencode's catalog (`catalog`) and a git name. */
+/** What the sandbox needs before the tour is readied: a git name. */
 export const seedTour = async (run: E2E): Promise<void> => {
-  const cache = join(run.sandbox.env.XDG_CACHE_HOME ?? join(run.sandbox.home, ".cache"), "opencode")
-  await mkdir(cache, { recursive: true })
-  await writeFile(join(cache, "models.json"), JSON.stringify(catalog))
   await writeFile(join(run.sandbox.home, ".gitconfig"), `[user]\n\tname = ${gitName}\n`)
 }
 
@@ -820,10 +787,10 @@ const play = async (
   // Windows or macOS.
   if (process.platform === "linux")
     for (const mate of [modeller, builder]) {
-      // Its model on the line, which Novadeck's shim leaves: the effort it takes off the line (opencode's
-      // command line has no flag for it) and gives as the agents' variant, which the screen's
-      // footer shows (`GPT-6 Luna OpenRouter · medium`).
-      const wanted = `--model ${first!.model}`
+      // Novadeck's own pi, which the lead's open_agent started by its word: the process is pi's
+      // program, from Novadeck's own folder (`<data>/bundled/pi`), on the tour's model and
+      // thinking level whatever the call named, and carrying Novadeck's extension.
+      const wanted = `--model ${ownModel} --thinking ${tourEffort}`
       // eslint-disable-next-line no-await-in-loop -- Two terminals, one after the other.
       const argv = await poll(
         () => {
@@ -833,10 +800,14 @@ const play = async (
         `${mate.handle} to start on ${wanted} (now ${mate.summary().process?.argv?.join(" ")})`,
         45_000,
       )
-      expect(argv).toContain(tourWrites.join(" "))
+      expect(argv).toContain(join(run.sandbox.root, "data", "bundled", "pi"))
+      expect(argv).toContain(" -e ")
       // eslint-disable-next-line no-await-in-loop -- As above.
       await poll(
-        async () => ((await mate.screen()).includes("OpenRouter · medium") ? true : undefined),
+        async () => {
+          const screen = await mate.screen()
+          return screen.includes("gpt-6-luna") && screen.includes("medium") ? true : undefined
+        },
         `${mate.handle}'s footer to name GPT-6 Luna at medium`,
         45_000,
       )

@@ -617,6 +617,46 @@ describe("workspace metadata API", () => {
     await settings.return?.(undefined)
   })
 
+  it("starts Novadeck's own pi's fetch for the tour while its switch is off, telling where it stands", async ({
+    resources,
+  }) => {
+    // Archives from an empty folder: the fetch fails at once, as a release that can't be had.
+    const empty = await mkdtemp(join(tmpdir(), "novadeck-no-release-"))
+    // On Windows the runner may still be rewriting its shell files as it closes: removal waits.
+    resources.defer(() =>
+      rm(empty, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }),
+    )
+    const before = process.env.NOVADECK_BUNDLED_PI_SOURCE
+    process.env.NOVADECK_BUNDLED_PI_SOURCE = empty
+    resources.defer(() => {
+      if (before === undefined) delete process.env.NOVADECK_BUNDLED_PI_SOURCE
+      else process.env.NOVADECK_BUNDLED_PI_SOURCE = before
+    })
+    const app = await fixture(resources, { shell: join(empty, "shell") })
+    const { client } = await app.connect()
+    const settings = await client.settings.watch()
+    expect((await settings.next()).value).toMatchObject({
+      bundledPi: false,
+      bundledPiFetch: { state: "off" },
+    })
+    await client.tour.fetch()
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Each change in turn, until it failed.
+      const { value } = await settings.next()
+      const fetch = (value as { bundledPiFetch?: { state: string } }).bundledPiFetch
+      if (fetch?.state === "failed") {
+        // The switch stays off; the tour's download says where it stands all the same.
+        expect(value).toMatchObject({ bundledPi: false })
+        break
+      }
+    }
+    await settings.return?.(undefined)
+    // A runner without shell files can't start Novadeck's pi: the tour's ask is refused.
+    const bare = await fixture(resources)
+    const other = await bare.connect()
+    await expect(other.client.tour.fetch()).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
     const app = await fixture(resources)
     const { client } = await app.connect()

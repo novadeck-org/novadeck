@@ -800,13 +800,16 @@ App:
   on" (App > Updates), open Preferences once for the flag to follow, and turn on Onboarding tour
   in its Experimental tab, as a spec does with `?channel=experimental` and `switchTourOn()`
   (`support/help.tsx`). With the switch off there is no Help button, as its menu holds the tour
-  alone. Take the tour opens its consent, which offers opencode alone (no choice of agent):
-  where opencode isn't installed or connected, it offers Install (the Preferences and welcome
-  installer, with no sign-in terminal after) or Connect right there; Start the tour opens a "Tour"
-  project with one terminal starting opencode on GPT-6 Luna at medium effort. "Fail next start" makes the next Start the tour fail as a folder of the
+  alone. Take the tour opens its consent, which runs Novadeck's own Pi alone (no choice of agent)
+  and starts downloading it right away: the consent says where that stands (Downloading Pi with its
+  MB, or why it failed with Try again), and Start the tour waits for it. The demo has Pi in place
+  unless asked: the group's "Tour Pi: ..." actions put it in each state (Not asked, Downloading
+  (size unknown), Downloading, Ready, Failed; the consent shows it live), and the address does it for
+  a spec: `&tourPi=download` plays a download once the tour is asked for, `&tourPi=fails` fails the
+  first one (Try again plays it). Start the tour opens a "Tour"
+  project with one terminal starting `novadeck-pi` on GPT-6 Luna at medium effort. "Fail next start" makes the next Start the tour fail as a folder of the
   person's own at `~/.novadeck/tour` does, the consent staying open with why; "Next start:
-  no free run left" fails it as the tour's service with no ticket to give does, with its sentence. A spec asks with the address: `&tourStart=fails` and
-  `&opencode=missing|outdated|unsupported` (opencode's own states in the consent: to install, to update, not followed), `&tourStart=tickets` (the tour's service with no free run left, its sentence shown) fail the first start.
+  no free run left" fails it as the tour's service with no ticket to give does, with its sentence. A spec asks with the address: `&tourStart=fails` and `&tourStart=tickets` (the tour's service with no free run left, its sentence shown) fail the first start.
   The tour's terminal runs a scripted agent (`frontend/demo/src/tour/player.ts`): after a few
   hundred ms it binds, works and names its terminal "Game lead" (as its own describe);
   Antigravity starts working only once the UI rang `brief`. Then the story

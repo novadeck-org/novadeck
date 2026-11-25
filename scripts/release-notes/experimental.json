@@ -33,6 +33,8 @@
         "backend/runner/src/harnesses/bundled-pi.ts",
         "backend/relay/src/fetch.rs",
         "harnesses/pi/src/bundled.ts",
+        "harnesses/pi/src/own-model.ts",
+        "backend/runner/src/harnesses/own-pi.ts",
         "frontend/ui/src/preferences/bundled-pi.ts"
       ]
     },

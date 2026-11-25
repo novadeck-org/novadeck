@@ -1,16 +1,10 @@
-import type { AgentConnection } from "@novadeck/core/port"
-import { createStore } from "@novadeck/core/store"
 import { demoTour } from "@novadeck/demo/tour"
 import { demoTourRefusal } from "@novadeck/demo/tour-runs"
 
 import { describe, expect, it } from "./test"
 import { tourGroups } from "./tour"
 
-const connected: readonly AgentConnection[] = [
-  { agent: "opencode", available: true, connected: true, busy: false },
-]
-
-const tourOf = () => demoTour(createStore(connected), () => undefined)
+const tourOf = () => demoTour(() => undefined)
 
 const runner = (tour: ReturnType<typeof tourOf>) => {
   const [group] = tourGroups(tour)
@@ -29,19 +23,31 @@ describe("the tour group", () => {
     await expect(tour.prepare()).resolves.toMatchObject({
       directory: "~/.novadeck/tour",
       brief: "doorbell",
-      model: "openrouter/openai/gpt-6-luna",
+      model: "novadeck/gpt-6-luna",
       page: true,
     })
   })
 
-  it("refuses where opencode isn't connected, whatever else is", async () => {
-    const tour = demoTour(
-      createStore<readonly AgentConnection[]>([
-        { agent: "claude", available: true, connected: true, busy: false },
-      ]),
-      () => undefined,
-    )
-    await expect(tour.prepare()).rejects.toThrow("opencode")
+  it("puts Novadeck's pi in each state for the consent, and waits for it before a start", async () => {
+    const tour = tourOf()
+    const run = runner(tour)
+    expect(tour.agent.getSnapshot()).toEqual({ state: "ready" })
+    run("Tour Pi: downloading")
+    expect(tour.agent.getSnapshot()).toEqual({
+      state: "downloading",
+      received: 12_345_678,
+      size: 58_977_130,
+    })
+    run("Tour Pi: downloading, size unknown")
+    expect(tour.agent.getSnapshot()).toEqual({ state: "downloading" })
+    run("Tour Pi: not asked for")
+    expect(tour.agent.getSnapshot()).toEqual({ state: "off" })
+    run("Tour Pi: failed")
+    expect(tour.agent.getSnapshot()).toMatchObject({ state: "failed" })
+    await expect(tour.prepare()).rejects.toThrow("github.com")
+    run("Tour Pi: ready")
+    expect(tour.agent.getSnapshot()).toEqual({ state: "ready" })
+    await expect(tour.prepare()).resolves.toMatchObject({ directory: "~/.novadeck/tour" })
   })
 
   it("fails the next start as the tour's service with no free run left does, with its sentence", async () => {
@@ -75,11 +81,16 @@ describe("the tour group", () => {
 })
 
 describe("the tour the debug panel shares with the demo", () => {
-  it("runs the agents the panel connects, once it follows them", async () => {
-    const tour = demoTour(createStore<readonly AgentConnection[]>([]), () => undefined)
-    await expect(tour.prepare()).rejects.toThrow()
-    tour.follow(createStore(connected), () => undefined)
-    await expect(tour.prepare()).resolves.toMatchObject({ model: "openrouter/openai/gpt-6-luna" })
+  it("answers the projects open at the tour's folder, in the workspace it follows, as removed", async () => {
+    const tour = demoTour(() => undefined)
+    await expect(tour.prepare()).resolves.toMatchObject({ removed: [] })
+    tour.follow(
+      () =>
+        ({
+          projects: [{ id: "p1", directory: "~/.novadeck/tour" }],
+        }) as never,
+    )
+    await expect(tour.prepare()).resolves.toMatchObject({ removed: ["p1"] })
   })
 
   it("drives the story: answers the sheet and the modeller's question, quiets the team and the modeller", () => {

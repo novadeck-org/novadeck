@@ -453,7 +453,7 @@ export const Preferences = ({
       id: "onboarding-tour",
       label: "Onboarding tour",
       description: tour
-        ? "Add a Help menu to the footer that offers a short tour: three opencode agents, on a model Novadeck pays for, in a sandbox repo."
+        ? "Add a Help menu to the footer that offers a short tour: three Pi agents, on a model Novadeck pays for, in a sandbox repo."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),

@@ -2,7 +2,7 @@ import { delimiter } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { shellLaunch, startsCommands } from "./launch.js"
+import { programWord, shellLaunch, startsCommands } from "./launch.js"
 import { fishQuote, psQuote } from "./quote.js"
 import { shellScriptPaths } from "./scripts.js"
 
@@ -162,5 +162,20 @@ describe("cmd", () => {
 
   it("is started with nothing else without one", () => {
     expect(launch("cmd.exe", { env: {} }).args).toEqual([])
+  })
+})
+
+describe("a program's word in a startup command", () => {
+  it("quotes a path with spaces in each shell's language, with PowerShell's call operator", () => {
+    expect(programWord("/bin/bash", "/Users/a b/pi")).toBe("'/Users/a b/pi'")
+    expect(programWord("-zsh", "/Users/a'b/pi")).toBe("'/Users/a'\\''b/pi'")
+    expect(programWord("/usr/bin/fish", "/Users/a b/pi")).toBe("'/Users/a b/pi'")
+    expect(programWord("C:\\Program Files\\PowerShell\\7\\pwsh.exe", "C:\\a b\\pi.cmd")).toBe(
+      "& 'C:\\a b\\pi.cmd'",
+    )
+    expect(programWord("powershell.exe", "C:\\it's\\pi.cmd")).toBe("& 'C:\\it''s\\pi.cmd'")
+    expect(programWord("C:\\Windows\\System32\\cmd.exe", "C:\\a b\\pi.cmd")).toBe(
+      '"C:\\a b\\pi.cmd"',
+    )
   })
 })
