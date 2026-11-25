@@ -31,6 +31,7 @@ import {
   sidebarRowIconClasses,
   sidebarRowWideIconClasses,
 } from "@novadeck/toolkit/SidebarItem"
+import { teamFoldRowClasses } from "@novadeck/toolkit/TeamFoldRows"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
 import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
@@ -109,7 +110,7 @@ export const TerminalTab = ({
   avatar?: { readonly handle: string; readonly live: AvatarLive } | undefined
   index: number
   selected: boolean
-  // Its place in the selected terminal's team: the lead or one of its workers (tabs.css).
+  // Its place in the selected terminal's team: the lead or one of its workers (team-rows.css).
   team?: "lead" | "worker" | undefined
   // Who leads it and whom it leads, in words, for its description: the wire only draws it.
   teamWords?: string | undefined
@@ -149,10 +150,10 @@ export const TerminalTab = ({
   // Ends the lead of a terminal an agent leads; absent for any other.
   releaseLead?: ReleaseLead | undefined
   // How a teammate's tab stands in its lead's fold (app/team-fold.ts): folded away, previewed,
-  // unfolding or shown (tabs.css).
+  // unfolding or shown (team-rows.css).
   fold?: "away" | "preview" | "unfolding" | "shown" | undefined
   // How many leads stand above it: from two, a nested team's tab, it steps in a little per
-  // level (tabs.css).
+  // level (team-rows.css).
   level?: number
   // On a lead: its menu's way to fold its teammates out of the list or show them again.
   foldTeam?: FoldTeam | undefined
@@ -353,9 +354,8 @@ export const TerminalTab = ({
         {...(team ? { "data-team": team } : {})}
         {...(fold ? { "data-team-fold": fold } : {})}
         {...(level ? { "data-team-level": Math.min(level, 3) } : {})}
-        // A teammate folded away leaves the layout, and unrolls from no height: as utilities,
-        // since the tab's own `flex` and least height are (tabs.css has the rest).
-        className={`terminal-tab [--_sidebar-actions-space:76px] [--sidebar-item-resting-actions:26px] data-[team-fold=away]:hidden data-[team-fold=away]:min-h-0 data-[team-fold=unfolding]:starting:min-h-0 ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
+        // A teammate folded away leaves the layout, and unrolls from no height (team-rows.css).
+        className={`terminal-tab [--_sidebar-actions-space:76px] [--sidebar-item-resting-actions:26px] ${teamFoldRowClasses} ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
         editing={editing}
         editor={
           rename ? (

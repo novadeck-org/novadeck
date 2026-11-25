@@ -1,10 +1,9 @@
+import { foldsAway, isFolded } from "@novadeck/toolkit/team-fold"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../test"
 import {
   foldedTeamsStorageKey,
-  foldsAway,
-  isFolded,
   noFoldedTeams,
   readFoldedTeams,
   toggleFolded,

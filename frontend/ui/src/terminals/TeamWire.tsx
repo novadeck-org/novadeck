@@ -27,7 +27,7 @@ const followsOnCompositor = () =>
 
 // Nested teams (a teammate that leads its own): each level's wire runs in its own lane, a
 // lane's width further from the rail's border than its lead's lead's, and a nested team's
-// tabs step in as far (tabs.css), so each sits beside its lane. Past two lanes, which keep
+// rows step in as far (the toolkit's team-rows.css), so each sits beside its lane. Past two lanes, which keep
 // clear of the tabs' edge, deeper teams share the innermost.
 const laneWidth = 6
 const deepestLane = 2
@@ -72,6 +72,7 @@ type Measured = {
 // tabs aren't laid out, and its wire is its lead's cursor alone.
 const measureWire = (
   list: Element,
+  rowAttribute: string,
   railRect: DOMRect,
   origin: Origin,
   view: { readonly top: number; readonly bottom: number },
@@ -79,7 +80,7 @@ const measureWire = (
   folded: boolean,
   level: number,
 ): Measured | undefined => {
-  const tab = (id: string) => list.querySelector(`[data-terminal-tab-id="${CSS.escape(id)}"]`)
+  const tab = (id: string) => list.querySelector(`[${rowAttribute}="${CSS.escape(id)}"]`)
   const leadTab = tab(team.lead)
   const shown = team.workers.flatMap((id) => {
     const each = tab(id)
@@ -131,6 +132,7 @@ const noDrawing: Drawing = { frame: { top: 0, height: 0, range: 0 }, wires: [] }
 const measureWires = (
   layer: HTMLElement,
   list: HTMLElement,
+  rowAttribute: string,
   teams: readonly Team[],
   folded: readonly string[],
   levels: readonly number[],
@@ -148,6 +150,7 @@ const measureWires = (
   const wires = teams.flatMap((team, index) => {
     const measured = measureWire(
       list,
+      rowAttribute,
       railRect,
       origin,
       view,
@@ -183,7 +186,12 @@ const measureWires = (
 // inside another (its lead a teammate) runs in a lane further in, and its parent's tick runs
 // into its lead's cursor, so the gutter reads as a tree; what lights is every team the selected
 // terminal leads or works in, and the way up through each lead above it.
+//
+// The Terminals list draws it over its tabs (App.tsx); any sidebar list whose rows are sidebar
+// items naming their member (`rowAttribute`) can draw one over its own leads and members, with
+// the rows' team looks and a folded lead's rows (the toolkit's team-rows.css, TeamFoldRows).
 export const TeamWire = ({
+  rowAttribute,
   teams,
   levels = noLevels,
   chains = noChains,
@@ -197,6 +205,9 @@ export const TeamWire = ({
   onFold,
   onPreview,
 }: {
+  // The attribute naming each row of the list by its member's id, as a terminal's tab's
+  // data-terminal-tab-id: the wire finds a team's rows by it.
+  rowAttribute: string
   teams: readonly Team[]
   // How many leads stand above each team's lead, in the teams' order: its lane; and the leads
   // above it, nearest first, space-separated, whose folds fade its wire too.
@@ -206,12 +217,12 @@ export const TeamWire = ({
   // folded teams show the way down to it.
   lit?: LitTeams
   above?: readonly string[]
-  // The selected terminal.
+  // The selected member, as the selected terminal.
   selected: string
-  // Whether the Terminals list is on screen.
+  // Whether the list is on screen.
   shown: boolean
-  // The Terminals list's element, a new one in each session and in each of the drawer and
-  // the side pane.
+  // The list's element, as the Terminals list's, a new one in each session and in each of the
+  // drawer and the side pane.
   list: HTMLElement | null
   // The leads whose teams the person folded out of the list, and the one they just unfolded,
   // whose wire fades back in as its tabs unroll.
@@ -244,7 +255,7 @@ export const TeamWire = ({
     const body = element?.parentElement
     if (!element || !body || !list || !teams.length || !shown) return
     const measure = () => {
-      const next = measureWires(element, list, teams, folded, levels)
+      const next = measureWires(element, list, rowAttribute, teams, folded, levels)
       setDrawing((current) => (sameDrawing(current, next) ? current : next))
     }
     measureNow.current = measure
@@ -267,7 +278,7 @@ export const TeamWire = ({
       resized.disconnect()
       resized.observe(body)
       resized.observe(list)
-      for (const tab of list.querySelectorAll("[data-terminal-tab-id]")) resized.observe(tab)
+      for (const tab of list.querySelectorAll(`[${rowAttribute}]`)) resized.observe(tab)
     }
     const changed = new MutationObserver(() => {
       watch()
@@ -326,7 +337,7 @@ export const TeamWire = ({
       window.removeEventListener("pointercancel", drop, { capture: true })
       window.removeEventListener("blur", drop)
     }
-  }, [teams, shown, list, folded, levels])
+  }, [rowAttribute, teams, shown, list, folded, levels])
 
   // A selection can swap which of a folded team's tabs shows, in the same commit: the wire
   // takes the tabs' new places before that frame paints, never reaching the one going away.

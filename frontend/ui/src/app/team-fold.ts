@@ -1,9 +1,10 @@
 import { descendantsOf, leadChain } from "@novadeck/core/derivations"
 import { isWindow, keepFoldsTogether } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
+import { isFolded, rowFold, type RowFold } from "@novadeck/toolkit/team-fold"
 import { useCallback } from "react"
 
-import { foldsAway, isFolded, toggleFolded } from "../terminals/team-fold"
+import { toggleFolded } from "../terminals/team-fold"
 import type { FoldTeam } from "../terminals/window-menu"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import {
@@ -84,11 +85,8 @@ export const useFoldedLeads = (): readonly string[] => {
 }
 const noLeads: readonly string[] = []
 
-// How a terminal's tab stands in a fold, for one any lead leads (undefined for a terminal no
-// one leads): folded away (a lead above it folded, while the person is elsewhere), previewed
-// (a click beside a lead above it would fold it away now), unfolding (a lead above it was just
-// unfolded, so it unrolls as it comes back), or shown.
-export type TabFold = "away" | "preview" | "unfolding" | "shown"
+// How a terminal's tab stands in a fold (rowFold).
+export type TabFold = RowFold
 
 export const useTabFold = (id: string): TabFold | undefined => {
   const context = useWorkspaceState(currentContext)
@@ -114,29 +112,21 @@ export const useTabFold = (id: string): TabFold | undefined => {
       sameItems(a.underSelected, b.underSelected) &&
       sameItems(a.selectedAbove, b.selectedAbove),
   )
-  return useUiState((state): TabFold | undefined => {
-    if (!above.length) return undefined
-    // On a lead a fold above hides, which shows in its place: its own team shows with it,
-    // unless it, or a lead between, is folded itself.
-    const peeking =
-      underSelected.length > 0 && foldsAway(state.foldedTeams, context, selectedAbove, false)
-    const away = peeking
-      ? foldsAway(state.foldedTeams, context, underSelected, false)
-      : foldsAway(state.foldedTeams, context, above, kept)
-    if (away) return "away"
-    const under = (mark: { readonly context: string; readonly lead: string } | null) =>
-      mark !== null && mark.context === context && above.includes(mark.lead)
-    if (
-      !kept &&
-      under(state.foldPreview) &&
-      !isFolded(state.foldedTeams, context, state.foldPreview!.lead)
-    )
-      return "preview"
-    return under(state.unfolding) ? "unfolding" : "shown"
-  })
+  return useUiState((state) =>
+    rowFold({
+      folded: state.foldedTeams,
+      context,
+      above,
+      kept,
+      underSelected,
+      selectedAbove,
+      preview: state.foldPreview,
+      unfolding: state.unfolding,
+    }),
+  )
 }
 
-// How many leads stand above a terminal: how far its tab steps in (tabs.css).
+// How many leads stand above a terminal: how far its tab steps in (the toolkit's team-rows.css).
 export const useTeamLevel = (id: string): number =>
   useWorkspaceState((workspace) => leadChain(workspace, id).length)
 
