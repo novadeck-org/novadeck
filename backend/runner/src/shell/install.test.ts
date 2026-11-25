@@ -147,7 +147,7 @@ describe("Novadeck's own pi's launcher", () => {
     )
     expect(paths.bundledPi).toEqual({
       launcher: join("/data", "shell", "bundled", "pi"),
-      data: "/data",
+      data: join("/data"),
     })
     expect(launcher?.mode).toBe(0o700)
     expect(launcher?.content).toContain(`'${join("/data", "bundled", "pi", "agent")}'`)

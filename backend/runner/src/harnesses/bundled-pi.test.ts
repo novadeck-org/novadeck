@@ -114,7 +114,8 @@ describe("fetching Novadeck's pi", () => {
     if (!build) throw new Error("no build")
     expect(program).toBe(bundledPiProgram(data, build, "1.6.0"))
     await expect(readFile(program, "utf8")).resolves.toContain("echo pi")
-    expect((await stat(program)).mode & 0o111).not.toBe(0)
+    // Executable, where the file system keeps the bits.
+    if (process.platform !== "win32") expect((await stat(program)).mode & 0o111).not.toBe(0)
     const target = buildFolder(data, build, "1.6.0")
     await expect(readFile(join(target, "LICENSE"), "utf8")).resolves.toBe(licenceText)
     await expect(readFile(join(target, "pi", "photon_rs_bg.wasm"), "utf8")).resolves.toBe("wasm")
