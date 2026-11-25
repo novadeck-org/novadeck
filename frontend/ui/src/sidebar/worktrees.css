@@ -181,7 +181,7 @@
     mask-image: linear-gradient(
       to left,
       transparent var(--_sidebar-actions-space),
-      #000 calc(var(--_sidebar-actions-space) + var(--_fade))
+      var(--color-ink) calc(var(--_sidebar-actions-space) + var(--_fade))
     );
     mask-repeat: no-repeat;
     mask-size: calc(100% + var(--_sidebar-actions-space) + var(--_fade)) 100%;
