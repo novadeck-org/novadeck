@@ -529,3 +529,97 @@ describe("opening a ring row in full on a click", () => {
     listening.dispose()
   })
 })
+
+// Claude Code's fullscreen mode redraws its whole screen as it scrolls, which moves a delivery
+// block's rows: each redraw drops the drawing and finds it again a few rows on. The rows it drew
+// keep their elements, already drawn, rather than being built again a span per character.
+describe("a fullscreen TUI scrolling a delivery block", () => {
+  const ids = ["m-1abc", "m-2abc", "m-3abc"]
+  const words =
+    "Acknowledged: merged, nothing running or uncommitted on my side. Starting nothing new."
+  const told = ids.map((_, index) => agent(["quill", "basalt", "owl"][index]!, words, index + 1))
+  const raw =
+    "<novadeck-messages><rules>Answer each message; rules for the agent.</rules>" +
+    ids.map((id) => `<message id="${id}" from="quill">${words}</message>`).join("") +
+    "</novadeck-messages>"
+  const block = Array.from({ length: Math.ceil(raw.length / 90) }, (_, index) =>
+    index === 0
+      ? `  ⎿  Stop hook says: ${raw.slice(0, 90)}`
+      : `     ${raw.slice(index * 90, index * 90 + 90)}`,
+  )
+  const history = [
+    ...Array.from({ length: 20 }, (_, index) => `  earlier ${index}`),
+    "● Ran 3 stop hooks",
+    ...block,
+    ...Array.from({ length: 40 }, (_, index) => `  later ${index}`),
+  ]
+
+  it.each(renderers.filter(([, available]) => available).map(([renderer]) => renderer))(
+    "draws its rows once and lays them where each redraw puts them, %s renderer",
+    async (renderer) => {
+      const element = document.createElement("div")
+      document.body.append(element)
+      const view = createView(element, {
+        fontSize: 13,
+        fontFamily: '"JetBrains Mono Variable", monospace',
+        theme: { background: "#1d1f23", foreground: "#e8e9ed" },
+        scrollback: 100,
+      })
+      const drawing = renderer === "webgl" ? loadWebgl(view.terminal) : undefined
+      view.terminal.resize(120, 30)
+      const doorbell = attachDoorbell(view.terminal, { alternate: () => true })
+      opened.push(() => {
+        doorbell.dispose()
+        drawing?.dispose()
+        view.dispose()
+        element.remove()
+      })
+      doorbell.setContent({ rings: new Map(), deliveries: [{ ids, parts: told }] })
+      const show = (top: number) =>
+        writeTo(
+          view.terminal,
+          `\x1b[?1049h\x1b[?2026h\x1b[H\x1b[2J${history.slice(top, top + 30).join("\r\n")}\x1b[?2026l`,
+        )
+      await show(0)
+      doorbell.rescan()
+      await frame()
+      expect(doorbell.drawn()).toBe(1)
+      const paints = doorbell.stats.paints
+      expect(paints).toBe(block.length)
+      const screen = element.querySelector<HTMLElement>(".xterm-screen")!
+      const cell = screen.getBoundingClientRect().height / view.terminal.rows
+      // Each read of the screen's size after a row was placed lays the page out again.
+      let reads = 0
+      const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")!.get!
+      Object.defineProperty(screen, "offsetWidth", {
+        configurable: true,
+        get(this: HTMLElement) {
+          reads += 1
+          return width.call(this) as number
+        },
+      })
+      for (let top = 1; top <= 18; top += 1) {
+        // eslint-disable-next-line no-await-in-loop -- Each redraw is laid out before the next.
+        await show(top)
+        // eslint-disable-next-line no-await-in-loop -- And painted, after which the pass is over.
+        await frame()
+        expect(doorbell.drawn()).toBe(1)
+        const rows = doorbell.audit()[0]!.pieces.map((piece) => piece.row)
+        expect(rows[0]).toBe(21 - top)
+        const shown = [...element.querySelectorAll<HTMLElement>("[data-novadeck-doorbell]")]
+        // No element left behind from the rows before: one for each row, each over its row.
+        expect(shown.length).toBe(block.length)
+        expect(
+          shown
+            .map((each) => Math.round(Number.parseFloat(each.style.top) / cell))
+            .toSorted((a, b) => a - b),
+        ).toEqual(rows)
+        expect(shown.every((each) => each.style.display !== "none")).toBe(true)
+      }
+      // Moved eighteen times, never drawn again.
+      expect(doorbell.stats.paints).toBe(paints)
+      // And the size read a few times a redraw (a write's pass and a render's), never once a row.
+      expect(reads).toBeLessThanOrEqual(18 * 6)
+    },
+  )
+})
