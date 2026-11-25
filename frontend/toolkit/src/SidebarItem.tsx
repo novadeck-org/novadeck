@@ -1,5 +1,6 @@
 import { useId, type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react"
 
+import { HandleChip } from "./HandleChip"
 import { Tooltip } from "./Tooltip"
 
 export const sidebarListClasses =
@@ -20,6 +21,21 @@ export const sidebarRowWideIconClasses =
 // item that is dimmed.
 export const sidebarRowNameClasses = (emphasized: boolean | "soft" = false): string =>
   `truncate text-body leading-[18px] ${emphasized === "soft" ? "font-semibold" : emphasized ? "font-bold" : "font-medium"}`
+
+// A row's owner as the end of its detail line, its plain `@handle`, which gives way to the
+// row's actions under the pointer (sidebar-item.css). Nothing for a row without one.
+export const SidebarItemHandle = ({
+  handle,
+  className = "",
+}: {
+  readonly handle: string | undefined
+  readonly className?: string
+}): React.JSX.Element | null => (
+  <HandleChip
+    handle={handle}
+    className={`handle-plain sidebar-item-handle sidebar-item-end ${className}`.trimEnd()}
+  />
+)
 
 const sidebarItemClasses = `${sidebarRowClasses} min-h-17 [&.dragging]:z-50`
 

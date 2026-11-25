@@ -1,4 +1,5 @@
 import type { SubagentMarks } from "@novadeck/core/agents/subagents"
+import { glyphDelay } from "@novadeck/toolkit/PhaseGlyph"
 
 // How many marks a tab's line shows before it counts the rest, and how many rows its
 // branches list before they do.
@@ -9,15 +10,13 @@ const branchRows = 3
 // harness only counts have nothing else to tell them apart.
 const places = (count: number) => Array.from({ length: count }, (_, place) => place)
 
-// Each mark's spinner starts at its own frame, so marks side by side don't tick as one.
-const markDelay = (index: number) => ({ animationDelay: `-${((index + 1) * 260) % 800}ms` })
-
 // A spinner while the agent works on, as its phase glyph spins; a hollow mark while what
 // it started runs on without it (tabs.css).
 const Mark = ({ index }: { index: number }) => (
   <span
     className="terminal-tab-subagent inline-block w-[1ch] shrink-0 text-center"
-    style={markDelay(index)}
+    // Each mark's spinner starts at its own frame, so marks side by side don't tick as one.
+    style={glyphDelay(index)}
   />
 )
 

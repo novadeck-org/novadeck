@@ -1,6 +1,7 @@
 import { wakeFill, whenChip, type Waiting } from "@novadeck/core/terminals/waiting"
 import { minutesWaited } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
+import { PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 
 // How many rows a tab's waiting lists before it counts the rest on the last.
 const waitRows = 3
@@ -68,10 +69,9 @@ export const WaitingBranches = ({
               {row.key === "more" ? (
                 <span className="inline-block w-[1ch] shrink-0" />
               ) : (
-                <span
-                  className="terminal-tab-wait inline-block w-[1ch] shrink-0 text-center"
-                  data-wait={row.kind}
-                  {...(row.fill === undefined ? {} : { "data-wake-fill": row.fill })}
+                <PhaseGlyph
+                  phase="waiting"
+                  wait={row.kind === "job" ? { kind: "job" } : { kind: "wake", fill: row.fill }}
                 />
               )}
               <span className="truncate">{row.label}</span>

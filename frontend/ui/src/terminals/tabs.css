@@ -1,20 +1,20 @@
 /* The tabs recipe: a terminal's tab in the sidebar, its phase, its actions and what its
    companion bar holds. A tab is a sidebar item; this draws only what a terminal adds to
-   it.
+   it. Its phase glyph, need mark, handle and ended hatch are the toolkit's, which other rows
+   share (phase-glyph.css, need-mark.css, sidebar-item.css).
 
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "waiting" |
-   "paused" | "starting" | "sleeping" | "waking" | "unheard" | "ended" (what the agent does: the glyph before the
-   program), data-terminal-need="unblock" | "ask" (what it needs of the person: the mark
-   right after the program; a dialog its agent shows counts at once),
+   "paused" | "starting" | "sleeping" | "waking" | "unheard" | "ended" (what the agent does: its
+   `.phase-glyph` before the program says the same), data-terminal-need="unblock" | "ask" (what
+   it needs of the person: the `.need-mark` right after the program; a dialog its agent shows
+   counts at once), data-ended (it has ended: hatched, sidebar-item.css),
    data-terminal-sleeping="true" (its agent has no process, so the name and icon dim; the phase
    still says done or sleeping),
    data-terminal-snoozed="true" (what it needs is snoozed in the Inbox: a bell-off for the mark,
-   its `.terminal-tab-need` data-need="snoozed"),
+   its need mark's data-need="snoozed"),
    data-terminal-unread="true" (an idle agent whose reply the person hasn't read: its program
-   brightens, no glyph), data-terminal-wait="job" | "wake" (what
-   a waiting agent waits on; its glyph, a `.terminal-tab-wait`, holds data-wait the same and
-   data-wake-fill="0" | "1" | "2" | "3": a drip for jobs it left running, a mark that fills
-   as the wake-up it set comes near),
+   brightens, no glyph), data-terminal-wait="job" | "wake" (what a waiting agent waits on, which
+   its glyph's data-wait says too),
    data-terminal-hidden="true" | "false", data-terminal-failed="true" (a done tab whose turn
    ended on an error), data-terminal-subagents="working" | "background" (its agent runs
    subagents, working on while they do, or they run on without it), data-team="lead" |
@@ -23,15 +23,13 @@
    tab in its lead's fold: folded out of the list, dimmed while a click beside its lead would
    fold it, unrolling as its team comes back, or shown; app/team-fold.ts), data-team-level="1" |
    "2" | "3" (how many leads stand above it, up to three: from two, a nested team's, it steps in).
-   Parts: `.terminal-glyph`,
-   `.terminal-tab-process`, `.terminal-tab-need` (`!` or `?` right after the program, its
-   data-need the same as the tab's), `.terminal-tab-starting`, `.terminal-tab-age` (how long
+   Parts: `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-age` (how long
    ago a done tab's agent finished, or when a paused one's usage limit resets, after its
    program), `.terminal-tab-action` (an
    `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
    at rest, so a hidden tab doesn't draw the eye), `.terminal-tab-slot` (Hide and Rename,
-   or Save while renaming, a `.sidebar-item-slot`), `.terminal-tab-handle` (the terminal's
-   `@handle`, held in that slot at rest, its `.sidebar-item-end`), `.terminal-tab-kinds`
+   or Save while renaming, a `.sidebar-item-slot`), the terminal's `@handle` (a
+   `.sidebar-item-handle`, held in that slot at rest), `.terminal-tab-kinds`
    (what its companion bar holds, at the end of the name's line), each
    `.terminal-tab-kind` data-state="new" | "seen",
    `.terminal-tab-subagents` (a mark for each subagent after the program:
@@ -39,38 +37,28 @@
    `.terminal-tab-subagents-more`), `.terminal-tab-branches` (its subagents under its line,
    unfolded while it's selected: `.terminal-tab-branches-fold`, each row's
    `.terminal-tab-branch` and mark),
-   `.terminal-tab-wait` (the phase glyph while it waits, and each mark below),
    `.terminal-tab-waits` (what a waiting agent waits on, in the same place and fold: each
-   row's `.terminal-tab-wait` glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
+   row's waiting phase glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
    (the trace of a wake-up that passed),
    `.terminal-tab-rename`, `.terminal-tab-empty`, `.team-fold-rows` (a folded lead's
    teammates under its line: `.team-fold-rows-fold`, each `.team-fold-row`, data-selected
    while its teammate is the selected terminal, with a `.terminal-tab-branch`, a
-   `.team-fold-mark` with data-phase and data-failed as a tab's own, its name and a
-   `.terminal-tab-need`; then `.team-fold-more`).
+   `.team-fold-mark` phase glyph as the teammate's tab draws it, its name and a
+   need mark; then `.team-fold-more`).
 
-   Tokens, each optional (its fallback in brackets):
-   --tab-snoozed-fg (muted), --tab-snoozed-bg (the ink at 6%), --tab-snoozed-bar-color
-   (muted): a snoozed tab's bell-off, wash and dashed bar.
-   --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
-   shell starts. --tab-need-fg (warning-fg): the need mark after the program, the only
-   warning colour on the tab. --tab-paused-fg (muted): the glyph while an agent is paused at
-   its usage limit; its program and time are muted too.
-   --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
-   --tab-sleeping-fg (muted): a sleeping agent's `z`, icon and program.
+   Tokens, each optional (its fallback in brackets); the glyph's, the need mark's and the ended
+   hatch's are their recipes':
+   --tab-snoozed-bg (the ink at 6%), --tab-snoozed-bar-color (muted): a snoozed tab's wash
+   and dashed bar.
+   --tab-sleeping-fg (muted): a sleeping agent's icon and program.
    --tab-sleeping-name-fg (the ink at 62%): a sleeping agent's name.
-   --tab-waiting-fg (muted): the glyph while an agent waits on something that wakes it, and
-   the rows under the tab. --tab-passed-opacity (0.6): the trace of a wake-up that passed.
-   --tab-done-fg (success-fg): the glyph while an agent's done report waits unseen.
-   --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
+   --tab-waiting-fg (muted): the rows under a waiting agent's tab. --tab-passed-opacity (0.6):
+   the trace of a wake-up that passed.
    --tab-age-fg (muted): how long ago it finished.
-   --tab-process-font (mono with the symbols font first, --font-glyphs): the program and
-   the glyph.
+   --tab-process-font (mono with the symbols font first, --font-glyphs): the program.
    --tab-active-process-fg (ink): the program while it works, or is done, or while an idle
    agent's reply is unread. A program waiting, paused or idle is muted: ink means the agent
    works or you haven't looked.
-   --tab-ended-image (the window's --window-ended-image, a faint ink hatch),
-   --tab-ended-fg (muted): an ended tab, and its name and icon.
    --tab-hidden-opacity (0.5): a tab hidden from Grid and Canvas.
    --tab-action-disabled-opacity (0.5): an action while the tab is being renamed.
    --tab-kind-fg (muted), --tab-kind-opacity (icon-button-dim-opacity, then 0.5): what's
@@ -91,34 +79,9 @@
   outline-offset: -2px;
 }
 /* Hide and Rename come in beside Close under the pointer or with keyboard focus, and stay
-   while the tab is renamed; Close is always there. At rest their slot holds the handle,
-   which gives way as they come: the motion every sidebar row shares (the toolkit's
-   sidebar-item.css). Without a pointer that hovers, they all stay, and the handle follows
-   the program on its line instead, whole: the program gives way before it. */
-.handle-chip.terminal-tab-handle {
-  color: var(--color-muted);
-  opacity: var(--icon-button-dim-opacity, 0.5);
-}
-.terminal-tab-handle::before {
-  content: "· ";
-}
-@media (hover: hover) {
-  /* At the end of its line, reaching back into the room the line keeps for its actions
-     (--_sidebar-actions-space, 76px) to sit beside Close, at least the slot's width. A
-     longer handle takes what it needs beyond the slot from the line, so the program
-     gives way to it rather than running under it; it stays there while hidden, so the
-     line never moves. */
-  .terminal-tab-handle {
-    display: flex;
-    justify-content: flex-end;
-    min-width: 46px;
-    margin-left: auto;
-    margin-right: calc(26px - var(--_sidebar-actions-space, 76px));
-  }
-  .terminal-tab-handle::before {
-    content: none;
-  }
-}
+   while the tab is renamed; Close is always there. At rest their slot holds the handle (the
+   toolkit's `.sidebar-item-handle`, reaching back as far as Close, TerminalTab.tsx), which gives
+   way as they come: the motion every sidebar row shares (sidebar-item.css). */
 .icon-button.terminal-tab-action:disabled {
   pointer-events: none;
   opacity: var(--tab-action-disabled-opacity, 0.5);
@@ -126,7 +89,6 @@
 .terminal-tab[data-terminal-hidden="true"] .sidebar-item-select {
   opacity: var(--tab-hidden-opacity, 0.5);
 }
-.terminal-glyph,
 .terminal-tab-process,
 .terminal-tab-starting,
 .terminal-tab-waking,
@@ -179,39 +141,14 @@
   border-radius: 50%;
   background-color: var(--tab-kind-new-bg, var(--color-ink));
 }
-/* A tab reads its terminal's phase as text: a braille spinner beside a running program,
-   as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a
-   one-glyph slot before its program, so the text never shifts. Only what needs a look
-   is marked: a spinner while a program runs, a dot while the shell starts, a check while
-   an agent's report of its task done stands and a cross when its turn failed, until they
-   look, `∅` while it is paused at its usage limit, and a cross once it has ended; an idle
-   tab leaves it blank. The glyph says what the agent does, never what it needs: that is the mark after
-   the program. Reduced motion holds the spinner still. */
-.terminal-glyph {
-  color: var(--tab-glyph-fg, var(--color-ink));
-}
-.terminal-glyph::before {
-  content: "\00a0";
-}
-.terminal-tab[data-terminal-phase="starting"] .terminal-glyph {
-  color: var(--tab-starting-fg, var(--color-muted));
-}
-.terminal-tab[data-terminal-phase="starting"] .terminal-glyph::before {
-  content: "·";
-}
-.terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
-  content: "×";
-}
-/* Sleeping agents. Asleep dims the name and icon; the slot before the program holds a muted
-   `z` unless a done or failed mark stands there; `?` and `!` stay after the program. Nothing
-   moves. Waking: a block cursor in ink, hard on and off, and `waking…` in the program's place
-   (still under reduced motion). */
-.terminal-tab[data-terminal-phase="sleeping"] .terminal-glyph {
-  color: var(--tab-sleeping-fg, var(--color-muted));
-}
-.terminal-tab[data-terminal-phase="sleeping"] .terminal-glyph::before {
-  content: "z";
-}
+/* A tab reads its terminal's phase as text, in its phase glyph (the toolkit's phase-glyph.css)
+   before its program, and a faint hatch once it has ended (data-ended, sidebar-item.css). The
+   glyph says what the agent does, never what it needs: that is the need mark after the program
+   (need-mark.css).
+
+   Sleeping agents. Asleep dims the name and icon; the glyph's slot holds a muted `z` unless a
+   done or failed mark stands there; `?` and `!` stay after the program. Nothing moves. Waking:
+   the glyph's block cursor, and `waking…` in the program's place. */
 .terminal-tab[data-terminal-sleeping] .sidebar-item-select strong {
   color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
 }
@@ -225,90 +162,31 @@
   .terminal-tab-process {
   color: var(--tab-sleeping-fg, var(--color-muted));
 }
-.terminal-tab[data-terminal-phase="waking"] .terminal-glyph {
-  color: var(--color-ink);
-}
-.terminal-tab[data-terminal-phase="waking"] .terminal-glyph::before {
-  content: "█";
-  animation: wake-blink 1.06s steps(1) infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .terminal-tab[data-terminal-phase="waking"] .terminal-glyph::before {
-    animation: none;
-  }
-}
 .terminal-tab-waking {
   color: var(--color-ink);
   font-family: var(--tab-process-font, var(--font-glyphs));
 }
-@keyframes wake-blink {
-  50% {
-    opacity: 0;
-  }
-}
-/* An agent Novadeck can't hear from: a hollow mark, as nothing tells whether it works. */
-.terminal-tab[data-terminal-phase="unheard"] .terminal-glyph {
-  color: var(--tab-unheard-fg, var(--color-muted));
-}
-.terminal-tab[data-terminal-phase="unheard"] .terminal-glyph::before {
-  content: "○";
-}
-/* An agent that reported its task done (its `done` call) is marked by a bold glyph, "✓" in
-   the success colour, as long as the report stands, looked at or not; "✗" in the danger
-   colour where its turn ended on an error, until they look. Its program stays beside it,
-   its name bold (TerminalTab.tsx), with how long ago it finished. */
-.terminal-tab[data-terminal-phase="done"] .terminal-glyph {
-  color: var(--tab-done-fg, var(--color-success-fg));
-  font-weight: 700;
-}
-.terminal-tab[data-terminal-phase="done"] .terminal-glyph::before {
-  content: "✓";
-}
-.terminal-tab[data-terminal-phase="done"][data-terminal-failed="true"] .terminal-glyph {
-  color: var(--tab-failed-fg, var(--color-danger-fg));
-}
-.terminal-tab[data-terminal-phase="done"][data-terminal-failed="true"] .terminal-glyph::before {
-  content: "✗";
-}
+/* Beside a done agent's program, how long ago it finished; its name is bold (TerminalTab.tsx). */
 .terminal-tab-age {
   font-family: var(--tab-process-font, var(--font-glyphs));
   color: var(--tab-age-fg, var(--color-muted));
 }
-/* The reset time takes room the program would otherwise keep, in a tab as narrow as the
-   sidebar's: the program stays whole and the handle, which Hide and Rename hide anyway, gives
-   way. */
+/* An agent paused at its usage limit: its program and the reset time beside it are muted (the
+   program is muted unless the agent works or its reply is unread). The reset time takes room the
+   program would otherwise keep, in a tab as narrow as the sidebar's: the program stays whole and
+   the handle, which Hide and Rename hide anyway, gives way. */
 .terminal-tab[data-terminal-phase="paused"] .terminal-tab-process {
   flex-shrink: 0;
 }
 @media (hover: hover) {
-  .terminal-tab[data-terminal-phase="paused"] .terminal-tab-handle {
+  .terminal-tab[data-terminal-phase="paused"] .sidebar-item-handle {
     min-width: 0;
     overflow: hidden;
   }
 }
-/* An agent paused at its usage limit: a muted empty set, its program and the reset time
-   beside it muted too (the program is muted unless the agent works or its reply is unread). */
-.terminal-tab[data-terminal-phase="paused"] .terminal-glyph {
-  color: var(--tab-paused-fg, var(--color-muted));
-}
-.terminal-tab[data-terminal-phase="paused"] .terminal-glyph::before {
-  content: "∅";
-}
-/* What the agent needs of the person, right after its program, in the glyph's style: "!" where
-   it can't go on without them (a permission, a plan, held messages, a sign-in, a limit
-   that has reset), "?" where it asks. The only warning colour on the tab. */
-.terminal-tab-need {
-  font-family: var(--tab-process-font, var(--font-glyphs));
-  font-weight: 700;
-  color: var(--tab-need-fg, var(--color-warning-fg));
-}
-/* What it needs of the person, snoozed in the Inbox: a gray bell-off for the mark, and the
-   snoozed Inbox row's look, a gray wash and a dashed bar where the selected tab's bar goes. */
-.terminal-tab-need[data-need="snoozed"] {
-  display: inline-flex;
-  align-self: center;
-  color: var(--tab-snoozed-fg, var(--color-muted));
-}
+/* What it needs of the person, snoozed in the Inbox: a bell-off for the need mark
+   (need-mark.css), and the snoozed Inbox row's look, a gray wash and a dashed bar where the
+   selected tab's bar goes. */
 .terminal-tab[data-terminal-snoozed="true"]:not(
     [data-selected="true"],
     .dragging,
@@ -326,54 +204,17 @@
   box-shadow: none;
   opacity: 1;
 }
-/* A working agent's spinner: the braille frames stand in a column, one line of which the
-   glyph shows, and the column steps up a line every 80ms. Moving it is a transform, which
-   the compositor runs alone, where changing `content` would repaint each frame. */
-.terminal-tab[data-terminal-phase="running"] .terminal-glyph,
-.terminal-tab-wait[data-wait="job"],
+/* A subagent's spinner, a column of braille frames stepping up as the phase glyph's does
+   (phase-glyph.css). */
 .terminal-tab[data-terminal-subagents="working"] .terminal-tab-subagent {
   height: 1lh;
   overflow: hidden;
 }
-.terminal-tab[data-terminal-phase="running"] .terminal-glyph::before {
-  display: block;
-  white-space: pre;
-  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
-  animation: terminal-spin 800ms steps(10) infinite;
-}
-@keyframes terminal-spin {
-  to {
-    transform: translateY(-100%);
-  }
-}
-/* An agent that ended its turn to wait on something it started is marked in the muted
-   colour, not as working: a slow drip for a job it left running, five steps over two
-   seconds (the column of braille steps up as the spinner's does, ending on a blank), and a
-   still mark for a wake-up it set, which fills a quarter at a time as the time nears.
-   Its program and @handle stay where they are. The glyph is a `.terminal-tab-wait`, as are
-   the marks of the rows under the tab and in the window's bar. Reduced motion holds the
-   drip on its first step. */
-.terminal-tab-wait,
+/* An agent that ended its turn to wait on something it started: its glyph, and the mark of each
+   row under the tab, is a waiting phase glyph, muted (a drip for a job it left running, a mark
+   filling as a wake-up it set nears). Its program and @handle stay where they are. */
 .terminal-tab-waits {
   color: var(--tab-waiting-fg, var(--color-muted));
-}
-.terminal-tab-wait[data-wait="job"]::before {
-  display: block;
-  white-space: pre;
-  content: "⠉\A⠒\A⠤\A⣀\A\00a0";
-  animation: terminal-spin 2s steps(5) infinite;
-}
-.terminal-tab-wait[data-wait="wake"]::before {
-  content: "⣀";
-}
-.terminal-tab-wait[data-wake-fill="1"]::before {
-  content: "⣤";
-}
-.terminal-tab-wait[data-wake-fill="2"]::before {
-  content: "⣶";
-}
-.terminal-tab-wait[data-wake-fill="3"]::before {
-  content: "⣿";
 }
 .terminal-tab-wait-trail {
   margin-left: auto;
@@ -451,24 +292,6 @@
   top: 31px;
   bottom: auto;
 }
-/* An ended terminal is hatched in its tab, as across its window. */
-.terminal-tab[data-terminal-phase="ended"] {
-  background-image: var(
-    --tab-ended-image,
-    var(
-      --window-ended-image,
-      repeating-linear-gradient(
-        135deg,
-        transparent 0 6px,
-        color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
-      )
-    )
-  );
-}
-.terminal-tab[data-terminal-phase="ended"] .sidebar-item-select strong,
-.terminal-tab[data-terminal-phase="ended"] .sidebar-item-icon {
-  color: var(--tab-ended-fg, var(--color-muted));
-}
 
 /* The selected terminal's team, while it has one: its other tabs share a faint wash of the
    strong colour, and every member's handle lights, the lead's in a chip, so the lead reads
@@ -488,17 +311,17 @@
 }
 /* Full strength through the dim the handle rests at, so it still gives way to Hide and
    Rename under the pointer. */
-.terminal-tab[data-team] .handle-chip.terminal-tab-handle {
+.terminal-tab[data-team] .handle-chip.sidebar-item-handle {
   --icon-button-dim-opacity: 1;
   color: var(--tab-team-handle-fg, var(--color-strong));
 }
 /* The chip fills the slot's least width, its handle centred in it. */
-.terminal-tab[data-team="lead"] .handle-chip.terminal-tab-handle {
+.terminal-tab[data-team="lead"] .handle-chip.sidebar-item-handle {
   justify-content: center;
   padding: 0 0.375rem;
   background-color: color-mix(in srgb, currentColor 16%, transparent);
 }
-.terminal-tab[data-team="lead"] .terminal-tab-handle::before {
+.terminal-tab[data-team="lead"] .sidebar-item-handle::before {
   content: none;
 }
 
@@ -602,86 +425,24 @@
 .team-fold-count {
   color: var(--tab-subagent-fg, var(--color-muted));
 }
+/* A row's glyph is a phase glyph (phase-glyph.css) a line high, its mark standing as a column
+   whatever the phase. */
 .team-fold-mark {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 1ch;
   height: 18px;
   overflow: hidden;
-  font-family: var(--tab-process-font, var(--font-glyphs));
-  text-align: center;
-  color: var(--tab-glyph-fg, var(--color-ink));
 }
 .team-fold-mark::before {
   display: block;
   white-space: pre;
-  content: "\00a0";
 }
-.team-fold-mark[data-phase="starting"],
-.team-fold-mark[data-phase="unheard"],
-.team-fold-mark[data-phase="paused"],
-.team-fold-mark[data-phase="waiting"] {
-  color: var(--tab-waiting-fg, var(--color-muted));
-}
-.team-fold-mark[data-phase="sleeping"] {
-  color: var(--tab-sleeping-fg, var(--color-muted));
-}
-.team-fold-mark[data-phase="sleeping"]::before {
-  content: "z";
-}
+/* A sleeping teammate's name dims, as its tab's does. */
 .team-fold-row [data-sleeping] {
   color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
-}
-.team-fold-mark[data-phase="waking"] {
-  color: var(--color-ink);
-}
-.team-fold-mark[data-phase="waking"]::before {
-  content: "█";
-  animation: wake-blink 1.06s steps(1) infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .team-fold-mark[data-phase="waking"]::before {
-    animation: none;
-  }
-}
-.team-fold-mark[data-phase="starting"]::before {
-  content: "·";
-}
-.team-fold-mark[data-phase="ended"]::before {
-  content: "×";
-}
-.team-fold-mark[data-phase="unheard"]::before {
-  content: "○";
-}
-.team-fold-mark[data-phase="paused"]::before {
-  content: "∅";
-}
-.team-fold-mark[data-phase="waiting"]::before {
-  content: "⣀";
-}
-.team-fold-mark[data-phase="done"] {
-  font-weight: 700;
-  color: var(--tab-done-fg, var(--color-success-fg));
-}
-.team-fold-mark[data-phase="done"]::before {
-  content: "✓";
-}
-.team-fold-mark[data-phase="done"][data-failed] {
-  color: var(--tab-failed-fg, var(--color-danger-fg));
-}
-.team-fold-mark[data-phase="done"][data-failed]::before {
-  content: "✗";
-}
-.team-fold-mark[data-phase="running"]::before {
-  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
-  animation: terminal-spin 800ms steps(10) infinite;
-  animation-delay: inherit;
 }
 
 /* A tab scrolled out of the list's sight (tab-sight.ts) rests its spinners and blinks, which
    pick up again as it scrolls back in. Last in the file, as specific as the rules that start
    them, whose `animation` would otherwise set them running again. */
-.terminal-tab[data-offscreen]
-  :is(.terminal-glyph, .terminal-tab-subagent, .terminal-tab-wait, .team-fold-mark)::before {
+.terminal-tab[data-offscreen] :is(.phase-glyph, .terminal-tab-subagent)::before {
   animation-play-state: paused;
 }

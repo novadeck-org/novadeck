@@ -1,5 +1,6 @@
 import type { Work, WorkClosing } from "@novadeck/core/works"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -181,8 +182,7 @@ const standingIcons: Readonly<Record<Exclude<Standing, "working">, LucideIcon>> 
 }
 
 const StandingIcon = ({ standing }: { standing: Standing }): React.JSX.Element => {
-  if (standing === "working")
-    return <span aria-hidden className="terminal-glyph inline-block w-[1ch] text-center" />
+  if (standing === "working") return <PhaseGlyph phase="running" />
   const Icon = standingIcons[standing]
   return <Icon size={14} strokeWidth={1.5} aria-hidden />
 }

@@ -80,7 +80,7 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(rows).not.toBeNull()
     const row = rowOf(tabOf(worker).getAttribute("data-terminal-tab-id")!)!
     expect(row.textContent).toContain(worker)
-    expect(row.querySelector(".terminal-tab-need[data-need='unblock']")).not.toBeNull()
+    expect(row.querySelector(".need-mark[data-need='unblock']")).not.toBeNull()
     // Its wire fades out; the cursor stays.
     expect(shape()?.hasAttribute("data-faded")).toBe(true)
     await expect.poll(segmentFaded).toBe(true)
