@@ -735,6 +735,18 @@ keeps the workspace.
     install section, the uninstaller and `CHECK_APP_RUNNING`, that `installer.nsh` is still
     included by name from `directories.buildResources`, and that the install section still
     runs `customInstall`.
+- **The goodbye page.** An uninstall the person starts opens
+  `https://novadeck.dev/bye?os=<macos|windows|linux>&v=<version>` in their browser, once; the
+  URL carries nothing else. On Windows the NSIS uninstaller does it (`customUnInit` decides,
+  `customUnInstall` opens it as the user with StdUtils `ExecShellAsUser`), not for `/S`, not for
+  `--updated` (an update's run of the old uninstaller, which is also silent), never in an install.
+  Builder's one-click uninstaller turns itself silent after its confirmation, so the macro reads
+  the command line, not `${Silent}`. It opens just before the files are removed, since builder
+  has no later hook; the exits before that point have already quit. The app's own Uninstall
+  opens nothing on Windows (it starts that uninstaller) and opens the page itself on macOS and
+  Linux, after the removal and before the page quits (`uninstall.ts`, `sayGoodbye`). Not
+  covered, as nothing runs: dragging the app to the Trash, deleting the AppImage by hand, and
+  the install script's `--uninstall`. A portable copy has no uninstall.
 - **Legacy uninstallers.** The setup first runs the installed copy's own uninstaller
   (`uninstallOldVersion` in `installUtil.nsh`, `/S --updated`). An install made before the
   macro carries builder's old check. With PowerShell passing its two availability tests it

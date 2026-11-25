@@ -51,7 +51,7 @@ To remove Novadeck, press **Uninstall…** under About in Preferences. It discon
 agents you connected, ends your terminals, and removes the app: on Linux the AppImage, its
 `novadeck` command, menu entry and icon, and, through a password prompt, the sandbox profile
 (if the prompt is not available it shows the command to run instead); on macOS it moves the
-app to the Trash; on Windows it starts the uninstaller. Your projects and sessions stay unless
+app to the Trash; on Windows it starts the uninstaller. Uninstalling this way, or from Windows Settings, opens a goodbye page in your browser (it is told only your system and Novadeck's version). Your projects and sessions stay unless
 you untick **Keep my projects and sessions** (there is no such box when Novadeck runs with
 its own `--user-data-dir`, whose folder it never deletes). A portable copy has nothing installed and shows
 no such button, and a Homebrew install shows the `brew uninstall --cask novadeck` command to
