@@ -509,10 +509,16 @@ export const switchOffForges = (forges: Backend["forges"]): void => {
     if (connection.enabled || connection.busy) forges?.set(connection.forge, false)
 }
 
+// Turns Novadeck's own pi off where it is on, as the Experimental switch going off does: the
+// runner then fetches and starts none, and keeps a copy it has.
+export const switchOffBundledPi = (bundledPi: Backend["bundledPi"]): void => {
+  if (bundledPi?.enabled.getSnapshot()) bundledPi.set(false)
+}
+
 // The Experimental features a backend keeps as settings, which all go off with the switch.
 export type ExperimentalFeatures = Pick<
   Backend,
-  "worktrees" | "forges" | "agentModes" | "shippingGate"
+  "worktrees" | "forges" | "agentModes" | "shippingGate" | "bundledPi"
 >
 
 export const switchOffExperimental = ({
@@ -520,10 +526,12 @@ export const switchOffExperimental = ({
   forges,
   agentModes,
   shippingGate,
+  bundledPi,
 }: ExperimentalFeatures): void => {
   switchOffWorktrees(worktrees)
   switchOffAgentModes(agentModes)
   switchOffShippingGate(shippingGate)
+  switchOffBundledPi(bundledPi)
   switchOffForges(forges)
 }
 

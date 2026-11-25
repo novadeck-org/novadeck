@@ -160,8 +160,11 @@ export const scripted = ({
   createProject = unused,
   move = () => new Promise<never>(() => {}),
   follows = false,
+  bundledPi,
 }: {
   shown: readonly Saved[]
+  // Whether Novadeck's own pi is on, as a runner from revision 16 says; absent, as one before it.
+  bundledPi?: boolean
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
@@ -383,6 +386,10 @@ export const scripted = ({
     agentMode: "herd",
     shippingGate: false,
     worktrees: false,
+    ...(bundledPi !== undefined && {
+      bundledPi,
+      bundledPiFetch: { state: bundledPi ? ("ready" as const) : ("off" as const) },
+    }),
     ...(forges ? { forges } : {}),
     agents: [
       { agent: "claude", available: true, connected: false },

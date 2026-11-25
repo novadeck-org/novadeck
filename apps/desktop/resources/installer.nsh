@@ -39,10 +39,59 @@
 # The installer also leaves a marker, `RunningCheck`, in builder's install registry key
 # (deleted with it on uninstall), by which the app tells installed copies that have this
 # check from older ones, whose uninstaller the new setup runs first.
+#
+# The uninstaller opens Novadeck's goodbye page in the person's browser, once, for an uninstall
+# the person chose: Windows Settings or the Start menu, or the app's own Uninstall, which starts
+# this uninstaller (the app opens nothing on Windows). Never for an update's run of the old
+# uninstaller (`--updated`), nor for a silent one (`/S`, a script or the installer's own
+# `uninstallOldVersion`), and never during an install. Builder's one-click uninstaller turns
+# silent itself once the person has confirmed, so `${Silent}` cannot tell the two apart in the
+# removal; `customUnInit` reads the command line instead. The page is opened as the person,
+# not with this process's rights, and carries only the system and the version that was
+# installed. It opens where `customUnInstall` runs, before the files go: builder gives no
+# later hook, and the only ways out before that point (declining the confirmation, an app that
+# cannot be closed) have already quit. See docs/auto-update.md.
+!ifdef BUILD_UNINSTALLER
+  # 1 when this run is an uninstall the person started.
+  Var novadeckBye
+!endif
 !ifndef BUILD_UNINSTALLER
   # 1 once a self-update has closed a copy that was started after this setup was.
   Var novadeckReopened
 !endif
+
+!macro customUnInit
+  Push $R0
+  Push $R1
+  StrCpy $novadeckBye 1
+  ${If} ${isUpdated}
+    StrCpy $novadeckBye 0
+  ${EndIf}
+  ClearErrors
+  ${GetParameters} $R0
+  ${GetOptions} $R0 "/S" $R1
+  ${IfNot} ${Errors}
+    StrCpy $novadeckBye 0
+  ${EndIf}
+  ClearErrors
+  Pop $R1
+  Pop $R0
+!macroend
+
+!macro customUnInstall
+  ${If} $novadeckBye == 1
+    Push $0
+    Push $1
+    # The version that was installed, as the install wrote it; this setup's own is the fallback.
+    ReadRegStr $0 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" DisplayVersion
+    ${If} $0 == ""
+      StrCpy $0 "${VERSION}"
+    ${EndIf}
+    ${StdUtils.ExecShellAsUser} $1 "https://novadeck.dev/bye?os=windows&v=$0" "open" ""
+    Pop $1
+    Pop $0
+  ${EndIf}
+!macroend
 
 !macro customInstall
   WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" RunningCheck 1

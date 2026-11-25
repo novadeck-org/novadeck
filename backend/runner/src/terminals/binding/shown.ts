@@ -255,13 +255,16 @@ export class Shown {
    * Whether a prompt the harness shows counts: it is connected, and Novadeck's hooks run
    * for it there, as `where` (see `harnessIn`) asks it. `untrusted` only when the harness
    * answered that they don't run there, as nothing could deliver to that agent; `unknown`
-   * when it couldn't answer, or nothing could ask it.
+   * when it couldn't answer, or nothing could ask it. A report from Novadeck's own copy of
+   * the agent (`own`) counts: Novadeck started it with its hooks.
    */
   async promptTrust(
     record: Record,
     agent: AgentName,
     where?: Where,
+    own = false,
   ): Promise<"counts" | "untrusted" | "unknown"> {
+    if (own) return "counts"
     if (!(await this.host.connected(agent))) return "unknown"
     const trusted = await this.hooksTrustedIn(record, agent, where).catch(() => undefined)
     return trusted === true ? "counts" : trusted === false ? "untrusted" : "unknown"

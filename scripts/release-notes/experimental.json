@@ -27,6 +27,15 @@
       "paths": ["frontend/ui/src/preferences/AgentModePicker.tsx"]
     },
     "shipping-gate": { "scopes": ["shipping"], "paths": ["backend/runner/src/shipping/"] },
+    "bundled-pi": {
+      "scopes": ["bundled-pi"],
+      "paths": [
+        "backend/runner/src/harnesses/bundled-pi.ts",
+        "backend/relay/src/fetch.rs",
+        "harnesses/pi/src/bundled.ts",
+        "frontend/ui/src/preferences/bundled-pi.ts"
+      ]
+    },
     "forges": {
       "scopes": ["forges"],
       "paths": ["backend/runner/src/forges/", "libraries/forges/"]

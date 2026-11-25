@@ -16,6 +16,13 @@ export const brewUninstallCommand = "brew uninstall --cask novadeck"
 // was moved out of it. A cask's AppImage on Linux is a link into it.
 const caskroomPrefixes = ["/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"]
 
+/**
+ * The page that says goodbye, opened in the person's browser once they uninstall. It
+ * carries the operating system and the version and nothing else: no ID, no machine detail.
+ */
+export const goodbyeUrl = (platform: NodeJS.Platform, version: string): string =>
+  `https://novadeck.dev/bye?os=${platform === "win32" ? "windows" : platform === "darwin" ? "macos" : "linux"}&v=${encodeURIComponent(version)}`
+
 /** Where the AppArmor profile the installer wrote lives, for the user `uid`. */
 const apparmorProfile = (uid: number): string => `/etc/apparmor.d/novadeck-appimage-${uid}`
 
@@ -39,6 +46,10 @@ export type UninstallHost = {
   readonly portable: boolean
   readonly env: Readonly<Record<string, string | undefined>>
   readonly home: string
+  /** The running app's version, which the goodbye page learns. */
+  readonly version: string
+  /** Opens a page in the person's browser; the goodbye page is the one this opens. */
+  readonly openExternal: (url: string) => Promise<unknown>
   /** The running executable. */
   readonly execPath: string
   /** The folder Electron keeps this app's data in; the one the person's data lives in. */
@@ -236,6 +247,9 @@ export type Uninstaller = {
  * - macOS moves the bundle to the Trash before even the shutdown, which can fail on a
  *   permission and can be undone, so a refusal leaves the running app as it was and a retry
  *   can work; data is deleted after the shutdown.
+ * - Linux and macOS open the goodbye page in the browser once the app is removed, before
+ *   the page quits. Windows does not: its NSIS uninstaller opens the page itself, when it
+ *   runs interactively, so a second tab would open here.
  * - Windows cannot delete the running executable, so the NSIS uninstaller is started
  *   detached and the app quits for it. The installer's default keeps the data in
  *   `%APPDATA%`, and `keepData: false` asks nothing of it: Chromium holds that folder open
@@ -326,6 +340,16 @@ export const uninstaller = (host: UninstallHost): Uninstaller => {
     return { kind: "uninstalling" }
   }
 
+  // Opens the goodbye page once the app is removed, before the page quits the app. A
+  // browser that does not open is no reason to fail an uninstall that worked.
+  const sayGoodbye = async (result: UninstallResult): Promise<UninstallResult> => {
+    if (result.kind !== "removed") return result
+    await host
+      .openExternal(goodbyeUrl(host.platform, host.version))
+      .catch((error: unknown) => host.log("The goodbye page did not open.", error))
+    return result
+  }
+
   const run = async (keepData: boolean): Promise<UninstallResult> => {
     const target = identify(host)
     if (!isTarget(target)) return failed("Novadeck can't be uninstalled from this copy.")
@@ -347,10 +371,11 @@ export const uninstaller = (host: UninstallHost): Uninstaller => {
     try {
       switch (target.kind) {
         case "linux":
-          return await linux(target, keepData)
+          return await sayGoodbye(await linux(target, keepData))
         case "mac":
-          return await macData(target, keepData)
+          return await sayGoodbye(await macData(target, keepData))
         case "windows":
+          // The NSIS uninstaller opens the page itself, when it runs interactively.
           return await windows(target, keepData)
       }
     } catch (error) {

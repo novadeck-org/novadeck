@@ -228,6 +228,8 @@ describe("Novadeck's pi extension", () => {
         effort: "high",
       }),
     ])
+    // The person's pi: not Novadeck's own.
+    expect((await pi.reports())[0]).not.toHaveProperty("novadeck_own")
     // pi's own process, by which the relay names the agent: on Windows its process is node.
     expect(await pi.pids()).toEqual([String(process.pid)])
     expect(process.env.NOVADECK_PI_PID).toBeUndefined()
@@ -249,6 +251,34 @@ describe("Novadeck's pi extension", () => {
       },
     ])
     await pi.emit("session_shutdown", { reason: "quit" })
+  })
+
+  it("marks its reports, and leaves the person's models alone, in Novadeck's own pi", async () => {
+    const before = process.env.NOVADECK_PI
+    // A process's first load decides, which earlier tests here made as the person's pi.
+    delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+    process.env.NOVADECK_PI = "bundled"
+    try {
+      await rm(join(root, "models.json"), { force: true })
+      const pi = await load()
+      // Taken out of the environment, so a pi its tools start is the person's; loaded again, as
+      // on /reload, it still knows.
+      expect(process.env.NOVADECK_PI).toBeUndefined()
+      const again = await load()
+      await again.emit("session_start", { reason: "new" })
+      expect((await again.reports()).at(-1)).toMatchObject({ novadeck_own: true })
+      await pi.emit("session_start", { reason: "startup" })
+      // Its reports say they are Novadeck's own pi's, which counts as connected.
+      expect(await pi.reports()).toEqual([
+        expect.objectContaining({ hook_event_name: "SessionStart", novadeck_own: true }),
+      ])
+      await expect(readFile(join(root, "models.json"), "utf8")).rejects.toThrow("ENOENT")
+      await pi.emit("session_shutdown", { reason: "quit" })
+    } finally {
+      if (before === undefined) delete process.env.NOVADECK_PI
+      else process.env.NOVADECK_PI = before
+      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+    }
   })
 
   it("gives a prompt's delivery to the model right after the prompt", async () => {

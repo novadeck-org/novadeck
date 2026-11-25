@@ -24,6 +24,34 @@ const tarProgram =
     ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\tar.exe`
     : "tar"
 
+/**
+ * Unpacks `archive`, a gzipped tar or a ZIP, into the folder `into` with the system's `tar`, which
+ * Windows 10 and later have too and which reads both; a failure is an `EngineError` that starts
+ * with `failure`.
+ */
+export const extract = (
+  archive: string,
+  into: string,
+  failure: string,
+  signal?: AbortSignal,
+): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    const child = spawn(tarProgram, ["-xf", archive, "-C", into], {
+      stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
+      ...(signal && { signal }),
+    })
+    let errors = ""
+    child.stderr.setEncoding("utf8")
+    child.stderr.on("data", (chunk: string) => (errors = (errors + chunk).slice(-500)))
+    child.on("error", (error) =>
+      reject(signal?.aborted ? error : new EngineError(`${failure}: ${error.message}`)),
+    )
+    child.on("close", (code) =>
+      code === 0 ? resolve() : reject(new EngineError(`${failure}: ${errors.trim() || code}`)),
+    )
+  })
+
 /** Where engines unpacked from archives live, one folder per archive, under `directory`. */
 export const enginesIn = (directory: string): string => join(directory, "engine")
 
@@ -83,28 +111,7 @@ export const unpack = async (
   const staging = join(enginesIn(directory), `.unpacking-${randomUUID()}`)
   await mkdir(staging, { recursive: true })
   try {
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(tarProgram, ["-xzf", archive, "-C", staging], {
-        stdio: ["ignore", "ignore", "pipe"],
-        windowsHide: true,
-        ...(signal && { signal }),
-      })
-      let errors = ""
-      child.stderr.setEncoding("utf8")
-      child.stderr.on("data", (chunk: string) => (errors = (errors + chunk).slice(-500)))
-      child.on("error", (error) =>
-        reject(
-          signal?.aborted
-            ? error
-            : new EngineError(`Could not unpack the engine: ${error.message}`),
-        ),
-      )
-      child.on("close", (code) =>
-        code === 0
-          ? resolve()
-          : reject(new EngineError(`Could not unpack the engine: ${errors.trim() || code}`)),
-      )
-    })
+    await extract(archive, staging, "Could not unpack the engine", signal)
     if (!(await exists(join(staging, program))))
       throw new EngineError("The engine's archive does not hold the engine for this system.")
     if (process.platform !== "win32") await chmod(join(staging, program), 0o755)

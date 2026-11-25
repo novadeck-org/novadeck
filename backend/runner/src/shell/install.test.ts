@@ -13,6 +13,7 @@ import { join } from "node:path"
 
 import { vi } from "vitest"
 
+import { buildFor } from "../harnesses/bundled-pi.js"
 import { agyPreToolUse, setAgyPreToolUse } from "../shipping/hooks.js"
 import { describe, expect, it } from "../test.js"
 import { ownHome } from "../testing/host.js"
@@ -135,6 +136,38 @@ describe("the Windows shims", () => {
     const shims = shellFiles(paths, "linux").filter((file) => file.path.startsWith(paths.bin))
     expect(shims.length).toBeGreaterThan(0)
     for (const { content } of shims) expect(content).not.toContain("\r")
+  })
+})
+
+describe("Novadeck's own pi's launcher", () => {
+  it("starts the build fetched into Novadeck's data folder, beside the shell folder, on its own agent folder", () => {
+    const paths = shellPaths(join("/data", "shell"), "linux")
+    const launcher = shellFiles(paths, "linux").find(
+      (file) => file.path === paths.bundledPi.launcher,
+    )
+    expect(paths.bundledPi).toEqual({
+      launcher: join("/data", "shell", "bundled", "pi"),
+      data: join("/data"),
+    })
+    expect(launcher?.mode).toBe(0o700)
+    expect(launcher?.content).toContain(`'${join("/data", "bundled", "pi", "agent")}'`)
+    const build = buildFor("linux", process.arch === "arm64" ? "arm64" : "x64")
+    if (!build) throw new Error("no Linux build")
+    expect(launcher?.content).toContain(
+      `novadeck_program='${join("/data", "bundled", "pi", `1.6.0-${build.sha256.slice(0, 12)}`, "pi", "pi")}'`,
+    )
+    expect(launcher?.content).toContain(`'${paths.relay}' fetch pi`)
+    expect(launcher?.content).toContain(`-e '${join(paths.plugins.pi, "novadeck.mjs")}'`)
+  })
+
+  it("is a cmd file with CRLF line endings on Windows", () => {
+    const paths = shellPaths("C:\\data\\shell", "win32")
+    const launcher = shellFiles(paths, "win32").find(
+      (file) => file.path === paths.bundledPi.launcher,
+    )
+    expect(paths.bundledPi.launcher.endsWith("pi.cmd")).toBe(true)
+    expect(launcher?.content).toContain("\r\n")
+    expect(launcher?.content).not.toMatch(/(?<!\r)\n/)
   })
 })
 

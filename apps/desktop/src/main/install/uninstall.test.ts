@@ -8,6 +8,7 @@ import { quitAppChannel, uninstallAppChannel, uninstallPlanChannel } from "../..
 import { context, describe, expect, it } from "../../test"
 import {
   brewUninstallCommand,
+  goodbyeUrl,
   isRemovable,
   registerUninstallIpc,
   removalScript,
@@ -33,6 +34,9 @@ const hosting = (
   ],
 ) => {
   const calls: string[] = []
+  // The pages the browser was asked to open, kept apart so each test's list of calls stays
+  // about the removal.
+  const opened: string[] = []
   const present = new Set(files)
   // Whether the shutdown ran, which is what makes the app report that it is quitting.
   let stopped = false
@@ -42,6 +46,8 @@ const hosting = (
     portable: false,
     env: { APPIMAGE: image },
     home,
+    version: "1.2.3",
+    openExternal: async (url) => void opened.push(url),
     execPath: "/tmp/.mount_nova/novadeck",
     userData: `${home}/.config/novadeck`,
     defaultUserData: `${home}/.config/novadeck`,
@@ -77,7 +83,7 @@ const hosting = (
     log: () => {},
     ...overrides,
   }
-  return { host, calls, present }
+  return { host, calls, present, opened }
 }
 
 const profile = "/etc/apparmor.d/novadeck-appimage-1000"
@@ -394,6 +400,76 @@ describe("uninstalling on Windows", () => {
       reason: expect.stringContaining("quit it and open it again") as string,
     })
     expect(calls).toEqual(["shutdown"])
+  })
+})
+
+describe("the goodbye page", () => {
+  const bye = (os: string): string => `https://novadeck.dev/bye?os=${os}&v=1.2.3`
+
+  it("opens once on Linux, after the AppImage is removed and before the quit", async () => {
+    const { host, calls } = hosting({
+      openExternal: async (url) => void calls.push(`open ${url}`),
+    })
+    await uninstaller(host).uninstall({ keepData: true })
+    expect(calls.filter((call) => call.startsWith("open "))).toEqual([`open ${bye("linux")}`])
+    expect(calls.indexOf(`open ${bye("linux")}`)).toBeGreaterThan(calls.indexOf(`remove ${image}`))
+  })
+
+  it("opens once on macOS, after the move to the Trash", async () => {
+    const { host, calls, opened } = mac({
+      openExternal: async (url) => void calls.push(`open ${url}`),
+    })
+    await uninstaller(host).uninstall({ keepData: true })
+    expect(opened).toEqual([])
+    expect(calls.filter((call) => call.startsWith("open "))).toEqual([`open ${bye("macos")}`])
+    expect(calls.indexOf(`open ${bye("macos")}`)).toBeGreaterThan(
+      calls.indexOf("trash /Applications/Novadeck.app"),
+    )
+  })
+
+  it("is left to the Windows uninstaller, which opens it itself", async () => {
+    vi.useFakeTimers()
+    const { host, opened } = windows()
+    await uninstaller(host).uninstall({ keepData: true })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(opened).toEqual([])
+  })
+
+  it("does not open when nothing was removed", async () => {
+    const refused = mac({
+      trash: async () => {
+        throw new Error("denied")
+      },
+    })
+    await uninstaller(refused.host).uninstall({ keepData: true })
+    const stopped = hosting({
+      remove: async () => {
+        throw new Error("EACCES")
+      },
+    })
+    await uninstaller(stopped.host).uninstall({ keepData: true })
+    const unavailable = hosting({ portable: true })
+    await uninstaller(unavailable.host).uninstall({ keepData: true })
+    expect([refused.opened, stopped.opened, unavailable.opened]).toEqual([[], [], []])
+  })
+
+  it("still reports the removal when the browser does not open", async () => {
+    const log = vi.fn<UninstallHost["log"]>()
+    const { host } = hosting({
+      openExternal: async () => {
+        throw new Error("no browser")
+      },
+      log,
+    })
+    expect(await uninstaller(host).uninstall({ keepData: true })).toEqual({ kind: "removed" })
+    expect(log).toHaveBeenCalledWith("The goodbye page did not open.", expect.any(Error))
+  })
+
+  it("carries the system and the version, and nothing else", () => {
+    expect(goodbyeUrl("darwin", "1.10.5-beta.1")).toBe(
+      "https://novadeck.dev/bye?os=macos&v=1.10.5-beta.1",
+    )
+    expect(goodbyeUrl("win32", "1.0.0")).toBe("https://novadeck.dev/bye?os=windows&v=1.0.0")
   })
 })
 
