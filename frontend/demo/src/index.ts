@@ -31,6 +31,7 @@ import type { DemoAgentLink } from "./agents/link"
 import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
+import { createDemoBundledPi } from "./bundled-pi"
 import { withFeedback } from "./feedback"
 import { withFiles } from "./files"
 import { createDemoForges } from "./forges"
@@ -204,6 +205,7 @@ export const demoBackend = (
       enabled: shippingGate,
       set: (enabled) => shippingGate.update(() => enabled),
     },
+    bundledPi: createDemoBundledPi(),
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {

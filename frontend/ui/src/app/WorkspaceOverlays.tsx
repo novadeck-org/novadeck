@@ -2,7 +2,7 @@ import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
 import { isOnBar } from "@novadeck/core/items"
-import type { AgentMode, Backend } from "@novadeck/core/port"
+import type { AgentMode, Backend, BundledPiFetchState } from "@novadeck/core/port"
 import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { SchemePreference, Tile } from "@novadeck/core/types"
@@ -149,6 +149,29 @@ const useShippingGate = (
   )
   return shippingGate && { enabled, onChange: shippingGate.set }
 }
+
+// Whether Novadeck's own pi is on, and where its download stands, for Preferences; undefined
+// where the backend has none, as a runner from before it.
+const useBundledPi = (
+  bundledPi: Backend["bundledPi"],
+):
+  | {
+      readonly enabled: boolean
+      readonly fetch: BundledPiFetchState
+      readonly onChange: (enabled: boolean) => void
+    }
+  | undefined => {
+  const enabled = useSyncExternalStore(
+    bundledPi?.enabled.subscribe ?? always,
+    () => bundledPi?.enabled.getSnapshot() ?? false,
+  )
+  const fetch = useSyncExternalStore(
+    bundledPi?.fetch.subscribe ?? always,
+    () => bundledPi?.fetch.getSnapshot() ?? offFetch,
+  )
+  return bundledPi && { enabled, fetch, onChange: bundledPi.set }
+}
+const offFetch: BundledPiFetchState = { state: "off" }
 
 // Whether agents get worktrees, for Preferences; undefined where the backend has none.
 const useWorktrees = (
@@ -389,6 +412,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const agentModes = useAgentModes(backend.agentModes)
   const agentMode = useAgentMode(backend.agentMode)
   const shippingGate = useShippingGate(backend.shippingGate)
+  const bundledPi = useBundledPi(backend.bundledPi)
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents, backend.projectWindows?.extra === true)
   const installs = useInstalls(backend.agents)
@@ -691,6 +715,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(agentModes ? { agentModes } : {})}
           {...(agentMode ? { agentMode } : {})}
           {...(shippingGate ? { shippingGate } : {})}
+          {...(bundledPi ? { bundledPi } : {})}
           {...(worktrees ? { worktrees } : {})}
           tour={tour !== undefined}
           notices={backend.notices !== undefined}

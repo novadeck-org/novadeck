@@ -23,6 +23,30 @@ const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe("following another device", () => {
   context("when the runner tells of its settings as they change", () => {
+    it("shows where Novadeck's own pi's download stands, as the runner tells it", async () => {
+      const app = scripted({ shown: [], follows: true, bundledPi: false })
+      app.settingsChanges.push(
+        settings({
+          bundledPi: true,
+          bundledPiFetch: { state: "downloading", received: 1_000_000, size: 59_000_000 },
+        }),
+      )
+      await settled()
+      expect(app.backend.bundledPi!.enabled.getSnapshot()).toBe(true)
+      expect(app.backend.bundledPi!.fetch.getSnapshot()).toEqual({
+        state: "downloading",
+        received: 1_000_000,
+        size: 59_000_000,
+      })
+      // A state a newer runner added reads as off.
+      app.settingsChanges.push(
+        settings({ bundledPi: true, bundledPiFetch: { state: "paused" as "off" } }),
+      )
+      await settled()
+      expect(app.backend.bundledPi!.fetch.getSnapshot()).toEqual({ state: "off" })
+      app.stop()
+    })
+
     it("shows each switch as another device left it", async () => {
       const app = scripted({ shown: [], follows: true, inboxOrder: [], inboxSnoozed: [] })
       app.settingsChanges.push(

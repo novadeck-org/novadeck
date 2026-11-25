@@ -31,6 +31,15 @@ import type { Works } from "./works"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 
+// Where the download of Novadeck's own pi stands: `downloading` with the bytes so far of `size`,
+// `failed` with why.
+export type BundledPiFetchState = {
+  readonly state: "off" | "downloading" | "ready" | "failed"
+  readonly received?: number
+  readonly size?: number
+  readonly error?: string
+}
+
 export type { TerminalKey }
 
 // One terminal drawn into an element the UI gives it, synchronously: its input exists on
@@ -395,6 +404,16 @@ export type BackendFields = {
   // backend has none.
   readonly shippingGate?: {
     readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
+  // Optional. Whether Novadeck's own pi (Novadeck Agent) is on, an Experimental switch the runner
+  // keeps: on, the runner downloads its pinned pi once; off, nothing fetches or starts it, and a
+  // copy in place stays. `fetch` is where its download stands. Absent where the backend has none,
+  // as a runner from before it (revision 16).
+  readonly bundledPi?: {
+    readonly enabled: Store<boolean>
+    readonly fetch: Store<BundledPiFetchState>
+    // On again after a failed download tries it again.
     readonly set: (enabled: boolean) => void
   }
   // Optional. How agents work with each other, which decides the version of Novadeck's tool

@@ -8,6 +8,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./bundled": {
+      "development": "./src/bundled.ts",
+      "types": "./dist/bundled.d.ts",
+      "default": "./dist/bundled.js"
+    },
     "./box": {
       "development": "./src/box.ts",
       "types": "./dist/box.d.ts",

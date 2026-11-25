@@ -285,6 +285,62 @@ describe("the Agents work as choice", () => {
   })
 })
 
+describe("the Novadeck Agent row", () => {
+  const piSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="bundled-pi-label"]')
+  const note = (): HTMLElement | null =>
+    document.querySelector('[data-experimental-note="bundled-pi"]')
+
+  it("isn't there where the runner has no such switch, as one from before revision 16", async () => {
+    await show({ tab: "experimental", experimental: experimental(true) })
+    expect(document.getElementById("bundled-pi-label")).toBeNull()
+  })
+
+  it("writes the backend's setting, and says what it costs", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      bundledPi: {
+        enabled: false,
+        fetch: { state: "off" },
+        onChange: (enabled) => changes.push(enabled),
+      },
+    })
+    expect(document.getElementById("bundled-pi-label")?.textContent).toBe(
+      "Novadeck Agent (pi built in)",
+    )
+    expect(document.getElementById("bundled-pi-description")?.textContent).toContain("50–60 MB")
+    expect(note()).toBeNull()
+    piSwitch()?.click()
+    expect(changes).toEqual([true])
+  })
+
+  it("says where the download stands, and offers to try a failed one again", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      bundledPi: {
+        enabled: true,
+        fetch: { state: "failed", error: "Could not reach github.com. Check the connection." },
+        onChange: (enabled) => changes.push(enabled),
+      },
+    })
+    expect(note()?.getAttribute("role")).toBe("alert")
+    expect(note()?.textContent).toContain("Could not reach github.com.")
+    // The switch is described by its note too.
+    expect(piSwitch()?.getAttribute("aria-describedby")).toBe(
+      "bundled-pi-description bundled-pi-note",
+    )
+    const retry = [...(note()?.querySelectorAll("button") ?? [])].find(
+      (button) => button.textContent === "Try again",
+    )
+    retry?.click()
+    expect(changes).toEqual([true])
+  })
+})
+
 describe("the tab Preferences opens on when none is named", () => {
   const agent = { agent: "claude" as const, available: true, connected: false, busy: false }
 

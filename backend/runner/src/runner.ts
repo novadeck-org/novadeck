@@ -17,6 +17,7 @@ import { Devices } from "./devices/devices.js"
 import { DomainError } from "./errors.js"
 import { repositoriesOf } from "./forges/repositories.js"
 import { Forges } from "./forges/service.js"
+import { BundledPi } from "./harnesses/bundled-pi.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
@@ -446,8 +447,20 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   // The terminals below are made with the gate, which asks them only once it is answering.
   const shippingTerminals = (): Terminals => terminals
+  // Novadeck's own pi (Experimental), fetched into the data folder beside the shell files: its
+  // launcher asks for it, and its switch, read live, starts its fetch, here as the runner starts.
+  // Only with the shell files, which hold its launcher.
+  const bundledPi =
+    options.shell === undefined
+      ? undefined
+      : new BundledPi({
+          data: dirname(options.shell),
+          enabled: () => store.settings.runner().bundledPi === true,
+        })
+  bundledPi?.switched()
   const terminals = new Terminals({
     shipping,
+    ...(bundledPi && { bundledPi }),
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
@@ -622,6 +635,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     agents,
     terminals,
     shipping,
+    bundledPi,
     items,
     projects,
     works,
@@ -710,6 +724,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     rewriteShellFiles,
     terminals,
     shipping,
+    bundledPi,
     items,
     agents,
     projects,
@@ -754,6 +769,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
       // hooks, so they are written again, and a Codex copy that differs is installed again.
       shipping,
+      ...(bundledPi && { bundledPi }),
       shippingSwitched: () => {
         // Switched off, its open cards and permits end, and the terminals' summaries say so.
         shipping.switched()
