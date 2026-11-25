@@ -155,7 +155,8 @@ type Entry = {
 }
 
 // The most a program is left running for what it saves as the host shuts down, in
-// milliseconds: what the app's five seconds leave after the hangup's own grace.
+// milliseconds: taken from the shutdown's own budget for ending trees, so the hangup's grace
+// that follows is that much shorter, and the app's five seconds still hold.
 const shutdownSettleMs = 1_500
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))

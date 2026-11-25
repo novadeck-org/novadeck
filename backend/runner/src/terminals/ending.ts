@@ -34,17 +34,19 @@ export const agentProcess = (record: Pick<Record, "bound"> | undefined): number 
 
 /**
  * How long, in milliseconds, the agent bound to this terminal is left running before its end:
- * what its harness says it needs after a turn's end (`Harness.saveMs`) less what has passed,
- * none once it has had it, or while it works, as a turn's end is what starts the wait.
+ * what its harness says it needs after a turn's end (`Harness.saveMs`) less what has passed
+ * since its latest turn's end was told (`lastTurn.at`). None once it has had it, while it works
+ * (ending a turn is a stop the person chose), or before any turn of its has ended.
  */
 export const savingMs = (
   record: Pick<Record, "bound"> | undefined,
   now: number = Date.now(),
 ): number => {
   const bound = record?.bound
-  if (!bound || bound.activity.state !== "idle") return 0
+  const ended = bound?.activity.lastTurn?.at
+  if (!bound || bound.activity.state !== "idle" || ended === undefined) return 0
   const save = harnesses[bound.binding.agent].saveMs
-  return save === undefined ? 0 : Math.max(0, bound.activity.turnAt + save - now)
+  return save === undefined ? 0 : Math.max(0, ended + save - now)
 }
 
 /**

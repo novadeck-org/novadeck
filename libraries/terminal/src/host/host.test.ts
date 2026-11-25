@@ -313,6 +313,38 @@ describe("a terminal host's close", () => {
     await closing
   })
 
+  it("ends the wait at once when the program exits by itself meanwhile", async () => {
+    vi.useFakeTimers()
+    onTestFinished(() => void vi.useRealTimers())
+    const { programs, host, open } = hostOf({}, undefined, { settle: () => 2_000 })
+    open("a")
+    let closed = false
+    const closing = host.terminate("a").then(() => {
+      closed = true
+    })
+    await vi.advanceTimersByTimeAsync(100)
+    programs[0]!.exit(0)
+    await vi.advanceTimersByTimeAsync(0)
+    await closing
+    expect(closed).toBe(true)
+    expect(programs[0]!.calls.filter((call) => call.startsWith("kill"))).toEqual([])
+  })
+
+  it("leaves a program no more than 1.5 s for what it saves as the host shuts down", async () => {
+    vi.useFakeTimers()
+    onTestFinished(() => void vi.useRealTimers())
+    const { programs, host, open } = hostOf({}, undefined, { settle: () => 2_000 })
+    open("a")
+    const done = host.shutdown()
+    await vi.advanceTimersByTimeAsync(1_499)
+    expect(programs[0]!.calls.filter((call) => call.startsWith("kill"))).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(programs[0]!.calls.filter((call) => call.startsWith("kill"))).not.toEqual([])
+    programs[0]!.exit(0)
+    await vi.advanceTimersByTimeAsync(5_000)
+    await done
+  })
+
   it("ends an exited terminal's close at once", async () => {
     const { host, open, exit } = hostOf()
     open("a")
