@@ -159,6 +159,10 @@ type Entry = {
 // that follows is that much shorter, and the app's five seconds still hold.
 const shutdownSettleMs = 1_500
 
+/** How long a program is left running for what it saves: all it asks, but as the host shuts down. */
+export const settleFor = (saving: number, shuttingDown: boolean): number =>
+  shuttingDown ? Math.min(saving, shutdownSettleMs) : saving
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 // Each run's pty an agent ran in: the earlier runs' before a restart, and the current one.
@@ -243,10 +247,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
     // What the program is still saving, before the hangup: it can't be waited for after.
     const saving = options.settle?.(id) ?? 0
     if (saving > 0 && terminal.exit === null)
-      await Promise.race([
-        sleep(shutdownBy === undefined ? saving : Math.min(saving, shutdownSettleMs)),
-        terminal.exited,
-      ])
+      await Promise.race([sleep(settleFor(saving, shutdownBy !== undefined)), terminal.exited])
     const left = ran ? { listing: list, apart: kept } : undefined
     await Promise.all([
       terminal.pty.end({
