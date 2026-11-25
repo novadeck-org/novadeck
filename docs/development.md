@@ -337,7 +337,8 @@ Terminals:
   Many files and Work merged move those counts too. Commits not pushed gives the worktree 2 commits no
   remote holds, Work with a home toggles its home (again to remove it), Untitled worktree
   takes the work's agent-given title away (again to give it one), Untouched a day dates its last change 26 h back, Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
-  fetched 3 h ago dates its fetch three hours back; Commits main lacks is not merged because a merged one with nothing
+  fetch failing fails the selected terminal's project's fetch for two hours, so the footer's middle
+  shows Can't fetch within 20 s (a click on it clears it); Commits main lacks is not merged because a merged one with nothing
   uncommitted is safe, and closes without asking. The demo's
   fetch moves its project's fetch time to now. In the showcase, selecting a row shows its work as a changes item on the terminal's
   bar (see Changes below); in the other demos there is no pane to show it in.
@@ -591,11 +592,7 @@ Agents:
   added, a change with very long lines, a binary file, a file that may hold secrets, a change
   past what the runner reads (files listed by name, and "This change is too large to show
   here"), a merge of main shown against its first parent, flagged, as on a runner whose git is
-  older than 2.38 ("merge, against its first parent"), and one with no changes ("No changes against main"); a compare of two refs (`change-compare`), and
-  the same of `origin/main` in each state of how current origin is, told apart by their heads
-  (`feature/contact-fresh`, `-stale`, `-failed`, `-unfetched`): fetched minutes ago (no note),
-  over an hour ago ("origin last fetched 3 h ago", amber), a failed fetch ("origin fetch failed · last
-  fetched 20 min ago", amber, the reason in its title) and never fetched ("origin not fetched yet"). Their data is
+  older than 2.38 ("merge, against its first parent"), and one with no changes ("No changes against main"); and a compare of two refs (`change-compare`). Their data is
   `frontend/demo/src/showcase/changes.ts`: each is a small history of file texts
   (`history.ts`, a small git for the demo), from which the layers, their counts and every
   file's hunks and sides are read, as the runner reads them from git, so the facts the pane shows

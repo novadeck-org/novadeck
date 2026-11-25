@@ -21,7 +21,7 @@ import { timing } from "../checkouts/git.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { describe, expect, it as base } from "../test.js"
-import { nextWake, shownTitle, Works, type Removal, type Tracked } from "./works.js"
+import { nextWake, repositoryName, shownTitle, Works, type Removal, type Tracked } from "./works.js"
 
 const hasGit = (() => {
   try {
@@ -202,6 +202,7 @@ const open = (
     remove?: (root: string, force: boolean, safe?: boolean) => Promise<Removal>
     pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
     fetch?: (commonDirs: readonly string[]) => Promise<void>
+    origin?: (commonDir: string) => { failed?: string; failingSince?: number }
     /** Terminals in checkouts that are no tracked worktree, as plain terminals are. */
     plain?: readonly { terminalId: string; root: string }[]
     show?: (terminalId: string, root: string) => Promise<string>
@@ -236,6 +237,7 @@ const open = (
       }),
     ...(options.pullRequest && { pullRequest: options.pullRequest }),
     ...(options.fetch && { fetch: options.fetch }),
+    ...(options.origin && { origin: options.origin }),
     ...(options.onMade && { onMade: options.onMade }),
     ...(options.projectFolder && { projectFolder: options.projectFolder }),
     ...(options.held && { held: options.held }),
@@ -2255,6 +2257,37 @@ describe.skipIf(!hasGit)("what a work holds that lives only in its worktree", ()
       await works.fetch(project)
       expect(asked).toEqual([])
     })
+
+    it("tells the project's repositories whose fetches fail, oldest first, from what the fetches left", ({
+      resources,
+    }) => {
+      const rows = [
+        { terminalId: terminal(1), root: "/w/a", commonDir: "/r/api/.git" },
+        { terminalId: terminal(2), root: "/w/b", commonDir: "/r/web.git" },
+        { terminalId: terminal(3), root: "/w/c", commonDir: "/r/docs/.git" },
+        { terminalId: terminal(4), root: "/w/d", commonDir: "/r/api/.git" },
+      ]
+      const states: Record<string, { failed?: string; failingSince?: number }> = {
+        "/r/api/.git": { failed: "Could not resolve host", failingSince: 20 },
+        "/r/web.git": { failed: "Permission denied", failingSince: 10 },
+        "/r/docs/.git": {},
+      }
+      const { works } = open(() => rows, { origin: (dir) => states[dir] ?? {} })
+      resources.defer(() => works.close())
+      expect(works.origins(project)).toEqual([
+        { repository: "web", said: "Permission denied", since: 10 },
+        { repository: "api", said: "Could not resolve host", since: 20 },
+      ])
+      expect(works.origins("33333333-3333-4333-8333-333333333333")).toEqual([])
+    })
+  })
+})
+
+describe("a repository's name", () => {
+  it("is its folder's, or a bare repository's without .git", () => {
+    expect(repositoryName("/home/a/novadeck/.git")).toBe("novadeck")
+    expect(repositoryName("/srv/git/novadeck.git")).toBe("novadeck")
+    expect(repositoryName("/srv/git/mirror")).toBe("mirror")
   })
 })
 

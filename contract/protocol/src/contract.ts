@@ -88,7 +88,14 @@ import {
 } from "./terminals.js"
 import { tourPrepared } from "./tour.js"
 import { maxTranscriptImages, transcriptChange, transcriptImageResult } from "./transcripts.js"
-import { workChange, workClosing, workMade, workPreview } from "./works.js"
+import {
+  originFailing,
+  workChange,
+  workClosing,
+  workLimits,
+  workMade,
+  workPreview,
+} from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -729,6 +736,13 @@ export const contract = {
     // keeps the repository's last `fetchedAt`); the works are read again before it does. A
     // project with no works answers at once.
     fetch: procedure.input(z.strictObject({ projectId: id })).output(z.void()),
+    // The repositories of the project's works whose origin fails to fetch now, oldest failure
+    // first; none while each one's last fetch succeeded. Read from what the runner keeps, with
+    // no git run, so a client may ask often.
+    origins: procedure
+      .meta({ since: 19 })
+      .input(z.strictObject({ projectId: id }))
+      .output(z.array(originFailing).max(workLimits.origins)),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.

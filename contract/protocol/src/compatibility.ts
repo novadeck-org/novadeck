@@ -48,6 +48,7 @@ export const compatibility: Compatibility = {
   // 17: a work's `title` and `changedAt`.
   // 18: a work's pull request says its target branch, its checks one by one and where its review
   // stands (`base`, `checks`, `review`), the checks' state and the review read tolerantly.
+  // 19: the repositories of a project whose origin keeps failing to fetch (`works.origins`).
   // 20: the tour runs on Novadeck's own pi (`tour.fetch` downloads it ahead, and settings'
   // `bundledPiFetch` says where that download stands while its switch is off too); a UI offers
   // the tour only to a runner at 20, as one before it runs the tour on opencode.

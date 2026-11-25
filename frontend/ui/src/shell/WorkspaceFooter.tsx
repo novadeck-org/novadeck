@@ -4,6 +4,7 @@ import { useCallback, useState, type ReactNode } from "react"
 
 import { AgentChatOffer, type AgentChatOfferProps } from "./AgentChatOffer"
 import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
+import { FooterOrigin, type FooterOriginProps } from "./FooterOrigin"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { useOverlayOpen } from "./notice-focus"
 import { PortableInstall, type PortableInstallProps } from "./PortableInstall"
@@ -20,7 +21,8 @@ import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 // what a restart would do and offers it (RestartToUpdate.tsx).
 // A portable copy has a chip there instead, "Install Novadeck" or "Update available", in
 // the bar's own colours, which opens its notice (PortableInstall.tsx). Without the security
-// sandbox, a chip in the footer's middle says so (FooterSandbox.tsx). After an update, a card says what
+// sandbox, a chip in the footer's middle says so (FooterSandbox.tsx), as one does when the open
+// project's origin keeps failing to fetch (FooterOrigin.tsx). After an update, a card says what
 // is new until it is dismissed (WhatsNew.tsx); it waits while a download's bar
 // shows, since notices there don't stack. Agent Chat's one-time offer (AgentChatOffer.tsx) takes
 // the same corner, and goes before What's new: it is two lines answered in one click, and What's
@@ -42,6 +44,7 @@ export const WorkspaceFooter = ({
   whatsNew,
   chatOffer,
   sandbox,
+  origin,
   murmur,
   usage,
   feedback,
@@ -78,6 +81,9 @@ export const WorkspaceFooter = ({
   // Set while the app runs without its security sandbox: a chip in the footer's middle
   // opens the notice that says so.
   readonly sandbox?: FooterSandboxProps | undefined
+  // The open project's origin has kept failing to fetch: a chip in the footer's middle, after the
+  // sandbox's, that says why and fetches again.
+  readonly origin?: FooterOriginProps | undefined
   // Murmur's install under way or just ended, beside the update's chip.
   readonly murmur?: FooterMurmurProps | undefined
   // The account's subscriptions, at the right end before its buttons.
@@ -145,6 +151,8 @@ export const WorkspaceFooter = ({
           bar's height, so the sandbox notice it anchors rises from the bar's top edge. */}
       <span className="footer-middle relative flex items-center self-stretch">
         <FooterSandbox sandbox={sandbox} hidden={hidden} />
+        {/* Keyed by project: a fetch under way is the project's it was started for. */}
+        {!hidden && <FooterOrigin key={origin?.projectId} origin={origin} />}
       </span>
       {/* Two groups: the subscriptions, then the buttons and chips (`.footer-misc`), set
           apart only while both show something (region.css). */}

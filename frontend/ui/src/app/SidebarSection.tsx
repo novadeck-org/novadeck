@@ -218,10 +218,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     sameHandles,
   )
-  const fetchOrigin = useMemo(
-    () => (worksFeed?.fetch ? () => worksFeed.fetch!(projectId) : undefined),
-    [worksFeed, projectId],
-  )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
   const { revealTerminal, openBarTab } = commands
   // A work is shown on the bar of the terminal the panel names (its owner's, or the selected
@@ -275,7 +271,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
             onSelect: showWork,
             onCloseWork: worksFeed.close,
             handles: workHandles,
-            ...(fetchOrigin ? { onFetch: fetchOrigin } : {}),
             folded: foldedLeads,
             preview: foldPreview,
             unfolding,
@@ -290,7 +285,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
       worksReported,
       titles,
       workHandles,
-      fetchOrigin,
       selectedId,
       showWork,
       foldedLeads,

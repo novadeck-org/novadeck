@@ -5,7 +5,7 @@ import { join, resolve, sep } from "node:path"
 import { currentBranch, keysOfBranch, writeKeys } from "../checkouts/home.js"
 import { behindMain, mainBranch } from "../checkouts/repository.js"
 import { logs } from "../log.js"
-import { Cleanup, type CleanupHost, type OwnerState } from "./cleanup.js"
+import { Cleanup, type CleanupHost, type OriginStatus, type OwnerState } from "./cleanup.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
 import {
   addWorktree,
@@ -289,7 +289,7 @@ export class Worktrees {
   }
 
   /** When a repository was last fetched and why its last fetch failed (`Cleanup.originStatus`). */
-  originStatus(commonDir: string): { fetchedAt?: number; failed?: string } {
+  originStatus(commonDir: string): OriginStatus {
     return this.cleanup.originStatus(commonDir)
   }
 

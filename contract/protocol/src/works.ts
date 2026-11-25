@@ -15,6 +15,8 @@ export const workLimits = {
   branch: 256,
   conflicts: 32,
   title: 80,
+  // The repositories `works.origins` names at most.
+  origins: 32,
 } as const
 
 const count = z.number().int().min(0)
@@ -195,6 +197,15 @@ export const workPreview = z.strictObject({
   renames: z.array(previewRename).max(workLimits.conflicts),
 })
 
+// `works.origins`: one repository of a project's works whose origin fails to fetch now: its
+// folder's name, git's reason for the last failure (`said`) and when the fetches began failing
+// (`since`, epoch milliseconds), as the runner's own fetches and the person's found it.
+export const originFailing = z.strictObject({
+  repository: z.string().min(1).max(workLimits.path),
+  said: z.string().min(1).max(1024),
+  since: z.number(),
+})
+
 export type WorkFile = z.infer<typeof workFile>
 export type WorkConflict = z.infer<typeof workConflict>
 export type Work = z.infer<typeof work>
@@ -205,3 +216,4 @@ export type PreviewHunk = z.infer<typeof previewHunk>
 export type PreviewRename = z.infer<typeof previewRename>
 export type WorkPreviewWork = z.infer<typeof workPreviewWork>
 export type WorkPreview = z.infer<typeof workPreview>
+export type OriginFailing = z.infer<typeof originFailing>

@@ -15,15 +15,7 @@ import {
   TeamFoldRows,
 } from "@novadeck/toolkit/TeamFoldRows"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import {
-  ChevronLeft,
-  ExternalLink,
-  GitBranch,
-  GitCompare,
-  RefreshCw,
-  Trash2,
-  X,
-} from "lucide-react"
+import { ChevronLeft, ExternalLink, GitBranch, GitCompare, Trash2, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useMemo, useState, memo, type ReactNode } from "react"
 
 import { panelLabels } from "./panel-labels"
@@ -32,7 +24,6 @@ import {
   chainOf,
   descendantsOf,
   litOf,
-  originOf,
   roleOf,
   worktreeTeams,
   ownerOpen,
@@ -406,8 +397,8 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
   </SubjectBar>
 )
 
-// The time, to the minute, so the origin line's age and a row's dormancy keep up while nothing
-// else changes. It may read a minute young, as the age is said to the minute or hour.
+// The time, to the minute, so a row's dormancy keeps up while nothing else changes. It may read a
+// minute young.
 const useMinute = (): number => {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -415,47 +406,6 @@ const useMinute = (): number => {
     return () => clearInterval(timer)
   }, [])
   return now
-}
-
-// The panel's top line: how old the remote's main is, which conflicts and landing are measured
-// against, amber once an hour old, and Fetch, which fetches it now.
-const OriginLine = ({
-  origin,
-  onFetch,
-}: {
-  origin: { readonly text: string; readonly stale: boolean }
-  onFetch: (() => Promise<void>) | undefined
-}): React.JSX.Element => {
-  const [fetching, setFetching] = useState(false)
-  // Why the last fetch failed, until the next one: the age stays as it was.
-  const [failed, setFailed] = useState<string | null>(null)
-  return (
-    <div className="worktrees-origin" data-stale={origin.stale || undefined}>
-      <RefreshCw size={11} strokeWidth={1.75} aria-hidden />
-      <span className="min-w-0 truncate" {...(failed ? { title: failed } : {})}>
-        {origin.text}
-        {failed && " · fetch failed"}
-      </span>
-      {onFetch && (
-        <button
-          type="button"
-          className="worktrees-fetch"
-          disabled={fetching}
-          onClick={() => {
-            setFetching(true)
-            setFailed(null)
-            onFetch()
-              .catch((error: unknown) =>
-                setFailed(error instanceof Error ? error.message : "Novadeck could not fetch."),
-              )
-              .finally(() => setFetching(false))
-          }}
-        >
-          {fetching ? "Fetching…" : failed ? "Retry" : "Fetch"}
-        </button>
-      )}
-    </div>
-  )
 }
 
 // The sidebar's Worktrees panel: the open project's works, each a git worktree Novadeck tracks,
@@ -479,7 +429,6 @@ const WorktreesPanelView = ({
   onSelect,
   onCloseWork,
   handles = noHandles,
-  onFetch,
   folded = noLeads,
   preview,
   unfolding,
@@ -510,8 +459,6 @@ const WorktreesPanelView = ({
   onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
   // Each terminal's handle, bare ("moth"), by id, where it has one.
   handles?: ReadonlyMap<string, string>
-  // Fetches origin now for the open project; absent where the backend can't.
-  onFetch?: () => Promise<void>
   // The leads (worktrees' roots) whose teams the person folded into them, the one whose gutter
   // they point at, and the one they just unfolded or folded, as the Terminals list's are kept.
   folded?: readonly string[]
@@ -541,7 +488,6 @@ const WorktreesPanelView = ({
   )
   const byRoot = useMemo(() => new Map(rows.map((row) => [row.work.root, row])), [rows])
   const [list, setList] = useState<HTMLElement | null>(null)
-  const origin = originOf(works, now)
   // The safe rows Trash N safe would close, while its dialog asks.
   const [sweeping, setSweeping] = useState<readonly WorktreeRow[] | null>(null)
   // The rows Trash N safe is closing now.
@@ -711,7 +657,6 @@ const WorktreesPanelView = ({
           </button>
         </div>
       )}
-      {origin && rows.length > 0 && <OriginLine origin={origin} onFetch={onFetch} />}
       {rows.length === 0 ? (
         reported && (
           <div className="worktrees-empty">
