@@ -87,3 +87,56 @@
     transition-delay: 60ms;
   }
 }
+
+/* A row's owner, its `@handle` (a plain HandleChip, SidebarItemHandle), as the end of its detail
+   line: muted, at the actions' dim. With a pointer that hovers it stands at the end of its line,
+   reaching back into the room the line keeps for its actions (--_sidebar-actions-space) as far as
+   the actions that stay at rest (--sidebar-item-resting-actions, none by default: a tab keeps
+   its Close), at least a slot's width; a longer handle takes what it needs beyond the slot from
+   the line, so what stands before it gives way rather than running under it. It stays there while
+   it gives way, so the line never moves. Without one, the actions stay, and the handle follows
+   what stands before it on its line instead, whole, after a dot. */
+.handle-chip.sidebar-item-handle {
+  color: var(--color-muted);
+  opacity: var(--icon-button-dim-opacity, 0.5);
+}
+.sidebar-item-handle::before {
+  content: "· ";
+}
+@media (hover: hover) {
+  .sidebar-item-handle {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 46px;
+    margin-left: auto;
+    margin-right: calc(
+      var(--sidebar-item-resting-actions, 0px) - var(--_sidebar-actions-space, 52px)
+    );
+  }
+  .sidebar-item-handle::before {
+    content: none;
+  }
+}
+
+/* A row whose subject has ended (data-ended, as a terminal that exited or a closed pull
+   request's work) is hatched, as an ended terminal's window is, its name and icon muted.
+
+   Tokens, each optional (its fallback in brackets): --tab-ended-image (the window's
+   --window-ended-image, a faint ink hatch), --tab-ended-fg (muted). */
+.sidebar-item[data-ended] {
+  background-image: var(
+    --tab-ended-image,
+    var(
+      --window-ended-image,
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 6px,
+        color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
+      )
+    )
+  );
+}
+.sidebar-item[data-ended] .sidebar-item-select strong,
+.sidebar-item[data-ended] .sidebar-item-icon {
+  color: var(--tab-ended-fg, var(--color-muted));
+}

@@ -1,6 +1,7 @@
 import { clockTime, waitingLine, wakeFill } from "@novadeck/core/terminals/waiting"
 import { minutesWaited, wakeIn } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
+import { PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 
 import { useSecond } from "./useSecond"
 
@@ -19,10 +20,9 @@ export const WindowWait = ({
   if (!line) return null
   return (
     <span aria-hidden className="window-wait nodrag nopan flex items-center gap-1.5">
-      <span
-        className="terminal-tab-wait inline-block w-[1ch] shrink-0 text-center"
-        data-wait={line.kind}
-        {...(line.kind === "wake" ? { "data-wake-fill": wakeFill(terminal) } : {})}
+      <PhaseGlyph
+        phase="waiting"
+        wait={line.kind === "job" ? { kind: "job" } : { kind: "wake", fill: wakeFill(terminal) }}
       />
       {line.kind === "job" ? (
         <>

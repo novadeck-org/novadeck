@@ -1,0 +1,136 @@
+/* The phase-glyph recipe (PhaseGlyph.tsx): what something in a row does, read as text, one glyph
+   wide in every phase, so the text beside it never shifts: a braille spinner while it works, as
+   command-line tools show it, a check when it's done, a cross when that failed or it ended. A
+   terminal's tab draws its agent's phase with it, and so do a folded teammate's row, the close
+   dialog's rows and what a waiting agent waits on, under its tab and in its window's bar. Only
+   what needs a look is marked; an idle one leaves the slot blank. It says what the thing does,
+   never what it needs of the person: that is the need mark (need-mark.css). Reduced motion holds
+   the spinner still.
+
+   Hooks: data-phase="idle" (blank) | "running" (a spinner, in ink) | "starting" (a muted dot) |
+   "waking" (a block cursor, hard on and off, in ink, still under reduced motion) | "sleeping"
+   (a muted `z`) | "unheard" (a muted hollow mark: nothing tells whether it works) | "paused" (a
+   muted empty set) | "waiting" (muted: a still `⣀`, or what data-wait says) | "done" (a bold
+   check in the success colour) | "ended" (a cross); data-failed on "done" (a bold cross in the
+   danger colour); data-wait="job" (a slow drip, five steps over two seconds, for a job left
+   running) | "wake" (a still mark that fills a quarter at a time as data-wake-fill="0" | "1" |
+   "2" | "3" rises, for a wake-up coming near). A spinner takes its element's animation-delay,
+   so glyphs side by side can start at frames of their own (glyphDelay).
+
+   Tokens, each optional (its fallback in brackets):
+   --tab-process-font (mono with the symbols font first, --font-glyphs): the glyph's font.
+   --tab-glyph-fg (ink): the glyph. --tab-starting-fg, --tab-sleeping-fg, --tab-unheard-fg,
+   --tab-paused-fg, --tab-waiting-fg (each muted): the glyph in those phases.
+   --tab-done-fg (success-fg), --tab-failed-fg (danger-fg): done, and done on a failure. */
+.phase-glyph {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1ch;
+  text-align: center;
+  font-family: var(--tab-process-font, var(--font-glyphs));
+  color: var(--tab-glyph-fg, var(--color-ink));
+}
+.phase-glyph::before {
+  content: "\00a0";
+}
+.phase-glyph[data-phase="starting"] {
+  color: var(--tab-starting-fg, var(--color-muted));
+}
+.phase-glyph[data-phase="starting"]::before {
+  content: "·";
+}
+.phase-glyph[data-phase="ended"]::before {
+  content: "×";
+}
+.phase-glyph[data-phase="sleeping"] {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+}
+.phase-glyph[data-phase="sleeping"]::before {
+  content: "z";
+}
+.phase-glyph[data-phase="waking"] {
+  color: var(--color-ink);
+}
+.phase-glyph[data-phase="waking"]::before {
+  content: "█";
+  animation: wake-blink 1.06s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase-glyph[data-phase="waking"]::before {
+    animation: none;
+  }
+}
+@keyframes wake-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.phase-glyph[data-phase="unheard"] {
+  color: var(--tab-unheard-fg, var(--color-muted));
+}
+.phase-glyph[data-phase="unheard"]::before {
+  content: "○";
+}
+.phase-glyph[data-phase="done"] {
+  color: var(--tab-done-fg, var(--color-success-fg));
+  font-weight: 700;
+}
+.phase-glyph[data-phase="done"]::before {
+  content: "✓";
+}
+.phase-glyph[data-phase="done"][data-failed] {
+  color: var(--tab-failed-fg, var(--color-danger-fg));
+}
+.phase-glyph[data-phase="done"][data-failed]::before {
+  content: "✗";
+}
+.phase-glyph[data-phase="paused"] {
+  color: var(--tab-paused-fg, var(--color-muted));
+}
+.phase-glyph[data-phase="paused"]::before {
+  content: "∅";
+}
+/* Waiting on something it started, which wakes it by itself: muted, not as working. */
+.phase-glyph[data-phase="waiting"] {
+  color: var(--tab-waiting-fg, var(--color-muted));
+}
+.phase-glyph[data-phase="waiting"]:not([data-wait])::before {
+  content: "⣀";
+}
+/* A spinner: the braille frames stand in a column, one line of which the glyph shows, and the
+   column steps up a line at a time. Moving it is a transform, which the compositor runs alone,
+   where changing `content` would repaint each frame. */
+.phase-glyph:is([data-phase="running"], [data-wait="job"]) {
+  height: 1lh;
+  overflow: hidden;
+}
+.phase-glyph[data-phase="running"]::before {
+  display: block;
+  white-space: pre;
+  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
+  animation: terminal-spin 800ms steps(10) infinite;
+  animation-delay: inherit;
+}
+@keyframes terminal-spin {
+  to {
+    transform: translateY(-100%);
+  }
+}
+.phase-glyph[data-wait="job"]::before {
+  display: block;
+  white-space: pre;
+  content: "⠉\A⠒\A⠤\A⣀\A\00a0";
+  animation: terminal-spin 2s steps(5) infinite;
+}
+.phase-glyph[data-wait="wake"]::before {
+  content: "⣀";
+}
+.phase-glyph[data-wait="wake"][data-wake-fill="1"]::before {
+  content: "⣤";
+}
+.phase-glyph[data-wait="wake"][data-wake-fill="2"]::before {
+  content: "⣶";
+}
+.phase-glyph[data-wait="wake"][data-wake-fill="3"]::before {
+  content: "⣿";
+}
