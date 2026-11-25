@@ -1326,6 +1326,12 @@ work's fields).
 worktrees service's fetcher (a fetch already under way is waited for, not repeated), reads those works
 again and answers once every fetch has ended, failed or not (a failure keeps `fetchedAt`); a project with
 no works answers at once.
+`works.origins({ projectId })` (revision 19; a UI asks `supports("works.origins")` first, and an older
+runner reads as none) names the repositories of the project's works whose fetches fail now, oldest
+failure first: each by its folder's name, git's reason for the last failure and when the failures began
+(`MainFetcher`'s `failingSince`, the first failure since the last success). It reads only what the
+fetches left, with no git run, so the footer asks it every 20 s. A repository with no `origin` remote
+has nothing to fetch and is never named.
 
 The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
 the worktree's real path (the key), its repository's git common dir, branch, the commit it started

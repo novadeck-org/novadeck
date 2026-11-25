@@ -614,6 +614,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     remove: (root, force, safe) => worktrees.closeAt(root, force, workingIn, safe),
     onMade: (listener) => worktrees.onMade(listener),
     fetch: (commonDirs) => worktrees.fetchNow(commonDirs),
+    origin: (commonDir) => worktrees.originStatus(commonDir),
     projectFolder: (projectId) => {
       try {
         return store.project(projectId).cwd

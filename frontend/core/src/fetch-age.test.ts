@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest"
 
-import { fetchAge, staleFetchMs } from "./fetch-age"
+import { failingFor, staleFetchMs } from "./fetch-age"
 
 const minute = 60_000
 
-describe("how long ago origin was fetched", () => {
-  it("says it to the minute, hour or day, rounded down", () => {
-    expect(fetchAge(0, 30_000)).toBe("just now")
-    expect(fetchAge(0, 12 * minute + 59_000)).toBe("12 min ago")
-    expect(fetchAge(0, 3 * 60 * minute + 59 * minute)).toBe("3 h ago")
-    expect(fetchAge(0, 49 * 60 * minute)).toBe("2 d ago")
-    expect(fetchAge(10 * minute, 0)).toBe("just now")
+describe("how long origin has failed to fetch", () => {
+  it("says it to the minute, hour or day, rounded down, and at least a minute", () => {
+    expect(failingFor(0, 30_000)).toBe("1 min")
+    expect(failingFor(0, 12 * minute + 59_000)).toBe("12 min")
+    expect(failingFor(0, 3 * 60 * minute + 59 * minute)).toBe("3 h")
+    expect(failingFor(0, 49 * 60 * minute)).toBe("2 d")
+    expect(failingFor(10 * minute, 0)).toBe("1 min")
   })
 
-  it("calls an hour old", () => {
+  it("waits an hour before saying so", () => {
     expect(staleFetchMs).toBe(60 * minute)
   })
 })

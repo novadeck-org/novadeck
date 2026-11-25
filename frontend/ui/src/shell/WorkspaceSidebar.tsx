@@ -59,8 +59,6 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
         // Each terminal's handle, bare, by id, where it has one.
         handles?: ReadonlyMap<string, string>
-        // Fetches origin now for the open project; absent where the backend can't.
-        onFetch?: () => Promise<void>
         // Its folded teams and the team wire's share (WorktreesPanel's own props).
         folded?: readonly string[]
         preview?: string | undefined

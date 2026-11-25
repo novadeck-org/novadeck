@@ -697,10 +697,9 @@ with every safety check again at that time:
   name `origin/x` that git doesn't know yet is taken for one a fetch may bring, so a branch pushed since
   the last fetch can be shown; a local branch named `origin/x` is none. The person's checkout is not
   fast-forwarded by such a fetch (see "Fetching"): that follows only for a repository with a tracked
-  worktree, by its scheduled fetch. The content of such a compare carries `origin: { fetchedAt?, failed? }`, which the
-  pane's header turns into a quiet note only where freshness is in doubt: "origin fetch failed · last
-  fetched 3 h ago" (the reason in its title), "origin last fetched 3 h ago" once over an hour old (both
-  amber, as the Worktrees panel's age is), or "origin not fetched yet". Fresh, it says nothing.
+  worktree, by its scheduled fetch. The content of such a compare carries `origin: { fetchedAt?, failed? }`
+  for runners' older clients; the pane says nothing of it, as the footer's "Can't fetch" is the one place
+  a failing fetch is told (see "Worktrees").
 
   One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
   both the changes item and the Worktrees panel (Works), so a checkout both read is taken once:
@@ -775,9 +774,12 @@ with every safety check again at that time:
   target no worktree has open stays a plain `target ‹ branch`; worktrees heading to each other's
   branches are cut at the newest. The header holds Trash N, which closes every
   safe row, unforced, after one confirm that lists them, saying above the list why any that
-  stopped being safe stays. Over the list, a line says
-  how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
-  measured against a remote's main; amber once an hour old) with Fetch (`works.fetch`). The panel lists only the open
+  stopped being safe stays. The panel says nothing of how old origin is: the runner fetches every
+  five minutes by itself, and once the open project's fetches have kept failing for an hour the
+  footer's middle shows "Can't fetch" (`FooterOrigin.tsx`), the one place the app says so: its
+  tooltip names the repository, how long and git's reason, and a click fetches again
+  (`works.fetch`). The footer asks `works.origins` every 20 s, which the runner answers from what its
+  fetches left (`MainFetcher`'s last failure and when the failures began), with no git run. The panel lists only the open
   project's worktrees (the runner reports every project's, and the UI keeps those whose
   `projectId` is the open project's), and a click
   shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
@@ -826,7 +828,7 @@ with every safety check again at that time:
   checks changing, until one does). Azure DevOps counts only each status context's newest post and each
   policy's current evaluation.
   A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
-  it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
+  it never has), which no view shows now (a failing fetch is told once, in the footer): a PR merged on the remote shows
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
   runner removes by itself drop out of the list like one the person closed.
 

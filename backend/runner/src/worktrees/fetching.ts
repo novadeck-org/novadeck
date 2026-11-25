@@ -49,6 +49,8 @@ type State = {
   failures: number
   /** Why the last fetch failed; undefined once one succeeded. */
   failed?: string | undefined
+  /** When the fetches began failing: the first failure since the last success. */
+  failingSince?: number | undefined
 }
 
 export type FetcherOptions = {
@@ -109,6 +111,11 @@ export class MainFetcher {
   /** Why the repository's last fetch failed, or undefined if it did not (or none was tried). */
   failure(commonDir: string): string | undefined {
     return this.states.get(commonDir)?.failed
+  }
+
+  /** When the repository's fetches began failing, or undefined while the last one succeeded. */
+  failingSince(commonDir: string): number | undefined {
+    return this.states.get(commonDir)?.failingSince
   }
 
   /** How many times the repository's checkout was moved to its main since the runner began. */
@@ -283,6 +290,7 @@ export class MainFetcher {
       if (done.ok) {
         state.fetchedAt = at
         state.failed = undefined
+        state.failingSince = undefined
         state.failures = 0
         state.nextAt = at + this.every
       } else {
@@ -290,7 +298,15 @@ export class MainFetcher {
           state.failures += 1
           state.nextAt = at + Math.min(longestWaitMs, this.every * 2 ** state.failures)
         }
-        state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
+        // A repository with no origin (one made by `git init`, as the tour's, or with its remote
+        // named otherwise) has nothing to fetch: that is no failure to tell.
+        if (done.kind === "exit" && !(await this.hasOrigin(commonDir))) {
+          state.failed = undefined
+          state.failingSince = undefined
+        } else {
+          state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
+          state.failingSince ??= at
+        }
         log.debug("worktrees.fetch-failed", "Novadeck could not fetch a repository's origin", {
           data: { commonDir, kind: done.kind, said: done.said },
         })
@@ -298,6 +314,15 @@ export class MainFetcher {
     })().finally(() => this.under.delete(commonDir))
     this.under.set(commonDir, run)
     return run
+  }
+
+  /** Whether the repository has a remote named origin: git config names its address. */
+  private async hasOrigin(commonDir: string): Promise<boolean> {
+    const said = await this.run(homeOf(commonDir), ["config", "--get", "remote.origin.url"], {
+      cap: 4096,
+    })
+    // Only git's own word that there is none (exit 1) says so; anything else may be passing.
+    return said.ok || said.kind !== "exit" || said.status !== 1
   }
 
   /** What a git run that reaches the repository's origin runs with: see `fetchEnv`. */

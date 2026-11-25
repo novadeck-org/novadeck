@@ -14,6 +14,7 @@ const workspace = {
   projects: [
     {
       id: "storefront",
+      directory: "/home/demo/projects/storefront",
       history: [{ id: session.id, state: { roster: { terminals: session.terminals } } }],
     },
   ],
@@ -60,7 +61,7 @@ describe("the debug panel's Worktrees group", () => {
   it("gives every action a hint that names what appears", () => {
     const [group] = worksGroups(createDemoWorks([]))
     for (const action of group!.actions)
-      expect(action.hint, action.label).toMatch(/^(Open|Close) Worktrees/)
+      expect(action.hint, action.label).toMatch(/^((Open|Close) Worktrees|The footer)/)
   })
 
   context("on a terminal with no work", () => {
@@ -95,13 +96,18 @@ describe("the debug panel's Worktrees group", () => {
       expect(work(1)).toMatchObject({ merged: true, uncommitted: 3, safe: false })
     })
 
-    it("dates its origin's last fetch three hours back", () => {
-      const { run, work } = setup([])
+    it("fails the selected terminal's project's origin fetch for two hours", async () => {
+      const { run, works } = setup([])
       const before = Date.now()
-      run("Origin fetched 3 h ago", 1)
-      const ago = before - work(1)!.fetchedAt!
-      expect(ago).toBeGreaterThan(3 * 60 * 60_000 - 60_000)
-      expect(ago).toBeLessThan(3 * 60 * 60_000 + 60_000)
+      run("Origin fetch failing", 1)
+      const [failed] = await works.origins!(key(1).projectId)
+      expect(failed).toMatchObject({
+        repository: "storefront",
+        said: "Could not resolve host: github.com",
+      })
+      const ago = before - failed!.since
+      expect(ago).toBeGreaterThan(2 * 60 * 60_000 - 60_000)
+      expect(ago).toBeLessThan(2 * 60 * 60_000 + 60_000)
     })
   })
 

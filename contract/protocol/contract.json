@@ -1,5 +1,5 @@
 {
-  "revision": 18,
+  "revision": 19,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -5375,6 +5375,29 @@
         "additionalProperties": false
       },
       "output": {"x-optional":true}
+    },
+    "works.origins": {
+      "since": 19,
+      "input": {
+        "type": "object",
+        "properties": {"projectId":{"type":"string","format":"uuid"}},
+        "required": ["projectId"],
+        "additionalProperties": false
+      },
+      "output": {
+        "maxItems": 32,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "repository": {"type":"string","minLength":1,"maxLength":4096},
+            "said": {"type":"string","minLength":1,"maxLength":1024},
+            "since": {"type":"number"}
+          },
+          "required": ["repository","said","since"],
+          "additionalProperties": false
+        }
+      }
     },
     "companions.list": {
       "input": {

@@ -301,6 +301,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       close: (root, force) => note(`close work ${root}`, () => runner.works.close(root, force)),
       preview: (projectId, path) => runner.works.preview(projectId, path),
       fetch: (projectId) => note(`fetch works ${projectId}`, () => runner.works.fetch(projectId)),
+      origins: (projectId) =>
+        note(`origins of works ${projectId}`, () => runner.works.origins(projectId)),
     },
     settings: {
       get: () => runner.settings.get(),
