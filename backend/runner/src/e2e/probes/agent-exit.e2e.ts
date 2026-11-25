@@ -17,6 +17,14 @@
 // runner ended some of it, as seen at its call, which says that much and no more of how long
 // the tree would have run.
 //
+// What a case leaves is settled before the next, for the harness whose next process resumes
+// conversations that look interrupted (Antigravity 1.5.17, `Harness.resumesInterrupted`): a
+// quit or a kill ends a turn's process mid-turn, and the next agent started in the project
+// would run that turn again and never be ready. The case's terminal is restored with its
+// resume, its turn let end, and closed (`settleResumes`), as the person's own path does. A
+// close mid-turn is no longer an instant hangup there: Novadeck first stops the turn, so
+// its `lastMs` includes the stop and the 2 s save (about 2.3 s) where it was 0.1 s before.
+//
 // Runs only with NOVADECK_E2E_PROBES=1, by path; PROBE_RUNS is each case's repeats (3
 // unless set). Writes $PROBE_OUT/<agent>-exit-<platform>.json after every case, and logs
 // its summary. On Linux a shell gets its scope only with the user's bus in the environment
@@ -33,10 +41,12 @@ import { promisify } from "node:util"
 import { relayPath } from "@novadeck/relay"
 import { anyRunning, terminalForeground, Trees } from "@novadeck/terminal/pty"
 
+import { harnesses } from "../../harnesses/registry.js"
 import type { AgentSetup } from "../agents/agent.js"
 import { setups } from "../agents/index.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, supported, type E2E } from "../fixture.js"
+import type { Snapshot } from "../history.js"
 import { asked, gate, type Call } from "../model/script.js"
 import { nestedRuns, own, prompted, replies, result, start, turn } from "../scenarios.js"
 import { probing, sleep } from "./support.js"
@@ -343,6 +353,11 @@ type Row = { readonly case: string } & Partial<Timed> & { readonly error?: strin
 type Resume = {
   readonly case: string
   readonly resumed?: boolean
+  /**
+   * The resumed agent was seen settling from a turn of its own, without showing Ready first:
+   * it ran the turn the kill ended again, as Antigravity 1.5.17 does. Absent where Ready came.
+   */
+  readonly replayed?: boolean
   readonly killed?: readonly string[]
   readonly agentMet?: boolean
   readonly sameSession?: boolean
@@ -399,6 +414,14 @@ spawn(process.execPath, ["-e", "process.on('SIGHUP', () => {}); setInterval(() =
 console.log("stand-in ready")
 setInterval(() => {}, 1000)
 `
+
+/**
+ * A resumed agent at its prompt, or done with a turn it ran again: Antigravity 1.5.17 runs
+ * the turn a kill ended and never shows Ready first (restart.e2e.ts expects the same), and
+ * 1.5.16 or an idle conversation shows Ready.
+ */
+const readyOrSettled = (snapshot: Snapshot): boolean =>
+  snapshot.delivery === "ready" || snapshot.delivery === "settled"
 
 /** What the cases share for one test: its model's rules, its findings and how it hangs up. */
 const lab = (run: E2E, file: string) => {
@@ -468,14 +491,48 @@ const lab = (run: E2E, file: string) => {
       ),
     )
   }
+  /**
+   * Brings back the terminals of a quit or a kill, for the harnesses whose next process
+   * resumes what a process left interrupted (`Harness.resumesInterrupted`), and closes them
+   * as the person would, which stops their turns: the next case's agent would otherwise
+   * resume them and be busy with what an earlier case left. The restored terminal resumes
+   * its own conversation, so nothing of another's runs.
+   */
+  const settleResumes = async (
+    terminals: readonly {
+      readonly id: string
+      readonly harness: string
+      readonly control?: boolean
+    }[],
+  ) => {
+    // Open, so the turn a restored agent runs again isn't held: it ends, and the close that
+    // follows leaves the conversation idle. A restored agent binds only as its turn ends, so a
+    // close while it runs has no turn to stop.
+    held.open()
+    for (const { id, harness, control } of terminals) {
+      const agent = harness as keyof typeof harnesses
+      if (control || !harnesses[agent]?.resumesInterrupted) continue
+      try {
+        const resumed = opened(await run.deck.restore({ id }, { resume: agent }))
+        await resumed.reached(readyOrSettled, { timeoutMs: 30_000 }).catch(() => {})
+        await run.deck.terminals.close({ terminalId: resumed.id })
+        open.delete(resumed.id)
+      } catch {
+        // A terminal that doesn't come back leaves what it left, as the next case finds it.
+      }
+    }
+    held = gate()
+  }
   return {
     resumes,
     save,
     opened,
     /** Lets go of what the model holds for a terminal that has gone, for the next run. */
-    release: (terminal: { readonly id: string }) => {
+    release: (terminal: { readonly id: string }, replay = false) => {
       held.open()
-      held = gate()
+      // Kept open for a resume that runs the turn it was in again, as 1.5.17's does, so it
+      // ends; the next hangup puts a new gate.
+      if (!replay) held = gate()
       open.delete(terminal.id)
     },
     /** Runs `work`, and however it fails puts the deck back, so the next case still runs. */
@@ -563,6 +620,7 @@ const lab = (run: E2E, file: string) => {
         readonly taken: Taken
         readonly agent: RegExp
         readonly harness: string
+        readonly control?: boolean
       }[],
       capMs: number,
       busy: boolean,
@@ -627,6 +685,7 @@ const lab = (run: E2E, file: string) => {
         await recover()
         return String(error)
       })
+      if (left === undefined) await settleResumes(terminals)
       return left === undefined ? measured : measured.map((row) => ({ ...row, error: left }))
     },
     /** Logs the findings so far, where a job's log shows them. */
@@ -695,7 +754,7 @@ for (const setup of setups) {
           // Its child may start a moment after the line.
           await sleep(500)
           const taken = await census(run, terminal)
-          const one = { id: terminal.id, taken, agent: /node/i, harness }
+          const one = { id: terminal.id, taken, agent: /node/i, harness, control: true }
           return hangUp(kind, [one], controlCapMs, false)
         })
 
@@ -754,10 +813,14 @@ for (const setup of setups) {
             } finally {
               calm()
             }
-            release(terminal)
+            release(terminal, true)
             await run.deck.restart()
             const resumed = opened(await run.deck.restore(terminal, { resume: setup.agent }))
-            await resumed.reached("ready", { timeoutMs: 60_000 })
+            // Antigravity 1.5.17 runs again the turn the kill ended: it settles there, never
+            // showing Ready (as restart.e2e.ts expects), its turn let end by the open gate.
+            // Whichever comes first says whether the agent ran the turn again.
+            const replayed =
+              (await resumed.reached(readyOrSettled, { timeoutMs: 60_000 })).delivery === "settled"
             await prompted(resumed, setup)
             const after = run.model.mark()
             await resumed.prompt("Which word")
@@ -772,6 +835,7 @@ for (const setup of setups) {
             const inFlight = inFlightPrompts[moment]
             const row = {
               resumed: true,
+              ...(replayed && { replayed }),
               before,
               sameSession: before !== null && session === before,
               kept: said("Remember the word heron"),
