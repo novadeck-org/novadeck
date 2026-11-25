@@ -33,7 +33,14 @@ export type DemoChat = {
   // the ring's line among its items and the message among those delivered, which the chat draws as
   // the agent's. Messages that come within `ringBatchMs` of a ring join it, as one ring brings
   // every message that waited for it.
-  readonly deliver: (key: TerminalKey, from: MessageParty, text: string) => void
+  // With `midTurn`, a message its lead's hook gave the agent at a tool call: the chat draws it inside
+  // the ring that started the turn, whose window runs to the next prompt, with no ring of its own.
+  readonly deliver: (
+    key: TerminalKey,
+    from: MessageParty,
+    text: string,
+    options?: { readonly midTurn?: true },
+  ) => void
   // The agent in a terminal sends another agent a message with Novadeck's `send` tool, which its
   // harness records as a call and its result.
   readonly sent: (key: TerminalKey, to: string, text: string) => void
@@ -49,7 +56,9 @@ export const answerMs = 400
 export const answeredMs = 500
 
 // How soon after a ring another message still comes with it.
-export const ringBatchMs = 1500
+// A ring's window in the chat starts that long before its line (`ringSlackMs` of the core's
+// `groupItems`), so a ring that starts any sooner after another cuts the first's window short.
+export const ringBatchMs = 2000
 
 // The most a pasted image the demo takes, in bytes: a larger one shows how a refusal looks.
 const demoImageMaxBytes = 5 * 1024 * 1024
@@ -692,16 +701,20 @@ export const createDemoChat = (
     }
   }
   let rings = 0
-  const bring: DemoChat["deliver"] = (key, from, words) => {
+  let delivered = 0
+  const bring: DemoChat["deliver"] = (key, from, words, options) => {
     const found = locate(key)
     if (!runs(found)) return
     const { store } = entryOf(key)
     const now = Date.now()
     const { items } = store.getSnapshot()
     const ringing = items.findLast((item) => item.role === "user" && item.kind === "text")
-    const joins = ringing?.ring && ringing.at !== null && now - ringing.at <= ringBatchMs
+    const joins =
+      ringing?.ring &&
+      (options?.midTurn || (ringing.at !== null && now - ringing.at <= ringBatchMs))
+    delivered += 1
     const message: AgentMessage = {
-      id: `demo-delivery-${terminalKeyId(key)}-${items.length + 1}`,
+      id: `demo-delivery-${terminalKeyId(key)}-${delivered}`,
       hop: 1,
       from,
       to: {

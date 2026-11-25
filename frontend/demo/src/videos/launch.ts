@@ -983,6 +983,8 @@ const rippleMs = 60
 const finishesAfterMs = 200
 // How long the search index's tests run once the person allows them, before it reports done.
 const commandRunsMs = 2000
+// How long the lead takes to read a teammate's report, when it rests, before it ends its turn.
+const ackMs = 1500
 
 // The video's beats, one cue each, for the debug panel's "Launch" group to fire at the frame a
 // capture wants (see `launchGroups`). Each does nothing twice, nor before it can: a cue
@@ -1206,6 +1208,17 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   // The agents the person told no, or whose words they took without going on, or that ended
   // a turn a cue of its own chose: they wait at their prompt, and no cue ends a turn for them.
   const resting = new Set<string>()
+  // The agents whose turn ended for a message they sent or answered, not because the person's task
+  // is done: the doorbell rings them (they are settled), and the ripple still ends them in their place.
+  const between = new Set<string>()
+  // Ends the turn of the agent at work in terminal `number` with `reply`, which settles it: the
+  // doorbell rings only an agent at rest, as the runner's does.
+  const endTurn = (number: number, reply: string): void => {
+    const found = terminal(number)
+    if (!found || !busy(found)) return
+    between.add(found.id)
+    turns.finish(keyOf(number), found, "completed", { after: finishesAfterMs, reply })
+  }
   // The agents `finishAll`'s ripple has ended (or has begun to), which it never ends twice.
   const rippled = new Set<string>()
   const shown = new Set<string>()
@@ -1321,7 +1334,6 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       teammateAsked = true
       inbox.add(teammateAsk(launch.asking, Date.now()))
       // And its lead, so it knows what the teammate waits on; the rung lead answers.
-      chatOf?.sent(keyOf(launch.asking), lead, `${question.subject} ${question.body}`)
       const sent = messages.send(
         target,
         asking,
@@ -1342,7 +1354,6 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               settle()
               return
             }
-            chatOf?.sent(keyOf(launch.lead), asking, leadsAnswer)
             const replied = messages.send(
               target,
               lead,
@@ -1350,7 +1361,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               leadsAnswer,
               // Its lead answered first: the teammate acts on that, and withdraws its ask.
               () => {
-                chatOf?.deliver(keyOf(launch.asking), partyOf(launch.lead), leadsAnswer)
+                // Its lead's message reaches the teammate at work at a tool call, so the chat has it
+                // in the ring that started the turn.
+                chatOf?.deliver(keyOf(launch.asking), partyOf(launch.lead), leadsAnswer, {
+                  midTurn: true,
+                })
                 backendInbox()?.resolve(teammateAskId, "withdrawn")
                 // An agent the ripple ended is not taken back to work by a late answer.
                 if (!rippled.has(keyOf(launch.asking).terminalId)) work(keyOf(launch.asking))
@@ -1361,6 +1376,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               },
             )
             if (!replied) settle()
+            else {
+              chatOf?.sent(keyOf(launch.lead), asking, leadsAnswer)
+              // Having answered, the lead ends its turn: the next message rings it.
+              endTurn(launch.lead, `Told @${asking} the storefront calls v2.`)
+            }
           }, teammateAnswersMs)
         },
         () => {
@@ -1369,6 +1389,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       )
       // Refused, as the lead closed: nothing is on its way to wait for.
       if (!sent) settle()
+      else chatOf?.sent(keyOf(launch.asking), lead, `${question.subject} ${question.body}`)
     },
     teammateDone: () => {
       if (reported || ended || !opened) return
@@ -1382,11 +1403,17 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           reply: job.done,
           done: { subject: `${job.name} is done`, body: job.done },
         })
-        chatOf?.sent(key, lead, `Done. ${job.done}`)
-        messages.send(target, reporting, lead, `Done. ${job.done}`, () => {
+        const sent = messages.send(target, reporting, lead, `Done. ${job.done}`, () => {
           chatOf?.deliver(keyOf(launch.lead), partyOf(launch.reports), `Done. ${job.done}`)
-          if (!ended) wake(keyOf(launch.lead))
+          // The rung lead reads the report and ends its turn, so what comes next rings it again.
+          if (!ended) {
+            wake(keyOf(launch.lead))
+            setTimeout(() => {
+              if (sink && !ended) endTurn(launch.lead, `${job.name} reports done.`)
+            }, ackMs)
+          }
         })
+        if (sent) chatOf?.sent(key, lead, `Done. ${job.done}`)
       })
     },
     show: (goThere) => upsert(preview, launch.shows, goThere),
@@ -1408,8 +1435,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       const ring = (number: number): void => {
         if (!ended && !resting.has(keyOf(number).terminalId)) wake(keyOf(number))
       }
-      chatOf?.sent(keyOf(launch.reviews), to, reviewAsk)
       reviewAsked = messages.send(target, from, to, reviewAsk, () => {
+        // The reviewer settled first, so the doorbell rings it: it starts a turn on the request.
         chatOf?.deliver(keyOf(launch.reviewer), partyOf(launch.reviews), reviewAsk)
         ring(launch.reviewer)
         // The reviewer answers unless the person stopped it or closed it meanwhile.
@@ -1417,13 +1444,22 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         setTimeout(() => {
           if (!sink || ended || !busy(terminal(launch.reviewer))) return
           if (turns.epoch(keyOf(launch.reviewer)) !== epoch) return
-          chatOf?.sent(keyOf(launch.reviewer), from, reviewAnswer)
-          messages.send(target, to, from, reviewAnswer, () => {
+          const answered = messages.send(target, to, from, reviewAnswer, () => {
+            // The asker has been settled since its request: the answer rings it.
             chatOf?.deliver(keyOf(launch.reviews), partyOf(launch.reviewer), reviewAnswer)
             ring(launch.reviews)
           })
+          if (!answered) return
+          chatOf?.sent(keyOf(launch.reviewer), from, reviewAnswer)
+          endTurn(launch.reviewer, `Sent @${from} my review.`)
         }, answersMs)
       })
+      if (!reviewAsked) return
+      chatOf?.sent(keyOf(launch.reviews), to, reviewAsk)
+      // Its asker waits for the answer, its turn ended; the reviewer finishes what it was at, so
+      // both are at rest when the request lands.
+      endTurn(launch.reviews, `Asked @${to} to review the drawer. Waiting for its answer.`)
+      endTurn(launch.reviewer, "I've read how products are stored; the index can build from it.")
     },
     showVideo: (goThere) => upsert(video, launch.shows, goThere),
     showPdf: (goThere) => upsert(invoice, launch.shows, goThere),
@@ -1522,7 +1558,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     if (found.state !== "running") return true
     const { agent } = found
     if (agent?.attention || resting.has(found.id)) return true
-    if (agent?.lastTurn && !agent.working) return true
+    if (agent?.lastTurn && !agent.working && !between.has(found.id)) return true
     if (!teammateAsked || exchanged) return false
     return (
       found.id === keyOf(launch.asking).terminalId || found.id === keyOf(launch.lead).terminalId
@@ -1572,7 +1608,6 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         reports.delete(found.id)
         finishLead()
       }
-      chatOf?.sent(key, lead, `Done. ${text}`)
       const sent = messages.send(
         target,
         demoHandle(number),
@@ -1585,6 +1620,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         release,
       )
       if (!sent) release()
+      else chatOf?.sent(key, lead, `Done. ${text}`)
     }
     // With teammates, the lead ends after their reports reach it; alone, it ended in its place.
     if (opened) finishLead()
