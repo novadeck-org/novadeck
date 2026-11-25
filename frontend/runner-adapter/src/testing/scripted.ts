@@ -161,10 +161,13 @@ export const scripted = ({
   move = () => new Promise<never>(() => {}),
   follows = false,
   bundledPi,
+  murmur,
 }: {
   shown: readonly Saved[]
   // Whether Novadeck's own pi is on, as a runner from revision 16 says; absent, as one before it.
   bundledPi?: boolean
+  // Whether Murmur's Experimental switch is on, as a runner from revision 20 says; absent, as one before it.
+  murmur?: boolean
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
@@ -390,6 +393,7 @@ export const scripted = ({
       bundledPi,
       bundledPiFetch: { state: bundledPi ? ("ready" as const) : ("off" as const) },
     }),
+    ...(murmur !== undefined && { murmur }),
     ...(forges ? { forges } : {}),
     agents: [
       { agent: "claude", available: true, connected: false },

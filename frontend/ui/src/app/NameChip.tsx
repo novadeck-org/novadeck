@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { offerable, offerText } from "./murmur-offer"
+import { useShownMurmur } from "./murmur-shown"
 import { currentState } from "./selectors"
 
 const never = (): (() => void) => () => {}
@@ -22,7 +23,7 @@ export const NameChip = ({
   readonly context: string
 }): React.JSX.Element | null => {
   const { backend, commands } = useWorkspaceServices()
-  const { murmur } = backend
+  const murmur = useShownMurmur(backend)
   const murmurState = useSyncExternalStore(murmur?.state.subscribe ?? never, () =>
     murmur?.state.getSnapshot(),
   )

@@ -341,6 +341,30 @@ describe("the Novadeck Agent row", () => {
   })
 })
 
+describe("the Murmur row", () => {
+  const murmurSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="murmur-label"]')
+
+  it("isn't there where the backend has no such switch, as a runner from before revision 20", async () => {
+    await show({ tab: "experimental", experimental: experimental(true) })
+    expect(document.getElementById("murmur-label")).toBeNull()
+  })
+
+  it("writes the backend's setting, and says what turning it on brings", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      murmurSwitch: { enabled: false, onChange: (enabled) => changes.push(enabled) },
+    })
+    expect(document.getElementById("murmur-label")?.textContent).toBe("Murmur")
+    expect(document.getElementById("murmur-description")?.textContent).toContain("Addons tab")
+    expect(murmurSwitch()?.getAttribute("aria-checked")).toBe("false")
+    murmurSwitch()?.click()
+    expect(changes).toEqual([true])
+  })
+})
+
 describe("the tab Preferences opens on when none is named", () => {
   const agent = { agent: "claude" as const, available: true, connected: false, busy: false }
 

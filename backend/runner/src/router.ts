@@ -612,6 +612,7 @@ export const createRouter = (options: {
         options.settingsSaved?.()
         if (input.shippingGate !== undefined) options.shippingSwitched?.()
         if (input.bundledPi !== undefined) options.bundledPi?.switched()
+        if (input.murmur !== undefined) murmur.switched()
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
         void settingsFeed.changed().catch((error: unknown) =>
           log.error("settings.feed-failed", "Novadeck could not tell clients of a change.", {

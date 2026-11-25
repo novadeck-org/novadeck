@@ -22,7 +22,12 @@ import { createStore } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
-import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
+import {
+  createDemoMurmur,
+  heldMurmurTiming,
+  requestedMurmur,
+  requestedMurmurSwitch,
+} from "./addons/murmur"
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
 import { addressParams } from "./address"
 import { createDemoChat } from "./agents/chat"
@@ -143,6 +148,8 @@ export const demoBackend = (
   const voice = createDemoVoice(held ? heldVoiceTiming : undefined, requestedVoice())
   // Installed unless the address asks otherwise (`&murmur=uninstalled`), as the try demo shows it.
   const murmur = createDemoMurmur(held ? heldMurmurTiming : undefined, requestedMurmur())
+  // Murmur is Experimental: off, as in the app, unless the address asks for it.
+  const murmurSwitch = createStore(requestedMurmurSwitch())
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const numbers = new Map(
@@ -207,6 +214,7 @@ export const demoBackend = (
       set: (enabled) => shippingGate.update(() => enabled),
     },
     bundledPi: createDemoBundledPi(),
+    murmurSwitch: { enabled: murmurSwitch, set: (enabled) => murmurSwitch.update(() => enabled) },
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {

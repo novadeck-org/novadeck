@@ -358,7 +358,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
   started.push(voice)
+  // Murmur is Experimental: it runs only while its switch is on, saved once as Murmur was.
+  store.settings.carryMurmurSwitch()
   const murmur = new Murmur(store.settings, {
+    switchedOn: () => store.settings.runner().murmur === true,
     engine: options.murmur?.engine,
     source: options.murmur?.source,
     directory:

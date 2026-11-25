@@ -5,6 +5,16 @@ Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own
 voice input's, installed from Preferences > Addons. Without it, plain shells keep their
 default titles, and agent terminals are titled by their agents.
 
+It is Experimental: it shows and runs only while its switch in Preferences > Experimental is on
+(the runner's `murmur` setting, revision 20). The switch starts off, except where the person had
+turned Murmur on before it became Experimental: the runner saves it once at start, on for them and
+off for everyone else (`carryMurmurSwitch`), so turning Murmur itself off later leaves it as it is.
+While it is off the runner describes nothing, installs nothing (an install is refused, an install
+under way stops) and fetches no engine an app update left behind, and the titles murmur wrote go,
+as when Murmur is turned off; the engine and model stay on disk. The app shows none of Murmur: no
+offer, no Addons section, no footer item. A runner from before revision 20 reports no switch, and
+the app shows its Murmur as before.
+
 Code: `backend/runner/src/murmur`, the engine build in `engines/murmur`.
 
 ## What it reads

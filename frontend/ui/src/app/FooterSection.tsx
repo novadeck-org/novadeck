@@ -35,6 +35,7 @@ import { programIcon } from "../terminals/processes/profiles"
 import { chatOfferDue, selectedAgentCanChat } from "./chat-offer"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
+import { useShownMurmur } from "./murmur-shown"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 import { chatViewOn, dismissWhatsNew, onboardingTourOn } from "./ui-store"
 import { useBusyTerminals } from "./use-busy-terminals"
@@ -129,8 +130,9 @@ export const FooterSection = memo((): React.JSX.Element => {
     canChat,
     touring: tourBusy,
   })
-  const murmurState = useSyncExternalStore(backend.murmur?.state.subscribe ?? always, () =>
-    backend.murmur?.state.getSnapshot(),
+  const murmur = useShownMurmur(backend)
+  const murmurState = useSyncExternalStore(murmur?.state.subscribe ?? always, () =>
+    murmur?.state.getSnapshot(),
   )
   // A downloaded update the person can restart into now: not a portable copy, which has its
   // own chip, and only from a desktop app that can.
@@ -344,10 +346,10 @@ export const FooterSection = memo((): React.JSX.Element => {
           : undefined
       }
       murmur={
-        backend.murmur && murmurState
+        murmur && murmurState
           ? {
               state: murmurState,
-              actions: backend.murmur,
+              actions: murmur,
               blocked: asking || welcome || sandboxOpen || (portable && portableCardOpen),
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())

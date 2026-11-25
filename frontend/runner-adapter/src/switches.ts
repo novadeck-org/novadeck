@@ -38,7 +38,7 @@ const knownFetch = (fetch: RunnerSettingsState["bundledPiFetch"]): BundledPiFetc
 }
 
 // The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
-// idle agents run, how agents work with each other, whether agents get worktrees, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
+// idle agents run, how agents work with each other, whether agents get worktrees, whether Murmur may run, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
 // one the runner doesn't take goes back to what it still does.
 
 type RunnerSwitchCalls = {
@@ -67,6 +67,7 @@ export const runnerSwitches = (
     worktrees: allowed,
     bundledPi: piOn,
     bundledPiFetch: piFetch,
+    murmur: murmurOn,
   }: Pick<
     RunnerBackendOptions,
     | "transcripts"
@@ -81,6 +82,7 @@ export const runnerSwitches = (
     | "worktrees"
     | "bundledPi"
     | "bundledPiFetch"
+    | "murmur"
   >,
   track: <T>(work: Promise<T>) => Promise<T>,
 ): Pick<
@@ -92,6 +94,7 @@ export const runnerSwitches = (
   | "shippingGate"
   | "worktrees"
   | "bundledPi"
+  | "murmurSwitch"
   | "agents"
   | "forges"
 > & {
@@ -116,6 +119,7 @@ export const runnerSwitches = (
   const worktrees = createStore(allowed ?? false)
   const bundledPi = createStore(piOn ?? false)
   const bundledPiFetch = createStore(knownFetch(piFetch))
+  const murmurSwitch = createStore(murmurOn ?? false)
   const agents = createStore<readonly AgentConnection[]>(
     knownAgents(integrations ?? []).map((agent) => ({ ...knownLimit(agent), busy: false })),
   )
@@ -249,6 +253,7 @@ export const runnerSwitches = (
     takes("bundledPi", piOn, bundledPi, settings.bundledPi === true)
     // Where its download stands is the runner's alone to tell, whatever this client switched.
     if (piOn !== undefined) bundledPiFetch.update(() => knownFetch(settings.bundledPiFetch))
+    takes("murmur", murmurOn, murmurSwitch, settings.murmur === true)
     // Welcomed on another device: the first-run choice is made.
     if (welcomed !== undefined && settings.welcomed) welcome.update(() => false)
   }
@@ -362,6 +367,21 @@ export const runnerSwitches = (
               void track(
                 pendingWhile("bundledPi", runner.settings.set({ bundledPi: enabled })),
               ).catch(() => bundledPi.update(() => before))
+            },
+          },
+        }
+      : {}),
+    ...(murmurOn !== undefined
+      ? {
+          murmurSwitch: {
+            enabled: murmurSwitch,
+            set: (enabled) => {
+              const before = murmurSwitch.getSnapshot()
+              murmurSwitch.update(() => enabled)
+              // Unsaved, the switch shows what the runner still does.
+              void track(pendingWhile("murmur", runner.settings.set({ murmur: enabled }))).catch(
+                () => murmurSwitch.update(() => before),
+              )
             },
           },
         }

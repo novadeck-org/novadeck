@@ -26,3 +26,41 @@ describe("the forges setting", () => {
     expect(store.settings.runner()).not.toHaveProperty("forges")
   })
 })
+
+describe("Murmur's Experimental switch", () => {
+  it("is first saved on where Murmur was on, and off for everyone else", ({ resources }) => {
+    const fresh = new WorkspaceStore()
+    resources.defer(() => fresh.close())
+    fresh.settings.carryMurmurSwitch()
+    expect(fresh.settings.runner().murmur).toBe(false)
+
+    const declined = new WorkspaceStore()
+    resources.defer(() => declined.close())
+    declined.settings.saveMurmurSettings({ enabled: false })
+    declined.settings.carryMurmurSwitch()
+    expect(declined.settings.runner().murmur).toBe(false)
+
+    const using = new WorkspaceStore()
+    resources.defer(() => using.close())
+    using.settings.saveMurmurSettings({ enabled: true })
+    using.settings.carryMurmurSwitch()
+    expect(using.settings.runner().murmur).toBe(true)
+  })
+
+  it("is saved once: Murmur turned off later, or the switch changed, stays as it is", ({
+    resources,
+  }) => {
+    const store = new WorkspaceStore()
+    resources.defer(() => store.close())
+    store.settings.saveMurmurSettings({ enabled: true })
+    store.settings.carryMurmurSwitch()
+    store.settings.saveMurmurSettings({ enabled: false })
+    store.settings.carryMurmurSwitch()
+    expect(store.settings.runner().murmur).toBe(true)
+
+    store.settings.saveRunner({ murmur: false })
+    store.settings.saveMurmurSettings({ enabled: true })
+    store.settings.carryMurmurSwitch()
+    expect(store.settings.runner().murmur).toBe(false)
+  })
+})
