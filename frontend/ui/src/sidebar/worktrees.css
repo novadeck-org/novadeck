@@ -6,8 +6,8 @@
 
    Parts: `.worktrees-row`; on its name line `.worktrees-pr` (its pull request's "#812", tinted
    by data-state) with `.worktrees-checks` under it (a 2px bar: an `i` per check, data-check
-   passed | failed | running | waiting, then a `b` for its review, data-review approved |
-   changes_requested | required | none); on its detail line `.worktrees-target`,
+   passed | failed | running | waiting, then a `b` for its review where one was asked for or
+   given, data-review approved | changes_requested | required); on its detail line `.worktrees-target`,
    `.worktrees-route-mark` (the chevron) and `.worktrees-branch` ("main ‹ branch"). Its actions,
    a `.worktrees-slot` of `.worktrees-action`s (the pull request's page, `.worktrees-trash`),
    fade in over the handle as a tab's do. Above the list: `.worktrees-refusal`; in the header
@@ -123,7 +123,8 @@
   background: color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 /* The review, a step apart: approved in the success colour, changes asked in red, one still
-   needed an outline, none asked for a fainter one. */
+   needed an outline; a review state from a newer runner, a fainter one. None asked for isn't
+   drawn. */
 .worktrees-checks b {
   flex: 0 0 6px;
   margin-left: 2px;

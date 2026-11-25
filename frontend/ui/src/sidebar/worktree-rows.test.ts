@@ -293,15 +293,24 @@ describe("a pull request's checks bar", () => {
   })
 
   it("is the review alone where no check ran, and none without either or once done", () => {
-    expect(checksBar(pull("draft", { review: "none" }))).toEqual({
+    expect(checksBar(pull("draft", { review: "required" }))).toEqual({
       segments: [],
-      review: "none",
-      words: "no review asked for",
+      review: "required",
+      words: "approval missing",
     })
     expect(checksBar(pull("open"))).toBeUndefined()
     expect(
       checksBar(pull("merged", { checks: checks("passed"), review: "approved" })),
     ).toBeUndefined()
+  })
+})
+
+describe("a review nobody asked for", () => {
+  it("isn't drawn or said, as a repository that asks for none would show it on every row", () => {
+    expect(checksBar(pull("draft", { review: "none" }))).toBeUndefined()
+    const bar = checksBar(pull("open", { checks: checks("passed"), review: "none" }))!
+    expect(bar.review).toBeUndefined()
+    expect(bar.words).toBe("1 of 1 check passed")
   })
 })
 

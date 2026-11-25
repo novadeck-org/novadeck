@@ -154,7 +154,7 @@ const reviews: readonly {
   {
     label: "No review",
     review: "none",
-    hint: "Open Worktrees: the selected row's #812 (made open where it had none) ends its bar in a faint outlined review segment (none asked for)",
+    hint: "Open Worktrees: the selected row's #812 (made open where it had none) has no review segment, as none was asked for, and its tooltip says nothing of review",
   },
 ]
 

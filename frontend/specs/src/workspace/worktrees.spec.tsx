@@ -61,7 +61,7 @@ describe("The Worktrees panel", () => {
       expect(labels()).toEqual([
         "Cache the build between runs, nothing in it yet, agent/build-cache into main, @raven",
         "Tests, #814, open pull request, 3 of 4 checks passed, 1 failed; changes requested, checks failed, agent/tests into main, Conflicts with Checkout implementation, @owl",
-        "Checkout implementation, #812, draft pull request, no review asked for, agent/checkout-implementation into main, Conflicts with main, Tests, @moth",
+        "Checkout implementation, #812, draft pull request, agent/checkout-implementation into main, Conflicts with main, Tests, @moth",
         "Checkout review, #816, open pull request, 2 of 4 checks passed, 1 running, 1 waiting; approval missing, files changing, agent/checkout-review into main, @crow",
         "Build, #818, open pull request, 4 of 4 checks passed; approved, agent/build into main, Checks passed: yours to merge, @raven",
         "agent/promo-banner, #801, closed pull request, pull request closed, agent/promo-banner into main, no agent",
