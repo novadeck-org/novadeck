@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { describe, expect, it, onTestFinished } from "vitest"
 
-import { agentProcess, apartOf } from "./ending.js"
+import { agentProcess, apartOf, savingMs } from "./ending.js"
 
 const bound = (instance: string | null) =>
   ({ bound: { binding: { instance } } }) as Parameters<typeof agentProcess>[0]
@@ -60,5 +60,27 @@ describe("what a terminal's harnesses run apart from it", () => {
   it("is nothing with no record or no session", async () => {
     expect(await apartOf(undefined)).toEqual([])
     expect(await apartOf({ bound: null, agents: {} })).toEqual([])
+  })
+})
+
+describe("how long an agent is left running before its end", () => {
+  const at = (agent: string, state: "idle" | "working", turnAt: number) =>
+    ({ bound: { binding: { agent }, activity: { state, turnAt } } }) as unknown as Parameters<
+      typeof savingMs
+    >[0]
+
+  it("is what Antigravity has left of the time it needs after a turn's end", () => {
+    expect(savingMs(at("agy", "idle", 10_000), 10_200)).toBeGreaterThan(0)
+    expect(savingMs(at("agy", "idle", 10_000), 10_200)).toBeLessThan(
+      savingMs(at("agy", "idle", 10_000), 10_000),
+    )
+  })
+
+  it("is none once it has had it, while it works, for another harness, and with none bound", () => {
+    expect(savingMs(at("agy", "idle", 10_000), 20_000)).toBe(0)
+    expect(savingMs(at("agy", "working", 10_000), 10_000)).toBe(0)
+    expect(savingMs(at("claude", "idle", 10_000), 10_000)).toBe(0)
+    expect(savingMs({ bound: null })).toBe(0)
+    expect(savingMs(undefined)).toBe(0)
   })
 })

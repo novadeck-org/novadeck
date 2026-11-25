@@ -159,6 +159,13 @@ export const agy = {
     const home = homeAbove(transcript, "brain", 1, 4)
     return home === undefined ? [] : [flavourOf(home).join(home, "brain")]
   },
+  // Its Stop hook runs before its process marks the conversation idle in its summaries
+  // (jetbox_summaries_proto.pb), 0.2 to 0.9 s after it (1.5.17, Linux, under load). A process
+  // ended meanwhile by a kill, or by Windows' console close, leaves the conversation looking
+  // interrupted, and the next process, as it starts, resumes it and runs it: half of the
+  // SIGKILLs within 0.9 s of a turn's end did, none 3 s on, and a SIGHUP, as Linux and macOS
+  // send, none. Twice the longest lag seen.
+  saveMs: 2_000,
   connected,
   installed,
   connect,

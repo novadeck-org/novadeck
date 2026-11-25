@@ -24,7 +24,9 @@ const shellPid = 2 ** 30
 const hostOf = (
   limits: Partial<TerminalHostOptions["limits"]> = {},
   failed?: TerminalHostOptions["failed"],
-  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill" | "apart">> = {},
+  more: Partial<
+    Pick<TerminalHostOptions, "follows" | "listing" | "kill" | "apart" | "settle">
+  > = {},
 ) => {
   const programs: Program[] = []
   const native: NativeSpawn = (...args) => {
@@ -295,6 +297,20 @@ describe("a terminal host's close", () => {
     expect(await viewer.next()).toMatchObject({ done: true })
     expect(host.draining("a")).toBe(false)
     expect(host.terminal("a")).toBeUndefined()
+  })
+
+  it("leaves the program running for what it still saves, then ends it", async () => {
+    vi.useFakeTimers()
+    onTestFinished(() => void vi.useRealTimers())
+    const { programs, host, open } = hostOf({}, undefined, { settle: () => 300 })
+    open("a")
+    const closing = host.terminate("a")
+    await vi.advanceTimersByTimeAsync(299)
+    expect(programs[0]!.calls.filter((call) => call.startsWith("kill"))).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(programs[0]!.calls.filter((call) => call.startsWith("kill"))).not.toEqual([])
+    programs[0]!.exit(0)
+    await closing
   })
 
   it("ends an exited terminal's close at once", async () => {

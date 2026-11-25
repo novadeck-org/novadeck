@@ -452,6 +452,13 @@ export type Harness = {
    * Code's background service.
    */
   readonly apart?: Apart
+  /**
+   * How long, in milliseconds, its agent must have been idle before its end: where its hook
+   * reports a turn's end before the agent has saved the conversation, so ending it at once
+   * leaves the conversation looking interrupted, which its next process resumes and runs by
+   * itself (Antigravity's, as it starts).
+   */
+  readonly saveMs?: number
 }
 
 /**

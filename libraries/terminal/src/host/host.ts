@@ -39,6 +39,12 @@ export type TerminalHostOptions = {
    * person's other sessions, read as it closes: `follows` leaves it, with all under it.
    */
   readonly apart?: ((id: string) => Promise<readonly ApartProcess[]>) | undefined
+  /**
+   * How long, in milliseconds, terminal `id`'s program is left running before its end, for
+   * what it is still saving; none where unset. Asked as the end begins, and cut to 1.5 s as
+   * the host shuts down.
+   */
+  readonly settle?: ((id: string) => number) | undefined
   /** The processes, for `follows`: this system's unless a test plays them. */
   readonly listing?: Listing | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept. */
@@ -148,6 +154,12 @@ type Entry = {
   restarting: boolean
 }
 
+// The most a program is left running for what it saves as the host shuts down, in
+// milliseconds: what the app's five seconds leave after the hangup's own grace.
+const shutdownSettleMs = 1_500
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
 // Each run's pty an agent ran in: the earlier runs' before a restart, and the current one.
 const agentRuns = (terminal: HostedTerminal) =>
   [...terminal.earlier, terminal.pty].filter((pty) => pty.agentRan)
@@ -227,6 +239,13 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
     }
     const ran = agentRuns(terminal).length > 0
     const kept = agent === undefined && !ran ? [] : await apartOf(id)
+    // What the program is still saving, before the hangup: it can't be waited for after.
+    const saving = options.settle?.(id) ?? 0
+    if (saving > 0 && terminal.exit === null)
+      await Promise.race([
+        sleep(shutdownBy === undefined ? saving : Math.min(saving, shutdownSettleMs)),
+        terminal.exited,
+      ])
     const left = ran ? { listing: list, apart: kept } : undefined
     await Promise.all([
       terminal.pty.end({
