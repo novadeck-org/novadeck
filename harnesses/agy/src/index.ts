@@ -166,6 +166,7 @@ export const agy = {
   // SIGKILLs within 0.9 s of a turn's end did, none 3 s on, and a SIGHUP, as Linux and macOS
   // send, none. Twice the longest lag seen.
   saveMs: 2_000,
+  resumesInterrupted: true,
   connected,
   installed,
   connect,

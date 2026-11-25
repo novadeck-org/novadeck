@@ -60,7 +60,13 @@ import { Controls } from "./controls.js"
 import { conversationDetail } from "./conversation.js"
 import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
-import { closing, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
+import {
+  closing,
+  shutdownTreeGraceMs,
+  shutdownTreesMs,
+  stopBeforeClose,
+  treeGraceMs,
+} from "./ending.js"
 import { failed } from "./failures.js"
 import { Hibernation } from "./hibernation.js"
 import { historyHost } from "./history-host.js"
@@ -1369,6 +1375,7 @@ export class Terminals {
       return
     }
     this.closeForGood(record, closedBy)
+    await stopBeforeClose(record, () => this.typing.interrupt(record.summary.id))
     await this.terminate(record)
     this.remove(record)
     // What its programs left on their way out, as an agent registering again, goes too.
@@ -1437,6 +1444,7 @@ export class Terminals {
     for (const record of running) this.closeForGood(record)
     await Promise.all(
       running.map(async (record) => {
+        await stopBeforeClose(record, () => this.typing.interrupt(record.summary.id))
         await this.terminate(record)
         this.remove(record)
         this.forget(record.summary.id)
