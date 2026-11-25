@@ -4,6 +4,7 @@ import type {
   SelectWebauthnAccountDetails,
   Session,
   WebContents,
+  WebFrameMain,
   WebPreferences,
   WindowOpenHandlerResponse,
 } from "electron"
@@ -12,7 +13,7 @@ import { webAddress } from "./address.js"
 import { lockedPreferences } from "./lockdown.js"
 import { chromeMajorOf, phoneEmulation, phoneTouch, phoneUserAgent } from "./phone.js"
 import { originOf, type PageRequestFailure } from "./trouble.js"
-import { within } from "./wait.js"
+import { wait, within } from "./wait.js"
 
 export { webAddress } from "./address.js"
 
@@ -649,17 +650,21 @@ export const maxForwardedRequests = 100
 /** How many origins of one page view have a count of their own per navigation; those past it share one. */
 export const maxRequestOrigins = 32
 
+/** How long after a media request fails without a cause its frame's elements are read for an error. */
+export const mediaReadMs = 1500
+
+/** Whether a video or audio element of the frame, at `url`, has an error. */
+const mediaBroke = (url: string): string =>
+  `[...document.querySelectorAll("video, audio")].some((media) => media.error !== null && media.currentSrc === ${JSON.stringify(url)})`
+
 /** The kinds of request that load a document, the page's own or a frame's. */
 const documents: ReadonlySet<string> = new Set(["mainFrame", "subFrame"])
 
 /**
  * Tells of each request of the pages' session that fails, with the page view it is for: an
  * HTTP error answer (4xx, 5xx), or none at all (status 0), but not one cancelled, as by a
- * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`), or as by Chromium
- * when a video or audio element has buffered enough or seeks and drops its open-ended range
- * request, which Electron tells as `net::ERR_FAILED` though the element plays on (a media
- * stream that does break tells its own cause, as `net::ERR_CONTENT_LENGTH_MISMATCH`), nor a
- * part of a page that misses Chromium's cache (`net::ERR_CACHE_MISS`): Chromium looks for a web font
+ * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`), nor a part of a
+ * page that misses Chromium's cache (`net::ERR_CACHE_MISS`): Chromium looks for a web font
  * there first and, on a miss, fetches it again from the server, so the miss is no failure,
  * and a page that asks only its cache meant to go without. A document that misses it, the
  * page's own or a frame's, as one gone back to after a form, didn't load, and is told:
@@ -670,7 +675,12 @@ const documents: ReadonlySet<string> = new Set(["mainFrame", "subFrame"])
  * server that errors, has `maxForwardedRequests` told for each origin and navigation of its
  * main frame and no more, so another site's beacon failing in a loop can't use up what the
  * page's own origin has: far over what a viewer reports for a document, which it decides.
- * Past `maxRequestOrigins` origins, the rest share one count.
+ * Past `maxRequestOrigins` origins, the rest share one count. A media request that fails
+ * with no cause of its own (`net::ERR_FAILED`) is told only once its frame has a video or
+ * audio element of that address with an error, `mediaReadMs` after: Electron tells it so when
+ * Chromium drops an element's open-ended range request, having buffered enough or seeking,
+ * and the element plays on, as when the file itself is broken. A stream that breaks on the
+ * way tells its own cause, as `net::ERR_CONTENT_LENGTH_MISMATCH`.
  */
 export const watchPageRequests = (
   pages: Session,
@@ -718,11 +728,31 @@ export const watchPageRequests = (
     navigating(details)
     if (details.statusCode >= 400) tell(details, details.statusCode)
   })
+  // The media requests whose elements are being read, by page view and address.
+  const reading = new Set<string>()
+  const readMedia = (details: {
+    url: string
+    resourceType: string
+    webContentsId?: number
+    frame?: WebFrameMain | null
+  }): void => {
+    const { frame } = details
+    const key = `${details.webContentsId} ${details.url}`
+    if (!frame || reading.has(key)) return
+    reading.add(key)
+    void wait(mediaReadMs)
+      .then(() => within(frame.executeJavaScript(mediaBroke(details.url)), mediaReadMs))
+      .then((broke) => {
+        reading.delete(key)
+        if (broke === true) tell(details, 0)
+      })
+  }
   pages.webRequest.onErrorOccurred((details) => {
     navigating(details)
     if (details.error === "net::ERR_ABORTED") return
-    if (details.error === "net::ERR_FAILED" && details.resourceType === "media") return
     if (details.error === "net::ERR_CACHE_MISS" && !documents.has(details.resourceType)) return
+    if (details.error === "net::ERR_FAILED" && details.resourceType === "media")
+      return readMedia(details)
     tell(details, 0)
   })
   // A page view gone, as each rest of a page drops one: its counts go with it.

@@ -1,7 +1,13 @@
 import { EventEmitter } from "node:events"
 
-import type { SelectWebauthnAccountDetails, Session, WebContents, WebPreferences } from "electron"
-import { describe, expect, it, vi } from "vitest"
+import type {
+  SelectWebauthnAccountDetails,
+  Session,
+  WebContents,
+  WebFrameMain,
+  WebPreferences,
+} from "electron"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   attachPage,
@@ -9,6 +15,7 @@ import {
   guardPage,
   lockPagesSession,
   maxForwardedRequests,
+  mediaReadMs,
   maxRequestOrigins,
   ownZoom,
   pagesSession,
@@ -685,7 +692,12 @@ describe("a picture of a page", () => {
 })
 
 describe("the requests of a page view that fail", () => {
-  type Details = { url: string; resourceType: string; webContentsId?: number | undefined }
+  type Details = {
+    url: string
+    resourceType: string
+    webContentsId?: number | undefined
+    frame?: WebFrameMain | null
+  }
   const watched = () => {
     let completed: ((details: Details & { statusCode: number }) => void) | undefined
     let errored: ((details: Details & { error: string }) => void) | undefined
@@ -742,17 +754,70 @@ describe("the requests of a page view that fail", () => {
     expect(told).toEqual([[3, { url: "http://localhost/a", status: 0, what: "script" }]])
   })
 
-  it("leave out a video's range request that Chromium drops, but not one whose stream broke", () => {
-    const { told, errored } = watched()
-    const video = { url: "http://localhost/media/clip.mp4", resourceType: "media" }
-    errored("net::ERR_FAILED", video)
-    expect(told).toEqual([])
-    errored("net::ERR_CONTENT_LENGTH_MISMATCH", video)
-    errored("net::ERR_FAILED")
-    expect(told).toEqual([
-      [3, { url: "http://localhost/media/clip.mp4", status: 0, what: "media" }],
-      [3, { url: "http://localhost/a", status: 0, what: "script" }],
-    ])
+  describe("of a video or audio element, failed with no cause of its own", () => {
+    const video = "http://localhost/media/clip.mp4"
+    const frameOf = (broke: boolean | Promise<boolean>) => {
+      const reads: string[] = []
+      const frame = {
+        executeJavaScript: (code: string) => (reads.push(code), Promise.resolve(broke)),
+      } as unknown as WebFrameMain
+      return { frame, reads }
+    }
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("are left out while the element plays on, as when Chromium drops its range request", async () => {
+      const { told, errored } = watched()
+      const { frame, reads } = frameOf(false)
+      errored("net::ERR_FAILED", { url: video, resourceType: "media", frame })
+      await vi.advanceTimersByTimeAsync(mediaReadMs)
+      expect(reads).toHaveLength(1)
+      expect(reads[0]).toContain(JSON.stringify(video))
+      expect(told).toEqual([])
+    })
+
+    it("are told once the element has an error, as a broken file's", async () => {
+      const { told, errored } = watched()
+      const { frame } = frameOf(true)
+      errored("net::ERR_FAILED", { url: video, resourceType: "media", frame })
+      await vi.advanceTimersByTimeAsync(mediaReadMs - 1)
+      expect(told).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(told).toEqual([[3, { url: video, status: 0, what: "media" }]])
+    })
+
+    it("are read once for a burst of the same address, and not at all without a frame", async () => {
+      const { told, errored } = watched()
+      const { frame, reads } = frameOf(true)
+      errored("net::ERR_FAILED", { url: video, resourceType: "media" })
+      for (let each = 0; each < 3; each += 1)
+        errored("net::ERR_FAILED", { url: video, resourceType: "media", frame })
+      await vi.advanceTimersByTimeAsync(mediaReadMs)
+      expect(reads).toHaveLength(1)
+      expect(told).toHaveLength(1)
+    })
+
+    it("are left out when the frame can't be read, as one gone meanwhile", async () => {
+      const { told, errored } = watched()
+      const { frame } = frameOf(new Promise<boolean>(() => {}))
+      const gone = {
+        executeJavaScript: () => Promise.reject(new Error("detached")),
+      } as unknown as WebFrameMain
+      errored("net::ERR_FAILED", { url: video, resourceType: "media", frame })
+      errored("net::ERR_FAILED", { url: `${video}?b`, resourceType: "media", frame: gone })
+      await vi.advanceTimersByTimeAsync(mediaReadMs * 2)
+      expect(told).toEqual([])
+    })
+
+    it("are told at once when they carry a cause, as a stream cut off, as is any other kind", () => {
+      const { told, errored } = watched()
+      errored("net::ERR_CONTENT_LENGTH_MISMATCH", { url: video, resourceType: "media" })
+      errored("net::ERR_FAILED")
+      expect(told).toEqual([
+        [3, { url: video, status: 0, what: "media" }],
+        [3, { url: "http://localhost/a", status: 0, what: "script" }],
+      ])
+    })
   })
 
   it("leave out a part of the page that missed the cache, as a font Chromium then fetches", () => {
