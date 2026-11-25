@@ -130,6 +130,21 @@ export const coachSaysAny = async (words: readonly string[], timeout = 40_000): 
   return said
 }
 
+/** What the tour says when something interrupts its story: a teammate's question, a permission ask. */
+const interruptions = ["A teammate has a question for you.", "It's asking your permission."]
+
+/**
+ * Whether the box gave way to what interrupts the story (frontend/tour's questionCoach and
+ * permissionCoach): a teammate's question may take its place while the person goes to a step's
+ * subject (a slow runner, 2026-11-25), and then what is marked is the question's, which the
+ * story's next step answers, not this one. Any other line still fails the step as before.
+ */
+const interrupted = (): boolean => {
+  const now =
+    document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
+  return interruptions.some((each) => now.includes(each))
+}
+
 /** A window's header, which a press goes to (see `touchStep`), or the element itself. */
 const headerOf = (marked: HTMLElement): HTMLElement =>
   marked
@@ -174,19 +189,11 @@ export const touchStep = async (
   await coachSaysAny(cue === undefined ? [line] : [line, cue], timeout)
   const opened = new Set<HTMLElement>()
   let pressedAt = 0
-  // Whether the box still says this step's line or cue, or is between boxes: a teammate's
-  // question may take its place while the person goes to the subject (a slow runner, 2026-11-25),
-  // and then what is marked is the question's, which the story's next step answers, not this one.
-  const says = (): boolean => {
-    const now =
-      document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
-    return now === "" || now.includes(line) || (cue !== undefined && now.includes(cue))
-  }
   let displaced = false
   await expect
     .poll(
       async () => {
-        if (!says()) {
+        if (interrupted()) {
           displaced = true
           return true
         }
