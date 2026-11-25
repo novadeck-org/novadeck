@@ -136,13 +136,24 @@ const headerOf = (marked: HTMLElement): HTMLElement =>
     .closest<HTMLElement>('[data-terminal]:not([data-terminal="true"])')
     ?.querySelector<HTMLElement>(".terminal-header") ?? marked
 
-/** Whether the middle of an element, where a press lands, is on the screen. */
+/**
+ * Whether the middle of an element, where a press lands, is in the workspace's area on screen: not
+ * past its edge, nor under the rail, a panel, the header or the footer.
+ */
 const onScreen = (element: HTMLElement): boolean => {
   const box = element.getBoundingClientRect()
   const x = box.left + box.width / 2
   const y = box.top + box.height / 2
-  return x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight
+  const area = document.querySelector<HTMLElement>("[data-workspace-area]")?.getBoundingClientRect()
+  const [left, top, right, bottom] = area
+    ? [area.left, area.top, area.right, area.bottom]
+    : [0, 0, window.innerWidth, window.innerHeight]
+  return x >= left && y >= top && x <= right && y <= bottom
 }
+
+/** Of what the tour marks, one of `wanted` that a press can reach. */
+const reachable = (wanted: ReadonlySet<HTMLElement>): HTMLElement | undefined =>
+  clicked().find((each) => wanted.has(each) && onScreen(headerOf(each)))
 
 /**
  * Plays a step that waits on the person, as they would: once its caption says `line` (or its
@@ -171,7 +182,7 @@ export const touchStep = async (
         // The subject, once a press can reach it: the tour may say its line with the window
         // mostly past the screen's edge (a slow macOS runner, 2026-11-25), and never moves the
         // view itself, so the person brings it with the box's eye, below.
-        if (marked && wanted.has(marked) && onScreen(headerOf(marked))) return true
+        if (reachable(wanted)) return true
         if (marked && !wanted.has(marked) && !opened.has(marked)) {
           opened.add(marked)
           pressedAt = Date.now()
@@ -196,7 +207,7 @@ export const touchStep = async (
       { timeout: 20_000, interval: 400 },
     )
     .toBe(true)
-  const marked = clicked()[0]!
+  const marked = reachable(new Set(subject().filter((each) => each !== undefined))) ?? clicked()[0]!
   // On its window's header, on the app's own page, as the tour counts a press anywhere in the
   // window: never in a page or a model's frame, which the tour hears by the app's page losing the
   // focus, which a page sharing its browser with other specs may not have to lose; and on no
