@@ -1,9 +1,18 @@
+import type { LitTeams, Team } from "@novadeck/core/derivations"
 import type { Work, WorkClosing } from "@novadeck/core/works"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { NeedMark } from "@novadeck/toolkit/NeedMark"
 import { PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 import { SidebarItem, SidebarItemHandle, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
+import { isFolded, rowFold, type RowFold } from "@novadeck/toolkit/team-fold"
+import {
+  listedFoldRows,
+  teamFoldRowClasses,
+  TeamFoldMore,
+  TeamFoldRow,
+  TeamFoldRows,
+} from "@novadeck/toolkit/TeamFoldRows"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   ChevronLeft,
@@ -14,12 +23,17 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { useEffect, useMemo, useState, memo } from "react"
+import { useEffect, useLayoutEffect, useMemo, useState, memo, type ReactNode } from "react"
 
 import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
 import {
+  chainOf,
+  descendantsOf,
+  litOf,
   originOf,
+  roleOf,
+  worktreeTeams,
   ownerOpen,
   selectedRoot,
   stateGlyphs,
@@ -27,6 +41,7 @@ import {
   type ChecksBar,
   type PullMark,
   type WorktreeRow,
+  type WorktreeTeams,
 } from "./worktree-rows"
 
 // What the trash button says, when it waits.
@@ -113,26 +128,43 @@ const RouteLine = ({ row }: { row: WorktreeRow }): React.JSX.Element => {
 const WorktreeItem = ({
   row,
   selected,
+  team,
+  fold,
+  foldedRows,
+  foldedCount,
   onSelect,
   onClose,
 }: {
   row: WorktreeRow
   selected: boolean
+  // Its place in the selected worktree's tree of teams, and how it stands in its leads' folds
+  // (the toolkit's team-rows.css, as a terminal's tab).
+  team: "lead" | "worker" | undefined
+  fold: RowFold | undefined
+  // A folded lead's members, under its line, and how many fold away into it, which its label says.
+  foldedRows: ReactNode
+  foldedCount: number
   onSelect: (work: Work) => void
   onClose: (row: WorktreeRow) => void
 }): React.JSX.Element => {
   const { work } = row
   const url = row.pullRequest?.url
+  const level = row.above.length
   return (
     <SidebarItem
       role="listitem"
-      className={`terminal-tab worktrees-row${selected ? " selected" : ""}`}
+      className={`terminal-tab worktrees-row ${teamFoldRowClasses}${selected ? " selected" : ""}`}
       name={row.name}
       icon={<GitBranch size={13} strokeWidth={1.5} aria-hidden />}
       detail={<RouteLine row={row} />}
+      {...(foldedRows ? { below: foldedRows } : {})}
       {...(row.pullRequest ? { badge: <PullNumber mark={row.pullRequest} bar={row.bar} /> } : {})}
       selected={selected}
-      selectLabel={row.label}
+      selectLabel={
+        foldedCount > 0
+          ? `${row.label}, ${foldedCount} ${foldedCount === 1 ? "worktree" : "worktrees"} folded under it`
+          : row.label
+      }
       actions={
         <div className="worktrees-slot sidebar-item-slot flex items-center">
           {url && (
@@ -171,13 +203,105 @@ const WorktreeItem = ({
       {...(row.need ? { "data-need": row.need.need } : {})}
       data-safe={row.safe || undefined}
       data-pull-request={row.pullRequest?.state}
+      {...(team ? { "data-team": team } : {})}
+      {...(fold ? { "data-team-fold": fold } : {})}
+      {...(level ? { "data-team-level": Math.min(level, 3) } : {})}
       // Room for its actions: one button, or two with its pull request's page.
       style={{ "--_sidebar-actions-space": url ? "52px" : "26px" } as React.CSSProperties}
     />
   )
 }
 
+// A folded lead's members, under its line (the toolkit's TeamFoldRows, as a folded lead's tab
+// draws its teammates): each one's glyph, title and need, the worktrees it folds away with it,
+// and past four, a last row counting the rest with what any of them needs. A click shows the
+// member as its own row's would; the last row unfolds the team.
+const FoldedWorktrees = ({
+  lead,
+  teams,
+  rows,
+  selected,
+  entering,
+  onOpen,
+  onUnfold,
+}: {
+  lead: string
+  teams: WorktreeTeams
+  rows: ReadonlyMap<string, WorktreeRow>
+  selected: string | undefined
+  entering: boolean
+  onOpen: (row: WorktreeRow) => void
+  onUnfold: () => void
+}): React.JSX.Element | null => {
+  const members = teams.teams.find((team) => team.lead === lead)?.workers ?? []
+  if (!members.length) return null
+  const listed = members.length > listedFoldRows ? members.slice(0, listedFoldRows - 1) : members
+  const rest = members.length - listed.length
+  const need = (root: string) => {
+    const mark = rows.get(root)?.need
+    return mark ? <NeedMark key={root} need={mark.need} /> : null
+  }
+  const shownBelow = new Set(listed.flatMap((root) => descendantsOf(teams, root)))
+  return (
+    <TeamFoldRows entering={entering}>
+      {listed.map((root, index) => {
+        const row = rows.get(root)
+        if (!row) return null
+        const glyph = stateGlyphs[row.state]
+        const below = descendantsOf(teams, root)
+        return (
+          <TeamFoldRow
+            key={root}
+            id={root}
+            index={index}
+            last={!rest && index === listed.length - 1}
+            phase={glyph.phase}
+            failed={glyph.failed ?? false}
+            name={row.name}
+            sleeping={row.state === "dormant"}
+            selected={root === selected}
+            below={below.length}
+            needs={
+              <>
+                {need(root)}
+                {below.map(need)}
+              </>
+            }
+            onOpen={() => onOpen(row)}
+          />
+        )
+      })}
+      {rest > 0 && (
+        <TeamFoldMore
+          count={rest}
+          needs={descendantsOf(teams, lead)
+            .filter((root) => !listed.includes(root) && !shownBelow.has(root))
+            .map(need)}
+          onUnfold={onUnfold}
+        />
+      )}
+    </TeamFoldRows>
+  )
+}
+
+// What the team wire on the rail's border needs of the list (app's WorktreesWire): the list's
+// element, its teams of worktrees (by root) with each one's level and the leads above it, what
+// lights for the selected worktree, and that one.
+export type WorktreesWire = {
+  readonly list: HTMLElement | null
+  readonly teams: readonly Team[]
+  readonly levels: readonly number[]
+  readonly chains: readonly string[]
+  readonly lit: LitTeams
+  readonly above: readonly string[]
+  readonly selected: string
+}
+
+// The context its folds are kept by: one per panel, as the leads are worktrees' roots.
+const foldContext = "worktrees"
+
 const noHandles: ReadonlyMap<string, string> = new Map()
+const noLeads: readonly string[] = []
 
 // Trash N safe's dialog: the safe rows it closes.
 const sweepBar = (safe: readonly WorktreeRow[]): React.JSX.Element => (
@@ -312,6 +436,12 @@ const WorktreesPanelView = ({
   onCloseWork,
   handles = noHandles,
   onFetch,
+  folded = noLeads,
+  preview,
+  unfolding,
+  folding,
+  onFold,
+  onWire,
 }: {
   // The open project's works.
   works: readonly Work[]
@@ -338,6 +468,16 @@ const WorktreesPanelView = ({
   handles?: ReadonlyMap<string, string>
   // Fetches origin now for the open project; absent where the backend can't.
   onFetch?: () => Promise<void>
+  // The leads (worktrees' roots) whose teams the person folded into them, the one whose gutter
+  // they point at, and the one they just unfolded or folded, as the Terminals list's are kept.
+  folded?: readonly string[]
+  preview?: string | undefined
+  unfolding?: string | undefined
+  folding?: string | undefined
+  // Folds a lead's team or shows it again; without it, no team folds.
+  onFold?: (lead: string) => void
+  // Takes what the team wire draws on the rail, as it changes.
+  onWire?: (wire: WorktreesWire | null) => void
 }): React.JSX.Element => {
   const [last, setLast] = useState<{ root: string; on: string | undefined } | undefined>()
   // What the dialog asks about, and what went wrong last, as one line under a name.
@@ -349,10 +489,13 @@ const WorktreesPanelView = ({
   } | null>(null)
   useEffect(() => (watching ? watch() : undefined), [watching, watch])
   const now = useMinute()
+  const teams = useMemo(() => worktreeTeams(works), [works])
   const rows = useMemo(
-    () => worktreeRows(works, titles, now, handles),
-    [works, titles, now, handles],
+    () => worktreeRows(works, titles, now, handles, teams),
+    [works, titles, now, handles, teams],
   )
+  const byRoot = useMemo(() => new Map(rows.map((row) => [row.work.root, row])), [rows])
+  const [list, setList] = useState<HTMLElement | null>(null)
   const origin = originOf(works, now)
   // The safe rows Trash N safe would close, while its dialog asks.
   const [sweeping, setSweeping] = useState<readonly WorktreeRow[] | null>(null)
@@ -369,6 +512,46 @@ const WorktreesPanelView = ({
     if (sweeping && !sweeping.some((row) => listed(row.work.root))) setSweeping(null)
   }
   const selected = selectedRoot(works, selectedId, last)
+  // The wire on the rail joins each lead to its members, lit for the selected worktree's teams.
+  const wire = useMemo((): WorktreesWire => {
+    const chains = teams.teams.map(({ lead }) => chainOf(teams, lead))
+    return {
+      list,
+      teams: teams.teams,
+      levels: chains.map((chain) => chain.length),
+      chains: chains.map((chain) => chain.join(" ")),
+      lit: litOf(teams, selected),
+      above: selected === undefined ? noLeads : chainOf(teams, selected),
+      selected: selected ?? "",
+    }
+  }, [list, teams, selected])
+  useLayoutEffect(() => {
+    onWire?.(wire)
+  }, [onWire, wire])
+  useEffect(
+    () => () => {
+      onWire?.(null)
+    },
+    [onWire],
+  )
+  // How each row stands in its leads' folds (the toolkit's rowFold), as a terminal's tab does.
+  const foldOf = (row: WorktreeRow): RowFold | undefined => {
+    const root = row.work.root
+    const selectedChain = selected === undefined ? noLeads : chainOf(teams, selected)
+    const at = selected === undefined ? -1 : row.above.indexOf(selected)
+    return rowFold({
+      folded: { [foldContext]: folded },
+      context: foldContext,
+      above: row.above,
+      kept: selected === root || selectedChain.includes(root),
+      underSelected: at < 0 ? noLeads : row.above.slice(0, at + 1),
+      selectedAbove: at < 0 ? noLeads : selectedChain,
+      preview: preview === undefined ? null : { context: foldContext, lead: preview },
+      unfolding: unfolding === undefined ? null : { context: foldContext, lead: unfolding },
+    })
+  }
+  const foldsIn = (lead: string) =>
+    onFold !== undefined && isFolded({ [foldContext]: folded }, foldContext, lead)
   // A row whose agent is working waits, as its own trash button does.
   const safe = rows.filter(
     (row) => row.safe && row.close !== "busy" && !sweepingRoots.has(row.work.root),
@@ -486,6 +669,7 @@ const WorktreesPanelView = ({
         )
       ) : (
         <div
+          ref={setList}
           className={`worktrees-list ${sidebarListClasses}`}
           role="list"
           aria-label={panelLabels.worktrees}
@@ -495,6 +679,22 @@ const WorktreesPanelView = ({
               key={row.work.root}
               row={row}
               selected={row.work.root === selected}
+              team={roleOf(teams, row.work.root, selected)}
+              fold={foldOf(row)}
+              foldedRows={
+                foldsIn(row.work.root) && (
+                  <FoldedWorktrees
+                    lead={row.work.root}
+                    teams={teams}
+                    rows={byRoot}
+                    selected={selected}
+                    entering={folding === row.work.root}
+                    onOpen={(each) => show(each.work, each)}
+                    onUnfold={() => onFold?.(row.work.root)}
+                  />
+                )
+              }
+              foldedCount={foldsIn(row.work.root) ? descendantsOf(teams, row.work.root).length : 0}
               onSelect={(work) => show(work, row)}
               onClose={(each) => close(each, false)}
             />

@@ -5,12 +5,13 @@ import { orderedIds } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { Work, WorksState } from "@novadeck/core/works"
-import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
+import { memo, useCallback, useContext, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { filesOfWorks } from "../sidebar/files-works"
+import type { WorktreesWire } from "../sidebar/WorktreesPanel"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import {
@@ -26,9 +27,10 @@ import { FilesSection } from "./FilesSection"
 import { historyShown, filesShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { SessionsSection } from "./SessionsSection"
-import { useReorderTiles } from "./team-fold"
+import { toggleTeamFold, useReorderTiles } from "./team-fold"
 import { useWorktreesShown } from "./use-worktrees-shown"
 import { renderTab } from "./WorkspaceTab"
+import { worktreesFoldContext, WorktreesWireContext } from "./worktrees-wire"
 
 const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
   a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
@@ -36,6 +38,7 @@ const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, stri
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
 const noAgents: readonly never[] = []
+const noLeads: readonly string[] = []
 const always = (): (() => void) => () => {}
 
 const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): boolean =>
@@ -233,6 +236,30 @@ export const SidebarSection = memo((): React.JSX.Element => {
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
+  // Its teams fold as the Terminals list's do, kept in the ui store by project; the team wire on
+  // the rail (App's WorktreesWireSection) takes what the panel lends it.
+  const foldContext = worktreesFoldContext(projectId)
+  const foldedLeads = useUiState((state) => state.foldedTeams[foldContext] ?? noLeads)
+  const foldPreview = useUiState((state) =>
+    state.foldPreview?.context === foldContext ? state.foldPreview.lead : undefined,
+  )
+  const unfolding = useUiState((state) =>
+    state.unfolding?.context === foldContext ? state.unfolding.lead : undefined,
+  )
+  const folding = useUiState((state) =>
+    state.folding?.context === foldContext ? state.folding.lead : undefined,
+  )
+  const onFold = useCallback(
+    (lead: string) => toggleTeamFold(ui, foldContext, lead),
+    [ui, foldContext],
+  )
+  const wireStore = useContext(WorktreesWireContext)
+  const onWire = useCallback(
+    (wire: WorktreesWire | null): void => {
+      wireStore?.update(() => wire)
+    },
+    [wireStore],
+  )
   const worktrees = useMemo(
     () =>
       worksFeed
@@ -246,6 +273,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
             onCloseWork: worksFeed.close,
             handles: workHandles,
             ...(fetchOrigin ? { onFetch: fetchOrigin } : {}),
+            folded: foldedLeads,
+            preview: foldPreview,
+            unfolding,
+            folding,
+            onFold,
+            onWire,
           }
         : undefined,
     [
@@ -257,6 +290,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
       fetchOrigin,
       selectedId,
       showWork,
+      foldedLeads,
+      foldPreview,
+      unfolding,
+      folding,
+      onFold,
+      onWire,
     ],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)

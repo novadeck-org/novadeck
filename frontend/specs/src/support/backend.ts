@@ -42,6 +42,7 @@ import { isShowcase } from "@novadeck/demo/showcase/simulation"
 import { createDemo } from "@novadeck/demo/variants"
 import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/videos/babcia"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
+import { isDemoWorks } from "@novadeck/demo/works"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
 // The demo's variants a spec asks for in its address, and the backend that offers them:
@@ -524,6 +525,21 @@ export const buildStudioShows = (sample: SampleArtifact): void => {
         "moth",
         sample,
       )
+}
+
+/** The backend reports that the worktree on `branch` now heads to `to`, another's branch (its
+ * home and its pull request's target), so the Worktrees panel hangs it under that one. */
+export const worktreeHeadsTo = (branch: string, to: string): void => {
+  for (const { backend } of started) {
+    const { works } = backend
+    if (!works || !isDemoWorks(works)) continue
+    for (const work of works.state.getSnapshot().works)
+      if (work.branch === branch && work.terminalId !== null)
+        works.setHome(
+          { projectId: work.projectId, terminalId: work.terminalId, root: work.root },
+          to,
+        )
+  }
 }
 
 /** The backend reports that the terminal named `name` now works for the one named `lead`, in

@@ -309,8 +309,10 @@ Terminals:
   working in; a demo agent that starts a turn gains lines in the first worktree it owns and holds its
   trash button disabled until the turn ends). Every row state in Worktrees replaces the project's
   rows with one in each state a row draws (each glyph, `!` and `?`, draft, open, merged and closed
-  pull requests, a bar of 25 checks, an untitled branch with no agent), for checking them side by
-  side. New lines make a worktree at a terminal's first change, its branch brightened as unread;
+  pull requests, a bar of 25 checks, an untitled branch with no agent, and pi harness leading a
+  team with a nested member on the rail's wire), for checking them side by side; Heads to another
+  worktree hangs the selected terminal's worktree under another's (its home and pull request's
+  target become that one's branch), to light the wire and fold the team from the gutter. New lines make a worktree at a terminal's first change, its branch brightened as unread;
   Many files changed adds nine files; the conflict actions give the row a `!` whose tooltip says
   what it conflicts with; Work merged empties the row (a worktree with no files stays) and marks it
   ✓, its trash at full strength and counted in the header's Trash N;

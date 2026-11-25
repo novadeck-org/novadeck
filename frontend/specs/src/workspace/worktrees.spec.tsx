@@ -1,5 +1,6 @@
-import { page } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 
+import { worktreeHeadsTo } from "../support/backend"
 import { taskbarIcons } from "../support/companions"
 import { workspaceSwitcher } from "../support/sessions"
 import { expectSelected, openWorkspace, sidebar, sidebarPanel } from "../support/workspace"
@@ -111,6 +112,65 @@ describe("The Worktrees panel", () => {
       await expect.element(itemOf("Tests", "agent/tests")).toHaveAttribute("data-need", "unblock")
       await expect.element(itemOf("Build", "agent/build")).toHaveAttribute("data-need", "ask")
       await expect.element(itemOf("Checkout review")).not.toHaveAttribute("data-need")
+    })
+  })
+
+  context("when a worktree heads to another's branch", () => {
+    const listed = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-worktrees-row]")].map((each) =>
+        each.dataset.worktreesRow!.split("/").at(-2),
+      )
+    const gutter = () => document.querySelector<HTMLElement>("[data-team-wire-gutter]")
+    // A row by its worktree's folder, found though folded out of the list.
+    const byFolder = (folder: string) =>
+      [...document.querySelectorAll<HTMLElement>("[data-worktrees-row]")].find(
+        (each) => each.dataset.worktreesRow!.split("/").at(-2) === folder,
+      )
+
+    it("hangs it under that one on the team wire, lit while either is selected", async () => {
+      await openWorkspace(storefront)
+      await expect.element(rows().first()).toBeVisible()
+      worktreeHeadsTo("agent/build", "agent/tests")
+
+      await expect
+        .poll(listed)
+        .toEqual([
+          "agent-build-cache",
+          "agent-tests",
+          "agent-build",
+          "agent-checkout-implementation",
+          "agent-checkout-review",
+          "agent-promo-banner",
+          "agent-build-lint",
+        ])
+      await expect.element(itemOf("Build", "agent/build")).toHaveAttribute("data-team-level", "1")
+      await expect
+        .element(row("Build", "agent/build"))
+        .toHaveAccessibleName(/agent\/build into agent\/tests/)
+      await expect.poll(() => document.querySelectorAll(".team-wire-shape").length).toBe(1)
+
+      await row("Build", "agent/build").click()
+      await expect.element(itemOf("Tests", "agent/tests")).toHaveAttribute("data-team", "lead")
+      await expect
+        .poll(() => document.querySelectorAll(".team-wire-shape[data-lit]").length)
+        .toBe(1)
+    })
+
+    it("folds it into that one's row from the gutter beside it, and back", async () => {
+      await openWorkspace(storefront)
+      await expect.element(rows().first()).toBeVisible()
+      worktreeHeadsTo("agent/build", "agent/tests")
+      await row("Cache the build between runs").click()
+      await expect.poll(gutter).not.toBeNull()
+
+      await userEvent.hover(gutter()!)
+      await userEvent.click(gutter()!)
+
+      await expect.poll(() => byFolder("agent-build")?.dataset.teamFold).toBe("away")
+      const folded = byFolder("agent-tests")?.querySelector("[data-team-fold-row]")
+      expect(folded?.textContent).toContain("Build")
+      await userEvent.click(gutter()!)
+      await expect.poll(() => byFolder("agent-build")?.dataset.teamFold).not.toBe("away")
     })
   })
 

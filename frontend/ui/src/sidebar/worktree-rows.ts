@@ -1,3 +1,4 @@
+import type { LitTeams, Team } from "@novadeck/core/derivations"
 import { fetchAge, staleFetchMs } from "@novadeck/core/fetch-age"
 import type { PullRequest, PullRequestCheck, PullRequestReview } from "@novadeck/core/forges"
 import type { Work } from "@novadeck/core/works"
@@ -178,6 +179,8 @@ export type WorktreeRow = {
   // strength, and Trash N safe takes it.
   readonly safe: boolean
   readonly close: CloseMode
+  // The worktrees it heads to, the nearest first: its lead's, its lead's lead's (teams below).
+  readonly above: readonly string[]
   // What a screen reader hears for the row.
   readonly label: string
 }
@@ -341,8 +344,9 @@ export const worktreeRows = (
   titles: ReadonlyMap<string, string>,
   now = Date.now(),
   handles: ReadonlyMap<string, string> = new Map(),
+  teams: WorktreeTeams = worktreeTeams(works),
 ): readonly WorktreeRow[] =>
-  orderedWorks(works).map((work) => {
+  teams.order.map((work) => {
     const branch = work.branch ?? "detached"
     const target = targetOf(work)
     const state = stateOf(work, now)
@@ -377,6 +381,100 @@ export const worktreeRows = (
       bar,
       safe: work.safe === true,
       close: closeMode(work),
+      above: chainOf(teams, work.root),
       label,
     }
   })
+
+// ---- Teams: worktrees heading to another open worktree's branch ----
+
+// A worktree whose target is the branch another open worktree has is that worktree's member, as a
+// teammate is its lead's in the Terminals list: it hangs under it on the team wire, and folds
+// into it. A member may lead its own. `order` is the list's: newest first, each lead's members
+// right under it, newest first; `leadOf` each member's lead, by root; `teams` each lead's
+// members, in the list's order.
+export type WorktreeTeams = {
+  readonly order: readonly Work[]
+  readonly leadOf: ReadonlyMap<string, string>
+  readonly teams: readonly Team[]
+}
+
+export const worktreeTeams = (works: readonly Work[]): WorktreeTeams => {
+  const newest = orderedWorks(works)
+  const byBranch = new Map(
+    works.flatMap((work) => (work.branch === null ? [] : [[work.branch, work.root] as const])),
+  )
+  const leadOf = new Map<string, string>()
+  for (const work of works) {
+    const lead = byBranch.get(targetOf(work))
+    if (lead !== undefined && lead !== work.root) leadOf.set(work.root, lead)
+  }
+  // Worktrees heading to each other's branches go round: the newest of each ring heads nowhere.
+  for (const work of newest) {
+    const seen = new Set<string>()
+    let at = work.root
+    while (leadOf.has(at) && !seen.has(at)) {
+      seen.add(at)
+      at = leadOf.get(at)!
+      if (at === work.root) {
+        leadOf.delete(work.root)
+        break
+      }
+    }
+  }
+  const members = new Map<string, Work[]>()
+  for (const work of newest) {
+    const lead = leadOf.get(work.root)
+    if (lead !== undefined) members.set(lead, [...(members.get(lead) ?? []), work])
+  }
+  const order: Work[] = []
+  const teams: Team[] = []
+  const place = (work: Work): void => {
+    order.push(work)
+    const own = members.get(work.root)
+    if (!own) return
+    teams.push({ lead: work.root, workers: own.map((each) => each.root) })
+    own.forEach(place)
+  }
+  newest.filter((work) => !leadOf.has(work.root)).forEach(place)
+  return { order, leadOf, teams }
+}
+
+// The leads above a worktree, the nearest first.
+export const chainOf = (teams: WorktreeTeams, root: string): readonly string[] => {
+  const chain: string[] = []
+  for (let at = teams.leadOf.get(root); at !== undefined; at = teams.leadOf.get(at)) chain.push(at)
+  return chain
+}
+
+// Every worktree under a lead, at any depth, in the list's order.
+export const descendantsOf = (teams: WorktreeTeams, root: string): readonly string[] =>
+  teams.order
+    .map((work) => work.root)
+    .filter((each) => each !== root && chainOf(teams, each).includes(root))
+
+// What lights for the selected worktree, as for a selected terminal (core's litTeams): the team it
+// leads, the team it is in, and the way up through the leads above.
+export const litOf = (teams: WorktreeTeams, selected: string | undefined): LitTeams => {
+  if (selected === undefined) return { full: [], path: [] }
+  const full = teams.teams.filter(
+    (team) => team.lead === selected || team.lead === teams.leadOf.get(selected),
+  )
+  const chain = chainOf(teams, selected)
+  return { full, path: chain.slice(1).map((lead, index) => ({ lead, child: chain[index]! })) }
+}
+
+// What a worktree is in the tree of teams the selected worktree is in (core's treeRole): a lead
+// or a worker, or nothing outside it, or while the selected one is in no team.
+export const roleOf = (
+  teams: WorktreeTeams,
+  root: string,
+  selected: string | undefined,
+): "lead" | "worker" | undefined => {
+  if (selected === undefined) return undefined
+  const leads = (each: string) => teams.teams.some((team) => team.lead === each)
+  if (!leads(selected) && !teams.leadOf.has(selected)) return undefined
+  const top = chainOf(teams, selected).at(-1) ?? selected
+  if (root !== top && !chainOf(teams, root).includes(top)) return undefined
+  return leads(root) ? "lead" : "worker"
+}

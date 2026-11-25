@@ -40,6 +40,16 @@
 .sidebar-panel .sidebar-scroll > .contents > * {
   width: min(100cqw, 100%);
 }
+/* A nested team's row steps in (the toolkit's team-rows.css), and is narrower by as much, so it
+   ends where the others do. */
+.sidebar-panel .sidebar-scroll > [data-team-level="2"],
+.sidebar-panel .sidebar-scroll > .contents > [data-team-level="2"] {
+  width: calc(min(100cqw, 100%) - var(--tab-team-step, 6px));
+}
+.sidebar-panel .sidebar-scroll > [data-team-level="3"],
+.sidebar-panel .sidebar-scroll > .contents > [data-team-level="3"] {
+  width: calc(min(100cqw, 100%) - 2 * var(--tab-team-step, 6px));
+}
 
 /* It stays on one line beside the title, however many actions share the header, and where
    they leave too little room, as the Inbox's pill of held rows beside "12 waiting" at the

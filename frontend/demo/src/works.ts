@@ -375,6 +375,17 @@ const galleryRows: readonly GalleryRow[] = [
     pull: { number: 1254, state: "open", ci: "passed", checks: checksOf(7), review: "approved" },
   },
   {
+    title: "pi harness",
+    branch: "pi-harness",
+    pull: {
+      number: 1251,
+      state: "open",
+      ci: "running",
+      checks: checksOf(5, 2),
+      review: "required",
+    },
+  },
+  {
     title: "pi parity map and e2e",
     branch: "pi-parity-map",
     home: "pi-harness",
@@ -389,6 +400,7 @@ const galleryRows: readonly GalleryRow[] = [
     },
   },
   { title: "pi screens and install", branch: "pi-screens-install", home: "pi-harness", files: 0 },
+  { title: "Parity fixtures", branch: "pi-parity-fixtures", home: "pi-parity-map", unread: true },
   {
     title: "Broken question card",
     branch: "fix/question-card",
@@ -662,7 +674,8 @@ export type DemoWorksControl = {
   readonly setReview: (root: string, review: NonNullable<PullRequest["review"]>) => void
   // The terminal's worktree holds `count` uncommitted paths, whatever else it is.
   readonly setUncommitted: (at: Placed, count: number) => void
-  // The terminal's worktree belongs on the branch `home` (not main), or on main again.
+  // The terminal's worktree belongs on the branch `home` (not main), or on main again, and its
+  // pull request targets it.
   readonly setHome: (at: Placed, home: string | undefined) => void
   // The terminal's worktree has this title, or none (made by hand, or before titles).
   readonly setTitle: (at: Placed, title: string | undefined) => void
@@ -1044,7 +1057,12 @@ export const createDemoWorks = (
     },
     setHome: (at, home) => {
       const { root } = ensure(at)
-      change(root, (work) => ({ ...work, home }))
+      // Its pull request targets its home too, as one opened from there would.
+      change(root, ({ pullRequest, ...work }) => ({
+        ...work,
+        home,
+        ...(pullRequest && { pullRequest: { ...pullRequest, base: home ?? "main" } }),
+      }))
     },
     setTitle: (at, title) => {
       const { root } = ensure(at)

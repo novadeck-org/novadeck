@@ -763,7 +763,16 @@ with every safety check again at that time:
   passed, each with its reason as a tooltip; and at the end, where a tab holds its handle, the
   owner's handle (`SidebarItemHandle`), or "no agent". Unread lines brighten the branch. Under the
   pointer the handle gives way to the pull request's page and the trash button, full strength on a
-  safe row and dim on any other, which asks first. The header holds Trash N, which closes every
+  safe row and dim on any other, which asks first. A worktree whose target is the branch another
+  open worktree has is that one's member, as a teammate is its lead's in the Terminals list
+  (`worktreeTeams`): it stands right under it, a member that leads its own a level in, joined on
+  the rail's border by the same team wire (`TeamWire` with `kind` "worktrees", mounted from App with
+  the list the panel lends it, `app/worktrees-wire.ts`), the selected worktree's tree tinted and its
+  wire lit. Pointing beside a lead previews its fold and a click folds its members into its row
+  (the toolkit's `TeamFoldRows`: ├ └, glyph, title, `!` `?`), kept in the ui store per project
+  as the Terminals list's folds are per session; a member the person is on stays in place. A
+  target no worktree has open stays a plain `target ‹ branch`; worktrees heading to each other's
+  branches are cut at the newest. The header holds Trash N, which closes every
   safe row, unforced, after one confirm that lists them, saying above the list why any that
   stopped being safe stays. Over the list, a line says
   how old the remote's main is ("origin/main, 12 min ago", the oldest fetch among the works
