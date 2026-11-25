@@ -16,7 +16,9 @@
 
    Tokens, each optional (its fallback in brackets):
    --folder-tile-min (150px): the narrowest a tile gets.
-   --folder-thumb-bg (shell), --folder-thumb-border-color (line): a tile's picture.
+   --pane-well-bg (shell): the well the files sit in, under the crumbs.
+   --folder-thumb-bg (paper; shell in the quick look), --folder-thumb-border-color (line): a
+   tile's picture.
    --folder-hover-bg (soft), --folder-selected-bg (soft), --folder-selected-ring (line-strong).
    --folder-arrivals-bg (strong), --folder-arrivals-fg (on-strong): the pill.
    --folder-new-bg (taskbar-mark-active-bg, ink): the new dot. */
@@ -38,7 +40,6 @@
     gap: 2px;
     height: 32px;
     padding: 0 10px 0 6px;
-    border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
     color: var(--color-muted);
     font-family: var(--font-mono);
     font-size: var(--text-caption);
@@ -101,6 +102,7 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+    background-color: var(--pane-well-bg, var(--color-shell));
   }
   .folder-scroll[data-faded] {
     opacity: 0.45;
@@ -145,7 +147,7 @@
     overflow: hidden;
     border: var(--border-width) solid var(--folder-thumb-border-color, var(--color-line));
     border-radius: var(--radius-control);
-    background-color: var(--folder-thumb-bg, var(--color-shell));
+    background-color: var(--folder-thumb-bg, var(--color-paper));
     color: var(--color-muted);
   }
   .folder-thumb img {
@@ -244,7 +246,7 @@
         transparent 0 6px,
         color-mix(in srgb, var(--color-line) 70%, transparent) 6px 7px
       ),
-      var(--folder-thumb-bg, var(--color-shell));
+      var(--folder-thumb-bg, var(--color-paper));
   }
   .folder-viewer [data-secret] .folder-name,
   .folder-viewer [data-secret] .folder-meta,
@@ -273,7 +275,7 @@
     position: sticky;
     top: 0;
     border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
-    background-color: var(--pane-bg, var(--color-paper));
+    background-color: var(--pane-well-bg, var(--color-shell));
     color: var(--color-muted);
     font-size: var(--text-caption);
     font-weight: normal;

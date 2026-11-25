@@ -30,7 +30,9 @@
    sign, and --changes-add-bg, --changes-remove-bg (the ink at 5%, 7% on a light scheme) a
    whisper under the line. A changed run of tokens is one mark, the ink at 30%.
    --changes-rail-fg (strong): the selection's rail.
-   --pane-bg (paper): the ground of every view. */
+   --pane-bg (paper): the ground of every view.
+   --pane-well-bg (shell): the well that sets the layers, and a file's heading with its summary,
+   apart from the files and lines under them. */
 /* How current a compare's remote refs are, where that is in doubt: amber once old or failed. In
    the row where a change's pull request is, at its size, one line, the first to give way. */
 .changes-origin {
@@ -57,6 +59,7 @@
 }
 .changes-host {
   --_ground: var(--pane-bg, var(--color-paper));
+  --_well: var(--pane-well-bg, var(--color-shell));
   --_add: var(--changes-add-fg, var(--color-success-fg));
   --_remove: var(--changes-remove-fg, var(--color-danger-fg));
   --_add-bg: var(
@@ -146,7 +149,7 @@
   max-height: min(40%, 207px);
   overflow-y: auto;
   padding: 6px;
-  border-bottom: var(--border-width, 1px) solid var(--color-line);
+  background: var(--_well);
   font-size: var(--text-control);
 }
 .changes-layer {
@@ -376,8 +379,7 @@
   gap: 10px;
   height: 40px;
   padding: 0 10px 0 6px;
-  border-bottom: var(--border-width, 1px) solid var(--color-line);
-  background: var(--_ground);
+  background: var(--_well);
   overflow: hidden;
   transform-origin: top left;
 }
@@ -433,7 +435,7 @@
 .changes-summary {
   flex: none;
   padding: 8px 16px;
-  border-bottom: var(--border-width, 1px) solid var(--color-line);
+  background: var(--_well);
   color: var(--color-muted);
   font-size: var(--text-caption);
 }
@@ -795,7 +797,6 @@ button.changes-fold:hover {
   color: var(--color-muted);
 }
 .changes-stack .changes-summary {
-  border-bottom: none;
   padding-top: 6px;
   padding-bottom: 2px;
 }
@@ -808,8 +809,4 @@ button.changes-fold:hover {
 /* A change's heading stays on top just under its file's. */
 .changes-stack .changes-hunk-head {
   top: 40px;
-}
-/* A file whose diff is hidden leaves the line under it to the next file's heading. */
-.changes-stack-file[data-shut] .changes-stack-head {
-  border-bottom-color: transparent;
 }
