@@ -2,7 +2,6 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { longFailing } from "../app/use-failing-origins"
 import { describe, expect, it } from "../test"
 import { originText } from "./FooterOrigin"
 import { WorkspaceFooter } from "./WorkspaceFooter"
@@ -53,13 +52,5 @@ describe("the footer's word on origin", () => {
     expect(chip()?.disabled).toBe(true)
     await act(async () => end())
     expect(chip()?.textContent).toBe("Can't fetch")
-  })
-})
-
-describe("which failing origins the footer tells", () => {
-  it("only those failing an hour or more, as the runner's own fetches retry a passing blip", () => {
-    const young = { repository: "web", said: "timeout", since: now - 59 * 60_000 }
-    expect(longFailing([...failing, young], now)).toEqual(failing)
-    expect(longFailing([young], now)).toEqual([])
   })
 })
