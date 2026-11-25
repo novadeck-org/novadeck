@@ -998,7 +998,7 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     brief()
     const policy = tour.openPolicy("lead")
     expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe(
-      'The tour runs Novadeck\'s own pi only: open your teammates with agent "pi".',
+      'The tour runs Novadeck\'s own Pi only: open your teammates with agent "pi".',
     )
     expect(policy.refuseAgent?.("opencode", tourFolder(home))).toBeDefined()
     expect(policy.refuseAgent?.("pi", tourFolder(home))).toBeUndefined()

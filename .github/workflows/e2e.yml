@@ -355,8 +355,8 @@ jobs:
           - { name: Claude Code, agents: claude }
           - { name: Codex, agents: codex }
           - { name: Antigravity, agents: agy }
-          - { name: opencode, agents: opencode }
-          - { name: pi, agents: pi }
+          - { name: OpenCode, agents: opencode }
+          - { name: Pi, agents: pi }
         # `files` are what vitest runs: paths it matches by substring, and `--exclude` globs
         # for the rest, which keeps exactly what the others leave. `part` is the held
         # reply's share of its runs (PROBE_PART).

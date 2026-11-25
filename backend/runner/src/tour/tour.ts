@@ -409,7 +409,7 @@ export class Tour {
       ? {
           refuseAgent: (agent, at) =>
             agent !== tourAgent && this.inTour(at)
-              ? 'The tour runs Novadeck\'s own pi only: open your teammates with agent "pi".'
+              ? 'The tour runs Novadeck\'s own Pi only: open your teammates with agent "pi".'
               : undefined,
           flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
           program: (agent, at) => (agent === tourAgent && this.inTour(at) ? ownProgram : undefined),

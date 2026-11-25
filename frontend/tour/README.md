@@ -1,7 +1,7 @@
 # @novadeck/tour
 
 Novadeck's onboarding tour: the consent that offers it, starting a run (the tour's folder opened as
-a project of its own, with opencode starting there on a model Novadeck pays for), the driver that follows the run by
+a project of its own, with Novadeck's own Pi starting there on a model Novadeck pays for), the driver that follows the run by
 the workspace's signals and plays its steps, and what it draws over the workspace while it runs
 (its stage, in four acts, and the closing card).
 
@@ -11,10 +11,11 @@ the workspace's signals and plays its steps, and what it draws over the workspac
   what it needs once, at `TourProvider`, as a `TourHost` (`src/tour-host.ts`): the backend's tour, the
   workspace, and the commands that move the view as the person's would. `scripts/workspace/graph.test.ts` holds it off the UI, the chat, the items package, every
   backend and every harness.
-- **The tour runs opencode alone, and offers no choice of agent.** Its consent (`consent.ts`,
-  `TourConsent.tsx`) says what runs and where the agents' words go, and where opencode isn't
-  installed or connected it offers Install (the app's installer, handed in by the app) or Connect
-  right there. The model is Novadeck's, so none of the person's own agents is spent.
+- **The tour runs Novadeck's own Pi alone, and offers no choice of agent.** Its consent
+  (`consent.ts`, `TourConsent.tsx`) says what runs and where the agents' words go, and asks the
+  backend to download Pi as it opens (`Tour.fetch`): it shows how far the download is, and a
+  failed one's reason with Try again; Start waits for Pi to be in place. Nothing is installed or
+  connected, and the model is Novadeck's, so none of the person's own agents is spent.
 - **The person moves the view, never the tour.** Starting a run puts the person in Canvas on its
   lead's window; after that the tour opens, pans and zooms nothing of its own. A caption box whose
   subject can be off screen or behind another tab carries an eye button (`TourStep.show`) that

@@ -525,10 +525,10 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     )
     expect(listed.properties.model.description).toContain("codex (Codex): gpt-5 (medium)")
     expect(listed.properties.model.description).toContain(
-      "opencode (opencode): opencode/big-pickle (no effort)",
+      "opencode (OpenCode): opencode/big-pickle (no effort)",
     )
     expect(listed.properties.model.description).toContain(
-      "pi (pi): openai/gpt-6-luna (low, medium)",
+      "pi (Pi): openai/gpt-6-luna (low, medium)",
     )
     expect(listed.properties.model.description).toContain("leave it out")
     expect(listed.properties.model.description).not.toContain("can't take a model now")

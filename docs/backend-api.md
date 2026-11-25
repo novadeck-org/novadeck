@@ -1264,7 +1264,7 @@ Windows' own: no Git Bash in either Program Files, and no `bash.exe` on PATH but
    nothing for 30 s. Launches fetching at once share one download.
 3. The relay writes each progress line to stderr, over the last on a terminal, one under
    the other elsewhere; it exits 0 once ready, and otherwise 1 with
-   `Novadeck couldn't get pi: <reason>`. Outside Novadeck's terminals it fails at once.
+   `Novadeck couldn't get Pi: <reason>`. Outside Novadeck's terminals it fails at once.
 
 The runner doesn't check the terminal's token for a fetch: its endpoint is the person's
 alone, and all a fetch can ask is the pinned, checksummed download.
@@ -2623,7 +2623,7 @@ one from an earlier runner.
   teammate the lead opens in the folder is Novadeck's own pi too (`OpenPolicy.program`, through
   the Terminals option `openPolicy`: `open_agent`'s command line starts with `novadeck-pi`, and the
   person's pi need not be connected), and on the run's model and effort whatever
-  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs Novadeck's own pi only…", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
+  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs Novadeck's own Pi only…", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
   tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
   refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team. The
   lead's terminal is kept with the run's record (`tour.brief` writes it), so the lead resumed in a
