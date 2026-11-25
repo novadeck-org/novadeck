@@ -38,6 +38,7 @@ import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 import { chatViewOn, dismissWhatsNew, onboardingTourOn } from "./ui-store"
 import { useBusyTerminals } from "./use-busy-terminals"
+import { useFailingOrigins } from "./use-failing-origins"
 import { useOfferNews } from "./use-offer-news"
 
 // Every terminal of every session of every project, in their order: the same array while none
@@ -82,6 +83,7 @@ export const FooterSection = memo((): React.JSX.Element => {
   const whatsNew = useUiState((state) => state.whatsNew)
   const sandbox = useUiState((state) => state.sandbox)
   const sandboxOpen = useUiState((state) => state.sandboxOpen)
+  const origin = useFailingOrigins()
   const portableState = useUiState((state) => state.portable)
   const portable = portableState?.portable === true
   // A desktop app that can say it is portable has not yet: the sandbox chip waits, so it does not
@@ -365,6 +367,7 @@ export const FooterSection = memo((): React.JSX.Element => {
             }
           : undefined
       }
+      origin={origin}
       usage={<SubscriptionUsage accounts={accounts} onMove={move} />}
       feedback={
         backend.feedback && (

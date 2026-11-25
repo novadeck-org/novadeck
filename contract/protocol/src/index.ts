@@ -122,6 +122,8 @@ export {
   historyLimits,
 } from "./history.js"
 export {
+  type OriginFailing,
+  originFailing,
   type PreviewHunk,
   previewHunk,
   type PreviewRename,

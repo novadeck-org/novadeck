@@ -1,4 +1,4 @@
-import { join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PullRequest as FoundPullRequest } from "@novadeck/forges"
@@ -6,6 +6,7 @@ import {
   previewLimits,
   pullRequest as pullRequestSchema,
   workLimits,
+  type OriginFailing,
   type PullRequest,
   type Work,
   type WorkChange,
@@ -109,6 +110,14 @@ export type WorksOptions = {
   readonly remove: (root: string, force: boolean, safe?: boolean) => Promise<Removal>
   /** Fetches the origins of these repositories (git common dirs) now; resolves once each has ended. */
   readonly fetch?: (commonDirs: readonly string[]) => Promise<void>
+  /**
+   * Why a repository's (git common dir's) last fetch failed and since when its fetches have been
+   * failing; neither while its last fetch succeeded.
+   */
+  readonly origin?: (commonDir: string) => {
+    readonly failed?: string | undefined
+    readonly failingSince?: number | undefined
+  }
   /** Calls the listener each time a worktree starts being tracked; returns what stops it. */
   readonly onMade?: (listener: (made: WorkMade) => void) => () => void
   /** What takes the checkouts' working trees as trees, shared with the changes items. */
@@ -186,6 +195,14 @@ type Kind = {
   readonly status: Detail["status"]
   readonly from?: string
   readonly blob: string
+}
+
+// A repository by its folder's name, from its git common dir: `.git` inside the folder, or a bare
+// repository's own folder (`name.git`).
+export const repositoryName = (gitDir: string): string => {
+  const own = basename(gitDir)
+  const name = own === ".git" ? basename(dirname(gitDir)) : own.replace(/\.git$/, "")
+  return name || gitDir
 }
 
 /**
@@ -682,6 +699,36 @@ export class Works {
     await this.options.fetch(repositories)
     if (this.stopped) return
     await this.exclusive(() => this.pass(new Set(mine.map(({ root }) => root)))).catch(() => {})
+  }
+
+  /**
+   * The repositories of the project's works whose fetches fail now, oldest failure first, each by
+   * its folder's name. Reads only what the fetches left behind: no git runs.
+   */
+  origins(projectId: string): OriginFailing[] {
+    const origin = this.options.origin
+    if (origin === undefined) return []
+    const repositories = new Set(
+      this.options
+        .tracked()
+        .filter((row) => row.projectId === projectId)
+        .flatMap((row) => row.commonDir ?? []),
+    )
+    return [...repositories]
+      .flatMap((gitDir) => {
+        const { failed, failingSince } = origin(gitDir)
+        return failed === undefined || failingSince === undefined
+          ? []
+          : [
+              {
+                repository: repositoryName(gitDir),
+                said: failed.slice(0, 1024),
+                since: failingSince,
+              },
+            ]
+      })
+      .toSorted((a, b) => a.since - b.since)
+      .slice(0, workLimits.conflicts)
   }
 
   /** The work at `root`, read now if nobody is watching to keep them current. */

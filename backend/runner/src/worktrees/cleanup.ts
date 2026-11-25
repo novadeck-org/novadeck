@@ -12,6 +12,13 @@ const log = logs.for("worktrees")
 /** Where a worktree's owner is: running or kept asleep, closed into History, or nowhere. */
 export type OwnerState = "open" | "history" | "gone"
 
+/** A repository's origin as the fetches left it: see `Cleanup.originStatus`. */
+export type OriginStatus = {
+  readonly fetchedAt?: number
+  readonly failed?: string
+  readonly failingSince?: number
+}
+
 /** What cleanup needs of the runner. */
 export type CleanupHost = {
   /** Where a terminal is. */
@@ -73,13 +80,18 @@ export class Cleanup {
     return this.fetcher.fetchedAt(commonDir)
   }
 
-  /** When the repository was last fetched and why its last fetch failed, if it did. */
-  originStatus(commonDir: string): { fetchedAt?: number; failed?: string } {
+  /**
+   * When the repository was last fetched, why its last fetch failed if it did, and since when
+   * its fetches have been failing.
+   */
+  originStatus(commonDir: string): OriginStatus {
     const failed = this.fetcher.failure(commonDir)
     const fetchedAt = this.fetcher.fetchedAt(commonDir)
+    const failingSince = this.fetcher.failingSince(commonDir)
     return {
       ...(fetchedAt !== undefined && { fetchedAt }),
       ...(failed !== undefined && { failed }),
+      ...(failingSince !== undefined && { failingSince }),
     }
   }
 

@@ -202,11 +202,11 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
-              label: "Origin fetched 3 h ago",
-              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) is measured against origin/main fetched 3 h ago, so the panel's top line reads origin/main, 3 h ago in amber, with Fetch; Fetch brings it to just now",
-              run: ({ selected, workspace }) => {
+              label: "Origin fetch failing",
+              hint: "The footer: the selected terminal's project has failed to fetch its origin for 2 h, so within 20 s its middle shows Can't fetch, git's reason in its tooltip; a click fetches and clears it",
+              run: ({ selected }) => {
                 const key = selected()
-                if (key) works.fetchedAgo(placed(workspace(), key), 3 * 60)
+                if (key) works.failOrigin(key.projectId, 120, "Could not resolve host: github.com")
               },
             },
             {

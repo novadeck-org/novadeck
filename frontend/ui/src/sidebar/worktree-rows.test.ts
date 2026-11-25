@@ -12,7 +12,6 @@ import {
   litOf,
   needOf,
   orderedWorks,
-  originOf,
   ownerOpen,
   pullMark,
   roleOf,
@@ -389,31 +388,6 @@ describe("what a work conflicts with", () => {
     })
     expect(conflictWords(one, titles, [one, other])).toBe("Conflicts with feat/old")
     expect(conflictWords(one, titles)).toBe("Conflicts with another worktree")
-  })
-})
-
-describe("the origin line", () => {
-  const hour = 60 * 60_000
-  const at = 10 * hour
-
-  it("says the oldest fetch among the works measured against a remote's main", () => {
-    expect(
-      originOf(
-        [
-          work("a", 1, { base: "origin/main", fetchedAt: at - 5 * 60_000 }),
-          work("b", 2, { base: "origin/main", fetchedAt: at - 2 * hour }),
-          work("c", 3, { base: "main" }),
-        ],
-        at,
-      ),
-    ).toEqual({ text: "origin/main, 2 h ago", stale: true })
-  })
-
-  it("is fresh under an hour, and none where nothing was fetched", () => {
-    expect(
-      originOf([work("a", 1, { base: "origin/main", fetchedAt: at - 59 * 60_000 })], at),
-    ).toEqual({ text: "origin/main, 59 min ago", stale: false })
-    expect(originOf([work("a", 1)], at)).toBeUndefined()
   })
 })
 

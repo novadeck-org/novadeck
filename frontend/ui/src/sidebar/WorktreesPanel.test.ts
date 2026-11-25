@@ -55,7 +55,6 @@ const show = (
     reported?: boolean
     // Handles by terminal id, bare.
     handles?: ReadonlyMap<string, string>
-    fetch?: () => Promise<void>
     // The leads folded, and what takes the fold and the wire.
     folded?: readonly string[]
     onFold?: (lead: string) => void
@@ -86,7 +85,6 @@ const show = (
     onSelect,
     onCloseWork,
     ...(options.handles ? { handles: options.handles } : {}),
-    ...(options.fetch ? { onFetch: options.fetch } : {}),
     ...(options.folded ? { folded: options.folded } : {}),
     ...(options.onFold ? { onFold: options.onFold } : {}),
     ...(options.onWire ? { onWire: options.onWire } : {}),
@@ -541,37 +539,6 @@ describe("Trash N, while it works", () => {
         "feat/a, feat/b stay: it holds 1 uncommitted or untracked path.",
       ),
     )
-  })
-})
-
-describe("the panel's origin line", () => {
-  it("says how old the remote's main is, amber after an hour, and fetches it", async () => {
-    const fetch = vi.fn<() => Promise<void>>(async () => {})
-    const { page } = show(
-      [work("a", { base: "origin/main", fetchedAt: Date.now() - 2 * 60 * 60_000 })],
-      { fetch },
-    )
-    const line = page.container.querySelector<HTMLElement>(".worktrees-origin")!
-    expect(line.textContent).toContain("origin/main, 2 h ago")
-    expect(line.dataset.stale).toBe("true")
-    act(() => line.querySelector<HTMLButtonElement>("button")!.click())
-    expect(fetch).toHaveBeenCalledOnce()
-  })
-
-  it("says when a fetch failed, and offers it again", async () => {
-    const { page } = show(
-      [work("a", { base: "origin/main", fetchedAt: Date.now() - 5 * 60_000 })],
-      { fetch: async () => Promise.reject(new Error("Could not resolve host")) },
-    )
-    const line = page.container.querySelector<HTMLElement>(".worktrees-origin")!
-    act(() => line.querySelector<HTMLButtonElement>("button")!.click())
-    await eventually(() => expect(line.textContent).toContain("fetch failed"))
-    expect(line.querySelector("button")?.textContent).toBe("Retry")
-  })
-
-  it("isn't drawn where nothing was fetched", () => {
-    const { page } = show([work("a")])
-    expect(page.container.querySelector(".worktrees-origin")).toBeNull()
   })
 })
 

@@ -39,8 +39,6 @@ export type History = {
   readonly base: string
   /** A compare's head, where the history is one an agent showed as a compare of two refs. */
   readonly head?: string
-  /** A compare of a remote-tracking ref: when its origin was last fetched, ms ago (none: never), and why a fetch failed. */
-  readonly origin?: { readonly fetchedAgo?: number; readonly failed?: string }
   /** The files of main. */
   readonly start: Files
   /** Oldest first. */
@@ -247,14 +245,6 @@ export const contentOf = (history: History): ChangesContent => {
     root: history.root,
     base: history.base,
     ...(history.head !== undefined && { head: history.head }),
-    ...(history.origin && {
-      origin: {
-        ...(history.origin.fetchedAgo !== undefined && {
-          fetchedAt: Date.now() - history.origin.fetchedAgo,
-        }),
-        ...(history.origin.failed !== undefined && { failed: history.origin.failed }),
-      },
-    }),
     layers,
     read: [],
     // The whole change's own list: the range over every layer.

@@ -98,11 +98,30 @@ describe("fetching origins", () => {
     failing = true
     await fetcher.fetchNow(["/r/api/.git"])
     expect(fetcher.fetchedAt("/r/api/.git")).toBe(first)
+    expect(fetcher.failure("/r/api/.git")).toBe("could not read from remote")
+    expect(fetcher.failingSince("/r/api/.git")).toBe(now)
     // The failure of a person's own ask puts nothing off: the next one due is as it was.
     failing = false
     now = first + 5 * minute
     await fetcher.fetchDue(["/r/api/.git"])
     expect(git.fetches()).toHaveLength(3)
+  })
+
+  it("keeps when fetches began failing across failures, and forgets it at the first success", async () => {
+    let failing = true
+    const git = fake({ failing: () => failing })
+    let now = 1_000_000
+    const fetcher = new MainFetcher({ now: () => now, run: git.run, environment: {} })
+    expect(fetcher.failingSince("/r/api/.git")).toBeUndefined()
+    await fetcher.fetchDue(["/r/api/.git"])
+    const began = now
+    now += 30 * minute
+    await fetcher.fetchNow(["/r/api/.git"])
+    expect(fetcher.failingSince("/r/api/.git")).toBe(began)
+    failing = false
+    await fetcher.fetchNow(["/r/api/.git"])
+    expect(fetcher.failingSince("/r/api/.git")).toBeUndefined()
+    expect(fetcher.failure("/r/api/.git")).toBeUndefined()
   })
 
   it("runs in the repository's folder, changing nothing but origin's refs, with a long timeout and a grace", async () => {

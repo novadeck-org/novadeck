@@ -48,7 +48,8 @@ export const compatibility: Compatibility = {
   // 17: a work's `title` and `changedAt`.
   // 18: a work's pull request says its target branch, its checks one by one and where its review
   // stands (`base`, `checks`, `review`), the checks' state and the review read tolerantly.
-  revision: 18,
+  // 19: the repositories of a project whose origin keeps failing to fetch (`works.origins`).
+  revision: 19,
   oldestClient: 11,
   oldestRunner: 12,
 }
