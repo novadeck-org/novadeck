@@ -17,6 +17,7 @@ import {
   writeTo,
   type FilesClock,
 } from "./files"
+import { demoHandle } from "./handles"
 import { plainDemo } from "./index"
 import { demoSeed } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -591,5 +592,20 @@ describe("a backend with the demo's files", () => {
     advance(8000)
     expect(project(files).writing.crow).toBeDefined()
     stop()
+  })
+})
+
+describe("a folder an agent's write created", () => {
+  it("lists like any other: it is there, holding what the tree held of it (nothing)", async () => {
+    const files = createDemoFiles(now)
+    await expect(files.list("storefront", "src/emails")).rejects.toThrow("no such folder")
+    files.write(demoHandle(1), "src/emails/shipped.tsx")
+    const listing = await files.list("storefront", "src/emails")
+    expect(listing).toEqual({ entries: [], truncated: false })
+    // The file is the agent's change, which the panel shows in the folder.
+    expect(files.state.getSnapshot().projects["storefront"]!.changes).toHaveProperty(
+      "src/emails/shipped.tsx",
+      expect.objectContaining({ kind: "added" }),
+    )
   })
 })

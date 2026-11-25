@@ -26,28 +26,28 @@ import { terminalOf } from "./workspace"
 // writes while the page is in view, a file every few seconds, now and then resting between
 // turns; waiting on the person or at rest, it writes nothing and shows no cursor.
 
-const projectId = "storefront"
-const session = { projectId, workspaceSessionId: "initial" }
+const storefrontId = "storefront"
+const storefrontSession = { projectId: storefrontId, workspaceSessionId: "initial" }
 
 // The agents in the storefront project that change files, by the handle of their slot.
 const moth = demoHandle(1)
 const crow = demoHandle(4)
 // The agents that write by themselves, by the terminal of their slot.
-const slots = [
-  { handle: moth, terminalId: demoTerminalId(session, 1) },
-  { handle: crow, terminalId: demoTerminalId(session, 4) },
+const storefrontSlots = [
+  { handle: moth, terminalId: demoTerminalId(storefrontSession, 1) },
+  { handle: crow, terminalId: demoTerminalId(storefrontSession, 4) },
 ]
 
 // The storefront terminal of the agent with the handle, if it is one that changes files.
 export const terminalOfHandle = (handle: string): string | undefined =>
-  slots.find((slot) => slot.handle === handle)?.terminalId ??
-  (handle === filesThird ? demoTerminalId(session, 3) : undefined)
+  storefrontSlots.find((slot) => slot.handle === handle)?.terminalId ??
+  (handle === filesThird ? demoTerminalId(storefrontSession, 3) : undefined)
 
 // The handles of the storefront agents that work, asking nothing of the person, as the seed
 // opens them: the ones that write by themselves (Moth and Crow).
 export const workingInSeed = (seed: WorkspaceSeed): readonly string[] =>
   seed.projects
-    .filter((project) => project.id === projectId)
+    .filter((project) => project.id === storefrontId)
     .flatMap((project) => project.sessions.flatMap((each) => each.terminals))
     .flatMap((terminal) =>
       terminal.state === "running" &&
@@ -136,10 +136,12 @@ export const writeTo = (
   handle: string,
   path: string,
   at: number,
+  // The paths the tree held before any agent's work.
+  known: readonly string[] = entries,
 ): FilesProject => {
   const was = project.changes[path]
   const kind =
-    was && was.kind !== "deleted" ? was.kind : entries.includes(path) || was ? "modified" : "added"
+    was && was.kind !== "deleted" ? was.kind : known.includes(path) || was ? "modified" : "added"
   return {
     ...project,
     changes: { ...project.changes, [path]: file(kind, { ...was?.touched, [handle]: at }) },
@@ -156,6 +158,7 @@ export const markIn = (
   path: string,
   kind: TouchedFile["kind"] | undefined,
   at: number,
+  known: readonly string[] = entries,
 ): FilesProject => {
   const was = project.changes[path]
   if (kind !== undefined)
@@ -172,7 +175,7 @@ export const markIn = (
     changes:
       Object.keys(touched).length === 0
         ? rest
-        : { ...rest, [path]: file(entries.includes(path) ? "modified" : "added", touched) },
+        : { ...rest, [path]: file(known.includes(path) ? "modified" : "added", touched) },
   }
 }
 
@@ -187,9 +190,7 @@ const trimmed = (path: string): string => (path.endsWith("/") ? path.slice(0, -1
 
 // A project's tree, as the fixtures hold it: an entry ending in `/` is a folder with nothing in
 // it, and `ignored` names what the project's VCS ignores.
-type Tree = { readonly entries: readonly string[]; readonly ignored: readonly string[] }
-
-const storefront: Tree = { entries, ignored }
+export type Tree = { readonly entries: readonly string[]; readonly ignored: readonly string[] }
 
 // The other sample projects' trees, small and generic to their names; a project the visitor adds
 // has the plain one.
@@ -296,8 +297,6 @@ export const listEntries = (
   return { entries: listFixture(tree, folder), truncated: false }
 }
 
-const treeOf = (id: string): Tree => (id === projectId ? storefront : (trees[id] ?? plain))
-
 // What `folder` of a tree lists: its files, and the folders that hold the paths below. Ignored
 // folders hold only ignored files, which the panel carries down.
 const listFixture = (tree: Tree, folder: string): readonly FolderEntry[] => {
@@ -324,7 +323,7 @@ const truncatedTo = 2
 
 // What an agent writes: the files it keeps coming back to, and ones it creates, each the
 // first time only.
-type Pool = { readonly files: readonly string[]; readonly fresh: readonly string[] }
+export type Pool = { readonly files: readonly string[]; readonly fresh: readonly string[] }
 
 const pools: Readonly<Record<string, Pool>> = {
   [moth]: {
@@ -347,8 +346,9 @@ const pools: Readonly<Record<string, Pool>> = {
   },
 }
 
-// Any other agent writes as Crow's pool.
-const poolOf = (handle: string): Pool => pools[handle] ?? pools[crow]!
+// Any other agent writes as Crow's pool (or the first one's, in a scene with no Crow).
+const poolOf = (all: Readonly<Record<string, Pool>>, handle: string): Pool =>
+  all[handle] ?? all[crow] ?? Object.values(all)[0]!
 
 // The file an agent writes next, by a roll of `random`: mostly the one it is on, sometimes
 // another of its pool, and now and then one it creates, if it has not yet.
@@ -357,14 +357,39 @@ export const nextFile = (
   handle: string,
   random: number,
   pick: number,
+  all: Readonly<Record<string, Pool>> = pools,
 ): string => {
-  const { files, fresh } = poolOf(handle)
+  const { files, fresh } = poolOf(all, handle)
   const current = project.writing[handle] ?? files[0]!
   const created = fresh.find((path) => !project.changes[path])
   if (created && random < 0.12) return created
   const others = files.filter((path) => path !== current)
   if (random < 0.35 && others.length > 0) return others[Math.floor(pick * others.length)]!
   return current
+}
+
+// A project's files as the demo plays them: its tree, the agents that write in it (by the
+// terminal of their slot) and what each writes, what was changed before the page opened, and
+// who is writing as it does. The storefront's, with Moth and Crow, is the default; a video's demo
+// has its own (`videos/launch-files.ts`).
+export type FilesScene = {
+  readonly projectId: string
+  readonly session: { readonly projectId: string; readonly workspaceSessionId: string }
+  readonly slots: readonly { readonly handle: string; readonly terminalId: string }[]
+  readonly tree: Tree
+  readonly pools: Readonly<Record<string, Pool>>
+  readonly open: (now: number, working: readonly string[]) => FilesProject
+  // No agent writes by itself until `release`.
+  readonly held?: true
+}
+
+const storefrontScene: FilesScene = {
+  projectId: storefrontId,
+  session: storefrontSession,
+  slots: storefrontSlots,
+  tree: { entries, ignored },
+  pools,
+  open: storefrontFiles,
 }
 
 // When the demo's time and scheduling come from, which a test replaces.
@@ -376,7 +401,7 @@ export type FilesClock = {
   readonly hidden: () => boolean
 }
 
-const realClock: FilesClock = {
+export const realClock: FilesClock = {
   now: Date.now,
   random: Math.random,
   after: (ms, run) => {
@@ -430,6 +455,8 @@ export type DemoFiles = ProjectFiles & {
   // Stops the agent in a terminal writing because its terminal no longer shows it working,
   // however that came about; it writes again when its agent is reported working.
   readonly halt: (terminalId: string) => void
+  // Lets a held scene's agents write, those at work now writing a file at once.
+  readonly release: () => void
 }
 
 // Whether a backend's files are the demo's, which the debug panel writes to.
@@ -440,10 +467,14 @@ export const createDemoFiles = (
   now: number = Date.now(),
   clock: FilesClock = realClock,
   working: readonly string[] = [crow],
+  scene: FilesScene = storefrontScene,
 ): DemoFiles => {
+  const { projectId, session, slots, pools: scenePools } = scene
+  const treeOf = (id: string): Tree => (id === projectId ? scene.tree : (trees[id] ?? plain))
+  let held = scene.held === true
   // Held still, the page shows no agent writing at all: a cursor would blink.
   const state = createStore<FilesState>({
-    projects: { [projectId]: storefrontFiles(now, stillRequested() ? [] : working) },
+    projects: { [projectId]: scene.open(now, stillRequested() ? [] : working) },
   })
   // A change that leaves the project as it was leaves the store as it was, so the per-commit
   // check on idle agents tells nobody anything.
@@ -459,13 +490,14 @@ export const createDemoFiles = (
       writeTo(
         project,
         handle,
-        path ?? nextFile(project, handle, clock.random(), clock.random()),
+        path ?? nextFile(project, handle, clock.random(), clock.random(), scenePools),
         clock.now(),
+        scene.tree.entries,
       ),
     )
   const endTurn = (handle: string): void => change((project) => endTurnIn(project, handle))
   const mark = (handle: string, path: string, kind: TouchedFile["kind"] | undefined): void =>
-    change((project) => markIn(project, handle, path, kind, clock.now()))
+    change((project) => markIn(project, handle, path, kind, clock.now(), scene.tree.entries))
 
   // The storefront's checkout, and how many times main moved it (an update counts).
   let standing: DemoCheckout | undefined
@@ -520,7 +552,15 @@ export const createDemoFiles = (
             ],
           }
         : base
-    const known = tree.entries.some(
+    // A folder only an agent's write made is there too, as the runner reads it; what the agents
+    // changed in a folder is not in its listing (the panel adds it from their changes).
+    const created =
+      id === projectId
+        ? Object.entries(state.getSnapshot().projects[projectId]?.changes ?? {}).flatMap(
+            ([path, changed]) => (changed.kind === "added" ? [path] : []),
+          )
+        : []
+    const known = [...tree.entries, ...created].some(
       (path) => trimmed(path) === folder || path.startsWith(`${folder}/`),
     )
     if (folder !== "" && !known) throw new Error("There is no such folder")
@@ -543,7 +583,7 @@ export const createDemoFiles = (
       }
       cancel = clock.after(between(writeMs, clock.random()), () => {
         // Nothing is written while the page is out of view, so there is no catching up.
-        if (clock.hidden()) return turn(left)
+        if (held || clock.hidden()) return turn(left)
         write(handle)
         turn(left - 1)
       })
@@ -552,6 +592,8 @@ export const createDemoFiles = (
     return () => cancel?.()
   }
 
+  // The writing agents' turns of the simulation running now, which `release` starts off.
+  let active: ReadonlyMap<string, () => void> | undefined
   // Agents whose terminal closed, which never write again.
   const closed = new Set<string>()
   // How a started simulation stops one agent; before it starts, dropping the cursor is all.
@@ -574,6 +616,7 @@ export const createDemoFiles = (
     const moving = !lessMotion() && !stillRequested()
     // Each writing agent's turns, while its agent works.
     const running = new Map<string, () => void>()
+    active = running
     const setWorking = (handle: string, on: boolean): void => {
       if (on && moving && !closed.has(handle) && !running.has(handle))
         running.set(handle, work(handle))
@@ -596,6 +639,7 @@ export const createDemoFiles = (
     return () => {
       unwatch?.()
       running.forEach((stop) => stop())
+      if (active === running) active = undefined
       stopWriting = (handle) => endTurn(handle)
       // No cursor is left blinking.
       change((project) => ({ ...project, writing: {} }))
@@ -616,6 +660,11 @@ export const createDemoFiles = (
     start,
     close,
     halt,
+    release: () => {
+      if (!held) return
+      held = false
+      active?.forEach((_, handle) => write(handle))
+    },
   }
 }
 
@@ -624,6 +673,11 @@ export const withFiles = (
   backend: Backend,
   turns?: DemoTurns,
   files = createDemoFiles(Date.now(), undefined, workingInSeed(backend.seed)),
+  {
+    projectId,
+    session,
+    slots,
+  }: Pick<FilesScene, "projectId" | "session" | "slots"> = storefrontScene,
 ): Backend => {
   let latest: Workspace | undefined
   // Whether the agent in that storefront terminal works now, asking nothing.

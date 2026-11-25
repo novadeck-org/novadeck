@@ -29,7 +29,7 @@ const initialSession = "initial"
 // The sample transcript a demo terminal opens with, unless an agent runs in it.
 export type SampleOutput = "shell" | "server" | "tests" | "git" | "logs" | "build"
 // The agents the demo simulates, by program name.
-const demoAgents = { claude: "Claude", codex: "Codex", opencode: "opencode", pi: "Pi" } as const
+const demoAgents = { claude: "Claude", codex: "Codex", opencode: "OpenCode", pi: "Pi" } as const
 export type DemoAgent = keyof typeof demoAgents
 
 export const demoAgent = (terminal: TerminalMetadata): DemoAgent | undefined =>
