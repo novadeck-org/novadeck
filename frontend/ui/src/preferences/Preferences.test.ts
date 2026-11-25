@@ -329,6 +329,10 @@ describe("the Novadeck Agent row", () => {
     })
     expect(note()?.getAttribute("role")).toBe("alert")
     expect(note()?.textContent).toContain("Could not reach github.com.")
+    // The switch is described by its note too.
+    expect(piSwitch()?.getAttribute("aria-describedby")).toBe(
+      "bundled-pi-description bundled-pi-note",
+    )
     const retry = [...(note()?.querySelectorAll("button") ?? [])].find(
       (button) => button.textContent === "Try again",
     )

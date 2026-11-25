@@ -23,6 +23,16 @@ export const bundledPiGroups = (
           run: () => pi.show(false, { state: "off" }),
         },
         {
+          label: "Starting",
+          hint: `${where}: the switch on before the runner says anything, the note reads Starting the download…`,
+          run: () => pi.show(true, { state: "off" }),
+        },
+        {
+          label: "Downloading, size unknown",
+          hint: `${where}: the switch on, the note reads Downloading pi…`,
+          run: () => pi.show(true, { state: "downloading" }),
+        },
+        {
           label: "Downloading",
           hint: `${where}: the switch on, the note reads Downloading pi: 12.3 of 59.0 MB`,
           run: () =>

@@ -218,11 +218,16 @@ export const createRouter = (options: {
   // The projects' and sessions' changes, for clients that share them.
   const { projectFeed, sessionFeed } = projects
   // The person's settings and preferences as they change, for every device they use.
-  const runnerSettings = async () => ({
-    ...store.settings.runner(),
-    transcriptsAvailable: await options.transcriptsAvailable(),
-    ...(options.bundledPi && { bundledPiFetch: options.bundledPi.state() }),
-  })
+  // Novadeck's own pi's switch only where this runner can fetch it (it has the shell files): a
+  // UI offers the row only where the settings report the switch.
+  const runnerSettings = async () => {
+    const { bundledPi, ...settings } = store.settings.runner()
+    return {
+      ...settings,
+      transcriptsAvailable: await options.transcriptsAvailable(),
+      ...(options.bundledPi && { bundledPi, bundledPiFetch: options.bundledPi.state() }),
+    }
+  }
   const settingsFeed = new SettingsFeed(runnerSettings)
   // Where Novadeck's own pi's fetch stands, told as it moves.
   options.bundledPi?.follow(

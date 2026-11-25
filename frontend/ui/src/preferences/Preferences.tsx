@@ -1135,13 +1135,17 @@ export const Preferences = ({
                           <span
                             className="settings-note flex flex-wrap items-center gap-x-2 gap-y-1 text-control leading-5"
                             data-experimental-note={id}
-                            {...(more.note.error ? { "data-tone": "danger", role: "alert" } : {})}
+                            // A failure is said at once; progress as the person pauses.
+                            {...(more.note.error
+                              ? { "data-tone": "danger", role: "alert" }
+                              : { role: "status" })}
                           >
-                            <span>{more.note.text}</span>
+                            <span id={`${id}-note`}>{more.note.text}</span>
                             {more.note.error && (
                               <button
                                 type="button"
                                 className="button min-h-7 px-2.5 text-control"
+                                aria-label={`Try again: ${label}`}
                                 onClick={more.retry}
                               >
                                 Try again
@@ -1154,7 +1158,11 @@ export const Preferences = ({
                         checked={checked}
                         onChange={onToggle}
                         labelledBy={`${id}-label`}
-                        describedBy={`${id}-description`}
+                        describedBy={
+                          "note" in more && more.note
+                            ? `${id}-description ${id}-note`
+                            : `${id}-description`
+                        }
                         disabled={disabled}
                       />
                     </div>

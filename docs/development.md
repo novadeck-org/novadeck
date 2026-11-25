@@ -963,9 +963,10 @@ App:
   and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
   a "#812" chip in its row, which opens the page in the browser.
 - **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
-  Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Downloading",
-  "Ready" and "Failed" put the row in that state without a reboot: the note under its description
-  reads the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in
+  Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",
+  "Downloading, size unknown", "Downloading", "Ready" and "Failed" put the row in that state
+  without a reboot: the note under its description reads "Starting the download…", "Downloading
+  pi…", the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in
   the demo plays a download of pi's size over a few seconds (`frontend/demo/src/bundled-pi.ts`).
   A runner from before revision 16 offers no row at all.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a

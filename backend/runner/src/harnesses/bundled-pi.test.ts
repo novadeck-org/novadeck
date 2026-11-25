@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises"
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 
 import { http, HttpResponse } from "msw"
@@ -327,6 +329,18 @@ describe("Novadeck's pi behind its Experimental switch", () => {
     await expect.poll(() => pi.state().state).toBe("ready")
   })
 
+  it("tells nothing new for a launch of the copy in place", async ({ resources }) => {
+    const { pi, states } = await service(resources, { value: true })
+    await pi.fetch("pi", () => {})
+    const told = states.length
+
+    await pi.fetch("pi", () => {})
+    await pi.fetch("pi", () => {})
+
+    expect(states.length).toBe(told)
+    expect(pi.state()).toEqual({ state: "ready" })
+  })
+
   it("fetches only its own pi", async ({ resources }) => {
     const { pi } = await service(resources, { value: true })
     await expect(pi.fetch("claude", () => {})).rejects.toThrow("Novadeck has no claude of its own.")
@@ -348,6 +362,105 @@ describe("fetching Novadeck's pi over the network", () => {
     http.get("https://licence.test/LICENSE", () => HttpResponse.error()),
   )
   let archives = 0
+  let slow = new Uint8Array()
+  // A real server on this machine sending the release's archive a tenth at a time, each request
+  // on its own connection, as the release's is.
+  const slowServer = createServer((request, response) => {
+    const step = Math.ceil(slow.length / 10)
+    let at = 0
+    const send = (): void => {
+      if (response.destroyed) return
+      if (at >= slow.length) return void response.end()
+      response.write(slow.slice(at, at + step))
+      at += step
+      setTimeout(send, 40)
+    }
+    response.writeHead(200, { "content-type": "application/octet-stream" })
+    send()
+  })
+  let slowSource = ""
+  beforeAll(async () => {
+    await new Promise<void>((settle) => slowServer.listen(0, "127.0.0.1", settle))
+    slowSource = `http://127.0.0.1:${(slowServer.address() as AddressInfo).port}/`
+  })
+  afterAll(() => new Promise<void>((settle) => slowServer.close(() => settle())))
+
+  // The service over a release sent slowly, with the switch as `on` says.
+  const slowService = async (resources: Resources, on: { value: boolean }) => {
+    const release = await fakeRelease(resources)
+    slow = await readFile(join(release.source, "pi-linux-x64.tar.gz"))
+    const data = await folder(resources)
+    const states: string[] = []
+    const pi = new BundledPi({
+      data,
+      enabled: () => on.value,
+      env: {
+        NOVADECK_BUNDLED_PI_SOURCE: slowSource,
+        NOVADECK_BUNDLED_PI_LICENCE: release.licence,
+      },
+      platform: "linux",
+      arch: "x64",
+      pinned: release.pinned,
+    })
+    pi.follow(() => states.push(pi.state().state))
+    return { pi, data, states }
+  }
+
+  it("keeps telling a download switched on twice, to its end", async ({ resources }) => {
+    const on = { value: true }
+    const { pi, states } = await slowService(resources, on)
+
+    pi.switched()
+    await expect.poll(() => pi.state().state).toBe("downloading")
+    pi.switched()
+    await expect.poll(() => pi.state().state, { timeout: 5_000 }).toBe("ready")
+
+    expect(states.filter((state) => state === "downloading").length).toBeGreaterThan(2)
+  })
+
+  it("stops a download switched off, leaves nothing, and refuses the launch waiting on it", async ({
+    resources,
+  }) => {
+    const on = { value: true }
+    const { pi, data, states } = await slowService(resources, on)
+    const launch = pi.fetch("pi", () => {})
+    await expect.poll(() => pi.state().state).toBe("downloading")
+
+    on.value = false
+    pi.switched()
+
+    await expect(launch).rejects.toThrow(turnOnLine)
+    expect(pi.state()).toEqual({ state: "off" })
+    // What the stopped run said after the switch doesn't stand over it.
+    await new Promise((settle) => setTimeout(settle, 200))
+    expect(states.at(-1)).toBe("off")
+    expect((await readdir(bundledPiFolder(data))).filter((entry) => entry !== "agent")).toEqual([])
+  })
+
+  it("ends ready, telling the progress, when switched on, off and on again", async ({
+    resources,
+  }) => {
+    const on = { value: true }
+    const { pi } = await slowService(resources, on)
+    const seen: string[] = []
+    pi.follow(() => {
+      const state = pi.state()
+      if (state.state === "downloading") seen.push(String(state.received))
+    })
+
+    pi.switched()
+    await expect.poll(() => pi.state().state).toBe("downloading")
+    on.value = false
+    pi.switched()
+    on.value = true
+    pi.switched()
+    await expect.poll(() => pi.state().state, { timeout: 5_000 }).toMatch(/ready|failed/)
+    expect(pi.state()).toEqual({ state: "ready" })
+
+    // The second run's own bytes, past its start.
+    expect(seen.filter((received) => received !== "0").length).toBeGreaterThan(0)
+  })
+
   beforeAll(() => server.listen({ onUnhandledFrame: "error" }))
   afterEach(() => server.resetHandlers())
   afterAll(() => server.close())

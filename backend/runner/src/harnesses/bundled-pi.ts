@@ -142,11 +142,16 @@ export type FetchOptions = {
   readonly progress?: FetchProgress
   /** Hears the bytes the archive's download has so far, of its size, at each whole percent. */
   readonly bytes?: (received: number, size: number) => void
+  /** Stops the fetch, which then fails as `stoppedLine` says and leaves nothing. */
+  readonly signal?: AbortSignal
   readonly stallMs?: number
 }
 
 /** What a fetch or a launch says while Novadeck's pi is switched off. */
 export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
+
+/** What a fetch stopped by its signal fails with. */
+export const stoppedLine = "The download was stopped."
 
 // Renames `from` to `to`, again for a moment on Windows, where an antivirus scanning a file just
 // unpacked holds its folder (EPERM, EBUSY, EACCES).
@@ -199,10 +204,14 @@ const install = async (
 const downloadWatched = async (
   options: Omit<Parameters<typeof download>[0], "signal">,
   stall: number,
+  signal?: AbortSignal,
 ): Promise<void> => {
   const controller = new AbortController()
   let timer = setTimeout(() => controller.abort(), stall)
+  const stop = () => controller.abort()
+  signal?.addEventListener("abort", stop)
   try {
+    if (signal?.aborted) throw new DownloadError(stoppedLine)
     await download({
       ...options,
       signal: controller.signal,
@@ -213,6 +222,7 @@ const downloadWatched = async (
       },
     })
   } catch (error) {
+    if (signal?.aborted) throw new DownloadError(stoppedLine)
     if (controller.signal.aborted)
       throw new DownloadError(
         "The download stalled: no data came for a while. Check the connection.",
@@ -220,6 +230,7 @@ const downloadWatched = async (
     throw error
   } finally {
     clearTimeout(timer)
+    signal?.removeEventListener("abort", stop)
   }
 }
 
@@ -283,6 +294,7 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
           progress: () => {},
         },
         options.stallMs ?? stallMs,
+        options.signal,
       )
       await downloadWatched(
         {
@@ -300,7 +312,9 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
           },
         },
         options.stallMs ?? stallMs,
+        options.signal,
       )
+      if (options.signal?.aborted) throw new DownloadError(stoppedLine)
       say(`Unpacking pi ${pinned.version}`)
       const target = buildFolder(data, build, pinned.version)
       await install(archive, licence, target, build, platform)
@@ -322,20 +336,29 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
 /**
  * Novadeck's own pi in a runner, behind its Experimental switch (settings' `bundledPi`): on, it
  * is fetched in the background at once, and again as the runner starts while it isn't in place;
- * off, nothing fetches or starts, and a copy in place is kept. `state` is where the fetch stands,
- * for Preferences' row, each change told to those who `follow` it. `fetch` is the runner's answer to a
- * launcher (`ReportHandlers.fetch`), and what the tour calls ahead of a launch. Archives come from
- * the release, or from where `NOVADECK_BUNDLED_PI_SOURCE` and `NOVADECK_BUNDLED_PI_LICENCE` say,
- * as a test or a build with a copy of its own names them. Any process of the person's can reach
- * the runner's endpoint, which is theirs alone, so a launcher's terminal isn't checked: all it can
- * ask is the pinned, checked download.
+ * off, a fetch under way stops, nothing more fetches or starts, and a copy in place is kept.
+ * `state` is where the fetch stands, for Preferences' row, each change told to those who `follow`
+ * it. `fetch` is the runner's answer to a launcher (`ReportHandlers.fetch`), and what the tour
+ * calls ahead of a launch: every fetch at a time is one run, which each caller hears. Archives come
+ * from the release, or from where `NOVADECK_BUNDLED_PI_SOURCE` and `NOVADECK_BUNDLED_PI_LICENCE`
+ * say, as a test or a build with a copy of its own names them. Any process of the person's can
+ * reach the runner's endpoint, which is theirs alone, so a launcher's terminal isn't checked: all
+ * it can ask is the pinned, checked download.
  */
 export class BundledPi {
   private current: BundledPiFetch = { state: "off" }
   // Who hears each change of the state.
   private readonly hearing = new Set<() => void>()
-  // Which switching the fetch under way began with: a later one's state stands over it.
-  private turn = 0
+  // The fetch under way, which every caller shares, and how to stop it.
+  private run:
+    | {
+        readonly work: Promise<string>
+        readonly stop: AbortController
+        readonly hearing: Set<FetchProgress>
+      }
+    | undefined
+  // A run stopped and not yet settled, which the next waits for, as its files are still going.
+  private settling: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly host: {
@@ -363,59 +386,102 @@ export class BundledPi {
 
   /**
    * The switch was set, or the runner started: on, the fetch begins in the background, or the
-   * copy in place is ready, and one that failed is tried again; off, the state says so.
+   * copy in place is ready, and one that failed is tried again, while one under way goes on; off,
+   * a fetch under way stops and the state says off.
    */
   switched(): void {
-    this.turn += 1
-    if (!this.host.enabled()) return this.set({ state: "off" })
-    if (this.current.state === "downloading") return
-    void this.fetch("pi", () => {}).catch(() => {})
+    if (!this.host.enabled()) {
+      const { run } = this
+      if (run) {
+        this.run = undefined
+        run.stop.abort()
+        this.settling = run.work.then(
+          () => {},
+          () => {},
+        )
+      }
+      return this.set({ state: "off" })
+    }
+    void this.ensure().catch(() => {})
   }
 
   /** Fetches Novadeck's `name` (`pi`), telling `progress`; refused while switched off. */
   async fetch(name: string, progress: FetchProgress): Promise<void> {
     if (name !== "pi") throw new DownloadError(`Novadeck has no ${name} of its own.`)
-    const { env = process.env } = this.host
-    const turn = this.turn
-    const enabled = this.host.enabled()
-    const options = {
-      data: this.host.data,
-      enabled,
-      progress,
-      source: env.NOVADECK_BUNDLED_PI_SOURCE,
-      licence: env.NOVADECK_BUNDLED_PI_LICENCE,
-      ...(this.host.platform !== undefined && { platform: this.host.platform }),
-      ...(this.host.arch !== undefined && { arch: this.host.arch }),
-      ...(this.host.pinned !== undefined && { pinned: this.host.pinned }),
-    }
-    if (!enabled) return void (await fetchBundledPi(options))
-    const build = buildFor(
-      this.host.platform ?? process.platform,
-      this.host.arch ?? process.arch,
-      this.host.pinned,
-    )
-    const program = build && bundledPiProgram(this.host.data, build, this.host.pinned?.version)
-    if (program === undefined || !(await exists(program)))
-      this.set({ state: "downloading", received: 0, ...(build && { size: build.size }) })
+    if (!this.host.enabled()) throw new DownloadError(turnOnLine)
     try {
-      await fetchBundledPi({
-        ...options,
-        bytes: (received, size) => {
-          if (turn === this.turn) this.set({ state: "downloading", received, size })
-        },
-      })
-      if (turn === this.turn) this.set({ state: "ready" })
+      await this.ensure(progress)
     } catch (error) {
-      if (turn === this.turn)
-        this.set({
-          state: "failed",
-          error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
-        })
+      // Switched off meanwhile: the launch is refused as any while off.
+      if (!this.host.enabled()) throw new DownloadError(turnOnLine)
       throw error
     }
   }
 
+  // The run under way, joined, or a new one.
+  private ensure(progress?: FetchProgress): Promise<string> {
+    const { run: running } = this
+    if (running) {
+      if (progress) {
+        if (this.current.state === "downloading")
+          progress(
+            `Waiting for pi ${this.host.pinned?.version ?? pinnedPi.version}, which is downloading`,
+          )
+        running.hearing.add(progress)
+      }
+      return running.work
+    }
+    const stop = new AbortController()
+    const hearing = new Set<FetchProgress>(progress ? [progress] : [])
+    const { env = process.env, data, pinned } = this.host
+    const platform = this.host.platform ?? process.platform
+    const arch = this.host.arch ?? process.arch
+    const settling = this.settling
+    const mine = () => this.run?.stop === stop
+    const work = (async () => {
+      await settling
+      const build = buildFor(platform, arch, pinned)
+      const program = build && bundledPiProgram(data, build, pinned?.version)
+      if (mine() && (program === undefined || !(await exists(program))))
+        this.set({ state: "downloading", received: 0, ...(build && { size: build.size }) })
+      try {
+        const done = await fetchBundledPi({
+          data,
+          enabled: true,
+          platform,
+          arch,
+          ...(pinned !== undefined && { pinned }),
+          source: env.NOVADECK_BUNDLED_PI_SOURCE,
+          licence: env.NOVADECK_BUNDLED_PI_LICENCE,
+          signal: stop.signal,
+          progress: (line) => {
+            for (const each of hearing) each(line)
+          },
+          bytes: (received, size) => {
+            if (mine()) this.set({ state: "downloading", received, size })
+          },
+        })
+        if (mine()) this.set({ state: "ready" })
+        return done
+      } catch (error) {
+        if (mine())
+          this.set({
+            state: "failed",
+            error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+          })
+        throw error
+      } finally {
+        if (mine()) this.run = undefined
+      }
+    })()
+    this.run = { work, stop, hearing }
+    return work
+  }
+
+  // Tells a change of the state, and nothing for one that changes nothing, as each launch of a
+  // copy in place says ready again.
   private set(state: BundledPiFetch): void {
+    if (JSON.stringify(state) === JSON.stringify(this.current)) return
     this.current = state
     for (const listener of this.hearing) listener()
   }
