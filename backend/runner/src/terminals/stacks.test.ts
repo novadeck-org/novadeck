@@ -11,7 +11,7 @@ const pull = (number: number, base: string) => ({
   number,
   url: "https://example.com",
   title: "T",
-  state: "open" as const,
+  state: "open" as "open" | "merged" | "closed",
   base,
 })
 
@@ -59,6 +59,20 @@ describe("work based on another terminal's", () => {
       { onTerminalId: "t-fox", onHandle: "fox", branch: "feat/a", via: "pull-request", pull: 12 },
     ])
     expect(found.get("t-fox")).toBeUndefined()
+  })
+
+  it("reads no stack from a merged or closed pull request's target", async () => {
+    for (const state of ["merged", "closed"] as const) {
+      // eslint-disable-next-line no-await-in-loop -- Two cases, one after the other.
+      const found = await stacksOf(
+        [
+          terminal("fox", "feat/a", "c1"),
+          terminal("owl", "feat/b", "c1", { ...pull(12, "feat/a"), state }),
+        ],
+        ancestry({}),
+      )
+      expect(found.get("t-owl")).toBeUndefined()
+    }
   })
 
   it("reads a worktree started from commits inside another's branch", async () => {

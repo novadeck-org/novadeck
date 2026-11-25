@@ -106,7 +106,9 @@ export const stacksOf = async (
         for (const there of other.worktrees) {
           if (there.commonDir !== undefined && own.commonDir !== there.commonDir) continue
           if (there.branch === own.branch) continue
-          const target = own.pullRequest?.base
+          // Only an open pull request still says where its work goes.
+          const open = own.pullRequest?.state === "open" || own.pullRequest?.state === "draft"
+          const target = open ? own.pullRequest?.base : undefined
           if (target !== undefined && target === there.branch) {
             note(mine.terminalId, {
               onTerminalId: other.terminalId,

@@ -19,7 +19,25 @@ export type PullRequest = {
   // How its checks stand on its latest commit, for an open one: failing, running, passed, or
   // none ran. Absent where the forge couldn't say, and on a merged or closed one.
   readonly ci?: "failing" | "running" | "passed" | "none" | undefined
+  // The branch it targets, whatever its state, where the forge says.
+  readonly base?: string | undefined
+  // Each check on its latest commit, for an open one, in the forge's order (100 at most; `ci`
+  // speaks for all). Absent where `ci` is, or the forge listed none.
+  readonly checks?: readonly PullRequestCheck[] | undefined
+  // Where its review stands, for an open one; absent where the forge couldn't say.
+  readonly review?: PullRequestReview | undefined
 }
+
+// One check: `passed` or `failed` once finished, else `running`, or `waiting` (for a runner,
+// an approval, or an earlier job). A newer backend's state it doesn't know is left out.
+export type PullRequestCheck = {
+  readonly name: string
+  readonly state: "passed" | "failed" | "running" | "waiting"
+}
+
+// `approved`, `changes_requested` (outranks approvals), `required` (it needs an approval it
+// hasn't got) or `none` (none asked for, none given). A newer backend's value reads as `none`.
+export type PullRequestReview = "approved" | "changes_requested" | "required" | "none"
 
 // A host a forge's repositories are on, and whether its tool is signed in there: `fix` is the
 // command that signs in (`signed-out`) or mends a refused token (`refused`), where there is one.

@@ -3,16 +3,16 @@ import { failure, offline, parse } from "./cli.js"
 import type {
   Check,
   Ci,
-  Fetch,
   Forge,
   Problem,
   PullRequest,
   Remote,
   Repository,
+  Review,
   Run,
   Token,
 } from "./forge.js"
-import { headers, pooled, record, send } from "./http.js"
+import { headers, pooled, record, send, watched, type Ask } from "./http.js"
 
 const defaultHost = "dev.azure.com"
 const resource = "499b84ac-1321-427f-aa17-267ca6975798"
@@ -110,10 +110,29 @@ const token = async (run: Run, _host: string): Promise<Token | Problem> => {
   return expiresAt === undefined ? { value } : { value, expiresAt }
 }
 
+const count = (value: unknown): number => (typeof value === "number" ? value : 0)
+
 const states: Record<string, PullRequest["state"]> = {
   active: "open",
   completed: "merged",
   abandoned: "closed",
+}
+
+// Where review stands by the reviewers' votes (10 approved, 5 approved with suggestions, 0 no
+// vote, -5 waiting for the author, -10 rejected): a rejection or a wait for the author outranks
+// approvals; a required reviewer who hasn't voted leaves it required.
+const votesOf = (reviewers: unknown): Review => {
+  const each = Array.isArray(reviewers)
+    ? reviewers.flatMap((reviewer) => {
+        const one = record(reviewer)
+        return one === undefined || one["hasDeclined"] === true
+          ? []
+          : [{ vote: count(one["vote"]), required: one["isRequired"] === true }]
+      })
+    : []
+  if (each.some(({ vote }) => vote < 0)) return "changes_requested"
+  if (each.some(({ vote, required }) => required && vote === 0)) return "required"
+  return each.some(({ vote }) => vote > 0) ? "approved" : "none"
 }
 
 const candidate = (item: unknown, pageOf: (id: number) => string): Candidate | undefined => {
@@ -132,14 +151,17 @@ const candidate = (item: unknown, pageOf: (id: number) => string): Candidate | u
       url: pageOf(number),
       title,
       state: state === "open" && pr["isDraft"] === true ? "draft" : state,
-      ...(state === "open" && base !== "" && { base }),
+      ...(base !== "" && { base }),
+      ...(state === "open" && { review: votesOf(pr["reviewers"]) }),
     },
     at: time(pr["closedDate"]) || time(pr["creationDate"]),
   }
 }
 
-// Build validation's policy type (https://learn.microsoft.com/en-us/rest/api/azure/devops/policy/types).
+// Build validation's and minimum number of reviewers' policy types
+// (https://learn.microsoft.com/en-us/rest/api/azure/devops/policy/types).
 const buildPolicy = "0609b952-1397-4640-95ec-e00a01b2c241"
+const reviewersPolicy = "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd"
 
 // Each policy evaluation's status (…/policy/evaluations/list), for Build policies only; and each
 // status's state (…/git/pull-request-statuses/list). `broken`, `notApplicable` and `notSet`
@@ -157,6 +179,13 @@ const reported: Record<string, Ci> = {
   succeeded: "passed",
   partiallySucceeded: "passed",
 }
+const statusChecks: Record<string, Check["state"]> = {
+  failed: "failed",
+  error: "failed",
+  pending: "running",
+  succeeded: "passed",
+  partiallySucceeded: "passed",
+}
 
 const rank: readonly Ci[] = ["failing", "running", "passed"]
 
@@ -168,23 +197,29 @@ const combine = (signals: readonly Ci[], complete: boolean): Ci | undefined => {
   return complete ? (worst ?? "none") : undefined
 }
 
-const count = (value: unknown): number => (typeof value === "number" ? value : 0)
-
 const part = (text: string): string => encodeURIComponent(text)
+
+/** What an open pull request's policies and statuses say. */
+type Standing = {
+  readonly ci: Ci | undefined
+  // Its statuses' checks, the newest of each context; absent where they couldn't be read.
+  readonly reported: readonly Check[] | undefined
+  // Whether a minimum number of reviewers policy is yet to be met.
+  readonly reviewersMissing: boolean
+}
 
 // An open pull request's checks: its build policies' evaluations and its statuses. Never fails
 // the lookup: a token that can't read them (403) leaves `ci` absent.
 const ciOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   root: string,
   base: string,
   number: number,
   projectId: string | undefined,
-): Promise<Ci | undefined> => {
+): Promise<Standing> => {
   const get = (url: string) =>
-    send(
-      fetch,
+    ask(
       url,
       { headers: headers(auth.value), redirect: "manual" },
       { signIn: signIn(), unauthorized },
@@ -209,11 +244,17 @@ const ciOf = async (
   if (evaluations === undefined) complete = false
   // Only the current evaluation of each policy counts: the newest started.
   const current = new Map<string, { at: number; found: Ci | undefined }>()
+  let reviewersMissing = false
   for (const item of evaluations ?? []) {
     const evaluation = record(item)
     const policy = record(evaluation?.["configuration"])
     const type = record(policy?.["type"])
     if (policy?.["isEnabled"] === false) continue
+    if (type?.["id"] === reviewersPolicy && policy?.["isBlocking"] !== false) {
+      if (evaluation?.["status"] === "queued" || evaluation?.["status"] === "rejected")
+        reviewersMissing = true
+      continue
+    }
     if (type?.["id"] !== buildPolicy && type?.["displayName"] !== "Build") continue
     const key = String(policy?.["id"] ?? evaluation?.["evaluationId"])
     const at = time(evaluation?.["startedDate"])
@@ -226,22 +267,39 @@ const ciOf = async (
   if (reports === undefined) complete = false
   // The list is the whole history, across iterations and repeated posts: only the newest status
   // of each context (genre and name) counts, the latest iteration's first, then the highest id.
-  const newest = new Map<string, { order: [number, number]; found: Ci | undefined }>()
+  const newest = new Map<
+    string,
+    { order: [number, number]; found: Ci | undefined; check: Check | undefined }
+  >()
   for (const item of reports ?? []) {
     const report = record(item)
     const context = record(report?.["context"])
-    const key = `${String(context?.["genre"] ?? "")}/${String(context?.["name"] ?? "")}`
+    const genre = typeof context?.["genre"] === "string" ? context["genre"] : ""
+    const name = typeof context?.["name"] === "string" ? context["name"] : ""
+    const key = `${genre}/${name}`
     const order: [number, number] = [count(report?.["iterationId"]), count(report?.["id"])]
     const known = newest.get(key)
     if (
       known === undefined ||
       order[0] > known.order[0] ||
       (order[0] === known.order[0] && order[1] >= known.order[1])
-    )
-      newest.set(key, { order, found: reported[String(report?.["state"])] })
+    ) {
+      const state = statusChecks[String(report?.["state"])]
+      const named = genre === "" ? name : name === "" ? genre : `${genre}/${name}`
+      newest.set(key, {
+        order,
+        found: reported[String(report?.["state"])],
+        check: state === undefined || named === "" ? undefined : { name: named, state },
+      })
+    }
   }
   for (const { found } of newest.values()) if (found !== undefined) signals.push(found)
-  return combine(signals, complete)
+  return {
+    ci: combine(signals, complete),
+    reported:
+      reports === undefined ? undefined : [...newest.values()].flatMap(({ check }) => check ?? []),
+    reviewersMissing,
+  }
 }
 
 // The kind of runner a build needs: its own agent pool; for the hosted pool, which is named
@@ -256,39 +314,72 @@ const runnerOf = (build: Record<string, unknown>): string | undefined => {
   return typeof image === "string" && image !== "" ? image : undefined
 }
 
-// The builds of a pull request's merge ref that wait for an agent or run, each with the agent
-// pool it needs, which is the kind of runner Azure names. Never fails the lookup.
+// A build's status, and a completed one's result, as a check: one not started, or postponed,
+// waits for an agent; one cancelling is cancelled, so failed. A result of `none` says nothing.
+const buildStates: Record<string, Check["state"]> = {
+  notStarted: "queued",
+  postponed: "queued",
+  inProgress: "running",
+  cancelling: "failed",
+}
+const buildResults: Record<string, Check["state"]> = {
+  succeeded: "passed",
+  partiallySucceeded: "passed",
+  failed: "failed",
+  canceled: "failed",
+}
+
+/** How many of a pull request's builds are asked, newest first. */
+const buildsAsked = 100
+
+// The builds of a pull request's merge ref, the newest of each pipeline (the list comes newest
+// first), in the list's order: each unfinished one with the agent pool it needs, which is the
+// kind of runner Azure names. Never fails the lookup.
 const checksOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   root: string,
   number: number,
+  repositoryId: string | undefined,
 ): Promise<Check[] | undefined> => {
-  const answer = await send(
-    fetch,
-    `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}&statusFilter=notStarted,inProgress&api-version=7.1`,
+  // A pipeline of the project can build another repository's pull request of the same number
+  // (one on GitHub, say), on a merge ref of the same name: only this repository's are asked.
+  const own =
+    repositoryId === undefined
+      ? ""
+      : `&repositoryId=${encodeURIComponent(repositoryId)}&repositoryType=TfsGit`
+  const answer = await ask(
+    `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}${own}&queryOrder=queueTimeDescending&$top=${buildsAsked}&api-version=7.1`,
     { headers: headers(auth.value), redirect: "manual" },
     { signIn: signIn(), unauthorized },
   )
   const list = "body" in answer ? record(answer.body)?.["value"] : undefined
   if (!Array.isArray(list)) return undefined
-  return list.flatMap((item): Check[] => {
+  const newest = new Map<string, Check | undefined>()
+  for (const item of list) {
     const build = record(item)
-    const name = record(build?.["definition"])?.["name"]
-    if (build === undefined || typeof name !== "string") return []
-    const running = build["status"] === "inProgress"
-    if (!running && build["status"] !== "notStarted") return []
-    const at = running ? time(build["startTime"]) : time(build["queueTime"])
+    const definition = record(build?.["definition"])
+    const name = definition?.["name"]
+    if (build === undefined || typeof name !== "string") continue
+    const key = String(definition?.["id"] ?? name)
+    if (newest.has(key)) continue
+    const status = String(build["status"])
+    const state =
+      status === "completed" ? buildResults[String(build["result"])] : buildStates[status]
+    if (state === undefined || state === "passed" || state === "failed") {
+      newest.set(key, state && { name, state })
+      continue
+    }
+    const at = state === "running" ? time(build["startTime"]) : time(build["queueTime"])
     const runner = runnerOf(build)
-    return [
-      {
-        name,
-        state: running ? "running" : "queued",
-        ...(at > 0 && { since: at }),
-        ...(runner !== undefined && { runner }),
-      },
-    ]
-  })
+    newest.set(key, {
+      name,
+      state,
+      ...(at > 0 && { since: at }),
+      ...(runner !== undefined && { runner }),
+    })
+  }
+  return [...newest.values()].flatMap((check) => check ?? [])
 }
 
 const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) => {
@@ -310,6 +401,8 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
   const found = new Map<string, PullRequest>()
   // The id of each pull request's project, which a policy evaluation's artifact names.
   const projects = new Map<number, string>()
+  // And of its repository, which narrows its builds to the repository's own.
+  const repositories = new Map<number, string>()
   for (const { branch, answer } of answers) {
     if ("problem" in answer) return answer.problem
     if ("absent" in answer) return new Map()
@@ -319,26 +412,42 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       const id = record(item)?.["pullRequestId"]
       const project = record(record(record(item)?.["repository"])?.["project"])?.["id"]
       if (typeof id === "number" && typeof project === "string") projects.set(id, project)
+      const repositoryId = record(record(item)?.["repository"])?.["id"]
+      if (typeof id === "number" && typeof repositoryId === "string")
+        repositories.set(id, repositoryId)
     }
     const pull = choose(list.flatMap((item) => candidate(item, pageOf) ?? []))
     if (pull !== undefined) found.set(branch, pull)
   }
-  // Two more requests for each open one.
+  // Three more requests for each open one: its policies, its statuses and its builds.
   const open = [...found].filter(([, pull]) => pull.state === "open" || pull.state === "draft")
-  const cis = await pooled(open, async ([branch, pull]) => ({
-    branch,
-    pull,
-    ci: await ciOf(fetch, auth, root, base, pull.number, projects.get(pull.number)),
-  }))
-  const running = cis.filter(({ ci }) => ci === "running")
-  const builds = await pooled(running, ({ pull }) => checksOf(fetch, auth, root, pull.number))
-  const checked = new Map(running.map(({ branch }, index) => [branch, builds[index]]))
-  for (const { branch, pull, ci } of cis) {
-    if (ci === undefined) continue
-    const checks = checked.get(branch)
-    found.set(branch, { ...pull, ci, ...(checks && checks.length > 0 && { checks }) })
+  // One that is rate limited limits the lookup, which is then waited out like the list's own.
+  const { ask, limited } = watched(fetch)
+  const read = await pooled(open, async ([branch, pull]) => {
+    const [standing, builds] = await Promise.all([
+      ciOf(ask, auth, root, base, pull.number, projects.get(pull.number)),
+      checksOf(ask, auth, root, pull.number, repositories.get(pull.number)),
+    ])
+    return { branch, pull, standing, builds }
+  })
+  for (const { branch, pull, standing, builds } of read) {
+    const { ci, reviewersMissing } = standing
+    const posted = standing.reported
+    // A pull request no vote holds back still needs the reviewers its policy asks for.
+    const review =
+      reviewersMissing && pull.review !== "changes_requested" ? "required" : pull.review
+    const checks =
+      builds === undefined && posted === undefined
+        ? undefined
+        : [...(builds ?? []), ...(posted ?? [])]
+    found.set(branch, {
+      ...pull,
+      ...(ci !== undefined && { ci }),
+      ...(ci !== undefined && checks && checks.length > 0 && { checks }),
+      ...(review !== undefined && { review }),
+    })
   }
-  return found
+  return limited() ?? found
 }
 
 export const azure: Forge = {

@@ -1,4 +1,4 @@
-import type { PullRequest } from "@novadeck/protocol"
+import type { PullRequest } from "@novadeck/forges"
 
 import { describe, expect, it } from "../test.js"
 import { ownedWorktrees, type WorktreesWiring } from "./calls.js"

@@ -7,8 +7,19 @@ import { singleLine } from "./text.js"
 // the token of the forge's own command-line tool, signed in by the person. An Experimental
 // feature: each forge is off until the person switches it on.
 
-/** How long a pull request's title, address or a host's name runs. */
-export const forgeLimits = { title: 512, url: 2048, host: 253, hosts: 32 } as const
+/**
+ * How long a pull request's title, address, target branch or a check's name runs, how many
+ * checks it lists, and how long a host's name runs.
+ */
+export const forgeLimits = {
+  title: 512,
+  url: 2048,
+  branch: 256,
+  checks: 100,
+  check: 256,
+  host: 253,
+  hosts: 32,
+} as const
 
 export const forgeName = z.enum(["github", "gitlab", "azure"])
 // A forge as a runner lists it, which a UI reads as `newer` where it doesn't know it: listed as
@@ -30,12 +41,32 @@ const command = z
 // where one failed or errored, `running` while any has yet to finish, `passed` once all passed,
 // `none` where none ran (as often on a draft). Absent where the forge couldn't say (a token
 // that can't read checks, a lookup that failed) and on a merged or closed pull request.
+// `base` is the branch it targets, whatever its state, where the forge says (a stacked pull
+// request targets another's branch). `checks` are the checks on its latest commit, for an open
+// one, in the forge's order, at most `forgeLimits.checks` (`ci` speaks for all of them): each
+// `passed` or `failed` once finished, else `running`, or `waiting` (for a runner, an approval,
+// or an earlier job); a skipped check isn't one. Absent where `ci` is, or the forge listed none.
+// `review` is where its review stands, for an open one: `approved`, `changes_requested` (which
+// outranks approvals), `required` (it needs an approval it hasn't got) or `none` (none asked
+// for, none given); absent where the forge couldn't say. libraries/forges' README says how each
+// forge's own terms map to these.
+export const pullRequestCheck = z.strictObject({
+  name: z.string().min(1).max(forgeLimits.check),
+  state: openEnum(["passed", "failed", "running", "waiting"], { since: 18, unknown: "drop" }),
+})
+
 export const pullRequest = z.strictObject({
   number: z.number().int().min(0),
   url: z.url({ protocol: /^https?$/ }).max(forgeLimits.url),
   title: z.string().max(forgeLimits.title),
   state: z.enum(["draft", "open", "merged", "closed"]),
   ci: z.enum(["failing", "running", "passed", "none"]).optional(),
+  base: z.string().min(1).max(forgeLimits.branch).optional(),
+  checks: z.array(pullRequestCheck).max(forgeLimits.checks).optional(),
+  review: openEnum(["approved", "changes_requested", "required", "none"], {
+    since: 18,
+    unknown: { fallback: "none" },
+  }).optional(),
 })
 
 // A host a forge's repositories are on, and whether its tool is signed in there:
@@ -63,5 +94,6 @@ export const forgeIntegration = z.strictObject({
 
 export type ForgeName = z.infer<typeof forgeName>
 export type PullRequest = z.infer<typeof pullRequest>
+export type PullRequestCheck = z.infer<typeof pullRequestCheck>
 export type ForgeHost = z.infer<typeof forgeHost>
 export type ForgeIntegration = z.infer<typeof forgeIntegration>

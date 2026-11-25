@@ -129,6 +129,35 @@ const checks: readonly {
   },
 ]
 
+// Where a pull request's review stands, set on the selected terminal's work: an open pull request
+// is made where it had none. The works carry it; no row shows it yet.
+const reviews: readonly {
+  readonly label: string
+  readonly review: NonNullable<PullRequest["review"]>
+  readonly hint: string
+}[] = [
+  {
+    label: "Review approved",
+    review: "approved",
+    hint: "The selected row's pull request #812 (made open where it had none) carries an approved review; no row shows it yet",
+  },
+  {
+    label: "Changes requested",
+    review: "changes_requested",
+    hint: "The selected row's pull request #812 (made open where it had none) carries a request for changes; no row shows it yet",
+  },
+  {
+    label: "Review required",
+    review: "required",
+    hint: "The selected row's pull request #812 (made open where it had none) carries a review it still needs; no row shows it yet",
+  },
+  {
+    label: "No review",
+    review: "none",
+    hint: "The selected row's pull request #812 (made open where it had none) carries no review, none asked for",
+  },
+]
+
 // The selected terminal's work, else the first of its project, else one made now.
 const target = (demo: DemoWorks, { selected, workspace }: DemoActionContext) => {
   const key = selected()
@@ -162,6 +191,14 @@ export const forgesGroups = (
           run: (context: DemoActionContext) => {
             const own = target(works, context)
             if (own) works.setCi(own.root, ci)
+          },
+        })),
+        ...reviews.map(({ label, review, hint }) => ({
+          label,
+          hint,
+          run: (context: DemoActionContext) => {
+            const own = target(works, context)
+            if (own) works.setReview(own.root, review)
           },
         })),
       ]

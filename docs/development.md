@@ -957,7 +957,11 @@ App:
   reboot. In the demo, Sign in and Install close Preferences and run in a terminal that plays the
   command, then flips the host to Signed in, or the forge to installed (Install lists the command
   first). The "CI failing", "CI running", "CI passed" and "No CI" actions set how an open pull
-  request's checks stand (one is made open where there was none; a pull request that is done has none).
+  request's checks stand (one is made open where there was none; a pull request that is done has none),
+  with its four checks one by one to match; "Review approved", "Changes requested", "Review required"
+  and "No review" set where its review stands. Every demo pull request targets main (`base`); the
+  storefront's open ones carry a request for changes (#814), a review still required (#816) and an
+  approval (#818). No row shows the checks one by one or the review yet.
   The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
   detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,

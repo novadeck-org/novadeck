@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 
-import type { PullRequest } from "@novadeck/protocol"
+import type { PullRequest } from "@novadeck/forges"
 import { z } from "zod"
 
 import { keysOfBranch } from "../checkouts/home.js"

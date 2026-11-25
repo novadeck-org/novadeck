@@ -1,16 +1,18 @@
 import { choose, time, type Candidate } from "./choose.js"
 import { failure, parse } from "./cli.js"
-import type {
-  Check,
-  Ci,
-  Fetch,
-  Forge,
-  Problem,
-  PullRequest,
-  Remote,
-  Repository,
-  Run,
-  Token,
+import {
+  type Check,
+  type Ci,
+  type Fetch,
+  type Forge,
+  type Problem,
+  type PullRequest,
+  type Remote,
+  type Repository,
+  type Review,
+  type Run,
+  type Token,
+  unfinished,
 } from "./forge.js"
 import { headers, pooled, record, send } from "./http.js"
 
@@ -62,12 +64,16 @@ const token = async (run: Run, host: string): Promise<Token | Problem> => {
   return value === "" ? { kind: "signed-out", fix: signIn(host) } : { value }
 }
 
+/** How many of a commit's checks, and of a pull request's latest reviews, are asked. */
+const checksAsked = 100
+const reviewsAsked = 20
+
 const query = (count: number): string => {
   const vars = Array.from({ length: count }, (_, at) => `$b${at}: String!`).join(", ")
   const fields = Array.from(
     { length: count },
     (_, at) =>
-      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository baseRefName commits(last: 1) { nodes { commit { oid statusCheckRollup { state contexts(first: 50) { nodes { __typename ... on CheckRun { name status startedAt checkSuite { createdAt } } ... on StatusContext { context state createdAt } } } } } } } } }`,
+      `p${at}: pullRequests(headRefName: $b${at}, states: [OPEN, MERGED, CLOSED], first: 20, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title isDraft state mergedAt closedAt isCrossRepository baseRefName reviewDecision latestOpinionatedReviews(first: ${reviewsAsked}) { nodes { state } } commits(last: 1) { nodes { commit { oid statusCheckRollup { state contexts(first: ${checksAsked}) { nodes { __typename ... on CheckRun { name status conclusion startedAt checkSuite { createdAt } } ... on StatusContext { context state createdAt } } } } } } } } }`,
   ).join(" ")
   return `query($owner: String!, $name: String!, ${vars}) { repository(owner: $owner, name: $name) { ${fields} } }`
 }
@@ -98,8 +104,30 @@ const heldStatuses: Record<string, "approval" | "concurrency"> = {
   PENDING: "concurrency",
 }
 
-// The checks of the head commit that have not finished, as the rollup lists them; undefined
-// where it lists none (a rollup that can't be read, or no checks at all).
+// A finished check run's conclusion, as the rollup counts it: neutral passes, and anything that
+// didn't succeed fails. A skipped one ran nothing and isn't listed.
+const conclusions: Record<string, "passed" | "failed"> = {
+  SUCCESS: "passed",
+  NEUTRAL: "passed",
+  FAILURE: "failed",
+  TIMED_OUT: "failed",
+  CANCELLED: "failed",
+  ACTION_REQUIRED: "failed",
+  STARTUP_FAILURE: "failed",
+  STALE: "failed",
+}
+
+// A commit status an outside service reports.
+const statusStates: Record<string, Check["state"]> = {
+  SUCCESS: "passed",
+  FAILURE: "failed",
+  ERROR: "failed",
+  PENDING: "running",
+  EXPECTED: "running",
+}
+
+// The checks of the head commit, finished or not, as the rollup lists them; undefined where it
+// lists none (a rollup that can't be read, or no checks at all).
 const checksOf = (pr: Record<string, unknown>): Check[] | undefined => {
   const commits = record(pr["commits"])?.["nodes"]
   const commit = record(Array.isArray(commits) ? record(commits[0])?.["commit"] : undefined)
@@ -111,6 +139,10 @@ const checksOf = (pr: Record<string, unknown>): Check[] | undefined => {
     if (each["__typename"] === "CheckRun") {
       const { name, status } = each
       if (typeof name !== "string" || typeof status !== "string") return []
+      if (status === "COMPLETED") {
+        const finished = conclusions[String(each["conclusion"])]
+        return finished === undefined ? [] : [{ name, state: finished }]
+      }
       const hold = heldStatuses[status]
       const queued = queuedStatuses.has(status)
       if (!queued && hold === undefined && status !== "IN_PROGRESS") return []
@@ -124,16 +156,29 @@ const checksOf = (pr: Record<string, unknown>): Check[] | undefined => {
         },
       ]
     }
-    // A commit status an outside service reports, still pending.
     const { context } = each
-    if (
-      typeof context !== "string" ||
-      (each["state"] !== "PENDING" && each["state"] !== "EXPECTED")
-    )
-      return []
-    const at = time(each["createdAt"])
-    return [{ name: context, state: "running", ...(at > 0 && { since: at }) }]
+    const state = statusStates[String(each["state"])]
+    if (typeof context !== "string" || state === undefined) return []
+    const at = state === "running" ? time(each["createdAt"]) : 0
+    return [{ name: context, state, ...(at > 0 && { since: at }) }]
   })
+}
+
+// Where review stands: GitHub's own decision where a branch rule requires reviews, else what
+// each reviewer's latest approving or change-requesting review says.
+const decisions: Record<string, Review> = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "changes_requested",
+  REVIEW_REQUIRED: "required",
+}
+
+const reviewOf = (pr: Record<string, unknown>): Review => {
+  const decided = decisions[String(pr["reviewDecision"])]
+  if (decided !== undefined) return decided
+  const nodes = record(pr["latestOpinionatedReviews"])?.["nodes"]
+  const states = Array.isArray(nodes) ? nodes.map((node) => record(node)?.["state"]) : []
+  if (states.includes("CHANGES_REQUESTED")) return "changes_requested"
+  return states.includes("APPROVED") ? "approved" : "none"
 }
 
 // The head commit of each pull request found, which the runner lookup asks the runs of.
@@ -170,7 +215,8 @@ const candidate = (node: unknown, blind = false): Candidate | undefined => {
   }
   const open = state === "open"
   const ci = open ? ciOf(pr, blind) : undefined
-  const checks = open && ci === "running" ? checksOf(pr) : undefined
+  // A rollup that couldn't be read lists nothing, which would read as no checks.
+  const checks = open && ci !== undefined ? checksOf(pr) : undefined
   const base = pr["baseRefName"]
   const oid = headOf(pr)
   const pull: PullRequest = {
@@ -179,10 +225,11 @@ const candidate = (node: unknown, blind = false): Candidate | undefined => {
     title,
     state: open && pr["isDraft"] === true ? "draft" : state,
     ...(open && ci !== undefined && { ci }),
-    ...(open && typeof base === "string" && base !== "" && { base }),
+    ...(typeof base === "string" && base !== "" && { base }),
     ...(checks && checks.length > 0 && { checks }),
+    ...(open && { review: reviewOf(pr) }),
   }
-  if (oid !== undefined && checks && checks.length > 0) heads.set(pull, oid)
+  if (oid !== undefined && checks?.some(unfinished)) heads.set(pull, oid)
   return { pull, at: time(pr["mergedAt"]) || time(pr["closedAt"]) }
 }
 
@@ -341,14 +388,16 @@ const withRunners = async (
     return seen !== undefined && (seen.job !== undefined || Date.now() - seen.at < unmatchedMs)
   }
   const unknown = pull.checks.flatMap((check) =>
-    check.state !== "held" && !known(check.name) ? [check.name] : [],
+    (check.state === "queued" || check.state === "running") && !known(check.name)
+      ? [check.name]
+      : [],
   )
   if (unknown.length > 0) await readJobs(fetch, auth, repo, oid, unknown)
   return {
     ...pull,
     checks: pull.checks.map((check) => {
       const job = jobs.get(keyOf(repo, oid, check.name))?.job
-      if (job === undefined || check.state === "held") return check
+      if (job === undefined || (check.state !== "queued" && check.state !== "running")) return check
       const since = check.state === "queued" && job.created > 0 ? job.created : check.since
       return {
         ...check,
@@ -402,15 +451,15 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       if (pull !== undefined) found.set(branch, pull)
     })
     // One lookup of the runs for each pull request whose checks are unfinished.
-    const unfinished = [...found].flatMap(([branch, pull]) => {
+    const asking = [...found].flatMap(([branch, pull]) => {
       const oid = heads.get(pull)
       return oid !== undefined && group.includes(branch) ? [{ branch, pull, oid }] : []
     })
     // eslint-disable-next-line no-await-in-loop -- Groups go one after another, to be gentle on the API.
-    const enriched = await pooled(unfinished, ({ pull, oid }) =>
+    const enriched = await pooled(asking, ({ pull, oid }) =>
       withRunners(fetch, auth, repo, pull, oid),
     )
-    unfinished.forEach(({ branch }, index) => found.set(branch, enriched[index]!))
+    asking.forEach(({ branch }, index) => found.set(branch, enriched[index]!))
   }
   return found
 }

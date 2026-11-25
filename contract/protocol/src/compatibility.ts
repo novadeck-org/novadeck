@@ -46,7 +46,9 @@ export const compatibility: Compatibility = {
   // before it drops, and `bundledPiFetch`, which says where its download stands); a UI offers the
   // switch only where the runner's settings report `bundledPi`.
   // 17: a work's `title` and `changedAt`.
-  revision: 17,
+  // 18: a work's pull request says its target branch, its checks one by one and where its review
+  // stands (`base`, `checks`, `review`), the checks' state and the review read tolerantly.
+  revision: 18,
   oldestClient: 11,
   oldestRunner: 12,
 }

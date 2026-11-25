@@ -1,4 +1,4 @@
-import type { PullRequest } from "@novadeck/protocol"
+import type { PullRequest } from "@novadeck/forges"
 
 import { kindShown, minutes, pullsOf, type Party, type Pull } from "../messaging/coordination.js"
 import { noticeText } from "../messaging/notice-format.js"

@@ -3,7 +3,6 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PullRequest as FoundPullRequest } from "@novadeck/forges"
 import {
-  forgeLimits,
   previewLimits,
   pullRequest as pullRequestSchema,
   workLimits,
@@ -34,6 +33,7 @@ import {
 import type { Held } from "../checkouts/repository.js"
 import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
+import { wirePullRequest } from "../forges/wire.js"
 import { logs } from "../log.js"
 import { folderOf, projectPathOf, repoPath } from "./folder.js"
 import { landedByReflog } from "./landed.js"
@@ -415,21 +415,12 @@ export class Works {
   }
 
   /**
-   * A pull request as the wire takes it (only the contract's fields, a long title cut), or
-   * undefined where it still isn't one: a forge's odd answer must not fail every work's stream.
-   * The forge tells more than the contract carries (an open pull request's target branch, its
-   * unfinished checks, for the agents' listing), which the strict schema would refuse.
+   * A pull request as the wire takes it (wire.ts: its fields, a long title cut), or undefined
+   * where it still isn't one: a forge's odd answer must not fail every work's stream.
    */
   private validPullRequest(found: FoundPullRequest | undefined): PullRequest | undefined {
     if (found === undefined) return undefined
-    const { number, url, title, state, ci } = found
-    const parsed = pullRequestSchema.safeParse({
-      number,
-      url,
-      title: title.slice(0, forgeLimits.title),
-      state,
-      ...(ci !== undefined && { ci }),
-    })
+    const parsed = pullRequestSchema.safeParse(wirePullRequest(found))
     if (parsed.success) return parsed.data
     log.warn("works.pull-request-invalid", "A forge's pull request does not fit the contract")
     return undefined

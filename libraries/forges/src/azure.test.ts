@@ -7,7 +7,12 @@ import { exit, mapOf, missing, ok, scripted, timeout } from "./fakes.js"
 import type { Repository } from "./forge.js"
 import { parseRemote } from "./remote.js"
 
-const server = setupServer()
+// The builds of a pull request's merge ref, which every open one's lookup asks: by default none.
+const server = setupServer(
+  http.get("https://dev.azure.com/org/My%20Project/_apis/build/builds", () =>
+    HttpResponse.json({ value: [] }),
+  ),
+)
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
@@ -468,5 +473,159 @@ describe("azure unfinished checks", () => {
         runner: "ubuntu-latest",
       },
     ])
+  })
+})
+
+describe("azure pull request facts", () => {
+  const root = "https://dev.azure.com/org/My%20Project/_apis"
+  const open = (extra: Record<string, unknown> = {}) =>
+    pr(5, "active", { repository: { project: { id: "g" } }, ...extra })
+  const standing = (evaluations: unknown[], statuses: unknown[]) => [
+    http.get(`${root}/policy/evaluations`, () => HttpResponse.json({ value: evaluations })),
+    http.get(`${root}/git/repositories/repo/pullrequests/5/statuses`, () =>
+      HttpResponse.json({ value: statuses }),
+    ),
+  ]
+  const find = async () => mapOf(await azure.pullRequests(fetch, token, repo, ["a"])).get("a")
+
+  it("lists each pipeline's newest build and each status context's newest post", async () => {
+    server.use(
+      byBranch({ a: [open()] }),
+      ...standing(
+        [],
+        [
+          { id: 1, state: "pending", iterationId: 1, context: { genre: "sonar", name: "scan" } },
+          { id: 2, state: "succeeded", iterationId: 1, context: { genre: "sonar", name: "scan" } },
+          { id: 3, state: "error", iterationId: 1, context: { name: "deploy" } },
+          { id: 4, state: "notSet", iterationId: 1, context: { name: "ignored" } },
+        ],
+      ),
+      // Newest first, as asked.
+      http.get(`${root}/build/builds`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("queryOrder")).toBe("queueTimeDescending")
+        return HttpResponse.json({
+          value: [
+            { definition: { id: 1, name: "ci" }, status: "completed", result: "succeeded" },
+            {
+              definition: { id: 2, name: "lint" },
+              status: "completed",
+              result: "partiallySucceeded",
+            },
+            { definition: { id: 3, name: "unit" }, status: "completed", result: "failed" },
+            { definition: { id: 4, name: "e2e" }, status: "completed", result: "canceled" },
+            { definition: { id: 5, name: "odd" }, status: "completed", result: "none" },
+            // An older build of the first pipeline, which the newer one stands over.
+            { definition: { id: 1, name: "ci" }, status: "completed", result: "failed" },
+          ],
+        })
+      }),
+    )
+    const found = await find()
+    expect(found?.ci).toBe("failing")
+    expect(found?.checks).toEqual([
+      { name: "ci", state: "passed" },
+      { name: "lint", state: "passed" },
+      { name: "unit", state: "failed" },
+      { name: "e2e", state: "failed" },
+      { name: "sonar/scan", state: "passed" },
+      { name: "deploy", state: "failed" },
+    ])
+  })
+
+  it("is limited where a further read is, so the lookup waits it out", async () => {
+    const before = Date.now()
+    server.use(
+      byBranch({ a: [open()] }),
+      ...standing([], []),
+      http.get(
+        `${root}/build/builds`,
+        () => new HttpResponse("{}", { status: 429, headers: { "retry-after": "120" } }),
+      ),
+    )
+    const found = await azure.pullRequests(fetch, token, repo, ["a"])
+    expect(found).toMatchObject({ kind: "limited" })
+    expect((found as { until: number }).until).toBeGreaterThanOrEqual(before + 119_000)
+  })
+
+  it("asks only the builds of the pull request's own repository", async () => {
+    let asked: URLSearchParams | undefined
+    server.use(
+      byBranch({ a: [open({ repository: { id: "repo-guid", project: { id: "g" } } })] }),
+      ...standing([], []),
+      http.get(`${root}/build/builds`, ({ request }) => {
+        asked = new URL(request.url).searchParams
+        return HttpResponse.json({ value: [] })
+      }),
+    )
+    await find()
+    expect(asked?.get("repositoryId")).toBe("repo-guid")
+    expect(asked?.get("repositoryType")).toBe("TfsGit")
+  })
+
+  it("lists no checks where ci can't be read", async () => {
+    server.use(
+      byBranch({ a: [open()] }),
+      http.get(`${root}/policy/evaluations`, () => new HttpResponse("{}", { status: 403 })),
+      http.get(`${root}/git/repositories/repo/pullrequests/5/statuses`, () =>
+        HttpResponse.json({ value: [] }),
+      ),
+      http.get(`${root}/build/builds`, () =>
+        HttpResponse.json({
+          value: [{ definition: { id: 1, name: "ci" }, status: "completed", result: "succeeded" }],
+        }),
+      ),
+    )
+    const found = await find()
+    expect(found).not.toHaveProperty("ci")
+    expect(found).not.toHaveProperty("checks")
+  })
+
+  it("keeps the target branch of a completed or abandoned pull request", async () => {
+    server.use(
+      byBranch({
+        m: [pr(1, "completed", { targetRefName: "refs/heads/feature" })],
+        c: [pr(2, "abandoned", { targetRefName: "refs/heads/main" })],
+      }),
+    )
+    const found = mapOf(await azure.pullRequests(fetch, token, repo, ["m", "c"]))
+    expect(found.get("m")).toMatchObject({ state: "merged", base: "feature" })
+    expect(found.get("c")).toMatchObject({ state: "closed", base: "main" })
+    expect(found.get("m")).not.toHaveProperty("review")
+  })
+
+  describe("review", () => {
+    const vote = (value: number, extra: Record<string, unknown> = {}) => ({ vote: value, ...extra })
+    const review = async (reviewers: unknown[], evaluations: unknown[] = []) => {
+      server.use(byBranch({ a: [open({ reviewers })] }), ...standing(evaluations, []))
+      return (await find())?.review
+    }
+    it("reads the reviewers' votes", async () => {
+      expect(await review([])).toBe("none")
+      expect(await review([vote(0)])).toBe("none")
+      expect(await review([vote(10), vote(0)])).toBe("approved")
+      expect(await review([vote(5)])).toBe("approved")
+      expect(await review([vote(10), vote(-5)])).toBe("changes_requested")
+      expect(await review([vote(10), vote(-10)])).toBe("changes_requested")
+      expect(await review([vote(10), vote(0, { isRequired: true })])).toBe("required")
+      expect(await review([vote(-10, { hasDeclined: true }), vote(10)])).toBe("approved")
+    })
+    it("needs the reviewers a minimum number of reviewers policy asks for", async () => {
+      const policy = (status: string, extra: Record<string, unknown> = {}) => ({
+        status,
+        configuration: {
+          id: 2,
+          isEnabled: true,
+          isBlocking: true,
+          type: { id: "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd" },
+          ...extra,
+        },
+      })
+      expect(await review([vote(10)], [policy("rejected")])).toBe("required")
+      expect(await review([], [policy("queued")])).toBe("required")
+      expect(await review([vote(10)], [policy("approved")])).toBe("approved")
+      expect(await review([vote(-10)], [policy("rejected")])).toBe("changes_requested")
+      // An optional policy doesn't hold it back.
+      expect(await review([], [policy("rejected", { isBlocking: false })])).toBe("none")
+    })
   })
 })
