@@ -2,6 +2,7 @@ import { firedFacts } from "@novadeck/harness-core/decode"
 import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
 import { silentFor } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
+import { fromOwnPi } from "@novadeck/harness-pi/bundled"
 import type { AgentName } from "@novadeck/protocol"
 import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/terminal/pty"
 
@@ -266,7 +267,8 @@ export class Reports {
     const [foreground, connected, reused] = observes
       ? await Promise.all([
           shellInForeground(child.pid),
-          this.host.connected(report.agent),
+          // Novadeck's own pi counts as connected whether or not the person's is.
+          fromOwnPi(report.payload) || this.host.connected(report.agent),
           this.reusedBinding(record, events, deadline),
         ])
       : [undefined, true, undefined]
@@ -295,7 +297,9 @@ export class Reports {
     // Its prompt shows, as the agent holding the terminal tells, as for a session it names;
     // one whose hooks its harness says don't run there can take no message.
     if (shown && foreground !== true && (process.platform !== "win32" || record.submitted)) {
-      const trust = await this.host.shown().promptTrust(record, report.agent)
+      const trust = await this.host
+        .shown()
+        .promptTrust(record, report.agent, undefined, fromOwnPi(report.payload))
       if (record.terminal.pty === child && shown.startedAt > (record.promptedAt ?? 0)) {
         if (trust === "counts") this.host.shown().showPrompt(record, shown)
         else if (trust === "untrusted")

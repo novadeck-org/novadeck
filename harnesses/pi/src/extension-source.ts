@@ -134,7 +134,10 @@ const hook = (event, payload) =>
     child.on("error", settle)
     child.on("close", settle)
     child.stdin.on("error", () => {})
-    child.stdin.end(JSON.stringify({ hook_event_name: event, ...payload }))
+    // From Novadeck's own pi (its launcher's NOVADECK_PI), which Novadeck counts as connected
+    // whether or not the person connected their pi.
+    const own = process.env.NOVADECK_PI === "bundled" ? { novadeck_own: true } : {}
+    child.stdin.end(JSON.stringify({ hook_event_name: event, ...payload, ...own }))
   })
 
 // The words pi was started with, for a SessionStart: it names its process "pi" (process.title),

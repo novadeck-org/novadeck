@@ -24,6 +24,17 @@ export type BundledPi = {
 export const bundledMark = "NOVADECK_PI"
 
 /**
+ * The field the extension adds to each hook's payload in Novadeck's own pi: the runner counts
+ * such a report's agent as connected, as Novadeck launched it with its extension, whether or not
+ * the person connected their own pi.
+ */
+export const ownField = "novadeck_own"
+
+/** Whether a hook's payload comes from Novadeck's own pi (`ownField`). */
+export const fromOwnPi = (payload: { readonly [key: string]: unknown }): boolean =>
+  payload[ownField] === true
+
+/**
  * The tools Novadeck's pi starts with on Windows where it finds no bash: pi's `powershell` in
  * place of its `bash`, which there runs only through Git Bash or another bash on PATH, and fails
  * without one (docs/windows.md, 1.6.0: it doesn't fall back by itself). For that launch alone,
