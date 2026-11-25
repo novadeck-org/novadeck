@@ -231,6 +231,13 @@ const jobStates: Record<string, { readonly state: Check["state"]; readonly hold?
 const order = (job: Record<string, unknown>): number =>
   typeof job["id"] === "number" ? job["id"] : 0
 
+// Each job of a list that is one, marked as a trigger job or not.
+const records = (body: unknown[], bridge: boolean) =>
+  body.flatMap((item) => {
+    const job = record(item)
+    return job === undefined ? [] : [{ job, bridge }]
+  })
+
 /** How many of a pipeline's jobs are asked. */
 const jobsAsked = 100
 
@@ -254,11 +261,6 @@ const checksOf = async (
     )
   const [answer, triggers] = await Promise.all([list("jobs"), list("bridges")])
   if (!("body" in answer) || !Array.isArray(answer.body)) return undefined
-  const records = (body: unknown[], bridge: boolean) =>
-    body.flatMap((item) => {
-      const job = record(item)
-      return job === undefined ? [] : [{ job, bridge }]
-    })
   const jobs = [
     ...records(answer.body, false),
     ...("body" in triggers && Array.isArray(triggers.body) ? records(triggers.body, true) : []),

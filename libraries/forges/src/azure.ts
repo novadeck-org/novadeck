@@ -342,14 +342,14 @@ const checksOf = async (
   auth: Token,
   root: string,
   number: number,
-  repository: string | undefined,
+  repositoryId: string | undefined,
 ): Promise<Check[] | undefined> => {
   // A pipeline of the project can build another repository's pull request of the same number
   // (one on GitHub, say), on a merge ref of the same name: only this repository's are asked.
   const own =
-    repository === undefined
+    repositoryId === undefined
       ? ""
-      : `&repositoryId=${encodeURIComponent(repository)}&repositoryType=TfsGit`
+      : `&repositoryId=${encodeURIComponent(repositoryId)}&repositoryType=TfsGit`
   const answer = await send(
     fetch,
     `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}${own}&queryOrder=queueTimeDescending&$top=${buildsAsked}&api-version=7.1`,
@@ -415,8 +415,9 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       const id = record(item)?.["pullRequestId"]
       const project = record(record(record(item)?.["repository"])?.["project"])?.["id"]
       if (typeof id === "number" && typeof project === "string") projects.set(id, project)
-      const repository = record(record(item)?.["repository"])?.["id"]
-      if (typeof id === "number" && typeof repository === "string") repositories.set(id, repository)
+      const repositoryId = record(record(item)?.["repository"])?.["id"]
+      if (typeof id === "number" && typeof repositoryId === "string")
+        repositories.set(id, repositoryId)
     }
     const pull = choose(list.flatMap((item) => candidate(item, pageOf) ?? []))
     if (pull !== undefined) found.set(branch, pull)
