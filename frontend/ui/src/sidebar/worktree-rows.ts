@@ -50,14 +50,14 @@ export const stateGlyphs: Readonly<
   unknown: { phase: "unheard" },
 }
 
-const stateWords = (state: WorktreeState, target: string): string | undefined =>
+const stateWords = (state: WorktreeState, landed: string): string | undefined =>
   ({
     changing: "files changing",
     checks: "checks running",
     empty: "nothing in it yet",
     rest: undefined,
     dormant: "untouched for a day or more",
-    landed: `landed in ${target}`,
+    landed: `landed in ${landed}`,
     failed: "checks failed",
     over: "pull request closed",
     unknown: "what it holds can't be read",
@@ -240,6 +240,15 @@ export const stateOf = (work: Work, now: number): WorktreeState => {
   return "rest"
 }
 
+// The branch git measures a work's conflicts and landing against: its home, else main, without
+// its remote. A pull request's target may differ (a stacked one without a recorded home).
+const measuredOf = (work: Work): string => work.base.replace(/^origin\//, "")
+
+// Where its work landed, in words: the pull request's target once the forge merged it, else the
+// branch git found it in.
+const landedIn = (work: Work): string =>
+  work.pullRequest?.state === "merged" ? targetOf(work) : measuredOf(work)
+
 // What a worktree needs of the person, `!` before `?`.
 export const needOf = (
   work: Work,
@@ -251,9 +260,8 @@ export const needOf = (
   const over = !landed && pull?.state === "closed"
   const uncommitted = work.uncommitted ?? 0
   const unpushed = work.unpushed ?? 0
-  const target = targetOf(work)
   if (!landed && !over) {
-    const conflict = conflictWords(work, titles, works, target)
+    const conflict = conflictWords(work, titles, works, measuredOf(work))
     if (conflict) return { need: "unblock", why: conflict }
   }
   if ((landed || over) && work.safe === false && uncommitted + unpushed > 0) {
@@ -265,7 +273,7 @@ export const needOf = (
       .join(", ")
     return {
       need: "unblock",
-      why: `${landed ? `Landed in ${target}` : "Pull request closed"}; ${left} here`,
+      why: `${landed ? `Landed in ${landedIn(work)}` : "Pull request closed"}; ${left} here`,
     }
   }
   if (!landed && !over && !ownerOpen(work.terminalId, titles) && uncommitted + unpushed > 0) {
@@ -275,7 +283,11 @@ export const needOf = (
     ]
       .filter(Boolean)
       .join(" and ")
-    return { need: "unblock", why: `${only} only here, and no agent on it` }
+    // An owner in History keeps its handle on the row: its terminal is closed, not gone.
+    return {
+      need: "unblock",
+      why: `${only} only here, and ${work.terminalId === null ? "no agent on it" : "its agent's terminal is closed"}`,
+    }
   }
   if (pull?.state === "open" && pull.ci === "passed")
     return { need: "ask", why: "Checks passed: yours to merge" }
@@ -343,7 +355,7 @@ export const worktreeRows = (
     const label = [
       name,
       pullRequest && [pullRequest.label, bar?.words].filter(Boolean).join(", "),
-      stateWords(state, target),
+      stateWords(state, landedIn(work)),
       `${branch} into ${target}`,
       need?.why,
       handle ? `@${handle}` : "no agent",

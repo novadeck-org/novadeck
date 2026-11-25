@@ -45,19 +45,27 @@
   color: var(--tab-sleeping-fg, var(--color-muted));
 }
 
-/* Where its work goes, "main ‹ branch": the target keeps a few characters, the branch gives way
-   first, and the need mark follows the branch. Unread lines brighten the branch, as a tab's
+/* Where its work goes, "main ‹ branch": the branch gives way first, then the target, each down to
+   a character and its ellipsis, so the handle at the line's end is never cut, at the sidebar's
+   narrowest too. The chevron's own box is mostly air, so it stands in a little, and the need mark
+   follows the branch close, as the mock draws them. Unread lines brighten the branch, as a tab's
    unread reply brightens its program. */
+/* The branch's shrink dwarfs the target's, so the target takes none of the overflow (under a
+   layout unit) until the branch is down to its least, then all of it. */
 .worktrees-target {
   flex: 0 1 auto;
-  min-width: 4ch;
+  min-width: 2ch;
 }
 .worktrees-route-mark {
+  margin-inline: -2px;
   opacity: 0.8;
 }
 .worktrees-branch {
-  flex: 0 10 auto;
-  min-width: 3ch;
+  flex: 0 100000 auto;
+  min-width: 2ch;
+}
+.worktrees-branch + .worktrees-need {
+  margin-left: -2px;
 }
 .worktrees-branch[data-unread] {
   color: var(--tab-active-process-fg, var(--color-ink));

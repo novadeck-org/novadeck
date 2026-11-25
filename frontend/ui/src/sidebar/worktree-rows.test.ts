@@ -173,13 +173,26 @@ describe("what a worktree is doing", () => {
 describe("what a worktree needs of the person", () => {
   const titles = new Map([["t-a", "A"]])
 
-  it("is ! for a conflict, named by its target", () => {
+  it("is ! for a conflict, named by the branch git measured it against", () => {
     expect(
-      needOf(work("a", 1, { home: "dev", conflicts: [{ with: "main" }] }), titles, []),
-    ).toEqual({
-      need: "unblock",
-      why: "Conflicts with dev",
-    })
+      needOf(
+        work("a", 1, { home: "dev", base: "origin/dev", conflicts: [{ with: "main" }] }),
+        titles,
+        [],
+      ),
+    ).toEqual({ need: "unblock", why: "Conflicts with dev" })
+    // A stacked pull request without a recorded home targets its base, but git measured main.
+    expect(
+      needOf(
+        work("a", 1, {
+          base: "origin/main",
+          conflicts: [{ with: "main" }],
+          pullRequest: pull("open", { base: "feat/x" }),
+        }),
+        titles,
+        [],
+      )?.why,
+    ).toBe("Conflicts with main")
   })
 
   it("is ! for what landed or closed but left work here", () => {
@@ -199,10 +212,14 @@ describe("what a worktree needs of the person", () => {
   })
 
   it("is ! for work only here with no agent on it", () => {
-    expect(needOf(work("b", 1, { uncommitted: 3 }), titles, [])).toEqual({
+    expect(needOf(work("b", 1, { terminalId: null, uncommitted: 3 }), titles, [])).toEqual({
       need: "unblock",
       why: "3 files only here, and no agent on it",
     })
+    // Its owner in History keeps its handle on the row.
+    expect(needOf(work("b", 1, { uncommitted: 3 }), titles, [])?.why).toBe(
+      "3 files only here, and its agent's terminal is closed",
+    )
     expect(needOf(work("b", 1, { uncommitted: 0 }), titles, [])).toBeUndefined()
   })
 

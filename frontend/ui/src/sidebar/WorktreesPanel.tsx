@@ -94,7 +94,7 @@ const RouteLine = ({ row }: { row: WorktreeRow }): React.JSX.Element => {
       </span>
       {row.need && (
         <Tooltip content={row.need.why}>
-          <span className="inline-flex shrink-0">
+          <span className="worktrees-need inline-flex shrink-0">
             <NeedMark need={row.need.need} hidden />
           </span>
         </Tooltip>
