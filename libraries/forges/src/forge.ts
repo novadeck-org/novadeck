@@ -86,8 +86,9 @@ export type PullRequest = {
  * One check on a pull request's latest commit: `passed` or `failed` once finished (cancelled,
  * timed out or errored is failed; neutral, or a failure allowed to fail, is passed); before
  * that, waiting for a runner (`queued`), running, or `held` by something other than a runner
- * shortage (`hold` says what: an environment's approval, a concurrency group's earlier run, or
- * an earlier job or stage of its own pipeline). `since` is when an unfinished one was queued or
+ * shortage (`hold` says what: an environment's approval, a concurrency group's earlier run, an
+ * earlier job or stage of its own pipeline, or the downstream pipeline it triggered, which runs
+ * as checks of its own). `since` is when an unfinished one was queued or
  * started, epoch milliseconds, where the forge says. `runner` names the kind of runner an
  * unfinished one needs or holds (GitHub's `runs-on` labels, GitLab's job tags, Azure's agent
  * pool), where the forge says; a forge that can't leaves it out.
@@ -95,7 +96,7 @@ export type PullRequest = {
 export type Check = {
   readonly name: string
   readonly state: "queued" | "running" | "held" | "passed" | "failed"
-  readonly hold?: "approval" | "concurrency" | "earlier" | undefined
+  readonly hold?: "approval" | "concurrency" | "earlier" | "downstream" | undefined
   readonly since?: number | undefined
   readonly runner?: string | undefined
 }

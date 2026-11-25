@@ -25,6 +25,7 @@ describe("a forge's pull request on the wire", () => {
         { name: "d", state: "queued", runner: "macos-latest" },
         { name: "e", state: "held", hold: "concurrency" },
         { name: "f", state: "held", hold: "earlier" },
+        { name: "g", state: "held", hold: "downstream" },
       ],
     })
     expect(wired).toEqual({
@@ -39,6 +40,7 @@ describe("a forge's pull request on the wire", () => {
         { name: "d", state: "waiting" },
         { name: "e", state: "waiting" },
         { name: "f", state: "waiting" },
+        { name: "g", state: "running" },
       ],
     })
     expect(pullRequest.safeParse(wired).success).toBe(true)

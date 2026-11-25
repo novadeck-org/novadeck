@@ -5,7 +5,7 @@ import { forgeLimits, type PullRequest, type PullRequestCheck } from "@novadeck/
 // names (the runner keeps the rest, as each check's runner kind, for the agents' listing), a
 // long title or check name cut, the checks capped, and each check's state in the contract's
 // words: queued for a runner, or held by an approval, a concurrency group or an earlier job, is
-// `waiting`.
+// `waiting`; a trigger job held by the downstream pipeline it started is `running`.
 
 const states: Record<Check["state"], PullRequestCheck["state"]> = {
   passed: "passed",
@@ -18,7 +18,8 @@ const states: Record<Check["state"], PullRequestCheck["state"]> = {
 export const wirePullRequest = (found: Found): PullRequest => {
   const { number, url, title, state, ci, base, checks, review } = found
   const listed = (checks ?? []).flatMap((check): PullRequestCheck[] => {
-    const shown = states[check.state]
+    // A trigger job runs while the pipeline it started does.
+    const shown = check.hold === "downstream" ? "running" : states[check.state]
     return check.name === "" || shown === undefined
       ? []
       : [{ name: check.name.slice(0, forgeLimits.check), state: shown }]

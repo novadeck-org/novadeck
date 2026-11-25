@@ -234,29 +234,38 @@ const order = (job: Record<string, unknown>): number =>
 /** How many of a pipeline's jobs are asked. */
 const jobsAsked = 100
 
-// A pipeline's latest jobs (not those retried since), first to last, with the tags that say
-// what kind of runner each needs. A failed job allowed to fail passes, as its pipeline counts
-// it. Never fails the lookup.
+// A pipeline's latest jobs (not those retried since), by job id (so a retried job comes last),
+// with the tags that say what kind of runner each needs, and its trigger jobs, which the jobs
+// list leaves out: one that triggered a child or downstream pipeline stands for it, held by it
+// while it runs. A failed job allowed to fail passes, as its pipeline counts it. Never fails the
+// lookup; trigger jobs that can't be read are left out.
 const checksOf = async (
   fetch: Fetch,
   auth: Token,
   repo: Repository & { readonly forge: "gitlab" },
   pipeline: number,
 ): Promise<Check[] | undefined> => {
-  const answer = await send(
-    fetch,
-    `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/pipelines/${pipeline}/jobs?per_page=${jobsAsked}`,
-    { headers: headers(auth.value) },
-    { signIn: signIn(repo.host) },
-  )
+  const list = (kind: "jobs" | "bridges") =>
+    send(
+      fetch,
+      `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/pipelines/${pipeline}/${kind}?per_page=${jobsAsked}`,
+      { headers: headers(auth.value) },
+      { signIn: signIn(repo.host) },
+    )
+  const [answer, triggers] = await Promise.all([list("jobs"), list("bridges")])
   if (!("body" in answer) || !Array.isArray(answer.body)) return undefined
-  const jobs = answer.body.flatMap((item) => {
-    const job = record(item)
-    return job === undefined ? [] : [job]
-  })
+  const records = (body: unknown[], bridge: boolean) =>
+    body.flatMap((item) => {
+      const job = record(item)
+      return job === undefined ? [] : [{ job, bridge }]
+    })
+  const jobs = [
+    ...records(answer.body, false),
+    ...("body" in triggers && Array.isArray(triggers.body) ? records(triggers.body, true) : []),
+  ]
   return jobs
-    .toSorted((one, other) => order(one) - order(other))
-    .flatMap((job): Check[] => {
+    .toSorted((one, other) => order(one.job) - order(other.job))
+    .flatMap(({ job, bridge }): Check[] => {
       const name = job["name"]
       const known = jobStates[String(job["status"])]
       if (typeof name !== "string" || known === undefined) return []
@@ -264,6 +273,8 @@ const checksOf = async (
         return [{ name, state: "passed" }]
       if (known.state === "passed" || known.state === "failed")
         return [{ name, state: known.state }]
+      // A trigger job runs on no runner: until its pipeline ends, that pipeline holds it.
+      if (bridge) return [{ name, state: "held", hold: "downstream" }]
       if (known.state === "held") return [{ name, state: "held", hold: known.hold }]
       const running = known.state === "running"
       const at = running ? time(job["started_at"]) : queuedSince(job)

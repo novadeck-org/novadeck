@@ -38,14 +38,17 @@ runs wherever those can, and tests script them. Pure JavaScript, for Node and th
     same name. A branch with none is not in the map, and a repository the token can't see answers
     an empty map.
     - `checks`: each a `Check` (`name`, `state` of `passed`, `failed`, `queued`, `running` or
-      `held`, with `hold` of `approval`, `concurrency` or `earlier`; `since` and `runner` on an
+      `held`, with `hold` of `approval`, `concurrency`, `earlier` or `downstream`; `since` and `runner` on an
       unfinished one where the forge says; `unfinished(check)` tells the last three apart).
       GitHub: the head commit's check runs and statuses (100 at most), in the rollup's order,
       neutral passing, cancelled, timed out and the like failing, skipped ones left out; the
       runner labels come from the Actions REST API, asked only while a check is queued or
-      running. GitLab: the head pipeline's latest jobs (100 at most), first to last, a failure
-      allowed to fail passing, manual and skipped jobs left out. Azure DevOps: the newest build
-      of each pipeline on the pull request's merge ref (100 builds asked), then each status
+      running. GitLab: the head pipeline's latest jobs and trigger jobs (100 of each at most), by
+      job id (a retried job comes last), a failure allowed to fail passing, manual and skipped
+      jobs left out; a trigger job stands for its child or downstream pipeline, `held` by it
+      (`downstream`) while it runs. Azure DevOps: the newest build
+      of each pipeline on the pull request's merge ref, of the repository's own builds (100
+      asked), then each status
       context's newest post (as `genre/name`). Absent where `ci` couldn't be read.
     - `review`: `approved`, `changes_requested`, `required` or `none`. GitHub: its
       `reviewDecision` where a branch rule requires reviews, else each reviewer's latest

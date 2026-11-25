@@ -12,6 +12,10 @@ const server = setupServer(
   http.get("https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/merge_requests/:iid/approvals", () =>
     HttpResponse.json({ approvals_required: 0, approvals_left: 0, approved_by: [] }),
   ),
+  // A pipeline's trigger jobs: by default none.
+  http.get("https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/:id/bridges", () =>
+    HttpResponse.json([]),
+  ),
 )
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }))
 afterEach(() => server.resetHandlers())
@@ -365,7 +369,7 @@ describe("gitlab unfinished checks", () => {
 
 describe("gitlab merge request facts", () => {
   const jobs = "https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/9/jobs"
-  it("lists every job of the head pipeline, first to last, finished or not", async () => {
+  it("lists every job of the head pipeline, by job id, finished or not", async () => {
     server.use(
       byBranch({ a: [mr(1, "opened", { target_branch: "main" })] }),
       http.get(`${url}/1`, () => HttpResponse.json({ head_pipeline: { id: 9, status: "failed" } })),
@@ -393,6 +397,44 @@ describe("gitlab merge request facts", () => {
       { name: "e2e", state: "failed" },
       { name: "wait", state: "held", hold: "concurrency" },
     ])
+  })
+
+  it("lists trigger jobs among the jobs, held by their pipeline while it runs", async () => {
+    server.use(
+      byBranch({ a: [mr(1, "opened")] }),
+      http.get(`${url}/1`, () =>
+        HttpResponse.json({ head_pipeline: { id: 9, status: "running" } }),
+      ),
+      http.get(jobs, () => HttpResponse.json([{ id: 1, name: "build", status: "success" }])),
+      http.get("https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/9/bridges", () =>
+        HttpResponse.json([
+          { id: 3, name: "deploy-docs", status: "success" },
+          { id: 2, name: "child", status: "running" },
+        ]),
+      ),
+    )
+    const found = mapOf(await gitlab.pullRequests(fetch, token, repo, ["a"])).get("a")
+    expect(found?.checks).toEqual([
+      { name: "build", state: "passed" },
+      { name: "child", state: "held", hold: "downstream" },
+      { name: "deploy-docs", state: "passed" },
+    ])
+  })
+
+  it("keeps the jobs where the trigger jobs can't be read", async () => {
+    server.use(
+      byBranch({ a: [mr(1, "opened")] }),
+      http.get(`${url}/1`, () =>
+        HttpResponse.json({ head_pipeline: { id: 9, status: "success" } }),
+      ),
+      http.get(jobs, () => HttpResponse.json([{ id: 1, name: "build", status: "success" }])),
+      http.get(
+        "https://gitlab.com/api/v4/projects/g%2Fsub%2Fp/pipelines/9/bridges",
+        () => new HttpResponse("{}", { status: 403 }),
+      ),
+    )
+    const found = mapOf(await gitlab.pullRequests(fetch, token, repo, ["a"])).get("a")
+    expect(found?.checks).toEqual([{ name: "build", state: "passed" }])
   })
 
   it("keeps the target branch of a merged or closed merge request", async () => {

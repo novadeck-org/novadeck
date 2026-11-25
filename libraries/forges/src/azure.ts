@@ -342,10 +342,17 @@ const checksOf = async (
   auth: Token,
   root: string,
   number: number,
+  repository: string | undefined,
 ): Promise<Check[] | undefined> => {
+  // A pipeline of the project can build another repository's pull request of the same number
+  // (one on GitHub, say), on a merge ref of the same name: only this repository's are asked.
+  const own =
+    repository === undefined
+      ? ""
+      : `&repositoryId=${encodeURIComponent(repository)}&repositoryType=TfsGit`
   const answer = await send(
     fetch,
-    `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}&queryOrder=queueTimeDescending&$top=${buildsAsked}&api-version=7.1`,
+    `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}${own}&queryOrder=queueTimeDescending&$top=${buildsAsked}&api-version=7.1`,
     { headers: headers(auth.value), redirect: "manual" },
     { signIn: signIn(), unauthorized },
   )
@@ -397,6 +404,8 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
   const found = new Map<string, PullRequest>()
   // The id of each pull request's project, which a policy evaluation's artifact names.
   const projects = new Map<number, string>()
+  // And of its repository, which narrows its builds to the repository's own.
+  const repositories = new Map<number, string>()
   for (const { branch, answer } of answers) {
     if ("problem" in answer) return answer.problem
     if ("absent" in answer) return new Map()
@@ -406,6 +415,8 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       const id = record(item)?.["pullRequestId"]
       const project = record(record(record(item)?.["repository"])?.["project"])?.["id"]
       if (typeof id === "number" && typeof project === "string") projects.set(id, project)
+      const repository = record(record(item)?.["repository"])?.["id"]
+      if (typeof id === "number" && typeof repository === "string") repositories.set(id, repository)
     }
     const pull = choose(list.flatMap((item) => candidate(item, pageOf) ?? []))
     if (pull !== undefined) found.set(branch, pull)
@@ -415,7 +426,7 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
   const read = await pooled(open, async ([branch, pull]) => {
     const [standing, builds] = await Promise.all([
       ciOf(fetch, auth, root, base, pull.number, projects.get(pull.number)),
-      checksOf(fetch, auth, root, pull.number),
+      checksOf(fetch, auth, root, pull.number, repositories.get(pull.number)),
     ])
     return { branch, pull, standing, builds }
   })

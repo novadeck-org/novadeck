@@ -532,6 +532,21 @@ describe("azure pull request facts", () => {
     ])
   })
 
+  it("asks only the builds of the pull request's own repository", async () => {
+    let asked: URLSearchParams | undefined
+    server.use(
+      byBranch({ a: [open({ repository: { id: "repo-guid", project: { id: "g" } } })] }),
+      ...standing([], []),
+      http.get(`${root}/build/builds`, ({ request }) => {
+        asked = new URL(request.url).searchParams
+        return HttpResponse.json({ value: [] })
+      }),
+    )
+    await find()
+    expect(asked?.get("repositoryId")).toBe("repo-guid")
+    expect(asked?.get("repositoryType")).toBe("TfsGit")
+  })
+
   it("lists no checks where ci can't be read", async () => {
     server.use(
       byBranch({ a: [open()] }),

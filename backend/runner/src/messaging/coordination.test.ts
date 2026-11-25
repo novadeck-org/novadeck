@@ -161,6 +161,7 @@ describe("a terminal's checks line", () => {
             { name: "unit", state: "failed" },
             ...holding,
             { name: "later", state: "held", hold: "earlier" },
+            { name: "child", state: "held", hold: "downstream" },
           ]),
         },
       ]),

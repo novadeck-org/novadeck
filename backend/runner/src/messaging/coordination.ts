@@ -47,12 +47,13 @@ export type Pull = {
 
 /**
  * Whether a check holds or waits for a runner, or is held by an approval or a concurrency group:
- * one finished, or waiting on an earlier job of its own pipeline, is nothing to settle with others.
+ * one finished, waiting on an earlier job of its own pipeline, or standing for a downstream
+ * pipeline (whose own jobs hold runners) is nothing to settle with others.
  */
 const pending = (check: Check): boolean =>
   check.state === "queued" ||
   check.state === "running" ||
-  (check.state === "held" && check.hold !== "earlier")
+  (check.state === "held" && check.hold !== "earlier" && check.hold !== "downstream")
 
 /** The pull requests with unfinished checks among a terminal's worktrees. */
 export const pullsOf = (
