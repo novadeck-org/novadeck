@@ -19,7 +19,7 @@ const run = promisify(execFile)
 // The fake pi prints its words, one a line, then what its environment says of Novadeck's pi.
 const fakePi = (platform: NodeJS.Platform): string =>
   platform === "win32"
-    ? '@echo off\r\n:next\r\nif "%~1"=="" goto env\r\necho %~1\r\nshift\r\ngoto next\r\n:env\r\necho dir=%PI_CODING_AGENT_DIR%\r\necho mark=%NOVADECK_PI%\r\necho check=%PI_SKIP_VERSION_CHECK%\r\n'
+    ? '@echo off\r\necho raw=%*\r\n:next\r\nif "%~1"=="" goto env\r\necho %~1\r\nshift\r\ngoto next\r\n:env\r\necho dir=%PI_CODING_AGENT_DIR%\r\necho mark=%NOVADECK_PI%\r\necho check=%PI_SKIP_VERSION_CHECK%\r\n'
     : '#!/bin/sh\nfor a in "$@"; do echo "$a"; done\necho "dir=$PI_CODING_AGENT_DIR"\necho "mark=$NOVADECK_PI"\necho "check=$PI_SKIP_VERSION_CHECK"\n'
 
 // `env` laid over `base` as Windows reads names, without case: its own `Path` would otherwise
@@ -130,18 +130,21 @@ describe("Novadeck's pi launcher", () => {
     await mkdir(tools)
     await copyFile(`${process.env.SystemRoot}\\System32\\where.exe`, join(tools, "where.exe"))
     const none = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: tools }
-    const without = lines((await launch(["go"], none)).stdout)
-    expect(without.slice(2, 5)).toEqual([...powershellTools, "go"])
+    // Its command line as cmd gives it: a .cmd file splits its words at a comma too, pi.exe
+    // doesn't.
+    const raw = (out: string) => lines(out).find((line) => line.startsWith("raw="))
+    const without = raw((await launch(["go"], none)).stdout)
+    expect(without?.endsWith(`novadeck.mjs" ${powershellTools.join(" ")} go`)).toBe(true)
     // Git Bash where Git for Windows puts it.
     const git = join(root, "git")
     await mkdir(join(git, "Git", "bin"), { recursive: true })
     await writeFile(join(git, "Git", "bin", "bash.exe"), "")
-    const withGit = lines((await launch(["go"], { ...none, ProgramFiles: git })).stdout)
-    expect(withGit.slice(2, 3)).toEqual(["go"])
+    const withGit = raw((await launch(["go"], { ...none, ProgramFiles: git })).stdout)
+    expect(withGit?.endsWith(`novadeck.mjs" go`)).toBe(true)
     // Any bash.exe on PATH, as pi takes one.
     await writeFile(join(tools, "bash.exe"), "")
-    const onPath = lines((await launch(["go"], none)).stdout)
-    expect(onPath.slice(2, 3)).toEqual(["go"])
+    const onPath = raw((await launch(["go"], none)).stdout)
+    expect(onPath?.endsWith(`novadeck.mjs" go`)).toBe(true)
   })
 })
 
