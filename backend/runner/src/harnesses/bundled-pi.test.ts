@@ -19,7 +19,7 @@ import {
   pinnedPi,
   progressLine,
   type PinnedPi,
-} from "./pi.js"
+} from "./bundled-pi.js"
 
 const licenceText = "MIT License\n\nCopyright (c) pi's authors\n"
 

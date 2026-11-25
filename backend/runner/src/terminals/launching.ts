@@ -9,8 +9,8 @@ import { TerminalError } from "@novadeck/terminal"
 import type { RunSpec, Terminal } from "@novadeck/terminal/host"
 import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadeck/terminal/shell"
 
-import { bundledFetch } from "../bundled/pi.js"
 import { DomainError } from "../errors.js"
+import { bundledFetch } from "../harnesses/bundled-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { locate } from "../harnesses/service.js"
 import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
@@ -131,7 +131,7 @@ export class Launcher {
     try {
       const paths = await shellFiles
       if (!paths) return undefined
-      // A launcher of Novadeck's own pi has the runner fetch it (bundled/pi.ts).
+      // A launcher of Novadeck's own pi has the runner fetch it (harnesses/bundled-pi.ts).
       const reports = await listenForReports({
         ...this.host.handlers,
         fetch: bundledFetch(paths.bundledPi.data),

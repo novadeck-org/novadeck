@@ -16,7 +16,7 @@ import {
   type ShellScriptPaths,
 } from "@novadeck/terminal/shell"
 
-import { buildFor, bundledPiHome, bundledPiProgram } from "../bundled/pi.js"
+import { buildFor, bundledPiHome, bundledPiProgram } from "../harnesses/bundled-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import {
@@ -44,7 +44,7 @@ export type ShellPaths = ShellScriptPaths & {
    */
   readonly open: string
   /**
-   * Novadeck's own pi (bundled/pi.ts): the launcher Novadeck types to start it, and Novadeck's
+   * Novadeck's own pi (harnesses/bundled-pi.ts): the launcher Novadeck types to start it, and Novadeck's
    * data folder, where it is fetched to and keeps its agent folder.
    */
   readonly bundledPi: { readonly launcher: string; readonly data: string }

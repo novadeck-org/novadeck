@@ -1238,7 +1238,7 @@ same tables.
 
 **Fetch**, run by the launcher of Novadeck's own pi (`shell/bundled/pi`, from
 harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` where its program isn't in place
-yet: the runner downloads the pinned build for its system (`bundled/pi.ts`) and the
+yet: the runner downloads the pinned build for its system (`harnesses/bundled-pi.ts`) and the
 relay shows its progress in the terminal.
 
 1. The relay sends `{"relay":2,"kind":"fetch","terminalId","token","name"}`.

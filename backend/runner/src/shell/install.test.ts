@@ -13,7 +13,7 @@ import { join } from "node:path"
 
 import { vi } from "vitest"
 
-import { buildFor } from "../bundled/pi.js"
+import { buildFor } from "../harnesses/bundled-pi.js"
 import { agyPreToolUse, setAgyPreToolUse } from "../shipping/hooks.js"
 import { describe, expect, it } from "../test.js"
 import { ownHome } from "../testing/host.js"

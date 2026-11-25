@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -61,7 +61,8 @@ describe("Novadeck's pi launcher", () => {
 
   const launch = (args: readonly string[], env: NodeJS.ProcessEnv = {}) =>
     windows
-      ? run("cmd.exe", ["/d", "/c", launcher, ...args], {
+      ? // cmd by its full path: a test's own PATH may not hold it.
+        run(process.env.ComSpec ?? "cmd.exe", ["/d", "/c", launcher, ...args], {
           env: { ...process.env, NOVADECK_TERMINAL_ID: "t1", ...env },
         })
       : run(launcher, args, {
@@ -113,12 +114,12 @@ describe("Novadeck's pi launcher", () => {
   it.runIf(windows)("gives pi its powershell tools only where it finds no bash", async () => {
     const empty = join(root, "nowhere")
     await mkdir(empty)
-    // Nowhere pi looks holds a bash: Program Files, then (x86), then PATH.
-    const none = {
-      ProgramFiles: empty,
-      "ProgramFiles(x86)": empty,
-      PATH: `${process.env.SystemRoot}\\System32`,
-    }
+    // Nowhere pi looks holds a bash: Program Files, then (x86), then PATH, which here holds
+    // `where` alone (System32 may hold WSL's bash.exe, which pi would take, as the launcher does).
+    const tools = join(root, "tools")
+    await mkdir(tools)
+    await copyFile(`${process.env.SystemRoot}\\System32\\where.exe`, join(tools, "where.exe"))
+    const none = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: tools }
     const without = lines((await launch(["go"], none)).stdout)
     expect(without.slice(2, 5)).toEqual([...powershellTools, "go"])
     // Git Bash where Git for Windows puts it.
@@ -127,6 +128,10 @@ describe("Novadeck's pi launcher", () => {
     await writeFile(join(git, "Git", "bin", "bash.exe"), "")
     const withGit = lines((await launch(["go"], { ...none, ProgramFiles: git })).stdout)
     expect(withGit.slice(2, 3)).toEqual(["go"])
+    // Any bash.exe on PATH, as pi takes one.
+    await writeFile(join(tools, "bash.exe"), "")
+    const onPath = lines((await launch(["go"], none)).stdout)
+    expect(onPath.slice(2, 3)).toEqual(["go"])
   })
 })
 

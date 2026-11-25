@@ -2,7 +2,7 @@ import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 
 /**
- * Novadeck's own pi (backend/runner's bundled/pi.ts), which its launcher starts: a pinned pi
+ * Novadeck's own pi (backend/runner's harnesses/bundled-pi.ts), which its launcher starts: a pinned pi
  * that Novadeck downloads into its own data folder, apart from the person's pi on PATH, which
  * the shim starts and these files leave as it is.
  */
