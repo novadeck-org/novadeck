@@ -655,8 +655,11 @@ const documents: ReadonlySet<string> = new Set(["mainFrame", "subFrame"])
 /**
  * Tells of each request of the pages' session that fails, with the page view it is for: an
  * HTTP error answer (4xx, 5xx), or none at all (status 0), but not one cancelled, as by a
- * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`), nor a part of a
- * page that misses Chromium's cache (`net::ERR_CACHE_MISS`): Chromium looks for a web font
+ * page that aborts its own fetch or goes elsewhere (`net::ERR_ABORTED`), or as by Chromium
+ * when a video or audio element has buffered enough or seeks and drops its open-ended range
+ * request, which Electron tells as `net::ERR_FAILED` though the element plays on (a media
+ * stream that does break tells its own cause, as `net::ERR_CONTENT_LENGTH_MISMATCH`), nor a
+ * part of a page that misses Chromium's cache (`net::ERR_CACHE_MISS`): Chromium looks for a web font
  * there first and, on a miss, fetches it again from the server, so the miss is no failure,
  * and a page that asks only its cache meant to go without. A document that misses it, the
  * page's own or a frame's, as one gone back to after a form, didn't load, and is told:
@@ -718,6 +721,7 @@ export const watchPageRequests = (
   pages.webRequest.onErrorOccurred((details) => {
     navigating(details)
     if (details.error === "net::ERR_ABORTED") return
+    if (details.error === "net::ERR_FAILED" && details.resourceType === "media") return
     if (details.error === "net::ERR_CACHE_MISS" && !documents.has(details.resourceType)) return
     tell(details, 0)
   })

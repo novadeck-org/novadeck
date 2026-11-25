@@ -742,6 +742,19 @@ describe("the requests of a page view that fail", () => {
     expect(told).toEqual([[3, { url: "http://localhost/a", status: 0, what: "script" }]])
   })
 
+  it("leave out a video's range request that Chromium drops, but not one whose stream broke", () => {
+    const { told, errored } = watched()
+    const video = { url: "http://localhost/media/clip.mp4", resourceType: "media" }
+    errored("net::ERR_FAILED", video)
+    expect(told).toEqual([])
+    errored("net::ERR_CONTENT_LENGTH_MISMATCH", video)
+    errored("net::ERR_FAILED")
+    expect(told).toEqual([
+      [3, { url: "http://localhost/media/clip.mp4", status: 0, what: "media" }],
+      [3, { url: "http://localhost/a", status: 0, what: "script" }],
+    ])
+  })
+
   it("leave out a part of the page that missed the cache, as a font Chromium then fetches", () => {
     const { told, errored } = watched()
     for (const resourceType of ["font", "xhr", "image", "script"])
