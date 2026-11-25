@@ -56,7 +56,7 @@ const writers: readonly (readonly [number, Pool])[] = [
     7,
     {
       files: ["src/lib/orders.ts", "docs/plans/order-emails.md"],
-      fresh: ["emails/shipped.tsx"],
+      fresh: ["src/emails/shipped.tsx"],
     },
   ],
   [

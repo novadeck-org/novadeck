@@ -552,7 +552,15 @@ export const createDemoFiles = (
             ],
           }
         : base
-    const known = tree.entries.some(
+    // A folder only an agent's write made is there too, as the runner reads it; what the agents
+    // changed in a folder is not in its listing (the panel adds it from their changes).
+    const created =
+      id === projectId
+        ? Object.entries(state.getSnapshot().projects[projectId]?.changes ?? {}).flatMap(
+            ([path, changed]) => (changed.kind === "added" ? [path] : []),
+          )
+        : []
+    const known = [...tree.entries, ...created].some(
       (path) => trimmed(path) === folder || path.startsWith(`${folder}/`),
     )
     if (folder !== "" && !known) throw new Error("There is no such folder")
