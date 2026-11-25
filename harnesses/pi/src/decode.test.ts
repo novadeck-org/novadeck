@@ -7,6 +7,7 @@ import { hookReport } from "@novadeck/harness-core/testing/reports"
 import { describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
+import { pi } from "./index.js"
 
 type Payload = Report["payload"]
 
@@ -187,5 +188,28 @@ describe("pi's reports, as Novadeck's extension made them (probed 2026-11-24, 1.
   it("reads nothing from a report without a session, nor from one it doesn't know", () => {
     expect(decoded("Stop", { error: null })).toEqual([])
     expect(decoded("Something", { session_id: session })).toEqual([])
+  })
+})
+
+// pi names its process `pi`, so the relay reads it as started with no words (Linux, 1.6.0): the
+// flags a resume gives back come from what the extension sends.
+describe("the words pi was started with", () => {
+  const start = reportsOf("SessionStart")[0]!
+  const launchOf = (payload: Payload, launch?: readonly string[]) =>
+    pi
+      .decode(hookReport("pi", "SessionStart", payload, launch ? { launch } : {}))
+      .find((fact) => fact.type === "session-observed")
+  const words = ["-e", "/data/novadeck.js", "--no-tools", "--thinking", "high"]
+
+  it("are what the extension sent, over the none the relay read", () => {
+    expect(launchOf({ ...start, argv: words }, [])).toMatchObject({
+      launch: ["--no-tools", "--thinking", "high"],
+    })
+  })
+
+  it("are what the relay read where the extension sent none, or more than it would take", () => {
+    expect(launchOf(start, ["--no-mcp"])).toMatchObject({ launch: ["--no-mcp"] })
+    const many = { ...start, argv: Array.from({ length: 129 }, () => "--no-tools") }
+    expect(launchOf(many, ["--no-mcp"])).toMatchObject({ launch: ["--no-mcp"] })
   })
 })

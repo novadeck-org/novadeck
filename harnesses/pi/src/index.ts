@@ -2,6 +2,7 @@ import { join } from "node:path"
 
 import { withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 
 import { box, slice } from "./box.js"
 import { conversation, conversations } from "./conversation.js"
@@ -20,6 +21,23 @@ import { followTranscript } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 import { hooksTrusted } from "./trust.js"
 import { versionOf } from "./version.js"
+
+/**
+ * The words pi was started with, as its extension sends them in SessionStart's `argv`: pi names
+ * its process `pi` (`process.title`), so the relay reads it as started with none (seen on Linux,
+ * 2026-11-25, 1.6.0), and a resume lost the flags pi forgets. What the relay read stands where
+ * the extension sent none or a list past the relay's own bounds.
+ */
+export const launchOf = (
+  report: Pick<Report, "launch" | "payload">,
+): readonly string[] | undefined => {
+  const { argv } = report.payload
+  return Array.isArray(argv) &&
+    argv.length <= 128 &&
+    argv.every((word) => typeof word === "string" && word.length <= 4096)
+    ? (argv as readonly string[])
+    : report.launch
+}
 
 /** pi, as Novadeck's fifth harness: its extension, shim, transcripts, screens and input box. */
 export const pi = {
@@ -63,7 +81,10 @@ export const pi = {
     limits: "unsupported",
     context: "partial",
   },
-  decode: (report) => withLaunch(decode(report), report, launch.kept),
+  decode: (report) => {
+    const words = launchOf(report)
+    return withLaunch(decode(report), words === undefined ? {} : { launch: words }, launch.kept)
+  },
   // A run's end the extension marks in the session's file, for a Stop whose report never came.
   watch: followTranscript,
   dialogs,

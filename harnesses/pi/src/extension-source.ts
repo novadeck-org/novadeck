@@ -416,7 +416,10 @@ export default function novadeck(pi) {
       failure = null
       stopped = false
       continued = 0
-      await report("SessionStart", { ...at, source, version: version ?? null, ...modelOf(ctx) })
+      // The words pi was started with: it names its process "pi" (process.title), which leaves
+      // the relay none to read, while its own argv keeps them.
+      const argv = process.argv.slice(2)
+      await report("SessionStart", { ...at, source, version: version ?? null, ...modelOf(ctx), argv })
       writeModels(ctx)
     } catch {}
     await registerTools()
