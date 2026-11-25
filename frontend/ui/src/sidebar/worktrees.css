@@ -1,70 +1,153 @@
-/* The Worktrees panel's rows (WorktreesPanel.tsx): each work is drawn as a terminal's tab (the
-   `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
-   are the tab's own), and this adds what differs. The rows stand in groups, each a
-   `.worktrees-group` with a `.worktrees-group-heading` (`.worktrees-group-title`, its
-   `.worktrees-group-count`, Done's `.worktrees-group-fold` and `.worktrees-sweep`, Trash N
-   safe) over its `.worktrees-group-rows`, under the panel's `.worktrees-origin` line (how old
-   the remote's main is, with `.worktrees-fetch`). Parts of a row: `.worktrees-row`,
-   `.worktrees-size` (the work's `+N −N`, in the tab's item marks' place, neutral),
-   `.worktrees-glyph`, `.worktrees-branch`, `.worktrees-home` and `.worktrees-handle` (a
-   glyph's slot, its branch, where its work belongs when not main, "→ JIRA-123", and its
-   owner's handle at the end, the detail line), `.worktrees-facts` (what it says in words, a `.worktrees-fact` each, data-tone
-   bad | ink | muted | warn | ok), `.worktrees-file` (a file's name, wherever it is),
-   `.worktrees-refusal`, `.worktrees-kept`, `.worktrees-branches` and `.worktrees-trail` (a
-   file's lines, right-aligned in its row), `.worktrees-empty`, `.worktrees-pr` (the work's pull
-   request: "#812" after its state's glyph, a link to its page, data-state its state, among the
-   facts). The row's trash button is a `.worktrees-action` in a `.worktrees-slot`, which slides
-   in over the handle under the pointer as a tab's Rename does, and shows at rest on a safe row.
+/* The Worktrees panel's rows (WorktreesPanel.tsx): one flat list, each work drawn as a terminal's
+   tab (the `.terminal-tab` of tabs.css and the toolkit's sidebar item, so its size, name line,
+   detail line and actions slot are the tab's own; the glyph, need mark and handle are the
+   toolkit's PhaseGlyph, NeedMark and SidebarItemHandle, as a tab draws them). This adds what
+   differs.
 
-   Hooks: on a row, data-standing (conflict | ci-failing | working | merged | closed | ready |
-   draft | branch: its icon), data-safe, data-merged once its work is merged, data-conflict
-   while it conflicts with main or another work and is not merged; on a `.worktrees-file`,
-   data-conflict; on `.worktrees-origin`, data-stale once main is an hour old.
+   Parts: `.worktrees-row`; on its name line `.worktrees-pr` (its pull request's "#812", tinted
+   by data-state) with `.worktrees-checks` under it (a 2px bar: an `i` per check, data-check
+   passed | failed | running | waiting, then a `b` for its review, data-review approved |
+   changes_requested | required | none); on its detail line `.worktrees-target`,
+   `.worktrees-route-mark` (the chevron) and `.worktrees-branch` ("main ‹ branch"). Its actions,
+   a `.worktrees-slot` of `.worktrees-action`s (the pull request's page, `.worktrees-trash`),
+   fade in over the handle as a tab's do. Above the list: `.worktrees-origin` (how old the
+   remote's main is, with `.worktrees-fetch`), `.worktrees-refusal`; in the header
+   `.worktrees-sweep` (Trash N); `.worktrees-kept` in the dialogs; `.worktrees-empty`.
 
-   Tokens: none of its own; it reads the palette's (ink, muted, line, soft, success-fg,
-   danger-fg, warning-fg). Red is only for what needs the person. */
+   Hooks: on a row, data-state (changing | checks | empty | rest | dormant | landed | failed |
+   over | unknown: its glyph, with data-ended on over), data-untitled (its name is its branch,
+   in mono), data-need (unblock | ask), data-safe, data-pull-request (its state); on
+   `.worktrees-branch`, data-unread; on `.worktrees-origin`, data-stale once main is an hour old.
 
-/* The icon says where it stands: red for what needs the person, green for a safe one done,
-   ink for a pull request ready for review, gray otherwise. */
-.worktrees-row .sidebar-item-icon {
-  color: var(--color-muted);
-}
-.worktrees-row:is([data-standing="conflict"], [data-standing="ci-failing"]) .sidebar-item-icon {
-  color: var(--color-danger-fg);
-}
-.worktrees-row[data-safe="true"] .sidebar-item-icon {
-  color: var(--color-success-fg);
-}
-.worktrees-row[data-standing="ready"] .sidebar-item-icon {
-  color: var(--color-ink);
-}
+   Tokens: none of its own; it reads the palette's (ink, muted, line-strong, success-fg,
+   danger-fg, syntax-keyword, note-fg) and the tab's (--tab-process-font,
+   --tab-active-process-fg, --tab-sleeping-name-fg, --tab-sleeping-fg, --tab-failed-fg,
+   --window-metadata-font). */
 
-/* The detail line, a tab's: a glyph's slot, the branch whole as far as it fits, and at its end
-   the owner's handle, dim as a tab's is at rest. */
+/* The detail line is the tab's program's: mono, muted. */
 .worktrees-row .sidebar-item-detail {
   font-family: var(--tab-process-font, var(--font-glyphs));
-}
-.worktrees-glyph::before {
-  content: "\00a0";
-}
-.worktrees-handle {
-  display: inline-flex;
-  justify-content: flex-end;
-  margin-left: auto;
   color: var(--color-muted);
-  opacity: var(--icon-button-dim-opacity, 0.5);
 }
 
-/* The trash button comes in at the row's end under the pointer or with keyboard focus, and the
-   handle gives way, as a tab's Rename does over its handle (the toolkit's sidebar-item.css:
-   the slot is a `.sidebar-item-slot`, the handle a `.sidebar-item-end`); at rest the handle
-   reaches into the room the line keeps for it, at least the button's width, so the branch
-   never runs under it. A safe row's trash shows at rest (data-actions="shown"), in the colour
-   that says so, the handle before it, where it stays. Without a pointer that hovers, the
-   button stays, and the handle stands before it. */
-.worktrees-row {
-  --_sidebar-actions-space: 26px;
+/* A worktree no agent titled shows its branch, in the detail line's mono. */
+.worktrees-row[data-untitled] .sidebar-item-select strong {
+  font-family: var(--tab-process-font, var(--font-glyphs));
+  font-size: var(--text-caption);
+  font-weight: 400;
 }
+
+/* Untouched a day or more, its name and icon dim, as a sleeping agent's tab's do. */
+.worktrees-row[data-state="dormant"] .sidebar-item-select strong {
+  color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
+}
+.worktrees-row[data-state="dormant"] .sidebar-item-icon {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+}
+
+/* Where its work goes, "main ‹ branch": the branch gives way first, then the target, each down to
+   a character and its ellipsis, so the handle at the line's end is never cut, at the sidebar's
+   narrowest too. The chevron's own box is mostly air, so it stands in a little, and the need mark
+   follows the branch close, as the mock draws them. Unread lines brighten the branch, as a tab's
+   unread reply brightens its program. */
+/* The branch's shrink dwarfs the target's, so the target takes none of the overflow (under a
+   layout unit) until the branch is down to its least, then all of it. */
+.worktrees-target {
+  flex: 0 1 auto;
+  min-width: 2ch;
+}
+.worktrees-route-mark {
+  margin-inline: -2px;
+  opacity: 0.8;
+}
+.worktrees-branch {
+  flex: 0 100000 auto;
+  min-width: 2ch;
+}
+.worktrees-branch + .worktrees-need {
+  margin-left: -2px;
+}
+.worktrees-branch[data-unread] {
+  color: var(--tab-active-process-fg, var(--color-ink));
+}
+
+/* The pull request's number at the name line's end, tinted by its state, in the window's
+   metadata voice; its checks and review in a 2px bar under it, as wide as it, out of the line's
+   flow so the line keeps the tab's height. */
+.worktrees-pr {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--_pr-fg);
+  font-family: var(--window-metadata-font, var(--font-glyphs));
+  font-size: var(--text-caption);
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.worktrees-pr[data-state="draft"] {
+  --_pr-fg: var(--color-muted);
+}
+.worktrees-pr[data-state="open"] {
+  --_pr-fg: var(--color-success-fg);
+}
+.worktrees-pr[data-state="merged"] {
+  --_pr-fg: var(--color-syntax-keyword);
+}
+.worktrees-pr[data-state="closed"] {
+  --_pr-fg: var(--color-note-fg);
+}
+.worktrees-checks {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  display: flex;
+  gap: 1px;
+  height: 2px;
+}
+/* A check: passed in the success colour, failed in the tab's ✗ red, running in ink, waiting a
+   faint line. */
+.worktrees-checks i {
+  flex: 1 1 0;
+  border-radius: 1px;
+  background: var(--color-line-strong);
+}
+.worktrees-checks [data-check="passed"] {
+  background: var(--color-success-fg);
+}
+.worktrees-checks [data-check="failed"] {
+  background: var(--tab-failed-fg, var(--color-danger-fg));
+}
+.worktrees-checks [data-check="running"] {
+  background: color-mix(in srgb, var(--color-ink) 55%, transparent);
+}
+/* The review, a step apart: approved in the success colour, changes asked in red, one still
+   needed an outline, none asked for a fainter one. */
+.worktrees-checks b {
+  flex: 0 0 6px;
+  margin-left: 2px;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+.worktrees-checks b[data-review="approved"] {
+  background: var(--color-success-fg);
+  box-shadow: none;
+}
+.worktrees-checks b[data-review="changes_requested"] {
+  background: var(--tab-failed-fg, var(--color-danger-fg));
+  box-shadow: none;
+}
+.worktrees-checks b[data-review="required"] {
+  box-shadow: inset 0 0 0 1px var(--color-muted);
+}
+.worktrees-checks b:first-child {
+  margin-left: auto;
+}
+
+/* The actions slot fades in over the handle, as a tab's does (the toolkit's sidebar-item.css);
+   the room it keeps is one button, or two with the pull request's page (set on the row). */
 .worktrees-row .sidebar-item-actions {
   pointer-events: none;
 }
@@ -74,10 +157,40 @@
 .icon-button.worktrees-action:focus-visible {
   outline-offset: -2px;
 }
+/* A safe worktree's trash is full strength; any other's stays dim, as it asks first. One that
+   waits on its working agent is dimmer still. */
+.worktrees-row[data-safe="true"] .icon-button.worktrees-trash {
+  --icon-button-dim-opacity: 1;
+}
+.worktrees-row .worktrees-trash[aria-disabled="true"] {
+  opacity: 0.35;
+}
 @media (hover: hover) {
-  .worktrees-row:not([data-safe="true"]) .worktrees-handle {
-    min-width: var(--_sidebar-actions-space);
-    margin-right: calc(0px - var(--_sidebar-actions-space));
+  .worktrees-row:not(:hover, :has(:focus-visible)) .worktrees-trash[aria-disabled="true"] {
+    opacity: 0;
+  }
+  /* At rest "target ‹ branch" runs up to the handle's own words, not to the actions' room the
+     handle keeps (sidebar-item.css). Under the pointer the actions stand over the line's end, so
+     what runs there fades out under them: a mask whose clear band, the actions' width, slides in
+     from past the line's end with the actions' own timing, while the handle slides away. */
+  .worktrees-row .sidebar-item-handle {
+    min-width: 0;
+  }
+  .worktrees-row .sidebar-item-detail {
+    --_fade: 12px;
+    mask-image: linear-gradient(
+      to left,
+      transparent var(--_sidebar-actions-space),
+      var(--color-ink) calc(var(--_sidebar-actions-space) + var(--_fade))
+    );
+    mask-repeat: no-repeat;
+    mask-size: calc(100% + var(--_sidebar-actions-space) + var(--_fade)) 100%;
+    mask-position: 0 0;
+    transition: mask-position var(--motion-feedback) var(--ease-interface);
+  }
+  .worktrees-row:is(:hover, :has(:focus-visible)) .sidebar-item-detail {
+    mask-position: calc(0px - var(--_sidebar-actions-space) - var(--_fade)) 0;
+    transition-delay: 60ms;
   }
 }
 
@@ -86,141 +199,33 @@
 .worktrees-row[data-selected="true"] .sidebar-item-select {
   cursor: pointer;
 }
-/* What it says in words, under the branch, wrapping when long, from where the detail line's
-   words start: the glyph's slot past the icon, a character of the detail line's mono, which the
-   facts' own sans words don't change. */
-.worktrees-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  margin-top: -8px;
-  padding: 0 10px 9px calc(32px + 1ch + 6px);
-  font-family: var(--tab-process-font, var(--font-glyphs));
+
+/* Trash N in the header, quiet as the panel's other buttons: the safe worktrees' count. */
+.worktrees-sweep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-control, 4px);
+  background: none;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
   font-size: var(--text-caption);
-  line-height: 16px;
   cursor: pointer;
 }
-.worktrees-fact {
-  display: inline-flex;
-  font-family: var(--font-sans);
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  white-space: nowrap;
-}
-/* A conflict names whom it's with, which may run long: it alone wraps. */
-.worktrees-fact[data-tone="bad"] {
-  white-space: normal;
-}
-.worktrees-fact .worktrees-pr {
-  height: 16px;
-  margin: 0 0 0 1px;
-  padding: 0 2px;
-}
-.worktrees-fact svg {
-  flex-shrink: 0;
-}
-.worktrees-fact[data-tone="bad"] {
-  color: var(--color-danger-fg);
-}
-.worktrees-fact[data-tone="ink"] {
+.worktrees-sweep:hover {
+  background: var(--color-soft);
   color: var(--color-ink);
 }
-.worktrees-fact[data-tone="muted"] {
-  color: var(--color-muted);
-}
-.worktrees-fact[data-tone="warn"] {
-  color: var(--color-warning-fg);
-}
-.worktrees-fact[data-tone="ok"] {
-  color: var(--color-success-fg);
-}
-
-/* A safe row's trash button shows at rest, in the colour that says so. */
-.worktrees-row[data-safe="true"] .icon-button.worktrees-action {
-  --icon-button-fg: var(--color-success-fg);
-  --icon-button-dim-opacity: 1;
-}
-
-/* The groups, each a heading over its rows. */
-.worktrees-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.worktrees-group + .worktrees-group {
-  margin-top: 8px;
-}
-.worktrees-group-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 0 4px 0 10px;
-}
-.worktrees-group-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  font-weight: 400;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-}
-.worktrees-group-heading[data-group="needs"] .worktrees-group-title {
-  color: var(--color-danger-fg);
-}
-.worktrees-group-fold {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-}
-.worktrees-group-fold:focus-visible,
 .worktrees-sweep:focus-visible,
 .worktrees-fetch:focus-visible {
   outline: 2px solid var(--focus-ring-color, var(--color-ink));
   outline-offset: 1px;
 }
-.worktrees-sweep,
-.worktrees-fetch {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  margin-left: auto;
-  padding: 0 8px;
-  border: var(--border-width) solid var(--color-line);
-  border-radius: var(--radius-control, 4px);
-  background: none;
-  color: var(--color-ink);
-  font-size: var(--text-caption);
-  cursor: pointer;
-}
-.worktrees-sweep svg {
-  color: var(--color-success-fg);
-}
-.worktrees-sweep:hover,
-.worktrees-fetch:hover:not(:disabled) {
-  background: var(--color-soft);
-}
-.worktrees-fetch:disabled {
-  color: var(--color-muted);
-  cursor: default;
-}
 
-/* How old the remote's main is, over the groups: amber once an hour old. */
+/* How old the remote's main is, over the list: amber once an hour old. */
 .worktrees-origin {
   display: flex;
   align-items: center;
@@ -239,96 +244,26 @@
 .worktrees-origin + .worktrees-list {
   margin-top: 4px;
 }
-
-.worktrees-size,
-.worktrees-trail {
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  line-height: 18px;
-  white-space: nowrap;
-}
-.worktrees-size {
-  gap: 6px;
-}
-.worktrees-trail {
-  display: inline-flex;
-  gap: 4px;
-  font-size: 11px;
-}
-/* Sizes are neutral: red is for what needs the person, green for what is safe. */
-.worktrees-size :is(.diff-added, .diff-removed),
-.worktrees-trail :is(.diff-added, .diff-removed) {
-  color: var(--color-muted);
-}
-
-/* The pull request's mark: its state's glyph and "#812" in the caption's mono, muted, an open
-   one in ink; under the pointer it underlines. It follows its state among the facts. */
-.worktrees-pr {
+.worktrees-fetch {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 3px;
-  height: 20px;
-  margin-right: 2px;
-  padding: 0 4px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: var(--border-width) solid var(--color-line);
   border-radius: var(--radius-control, 4px);
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 18px;
-  white-space: nowrap;
-  text-decoration: none;
-}
-.worktrees-pr[data-state="open"] {
-  color: var(--color-ink);
-}
-a.worktrees-pr:hover {
-  color: var(--color-ink);
-  text-decoration: underline;
-}
-a.worktrees-pr:focus-visible {
-  outline: 2px solid var(--focus-ring-color, var(--color-ink));
-  outline-offset: 1px;
-}
-
-/* Files: bright, red where the conflict is. */
-.worktrees-file {
-  color: var(--color-ink);
-}
-.worktrees-file[data-conflict="true"] {
-  color: var(--color-danger-fg);
-}
-/* The unfolded rows use the row's full width. */
-.worktrees-branches > span > span > span {
-  padding-right: 2px;
-}
-
-/* A file main has opens in the project window, as a preview of what the works merge to. */
-.worktrees-file-open {
-  padding: 0 2px 0 0;
-  border: 0;
-  border-radius: var(--radius-control);
   background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+  color: var(--color-ink);
+  font-size: var(--text-caption);
   cursor: pointer;
 }
-.worktrees-file-open:hover .worktrees-file {
-  text-decoration: underline;
+.worktrees-fetch:hover:not(:disabled) {
+  background: var(--color-soft);
 }
-
-/* The detail line holds the branch, which stays while the files unfold under it. */
-.worktrees-branch {
-  color: var(--color-ink);
-}
-
-/* Where its work belongs when not on main: a quiet fact after the branch, with no tone of its own.
-   It keeps its words (up to half the line) and the branch gives way first. */
-.worktrees-home {
-  flex-shrink: 0;
-  max-width: 50%;
+.worktrees-fetch:disabled {
   color: var(--color-muted);
+  cursor: default;
 }
 
 /* Why a close was refused, above the list. */
@@ -349,7 +284,7 @@ a.worktrees-pr:focus-visible {
   overflow-wrap: anywhere;
 }
 
-/* What closing keeps, in the dialog. */
+/* What closing keeps, in the dialogs. */
 .worktrees-kept {
   margin: 0;
   padding-left: 1.2em;
@@ -375,17 +310,4 @@ a.worktrees-pr:focus-visible {
 .worktrees-empty p {
   max-width: 30ch;
   margin: 0;
-}
-
-/* A trash button that waits (the owner's agent is working in the worktree) stays in its place,
-   dimmed once it shows: at rest it is out of sight as any row's (sidebar-item.css), and fades in
-   to its dim. */
-.worktrees-row .worktrees-action[aria-disabled="true"] {
-  opacity: 0.35;
-}
-@media (hover: hover) {
-  .worktrees-row:not(:hover, :has(:focus-visible), [data-actions="shown"])
-    .worktrees-action[aria-disabled="true"] {
-    opacity: 0;
-  }
 }

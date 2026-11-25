@@ -1,18 +1,16 @@
 import { allTeams, sameTeams } from "@novadeck/core/derivations"
-import type { ForgeConnection } from "@novadeck/core/forges"
 import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
 import { itemIdOf } from "@novadeck/core/items"
 import { orderedIds } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
-import { handleText } from "@novadeck/core/terminals/handle"
 import type { Work, WorksState } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
-import { projectPath, filesOfWorks } from "../sidebar/files-works"
+import { filesOfWorks } from "../sidebar/files-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import {
@@ -31,9 +29,6 @@ import { SessionsSection } from "./SessionsSection"
 import { useReorderTiles } from "./team-fold"
 import { useWorktreesShown } from "./use-worktrees-shown"
 import { renderTab } from "./WorkspaceTab"
-
-// What a backend without forges reads in their place.
-const noForges = createStore<readonly ForgeConnection[]>([])
 
 const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
   a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
@@ -206,25 +201,19 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     sameHandles,
   )
-  // Handles of every project's terminals, as people see them, for the rows to say whose they are.
+  // Handles of every project's terminals, bare, for the rows to say whose they are.
   const workHandles = useWorkspaceState(
     (workspace) =>
       new Map(
         workspace.projects.flatMap((project) =>
           project.history.flatMap((session) =>
             session.state.roster.terminals.flatMap((terminal) =>
-              terminal.handle ? [[terminal.id, handleText(terminal.handle)] as const] : [],
+              terminal.handle ? [[terminal.id, terminal.handle] as const] : [],
             ),
           ),
         ),
       ),
     sameHandles,
-  )
-  // Whether pull requests are looked for: a forge is on and its tool installed. A backend without
-  // forges (a demo's)
-  // has its works say so themselves.
-  const forgesOn = useStoreSelector(backend.forges?.state ?? noForges, (forges) =>
-    backend.forges ? forges.some((forge) => forge.enabled && forge.available) : true,
   )
   const fetchOrigin = useMemo(
     () => (worksFeed?.fetch ? () => worksFeed.fetch!(projectId) : undefined),
@@ -244,30 +233,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
-  // A file of a work, opened in the project window as a preview: only a file that main has (the
-  // window shows main's checkout, which it can only point at).
-  const inOpenProject = useCallback(
-    (work: Work, path: string): string | undefined =>
-      work.folder === undefined ? undefined : projectPath(work.folder, path),
-    [],
-  )
-  const canOpenWorkFile = useCallback(
-    (work: Work, path: string): boolean => inOpenProject(work, path) !== undefined,
-    [inOpenProject],
-  )
-  const openWorkFile = useCallback(
-    (work: Work, path: string): void => {
-      const inProject = inOpenProject(work, path)
-      if (inProject !== undefined)
-        commands
-          .openProjectFile(inProject, {
-            preview: true,
-            copy: copyOf(allWorks, projectId, inProject),
-          })
-          .catch(() => {})
-    },
-    [commands, inOpenProject, allWorks, projectId],
-  )
   const worktrees = useMemo(
     () =>
       worksFeed
@@ -278,11 +243,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
             titles,
             selectedId,
             onSelect: showWork,
-            canOpenFile: canOpenWorkFile,
-            onOpenFile: openWorkFile,
             onCloseWork: worksFeed.close,
             handles: workHandles,
-            forges: forgesOn,
             ...(fetchOrigin ? { onFetch: fetchOrigin } : {}),
           }
         : undefined,
@@ -292,12 +254,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
       worksReported,
       titles,
       workHandles,
-      forgesOn,
       fetchOrigin,
       selectedId,
       showWork,
-      canOpenWorkFile,
-      openWorkFile,
     ],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)

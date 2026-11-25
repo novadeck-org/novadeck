@@ -307,17 +307,20 @@ Terminals:
   switching projects switches the list: one in conflict with main, two with each other, one
   merged; the plain demos' storefront also has one with no owner, one just made and one its owner is
   working in; a demo agent that starts a turn gains lines in the first worktree it owns and holds its
-  trash button disabled until the turn ends). New lines make a worktree at a terminal's first change; Many files changed
-  gives the unfolded row its "+N more"; the conflict actions move the row under Needs you, with a red
-  triangle, the file names in red and what it conflicts with in words; Work merged empties the row
-  (a worktree with no files stays) and moves it to Done with the merge icon, "Merged" and "safe to
-  trash" in green, its trash button shown at rest and counted in Trash N safe;
-  Worktree just made empties it without that, so it stays In progress with the branch icon. Commits main lacks gives a
+  trash button disabled until the turn ends). Every row state in Worktrees replaces the project's
+  rows with one in each state a row draws (each glyph, `!` and `?`, draft, open, merged and closed
+  pull requests, a bar of 25 checks, an untitled branch with no agent), for checking them side by
+  side. New lines make a worktree at a terminal's first change, its branch brightened as unread;
+  Many files changed adds nine files; the conflict actions give the row a `!` whose tooltip says
+  what it conflicts with; Work merged empties the row (a worktree with no files stays) and marks it
+  ✓, its trash at full strength and counted in the header's Trash N;
+  Worktree just made empties it without that, marked ·. Commits main lacks gives a
   worktree with no changed files but two commits main lacks, not read as merged (its trash button asks,
-  naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's
+  naming them); Owner in History shows it on the selected terminal's
   bar. Worktree just made and Worktree with changes show the
-  two sides of the trash button: closing at once, and the confirm dialog saying what is kept. No owner reads
-  "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
+  two sides of the trash button: closing at once, and the confirm dialog saying what is kept. No owner ends
+  the row in "no agent" (click it to show it on the selected terminal's bar). Work with a home reads
+  "JIRA-123 ‹ branch"; Untitled worktree names the row by its branch; Untouched a day marks it z. Owner working in it and Owner
   done dim and restore the trash button (hover it for why). Worktrees not read yet empties the panel for 3 s,
   with no count and no empty state, as before the runner first reports the worktrees. Refuse the
   next close shows the refusal above the list. Close every worktree closes the selected project's, leaving the list empty with
@@ -330,7 +333,7 @@ Terminals:
   rows' safe-to-close standing reads (a failing, a running and a passed check, a draft with none, a
   merged and a closed one that are safe, and docs-site's merged one holding two uncommitted files); New lines,
   Many files and Work merged move those counts too. Commits not pushed gives the worktree 2 commits no
-  remote holds, Work with a home adds "→ JIRA-123" after its branch (again to remove it), Untitled worktree
+  remote holds, Work with a home toggles its home (again to remove it), Untitled worktree
   takes the work's agent-given title away (again to give it one), Untouched a day dates its last change 26 h back, Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
   fetched 3 h ago dates its fetch three hours back; Commits main lacks is not merged because a merged one with nothing
   uncommitted is safe, and closes without asking. The demo's
@@ -961,11 +964,12 @@ App:
   with its four checks one by one to match; "Review approved", "Changes requested", "Review required"
   and "No review" set where its review stands. Every demo pull request targets main (`base`); the
   storefront's open ones carry a request for changes (#814), a review still required (#816) and an
-  approval (#818). No row shows the checks one by one or the review yet.
+  approval (#818). The Worktrees row draws them as the bar under its "#812", a segment per check and
+  one for the review.
   The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
-  detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,
-  and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
+  name line ends in "#812" tinted by its state (its page opens from the row's actions under the
+  pointer), and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
   a "#812" chip in its row, which opens the page in the browser.
 - **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
   Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",

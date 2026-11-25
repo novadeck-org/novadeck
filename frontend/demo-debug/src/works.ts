@@ -45,7 +45,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
           actions: [
             {
               label: "New lines on its work",
-              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) shows 14 more lines in its +N −N, top right",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) has unread lines, so its branch brightens after main ‹",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.gain(placed(workspace(), key))
@@ -53,7 +53,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Many files changed",
-              hint: "Open Worktrees and select the row: it lists five files and a sixth row counting the rest (+N more)",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) changes 9 more files; click it: its changes open on its owner's bar, listing them",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.spread(placed(workspace(), key), 9)
@@ -61,7 +61,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Conflict with main",
-              hint: "Open Worktrees: the selected terminal's row icon turns red, its first file's name is red, and the row says \"Conflicts with main\" on hover",
+              hint: "Open Worktrees: the selected terminal's row gets a bold amber ! after its branch; hover the ! for Conflicts with main",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.conflictWithMain(placed(workspace(), key))
@@ -69,7 +69,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Conflict with another work",
-              hint: 'Open Worktrees: the selected row and another terminal of the session (one with a worktree first) both turn red, each saying "Conflicts with" the other\'s title on hover',
+              hint: "Open Worktrees: the selected row and another terminal of the session (one with a worktree first) both get a !, whose tooltip names the other's title",
               run: ({ selected, workspace, note }) => {
                 const key = selected()
                 if (!key) return note("Select a terminal first.")
@@ -80,7 +80,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "No conflicts",
-              hint: "Open Worktrees: the selected row's icon and files are no longer red",
+              hint: "Open Worktrees: the selected row's ! is gone",
               run: ({ selected }) => {
                 const key = selected()
                 const own = key && works.ownedBy(key.terminalId)
@@ -89,7 +89,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Work merged",
-              hint: 'Open Worktrees: the selected terminal\'s row stays, with a merge icon in green and "Merged" on hover, and has no files, so its trash button closes it at once; any conflict with it clears on the others',
+              hint: "Open Worktrees: the selected terminal's row stays with a bold green ✓ (landed in main); nothing in it lives only here, so its trash is full strength and the header's Trash N counts it",
               run: ({ selected }) => {
                 const key = selected()
                 const own = key && works.ownedBy(key.terminalId)
@@ -98,7 +98,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Worktree just made",
-              hint: "Open Worktrees: the selected terminal's row has its branch, the plain icon and no changes (not merged); hover it and click its trash button: it closes with no question",
+              hint: "Open Worktrees: the selected terminal's row has a muted · (nothing in it yet); hover it and click its trash: it closes with no question",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.openClean(placed(workspace(), key))
@@ -114,7 +114,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Worktree with changes",
-              hint: "Open Worktrees: the selected terminal's row has files; click its trash button: a dialog says it holds changed files, committed work stays on the branch, uncommitted work (and commits only a detached HEAD reaches) is kept on a ref and ignored files like .env are not kept",
+              hint: "Open Worktrees: the selected terminal's row has files; hover its trash for what it holds, and click it: a dialog says it holds changed files, committed work stays on the branch, uncommitted work (and commits only a detached HEAD reaches) is kept on a ref, and ignored files are not",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -132,7 +132,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Commits not pushed",
-              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) counts 2 commits no remote holds; if its pull request is closed, it is no longer safe to close, so its trash button asks first",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) holds 2 commits no remote holds; its trash tooltip says so, and if its pull request is closed it gets a ! (left here)",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.setUnpushed(placed(workspace(), key), 2)
@@ -140,7 +140,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Uncommitted files",
-              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) counts 3 uncommitted files, and is no longer safe to close, merged or not: its trash button asks first",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) holds 3 uncommitted files, so its trash is dim and asks first; merged, it gets a ! saying they're left here",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.setUncommitted(placed(workspace(), key), 3)
@@ -148,7 +148,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Work with a home",
-              hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) says "→ JIRA-123" after its branch, muted; hover it: its home is JIRA-123, the branch its work belongs on. Run again to take it away',
+              hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) reads "JIRA-123 ‹ its branch": its work goes to JIRA-123. Run again to take it away',
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -158,7 +158,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Untitled worktree",
-              hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) is as before, as the panel shows no titles yet; its work has no title, as one made by hand or before titles. Run again to title it "Checkout rounding fix"',
+              hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) is named by its branch, in mono, as one made by hand or before titles. Run again to title it "Checkout rounding fix"',
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -171,7 +171,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Untouched a day",
-              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) is as before, as the panel shows no last change yet; its work last changed 26 h ago",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) last changed 26 h ago: its glyph is a muted z and its name dims",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.changedAgo(placed(workspace(), key), 26 * 60)
@@ -187,7 +187,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Owner in History",
-              hint: "Open Worktrees: the selected terminal's worktree reads Closed terminal (its owner is in History); click it: its changes open on the selected terminal's bar instead",
+              hint: "Open Worktrees: the selected terminal's row keeps its owner's handle (its terminal is in History); click it: its changes open on the selected terminal's bar instead",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -198,7 +198,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "No owner",
-              hint: "Open Worktrees: the selected terminal's worktree reads No owner and keeps its branch; click it to show it on the selected terminal's bar",
+              hint: "Open Worktrees: the selected terminal's row ends in no agent, with a ! where work lives only in it; click it to show it on the selected terminal's bar",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -209,7 +209,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Owner working in it",
-              hint: "Open Worktrees: the selected terminal's row has its trash button dimmed; hover it for why (its agent is working in this worktree)",
+              hint: "Open Worktrees: the selected terminal's row spins ⠹ (files changing) and its trash is dimmer; hover the trash for why (its agent is working in this worktree)",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
@@ -219,7 +219,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Owner done",
-              hint: "Open Worktrees: the selected terminal's trash button is available again",
+              hint: "Open Worktrees: the selected terminal's row stops spinning and its trash is available again",
               run: ({ selected }) => {
                 const key = selected()
                 if (key) works.setWorking(key.terminalId, false)
@@ -241,6 +241,19 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               run: ({ selected }) => {
                 const key = selected()
                 if (key) works.removeAll(key.projectId)
+              },
+            },
+            {
+              label: "Every row state in Worktrees",
+              hint: "Open Worktrees: the project's rows become one in each state, newest first: ⣤ checks running into prod, ⠹ changing, a draft's bar, ? checks passed and approved, ! conflict into pi-harness, · empty, ✗ checks failed, a bar of 25 checks, a quiet row, ✓ landed (safe), ✓ with files left (!), × closed and hatched, z an untitled branch with no agent (!), ○ unreadable",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                const session = key && sessionOf(workspace(), key)
+                if (!key || !session) return
+                works.gallery(
+                  key.projectId,
+                  session.state.roster.terminals.map((terminal) => terminal.id),
+                )
               },
             },
             {

@@ -1,27 +1,24 @@
+import type { PullRequest, PullRequestCheck } from "@novadeck/core/forges"
 import type { Work, WorkFile } from "@novadeck/core/works"
 
 import { describe, expect, it } from "../test"
 import {
-  branchViews,
-  changeRows,
+  checksBar,
   closeMode,
   conflictWords,
-  groupOf,
-  orderedFiles,
+  dormantMs,
+  needOf,
+  orderedWorks,
   originOf,
-  standingOf,
-  mainWords,
-  pullMark,
   ownerOpen,
+  pullMark,
   selectedRoot,
+  stateOf,
+  targetOf,
+  worktreeRows,
 } from "./worktree-rows"
 
-const file = (
-  path: string,
-  added: number,
-  removed: number,
-  extra: Partial<WorkFile> = {},
-): WorkFile => ({
+const file = (path: string, added: number, removed: number): WorkFile => ({
   path,
   status: "modified",
   changedAt: 1,
@@ -30,16 +27,16 @@ const file = (
   unreadAdded: added,
   unreadRemoved: removed,
   conflict: false,
-  ...extra,
 })
 
-// A work whose root is `/r/<name>`, owned by the terminal `t-<name>` unless said otherwise.
+// A work whose root is `/r/<name>`, owned by the terminal `t-<name>` unless said otherwise, with
+// one uncommitted file.
 const work = (name: string, firstSeenAt: number, extra: Partial<Work> = {}): Work => ({
   root: `/r/${name}`,
   terminalId: `t-${name}`,
   projectId: "p",
   working: false,
-  branch: null,
+  branch: `feat/${name}`,
   base: "main",
   firstSeenAt,
   merged: false,
@@ -50,110 +47,283 @@ const work = (name: string, firstSeenAt: number, extra: Partial<Work> = {}): Wor
   files: [file("a.ts", 1, 0)],
   truncated: false,
   conflicts: [],
+  uncommitted: 1,
+  unpushed: 0,
   ...extra,
 })
 
-const read = { unreadAdded: 0, unreadRemoved: 0 }
+const pull = (state: PullRequest["state"], extra: Partial<PullRequest> = {}): PullRequest => ({
+  number: 812,
+  url: "https://github.com/acme/shop/pull/812",
+  title: "Checkout",
+  state,
+  ...extra,
+})
+
+const checks = (...states: PullRequestCheck["state"][]): PullRequestCheck[] =>
+  states.map((state, index) => ({ name: `job ${index}`, state }))
+
+const now = 100 * dormantMs
 
 describe("the Worktrees panel's rows", () => {
-  it("lists works newest first, by when they were first seen, whatever has been read", () => {
-    const rows = changeRows(
-      [work("c", 3), work("b", 2, read), work("a", 1, read), work("d", 4)],
-      new Map(),
-    )
-    expect(rows.map((row) => row.work.root)).toEqual(["/r/d", "/r/c", "/r/b", "/r/a"])
+  it("lists works newest first, by when they were first seen", () => {
+    expect(orderedWorks([work("a", 1), work("c", 3), work("b", 2)]).map((w) => w.root)).toEqual([
+      "/r/c",
+      "/r/b",
+      "/r/a",
+    ])
   })
 
   it("lists works first seen together newest first too, the runner sending the oldest first", () => {
-    const rows = changeRows([work("a", 1), work("b", 1)], new Map())
-    expect(rows.map((row) => row.work.root)).toEqual(["/r/b", "/r/a"])
+    expect(orderedWorks([work("a", 1), work("b", 1)]).map((w) => w.root)).toEqual(["/r/b", "/r/a"])
   })
 
-  it("shows a work's total lines, not its unread ones", () => {
-    const [row] = changeRows(
-      [work("a", 1, { added: 9, removed: 3, unreadAdded: 0, unreadRemoved: 0 })],
+  it("names a row by its title, else its branch, and a detached one's as detached", () => {
+    const [titled, plain, detached] = worktreeRows(
+      [work("a", 3, { title: "Rounding fix" }), work("b", 2), work("c", 1, { branch: null })],
       new Map(),
+      now,
     )
-    expect(row?.work).toMatchObject({ added: 9, removed: 3 })
+    expect([titled!.name, titled!.untitled]).toEqual(["Rounding fix", false])
+    expect([plain!.name, plain!.untitled]).toEqual(["feat/b", true])
+    expect([detached!.name, detached!.branch]).toEqual(["detached", "detached"])
   })
 
-  it("marks a merged work, which wins over a conflict", () => {
-    const rows = changeRows(
+  it("carries its owner's handle, unread lines and whether it is safe", () => {
+    const [row] = worktreeRows(
+      [work("a", 1, { safe: true })],
+      new Map([["t-a", "A"]]),
+      now,
+      new Map([["t-a", "moth"]]),
+    )
+    expect([row!.handle, row!.owner, row!.unread, row!.safe]).toEqual(["moth", "A", true, true])
+  })
+
+  it("says it all in its accessible label", () => {
+    const [row] = worktreeRows(
       [
-        work("a", 3, { merged: true, files: [] }),
-        work("b", 2, { merged: true, conflicts: [{ with: "main" }] }),
-        work("c", 1),
+        work("a", 1, {
+          title: "Rounding fix",
+          working: true,
+          pullRequest: pull("open", {
+            ci: "running",
+            checks: checks("passed", "running"),
+            review: "required",
+          }),
+        }),
       ],
-      new Map(),
+      new Map([["t-a", "A"]]),
+      now,
+      new Map([["t-a", "moth"]]),
     )
-    expect(rows.map((row) => [row.merged, row.conflict])).toEqual([
-      [true, false],
-      [true, false],
-      [false, false],
+    expect(row!.label).toBe(
+      "Rounding fix, #812, open pull request, 1 of 2 checks passed, 1 running; approval missing, files changing, feat/a into main, @moth",
+    )
+  })
+})
+
+describe("where a work goes", () => {
+  it("is its pull request's target, else its home, else main without its remote", () => {
+    expect(
+      targetOf(work("a", 1, { home: "dev", pullRequest: pull("open", { base: "release" }) })),
+    ).toBe("release")
+    expect(targetOf(work("a", 1, { home: "dev", base: "origin/dev" }))).toBe("dev")
+    expect(targetOf(work("a", 1, { base: "origin/main" }))).toBe("main")
+    expect(targetOf(work("a", 1, { base: "trunk" }))).toBe("trunk")
+  })
+})
+
+describe("what a worktree is doing", () => {
+  it("is changing while its agent works, whatever else holds", () => {
+    expect(stateOf(work("a", 1, { working: true, merged: true }), now)).toBe("changing")
+  })
+
+  it("is over once its pull request closed unmerged, landed once merged by git or the forge", () => {
+    expect(stateOf(work("a", 1, { pullRequest: pull("closed") }), now)).toBe("over")
+    expect(stateOf(work("a", 1, { merged: true, files: [] }), now)).toBe("landed")
+    expect(stateOf(work("a", 1, { pullRequest: pull("merged") }), now)).toBe("landed")
+  })
+
+  it("follows its open pull request's checks", () => {
+    expect(stateOf(work("a", 1, { pullRequest: pull("open", { ci: "failing" }) }), now)).toBe(
+      "failed",
+    )
+    expect(stateOf(work("a", 1, { pullRequest: pull("draft", { ci: "running" }) }), now)).toBe(
+      "checks",
+    )
+    expect(stateOf(work("a", 1, { pullRequest: pull("open", { ci: "passed" }) }), now)).toBe("rest")
+  })
+
+  it("can't be read where git's standing is missing", () => {
+    const { uncommitted: _, ...unread } = work("a", 1)
+    expect(stateOf(unread, now)).toBe("unknown")
+  })
+
+  it("is dormant once untouched a day, empty with nothing in it, else at rest", () => {
+    expect(stateOf(work("a", 1, { changedAt: now - dormantMs }), now)).toBe("dormant")
+    expect(stateOf(work("a", 1, { changedAt: now - dormantMs + 1 }), now)).toBe("rest")
+    expect(stateOf(work("a", 1, { files: [], uncommitted: 0 }), now)).toBe("empty")
+    expect(stateOf(work("a", 1, { files: [], uncommitted: 0, unpushed: 2 }), now)).toBe("rest")
+    expect(
+      stateOf(work("a", 1, { files: [], uncommitted: 0, pullRequest: pull("draft") }), now),
+    ).toBe("rest")
+  })
+})
+
+describe("what a worktree needs of the person", () => {
+  const titles = new Map([["t-a", "A"]])
+
+  it("is ! for a conflict, named by the branch git measured it against", () => {
+    expect(
+      needOf(
+        work("a", 1, { home: "dev", base: "origin/dev", conflicts: [{ with: "main" }] }),
+        titles,
+        [],
+      ),
+    ).toEqual({ need: "unblock", why: "Conflicts with dev" })
+    // A stacked pull request without a recorded home targets its base, but git measured main.
+    expect(
+      needOf(
+        work("a", 1, {
+          base: "origin/main",
+          conflicts: [{ with: "main" }],
+          pullRequest: pull("open", { base: "feat/x" }),
+        }),
+        titles,
+        [],
+      )?.why,
+    ).toBe("Conflicts with main")
+  })
+
+  it("is ! for what landed or closed but left work here", () => {
+    expect(needOf(work("a", 1, { merged: true, safe: false, uncommitted: 2 }), titles, [])).toEqual(
+      {
+        need: "unblock",
+        why: "Landed in main; 2 files not committed here",
+      },
+    )
+    expect(
+      needOf(
+        work("a", 1, { pullRequest: pull("closed"), safe: false, uncommitted: 0, unpushed: 1 }),
+        titles,
+        [],
+      ),
+    ).toEqual({ need: "unblock", why: "Pull request closed; 1 commit not pushed here" })
+  })
+
+  it("is ! for work only here with no agent on it", () => {
+    expect(needOf(work("b", 1, { terminalId: null, uncommitted: 3 }), titles, [])).toEqual({
+      need: "unblock",
+      why: "3 files only here, and no agent on it",
+    })
+    // Its owner in History keeps its handle on the row.
+    expect(needOf(work("b", 1, { uncommitted: 3 }), titles, [])?.why).toBe(
+      "3 files only here, and its agent's terminal is closed",
+    )
+    expect(needOf(work("b", 1, { uncommitted: 0 }), titles, [])).toBeUndefined()
+  })
+
+  it("is ? once an open pull request's checks passed", () => {
+    expect(
+      needOf(work("a", 1, { pullRequest: pull("open", { ci: "passed" }) }), titles, []),
+    ).toEqual({
+      need: "ask",
+      why: "Checks passed: yours to merge",
+    })
+    expect(
+      needOf(work("a", 1, { pullRequest: pull("draft", { ci: "passed" }) }), titles, []),
+    ).toBeUndefined()
+    expect(
+      needOf(
+        work("a", 1, {
+          conflicts: [{ with: "main" }],
+          pullRequest: pull("open", { ci: "passed" }),
+        }),
+        titles,
+        [],
+      )?.need,
+    ).toBe("unblock")
+  })
+
+  it("is nothing for a landed work's leftover conflict", () => {
+    expect(
+      needOf(work("a", 1, { merged: true, safe: true, conflicts: [{ with: "main" }] }), titles, []),
+    ).toBeUndefined()
+  })
+})
+
+describe("a pull request's checks bar", () => {
+  it("draws each check, passed, failed, running then waiting, and its review", () => {
+    const bar = checksBar(
+      pull("open", {
+        checks: checks("waiting", "passed", "running", "failed", "passed"),
+        review: "approved",
+      }),
+    )!
+    expect(bar.segments.map((each) => each.state)).toEqual([
+      "passed",
+      "passed",
+      "failed",
+      "running",
+      "waiting",
     ])
+    expect(bar.review).toBe("approved")
+    expect(bar.words).toBe("2 of 5 checks passed, 1 failed, 1 running, 1 waiting; approved")
   })
 
-  it("names a work by its owner terminal's title, with its branch", () => {
-    const [row] = changeRows(
-      [work("a", 1, { branch: "feat/auth" })],
-      new Map([["t-a", "Refactor auth"]]),
-    )
-    expect(row).toMatchObject({ title: "Refactor auth", branch: "feat/auth" })
-  })
-
-  it("says No owner for a worktree without one, and Closed terminal for an owner that is gone", () => {
-    const rows = changeRows([work("a", 2, { terminalId: null }), work("b", 1)], new Map())
-    expect(rows.map((row) => row.title)).toEqual(["No owner", "Closed terminal"])
-  })
-
-  it("carries the home a work belongs on, none for a work whose home is main", () => {
-    const [homed, plain] = changeRows(
-      [work("a", 1, { home: "JIRA-123" }), work("b", 2)],
-      new Map(),
-    ).toSorted((a, b) => a.work.root.localeCompare(b.work.root))
-    expect(homed!.home).toBe("JIRA-123")
-    expect(plain!.home).toBeUndefined()
-  })
-
-  it("says a conflict is with home, where the work is measured against one", () => {
-    const [homed] = changeRows(
-      [work("a", 1, { home: "JIRA-123", conflicts: [{ with: "main" }] })],
-      new Map(),
-    )
-    expect(homed!.conflictWords).toBe("Conflicts with JIRA-123")
-  })
-
-  it("names a detached worktree's branch as detached", () => {
-    expect(changeRows([work("a", 1, { branch: null })], new Map())[0]?.branch).toBe("detached")
-  })
-
-  it("gives a terminal's several worktrees a row each, by root", () => {
-    const rows = changeRows(
-      [work("a", 2, { terminalId: "t" }), work("b", 1, { terminalId: "t" })],
-      new Map([["t", "Builder"]]),
-    )
-    expect(rows.map((row) => [row.title, row.work.root])).toEqual([
-      ["Builder", "/r/a"],
-      ["Builder", "/r/b"],
+  it("draws one segment per state past twelve checks, as wide as its share", () => {
+    const bar = checksBar(
+      pull("open", {
+        checks: [
+          ...checks(...Array(10).fill("passed")),
+          ...checks("running", "running", "waiting"),
+        ],
+      }),
+    )!
+    expect(bar.segments.map(({ state, weight }) => ({ state, weight }))).toEqual([
+      { state: "passed", weight: 10 },
+      { state: "running", weight: 2 },
+      { state: "waiting", weight: 1 },
     ])
+    expect(bar.words).toBe("10 of 13 checks passed, 2 running, 1 waiting")
+  })
+
+  it("is the review alone where no check ran, and none without either or once done", () => {
+    expect(checksBar(pull("draft", { review: "none" }))).toEqual({
+      segments: [],
+      review: "none",
+      words: "no review asked for",
+    })
+    expect(checksBar(pull("open"))).toBeUndefined()
+    expect(
+      checksBar(pull("merged", { checks: checks("passed"), review: "approved" })),
+    ).toBeUndefined()
   })
 })
 
 describe("what a row's trash button does", () => {
-  it("asks the runner to close, whatever files the work lists: its standing is the runner's to say", () => {
-    expect(closeMode(work("a", 1, { files: [], added: 0, unreadAdded: 0 }))).toBe("close")
+  it("asks the runner to close, whatever the work holds: its standing is the runner's to say", () => {
+    expect(closeMode(work("a", 1, { files: [] }))).toBe("close")
     expect(closeMode(work("a", 1))).toBe("close")
-    expect(closeMode(work("a", 1, { files: [], truncated: true }))).toBe("close")
   })
 
-  it("waits while the owner's agent is working in it, whatever else it holds", () => {
+  it("waits while the owner's agent is working in it", () => {
     expect(closeMode(work("a", 1, { working: true }))).toBe("busy")
-    expect(closeMode(work("a", 1, { working: true, files: [] }))).toBe("busy")
+  })
+})
+
+describe("a row's pull request mark", () => {
+  it("reads its number, and says its state in words", () => {
+    expect(pullMark(pull("draft"))).toEqual({
+      state: "draft",
+      text: "#812",
+      label: "#812, draft pull request",
+      url: "https://github.com/acme/shop/pull/812",
+    })
   })
 
-  it("is on each row", () => {
-    const rows = changeRows([work("a", 2), work("b", 1, { working: true })], new Map())
-    expect(rows.map((row) => row.close)).toEqual(["close", "busy"])
+  it("opens only a web page", () => {
+    expect(pullMark({ ...pull("open"), url: "javascript:alert(1)" }).url).toBeUndefined()
   })
 })
 
@@ -194,37 +364,6 @@ describe("the selected row", () => {
   })
 })
 
-describe("a work's files", () => {
-  it("lists conflicting files first, then the biggest change", () => {
-    const files = orderedFiles([
-      file("src/small.ts", 1, 1),
-      file("src/big.ts", 90, 10),
-      file("src/clash.ts", 2, 0, { conflict: true }),
-    ])
-    expect(files.map((each) => each.name)).toEqual(["clash.ts", "big.ts", "small.ts"])
-  })
-
-  it("counts a file's total lines, read or not", () => {
-    const [only] = orderedFiles([file("a/b.ts", 4, 2, read)])
-    expect(only).toMatchObject({ name: "b.ts", added: 4, removed: 2 })
-  })
-
-  it("unfolds up to six rows, then counts the rest on the last", () => {
-    const files = (count: number) =>
-      orderedFiles(Array.from({ length: count }, (_, i) => file(`f${i}.ts`, 10 - i, 0)))
-    expect(branchViews(files(6), false)).toHaveLength(6)
-    const seven = branchViews(files(7), false)
-    expect(seven).toHaveLength(6)
-    expect(seven.at(-1)).toEqual({ kind: "more", text: "+2 more" })
-    expect(seven.filter((row) => row.kind === "file")).toHaveLength(5)
-  })
-
-  it("says there are more when the work lists fewer files than it changes", () => {
-    const rows = branchViews(orderedFiles([file("a.ts", 1, 0)]), true)
-    expect(rows.at(-1)).toEqual({ kind: "more", text: "and more" })
-  })
-})
-
 describe("what a work conflicts with", () => {
   const titles = new Map([["t-b", "Dark mode"]])
   it("says nothing for a work that is fine", () => {
@@ -248,154 +387,27 @@ describe("what a work conflicts with", () => {
   })
 })
 
-describe("how old main is", () => {
-  const now = 10_000_000_000
-  const minute = 60_000
-
-  it("says nothing for a repository never fetched, and how long ago otherwise", () => {
-    expect(mainWords(undefined, now)).toBeUndefined()
-    expect(mainWords(now - 20_000, now)).toBe("main as of just now")
-    expect(mainWords(now - 12 * minute - 5_000, now)).toBe("main as of 12 min ago")
-    expect(mainWords(now - 135 * minute, now)).toBe("main as of 2 h ago")
-    expect(mainWords(now - 49 * 60 * minute, now)).toBe("main as of 2 d ago")
-    expect(mainWords(now + minute, now)).toBe("main as of just now")
-  })
-
-  it("is on the row of a work fetched, and not on one that never was", () => {
-    const rows = changeRows(
-      [work("a", 1, { fetchedAt: now - 3 * minute }), work("b", 2)],
-      new Map(),
-      now,
-    )
-    expect(rows.find((row) => row.work.root === "/r/a")?.mainWords).toBe("main as of 3 min ago")
-    expect(rows.find((row) => row.work.root === "/r/b")?.mainWords).toBeUndefined()
-  })
-})
-
-describe("a row's pull request mark", () => {
-  const request = (state: "draft" | "open" | "merged" | "closed") => ({
-    number: 812,
-    url: "https://github.com/acme/shop/pull/812",
-    title: "Checkout",
-    state,
-  })
-
-  it("reads its number, and says in words its state and what it opens", () => {
-    expect(pullMark(request("draft"))).toEqual({
-      state: "draft",
-      text: "#812",
-      label: "#812, draft pull request, opens in browser",
-      url: "https://github.com/acme/shop/pull/812",
-    })
-    expect(
-      (["open", "merged", "closed"] as const).map((state) => pullMark(request(state)).label),
-    ).toEqual([
-      "#812, open pull request, opens in browser",
-      "#812, merged pull request, opens in browser",
-      "#812, closed pull request, opens in browser",
-    ])
-  })
-
-  it("opens only a web page", () => {
-    const mark = pullMark({ ...request("open"), url: "javascript:alert(1)" })
-    expect(mark.url).toBeUndefined()
-    expect(mark.label).toBe("#812, open pull request")
-  })
-
-  it("is on the row of a work that has one, beside its git-based merged state", () => {
-    const [with_, without] = changeRows(
-      [work("a", 2, { merged: true, pullRequest: request("open") }), work("b", 1)],
-      new Map(),
-    )
-    expect(with_?.pullRequest?.text).toBe("#812")
-    expect(with_?.merged).toBe(true)
-    expect(without?.pullRequest).toBeUndefined()
-  })
-})
-
-describe("a work's group and icon", () => {
-  const pull = (state: "draft" | "open" | "merged" | "closed", ci?: "failing" | "passed") => ({
-    number: 1,
-    url: "https://github.com/acme/app/pull/1",
-    title: "Work",
-    state,
-    ...(ci ? { ci } : {}),
-  })
-
-  it("puts a merged work in Done, whatever it conflicts with", () => {
-    const merged = work("a", 1, { merged: true, conflicts: [{ with: "main" }] })
-    expect(groupOf(merged)).toBe("done")
-    expect(standingOf(merged)).toBe("merged")
-  })
-
-  it("puts a merged or closed pull request in Done, though git doesn't call it merged", () => {
-    expect(groupOf(work("a", 1, { pullRequest: pull("merged") }))).toBe("done")
-    expect(groupOf(work("a", 1, { pullRequest: pull("closed") }))).toBe("done")
-    expect(standingOf(work("a", 1, { pullRequest: pull("closed") }))).toBe("closed")
-  })
-
-  it("puts a conflict or a failing CI under Needs you, and a working agent's spinner under that", () => {
-    expect(groupOf(work("a", 1, { conflicts: [{ with: "main" }] }))).toBe("needs")
-    expect(groupOf(work("a", 1, { pullRequest: pull("open", "failing") }))).toBe("needs")
-    expect(standingOf(work("a", 1, { working: true, conflicts: [{ with: "main" }] }))).toBe(
-      "conflict",
-    )
-    expect(standingOf(work("a", 1, { working: true, pullRequest: pull("draft") }))).toBe("working")
-  })
-
-  it("puts an open pull request In review, and a work without one In progress", () => {
-    expect(groupOf(work("a", 1, { pullRequest: pull("draft") }))).toBe("review")
-    expect(standingOf(work("a", 1, { pullRequest: pull("open", "passed") }))).toBe("ready")
-    expect(groupOf(work("a", 1))).toBe("progress")
-    expect(standingOf(work("a", 1))).toBe("branch")
-  })
-})
-
 describe("the origin line", () => {
   const hour = 60 * 60_000
-  const now = 10 * hour
+  const at = 10 * hour
 
   it("says the oldest fetch among the works measured against a remote's main", () => {
     expect(
       originOf(
         [
-          work("a", 1, { base: "origin/main", fetchedAt: now - 5 * 60_000 }),
-          work("b", 2, { base: "origin/main", fetchedAt: now - 2 * hour }),
+          work("a", 1, { base: "origin/main", fetchedAt: at - 5 * 60_000 }),
+          work("b", 2, { base: "origin/main", fetchedAt: at - 2 * hour }),
           work("c", 3, { base: "main" }),
         ],
-        now,
+        at,
       ),
     ).toEqual({ text: "origin/main, 2 h ago", stale: true })
   })
 
   it("is fresh under an hour, and none where nothing was fetched", () => {
     expect(
-      originOf([work("a", 1, { base: "origin/main", fetchedAt: now - 59 * 60_000 })], now),
+      originOf([work("a", 1, { base: "origin/main", fetchedAt: at - 59 * 60_000 })], at),
     ).toEqual({ text: "origin/main, 59 min ago", stale: false })
-    expect(originOf([work("a", 1)], now)).toBeUndefined()
-  })
-})
-
-describe("a done row's conflict", () => {
-  it("is not said where its pull request merged or closed, and a terminal called main stays so", () => {
-    const pull = (state: "merged" | "closed") => ({
-      number: 1,
-      url: "https://github.com/acme/app/pull/1",
-      title: "Work",
-      state,
-    })
-    const [merged, closed, open] = changeRows(
-      [
-        work("a", 3, { pullRequest: pull("merged"), conflicts: [{ with: "main" }] }),
-        work("b", 2, { pullRequest: pull("closed"), conflicts: [{ with: "main" }] }),
-        work("c", 1, {
-          base: "origin/main",
-          conflicts: [{ with: "work", root: "/r/m", terminalId: "t-m" }],
-        }),
-      ],
-      new Map([["t-m", "main"]]),
-    )
-    expect([merged?.conflict, merged?.merged, closed?.conflict]).toEqual([false, true, false])
-    expect(open?.facts[0]?.text).toBe("Conflicts with main")
+    expect(originOf([work("a", 1)], at)).toBeUndefined()
   })
 })
