@@ -961,7 +961,8 @@ App:
   first). The "CI failing", "CI running", "CI passed" and "No CI" actions set how an open pull
   request's checks stand (one is made open where there was none; a pull request that is done has none),
   with its four checks one by one to match; "Review approved", "Changes requested", "Review required"
-  and "No review" set where its review stands ("No review" draws no review segment). Every demo pull request targets main (`base`); the
+  and "No review" set where its review stands ("No review" draws no review segment). Every demo pull
+  request targets main (`base`); the
   storefront's open ones carry a request for changes (#814), a review still required (#816) and an
   approval (#818). The Worktrees row draws them as the bar under its "#812", a segment per check and
   one for the review.

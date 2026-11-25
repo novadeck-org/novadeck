@@ -123,8 +123,8 @@
   background: color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 /* The review, a step apart: approved in the success colour, changes asked in red, one still
-   needed an outline; a review state from a newer runner, a fainter one. None asked for isn't
-   drawn. */
+   needed an outline. None asked for isn't drawn, nor a newer runner's value, which reads as
+   none. */
 .worktrees-checks b {
   flex: 0 0 6px;
   margin-left: 2px;
