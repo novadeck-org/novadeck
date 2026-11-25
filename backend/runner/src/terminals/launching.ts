@@ -10,6 +10,7 @@ import type { RunSpec, Terminal } from "@novadeck/terminal/host"
 import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
+import type { BundledPi } from "../harnesses/bundled-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { locate } from "../harnesses/service.js"
 import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
@@ -119,18 +120,28 @@ export class Launcher {
     readonly host: LauncherHost,
   ) {}
 
-  /** Listens for agent reports once the shell files are written; shells start plainly without. */
-  integrate(shellFiles: Promise<InstalledShell | undefined> | undefined): void {
-    this.integration = this.listen(shellFiles)
+  /**
+   * Listens for agent reports once the shell files are written; shells start plainly without.
+   * A launcher of Novadeck's own pi has `bundledPi` fetch it; none is fetched without it.
+   */
+  integrate(
+    shellFiles: Promise<InstalledShell | undefined> | undefined,
+    bundledPi?: Pick<BundledPi, "fetch">,
+  ): void {
+    this.integration = this.listen(shellFiles, bundledPi)
   }
 
   private async listen(
     shellFiles: Promise<InstalledShell | undefined> | undefined,
+    bundledPi: Pick<BundledPi, "fetch"> | undefined,
   ): Promise<Integration | undefined> {
     try {
       const paths = await shellFiles
       if (!paths) return undefined
-      const reports = await listenForReports(this.host.handlers)
+      const reports = await listenForReports({
+        ...this.host.handlers,
+        ...(bundledPi && { fetch: (name, progress) => bundledPi.fetch(name, progress) }),
+      })
       if (!this.host.stopping()) return { paths, reports }
       await reports.close()
     } catch (error) {

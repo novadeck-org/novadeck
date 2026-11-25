@@ -963,6 +963,13 @@ App:
   detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,
   and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
   a "#812" chip in its row, which opens the page in the browser.
+- **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
+  Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",
+  "Downloading, size unknown", "Downloading", "Ready" and "Failed" put the row in that state
+  without a reboot: the note under its description reads "Starting the download…", "Downloading
+  pi…", the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in
+  the demo plays a download of pi's size over a few seconds (`frontend/demo/src/bundled-pi.ts`).
+  A runner from before revision 16 offers no row at all.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;

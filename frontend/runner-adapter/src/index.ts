@@ -197,6 +197,8 @@ export const connectRunnerBackend = async (
         agentMode,
         shippingGate,
         worktrees,
+        bundledPi,
+        bundledPiFetch,
       },
       agents,
       forges,
@@ -237,6 +239,9 @@ export const connectRunnerBackend = async (
           agentMode,
           shippingGate,
           worktrees,
+          // Only from a runner that reports the switch (revision 16 on).
+          ...(bundledPi !== undefined && { bundledPi }),
+          ...(bundledPiFetch !== undefined && { bundledPiFetch }),
         })
         created.push(next)
         return next.backend

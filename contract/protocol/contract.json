@@ -1,5 +1,5 @@
 {
-  "revision": 16,
+  "revision": 17,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -8820,7 +8820,23 @@
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
-          "transcriptsAvailable": {"type":"boolean"}
+          "bundledPi": {"type":"boolean"},
+          "transcriptsAvailable": {"type":"boolean"},
+          "bundledPiFetch": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["off","downloading","ready","failed"],
+                "x-open": {"since":16,"unknown":{"fallback":"off"}}
+              },
+              "received": {"type":"integer","minimum":0,"maximum":9007199254740991},
+              "size": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
+              "error": {"type":"string","maxLength":500}
+            },
+            "required": ["state"],
+            "additionalProperties": false
+          }
         },
         "required": [
           "transcripts",
@@ -8865,7 +8881,8 @@
           "worktrees": {"type":"boolean"},
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
-          "shippingGate": {"type":"boolean"}
+          "shippingGate": {"type":"boolean"},
+          "bundledPi": {"type":"boolean"}
         },
         "additionalProperties": false
       },
@@ -8901,7 +8918,23 @@
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
-          "transcriptsAvailable": {"type":"boolean"}
+          "bundledPi": {"type":"boolean"},
+          "transcriptsAvailable": {"type":"boolean"},
+          "bundledPiFetch": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["off","downloading","ready","failed"],
+                "x-open": {"since":16,"unknown":{"fallback":"off"}}
+              },
+              "received": {"type":"integer","minimum":0,"maximum":9007199254740991},
+              "size": {"type":"integer","exclusiveMinimum":0,"maximum":9007199254740991},
+              "error": {"type":"string","maxLength":500}
+            },
+            "required": ["state"],
+            "additionalProperties": false
+          }
         },
         "required": [
           "transcripts",

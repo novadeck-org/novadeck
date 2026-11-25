@@ -42,8 +42,11 @@ export const compatibility: Compatibility = {
   // (`agents.watch`, an agent's `lost`).
   // 15: pi, an agent the UI may name in an input (a resume, Preferences), marked since 15
   // (`inputEnum`), so a runner at 14 stays in the window and a UI asks for it only of a runner at 15.
-  // 16: a work's `title` and `changedAt`.
-  revision: 16,
+  // 16: Novadeck's own pi behind an Experimental switch (settings' `bundledPi`, which a runner
+  // before it drops, and `bundledPiFetch`, which says where its download stands); a UI offers the
+  // switch only where the runner's settings report `bundledPi`.
+  // 17: a work's `title` and `changedAt`.
+  revision: 17,
   oldestClient: 11,
   oldestRunner: 12,
 }

@@ -1,9 +1,11 @@
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import { launchHooks } from "@novadeck/harness-agy/plugin"
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 import { manifest } from "@novadeck/harness-core/plugin"
+import { bundledLauncher } from "@novadeck/harness-pi/bundled"
+import { extensionFile } from "@novadeck/harness-pi/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import {
   cmdQuote,
@@ -14,6 +16,7 @@ import {
   type ShellScriptPaths,
 } from "@novadeck/terminal/shell"
 
+import { buildFor, bundledPiHome, bundledPiProgram } from "../harnesses/bundled-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import {
@@ -40,6 +43,11 @@ export type ShellPaths = ShellScriptPaths & {
    * every terminal with a scope of its own.
    */
   readonly open: string
+  /**
+   * Novadeck's own pi (harnesses/bundled-pi.ts): the launcher Novadeck types to start it, and Novadeck's
+   * data folder, where it is fetched to and keeps its agent folder.
+   */
+  readonly bundledPi: { readonly launcher: string; readonly data: string }
   /** The plugin sources each agent installs from when the person connects it. */
   readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
@@ -84,6 +92,10 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   ...shellScriptPaths(directory, "novadeck"),
   bin: join(directory, "bin"),
   open: join(directory, "open"),
+  bundledPi: {
+    launcher: join(directory, "bundled", platform === "win32" ? "pi.cmd" : "pi"),
+    data: dirname(directory),
+  },
   plugins: Object.fromEntries(
     agents.map((agent) => [agent, join(directory, "plugins", harnesses[agent].plugin)]),
   ) as ShellPaths["plugins"],
@@ -323,6 +335,25 @@ export const shellFiles = (
   const opening = openShims(platform).map((each) =>
     file(join(paths.open, each.path), each.content, each.mode),
   )
+  // Novadeck's own pi's launcher, where pi publishes a build for this system.
+  const build = buildFor(platform, process.arch)
+  const launcher =
+    build &&
+    bundledLauncher(platform, {
+      program: bundledPiProgram(paths.bundledPi.data, build),
+      home: bundledPiHome(paths.bundledPi.data),
+      relay: paths.relay,
+      extension: join(paths.plugins.pi, extensionFile),
+    })
+  const bundled = launcher
+    ? [
+        file(
+          paths.bundledPi.launcher,
+          launcher.path.endsWith(".cmd") ? crlf(launcher.content) : launcher.content,
+          launcher.mode,
+        ),
+      ]
+    : []
   const bin = shims.map((each) =>
     file(
       join(paths.bin, each.path),
@@ -338,6 +369,7 @@ export const shellFiles = (
         // plugin's copy, which starts the MCP server through cmd and this launcher.
         file(paths.mcp, cmdLauncher(paths, "mcp", "MCP server launcher")),
         ...bin,
+        ...bundled,
         // Antigravity's PreToolUse, where only its shim can give it, in Novadeck's terminals.
         ...(machine.cmdShimDir !== undefined && machine.hooksFolder !== undefined
           ? [file(join(paths.agyHooks, launchHooks.path), launchHooks.content(platform))]
@@ -351,6 +383,7 @@ export const shellFiles = (
         file(paths.hook, posixLauncher(paths, "hook", "agent hook launcher"), 0o700),
         file(paths.mcp, posixLauncher(paths, "mcp", "MCP server launcher"), 0o700),
         ...bin,
+        ...bundled,
         ...opening,
       ]
 }

@@ -12,6 +12,7 @@
 mod allow;
 mod ancestors;
 mod endpoint;
+mod fetch;
 mod hook;
 mod idle;
 #[cfg(windows)]
@@ -56,6 +57,7 @@ const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-versio
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
        novadeck-relay allow <settings.json> <rule> <file> [<extra rule>... -- <agent's arguments>...]
        novadeck-relay after <folder> <working directory>
+       novadeck-relay fetch <agent>
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
@@ -128,6 +130,15 @@ fn main() -> ExitCode {
         // leaves that directory first among Antigravity's workspaces (`order.rs`).
         Some((mode, [folder, cwd])) if mode == "after" => {
             if order::sorts_after(folder, cwd, cfg!(windows)) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        // A launcher's: has the runner fetch Novadeck's own copy of an agent, showing its
+        // progress, before the launcher starts it (`fetch.rs`).
+        Some((mode, [name])) if mode == "fetch" && !name.is_empty() => {
+            if fetch::run(name) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::FAILURE

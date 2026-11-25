@@ -14,6 +14,7 @@
     "./agents/link": "./src/agents/link.ts",
     "./agents/screens": "./src/agents/screens.ts",
     "./agents/turns": "./src/agents/turns.ts",
+    "./bundled-pi": "./src/bundled-pi.ts",
     "./feedback": "./src/feedback.ts",
     "./files": "./src/files.ts",
     "./forges": "./src/forges.ts",
