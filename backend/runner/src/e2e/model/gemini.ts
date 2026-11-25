@@ -60,10 +60,10 @@ const systemMessage =
  * a second Antigravity does as it starts and resumes the first's conversation (a nested
  * `agy -p`, as the scenarios run one, or a terminal opened beside it).
  */
-const noise = [
-  /^Reminder: work efficiently\./,
-  /\[Notice\] All your (?:subagents and )?background tasks have been stopped due to server restart/,
-]
+const reminder = /^Reminder: work efficiently\./
+const restarted =
+  /\[Notice\] All your (?:subagents and )?background tasks have been stopped due to server restart/
+const noise = [reminder, restarted]
 
 // The text without the system messages that are noise; the others, a subagent's report among
 // them, stay.
@@ -75,14 +75,15 @@ const withoutNoise = (text: string): string =>
 /**
  * A tool call a second process stopped: the conversation it resumed holds its result as
  * cancelled, though the process that ran it goes on and gives the result it ends with, in
- * the request that follows. A cancellation by the person has no such notice, and stays.
+ * the request that follows. A cancellation by the person has no restart notice, and stays,
+ * with an efficiency reminder beside it or not.
  */
 const stopped = (response: unknown): boolean => {
   const error = record(response).error
   return (
     typeof error === "string" &&
     error.startsWith("Tool execution was canceled") &&
-    withoutNoise(error) !== error
+    [...error.matchAll(systemMessage)].some(([, said]) => restarted.test(said!.trim()))
   )
 }
 
@@ -181,7 +182,7 @@ const turnsOf = (one: z.infer<typeof content>): Turn[] => {
   // What is left of a user turn that held noise alone is no turn.
   const text = withoutNoise(said)
   if (one.role !== "model")
-    return text || (said === "" && results.length === 0)
+    return text || (said === "" && results.length === 0 && responses === 0)
       ? [...results, { role: "user", text, ...withImages(imagesIn(one.parts)) }]
       : results
   const calls = one.parts.flatMap(({ functionCall: call }) => (call ? [callOf(call)] : []))

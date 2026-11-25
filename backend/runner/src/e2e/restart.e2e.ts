@@ -7,6 +7,7 @@ import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import type { Reach } from "./history.js"
+import { installHarness } from "./install.js"
 import { asked, gate, latest, tool, type Call } from "./model/script.js"
 import {
   answers,
@@ -88,6 +89,16 @@ const colour: Question = {
 
 // Novadeck restarting under its agents, the same for every harness (see messaging.e2e.ts
 // for the rule on parity).
+/** Whether a release's version is `least` or later, by its first three numbers. */
+const atLeast = (version: string, least: readonly number[]): boolean => {
+  const parts = version.split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0)
+  for (const [at, want] of least.entries()) {
+    const have = parts[at] ?? 0
+    if (have !== want) return have > want
+  }
+  return true
+}
+
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
@@ -405,13 +416,15 @@ for (const setup of setups) {
       expect(first?.messages.map((one) => [one.from, one.to, one.state])).toEqual([
         ["moth", "fox", "queued"],
       ])
-      // Antigravity 1.5.17 goes on with the turn the restart interrupted as it starts ("Resuming 1
-      // conversation(s) interrupted by server restart"), when the ring's hook had it mid-turn: the
-      // message reaches it in that turn, by its own hook, with no ring to wait for.
-      const steps: Reach[] =
-        setup.agent === "agy"
-          ? [holds("moth", "fox", "delivered")]
-          : ["ready", "ringing", "working", holds("moth", "fox", "delivered")]
+      // Antigravity from 1.5.17 goes on with the turn the restart interrupted as it starts
+      // ("Resuming 1 conversation(s) interrupted by server restart"), when the ring's hook had it
+      // mid-turn: the message reaches it in that turn, by its own hook, with no ring to wait for.
+      // Before 1.5.17, and every other harness, it waits at its prompt and is rung.
+      const goesOn =
+        setup.agent === "agy" && atLeast((await installHarness("agy")).version, [1, 5, 17])
+      const steps: Reach[] = goesOn
+        ? [holds("moth", "fox", "delivered")]
+        : ["ready", "ringing", "working", holds("moth", "fox", "delivered")]
       await through(resumed, steps, { timeoutMs: 60_000 })
       // At least once: the ring's hook may have printed it before the runner stopped, its
       // acknowledgement lost, and the agent then holds it twice, as the same message.

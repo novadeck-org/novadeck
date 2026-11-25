@@ -384,5 +384,9 @@ describe("Antigravity's own system messages in a conversation", () => {
       id: "c1",
       text: '{"error":"Tool execution was canceled"}',
     })
+    // The person's, with the efficiency reminder beside it: kept, without the reminder.
+    expect(turns(answered({ error: `Tool execution was canceled${reminder}` })).at(-1)).toEqual(
+      person.at(-1),
+    )
   })
 })

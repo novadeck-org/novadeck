@@ -96,14 +96,61 @@ describe("a conversation another terminal's agent holds", () => {
     ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
   ])
 
+  const live = () => true
+  const dead = () => false
+  const held = (
+    terminals: ReadonlyMap<string, Record>,
+    id: string,
+    sessionId: string,
+    lives = live,
+  ): boolean => namesHeldConversation(terminals, id, [turn(sessionId)], lives)
+
   it("is named by a report of a terminal that never bound it, as a process that resumed it", () => {
-    expect(namesHeldConversation(records, "second", [turn("held")])).toBe(true)
+    expect(held(records, "second", "held")).toBe(true)
   })
 
   it("is the holder's own to name, and another conversation any terminal's", () => {
-    expect(namesHeldConversation(records, "first", [turn("held")])).toBe(false)
-    expect(namesHeldConversation(records, "second", [turn("new")])).toBe(false)
-    expect(namesHeldConversation(records, "second", [])).toBe(false)
+    expect(held(records, "first", "held")).toBe(false)
+    expect(held(records, "second", "new")).toBe(false)
+    expect(namesHeldConversation(records, "second", [], live)).toBe(false)
+  })
+
+  // A process that crashed with nothing to tell the runner leaves its binding behind.
+  it("is no longer held once the process bound to it is gone, or its terminal rests", () => {
+    expect(held(records, "second", "held", dead)).toBe(false)
+    const resting = new Map(records)
+    resting.set("first", { ...holding("first", "held"), hibernating: true } as Record)
+    expect(held(resting, "second", "held")).toBe(false)
+  })
+
+  // After a runner restart every terminal resumes at once: another's process may name a
+  // conversation before the terminal resuming it binds it.
+  it("is the terminal's whose own resume claims it, bound or not yet", () => {
+    const claiming = (id: string, ended = false): Record =>
+      ({
+        summary: { id },
+        bound: null,
+        resumeClaim: "agy:held",
+        ...(ended && { resumeEnded: true }),
+      }) as unknown as Record
+    const restored = new Map([
+      ["first", claiming("first")],
+      ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
+    ])
+    expect(held(restored, "second", "held")).toBe(true)
+    expect(held(restored, "first", "held")).toBe(false)
+    // Its own claim, even where another terminal bound the conversation first.
+    const raced = new Map([
+      ["first", claiming("first")],
+      ["second", holding("second", "held")],
+    ])
+    expect(held(raced, "first", "held")).toBe(false)
+    // A resume whose binding has since ended claims nothing.
+    const ended = new Map([
+      ["first", claiming("first", true)],
+      ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
+    ])
+    expect(held(ended, "second", "held")).toBe(false)
   })
 })
 
