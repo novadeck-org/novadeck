@@ -139,6 +139,27 @@ export type FetchOptions = {
   readonly stallMs?: number
 }
 
+// Renames `from` to `to`, again for a moment on Windows, where an antivirus scanning a file just
+// unpacked holds its folder (EPERM, EBUSY, EACCES).
+const renameSoon = async (from: string, to: string, platform: NodeJS.Platform): Promise<void> => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- One try after another, until one takes.
+      return await rename(from, to)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (
+        platform !== "win32" ||
+        attempt >= 10 ||
+        !["EPERM", "EBUSY", "EACCES"].includes(code ?? "")
+      )
+        throw error
+      // eslint-disable-next-line no-await-in-loop -- Waits out the scan, then tries again.
+      await new Promise((settle) => setTimeout(settle, 200))
+    }
+  }
+}
+
 // Unpacks `archive` with the licence beside it, checks it holds the program, and puts it in its
 // folder whole: it unpacks beside the folder and is renamed there, so one that is there is whole.
 const install = async (
@@ -158,7 +179,7 @@ const install = async (
     if (platform !== "win32") await chmod(program, 0o755)
     await rename(licence, join(staging, "LICENSE"))
     await rm(target, { recursive: true, force: true })
-    await rename(staging, target)
+    await renameSoon(staging, target, platform)
   } catch (error) {
     await rm(staging, { recursive: true, force: true })
     throw error
@@ -193,16 +214,21 @@ const downloadWatched = async (
   }
 }
 
-// The fetch under way for each data folder, which every launch waiting on it shares.
-const underway = new Map<string, Promise<string>>()
+// The fetch under way for each program, which every launch waiting on it shares, with the
+// progress each of them hears.
+const underway = new Map<
+  string,
+  { readonly work: Promise<string>; readonly hearing: Set<FetchProgress> }
+>()
 
 /**
  * Novadeck's pi, downloaded once: its program's path, after fetching the pinned build for this
- * system where it isn't in place yet. The archive and the licence are checked against their
+ * system where it isn't in place yet. The licence, then the archive, are checked against their
  * pinned checksums; a download that fails, stalls or comes out wrong leaves nothing, and the
  * next launch fetches again. Builds of other pinned versions are removed once this one is in
- * place; the agent folder stays. Launches waiting at once share one fetch, and each hears its
- * progress. A system pi publishes no build for is refused. The tour can call it ahead of a launch.
+ * place, as far as they can be (on Windows a pi still running holds its own); the agent folder
+ * stays. Launches waiting at once share one fetch, and each hears its progress from then on. A
+ * system pi publishes no build for is refused. The tour can call it ahead of a launch.
  */
 export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
   const {
@@ -221,7 +247,12 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
   const running = underway.get(program)
   if (running) {
     progress(`Waiting for pi ${pinned.version}, which is downloading`)
-    return running
+    running.hearing.add(progress)
+    return running.work
+  }
+  const hearing = new Set<FetchProgress>([progress])
+  const say = (line: string) => {
+    for (const each of hearing) each(line)
   }
   const work = (async () => {
     if (await exists(program)) return program
@@ -231,6 +262,18 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
     const licence = join(downloads, `LICENSE-${pinned.version}`)
     let shown = -1
     try {
+      // The licence first, from its own host: where that can't be reached, the archive's 60 MB
+      // aren't spent only to be thrown away.
+      await downloadWatched(
+        {
+          from: options.licence || pinned.licence.url,
+          to: licence,
+          sha256: pinned.licence.sha256,
+          size: pinned.licence.size,
+          progress: () => {},
+        },
+        options.stallMs ?? stallMs,
+      )
       await downloadWatched(
         {
           from: locate(options.source || pinned.source, build.file),
@@ -242,35 +285,26 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
             const percent = Math.floor((received / build.size) * 100)
             if (percent === shown) return
             shown = percent
-            progress(progressLine(pinned.version, received, build.size))
+            say(progressLine(pinned.version, received, build.size))
           },
         },
         options.stallMs ?? stallMs,
       )
-      await downloadWatched(
-        {
-          from: options.licence || pinned.licence.url,
-          to: licence,
-          sha256: pinned.licence.sha256,
-          size: pinned.licence.size,
-          progress: () => {},
-        },
-        options.stallMs ?? stallMs,
-      )
-      progress(`Unpacking pi ${pinned.version}`)
+      say(`Unpacking pi ${pinned.version}`)
       const target = buildFolder(data, build, pinned.version)
       await install(archive, licence, target, build, platform)
-      // Earlier pinned builds, and what an interrupted unpacking left.
+      // Earlier pinned builds, and what an interrupted unpacking left: what can't go now (a pi
+      // still running from it, on Windows) goes on a later fetch.
       for (const entry of await readdir(folder))
         if (entry !== "agent" && entry !== "downloads" && join(folder, entry) !== target)
           // eslint-disable-next-line no-await-in-loop -- A few folders, one after another.
-          await rm(join(folder, entry), { recursive: true, force: true })
+          await rm(join(folder, entry), { recursive: true, force: true }).catch(() => {})
       return program
     } finally {
       await rm(downloads, { recursive: true, force: true })
     }
   })().finally(() => underway.delete(program))
-  underway.set(program, work)
+  underway.set(program, { work, hearing })
   return work
 }
 

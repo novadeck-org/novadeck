@@ -151,12 +151,23 @@ describe("Novadeck's pi launcher's text", () => {
     const order = [
       `if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools`,
       `if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools`,
-      "where bash.exe >nul 2>nul && goto tools",
+      "where $PATH:bash.exe >nul 2>nul && goto tools",
       `set "novadeck_tools=--tools -bash,+powershell"`,
     ].map((line) => cmd.indexOf(line))
     expect(order.every((at) => at > 0)).toBe(true)
     expect(order).toEqual(order.toSorted((a, b) => a - b))
     // No block holds a path: "(x86)" would end one.
     expect(cmd).not.toMatch(/\(\s*\r?\n/)
+  })
+
+  it("reads no variable in a Windows path that holds a %", () => {
+    const cmd = cmdLauncher({
+      ...pi,
+      program: "C:\\Users\\a%b%\\pi.exe",
+      relay: "C:\\Users\\a%b%\\relay.exe",
+    })
+    expect(cmd).toContain(`set "novadeck_program=C:\\Users\\a%%b%%\\pi.exe"`)
+    // `call` reads its line twice.
+    expect(cmd).toContain(`call "C:\\Users\\a%%%%b%%%%\\relay.exe" fetch pi`)
   })
 })

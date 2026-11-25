@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { http, HttpResponse } from "msw"
@@ -155,7 +155,9 @@ describe("fetching Novadeck's pi", () => {
     ])
 
     expect(a).toBe(b)
-    expect(second).toEqual(["Waiting for pi 1.6.0, which is downloading"])
+    // It hears the shared fetch's progress from then on.
+    expect(second.at(0)).toBe("Waiting for pi 1.6.0, which is downloading")
+    expect(second.at(-1)).toBe("Unpacking pi 1.6.0")
   })
 
   it("refuses an archive whose checksum isn't the pinned one, and leaves nothing", async ({
@@ -220,6 +222,26 @@ describe("fetching Novadeck's pi", () => {
     await expect(readFile(join(bundledPiHome(data), "settings.json"), "utf8")).resolves.toBe("{}")
   })
 
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "keeps the new build where an earlier one can't be removed yet",
+    async ({ resources }) => {
+      const older = await fakeRelease(resources, "#!/bin/sh\necho old\n", "1.5.0")
+      const newer = await fakeRelease(resources)
+      const data = await folder(resources)
+      const old = await fetchBundledPi({ data, ...linux, ...older })
+      // As a pi still running from it holds its folder on Windows: here, a folder in it that
+      // can't be emptied.
+      const locked = join(old, "..", "locked")
+      await mkdir(join(locked, "inside"), { recursive: true })
+      await chmod(locked, 0o500)
+      resources.defer(() => chmod(locked, 0o700))
+
+      const program = await fetchBundledPi({ data, ...linux, ...newer })
+
+      await expect(readFile(program, "utf8")).resolves.toContain("echo pi")
+    },
+  )
+
   it("refuses a system pi has no build for", async ({ resources }) => {
     await expect(
       fetchBundledPi({ data: await folder(resources), platform: "freebsd", arch: "x64" }),
@@ -235,7 +257,13 @@ describe("fetching Novadeck's pi over the network", () => {
       return new HttpResponse(body)
     }),
     http.get("https://release.test/down/pi-linux-x64.tar.gz", () => HttpResponse.error()),
+    http.get("https://release.test/counted/pi-linux-x64.tar.gz", () => {
+      archives += 1
+      return HttpResponse.error()
+    }),
+    http.get("https://licence.test/LICENSE", () => HttpResponse.error()),
   )
+  let archives = 0
   beforeAll(() => server.listen({ onUnhandledFrame: "error" }))
   afterEach(() => server.resetHandlers())
   afterAll(() => server.close())
@@ -251,6 +279,21 @@ describe("fetching Novadeck's pi over the network", () => {
         source: "https://release.test/down/",
       }),
     ).rejects.toThrow("Could not reach release.test. Check the connection.")
+  })
+
+  it("fetches the licence first, and no archive where it can't be had", async ({ resources }) => {
+    const release = await fakeRelease(resources)
+
+    await expect(
+      fetchBundledPi({
+        data: await folder(resources),
+        ...linux,
+        ...release,
+        source: "https://release.test/counted/",
+        licence: "https://licence.test/LICENSE",
+      }),
+    ).rejects.toThrow("Could not reach licence.test.")
+    expect(archives).toBe(0)
   })
 
   it("gives up on a download that stalls", async ({ resources }) => {

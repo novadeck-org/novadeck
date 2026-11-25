@@ -255,10 +255,18 @@ describe("Novadeck's pi extension", () => {
 
   it("marks its reports, and leaves the person's models alone, in Novadeck's own pi", async () => {
     const before = process.env.NOVADECK_PI
+    // A process's first load decides, which earlier tests here made as the person's pi.
+    delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
     process.env.NOVADECK_PI = "bundled"
     try {
       await rm(join(root, "models.json"), { force: true })
       const pi = await load()
+      // Taken out of the environment, so a pi its tools start is the person's; loaded again, as
+      // on /reload, it still knows.
+      expect(process.env.NOVADECK_PI).toBeUndefined()
+      const again = await load()
+      await again.emit("session_start", { reason: "new" })
+      expect((await again.reports()).at(-1)).toMatchObject({ novadeck_own: true })
       await pi.emit("session_start", { reason: "startup" })
       // Its reports say they are Novadeck's own pi's, which counts as connected.
       expect(await pi.reports()).toEqual([
@@ -269,6 +277,7 @@ describe("Novadeck's pi extension", () => {
     } finally {
       if (before === undefined) delete process.env.NOVADECK_PI
       else process.env.NOVADECK_PI = before
+      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
     }
   })
 

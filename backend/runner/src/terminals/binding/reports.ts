@@ -268,7 +268,7 @@ export class Reports {
       ? await Promise.all([
           shellInForeground(child.pid),
           // Novadeck's own pi counts as connected whether or not the person's is.
-          fromOwnPi(report.payload) || this.host.connected(report.agent),
+          (report.agent === "pi" && fromOwnPi(report.payload)) || this.host.connected(report.agent),
           this.reusedBinding(record, events, deadline),
         ])
       : [undefined, true, undefined]
@@ -299,7 +299,12 @@ export class Reports {
     if (shown && foreground !== true && (process.platform !== "win32" || record.submitted)) {
       const trust = await this.host
         .shown()
-        .promptTrust(record, report.agent, undefined, fromOwnPi(report.payload))
+        .promptTrust(
+          record,
+          report.agent,
+          undefined,
+          report.agent === "pi" && fromOwnPi(report.payload),
+        )
       if (record.terminal.pty === child && shown.startedAt > (record.promptedAt ?? 0)) {
         if (trust === "counts") this.host.shown().showPrompt(record, shown)
         else if (trust === "untrusted")

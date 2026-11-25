@@ -95,6 +95,13 @@ const textOf = (content) =>
           .join("\n")
       : ""
 
+// Whether this is Novadeck's own pi, as its launcher's NOVADECK_PI says, read once per process and
+// taken out of the environment: a pi the agent starts from its tools is the person's, not
+// Novadeck's. Kept on the process, as pi loads the extension again on /reload, /new and /resume.
+globalThis.novadeckOwnPi ??= process.env.NOVADECK_PI === "bundled"
+delete process.env.NOVADECK_PI
+const ownPi = globalThis.novadeckOwnPi
+
 // Runs Novadeck's hook command for event with payload on its input, and gives what it printed;
 // nothing outside Novadeck's terminals, nor where it fails or runs past its time.
 const hook = (event, payload) =>
@@ -134,9 +141,9 @@ const hook = (event, payload) =>
     child.on("error", settle)
     child.on("close", settle)
     child.stdin.on("error", () => {})
-    // From Novadeck's own pi (its launcher's NOVADECK_PI), which Novadeck counts as connected
-    // whether or not the person connected their pi.
-    const own = process.env.NOVADECK_PI === "bundled" ? { novadeck_own: true } : {}
+    // From Novadeck's own pi, which Novadeck counts as connected whether or not the person
+    // connected their pi.
+    const own = ownPi ? { novadeck_own: true } : {}
     child.stdin.end(JSON.stringify({ hook_event_name: event, ...payload, ...own }))
   })
 
@@ -440,7 +447,7 @@ export default function novadeck(pi) {
   // The models pi can run here, with the efforts each takes, for Novadeck's model picker: the
   // person's pi's, never Novadeck's own pi's (its launcher's NOVADECK_PI), whose models are its own.
   const writeModels = (ctx) => {
-    if (process.env.NOVADECK_PI === "bundled") return
+    if (ownPi) return
     try {
       const levels = piAi.getSupportedThinkingLevels
       const models = ctx.modelRegistry.getAvailable().map((model) => ({

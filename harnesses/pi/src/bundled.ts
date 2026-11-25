@@ -70,29 +70,35 @@ exec "$novadeck_program" -e ${quoted(pi.extension)} "$@"
 /**
  * The launcher for Windows, as the POSIX one, which also gives pi `powershellTools` where pi
  * would find no bash, looking where pi looks, in its order (docs/windows.md, 1.6.0): Git
- * Bash in Program Files, then in Program Files (x86), then `bash.exe` on PATH. No `if (...)`
+ * Bash in Program Files, then in Program Files (x86), then `bash.exe` on PATH (`$PATH:`, so not
+ * the current folder, which pi doesn't search). No `if (...)`
  * blocks hold a path: a ")" in "Program Files (x86)" would end them.
  */
+// A path as cmd reads it in a batch file, in double quotes: a `%` doubled, so no variable is
+// read in it; `call` reads its line twice, so a path it runs takes four (`called`).
+const cmdPath = (path: string, called = false): string =>
+  path.replaceAll("%", called ? "%%%%" : "%%")
+
 export const cmdLauncher = (pi: BundledPi): string => `@echo off
 ${header("rem", "launcher for its own pi")}
 rem Starts Novadeck's own pi, fetching it first where it isn't in place.
 setlocal
-set "novadeck_program=${pi.program}"
+set "novadeck_program=${cmdPath(pi.program)}"
 if exist "%novadeck_program%" goto have
-call "${pi.relay}" fetch pi || exit /b 1
+call "${cmdPath(pi.relay, true)}" fetch pi || exit /b 1
 :have
-set "PI_CODING_AGENT_DIR=${pi.home}"
+set "PI_CODING_AGENT_DIR=${cmdPath(pi.home)}"
 set "PI_SKIP_VERSION_CHECK=1"
 set "${bundledMark}=bundled"
 set "novadeck_tools="
 if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools
 if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools
-where bash.exe >nul 2>nul && goto tools
+where $PATH:bash.exe >nul 2>nul && goto tools
 set "novadeck_tools=${powershellTools.join(" ")}"
 :tools
-if not exist "${pi.extension}" goto plain
+if not exist "${cmdPath(pi.extension)}" goto plain
 ${cmdLaunch("pi")}
-"%novadeck_program%" -e "${pi.extension}" %novadeck_tools% %*
+"%novadeck_program%" -e "${cmdPath(pi.extension)}" %novadeck_tools% %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_program%" %novadeck_tools% %*
