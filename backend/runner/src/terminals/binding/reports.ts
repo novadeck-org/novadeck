@@ -39,7 +39,8 @@ import {
 } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
-import { boundProgram } from "../sampling.js"
+import { sessionHeldElsewhere } from "../resumes.js"
+import { alive, boundProgram } from "../sampling.js"
 import { scheduleChange, trackSchedules } from "../schedules.js"
 import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
@@ -62,6 +63,48 @@ export const withoutAside = async (
     events.map(async (event) => event.type !== "session-observed" || !(await aside(event))),
   )
   return events.filter((_, at) => kept[at])
+}
+
+/** Whether a terminal's own resume claims a session (`agent:session`), its binding not ended since. */
+const claims = (record: Record | undefined, key: string): boolean =>
+  record?.resumeClaim === key && !record.resumeEnded
+
+/**
+ * Whether a report's facts name a conversation another terminal's agent holds. Antigravity
+ * 1.5.17's process, as it starts, resumes any conversation of its home that a process still
+ * running one has left looking interrupted ("Resuming 1 conversation(s) interrupted by server
+ * restart"), cancels that process's tool call in flight ("Tool execution was canceled"), and
+ * runs the conversation itself: its hooks, in the new terminal, then name the other's
+ * conversation, and would bind both terminals to it (probed 2026-11-25 on Linux,
+ * e2e/agy-second-terminal.e2e.ts; the same on CI's Windows run).
+ *
+ * The conversation belongs to the terminal whose own resume claims it (`resumeClaim`, until
+ * that resume's binding ends), even before its hooks bind it: after a runner restart every
+ * terminal resumes at once, and another's process may name it first. Else to the terminal that
+ * has it bound, or as its root, while the process bound to it lives: one that crashed with
+ * nothing to tell the runner leaves its binding, which mustn't keep the person's own resume of
+ * that conversation elsewhere from binding.
+ */
+export const namesHeldConversation = (
+  records: ReadonlyMap<string, Record>,
+  terminalId: string,
+  events: readonly HarnessEvent[],
+  live: (pid: string) => boolean = alive,
+): boolean => {
+  const own = records.get(terminalId)
+  return events.some(({ agent, sessionId }) => {
+    const key = `${agent}:${sessionId}`
+    if (claims(own, key)) return false
+    for (const other of records.values()) {
+      if (other.summary.id === terminalId) continue
+      if (claims(other, key)) return true
+      const binding = other.bound?.binding
+      const running = !other.hibernating && (!binding?.instance || live(binding.instance))
+      if (!running) continue
+      if (sessionHeldElsewhere([other], terminalId, agent, sessionId)) return true
+    }
+    return false
+  })
 }
 
 export type ReportsHost = {
@@ -225,6 +268,12 @@ export class Reports {
       firedFacts(harnesses[report.agent].decode(report), report),
       harnesses[report.agent].aside,
     )
+    // Antigravity's alone: the others never run a conversation another terminal has.
+    if (
+      report.agent === "agy" &&
+      namesHeldConversation(this.host.records(), report.terminalId, decoded)
+    )
+      return silent
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
     const events =

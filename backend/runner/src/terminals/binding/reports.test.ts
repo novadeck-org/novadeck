@@ -18,7 +18,7 @@ import {
   worktreesOnNotice,
 } from "../nudges.js"
 import type { Record } from "../record.js"
-import { Reports, withoutAside, type ReportsHost } from "./reports.js"
+import { namesHeldConversation, Reports, withoutAside, type ReportsHost } from "./reports.js"
 
 describe("a root turn's prompt told from the transcript", () => {
   // Their hooks name the prompt (UserPromptSubmit), so a session bound at its prompt, as a
@@ -74,6 +74,83 @@ describe("a session its harness keeps beside its root", () => {
     expect(await withoutAside([side], undefined)).toEqual([side])
     expect(await withoutAside([turn], aside)).toEqual([turn])
     expect(aside).not.toHaveBeenCalled()
+  })
+})
+
+describe("a conversation another terminal's agent holds", () => {
+  const turn = (sessionId: string): HarnessEvent => ({
+    type: "turn-started",
+    agent: "agy",
+    sessionId,
+    instance: "2",
+    startedAt: 1,
+    cause: "harness",
+  })
+  const holding = (id: string, sessionId: string): Record =>
+    ({
+      summary: { id },
+      bound: { binding: { agent: "agy", sessionId, instance: "1" } },
+    }) as unknown as Record
+  const records = new Map([
+    ["first", holding("first", "held")],
+    ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
+  ])
+
+  const live = () => true
+  const dead = () => false
+  const held = (
+    terminals: ReadonlyMap<string, Record>,
+    id: string,
+    sessionId: string,
+    lives = live,
+  ): boolean => namesHeldConversation(terminals, id, [turn(sessionId)], lives)
+
+  it("is named by a report of a terminal that never bound it, as a process that resumed it", () => {
+    expect(held(records, "second", "held")).toBe(true)
+  })
+
+  it("is the holder's own to name, and another conversation any terminal's", () => {
+    expect(held(records, "first", "held")).toBe(false)
+    expect(held(records, "second", "new")).toBe(false)
+    expect(namesHeldConversation(records, "second", [], live)).toBe(false)
+  })
+
+  // A process that crashed with nothing to tell the runner leaves its binding behind.
+  it("is no longer held once the process bound to it is gone, or its terminal rests", () => {
+    expect(held(records, "second", "held", dead)).toBe(false)
+    const resting = new Map(records)
+    resting.set("first", { ...holding("first", "held"), hibernating: true } as Record)
+    expect(held(resting, "second", "held")).toBe(false)
+  })
+
+  // After a runner restart every terminal resumes at once: another's process may name a
+  // conversation before the terminal resuming it binds it.
+  it("is the terminal's whose own resume claims it, bound or not yet", () => {
+    const claiming = (id: string, ended = false): Record =>
+      ({
+        summary: { id },
+        bound: null,
+        resumeClaim: "agy:held",
+        ...(ended && { resumeEnded: true }),
+      }) as unknown as Record
+    const restored = new Map([
+      ["first", claiming("first")],
+      ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
+    ])
+    expect(held(restored, "second", "held")).toBe(true)
+    expect(held(restored, "first", "held")).toBe(false)
+    // Its own claim, even where another terminal bound the conversation first.
+    const raced = new Map([
+      ["first", claiming("first")],
+      ["second", holding("second", "held")],
+    ])
+    expect(held(raced, "first", "held")).toBe(false)
+    // A resume whose binding has since ended claims nothing.
+    const ended = new Map([
+      ["first", claiming("first", true)],
+      ["second", { summary: { id: "second" }, bound: null } as unknown as Record],
+    ])
+    expect(held(ended, "second", "held")).toBe(false)
   })
 })
 
