@@ -566,6 +566,8 @@ export const machineUninstaller = ({
     portable,
     env: process.env,
     home: homedir(),
+    version: app.getVersion(),
+    openExternal: (url) => shell.openExternal(url),
     execPath: app.getPath("exe"),
     userData: app.getPath("userData"),
     defaultUserData: join(app.getPath("appData"), dataFolderName({ packaged: app.isPackaged })),
