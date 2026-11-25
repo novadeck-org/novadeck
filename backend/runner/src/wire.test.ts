@@ -578,7 +578,11 @@ describe("workspace metadata API", () => {
   }) => {
     // Archives from an empty folder: the fetch fails at once, as a release that can't be had.
     const empty = await mkdtemp(join(tmpdir(), "novadeck-no-release-"))
-    resources.defer(() => rm(empty, { recursive: true, force: true }))
+    // On Windows the runner may still be rewriting its shell files (Codex's capture) as it
+    // closes, or a scanner may hold one just written: removal waits them out.
+    resources.defer(() =>
+      rm(empty, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }),
+    )
     const before = process.env.NOVADECK_BUNDLED_PI_SOURCE
     process.env.NOVADECK_BUNDLED_PI_SOURCE = empty
     resources.defer(() => {

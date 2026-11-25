@@ -355,9 +355,15 @@ const ends =
 // Whether the call is the agent's to answer: after its own tool's result, or with news.
 const goes = (call: Call, news: boolean): boolean => news || result(call) !== undefined
 
-// The branch a brief has its agent open a worktree on.
-const branchOf = (brief: string): string =>
-  read(brief, /call `open_worktree` with branch "([^"]+)"/i, "open_worktree")[0]!
+// The branch and title a brief has its agent open a worktree with.
+const openedOf = (brief: string): { branch: string; title: string } => {
+  const [branch, title] = read(
+    brief,
+    /call `open_worktree` with branch "([^"]+)" and title "([^"]+)"/i,
+    "open_worktree",
+  ) as [string, string]
+  return { branch, title }
+}
 
 // Gives the next step's reply, those that only write passed over; none left, the turn ends.
 const proceed = (one: Mind, call: Call, closing: string): Reply => {
@@ -408,8 +414,7 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
       ) as [string, string]
       return { title, summary }
     })
-  const opening = (brief: string): Step =>
-    using("open_worktree", () => ({ branch: branchOf(brief) }))
+  const opening = (brief: string): Step => using("open_worktree", () => openedOf(brief))
   const showing = (brief: string, file: () => string): Step =>
     using("show", () => {
       const [kind] = read(brief, /call `show` with `(file|changes)` \{"path"/i, "show")
@@ -526,12 +531,12 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
       tasks.modeller ??= task
       const modeller = minds.modeller
       const model = (name: string): string =>
-        join(worktree(branchOf(task)), "models", `${name}.gltf`)
+        join(worktree(openedOf(task).branch), "models", `${name}.gltf`)
       const make =
         (name: string, parts: readonly Part[]): Step =>
         () => {
           const placeholder = readFileSync(
-            join(worktree(branchOf(task)), "models", "placeholder.gltf"),
+            join(worktree(openedOf(task).branch), "models", "placeholder.gltf"),
             "utf8",
           )
           writeFileSync(model(name), sculpted(placeholder, parts))
@@ -578,7 +583,7 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
       if (role !== "builder" || !task) return undefined
       tasks.builder ??= task
       const builder = minds.builder
-      const where = (): string => worktree(branchOf(task))
+      const where = (): string => worktree(openedOf(task).branch)
       const [world, kind] = read(task, /The person picked a (.+?) (\S+) game\./, "the picks") as [
         string,
         string,

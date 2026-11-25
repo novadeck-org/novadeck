@@ -111,6 +111,8 @@ export type Opened = {
   readonly instructions: readonly string[]
   /** Its home (see `homeSaid`); undefined where the repository has no main and none was given. */
   readonly home?: string
+  /** Its title, as its branch's key holds it. */
+  readonly title?: string
 }
 
 export type Taken =
@@ -121,6 +123,8 @@ export type Taken =
       readonly already?: true
       /** Its home, as `Opened`'s. */
       readonly home?: string
+      /** Its title, as `Opened`'s; absent where it has none. */
+      readonly title?: string
     }
   /** Another live terminal owns it: the person decides. */
   | { readonly ok: true; readonly approval: WorktreeRecord }
@@ -379,6 +383,8 @@ export class Worktrees {
     readonly group?: string | undefined
     /** The branch its work belongs on, here or on origin; see `chosenHome`. */
     readonly home?: string | undefined
+    /** What its work is, in one short line: its branch's `novadeckTitle`. */
+    readonly title: string
   }): Promise<Opened | Failure> {
     // Origin's refs are made current, and asked about, before the queue, which every
     // repository's operations wait in.
@@ -499,16 +505,18 @@ export class Worktrees {
         ? undefined
         : await setUpstream(repository.home, input.branch, originRef(input.branch))
     // A new branch's keys are all its own: one a deleted branch of that name left goes.
-    // An existing one keeps what it has, its home changed only when given.
+    // An existing one keeps what it has, its home changed only when given; its title is the
+    // one given now.
     const kept = tip === undefined ? {} : await keysOfBranch(real, input.branch)
     await this.keyed(
       real,
       input.branch,
       tip === undefined
-        ? { base, made: true, home: home.write ?? null }
+        ? { base, made: true, home: home.write ?? null, title: input.title }
         : {
             ...(kept.base === undefined && { base }),
             ...(input.home !== undefined && { home: home.write ?? null }),
+            title: input.title,
           },
     )
     this.made({ root: real, projectId: input.projectId })
@@ -526,6 +534,7 @@ export class Worktrees {
         .map((name) => join(real, name))
         .filter((file) => existsSync(file)),
       ...(await this.homeOf(real, input.branch)),
+      ...(await this.titleOf(real, input.branch)),
     }
   }
 
@@ -578,6 +587,12 @@ export class Worktrees {
     return home === undefined ? {} : { home }
   }
 
+  /** `{ title }` as its branch's key holds it, or nothing where it has none. */
+  private async titleOf(folder: string, branch: string): Promise<{ readonly title?: string }> {
+    const { title } = await keysOfBranch(folder, branch)
+    return title === undefined ? {} : { title }
+  }
+
   /**
    * Makes the worktree at `path` (or the one it is in) the terminal's: at once where it has
    * no owner, or its owner is gone; one git lists but Novadeck never made is recorded as
@@ -591,6 +606,8 @@ export class Worktrees {
     readonly path: string
     /** Sets its home (see `chosenHome`), once it is the caller's by this call. */
     readonly home?: string | undefined
+    /** Sets its title likewise. */
+    readonly title?: string | undefined
   }): Promise<Taken> {
     return this.serial(() => this.taking(input))
   }
@@ -623,6 +640,8 @@ export class Worktrees {
       if (!mine && !this.gone(row.terminalId)) return { ok: true, approval: row }
       const homed = await this.rehomed(row.path, row.branch, input.home)
       if (!homed.ok) return homed
+      const titled = await this.titled(row.path, row.branch, input.title)
+      if (!titled.ok) return titled
       if (!mine) this.moveOwner(row.path, row.terminalId, input.terminalId)
       return {
         ok: true,
@@ -630,6 +649,7 @@ export class Worktrees {
         branch: row.branch,
         ...(mine && { already: true as const }),
         ...(await this.homeOf(row.path, row.branch)),
+        ...(await this.titleOf(row.path, row.branch)),
       }
     }
     const found = await repositoryAt(top)
@@ -680,11 +700,12 @@ export class Worktrees {
           : "Novadeck couldn't record the worktree: its project is gone.",
       )
     }
-    // What a script that made it set stands, home included, unless home is given.
+    // What a script that made it set stands, home and title included, unless given.
     const kept = await keysOfBranch(real, entry.branch)
     await this.keyed(real, entry.branch, {
       ...(kept.base === undefined && { base }),
       ...(input.home !== undefined && { home: homed.write ?? null }),
+      ...(input.title !== undefined && { title: input.title }),
     })
     this.made({ root: real, projectId: input.projectId })
     return {
@@ -692,6 +713,7 @@ export class Worktrees {
       path: real,
       branch: entry.branch,
       ...(await this.homeOf(real, entry.branch)),
+      ...(await this.titleOf(real, entry.branch)),
     }
   }
 
@@ -712,6 +734,38 @@ export class Worktrees {
     if (!chosen.ok) return chosen
     await this.keyed(path, branch, { home: chosen.write ?? null })
     return { ok: true }
+  }
+
+  /** Sets a tracked worktree's title where `title` is given; why not, where it can't be. */
+  private async titled(
+    path: string,
+    branch: string,
+    title: string | undefined,
+  ): Promise<{ readonly ok: true } | Failure> {
+    if (title === undefined) return { ok: true }
+    if (!existsSync(path)) return refused("That worktree's folder is gone, so its title stays.")
+    const live = await currentBranch(path)
+    if (live !== branch)
+      return refused(
+        `That worktree is on ${live ?? "a detached HEAD"} now, not ${branch}, so its title stays.`,
+      )
+    await this.keyed(path, branch, { title })
+    return { ok: true }
+  }
+
+  /** Titles a worktree the caller owns, as `describe` asks. */
+  retitle(input: {
+    readonly terminalId: string
+    readonly cwd: string
+    readonly path: string
+    readonly title: string
+  }): Promise<{ readonly ok: true; readonly row: WorktreeRecord } | Failure> {
+    return this.serial(async () => {
+      const owned = await this.ownedBy(input.terminalId, input.cwd, input.path)
+      if (!owned.ok) return owned
+      const titled = await this.titled(owned.row.path, owned.row.branch, input.title)
+      return titled.ok ? owned : titled
+    })
   }
 
   /**

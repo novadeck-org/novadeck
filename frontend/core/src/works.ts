@@ -48,6 +48,14 @@ export type Work = {
   // agents fan out from a feature branch); absent for most work, whose home is main. `base`
   // then names what home is measured by.
   readonly home?: string | undefined
+  // What its work is, in one short line its agent gave; absent for a worktree no agent titled
+  // (made by hand, or before titles).
+  readonly title?: string | undefined
+  // When the worktree last changed (its last commit, or an uncommitted file's change), in
+  // milliseconds since the epoch; absent from backends before it. It can move back (a change
+  // reverted), and a secret untracked file's edit (`.env`) moves it only with another change: it
+  // tells a worktree left untouched a while, not each edit.
+  readonly changedAt?: number | undefined
   // When it first differed from main, in milliseconds since the epoch: the panel's order.
   readonly firstSeenAt: number
   // Nothing differs from main and the worktree has commits of its own that main holds: its work

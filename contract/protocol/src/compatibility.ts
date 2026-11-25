@@ -45,7 +45,8 @@ export const compatibility: Compatibility = {
   // 16: Novadeck's own pi behind an Experimental switch (settings' `bundledPi`, which a runner
   // before it drops, and `bundledPiFetch`, which says where its download stands); a UI offers the
   // switch only where the runner's settings report `bundledPi`.
-  revision: 16,
+  // 17: a work's `title` and `changedAt`.
+  revision: 17,
   oldestClient: 11,
   oldestRunner: 12,
 }

@@ -1,3 +1,6 @@
+import { lstat } from "node:fs/promises"
+import { dirname, join } from "node:path"
+
 import { git } from "../checkouts/git.js"
 import type { Snapshot } from "../checkouts/snapshots.js"
 
@@ -6,6 +9,20 @@ import type { Snapshot } from "../checkouts/snapshots.js"
 
 const small = { cap: 64 * 1024 }
 const listing = { cap: 8 * 1024 * 1024 }
+
+/** The paths the checkout's snapshot changed from HEAD; undefined where git couldn't say. */
+export const pendingOf = async (
+  root: string,
+  snapshot: Pick<Snapshot, "tree" | "head" | "env">,
+): Promise<readonly string[] | undefined> => {
+  if (snapshot.head === "") return undefined
+  const run = await git(
+    root,
+    ["diff-tree", "-r", "--name-only", "--no-renames", "-z", snapshot.head, snapshot.tree],
+    { ...listing, ...(snapshot.env && { env: snapshot.env }) },
+  )
+  return run.ok ? run.out.split("\0").filter((name) => name !== "") : undefined
+}
 
 /**
  * How many paths the checkout changed and did not commit, as its snapshot (the working tree
@@ -16,16 +33,49 @@ const listing = { cap: 8 * 1024 * 1024 }
 export const uncommittedOf = async (
   root: string,
   snapshot: Pick<Snapshot, "tree" | "head" | "secret" | "large" | "env">,
+  pending?: readonly string[] | undefined,
 ): Promise<number | undefined> => {
-  const left = snapshot.secret.length + snapshot.large
+  const paths = pending ?? (await pendingOf(root, snapshot))
+  return paths === undefined ? undefined : paths.length + snapshot.secret.length + snapshot.large
+}
+
+/**
+ * When a file last changed: its own time, or for one deleted, its nearest folder's that is
+ * still there, which the deletion moved (the checkout's own at most). 0 where none is.
+ */
+const touchedAt = async (root: string, file: string): Promise<number> => {
+  for (let at = file; ; at = dirname(at)) {
+    // eslint-disable-next-line no-await-in-loop -- Up the folders, to the first that is there.
+    const info = await lstat(at).catch(() => undefined)
+    if (info) return info.mtimeMs
+    if (at === root || dirname(at) === at) return 0
+  }
+}
+
+/** How many uncommitted paths `changedAtOf` looks at, at most. */
+const statsAtMost = 500
+
+/**
+ * When the checkout last changed, in milliseconds since the epoch: the newest of HEAD's commit
+ * time and its uncommitted files' modification times (a deleted file's by its folder's, which
+ * the deletion moved; the files the snapshot left out as secret too). Undefined where there is
+ * no commit, or git couldn't say.
+ */
+export const changedAtOf = async (
+  root: string,
+  snapshot: Pick<Snapshot, "tree" | "head" | "secret" | "env">,
+  pending?: readonly string[] | undefined,
+): Promise<number | undefined> => {
   if (snapshot.head === "") return undefined
-  const run = await git(
-    root,
-    ["diff-tree", "-r", "--name-only", "--no-renames", "-z", snapshot.head, snapshot.tree],
-    { ...listing, ...(snapshot.env && { env: snapshot.env }) },
+  const shown = await git(root, ["show", "-s", "--format=%ct", snapshot.head], small)
+  const seconds = shown.ok ? Number(shown.out.trim()) : Number.NaN
+  if (!Number.isFinite(seconds)) return undefined
+  const paths = [...(pending ?? (await pendingOf(root, snapshot)) ?? []), ...snapshot.secret].slice(
+    0,
+    statsAtMost,
   )
-  if (!run.ok) return undefined
-  return run.out.split("\0").filter((name) => name !== "").length + left
+  const times = await Promise.all(paths.map((path) => touchedAt(root, join(root, path))))
+  return Math.max(seconds * 1000, ...times)
 }
 
 /**
