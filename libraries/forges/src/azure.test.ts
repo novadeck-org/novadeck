@@ -532,6 +532,21 @@ describe("azure pull request facts", () => {
     ])
   })
 
+  it("is limited where a further read is, so the lookup waits it out", async () => {
+    const before = Date.now()
+    server.use(
+      byBranch({ a: [open()] }),
+      ...standing([], []),
+      http.get(
+        `${root}/build/builds`,
+        () => new HttpResponse("{}", { status: 429, headers: { "retry-after": "120" } }),
+      ),
+    )
+    const found = await azure.pullRequests(fetch, token, repo, ["a"])
+    expect(found).toMatchObject({ kind: "limited" })
+    expect((found as { until: number }).until).toBeGreaterThanOrEqual(before + 119_000)
+  })
+
   it("asks only the builds of the pull request's own repository", async () => {
     let asked: URLSearchParams | undefined
     server.use(

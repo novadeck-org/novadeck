@@ -75,6 +75,29 @@ export const send = async (
   }
 }
 
+/** A request as `send` makes it, through a fetch already given. */
+export type Ask = (url: string, init: RequestInit, fixes: Fixes) => Promise<Answer>
+
+/**
+ * A `send` for a lookup's further reads, which never fail it, that remembers the latest rate
+ * limit any of them met: `limited` is then that limit, which the lookup answers with, so its
+ * caller waits it out as for the lookup's own requests, keeping what it found before.
+ */
+export const watched = (
+  fetch: Fetch,
+): { readonly ask: Ask; readonly limited: () => Problem | undefined } => {
+  let latest: number | undefined
+  return {
+    ask: async (url, init, fixes) => {
+      const got = await send(fetch, url, init, fixes)
+      if ("problem" in got && got.problem.kind === "limited")
+        latest = Math.max(latest ?? 0, got.problem.until)
+      return got
+    },
+    limited: () => (latest === undefined ? undefined : { kind: "limited", until: latest }),
+  }
+}
+
 export const headers = (token: string): Record<string, string> => ({
   accept: "application/json",
   authorization: `Bearer ${token}`,

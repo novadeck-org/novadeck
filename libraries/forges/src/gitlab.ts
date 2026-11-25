@@ -3,7 +3,6 @@ import { failure, offline, parse } from "./cli.js"
 import type {
   Check,
   Ci,
-  Fetch,
   Forge,
   Problem,
   PullRequest,
@@ -14,7 +13,7 @@ import type {
   Run,
   Token,
 } from "./forge.js"
-import { headers, pooled, record, send } from "./http.js"
+import { headers, pooled, record, send, watched, type Ask } from "./http.js"
 
 const defaultHost = "gitlab.com"
 
@@ -144,14 +143,13 @@ const pipelines: Record<string, Ci> = {
 // (`head_pipeline`, null where none ran), with its jobs, and where its review stands. Absent
 // where it can't be read: this never fails the lookup, which already has the request itself.
 const detailsOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   repo: Repository & { readonly forge: "gitlab" },
   base: string,
   number: number,
 ): Promise<Pick<PullRequest, "ci" | "checks" | "review"> | undefined> => {
-  const answer = await send(
-    fetch,
+  const answer = await ask(
     `${base}/${number}`,
     { headers: headers(auth.value) },
     { signIn: signIn(repo.host) },
@@ -163,8 +161,8 @@ const detailsOf = async (
   const ci = (typeof status === "string" ? pipelines[status] : undefined) ?? "none"
   const id = pipeline?.["id"]
   const [checks, review] = await Promise.all([
-    typeof id === "number" ? checksOf(fetch, auth, repo, id) : undefined,
-    reviewOf(fetch, auth, base, repo, number, mr?.["detailed_merge_status"]),
+    typeof id === "number" ? checksOf(ask, auth, repo, id) : undefined,
+    reviewOf(ask, auth, base, repo, number, mr?.["detailed_merge_status"]),
   ])
   return {
     ci,
@@ -178,7 +176,7 @@ const detailsOf = async (
 // its approval rules count them (none on GitLab Free), and those it has. Where the approvals
 // can't be read, only a merge status of `not_approved` says anything.
 const reviewOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   base: string,
   repo: Repository & { readonly forge: "gitlab" },
@@ -186,8 +184,7 @@ const reviewOf = async (
   status: unknown,
 ): Promise<Review | undefined> => {
   if (status === "requested_changes") return "changes_requested"
-  const answer = await send(
-    fetch,
+  const answer = await ask(
     `${base}/${number}/approvals`,
     { headers: headers(auth.value) },
     { signIn: signIn(repo.host) },
@@ -247,14 +244,13 @@ const jobsAsked = 100
 // while it runs. A failed job allowed to fail passes, as its pipeline counts it. Never fails the
 // lookup; trigger jobs that can't be read are left out.
 const checksOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   repo: Repository & { readonly forge: "gitlab" },
   pipeline: number,
 ): Promise<Check[] | undefined> => {
   const list = (kind: "jobs" | "bridges") =>
-    send(
-      fetch,
+    ask(
       `https://${repo.host}/api/v4/projects/${encodeURIComponent(repo.path)}/pipelines/${pipeline}/${kind}?per_page=${jobsAsked}`,
       { headers: headers(auth.value) },
       { signIn: signIn(repo.host) },
@@ -315,16 +311,18 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
     const pull = choose(answer.body.flatMap((item) => candidate(item) ?? []))
     if (pull !== undefined) found.set(branch, pull)
   }
-  // A few more requests for each open one: itself, its pipeline's jobs and its approvals.
+  // A few more requests for each open one: itself, its pipeline's jobs and its approvals. One
+  // that is rate limited limits the lookup, which is then waited out like the list's own.
+  const { ask, limited } = watched(fetch)
   const open = [...found].filter(([, pull]) => pull.state === "open" || pull.state === "draft")
   const details = await pooled(open, async ([branch, pull]) => ({
     branch,
     pull,
-    more: await detailsOf(fetch, auth, repo, base, pull.number),
+    more: await detailsOf(ask, auth, repo, base, pull.number),
   }))
   for (const { branch, pull, more } of details)
     if (more !== undefined) found.set(branch, { ...pull, ...more })
-  return found
+  return limited() ?? found
 }
 
 export const gitlab: Forge = {

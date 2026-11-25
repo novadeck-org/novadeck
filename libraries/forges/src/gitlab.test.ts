@@ -421,6 +421,21 @@ describe("gitlab merge request facts", () => {
     ])
   })
 
+  it("is limited where a further read is, so the lookup waits it out", async () => {
+    const before = Date.now()
+    server.use(
+      byBranch({ a: [mr(1, "opened")] }),
+      http.get(`${url}/1`, () => HttpResponse.json({ head_pipeline: null })),
+      http.get(
+        `${url}/1/approvals`,
+        () => new HttpResponse("{}", { status: 429, headers: { "retry-after": "120" } }),
+      ),
+    )
+    const found = await gitlab.pullRequests(fetch, token, repo, ["a"])
+    expect(found).toMatchObject({ kind: "limited" })
+    expect((found as { until: number }).until).toBeGreaterThanOrEqual(before + 119_000)
+  })
+
   it("keeps the jobs where the trigger jobs can't be read", async () => {
     server.use(
       byBranch({ a: [mr(1, "opened")] }),

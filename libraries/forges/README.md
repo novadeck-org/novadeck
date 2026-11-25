@@ -50,6 +50,10 @@ runs wherever those can, and tests script them. Pure JavaScript, for Node and th
       of each pipeline on the pull request's merge ref, of the repository's own builds (100
       asked), then each status
       context's newest post (as `genre/name`). Absent where `ci` couldn't be read.
+    - The further reads of an open one (GitLab's merge request, jobs, trigger jobs and
+      approvals; Azure DevOps's policies, statuses and builds) never fail the lookup, but one
+      that is rate limited makes it answer `limited`, so its caller waits that out as for the
+      list itself.
     - `review`: `approved`, `changes_requested`, `required` or `none`. GitHub: its
       `reviewDecision` where a branch rule requires reviews, else each reviewer's latest
       approving or change-requesting review. GitLab: a merge status of `requested_changes`

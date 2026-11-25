@@ -3,7 +3,6 @@ import { failure, offline, parse } from "./cli.js"
 import type {
   Check,
   Ci,
-  Fetch,
   Forge,
   Problem,
   PullRequest,
@@ -13,7 +12,7 @@ import type {
   Run,
   Token,
 } from "./forge.js"
-import { headers, pooled, record, send } from "./http.js"
+import { headers, pooled, record, send, watched, type Ask } from "./http.js"
 
 const defaultHost = "dev.azure.com"
 const resource = "499b84ac-1321-427f-aa17-267ca6975798"
@@ -212,7 +211,7 @@ type Standing = {
 // An open pull request's checks: its build policies' evaluations and its statuses. Never fails
 // the lookup: a token that can't read them (403) leaves `ci` absent.
 const ciOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   root: string,
   base: string,
@@ -220,8 +219,7 @@ const ciOf = async (
   projectId: string | undefined,
 ): Promise<Standing> => {
   const get = (url: string) =>
-    send(
-      fetch,
+    ask(
       url,
       { headers: headers(auth.value), redirect: "manual" },
       { signIn: signIn(), unauthorized },
@@ -338,7 +336,7 @@ const buildsAsked = 100
 // first), in the list's order: each unfinished one with the agent pool it needs, which is the
 // kind of runner Azure names. Never fails the lookup.
 const checksOf = async (
-  fetch: Fetch,
+  ask: Ask,
   auth: Token,
   root: string,
   number: number,
@@ -350,8 +348,7 @@ const checksOf = async (
     repositoryId === undefined
       ? ""
       : `&repositoryId=${encodeURIComponent(repositoryId)}&repositoryType=TfsGit`
-  const answer = await send(
-    fetch,
+  const answer = await ask(
     `${root}/_apis/build/builds?branchName=${encodeURIComponent(`refs/pull/${number}/merge`)}${own}&queryOrder=queueTimeDescending&$top=${buildsAsked}&api-version=7.1`,
     { headers: headers(auth.value), redirect: "manual" },
     { signIn: signIn(), unauthorized },
@@ -424,10 +421,12 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
   }
   // Three more requests for each open one: its policies, its statuses and its builds.
   const open = [...found].filter(([, pull]) => pull.state === "open" || pull.state === "draft")
+  // One that is rate limited limits the lookup, which is then waited out like the list's own.
+  const { ask, limited } = watched(fetch)
   const read = await pooled(open, async ([branch, pull]) => {
     const [standing, builds] = await Promise.all([
-      ciOf(fetch, auth, root, base, pull.number, projects.get(pull.number)),
-      checksOf(fetch, auth, root, pull.number, repositories.get(pull.number)),
+      ciOf(ask, auth, root, base, pull.number, projects.get(pull.number)),
+      checksOf(ask, auth, root, pull.number, repositories.get(pull.number)),
     ])
     return { branch, pull, standing, builds }
   })
@@ -448,7 +447,7 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       ...(review !== undefined && { review }),
     })
   }
-  return found
+  return limited() ?? found
 }
 
 export const azure: Forge = {
