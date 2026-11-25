@@ -531,6 +531,24 @@ describe("the installer's running-app check", () => {
     )
   })
 
+  it("opens the goodbye page only for an uninstall the person started", () => {
+    const macro = readFileSync(join(process.cwd(), "resources", "installer.nsh"), "utf8")
+    const uninstaller = template("uninstaller.nsh")
+    // The hooks are still reached, and builder's one-click uninstaller still turns silent after
+    // its confirmation, which is why the macro reads the command line and not `${Silent}`.
+    expect(uninstaller).toMatch(/!ifmacrodef customUnInit\s+!insertmacro customUnInit/u)
+    expect(uninstaller).toMatch(/!ifmacrodef customUnInstall\s+!insertmacro customUnInstall/u)
+    expect(uninstaller).toContain("SetSilent silent")
+    const init = /!macro customUnInit([\s\S]*?)!macroend/u.exec(macro)?.[1]
+    expect(init).toContain("${isUpdated}")
+    expect(init).toContain('"/S"')
+    const open = /!macro customUnInstall([\s\S]*?)!macroend/u.exec(macro)?.[1]
+    expect(open).toContain("$novadeckBye == 1")
+    expect(open).toContain("${StdUtils.ExecShellAsUser}")
+    expect(open).toContain("https://novadeck.dev/bye?os=windows&v=$0")
+    expect(open).not.toMatch(/id=|machine|hostname/iu)
+  })
+
   it("is still reached by the installer and the uninstaller", () => {
     expect(template("installSection.nsh")).toContain("!insertmacro CHECK_APP_RUNNING")
     expect(template("uninstaller.nsh")).toContain("!insertmacro CHECK_APP_RUNNING")
