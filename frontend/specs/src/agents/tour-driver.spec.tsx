@@ -34,7 +34,7 @@ const barSays = (words: string): Promise<void> =>
 const startTour = async (address = offered): Promise<void> => {
   await openWorkspace(address)
   await openPreferencesOn("Agents")
-  const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
+  const opencode = preferencesDialog().getByRole("switch", { name: "OpenCode" })
   await opencode.click()
   await expect.element(opencode).toHaveAttribute("aria-checked", "true")
   await closePreferences()
@@ -132,7 +132,7 @@ describe("The tour's driver", () => {
 
     it("says what opencode's plugin not loading asks", async () => {
       await startTour(`${offered}&tourScreen=hooks&tourScreenMs=1500`)
-      await coachSays("Novadeck can't load its plugin into opencode here")
+      await coachSays("Novadeck can't load its plugin into OpenCode here")
     })
   })
 

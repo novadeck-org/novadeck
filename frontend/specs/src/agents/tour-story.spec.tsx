@@ -47,15 +47,15 @@ const standsStill = async (locator: Locator): Promise<void> => {
 // The whole story, with its holds, takes about a minute on screen.
 const walks = { timeout: 240_000 }
 
-// Starts the tour from the footer's Help menu with `name` (opencode), connected first
+// Starts the tour from the footer's Help menu with `name` (OpenCode), connected first
 // in Preferences' Agents: the one agent every part of the story runs on.
-const startTour = async (name = "opencode", address = "/?channel=experimental"): Promise<void> => {
+const startTour = async (name = "OpenCode", address = "/?channel=experimental"): Promise<void> => {
   await openWorkspace(address)
   await beginTour(name)
 }
 
 // The same, in the workspace already open.
-const beginTour = async (name = "opencode"): Promise<void> => {
+const beginTour = async (name = "OpenCode"): Promise<void> => {
   await openPreferencesOn("Agents")
   const agent = preferencesDialog().getByRole("switch", { name })
   await agent.click()
@@ -323,7 +323,7 @@ describe("The tour's story", () => {
     "plays from the agent's start to its closing card, the person's answer and yes included",
     walks,
     async () => {
-      await playToClosing("opencode")
+      await playToClosing("OpenCode")
       // The tour is the person's now: the card offers a way on, and to remove the project. The
       // demo has no folder picker to open a project with, so it offers none.
       expect(closing().getByRole("button", { name: "Open your own project" }).query()).toBeNull()
@@ -339,7 +339,7 @@ describe("The tour's story", () => {
     "keeps the project by itself as the story ends, says why where that fails with another try, and Keep building lands on the lead in Focus",
     walks,
     async () => {
-      await playToClosing("opencode", "/?channel=experimental&tourKeep=fails")
+      await playToClosing("OpenCode", "/?channel=experimental&tourKeep=fails")
       await expect
         .poll(() => closing().query()?.textContent ?? "", { timeout: 10_000 })
         .toContain("Novadeck couldn't keep the project: AGENTS.md can't be written in this folder.")
@@ -363,7 +363,7 @@ describe("The tour's story", () => {
     "drops the run and page steps where the person says no, ending on the model",
     walks,
     async () => {
-      await startTour("opencode")
+      await startTour("OpenCode")
       await answerSheet("Modern", "Strategy")
       await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
       await approval().getByRole("button", { name: "Don't run" }).click()
@@ -380,7 +380,7 @@ describe("The tour's story", () => {
     "closes the card with its own button, keeping nothing and removing nothing",
     walks,
     async () => {
-      await playToClosing("opencode")
+      await playToClosing("OpenCode")
       await closing().getByRole("button", { name: "Close" }).click()
       await expect.element(closing()).not.toBeInTheDocument()
       await expect.poll(() => workspaceSwitcher().element().textContent ?? "").toContain("Tour")
@@ -388,7 +388,7 @@ describe("The tour's story", () => {
   )
 
   it("takes the person's own words for the game, from the Inbox's sheet", walks, async () => {
-    await startTour("opencode")
+    await startTour("OpenCode")
     const sheet = await openSheet()
     await sheet.getByRole("textbox", { name: /^Other: The world/ }).fill("underwater")
     // Words written turn no page: the person goes on to the next question's tab.
@@ -405,7 +405,7 @@ describe("The tour's story", () => {
     "leaves out the run and page steps where there is no page, and ends on the model",
     walks,
     async () => {
-      await startTour("opencode", "/?channel=experimental&tourPage=none")
+      await startTour("OpenCode", "/?channel=experimental&tourPage=none")
       await answerSheet("Fantasy", "RPG")
       // No command to approve: the next thing is the team, then the model.
       await meetTeam()
@@ -423,7 +423,7 @@ describe("The tour's story", () => {
   )
 
   it("nudges a modeller gone quiet, which then shows its model", walks, async () => {
-    await startTour("opencode", "/?channel=experimental&tourModeller=quiet&tourPatienceMs=1500")
+    await startTour("OpenCode", "/?channel=experimental&tourModeller=quiet&tourPatienceMs=1500")
     await answerSheet("Sci-fi", "RPG")
     await allowRun()
     await seePage()
@@ -438,7 +438,7 @@ describe("The tour's story", () => {
     "offers to bring back what the step is about once the person has gone elsewhere, and never takes them back by itself",
     walks,
     async () => {
-      await startTour("opencode")
+      await startTour("OpenCode")
       await answerSheet("Fantasy", "RPG")
       await allowRun()
       await playUntil("Open your Files.")
@@ -464,7 +464,7 @@ describe("The tour's story", () => {
   )
 
   it("offers to open the Inbox in Zen, where the rail is hidden", walks, async () => {
-    await startTour("opencode")
+    await startTour("OpenCode")
     await coachSays("That's your agent. It runs this job.")
     await page.getByRole("button", { name: "Enter Zen mode" }).click()
     // Its button out of sight, the step says so a moment later and offers to open it.
@@ -483,7 +483,7 @@ describe("The tour's story", () => {
     "points at a teammate's own question in the Inbox until the person answers it",
     walks,
     async () => {
-      await startTour("opencode", "/?channel=experimental&tourMate=asks")
+      await startTour("OpenCode", "/?channel=experimental&tourMate=asks")
       await answerSheet("Fantasy", "Shooter")
       await allowRun()
       // The Modeller asks as soon as its first model is up: the tour points at the question,

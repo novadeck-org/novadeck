@@ -38,8 +38,8 @@ jobs:
           - { name: Claude Code, agents: claude }
           - { name: Codex, agents: codex }
           - { name: Antigravity, agents: agy }
-          - { name: opencode, agents: opencode }
-          - { name: pi, agents: pi }
+          - { name: OpenCode, agents: opencode }
+          - { name: Pi, agents: pi }
           - { name: Mixed, agents: "claude,codex,agy,opencode,pi", only: every harness at once }
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache

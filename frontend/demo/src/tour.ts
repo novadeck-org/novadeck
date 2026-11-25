@@ -305,7 +305,7 @@ export const demoTour = (
         .getSnapshot()
         .some((each) => each.agent === "opencode" && each.connected)
       if (!connected)
-        throw new Error("Novadeck isn't connected to opencode, so the tour can't start.")
+        throw new Error("Novadeck isn't connected to OpenCode, so the tour can't start.")
       const removed = (workspace()?.projects ?? [])
         .filter((project) => project.directory === demoTourFolder)
         .map((project) => project.id)

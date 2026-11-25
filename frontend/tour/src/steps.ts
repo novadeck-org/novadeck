@@ -376,7 +376,7 @@ export const screenCoach = (screen: Extract<LeadState, { kind: "screen" }>["scre
   line: "It wants an answer first.",
   note:
     screen === "hooks"
-      ? "Novadeck can't load its plugin into opencode here, so it can't follow it: your environment sets both OPENCODE_CONFIG_CONTENT and OPENCODE_CONFIG, or OPENCODE_PURE. Unset one, then start it again here."
+      ? "Novadeck can't load its plugin into OpenCode here, so it can't follow it: your environment sets both OPENCODE_CONFIG_CONTENT and OPENCODE_CONFIG, or OPENCODE_PURE. Unset one, then start it again here."
       : "Answer it here, in its terminal: it's its own question. The tour goes on once you have.",
 })
 

@@ -20,7 +20,7 @@ describe("An agent's switch", () => {
   it("gives opencode's own words for its version limits, and any other agent the reason's", () => {
     const opencode: AgentSwitch = { ...antigravity, agent: "opencode", limited: "outdated" }
     expect(agentLimit(opencode)).toMatch(/opencode upgrade/)
-    expect(agentLimit({ ...opencode, limited: "unsupported" })).toMatch(/opencode 2/)
+    expect(agentLimit({ ...opencode, limited: "unsupported" })).toMatch(/OpenCode 2/)
     const pi: AgentSwitch = { ...antigravity, agent: "pi", limited: "outdated" }
     expect(agentLimit(pi)).toMatch(/pi update/)
     expect(agentLimit(pi)).not.toMatch(/opencode/i)

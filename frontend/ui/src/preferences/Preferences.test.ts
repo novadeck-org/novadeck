@@ -308,7 +308,7 @@ describe("the Novadeck Agent row", () => {
       },
     })
     expect(document.getElementById("bundled-pi-label")?.textContent).toBe(
-      "Novadeck Agent (pi built in)",
+      "Novadeck Agent (Pi built in)",
     )
     expect(document.getElementById("bundled-pi-description")?.textContent).toContain("50–60 MB")
     expect(note()).toBeNull()
