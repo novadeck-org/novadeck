@@ -589,7 +589,24 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       )
       expect(open).toContain("take_worktree with home changes the home of a worktree you own")
       const take = text("take_worktree")
-      expect(take).toContain("set or change the home of a worktree you own already")
+      expect(take).toContain("with home or title, to set or change them on a worktree you own")
+    })
+
+    it("requires open_worktree's title, and takes one on take_worktree", async () => {
+      answersBy.worktrees = { ok: true, on: true }
+      const [, tools] = await session(terminal(), [initialize, list])
+      const schema = (name: string) =>
+        (tools?.result?.tools as { name: string; inputSchema: object }[] | undefined)?.find(
+          (tool) => tool.name === name,
+        )?.inputSchema
+      expect(schema("open_worktree")).toMatchObject({
+        required: ["branch", "title"],
+        properties: { title: { type: "string", maxLength: 80 } },
+      })
+      expect(schema("take_worktree")).toMatchObject({
+        required: ["path"],
+        properties: { title: { type: "string", maxLength: 80 } },
+      })
     })
 
     it("still sends a call to a tool a harness cached, so the runner can refuse it", async () => {
@@ -641,7 +658,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
           method: "tools/call",
           params: {
             name: "open_worktree",
-            arguments: { branch: "feat/x", from: "main", extra: 1 },
+            arguments: { branch: "feat/x", title: "Users API", from: "main", extra: 1 },
           },
         },
         {
@@ -661,7 +678,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         },
       ])
       expect(calls.map(({ type, request }) => [type, request])).toEqual([
-        ["openWorktree", { branch: "feat/x", from: "main" }],
+        ["openWorktree", { branch: "feat/x", title: "Users API", from: "main" }],
         ["takeWorktree", { path: "/w" }],
         ["closeWorktree", { path: "/w", force: true }],
         ["giveWorktree", { path: "/w", to: "@fox" }],
@@ -675,6 +692,8 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       expect(text(open)).toContain("AGENTS.md")
       expect(text(take)).toContain("Asked the user to let you take the worktree /w")
       expect(text(take)).toContain("@fox")
+      // Asked, it isn't the caller's yet: nothing is said of its title.
+      expect(text(take)).not.toContain("title")
       expect(text(close)).toContain("refs/novadeck/kept/b")
       expect(text(close)).toContain("Its branch b stays")
       expect(text(give)).toContain("@fox")
@@ -1323,6 +1342,67 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       required: ["title", "summary"],
       additionalProperties: false,
     })
+    calls.length = 0
+    answer = { ok: true, worktree: { branch: "feat/users", title: "Users API v2" } }
+    const [, titled] = await session(terminal(), [
+      initialize,
+      {
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "describe",
+          arguments: {
+            title: "Users API",
+            summary: "Builds the users API.",
+            worktree: "/w",
+            worktreeTitle: "Users API v2",
+          },
+        },
+      },
+    ])
+    expect(calls[0]?.request).toEqual({
+      title: "Users API",
+      summary: "Builds the users API.",
+      worktree: "/w",
+      worktreeTitle: "Users API v2",
+    })
+    expect((titled!.result as { content: { text: string }[] }).content[0]?.text).toBe(
+      'Described this terminal, and titled the worktree on feat/users "Users API v2".',
+    )
+  })
+
+  it("says when a worktree taken has no title, and how to give it one", async () => {
+    answersBy.worktrees = { ok: true, on: true }
+    const take = async (taken: object) => {
+      answersBy.takeWorktree = taken
+      const [, said] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "take_worktree", arguments: { path: "/w" } },
+        },
+      ])
+      const content = (said?.result as { content?: { text: string }[] } | undefined)?.content
+      return content?.[0]?.text ?? ""
+    }
+    expect(await take({ ok: true, path: "/w", branch: "b" })).toContain(
+      "It has no title: take_worktree with title gives it one.",
+    )
+    expect(await take({ ok: true, path: "/w", branch: "b", already: true })).toContain(
+      "It has no title",
+    )
+    const titled = await take({ ok: true, path: "/w", branch: "b", title: "T" })
+    expect(titled).not.toContain("no title")
+    expect(titled).toContain('(branch b, titled "T")')
+    expect(
+      await take({ ok: true, path: "/w", branch: "b", asked: true, titleKept: true }),
+    ).toContain("It keeps its own title")
+    expect(
+      await take({ ok: true, path: "/w", branch: "b", asked: true, titleOnYes: true }),
+    ).toContain("It has no title, so it takes yours if they agree.")
+    delete answersBy.worktrees
+    delete answersBy.takeWorktree
   })
 
   it("forwards a call to the terminal's runner with its token, and says what happened", async () => {

@@ -68,6 +68,32 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(disconnected, off.id, /codex args: resume abc\r?\n/)
     })
 
+    it("binds Novadeck's own pi though the person's pi isn't connected, and only it", async ({
+      shell,
+    }) => {
+      const own = randomUUID()
+      const persons = randomUUID()
+      const owned = reporter(join(shell.home, "own"), [
+        { agent: "pi", sessionId: own, seq: 1, source: "startup", fields: { novadeck_own: true } },
+      ])
+      const plain = reporter(join(shell.home, "plain"), [
+        { agent: "pi", sessionId: persons, seq: 1, source: "startup" },
+      ])
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: process.env.PATH },
+        connected: () => Promise.resolve(false),
+      })
+      const ours = await create(manager, shell)
+      const theirs = await create(manager, shell)
+      manager.write({ terminalId: theirs.id, data: `'${join(plain, "report")}'\r` }, "owner")
+      manager.write({ terminalId: ours.id, data: `'${join(owned, "report")}'\r` }, "owner")
+      await shell.until(manager, theirs.id, "reports sent")
+      await shell.until(manager, ours.id, "reports sent")
+
+      await expect.poll(() => manager.reportedSession(ours.id, "pi")).toBe(own)
+      expect(manager.reportedSession(theirs.id, "pi")).toBeNull()
+    })
+
     it("keeps only the latest report of each agent, by when it was sent", async ({ shell }) => {
       const bin = reporter(shell.home, [
         { agent: "codex", sessionId: "s3", seq: 3, source: "startup" },

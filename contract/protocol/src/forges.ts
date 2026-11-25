@@ -52,7 +52,7 @@ const command = z
 // forge's own terms map to these.
 export const pullRequestCheck = z.strictObject({
   name: z.string().min(1).max(forgeLimits.check),
-  state: openEnum(["passed", "failed", "running", "waiting"], { since: 16, unknown: "drop" }),
+  state: openEnum(["passed", "failed", "running", "waiting"], { since: 18, unknown: "drop" }),
 })
 
 export const pullRequest = z.strictObject({
@@ -64,7 +64,7 @@ export const pullRequest = z.strictObject({
   base: z.string().min(1).max(forgeLimits.branch).optional(),
   checks: z.array(pullRequestCheck).max(forgeLimits.checks).optional(),
   review: openEnum(["approved", "changes_requested", "required", "none"], {
-    since: 16,
+    since: 18,
     unknown: { fallback: "none" },
   }).optional(),
 })

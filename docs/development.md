@@ -330,7 +330,8 @@ Terminals:
   rows' safe-to-close standing reads (a failing, a running and a passed check, a draft with none, a
   merged and a closed one that are safe, and docs-site's merged one holding two uncommitted files); New lines,
   Many files and Work merged move those counts too. Commits not pushed gives the worktree 2 commits no
-  remote holds, Work with a home adds "→ JIRA-123" after its branch (again to remove it), Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
+  remote holds, Work with a home adds "→ JIRA-123" after its branch (again to remove it), Untitled worktree
+  takes the work's agent-given title away (again to give it one), Untouched a day dates its last change 26 h back, Uncommitted files 3 uncommitted paths (a merged one then reads unsafe), and Origin
   fetched 3 h ago dates its fetch three hours back; Commits main lacks is not merged because a merged one with nothing
   uncommitted is safe, and closes without asking. The demo's
   fetch moves its project's fetch time to now. In the showcase, selecting a row shows its work as a changes item on the terminal's
@@ -966,6 +967,13 @@ App:
   detail line ends in its state's glyph and "#812" beside its trash button, a link to the pull request's page,
   and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
   a "#812" chip in its row, which opens the page in the browser.
+- **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
+  Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",
+  "Downloading, size unknown", "Downloading", "Ready" and "Failed" put the row in that state
+  without a reboot: the note under its description reads "Starting the download…", "Downloading
+  pi…", the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in
+  the demo plays a download of pi's size over a few seconds (`frontend/demo/src/bundled-pi.ts`).
+  A runner from before revision 16 offers no row at all.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;

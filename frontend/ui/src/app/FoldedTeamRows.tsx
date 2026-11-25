@@ -2,6 +2,8 @@ import { descendantsOf, teamOf } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { terminalGlance } from "@novadeck/core/terminals/ending"
 import type { TerminalMetadata } from "@novadeck/core/types"
+import { NeedMark } from "@novadeck/toolkit/NeedMark"
+import { glyphDelay, PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 
 import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -12,9 +14,6 @@ import { useTerminalMarks } from "./useTerminalMarks"
 // How many teammates a folded lead lists one by one; past it, the last row counts the rest,
 // as a tab's subagent rows do.
 const listedRows = 4
-
-// Each spinner starts at its own frame, so rows side by side don't tick as one.
-export const markDelay = (index: number) => ({ animationDelay: `-${((index + 1) * 260) % 800}ms` })
 
 // A teammate as its tab reads it: the terminal and its phase, need and failure, from the
 // same marks and unread end the tab uses (terminalGlance), so rows and tabs never drift
@@ -71,11 +70,12 @@ const FoldedRow = ({
       }}
     >
       <span className="terminal-tab-branch shrink-0">{last ? "└" : "├"}</span>
-      <span
+      {/* Each spinner starts at its own frame, so rows side by side don't tick as one. */}
+      <PhaseGlyph
+        phase={phase}
+        failed={failed}
         className="team-fold-mark"
-        data-phase={phase}
-        {...(phase === "done" && failed ? { "data-failed": true } : {})}
-        style={markDelay(index)}
+        style={glyphDelay(index)}
       />
       <span className="truncate" {...(tile.state === "sleeping" ? { "data-sleeping": true } : {})}>
         {tile.name}
@@ -83,11 +83,7 @@ const FoldedRow = ({
       {below.length > 0 && <span className="team-fold-count shrink-0">+{below.length}</span>}
       {/* What it, or any terminal it folds away with it, needs of the person: the strongest. */}
       <span className="team-fold-needs">
-        {need && (
-          <span className="terminal-tab-need shrink-0" data-need={need}>
-            {need === "unblock" ? "!" : "?"}
-          </span>
-        )}
+        {need && <NeedMark need={need} />}
         {below.map((each) => (
           <UnlistedNeed key={each} id={each} />
         ))}
@@ -100,11 +96,7 @@ const FoldedRow = ({
 // or nothing.
 export const UnlistedNeed = ({ id }: { id: string }): React.JSX.Element | null => {
   const need = useGlance(id)?.glance.need
-  return need ? (
-    <span className="terminal-tab-need shrink-0" data-need={need}>
-      {need === "unblock" ? "!" : "?"}
-    </span>
-  ) : null
+  return need ? <NeedMark need={need} /> : null
 }
 
 // A folded lead's teammates, under its line: a row each, so the tab grows to hold the team it
@@ -160,7 +152,7 @@ export const FoldedTeamRows = ({ lead }: { lead: string }): React.JSX.Element | 
               }}
             >
               <span className="terminal-tab-branch shrink-0">└</span>
-              <span className="team-fold-mark" />
+              <PhaseGlyph phase="idle" className="team-fold-mark" />
               <span className="truncate">+{rest} more</span>
               <span className="team-fold-needs">
                 {folded

@@ -16,7 +16,7 @@ import {
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
-import { commonOf, targetOf, type Target } from "../checkouts/home.js"
+import { commonOf, keysOfBranch, targetOf, type Target } from "../checkouts/home.js"
 import { listChanges, type Listed } from "../checkouts/listing.js"
 import {
   branchOf,
@@ -41,7 +41,7 @@ import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
 import { carry, oversized, textAt } from "./preview.js"
-import { safeOf, uncommittedOf, unpushedOf } from "./standing.js"
+import { changedAtOf, pendingOf, safeOf, uncommittedOf, unpushedOf } from "./standing.js"
 
 const log = logs.for("works")
 
@@ -60,6 +60,8 @@ export type Tracked = {
   readonly terminalId: string | null
   /** When it was recorded, in epoch milliseconds: the time of a work that differs from nothing. */
   readonly createdAt: number
+  /** Made elsewhere and taken in (take_worktree), rather than made by Novadeck. */
+  readonly adopted?: boolean | undefined
   /** The commit it started from; undefined where that is not known. */
   readonly base?: string | undefined
   /** When its repository's origin was last fetched; undefined if never. */
@@ -170,6 +172,8 @@ type Read = {
   readonly uncommitted: number | undefined
   /** HEAD's commits no remote holds, as of when it was read; undefined likewise. */
   readonly unpushed: number | undefined
+  /** When the checkout last changed, as of the snapshot (see `changedAtOf`); undefined likewise. */
+  readonly changedAt: number | undefined
   /** Untracked files over the size limit were left out of the snapshot. */
   readonly skipped: boolean
   readonly common: string | undefined
@@ -182,6 +186,19 @@ type Kind = {
   readonly status: Detail["status"]
   readonly from?: string
   readonly blob: string
+}
+
+/**
+ * A title as a work tells it: one line, its spaces collapsed, at most `workLimits.title`
+ * characters; none where nothing is left. Novadeck writes it clean, but anyone may set the key.
+ */
+export const shownTitle = (title: string | undefined): string | undefined => {
+  if (title === undefined) return undefined
+  const line = title
+    .replace(/[\p{Cc}\p{Cf}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  return [...line].slice(0, workLimits.title).join("").trim() || undefined
 }
 
 /** When a file was first seen as the object it is now. */
@@ -868,7 +885,9 @@ export class Works {
     const { main } = target
     const others = target.holders.filter((each) => each.commit !== main.commit)
     const home = target.home
-    const uncommitted = await uncommittedOf(root, snapshot)
+    const pending = await pendingOf(root, snapshot)
+    const uncommitted = await uncommittedOf(root, snapshot, pending)
+    const changedAt = await changedAtOf(root, snapshot, pending)
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
     // Differs from nothing: merged, squashed in or just made.
@@ -887,6 +906,7 @@ export class Works {
       conflicts: [],
       uncommitted,
       unpushed,
+      changedAt,
       skipped: snapshot.skipped,
       common: await commonDir(root),
       env: snapshot.env,
@@ -969,6 +989,7 @@ export class Works {
         merge.state === "conflict" ? merge.files : merge.state === "clean" ? [] : undefined,
       uncommitted,
       unpushed,
+      changedAt,
       skipped: snapshot.skipped,
       common: await commonDir(root),
       env: snapshot.env,
@@ -998,6 +1019,20 @@ export class Works {
         ),
       ),
     )
+    // Read each pass, from the config git reads only once it changed: a title given since shows.
+    const titles = new Map(
+      await Promise.all(
+        reads.map(
+          async ({ root, read }) =>
+            [
+              root,
+              read.branch === null
+                ? undefined
+                : shownTitle((await keysOfBranch(root, read.branch)).title),
+            ] as const,
+        ),
+      ),
+    )
     this.onBranches = reads.flatMap((each) =>
       each.commonDir !== undefined && each.read.branch !== null
         ? [{ commonDir: each.commonDir, branch: each.read.branch }]
@@ -1009,6 +1044,7 @@ export class Works {
       terminalId,
       projectId,
       createdAt,
+      adopted,
       fetchedAt,
       commonDir: repository,
       read,
@@ -1037,6 +1073,7 @@ export class Works {
           ? this.validPullRequest(this.options.pullRequest?.(repository, read.branch))
           : undefined
       const safe = safeOf({ ...read, pullRequest: request })
+      const title = titles.get(root)
       found.set(root, {
         root,
         terminalId,
@@ -1049,6 +1086,13 @@ export class Works {
         branch: read.branch,
         base: read.base,
         ...(read.home !== undefined && { home: read.home }),
+        ...(title !== undefined && { title }),
+        // One Novadeck made changed no earlier than then: made from older commits, it is new work.
+        // One taken in was there before, untouched as long as its files say.
+        changedAt:
+          adopted === true
+            ? (read.changedAt ?? createdAt)
+            : Math.max(read.changedAt ?? 0, createdAt),
         merged: read.merged,
         // Only a main that a fetch moves (a remote-tracking ref) is as old as the fetch.
         ...(fetchedAt !== undefined && read.base.startsWith("origin/") && { fetchedAt }),

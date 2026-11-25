@@ -1236,6 +1236,25 @@ everything it started at the deadline. Without
 the relay, the hook launcher prints what `relay.json` would, as it is written from the
 same tables.
 
+**Fetch**, run by the launcher of Novadeck's own pi (`shell/bundled/pi`, from
+harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` before each start: the runner answers
+at once where the program is in place, and otherwise downloads the pinned build for its system
+(`harnesses/bundled-pi.ts`), the relay showing its progress in the terminal. While Novadeck
+Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner refuses with
+`Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started.
+
+1. The relay sends `{"relay":2,"kind":"fetch","terminalId","token","name"}`.
+2. The runner answers a line `{"progress":"<line>"}` for each step (a download's whole
+   percent, then unpacking), then `{"ready":true}` or `{"error":"<reason>"}`, and ends the
+   connection. A download takes as long as it takes; the runner gives up on one that sends
+   nothing for 30 s. Launches fetching at once share one download.
+3. The relay writes each progress line to stderr, over the last on a terminal, one under
+   the other elsewhere; it exits 0 once ready, and otherwise 1 with
+   `Novadeck couldn't get pi: <reason>`. Outside Novadeck's terminals it fails at once.
+
+The runner doesn't check the terminal's token for a fetch: its endpoint is the person's
+alone, and all a fetch can ask is the pinned, checksummed download.
+
 On Windows the runner also runs the relay for what it would otherwise start PowerShell
 or taskkill for:
 
@@ -1295,7 +1314,7 @@ uncommitted === 0 && unpushed === 0)`, never while its pull request is open or a
 ignores `unpushed`, as a squash merge often deletes its remote branch. Each is absent where it couldn't be
 read. Its `pullRequest` (from the forges the person switched on) carries `ci` for an open one: `failing`,
 `running`, `passed` or `none` (none ran), absent where the forge couldn't say or the pull request is
-merged or closed. Since revision 16 it also carries `base`, the branch it targets, whatever its state;
+merged or closed. Since revision 18 it also carries `base`, the branch it targets, whatever its state;
 for an open one `checks`, each check on its latest commit (`name`, and `state` of `passed`, `failed`,
 `running` or `waiting`, for a runner, an approval or an earlier job), in the forge's order, at most 100,
 absent where `ci` is or the forge listed none; and `review`: `approved`, `changes_requested`,

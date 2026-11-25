@@ -1,0 +1,20 @@
+/* The need-mark recipe (NeedMark.tsx): what something in a row needs of the person, right after
+   what the row names, in the phase glyph's style (phase-glyph.css): `!` where it can't go on
+   without them, `?` where it asks, a gray bell-off where that is snoozed. The only warning colour
+   on the row. A terminal's tab draws its agent's with it, as do a folded teammate's row and the
+   close dialog's rows.
+
+   Hooks: data-need="unblock" | "ask" | "snoozed".
+
+   Tokens, each optional (its fallback in brackets): --tab-process-font (--font-glyphs): the
+   mark's font. --tab-need-fg (warning-fg): `!` and `?`. --tab-snoozed-fg (muted): the bell-off. */
+.need-mark {
+  font-family: var(--tab-process-font, var(--font-glyphs));
+  font-weight: 700;
+  color: var(--tab-need-fg, var(--color-warning-fg));
+}
+.need-mark[data-need="snoozed"] {
+  display: inline-flex;
+  align-self: center;
+  color: var(--tab-snoozed-fg, var(--color-muted));
+}

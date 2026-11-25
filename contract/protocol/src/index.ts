@@ -233,6 +233,8 @@ export {
   maxInboxResolved,
   maxInboxEntryIdLength,
   runnerSettings,
+  bundledPiFetch,
+  type BundledPiFetch,
   type RunnerSettings,
   type RunnerSettingsState,
 } from "./settings.js"

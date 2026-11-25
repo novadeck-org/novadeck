@@ -23,15 +23,17 @@ import {
 import type { Tile } from "@novadeck/core/types"
 import { Avatar, type AvatarLive } from "@novadeck/items/Avatar"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
-import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { NeedMark } from "@novadeck/toolkit/NeedMark"
+import { PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 import {
   SidebarItem,
+  SidebarItemHandle,
   sidebarRowIconClasses,
   sidebarRowWideIconClasses,
 } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useRenderAt } from "@novadeck/toolkit/useRenderAt"
-import { BellOff, Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
+import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, type ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
@@ -172,7 +174,7 @@ export const TerminalTab = ({
   const label = terminalLabel(terminal.name, shell?.handle)
   // The detail line shows the state: a glyph (a spinner while a program runs) before the
   // program, what the agent needs of the person right after it, or a note while the shell
-  // starts. A tab that has ended is hatched (styles.css); assistive technology says how it
+  // starts. A tab that has ended is hatched (sidebar-item.css); assistive technology says how it
   // ended.
   const { phase, need, snoozed, failed, brightened, text } = shell
     ? terminalNote(
@@ -258,15 +260,7 @@ export const TerminalTab = ({
   })
   // Right after the program: `!` where it can't go on without the person, `?` where it asks,
   // a bell-off where that is snoozed.
-  const needMark = need ? (
-    <span aria-hidden className="terminal-tab-need shrink-0" data-need={need}>
-      {need === "unblock" ? "!" : "?"}
-    </span>
-  ) : snoozed ? (
-    <span aria-hidden className="terminal-tab-need shrink-0" data-need="snoozed">
-      <BellOff size={11} strokeWidth={2} />
-    </span>
-  ) : undefined
+  const needMark = need || snoozed ? <NeedMark need={need ?? "snoozed"} hidden /> : undefined
   const tab = (
     <div className="contents">
       <SidebarItem
@@ -278,15 +272,16 @@ export const TerminalTab = ({
         detail={
           <>
             {/* One glyph wide in every phase, so the text beside it never shifts. */}
-            <span
-              aria-hidden
-              className={`terminal-glyph inline-block w-[1ch] shrink-0 text-center${waits ? " terminal-tab-wait" : ""}`}
-              {...(waits && shell
-                ? {
-                    "data-wait": waits.jobs.length > 0 ? "job" : "wake",
-                    "data-wake-fill": wakeFill(shell),
-                  }
-                : {})}
+            <PhaseGlyph
+              phase={phase}
+              failed={failed}
+              wait={
+                waits && shell
+                  ? waits.jobs.length > 0
+                    ? { kind: "job" }
+                    : { kind: "wake", fill: wakeFill(shell) }
+                  : undefined
+              }
             />
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
@@ -320,10 +315,7 @@ export const TerminalTab = ({
             {/* After the program, so the program comes first; where a pointer hovers it
                 waits in the slot Hide and Rename fade into (tabs.css). Only on a terminal
                 agents name by its handle (core/terminals/handle.ts). */}
-            <HandleChip
-              handle={shell && showsHandle(shell) ? shell.handle : undefined}
-              className="handle-plain terminal-tab-handle sidebar-item-end"
-            />
+            <SidebarItemHandle handle={shell && showsHandle(shell) ? shell.handle : undefined} />
           </>
         }
         {...((marks || waits || passed || foldedRows) && !editing
@@ -351,6 +343,7 @@ export const TerminalTab = ({
         data-terminal-phase={phase}
         {...(shell?.state === "sleeping" ? { "data-terminal-sleeping": true } : {})}
         {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
+        {...(phase === "ended" ? { "data-ended": true } : {})}
         {...(need ? { "data-terminal-need": need } : {})}
         {...(snoozed ? { "data-terminal-snoozed": true } : {})}
         {...(brightened ? { "data-terminal-unread": true } : {})}
@@ -362,7 +355,7 @@ export const TerminalTab = ({
         {...(level ? { "data-team-level": Math.min(level, 3) } : {})}
         // A teammate folded away leaves the layout, and unrolls from no height: as utilities,
         // since the tab's own `flex` and least height are (tabs.css has the rest).
-        className={`terminal-tab [--_sidebar-actions-space:76px] data-[team-fold=away]:hidden data-[team-fold=away]:min-h-0 data-[team-fold=unfolding]:starting:min-h-0 ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
+        className={`terminal-tab [--_sidebar-actions-space:76px] [--sidebar-item-resting-actions:26px] data-[team-fold=away]:hidden data-[team-fold=away]:min-h-0 data-[team-fold=unfolding]:starting:min-h-0 ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
         editing={editing}
         editor={
           rename ? (

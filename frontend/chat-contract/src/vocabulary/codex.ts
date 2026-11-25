@@ -171,7 +171,7 @@ export const codexVocabulary: readonly Written[] = [
         ["open_terminal", { command: "npm run dev" }, "Opened", "mcp__novadeck"],
         ["close_terminal", { to: "builder" }, "Closed", "mcp__novadeck"],
         ["close_terminal", {}, "Closed", "mcp__novadeck"],
-        ["open_worktree", { branch: "feat/login" }, "Opened", "mcp__novadeck"],
+        ["open_worktree", { branch: "feat/login", title: "Login page" }, "Opened", "mcp__novadeck"],
         [
           "take_worktree",
           { path: "/home/user/.novadeck/worktrees/p/g/api" },

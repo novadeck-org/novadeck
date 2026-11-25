@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { openEnum } from "./open.js"
+
 // How many of the Inbox's entries, and how long an entry's key (`<id>@<at>`), the person's order
 // of them and their snoozes keep.
 export const maxInboxOrder = 200
@@ -59,6 +61,24 @@ export const runnerSettings = z.strictObject({
   // on: Claude Code's and Codex's shell commands that ship work (push to another branch, land,
   // open or merge a PR) then need a permit, and while it is off nothing changes.
   shippingGate: z.boolean(),
+  // Whether Novadeck's own pi (Novadeck Agent) may be fetched and started, an Experimental
+  // feature, off until the person turns it on: on, the runner downloads its pinned pi at once;
+  // off, it fetches and starts none, and keeps a copy it has. From revision 16: a runner before
+  // it drops the key, and a UI offers the switch only where the runner's settings report it.
+  bundledPi: z.boolean().optional(),
+})
+
+// Where the fetch of Novadeck's own pi stands: `off` while its switch is off, `downloading`
+// with the bytes so far of `size`, `ready` once it is in place, `failed` with why (turning the
+// switch on again tries again). A state a UI doesn't know reads as `off`.
+export const bundledPiFetch = z.strictObject({
+  state: openEnum(["off", "downloading", "ready", "failed"], {
+    since: 16,
+    unknown: { fallback: "off" },
+  }),
+  received: z.number().int().nonnegative().optional(),
+  size: z.number().int().positive().optional(),
+  error: z.string().max(500).optional(),
 })
 
 // The settings as the runner reports them, with what it can do whatever they say.
@@ -66,8 +86,11 @@ export const runnerSettingsState = runnerSettings.extend({
   // Whether transcripts can be kept here at all: they are kept only encrypted, so not where
   // nothing protects their key, as a Linux desktop with no keyring or a runner on its own.
   transcriptsAvailable: z.boolean(),
+  // Where the fetch of Novadeck's own pi stands; absent from a runner before 16.
+  bundledPiFetch: bundledPiFetch.optional(),
 })
 
 export type AgentMode = z.infer<typeof agentMode>
 export type RunnerSettings = z.infer<typeof runnerSettings>
 export type RunnerSettingsState = z.infer<typeof runnerSettingsState>
+export type BundledPiFetch = z.infer<typeof bundledPiFetch>

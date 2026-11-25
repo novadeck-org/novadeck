@@ -125,6 +125,40 @@ describe("the shipping gate setting", () => {
   })
 })
 
+describe("the Novadeck Agent setting", () => {
+  it("isn't offered by a runner from before it (revision 15), which reports no switch", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.bundledPi).toBeUndefined()
+    app.stop()
+  })
+
+  it("shows what the runner said, and changes it there, a retry as on again", async () => {
+    const app = scripted({ shown: [], bundledPi: false })
+    const { enabled, fetch, set } = app.backend.bundledPi!
+    expect(enabled.getSnapshot()).toBe(false)
+    expect(fetch.getSnapshot()).toEqual({ state: "off" })
+    set(true)
+    expect(enabled.getSnapshot()).toBe(true)
+    set(true)
+    await app.idle()
+    expect(app.of("settings")).toEqual([{ bundledPi: true }, { bundledPi: true }])
+    app.stop()
+  })
+
+  it("goes back when the runner could not change it", async () => {
+    const app = scripted({
+      shown: [],
+      bundledPi: false,
+      saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
+    })
+    const { enabled, set } = app.backend.bundledPi!
+    set(true)
+    await app.idle()
+    expect(enabled.getSnapshot()).toBe(false)
+    app.stop()
+  })
+})
+
 describe("the agents' mode setting", () => {
   it("shows what the runner said, and changes it there", async () => {
     const app = scripted({ shown: [] })

@@ -222,6 +222,22 @@ describe("the debug panel's Worktrees group", () => {
     expect(work(1)!.home).toBeUndefined()
   })
 
+  it("takes the selected terminal's worktree title away, and gives one on a second run", () => {
+    const { run, work } = setup([])
+    run("Untitled worktree", 1)
+    expect(work(1)!.title).toBeUndefined()
+    expect(work(1)).not.toHaveProperty("title")
+    run("Untitled worktree", 1)
+    expect(work(1)).toMatchObject({ title: "Checkout rounding fix" })
+  })
+
+  it("dates the selected terminal's last change a day and more back", () => {
+    const { run, work } = setup([])
+    const before = Date.now()
+    run("Untouched a day", 1)
+    expect(work(1)!.changedAt).toBeLessThanOrEqual(before - 24 * 60 * 60_000)
+  })
+
   it("puts a spread of works in the session at once", () => {
     const { run, work, rootOf } = setup([])
     run("Every state in Worktrees", 0)

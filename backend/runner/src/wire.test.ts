@@ -563,6 +563,56 @@ describe("workspace metadata API", () => {
     await settings.return?.(undefined)
   })
 
+  it("offers no Novadeck Agent switch where the runner has no shell files to start it from", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    const settings = await client.settings.get()
+    expect(settings).not.toHaveProperty("bundledPi")
+    expect(settings).not.toHaveProperty("bundledPiFetch")
+  })
+
+  it("starts and stops Novadeck's own pi's fetch with its switch, telling where it stands", async ({
+    resources,
+  }) => {
+    // Archives from an empty folder: the fetch fails at once, as a release that can't be had.
+    const empty = await mkdtemp(join(tmpdir(), "novadeck-no-release-"))
+    resources.defer(() => rm(empty, { recursive: true, force: true }))
+    const before = process.env.NOVADECK_BUNDLED_PI_SOURCE
+    process.env.NOVADECK_BUNDLED_PI_SOURCE = empty
+    resources.defer(() => {
+      if (before === undefined) delete process.env.NOVADECK_BUNDLED_PI_SOURCE
+      else process.env.NOVADECK_BUNDLED_PI_SOURCE = before
+    })
+    const app = await fixture(resources, { shell: join(empty, "shell") })
+    const { client } = await app.connect()
+    expect(await client.settings.get()).toMatchObject({
+      bundledPi: false,
+      bundledPiFetch: { state: "off" },
+    })
+    const settings = await client.settings.watch()
+    await settings.next()
+
+    await client.settings.set({ bundledPi: true })
+    // The changes in turn, until the fetch stands as `state`.
+    const fetchOf = async (state: string) => {
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop -- Each change in turn, until it stands so.
+        const { value } = await settings.next()
+        const fetch = (value as { bundledPiFetch?: { state: string } }).bundledPiFetch
+        if (fetch?.state === state) return { value, fetch }
+      }
+    }
+    const failed = await fetchOf("failed")
+    expect(failed.value).toMatchObject({ bundledPi: true })
+    expect(failed.fetch).toMatchObject({ state: "failed", error: expect.any(String) })
+
+    await client.settings.set({ bundledPi: false })
+    expect((await fetchOf("off")).value).toMatchObject({ bundledPi: false })
+    await settings.return?.(undefined)
+  })
+
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
     const app = await fixture(resources)
     const { client } = await app.connect()

@@ -9,7 +9,13 @@ import { pullRequest } from "./forges.js"
 // for a worktree just made or already merged. It lives as long as the worktree is tracked.
 
 /** How many files a work lists at most, and how long a path or branch name runs. */
-export const workLimits = { files: 300, path: 4096, branch: 256, conflicts: 32 } as const
+export const workLimits = {
+  files: 300,
+  path: 4096,
+  branch: 256,
+  conflicts: 32,
+  title: 80,
+} as const
 
 const count = z.number().int().min(0)
 
@@ -65,6 +71,14 @@ export const workConflict = z.discriminatedUnion("with", [
 // architecture/worktree-home.md); absent where home is the repository's main, as for most work.
 // `base` is then what home is measured by: home's remote-tracking branch where that holds local
 // home, else local home.
+// `title` is what its work is, in one short line its agent gave (open_worktree's `title`, git
+// config `branch.<branch>.novadeckTitle`); absent for a worktree no agent titled, as one made
+// by hand or before titles. `changedAt` is when the worktree last changed, in epoch
+// milliseconds: the newest of its last commit's time and its uncommitted files' modification
+// times, and for a worktree Novadeck made, never before it made it; absent from runners before it.
+// It can move back (a change reverted or stashed), and an untracked file kept out of the
+// snapshot as a secret (`.env`) moves it only with another change: it tells a worktree left
+// untouched a while, not each edit.
 // `uncommitted` is how many paths hold changes not committed (staged, unstaged or untracked,
 // not ignored); `unpushed` how many of HEAD's commits no remote-tracking branch holds (all of
 // its own where nothing was pushed). `safe` where closing it leaves nothing that lives only
@@ -79,6 +93,8 @@ export const work = z.strictObject({
   branch: z.string().min(1).max(workLimits.branch).nullable(),
   base: z.string().min(1).max(workLimits.branch),
   home: z.string().min(1).max(workLimits.branch).optional(),
+  title: z.string().min(1).max(workLimits.title).optional(),
+  changedAt: z.number().optional(),
   firstSeenAt: z.number(),
   merged: z.boolean(),
   fetchedAt: z.number().optional(),

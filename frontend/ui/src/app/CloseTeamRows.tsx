@@ -1,7 +1,9 @@
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { NeedMark } from "@novadeck/toolkit/NeedMark"
+import { glyphDelay, PhaseGlyph } from "@novadeck/toolkit/PhaseGlyph"
 
 import type { CloseTeamRow } from "../terminals/close-team"
-import { markDelay, UnlistedNeed, useGlance } from "./FoldedTeamRows"
+import { UnlistedNeed, useGlance } from "./FoldedTeamRows"
 
 // One terminal of the team the dialog lists, in the folded team's row (tabs.css): its
 // branch, its phase glyph and name, its plain handle, and what it needs of the person, read
@@ -21,11 +23,13 @@ const CloseTeamRowView = ({
   return (
     <li className="team-fold-row close-team-row" data-close-team-row={row.id}>
       <span className="terminal-tab-branch shrink-0">{row.branch}</span>
-      <span
+      <PhaseGlyph
+        phase={phase}
+        failed={failed}
         className="team-fold-mark"
-        data-phase={phase}
-        {...(phase === "done" && failed ? { "data-failed": true } : {})}
-        style={markDelay(index)}
+        // The dialog's list has no words for it, so a screen reader reads the glyph.
+        hidden={false}
+        style={glyphDelay(index)}
       />
       <span className="truncate" {...(tile.state === "sleeping" ? { "data-sleeping": true } : {})}>
         {tile.name}
@@ -35,11 +39,7 @@ const CloseTeamRowView = ({
         <span className="team-fold-count shrink-0">+{row.folded.length}</span>
       )}
       <span className="team-fold-needs">
-        {need && (
-          <span className="terminal-tab-need shrink-0" data-need={need}>
-            {need === "unblock" ? "!" : "?"}
-          </span>
-        )}
+        {need && <NeedMark need={need} />}
         {row.folded.map((id) => (
           <UnlistedNeed key={id} id={id} />
         ))}

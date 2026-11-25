@@ -281,6 +281,7 @@ describe("fetching for real", () => {
     })
     resources.defer(() => worktrees.stop())
     const opened = await worktrees.open({
+      title: "Some work",
       projectId: project,
       terminalId: "t1",
       cwd: f.clone,

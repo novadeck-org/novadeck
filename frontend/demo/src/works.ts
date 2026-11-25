@@ -66,8 +66,13 @@ export type WorkPlan = {
   readonly terminal: string | null
   // Its branch; the owner's title as a branch when left out.
   readonly branch?: string
+  // Its title, as its agent gave it; the owner's title when left out, none for a worktree
+  // with no owner (one made by hand).
+  readonly title?: string
   // How long ago it first differed from main.
   readonly minutesAgo: number
+  // How long ago it last changed; as long ago as it first differed when left out.
+  readonly changedMinutesAgo?: number
   // How long ago its repository's origin was last fetched, so main is that old; left out: never.
   readonly fetchedMinutesAgo?: number
   // None: the worktree differs from nothing, so closing it asks no question.
@@ -258,6 +263,8 @@ export const worksFromPlans = (
           working: plan.working === true,
           branch: at.branch,
           base: "main",
+          ...((plan.title ?? plan.terminal) !== null && { title: plan.title ?? plan.terminal! }),
+          changedAt: now - (plan.changedMinutesAgo ?? plan.minutesAgo) * minute,
           ...(plan.fetchedMinutesAgo !== undefined && {
             fetchedAt: now - plan.fetchedMinutesAgo * minute,
           }),
@@ -409,7 +416,7 @@ export type DemoWorksControl = {
   readonly gain: (at: Placed, lines?: number) => void
   // The terminal's worktree on `branch`, just made (the tour's teammates open theirs so): it differs
   // from nothing; none is made where the terminal has one.
-  readonly openBranch: (at: Placed, branch: string) => void
+  readonly openBranch: (at: Placed, branch: string, title?: string) => void
   // The terminal's work changes exactly these files, as of `at`: what an agent's edit leaves.
   readonly setFiles: (terminalId: string, files: readonly FilePlan[], at: number) => void
   // The work changes `count` more files.
@@ -458,6 +465,10 @@ export type DemoWorksControl = {
   readonly setUncommitted: (at: Placed, count: number) => void
   // The terminal's worktree belongs on the branch `home` (not main), or on main again.
   readonly setHome: (at: Placed, home: string | undefined) => void
+  // The terminal's worktree has this title, or none (made by hand, or before titles).
+  readonly setTitle: (at: Placed, title: string | undefined) => void
+  // The terminal's worktree last changed `minutes` ago.
+  readonly changedAgo: (at: Placed, minutes: number) => void
   // The terminal's worktree has `count` commits no remote holds.
   readonly setUnpushed: (at: Placed, count: number) => void
   // The terminal's worktree's origin was last fetched `minutes` ago.
@@ -539,7 +550,12 @@ export const createDemoWorks = (
   const ownedBy = (terminalId: string): Work | undefined =>
     state.getSnapshot().works.find((work) => work.terminalId === terminalId)
   // A worktree just made: it differs from nothing. It counts as made.
-  const make = (at: Placed, name = slug(at.terminalId), branch = `agent/${name}`): Work => {
+  const make = (
+    at: Placed,
+    name = slug(at.terminalId),
+    branch = `agent/${name}`,
+    title = `Work on ${name}`,
+  ): Work => {
     const fresh: Work = {
       root: at.root,
       terminalId: at.terminalId,
@@ -547,6 +563,8 @@ export const createDemoWorks = (
       working: false,
       branch,
       base: "main",
+      title,
+      changedAt: now(),
       firstSeenAt: now(),
       merged: false,
       added: 0,
@@ -714,8 +732,8 @@ export const createDemoWorks = (
       const { root } = ensure(at)
       change(root, (work) => gained(work, lines))
     },
-    openBranch: (at, branch) => {
-      if (!ownedBy(at.terminalId)) make(at, slug(branch), branch)
+    openBranch: (at, branch, title) => {
+      if (!ownedBy(at.terminalId)) make(at, slug(branch), branch, title)
     },
     setFiles: (terminalId, plans, at) => {
       const own = ownedBy(terminalId)
@@ -825,6 +843,17 @@ export const createDemoWorks = (
     setHome: (at, home) => {
       const { root } = ensure(at)
       change(root, (work) => ({ ...work, home }))
+    },
+    setTitle: (at, title) => {
+      const { root } = ensure(at)
+      change(root, (work) => {
+        const { title: _title, ...untitled } = work
+        return title === undefined ? untitled : { ...untitled, title }
+      })
+    },
+    changedAgo: (at, minutes) => {
+      const { root } = ensure(at)
+      change(root, (work) => ({ ...work, changedAt: now() - minutes * minute }))
     },
     setUnpushed: (at, count) => {
       const { root } = ensure(at)

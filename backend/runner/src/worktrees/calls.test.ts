@@ -125,7 +125,7 @@ describe("worktree calls", () => {
   it("refuse every call with a clear sentence while agent worktrees are off", async ({ fx }) => {
     fx.state.enabled = false
     const refused = { ok: false, reason: offRefusal }
-    expect(await fx.calls.open(fx.call("t1", { branch: "x" }))).toEqual(refused)
+    expect(await fx.calls.open(fx.call("t1", { title: "Some work", branch: "x" }))).toEqual(refused)
     expect(await fx.calls.take(fx.call("t1", { path: "/x" }))).toEqual(refused)
     expect(await fx.calls.close(fx.call("t1", { path: "/x" }))).toEqual(refused)
     expect(await fx.calls.give(fx.call("t1", { path: "/x", to: "fox" }))).toEqual(refused)
@@ -140,18 +140,20 @@ describe("worktree calls", () => {
     fx.state.tour = ["t2"]
     expect(fx.calls.listed({ ...fx.call("t2", {}) })).toEqual({ ok: true, on: true })
     expect(fx.calls.listed(fx.call("t1", {}))).toEqual({ ok: true, on: false })
-    expect(await fx.calls.open(fx.call("t1", { branch: "x" }))).toEqual({
+    expect(await fx.calls.open(fx.call("t1", { title: "Some work", branch: "x" }))).toEqual({
       ok: false,
       reason: offRefusal,
     })
-    expect(await fx.calls.open(fx.call("t2", { branch: "tour-x" }))).toMatchObject({
+    expect(
+      await fx.calls.open(fx.call("t2", { title: "Some work", branch: "tour-x" })),
+    ).toMatchObject({
       ok: true,
       branch: "tour-x",
     })
   })
 
   it("answer a call without the terminal's own token with nothing more", async ({ fx }) => {
-    const stranger = { ...fx.call("t1", { branch: "x" }), token: "wrong" }
+    const stranger = { ...fx.call("t1", { title: "Some work", branch: "x" }), token: "wrong" }
     expect(await fx.calls.open(stranger)).toMatchObject({
       ok: false,
       reason: "Novadeck couldn't open the worktree.",
@@ -164,19 +166,142 @@ describe("worktree calls", () => {
   })
 
   it("open, and read a request strictly", async ({ fx }) => {
-    expect(await fx.calls.open(fx.call("t1", { branch: "x", surprise: 1 }))).toMatchObject({
+    expect(
+      await fx.calls.open(fx.call("t1", { title: "Some work", branch: "x", surprise: 1 })),
+    ).toMatchObject({
       ok: false,
       reason: expect.stringContaining("open_worktree needs branch"),
     })
-    const opened = await fx.calls.open(fx.call("t1", { branch: "feat/x" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "feat/x" }))
     expect(opened).toMatchObject({ ok: true, branch: "feat/x", existing: false })
     expect(fx.store.worktrees()).toHaveLength(1)
+  })
+
+  it("open needs a one-line title, and keeps it in git config, trimmed", async ({ fx }) => {
+    expect(await fx.calls.open(fx.call("t1", { branch: "t" }))).toMatchObject({
+      ok: false,
+      reason:
+        "open_worktree needs branch and title, and takes only repo, from, group and home besides.",
+    })
+    for (const [title, why] of [
+      ["  ", "The title is empty"],
+      ["two\nlines", "one line of plain text"],
+      ["x".repeat(81), "keep it to 80"],
+      ["—", "needs words"],
+    ] as const)
+      // eslint-disable-next-line no-await-in-loop -- One refusal after another.
+      expect(await fx.calls.open(fx.call("t1", { title, branch: "t" }))).toMatchObject({
+        ok: false,
+        reason: expect.stringContaining(why),
+      })
+    expect(fx.store.worktrees()).toHaveLength(0)
+    const opened = await fx.calls.open(fx.call("t1", { title: "  Rounding fix ", branch: "t" }))
+    expect(opened).toMatchObject({ ok: true, title: "Rounding fix" })
+    expect(git(fx.repo, "config", "--get", "branch.t.novadeckTitle")).toBe("Rounding fix")
+  })
+
+  it("take sets the title on one's own, says where there is none, and keeps it while the user is asked", async ({
+    fx,
+  }) => {
+    const opened = await fx.calls.open(fx.call("t1", { title: "First", branch: "tt" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    git(fx.repo, "config", "--unset", "branch.tt.novadeckTitle")
+    const bare = await fx.calls.take(fx.call("t1", { path }))
+    expect(bare).toMatchObject({ ok: true, already: true })
+    expect(bare).not.toHaveProperty("title")
+    expect(await fx.calls.take(fx.call("t1", { path, title: "Second" }))).toMatchObject({
+      already: true,
+      title: "Second",
+    })
+    expect(await fx.calls.take(fx.call("t1", { path, title: "\u0007" }))).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("Worktree: "),
+    })
+    expect(await fx.calls.take(fx.call("t2", { path, title: "Theirs" }))).toMatchObject({
+      asked: true,
+      titleKept: true,
+    })
+    expect(git(fx.repo, "config", "--get", "branch.tt.novadeckTitle")).toBe("Second")
+    fx.state.mode = "swarm"
+    // Taken at once, it keeps the title it has.
+    expect(await fx.calls.take(fx.call("t2", { path, title: "Theirs" }))).toMatchObject({
+      ok: true,
+      from: "moth",
+      title: "Second",
+      titleKept: true,
+    })
+    expect(git(fx.repo, "config", "--get", "branch.tt.novadeckTitle")).toBe("Second")
+  })
+
+  it("gives another's untitled worktree the title it is taken with, on the person's yes or at once", async ({
+    fx,
+  }) => {
+    const opened = await fx.calls.open(fx.call("t1", { title: "Gone", branch: "ut" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    git(fx.repo, "config", "--unset", "branch.ut.novadeckTitle")
+    expect(await fx.calls.take(fx.call("t2", { path, title: "Mine" }))).toMatchObject({
+      asked: true,
+      titleOnYes: true,
+    })
+    // Nothing set until they agree: git finds no such key.
+    expect(() => git(fx.repo, "config", "--get", "branch.ut.novadeckTitle")).toThrow()
+    fx.asked[0]!.settle("confirmed")
+    await vi.waitFor(() =>
+      expect(fx.notices.find(({ id }) => id === "t2")?.text).toContain("you now own"),
+    )
+    expect(git(fx.repo, "config", "--get", "branch.ut.novadeckTitle")).toBe("Mine")
+    expect(fx.notices.find(({ id }) => id === "t2")?.text).not.toContain("no title")
+    // Back to its first owner's, untitled, and taken at once.
+    expect(await fx.calls.give(fx.call("t2", { path, to: "moth" }))).toMatchObject({ ok: true })
+    git(fx.repo, "config", "--unset", "branch.ut.novadeckTitle")
+    fx.state.mode = "swarm"
+    expect(await fx.calls.take(fx.call("t2", { path, title: "Mine again" }))).toMatchObject({
+      ok: true,
+      title: "Mine again",
+    })
+  })
+
+  it("says on the person's yes when the worktree taken has no title", async ({ fx }) => {
+    const opened = await fx.calls.open(fx.call("t1", { title: "Theirs", branch: "un" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    git(fx.repo, "config", "--unset", "branch.un.novadeckTitle")
+    expect(await fx.calls.take(fx.call("t2", { path: opened.path }))).toMatchObject({ asked: true })
+    fx.asked[0]!.settle("confirmed")
+    await vi.waitFor(() =>
+      expect(fx.notices.find(({ id }) => id === "t2")?.text).toContain(
+        "It has no title: take_worktree with title gives it one.",
+      ),
+    )
+  })
+
+  it("retitles only a worktree the caller owns, for describe", async ({ fx }) => {
+    const opened = await fx.calls.open(fx.call("t1", { title: "Old", branch: "rt" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    const { path } = opened
+    expect(await fx.calls.retitle(fx.call("t2", {}), path, "Mine now")).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("another terminal's"),
+    })
+    expect(await fx.calls.retitle(fx.call("t1", {}), path, "")).toMatchObject({ ok: false })
+    expect(await fx.calls.retitle(fx.call("t1", {}), path, " New ")).toEqual({
+      ok: true,
+      branch: "rt",
+      title: "New",
+    })
+    expect(git(fx.repo, "config", "--get", "branch.rt.novadeckTitle")).toBe("New")
+    fx.state.enabled = false
+    expect(await fx.calls.retitle(fx.call("t1", {}), path, "Off")).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("Agent worktrees are off"),
+    })
   })
 
   it("open tells where a branch only origin had came from", async ({ fx }) => {
     // Origin's branch as a fetch left it, with no origin left to ask.
     git(fx.repo, "update-ref", "refs/remotes/origin/theirs", "HEAD")
-    const opened = await fx.calls.open(fx.call("t1", { branch: "theirs" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "theirs" }))
     expect(opened).toMatchObject({
       ok: true,
       branch: "theirs",
@@ -187,7 +312,7 @@ describe("worktree calls", () => {
   })
 
   it("give moves ownership, tells the receiver, and is the owner's alone", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "g" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "g" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     expect(await fx.calls.give(fx.call("t2", { path, to: "moth" }))).toMatchObject({
@@ -214,7 +339,7 @@ describe("worktree calls", () => {
   })
 
   it("close refuses unmerged work and says how to force", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "c" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "c" }))
     if (!opened.ok) throw new Error(opened.reason)
     writeFileSync(join(opened.path, "n.txt"), "n\n")
     expect(await fx.calls.close(fx.call("t1", { path: opened.path }))).toMatchObject({
@@ -228,7 +353,7 @@ describe("worktree calls", () => {
   })
 
   it("take asks the person for another live terminal's, and moves it on a yes", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "t" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "t" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     const answer = await fx.calls.take(fx.call("t2", { path }))
@@ -250,7 +375,7 @@ describe("worktree calls", () => {
   it("take does not move ownership if the setting went off before the person answered", async ({
     fx,
   }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "late" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "late" }))
     if (!opened.ok) throw new Error(opened.reason)
     await fx.calls.take(fx.call("t2", { path: opened.path }))
     fx.state.enabled = false
@@ -261,7 +386,7 @@ describe("worktree calls", () => {
   })
 
   it("take leaves it with its owner on a no, or when no one can be asked", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "d" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "d" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     await fx.calls.take(fx.call("t2", { path }))
@@ -277,7 +402,7 @@ describe("worktree calls", () => {
   })
 
   it("take is at once for an orphaned worktree", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "o" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "o" }))
     if (!opened.ok) throw new Error(opened.reason)
     fx.store.orphanWorktree(opened.path)
     expect(await fx.calls.take(fx.call("t2", { path: opened.path }))).toMatchObject({
@@ -289,7 +414,7 @@ describe("worktree calls", () => {
   })
 
   it("take is at once where agents decide for themselves, and tells the owner", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "sw" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "sw" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     fx.state.mode = "swarm"
@@ -298,6 +423,8 @@ describe("worktree calls", () => {
       path,
       branch: "sw",
       from: "moth",
+      home: "main",
+      title: "Some work",
     })
     expect(fx.asked).toEqual([])
     expect(fx.store.worktree(path)?.terminalId).toBe("t2")
@@ -310,7 +437,7 @@ describe("worktree calls", () => {
     fx,
   }) => {
     git(fx.repo, "branch", "JIRA-123")
-    const opened = await fx.calls.open(fx.call("t1", { branch: "homed" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "homed" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     expect(await fx.calls.take(fx.call("t2", { path, home: "JIRA-123" }))).toMatchObject({
@@ -327,7 +454,7 @@ describe("worktree calls", () => {
   })
 
   it("take tells a sleeping owner, so it hears of the loss when it wakes", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "zz" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "zz" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     // The owner's agent goes to sleep: no record, still in messaging.
@@ -341,7 +468,7 @@ describe("worktree calls", () => {
   })
 
   it("take tells a sleeping owner of an approved take too", async ({ fx }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "yy" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "yy" }))
     if (!opened.ok) throw new Error(opened.reason)
     const { path } = opened
     fx.asleep.set("t1", "moth")
@@ -358,7 +485,7 @@ describe("worktree calls", () => {
   it("take reads the mode at each call, so a change reaches an agent already running", async ({
     fx,
   }) => {
-    const opened = await fx.calls.open(fx.call("t1", { branch: "live" }))
+    const opened = await fx.calls.open(fx.call("t1", { title: "Some work", branch: "live" }))
     if (!opened.ok) throw new Error(opened.reason)
     expect(await fx.calls.take(fx.call("t2", { path: opened.path }))).toMatchObject({ asked: true })
     fx.state.mode = "swarm"

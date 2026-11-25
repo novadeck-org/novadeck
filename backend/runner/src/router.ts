@@ -20,6 +20,7 @@ import { planSaveFolders } from "./companions/plan-folders.js"
 import type { Devices } from "./devices/devices.js"
 import { DomainError } from "./errors.js"
 import type { Forges } from "./forges/service.js"
+import type { BundledPi } from "./harnesses/bundled-pi.js"
 import type { Harnesses } from "./harnesses/service.js"
 import type { History } from "./history.js"
 import { logs } from "./log.js"
@@ -187,6 +188,8 @@ export const createRouter = (options: {
   settingsSaved?: () => void
   /** The shipping gate was switched on or off by a settings change. */
   shippingSwitched?: () => void
+  /** Novadeck's own pi: its switch's change starts or stops its fetch, whose state settings report. */
+  bundledPi?: Pick<BundledPi, "state" | "switched" | "follow">
   /** The shipping gate, whose standing permits the person takes back; without it, none stand. */
   shipping?: Pick<Shipping, "takeBack">
   /** Novadeck's tour; without it, starting one is a CONFLICT. */
@@ -215,11 +218,26 @@ export const createRouter = (options: {
   // The projects' and sessions' changes, for clients that share them.
   const { projectFeed, sessionFeed } = projects
   // The person's settings and preferences as they change, for every device they use.
-  const runnerSettings = async () => ({
-    ...store.settings.runner(),
-    transcriptsAvailable: await options.transcriptsAvailable(),
-  })
+  // Novadeck's own pi's switch only where this runner can fetch it (it has the shell files): a
+  // UI offers the row only where the settings report the switch.
+  const runnerSettings = async () => {
+    const { bundledPi, ...settings } = store.settings.runner()
+    return {
+      ...settings,
+      transcriptsAvailable: await options.transcriptsAvailable(),
+      ...(options.bundledPi && { bundledPi, bundledPiFetch: options.bundledPi.state() }),
+    }
+  }
   const settingsFeed = new SettingsFeed(runnerSettings)
+  // Where Novadeck's own pi's fetch stands, told as it moves.
+  options.bundledPi?.follow(
+    () =>
+      void settingsFeed.changed().catch((error: unknown) =>
+        log.error("settings.feed-failed", "Novadeck could not tell clients of a change.", {
+          err: error,
+        }),
+      ),
+  )
   // Where each agent stands, told again as one's connection changes, however it did.
   const agentsFeed = new LatestFeed(() => agents.list())
   agents.follow(
@@ -591,6 +609,7 @@ export const createRouter = (options: {
         store.settings.saveRunner(input)
         options.settingsSaved?.()
         if (input.shippingGate !== undefined) options.shippingSwitched?.()
+        if (input.bundledPi !== undefined) options.bundledPi?.switched()
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
         void settingsFeed.changed().catch((error: unknown) =>
           log.error("settings.feed-failed", "Novadeck could not tell clients of a change.", {

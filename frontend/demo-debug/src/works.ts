@@ -157,6 +157,27 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
+              label: "Untitled worktree",
+              hint: 'Open Worktrees: the selected terminal\'s row (made now if it had no worktree) is as before, as the panel shows no titles yet; its work has no title, as one made by hand or before titles. Run again to title it "Checkout rounding fix"',
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (!key) return
+                const own = works.ownedBy(key.terminalId)
+                works.setTitle(
+                  placed(workspace(), key),
+                  own && own.title === undefined ? "Checkout rounding fix" : undefined,
+                )
+              },
+            },
+            {
+              label: "Untouched a day",
+              hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) is as before, as the panel shows no last change yet; its work last changed 26 h ago",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (key) works.changedAgo(placed(workspace(), key), 26 * 60)
+              },
+            },
+            {
               label: "Origin fetched 3 h ago",
               hint: "Open Worktrees: the selected terminal's row (made now if it had no worktree) is measured against origin/main fetched 3 h ago, so the panel's top line reads origin/main, 3 h ago in amber, with Fetch; Fetch brings it to just now",
               run: ({ selected, workspace }) => {
