@@ -453,7 +453,7 @@ export const Preferences = ({
       id: "onboarding-tour",
       label: "Onboarding tour",
       description: tour
-        ? "Add a Help menu to the footer that offers a short tour: three opencode agents, on a model Novadeck pays for, in a sandbox repo."
+        ? "Add a Help menu to the footer that offers a short tour: three OpenCode agents, on a model Novadeck pays for, in a sandbox repo."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
@@ -483,7 +483,7 @@ export const Preferences = ({
       id: "shipping-gate",
       label: "Shipping gate",
       description: shippingGate
-        ? "Claude Code, Codex, Antigravity and opencode may push to a branch that isn't their own, land into another branch, open a PR or merge one only with a permit: your own words typed in that agent's terminal, or your Allow on a card in the chat and the Inbox. Without one the command is refused and the agent is told to ask. Applies to agents started after you turn it on. Antigravity and opencode are gated in every mode but one told to skip all permissions; where Windows' cmd prints before hooks, Antigravity isn't covered and asks you as it always did."
+        ? "Claude Code, Codex, Antigravity and OpenCode may push to a branch that isn't their own, land into another branch, open a PR or merge one only with a permit: your own words typed in that agent's terminal, or your Allow on a card in the chat and the Inbox. Without one the command is refused and the agent is told to ask. Applies to agents started after you turn it on. Antigravity and OpenCode are gated in every mode but one told to skip all permissions; where Windows' cmd prints before hooks, Antigravity isn't covered and asks you as it always did."
         : "Not available here.",
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),

@@ -68,20 +68,32 @@ impl Shown {
     }
 }
 
+/// The agent's name as Novadeck's app shows it, with a capital (`pi` → `Pi`).
+fn titled(name: &str) -> String {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
+}
+
 /// Fetches `name` through the terminal's runner; false, with its reason on stderr, if it fails.
 pub fn run(name: &str) -> bool {
+    let titled = titled(name);
     let mut shown = Shown {
         terminal: io::stderr().is_terminal(),
         open: false,
     };
     let Some(terminal) = Terminal::from_env() else {
         shown.end(Some(&format!(
-            "Novadeck's {name} starts only in a Novadeck terminal."
+            "Novadeck's {titled} starts only in a Novadeck terminal."
         )));
         return false;
     };
     let Ok(runtime) = endpoint::runtime() else {
-        shown.end(Some(&format!("Novadeck couldn't get {name}: no runtime.")));
+        shown.end(Some(&format!(
+            "Novadeck couldn't get {titled}: no runtime."
+        )));
         return false;
     };
     let result = runtime.block_on(fetch(&terminal, name, &mut shown));
@@ -92,7 +104,7 @@ pub fn run(name: &str) -> bool {
             true
         }
         Err(reason) => {
-            shown.end(Some(&format!("Novadeck couldn't get {name}: {reason}")));
+            shown.end(Some(&format!("Novadeck couldn't get {titled}: {reason}")));
             false
         }
     }

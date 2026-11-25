@@ -1147,13 +1147,13 @@ export const createDemoStates = (
           run: limitAntigravity,
         },
         {
-          label: "opencode outdated",
+          label: "OpenCode outdated",
           hint: "Connected, with an update note in Preferences",
           run: outdateOpencode,
         },
         {
-          label: "opencode 2",
-          hint: "Connected, with a note that only opencode 1 works yet",
+          label: "OpenCode 2",
+          hint: "Connected, with a note that only OpenCode 1 works yet",
           run: unsupportOpencode,
         },
       ],

@@ -120,9 +120,9 @@ export const stallMs = 30_000
 
 const megabytes = (bytes: number): string => (bytes / 1_000_000).toFixed(1)
 
-/** The line a download in progress shows: `Downloading pi 1.6.0: 12.3 of 59.0 MB (21%)`. */
+/** The line a download in progress shows: `Downloading Pi 1.6.0: 12.3 of 59.0 MB (21%)`. */
 export const progressLine = (version: string, received: number, size: number): string =>
-  `Downloading pi ${version}: ${megabytes(received)} of ${megabytes(size)} MB (${Math.floor((received / size) * 100)}%)`
+  `Downloading Pi ${version}: ${megabytes(received)} of ${megabytes(size)} MB (${Math.floor((received / size) * 100)}%)`
 
 export type FetchOptions = {
   /** Novadeck's data folder. */
@@ -186,10 +186,10 @@ const install = async (
   const staging = join(target, "..", `.unpacking-${randomUUID()}`)
   await mkdir(staging, { recursive: true })
   try {
-    await extract(archive, staging, "Could not unpack pi")
+    await extract(archive, staging, "Could not unpack Pi")
     const program = join(staging, build.program)
     if (!(await exists(program)))
-      throw new DownloadError("pi's archive does not hold pi for this system.")
+      throw new DownloadError("Pi's archive does not hold Pi for this system.")
     if (platform !== "win32") await chmod(program, 0o755)
     await rename(licence, join(staging, "LICENSE"))
     await rm(target, { recursive: true, force: true })
@@ -262,12 +262,12 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
   const build = buildFor(platform, arch, pinned)
   if (!build)
     return Promise.reject(
-      new DownloadError(`pi has no build for this system (${platform}-${arch}).`),
+      new DownloadError(`Pi has no build for this system (${platform}-${arch}).`),
     )
   const program = bundledPiProgram(data, build, pinned.version)
   const running = underway.get(program)
   if (running) {
-    progress(`Waiting for pi ${pinned.version}, which is downloading`)
+    progress(`Waiting for Pi ${pinned.version}, which is downloading`)
     running.hearing.add(progress)
     return running.work
   }
@@ -315,7 +315,7 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
         options.signal,
       )
       if (options.signal?.aborted) throw new DownloadError(stoppedLine)
-      say(`Unpacking pi ${pinned.version}`)
+      say(`Unpacking Pi ${pinned.version}`)
       const target = buildFolder(data, build, pinned.version)
       await install(archive, licence, target, build, platform)
       // Earlier pinned builds, and what an interrupted unpacking left: what can't go now (a pi
@@ -425,7 +425,7 @@ export class BundledPi {
       if (progress) {
         if (this.current.state === "downloading")
           progress(
-            `Waiting for pi ${this.host.pinned?.version ?? pinnedPi.version}, which is downloading`,
+            `Waiting for Pi ${this.host.pinned?.version ?? pinnedPi.version}, which is downloading`,
           )
         running.hearing.add(progress)
       }

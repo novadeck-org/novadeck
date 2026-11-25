@@ -332,7 +332,7 @@ export class Tour {
     return terminalId === this.run?.lead
       ? {
           refuseAgent: (agent, at) =>
-            agent !== tourAgent && this.inTour(at) ? "The tour runs opencode only." : undefined,
+            agent !== tourAgent && this.inTour(at) ? "The tour runs OpenCode only." : undefined,
           flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
           pinned: (agent, at) =>
             agent === tourAgent && this.inTour(at)

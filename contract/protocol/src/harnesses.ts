@@ -71,8 +71,8 @@ export const harnesses = [
   {
     id: "opencode",
     menus: { leading: ["/"], words: ["@"] },
-    name: "opencode",
-    shortName: "opencode",
+    name: "OpenCode",
+    shortName: "OpenCode",
     nodeScript: undefined,
     inheritedEnv: [],
     logins: [],
@@ -81,8 +81,8 @@ export const harnesses = [
   {
     id: "pi",
     menus: { leading: ["/"], words: ["@"] },
-    name: "pi",
-    shortName: "pi",
+    name: "Pi",
+    shortName: "Pi",
     // A Node program: its npm launcher `pi` runs this script (`bin` of its package).
     nodeScript: "/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
     // What it sets on its children (docs/environment-variables.md), which Novadeck's shells must

@@ -41,7 +41,7 @@ describe("the tour group", () => {
       ]),
       () => undefined,
     )
-    await expect(tour.prepare()).rejects.toThrow("opencode")
+    await expect(tour.prepare()).rejects.toThrow("OpenCode")
   })
 
   it("fails the next start as the tour's service with no free run left does, with its sentence", async () => {

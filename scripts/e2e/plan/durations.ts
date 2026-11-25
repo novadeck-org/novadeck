@@ -35,7 +35,8 @@ export const jobOf = (
   name: string,
 ): { readonly harness: string; readonly system: string } | undefined => {
   const match = /^(.+?)(?: \((.+)\))?$/.exec(name)
-  const harness = harnesses.find((each) => each.name === match?.[1])?.id
+  // By its id too: older runs named opencode's and pi's jobs by their ids.
+  const harness = harnesses.find((each) => each.name === match?.[1] || each.id === match?.[1])?.id
   if (!harness) return undefined
   const tags = match?.[2]?.split(", ") ?? []
   if (tags.some((tag) => !/^(Windows|macOS|\d+\/\d+)$/.test(tag))) return undefined

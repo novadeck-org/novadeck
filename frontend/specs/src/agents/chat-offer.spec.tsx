@@ -210,7 +210,7 @@ describe("Agent Chat's offer", () => {
       )
       await openWorkspace("/?demo=agents&tourStory=off&channel=experimental")
       await openPreferencesOn("Agents")
-      const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
+      const opencode = preferencesDialog().getByRole("switch", { name: "OpenCode" })
       await opencode.click()
       await expect.element(opencode).toHaveAttribute("aria-checked", "true")
       await closePreferences()

@@ -94,7 +94,7 @@ describe("the pinned pi", () => {
 
   it("says a download's progress in megabytes and whole percent", () => {
     expect(progressLine("1.6.0", 12_345_678, 58_977_130)).toBe(
-      "Downloading pi 1.6.0: 12.3 of 59.0 MB (20%)",
+      "Downloading Pi 1.6.0: 12.3 of 59.0 MB (20%)",
     )
   })
 })
@@ -125,9 +125,9 @@ describe("fetching Novadeck's pi", () => {
     await expect(readFile(join(target, "pi", "photon_rs_bg.wasm"), "utf8")).resolves.toBe("wasm")
     // Nothing is left of the download or the unpacking.
     expect(await readdir(bundledPiFolder(data))).toEqual([target.split(/[\\/]/).at(-1)])
-    expect(lines.at(0)).toMatch(/^Downloading pi 1\.6\.0: /)
+    expect(lines.at(0)).toMatch(/^Downloading Pi 1\.6\.0: /)
     expect(lines.at(-2)).toMatch(/\(100%\)$/)
-    expect(lines.at(-1)).toBe("Unpacking pi 1.6.0")
+    expect(lines.at(-1)).toBe("Unpacking Pi 1.6.0")
   })
 
   it("starts the copy in place without downloading", async ({ resources }) => {
@@ -161,8 +161,8 @@ describe("fetching Novadeck's pi", () => {
 
     expect(a).toBe(b)
     // It hears the shared fetch's progress from then on.
-    expect(second.at(0)).toBe("Waiting for pi 1.6.0, which is downloading")
-    expect(second.at(-1)).toBe("Unpacking pi 1.6.0")
+    expect(second.at(0)).toBe("Waiting for Pi 1.6.0, which is downloading")
+    expect(second.at(-1)).toBe("Unpacking Pi 1.6.0")
   })
 
   it("refuses an archive whose checksum isn't the pinned one, and leaves nothing", async ({
@@ -255,7 +255,7 @@ describe("fetching Novadeck's pi", () => {
         arch: "x64",
         enabled: true,
       }),
-    ).rejects.toThrow("pi has no build for this system (freebsd-x64).")
+    ).rejects.toThrow("Pi has no build for this system (freebsd-x64).")
   })
 })
 

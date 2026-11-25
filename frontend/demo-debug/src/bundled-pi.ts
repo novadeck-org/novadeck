@@ -3,7 +3,7 @@ import { isDemoBundledPi } from "@novadeck/demo/bundled-pi"
 
 import type { DemoActionGroup } from "./types"
 
-const where = "Preferences > Experimental > Novadeck Agent (pi built in)"
+const where = "Preferences > Experimental > Novadeck Agent (Pi built in)"
 
 // The states of Novadeck Agent's row, each put on the demo's at once (it needs the Experimental tab,
 // which the experimental channel shows).
@@ -34,7 +34,7 @@ export const bundledPiGroups = (
         },
         {
           label: "Downloading",
-          hint: `${where}: the switch on, the note reads Downloading pi: 12.3 of 59.0 MB`,
+          hint: `${where}: the switch on, the note reads Downloading Pi: 12.3 of 59.0 MB`,
           run: () =>
             pi.show(true, { state: "downloading", received: 12_345_678, size: 58_977_130 }),
         },

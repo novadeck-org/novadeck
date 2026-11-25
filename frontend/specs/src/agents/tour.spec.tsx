@@ -30,7 +30,7 @@ const expectTourOpen = async (): Promise<void> => {
 const offerFromHelp = async ({ connect = true } = {}): Promise<void> => {
   if (connect) {
     await openPreferencesOn("Agents")
-    const opencode = preferencesDialog().getByRole("switch", { name: "opencode" })
+    const opencode = preferencesDialog().getByRole("switch", { name: "OpenCode" })
     await opencode.click()
     await expect.element(opencode).toHaveAttribute("aria-checked", "true")
     await closePreferences()
@@ -88,13 +88,13 @@ describe("The tour", () => {
       await openWorkspace(offered)
       await offerFromHelp()
       await consentSays(
-        "opencode agents lead a small team that builds a little browser game you choose.",
+        "OpenCode agents lead a small team that builds a little browser game you choose.",
       )
       await consentSays(
         "You answer a question or two, approve one command, and play the game at the end.",
       )
       await consentSays(
-        "Runs three opencode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+        "Runs three OpenCode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
       )
       await consentSays(
         "What the agents read and write goes through novadeck.dev to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
@@ -114,7 +114,7 @@ describe("The tour", () => {
       await expect.element(codex).toHaveAttribute("aria-checked", "true")
       await closePreferences()
       await offerFromHelp()
-      await consentSays("Runs three opencode agents")
+      await consentSays("Runs three OpenCode agents")
       expect(consent().getByRole("radiogroup").query()).toBeNull()
       expect(consent().getByRole("radio").query()).toBeNull()
     })
@@ -141,8 +141,8 @@ describe("The tour", () => {
     it("offers to connect opencode right there where Novadeck isn't connected to it, and starts once it is", async () => {
       await openWorkspace(offered)
       await offerFromHelp({ connect: false })
-      await consentSays("Connect adds Novadeck's small plugin to opencode")
-      await consent().getByRole("button", { name: "Connect opencode" }).click()
+      await consentSays("Connect adds Novadeck's small plugin to OpenCode")
+      await consent().getByRole("button", { name: "Connect OpenCode" }).click()
       await expect.poll(() => consent().query()?.textContent ?? "").not.toContain("Connect adds")
       await start().click()
       await expectTourOpen()
@@ -151,9 +151,9 @@ describe("The tour", () => {
     it("offers to install opencode right there where it isn't installed, and starts once it is installed and connected", async () => {
       await openWorkspace(`${offered}&opencode=missing`)
       await offerFromHelp({ connect: false })
-      await consentSays("Install adds opencode to this computer")
+      await consentSays("Install adds OpenCode to this computer")
       await consentSays("curl -fsSL https://opencode.ai/install | bash")
-      await consent().getByRole("button", { name: "Install opencode" }).click()
+      await consent().getByRole("button", { name: "Install OpenCode" }).click()
       await expect
         .poll(() => consent().query()?.textContent ?? "", { timeout: 15_000 })
         .not.toContain("Install adds")
@@ -170,7 +170,7 @@ describe("The tour", () => {
       await cleanup()
       await openWorkspace(`${offered}&opencode=unsupported`)
       await offerFromHelp({ connect: false })
-      await consentSays("it can't follow this opencode 2")
+      await consentSays("it can't follow this OpenCode 2")
       await expect.element(start()).toHaveAttribute("aria-disabled", "true")
     })
 

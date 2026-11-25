@@ -11,9 +11,9 @@ describe("the Novadeck Agent row's note", () => {
   it("says where the download stands while on", () => {
     expect(
       bundledPiNote(true, { state: "downloading", received: 12_345_678, size: 58_977_130 }),
-    ).toEqual({ text: "Downloading pi: 12.3 of 59.0 MB", error: false })
+    ).toEqual({ text: "Downloading Pi: 12.3 of 59.0 MB", error: false })
     expect(bundledPiNote(true, { state: "downloading" })).toEqual({
-      text: "Downloading pi…",
+      text: "Downloading Pi…",
       error: false,
     })
     expect(bundledPiNote(true, { state: "ready" })).toEqual({ text: "Ready.", error: false })

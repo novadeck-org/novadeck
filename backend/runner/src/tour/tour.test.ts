@@ -927,7 +927,7 @@ describe("what an agent's open_agent is subject to in the tour", () => {
     const { tour, brief, home } = await readied(resources)
     brief()
     const policy = tour.openPolicy("lead")
-    expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe("The tour runs opencode only.")
+    expect(policy.refuseAgent?.("claude", tourFolder(home))).toBe("The tour runs OpenCode only.")
     expect(policy.refuseAgent?.("opencode", tourFolder(home))).toBeUndefined()
     expect(policy.refuseAgent?.("claude", "/h/code")).toBeUndefined()
   })

@@ -14,7 +14,7 @@ export const tourHeading = "Take the tour"
 const facts = [
   {
     icon: Clock,
-    text: "Runs three opencode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+    text: "Runs three OpenCode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
   },
   {
     icon: Globe,
@@ -90,18 +90,18 @@ export const TourConsentDialog = ({
 // What the person gets by pressing the step's button, and what it costs them: when to pick it.
 const steps = {
   install: {
-    note: "Install adds opencode to this computer with its own installer, then connects it to Novadeck. Pick it if you don't have opencode; the tour is the only reason to, and it stays installed after.",
-    action: "Install opencode",
+    note: "Install adds OpenCode to this computer with its own installer, then connects it to Novadeck. Pick it if you don't have OpenCode; the tour is the only reason to, and it stays installed after.",
+    action: "Install OpenCode",
   },
   update: {
-    note: "This opencode is older than Novadeck works with (1.18 or later), so it can't follow the tour's agents. Update it with `opencode upgrade`, then take the tour.",
+    note: "This OpenCode is older than Novadeck works with (1.18 or later), so it can't follow the tour's agents. Update it with `opencode upgrade`, then take the tour.",
   },
   unsupported: {
-    note: "Novadeck works with opencode 1 so far, so it can't follow this opencode 2. Install opencode 1 (1.18 or later) to take the tour.",
+    note: "Novadeck works with OpenCode 1 so far, so it can't follow this OpenCode 2. Install OpenCode 1 (1.18 or later) to take the tour.",
   },
   connect: {
-    note: "Connect adds Novadeck's small plugin to opencode, so the tour's agents can use Novadeck's tools. Pick it to take the tour; Preferences disconnects it again.",
-    action: "Connect opencode",
+    note: "Connect adds Novadeck's small plugin to OpenCode, so the tour's agents can use Novadeck's tools. Pick it to take the tour; Preferences disconnects it again.",
+    action: "Connect OpenCode",
   },
 } as const
 
@@ -141,7 +141,7 @@ const TourConsentBody = ({
       </SubjectBar>
       <DialogTitle className="modal-title m-0 text-heading font-medium">{tourHeading}</DialogTitle>
       <DialogDescription className="modal-description m-0 text-body leading-[1.6]">
-        opencode agents lead a small team that builds a little browser game you choose. You answer a
+        OpenCode agents lead a small team that builds a little browser game you choose. You answer a
         question or two, approve one command, and play the game at the end.
       </DialogDescription>
       <ul className="tour-facts m-0 flex flex-col gap-2 p-0">
@@ -156,7 +156,7 @@ const TourConsentBody = ({
         <div
           className="tour-agent flex items-start justify-between gap-3"
           role="group"
-          aria-label="opencode"
+          aria-label="OpenCode"
         >
           <span className="flex min-w-0 items-start gap-2.5 text-body leading-[1.5]">
             <OpencodeIcon size={15} className="tour-fact-icon mt-0.5 shrink-0" aria-hidden="true" />
