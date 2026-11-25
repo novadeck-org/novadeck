@@ -23,6 +23,12 @@ const cues = (): { [Name in keyof LaunchCues]: ReturnType<typeof fire> } => ({
   show: fire(),
   showChanges: fire(),
   showVariants: fire(),
+  showVideo: fire(),
+  showPdf: fire(),
+  showModel: fire(),
+  showFolder: fire(),
+  checksPass: fire(),
+  writeFiles: fire(),
   askReview: fire(),
   showPlan: fire(),
   finishAll: fire(),
@@ -52,15 +58,23 @@ describe("the debug panel's Launch group", () => {
       ["6a ·", "show"],
       ["6b ·", "showChanges"],
       ["6c ·", "showVariants"],
+      ["6d ·", "showVideo"],
+      ["6e ·", "showPdf"],
+      ["6f ·", "showModel"],
+      ["6g ·", "showFolder"],
       ["7 ·", "finishAll"],
       ["8a ·", "askReview"],
       ["8b ·", "showPlan"],
       ["8c ·", "command"],
       ["8d ·", "agyPlan"],
+      ["9a ·", "checksPass"],
+      ["9b ·", "writeFiles"],
     ] as const
-    expect(group!.actions).toHaveLength(order.length)
+    // (and, after the cues, the action that boots the demo with the Files panel)
+    expect(group!.actions).toHaveLength(order.length + 1)
+    expect(group!.actions.at(-1)).toMatchObject({ label: "Files panel on", reboots: true })
     const context = {} as DemoActionContext
-    group!.actions.forEach((action, index) => {
+    group!.actions.slice(0, order.length).forEach((action, index) => {
       expect(action.label.startsWith(order[index]![0])).toBe(true)
       expect(action.hint).not.toBe("")
       void action.run(context)

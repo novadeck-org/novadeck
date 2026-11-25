@@ -29,7 +29,7 @@ const initialSession = "initial"
 // The sample transcript a demo terminal opens with, unless an agent runs in it.
 export type SampleOutput = "shell" | "server" | "tests" | "git" | "logs" | "build"
 // The agents the demo simulates, by program name.
-const demoAgents = { claude: "Claude", codex: "Codex", opencode: "opencode" } as const
+const demoAgents = { claude: "Claude", codex: "Codex", opencode: "OpenCode", pi: "Pi" } as const
 export type DemoAgent = keyof typeof demoAgents
 
 export const demoAgent = (terminal: TerminalMetadata): DemoAgent | undefined =>
@@ -486,7 +486,13 @@ export const mockReply = (command: string, terminal: TerminalMetadata): string =
     return "application/   node_modules/   package.json   pnpm-lock.yaml   README.md"
   if (program === "git")
     return "This is a simulated shell, so git only answers `git status`. In the real app it is your own."
-  if (program === "claude" || program === "codex" || program === "agy" || program === "opencode")
+  if (
+    program === "claude" ||
+    program === "codex" ||
+    program === "agy" ||
+    program === "opencode" ||
+    program === "pi"
+  )
     return "Agents are simulated here. Open a terminal that is running one and answer what it asks."
   if (quiet.has(program)) return ""
   if (noted.has(program)) return simulated

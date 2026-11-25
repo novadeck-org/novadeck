@@ -8,6 +8,7 @@ import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/t
 
 import type { DemoTranscript } from "../agents/transcripts"
 import type { DemoTurns } from "../agents/turns"
+import { isDemoFiles } from "../files"
 import { demoHandle } from "../handles"
 import { isDemoInbox } from "../inbox"
 import { createDemoMessages } from "../messages"
@@ -16,9 +17,12 @@ import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
 import { resultBlock } from "../screen/agent"
 import type { Block } from "../screen/screen"
 import { span, wrap } from "../screen/vt"
-import { ready, svg, type SampleArtifact } from "../showcase/artifacts"
+import { pdfContent, ready, svg, videoContent, type SampleArtifact } from "../showcase/artifacts"
 import { sample, text as fileText } from "../showcase/changes"
+import { clip, clipSize } from "../showcase/clip"
 import { createShowcase } from "../showcase/simulation"
+import { launchTeamPlans } from "../work-plans"
+import { isDemoWorks, type DemoWorks } from "../works"
 import { terminalOf, terminalsOf } from "../workspace"
 import {
   agentTerminal,
@@ -35,11 +39,12 @@ import {
   slot,
   working,
 } from "./desk"
+import { invoiceBytes } from "./launch-invoice"
 
 // The launch demo: the launch walkthrough video's tour of the app, captured from
 // `?demo=launch`. A small software team's deck: project northwind, a web storefront, has eight
-// agents on the Canvas (eleven once its lead's team lands), mixing Claude Code, Codex and
-// Antigravity, all at work, a few with a line of output that moves; a second
+// agents on the Canvas (eleven once its lead's team lands), mixing Claude Code, Codex,
+// Antigravity, OpenCode and Pi, all at work, a few with a line of output that moves; a second
 // project, northwind-docs, works beside it. The video's beats are cues the debug panel's
 // "Launch" group fires (see `LaunchCues`), so a capture plan can time each to a frame: a
 // spread of states, three asks that fill the Inbox, a lead that opens three teammates, a
@@ -52,6 +57,8 @@ import {
 const shop = "northwind"
 const docs = "northwind-docs"
 const home = `/home/dev/projects/${shop}`
+
+const slugOf = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
 
 // The agents of northwind, by terminal number. The ones the cues act on:
 export const launch = {
@@ -186,7 +193,8 @@ const jobs: readonly Job[] = [
   },
   {
     name: "Stripe webhooks",
-    agent: "codex",
+    // The deck's one Pi window: the cue that fails a turn shows an error no harness words.
+    agent: "pi",
     ask: "Handle Stripe's payment webhooks.",
     plan: "Verifying the signature before reading the event.",
     command: "pnpm test --filter webhooks",
@@ -251,7 +259,8 @@ const jobs: readonly Job[] = [
   },
   {
     name: "Order status page",
-    agent: "claude",
+    // The deck's one OpenCode window: the show cues are the same tool in every harness.
+    agent: "opencode",
     ask: "Build the order status page.",
     plan: "Previewing the page on the dev server.",
     command: "pnpm dev",
@@ -734,6 +743,69 @@ const changesArtifact = (): SampleArtifact => {
   return { ...made, item: { ...made.item, path: changesRoot } }
 }
 
+// Four more things the same agent shows, one kind each: a recording of the checkout, the
+// invoice of the order its page is about, a 3D model of the arm that packs it, and a folder of
+// screenshots. The model and the folder load when first shown, so the try demo's bundle (which
+// holds this module) carries neither.
+const videoArtifact = (): SampleArtifact => ({
+  item: {
+    id: "northwind-checkout-walkthrough",
+    kind: "video",
+    name: "checkout-walkthrough.webm",
+    detail: "640 × 360 WebM, 4 s",
+    path: `${home}/recordings/checkout-walkthrough.webm`,
+    url: null,
+    lines: null,
+    secret: false,
+  },
+  content: videoContent(clipSize),
+  file: { read: clip },
+})
+const pdfArtifact = (): SampleArtifact => {
+  const bytes = invoiceBytes()
+  return {
+    item: {
+      id: "northwind-invoice-1042",
+      kind: "pdf",
+      name: "invoice-1042.pdf",
+      detail: "1 page, Letter",
+      path: `${home}/invoices/invoice-1042.pdf`,
+      url: null,
+      lines: null,
+      secret: false,
+    },
+    content: pdfContent(bytes.length),
+    file: { read: async () => bytes },
+  }
+}
+const modelArtifact = async (): Promise<SampleArtifact> => {
+  const { modelSamples } = await import("../showcase/model-samples")
+  const { arm } = modelSamples
+  return {
+    ...arm,
+    item: {
+      ...arm.item,
+      id: "northwind-packing-arm",
+      name: "packing-arm.gltf",
+      detail: "glTF, animated",
+      path: `${home}/models/packing-arm.gltf`,
+    },
+  }
+}
+const folderArtifact = async (): Promise<SampleArtifact> => {
+  const { createFolder, folderItem, renderFiles } = await import("../showcase/folders")
+  const { renderMedia } = await import("../showcase/folder-samples")
+  // The renders' stills and its clip: no report or bracket in a folder of the storefront's.
+  const files = renderFiles(Date.now(), renderMedia).filter(
+    (file) => file.kind === "image" || file.kind === "video",
+  )
+  return folderItem(
+    "northwind-screenshots",
+    "screenshots",
+    createFolder(`${home}/screenshots`, files),
+  )
+}
+
 // The question the asking teammate puts to the person, and to its lead too, as the `ask` tool
 // has it do: the lead knows the answer.
 const teammateAskId = "launch-teammate-ask"
@@ -909,6 +981,17 @@ export type LaunchCues = {
   readonly show: (goThere?: (key: TerminalKey) => void) => void
   readonly showChanges: (goThere?: (key: TerminalKey) => void) => void
   readonly showVariants: (goThere?: (key: TerminalKey) => void) => void
+  // The same agent shows, one by one, a recording of its checkout (a video), the order's invoice
+  // (a PDF), the packing arm (an animated 3D model) and a folder of screenshots, each as an
+  // item joining the pane's bar, after `goThere` as above. They work after the cues above ran
+  // or without them; the model and the folder load first, a moment on.
+  readonly showVideo: (goThere?: (key: TerminalKey) => void) => void
+  readonly showPdf: (goThere?: (key: TerminalKey) => void) => void
+  readonly showModel: (goThere?: (key: TerminalKey) => void) => void
+  readonly showFolder: (goThere?: (key: TerminalKey) => void) => void
+  // With the Files panel on (see `launchFiles`), the agents that work begin writing files, one at
+  // once and the rest every few seconds: the tree changes as it is open.
+  readonly writeFiles: () => void
   // An agent asks another to review its change, by message (Cart drawer asks Search index), and
   // the reviewer answers about 4 s after it lands, as long as it's still at that turn. The
   // exchange reads in either one's Messages pane. Neither is woken once the ripple ran, nor one
@@ -917,6 +1000,10 @@ export type LaunchCues = {
   // The plan's agent shows its plan, the file it writes it in, in the pane beside its window,
   // after `goThere`, given, as the shows above.
   readonly showPlan: (goThere?: (key: TerminalKey) => void) => void
+  // With agent worktrees on (see the debug panel's App group), the Worktrees panel changes as it
+  // is open: Search index's running checks pass, and, once the lead opened its teammates (5a),
+  // Cart endpoint's worktree opens its pull request, which starts its own checks.
+  readonly checksPass: () => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request, or a teammate and its lead while their exchange is
   // on its way (they finish when it settles). Each teammate messages its lead its report as it
@@ -946,6 +1033,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const changes = changesArtifact()
   const variants = variantsArtifact()
   const plan = planArtifact()
+  const video = videoArtifact()
+  const invoice = pdfArtifact()
   const agyPlan = agyPlanArtifact()
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
@@ -956,7 +1045,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       {
         key: keyOf(launch.shows),
         handle: demoHandle(launch.shows),
-        artifacts: [preview, changes, variants],
+        artifacts: [preview, changes, variants, video, invoice],
       },
       { key: keyOf(launch.plan), handle: demoHandle(launch.plan), artifacts: [plan] },
       {
@@ -1060,6 +1149,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   let opened = false
   let teammateAsked = false
   let reviewAsked = false
+  let checksPassed = false
   let failed = false
   let finished = false
   let reported = false
@@ -1140,6 +1230,18 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           anchor: keyOf(launch.lead).terminalId,
           select: false,
         })),
+      )
+      // Their worktrees, which head to their lead's branch (with Experimental agent worktrees on,
+      // the Worktrees panel hangs them under the lead's).
+      teammates.forEach((job, index) =>
+        worksOf()?.plant(
+          {
+            projectId: shop,
+            terminalId: keyOf(jobs.length + index + 1).terminalId,
+            branch: `agent/${slugOf(job.name)}`,
+          },
+          { ...launchTeamPlans.find(([title]) => title === job.name)![1], title: job.name },
+        ),
       )
       // Each teammate's brief, from its lead, which its first turn reads.
       teammates.forEach((job, index) =>
@@ -1244,12 +1346,45 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         }, answersMs)
       })
     },
+    showVideo: (goThere) => upsert(video, launch.shows, goThere),
+    showPdf: (goThere) => upsert(invoice, launch.shows, goThere),
+    showModel: (goThere) => later(modelArtifact, goThere),
+    showFolder: (goThere) => later(folderArtifact, goThere),
+    writeFiles: () => {
+      const files = filesBackend?.()
+      if (isDemoFiles(files)) files.release()
+    },
     showPlan: (goThere) => upsert(plan, launch.plan, goThere),
+    checksPass: () => {
+      const works = worksOf()
+      if (!works) return
+      const own = works.ownedBy(keyOf(launch.command).terminalId)
+      if (own && !checksPassed) {
+        checksPassed = true
+        works.setCi(own.root, "passed")
+      }
+      // Once the lead opened its teammates, one of them opens its pull request too.
+      const cart = works.ownedBy(keyOf(jobs.length + 3).terminalId)
+      if (cart && !cart.pullRequest)
+        works.openPull(cart.terminalId!, { number: 243, state: "open", ci: "running" })
+    },
     finishAll: () => {
       if (!latest) return
       ended = true
       ripple()
     },
+  }
+
+  // Shows what loads when first asked for: its sample is made known to the showcase, then shown.
+  const later = (
+    made: () => Promise<SampleArtifact>,
+    goThere?: (key: TerminalKey) => void,
+  ): void => {
+    void made().then((artifact) => {
+      if (!sink || shown.has(artifact.item.id)) return
+      showcase.present(keyOf(launch.shows), demoHandle(launch.shows), artifact)
+      upsert(artifact, launch.shows, goThere)
+    })
   }
 
   // An agent shows something in the pane: the order-status agent its page, then its changes, as
@@ -1285,7 +1420,15 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     sink.dispatch([{ type: "item/upsert", target: holder, item }])
   }
 
+  // The final backend's worktrees, which the cues plant the teammates' in and change.
+  let worksBackend: (() => Backend["works"]) | undefined
+  const worksOf = (): DemoWorks | undefined => {
+    const works = worksBackend?.()
+    return isDemoWorks(works) ? works : undefined
+  }
+
   // The final backend's Inbox, which the cues add the teammate's ask to.
+  let filesBackend: (() => Backend["files"]) | undefined
   let inboxOf: (() => Backend["inbox"]) | undefined
   const backendInbox = () => {
     const inbox = inboxOf?.()
@@ -1458,6 +1601,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     // The cues belong to the backend returned, and add to its Inbox.
     over: (backend: Backend): Backend => {
       inboxOf = () => backend.inbox
+      worksBackend = () => backend.works
+      filesBackend = () => backend.files
       cuesOf.set(backend, cues)
       return backend
     },

@@ -39,6 +39,7 @@
     "./variants": "./src/variants.ts",
     "./videos/babcia": "./src/videos/babcia.ts",
     "./videos/launch": "./src/videos/launch.ts",
+    "./videos/launch-files": "./src/videos/launch-files.ts",
     "./visitor/connect": "./src/visitor/connect.ts",
     "./visitor/index": "./src/visitor/index.ts",
     "./work-plans": "./src/work-plans.ts",

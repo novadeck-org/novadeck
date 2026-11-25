@@ -37,11 +37,14 @@ export const resultLines = (item: ChatItem): string[] => {
     : shown
 }
 
-const working = {
+const workingWords = {
   claude: "✻ Working…",
   codex: "• Working",
   agy: "◆ Working…",
-  opencode: "• Working",
+  // opencode's footer while a turn runs (probed in harnesses/OpenCode's input-box fixture).
+  opencode: "■■■■■■⬝⬝  esc interrupt",
+  // Pi shows it on the input box's top rule, not as a line (see `agentTail`).
+  pi: "⠼ Working",
 } as const
 
 const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? "" : "s"}`
@@ -54,7 +57,10 @@ export const statusLines = (
 ): string[] => {
   if (!status) return []
   const lines: string[] = []
-  if (status.working && !asking) lines.push(`${working[agent]} (esc to interrupt)`)
+  if (status.working && !asking && agent !== "pi")
+    lines.push(
+      agent === "opencode" ? workingWords[agent] : `${workingWords[agent]} (esc to interrupt)`,
+    )
   if (status.planning) lines.push("⏸ plan mode on")
   if (status.subagents?.length)
     lines.push(`⏺ ${plural(status.subagents.length, "subagent")} running`)
@@ -69,9 +75,24 @@ export const statusLines = (
 // The glyph a person's request and a tool call start with, in each agent's TUI.
 // Antigravity's are from harnesses/agy's probes: `> ` for the person's turn, `● Tool(subject)`
 // for a call, and `  ⎿  ` before a result.
+// OpenCode marks the person's turns with its left border, and Pi (which draws no marker, its
+// text from the first column) with nothing (harnesses/pi's input-box fixture).
 const promptGlyph = (agent: ChatAgent): string =>
-  agent === "claude" ? "❯" : agent === "agy" ? ">" : "›"
+  agent === "claude"
+    ? "❯"
+    : agent === "agy"
+      ? ">"
+      : agent === "opencode"
+        ? "┃"
+        : agent === "pi"
+          ? ""
+          : "›"
 const callGlyph = (agent: ChatAgent): string => (agent === "codex" ? "•" : "●")
+
+// Pi's call: a command as `$ command`, any other tool by its lowercase name and what it was
+// called on (its transcript's names: read, edit, write; harnesses/pi's tools.ts).
+const piCall = (tool: string, subject: string): string =>
+  tool === "Bash" || tool === "Ran" ? `$ ${subject}` : `${tool.toLowerCase()} ${subject}`.trim()
 
 const gap: Line = []
 
@@ -81,8 +102,8 @@ export const requestBlock =
   (agent: ChatAgent, text: string): Block =>
   (width) => [
     ...wrap([span(text, "bold")], width, {
-      first: [span(`${promptGlyph(agent)} `, "bold", "cyan")],
-      rest: [span("  ")],
+      first: [span(agent === "pi" ? " " : `${promptGlyph(agent)} `, "bold", "cyan")],
+      rest: [span(agent === "pi" ? " " : "  ")],
     }),
     gap,
   ]
@@ -94,30 +115,44 @@ export const requestBlock =
 // (`expandable`).
 export const callBlock =
   (agent: ChatAgent, tool: string, subject = "", expandable = false, joined = false): Block =>
-  (width) => [
-    ...(agent === "agy" && joined ? [] : [gap]),
-    ...wrap(
-      [
-        span(tool, "bold"),
-        ...(subject ? [span(agent === "agy" ? ` (${subject})` : ` ${subject}`)] : []),
-        ...(agent === "agy" && expandable ? [span(" (ctrl+o to expand)", "muted")] : []),
-      ],
-      width,
-      {
-        first: [span(`${callGlyph(agent)} `)],
-        rest: [span("  ")],
-      },
-    ),
-  ]
+  (width) =>
+    agent === "pi"
+      ? [
+          gap,
+          ...wrap([span(piCall(tool, subject), "bold")], width, {
+            first: [span(" ")],
+            rest: [span("   ")],
+          }),
+        ]
+      : [
+          ...(agent === "agy" && joined ? [] : [gap]),
+          ...wrap(
+            [
+              span(tool, "bold"),
+              ...(subject ? [span(agent === "agy" ? ` (${subject})` : ` ${subject}`)] : []),
+              ...(agent === "agy" && expandable ? [span(" (ctrl+o to expand)", "muted")] : []),
+            ],
+            width,
+            {
+              first: [span(`${callGlyph(agent)} `)],
+              rest: [span("  ")],
+            },
+          ),
+        ]
 
 // A tool's result under its call, muted, the first line marked as its answer.
 export const resultBlock =
   (lines: readonly string[], agent?: ChatAgent): Block =>
   (width) =>
     lines.flatMap((line, index) => {
-      const indent = agent === "agy" ? "     " : "    "
+      const indent = agent === "agy" ? "     " : agent === "pi" ? "  " : "    "
       return wrap([span(line, "muted")], width, {
-        first: [span(index ? indent : agent === "agy" ? "  ⎿  " : "  └ ", "muted")],
+        first: [
+          span(
+            index ? indent : agent === "agy" ? "  ⎿  " : agent === "pi" ? indent : "  └ ",
+            "muted",
+          ),
+        ],
         rest: [span(indent)],
       })
     })
@@ -379,6 +414,64 @@ export const inputLines = (prompt: Line, draft: string, cursor: number, width: n
   return { lines: rows, cursor: at }
 }
 
+// Pi's input box (harnesses/pi's input-box and busy fixtures): its text from the first column
+// between two full-width rules, the top one carrying a spinner and `Working` while a turn runs,
+// and under it the folder and a line of usage and model.
+const piRule = (width: number, label?: string): Line => {
+  const head = label ? `── ${label} ` : ""
+  return [span(head + "─".repeat(Math.max(0, width - cells(head))), "muted")]
+}
+const piModel = "gpt-6-luna • medium"
+const piTail = ({
+  request,
+  progress,
+  place,
+  note,
+  status,
+  draft,
+  cursor,
+  noteAgain,
+  working,
+  directory,
+  width,
+}: {
+  readonly request: ChatRequest | undefined
+  readonly progress: number
+  readonly place: { readonly at: number; readonly of: number } | undefined
+  readonly note: string | undefined
+  readonly status: readonly string[]
+  readonly draft: string
+  readonly cursor: number
+  readonly noteAgain: boolean
+  readonly working: boolean
+  readonly directory: string
+  readonly width: number
+}): Tail => {
+  const asking = request ? [gap, ...askLines(request, "pi", progress, place, width)] : []
+  const noted = note ? wrap([span(note, "muted")], width) : []
+  const above: Line[] = [
+    ...asking,
+    ...noted,
+    ...status.flatMap((line) => [gap, ...wrap([span(line, "muted")], width)]),
+    gap,
+    piRule(width, working && !request ? "⠼ Working" : undefined),
+  ]
+  const input = inputLines([], draft, cursor, width)
+  const usage = "0.7%/200k (auto)"
+  const spare = Math.max(1, width - usage.length - piModel.length)
+  return {
+    lines: [
+      ...above,
+      ...input.lines,
+      piRule(width),
+      [span(directory, "muted")],
+      [span(usage + " ".repeat(spare) + piModel, "muted")],
+    ],
+    cursor: { row: above.length + input.cursor.row, column: input.cursor.column },
+    ...(noteAgain && { fresh: noted.map((_, index) => asking.length + index) }),
+  }
+}
+
 // The live tail of an agent's terminal: the request's dialog, a note on what the prompt
 // couldn't take, the status lines, and the prompt between two rules, as Claude Code draws
 // its input.
@@ -392,6 +485,8 @@ export const agentTail = ({
   draft,
   cursor,
   noteAgain = false,
+  working = false,
+  directory = "",
 }: {
   readonly agent: ChatAgent
   readonly request: ChatRequest | undefined
@@ -403,8 +498,25 @@ export const agentTail = ({
   readonly cursor: number
   // Whether the note is said again, as the same refusal twice, so it's heard again.
   readonly noteAgain?: boolean
+  // Pi shows its turn running on its box's top rule, and the folder under the box.
+  readonly working?: boolean
+  readonly directory?: string
 }): ((width: number) => Tail) => {
   return (width) => {
+    if (agent === "pi")
+      return piTail({
+        request,
+        progress,
+        place,
+        note,
+        draft,
+        cursor,
+        noteAgain,
+        working,
+        directory,
+        status,
+        width,
+      })
     const asking = request ? [gap, ...askLines(request, agent, progress, place, width)] : []
     const noted = note ? wrap([span(note, "muted")], width) : []
     const above: Line[] = [

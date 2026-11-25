@@ -1,4 +1,5 @@
 import type { LaunchCues } from "@novadeck/demo/videos/launch"
+import { launchFiles } from "@novadeck/demo/videos/launch-files"
 
 import type { DemoActionGroup } from "./types"
 
@@ -24,7 +25,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "3b · One agent fails",
-              hint: "Stripe webhooks' turn ends in an API error (stream disconnected), as Codex records one: its line goes red, with a Trouble entry that reads it",
+              hint: "Stripe webhooks' turn ends in an API error (stream disconnected): its line goes red, with a Trouble entry that reads it",
               run: () => cues.fail(),
             },
             {
@@ -83,6 +84,26 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               run: (context) => cues.showVariants(context.select),
             },
             {
+              label: "6d · Agent shows a video",
+              hint: "Order status page shows checkout-walkthrough.webm, a 4 s recording, as a video item on its pane's bar. Works after 6a and 6b",
+              run: (context) => cues.showVideo(context.select),
+            },
+            {
+              label: "6e · Agent shows a PDF",
+              hint: "Order status page shows invoice-1042.pdf, a one-page invoice, as a PDF item on its pane's bar",
+              run: (context) => cues.showPdf(context.select),
+            },
+            {
+              label: "6f · Agent shows a 3D model",
+              hint: "Order status page shows packing-arm.gltf, an animated arm, as a 3D item on its pane's bar. It loads for a moment first",
+              run: (context) => cues.showModel(context.select),
+            },
+            {
+              label: "6g · Agent shows a folder",
+              hint: "Order status page shows its screenshots folder (four stills and a clip) as a folder item on its pane's bar. It loads for a moment first",
+              run: (context) => cues.showFolder(context.select),
+            },
+            {
               label: "7 · Everyone finishes",
               hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while their exchange is on its way (they finish when it settles). Each teammate messages its lead its report as it finishes, and the lead finishes about 1 s after the ripple starts. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
@@ -106,6 +127,24 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               label: "8d · An Antigravity agent asks to approve its plan",
               hint: "Inventory sync, the deck's Antigravity agent, shows its implementation plan (Stock sync) beside its window, without opening it, and asks to approve it in Antigravity's words (1 artifact to review: Approve, Reject, Tell it what to change): an Unblock entry whose sheet shows the plan. Answered, it goes on working",
               run: () => cues.agyPlan(),
+            },
+            {
+              label: "9a · A check passes and a PR opens",
+              hint: "With Agent worktrees on (App group), the Worktrees panel changes as it is open: Search index's running checks pass, and, after 5a, Cart endpoint's worktree opens its pull request with checks of its own. The teammates' worktrees (Pricing, Stock, Cart endpoint) appear under Orders API's with 5a",
+              run: () => cues.checksPass(),
+            },
+            {
+              label: "9b · Agents write files",
+              hint: "With the Files panel on (the action below), the agents that work start writing files: Cart drawer, Search index, Checkout tests, Stripe webhooks, Order emails, Order status page and Orders API change files and make new ones, a file every few seconds each while at work, as the tree is open",
+              run: () => cues.writeFiles(),
+            },
+            {
+              label: "Files panel on",
+              hint: "Boots again with the Files panel and its button in the rail (the launch demo has neither, so the video's other beats show none): northwind's tree, with what the agents changed so far. 9b has them write. Worktrees need App > Agent worktrees > On",
+              reboots: true,
+              run: () => {
+                launchFiles.on = true
+              },
             },
           ],
         },

@@ -95,6 +95,9 @@ export type WorkPlan = {
   readonly uncommitted?: number
   // How many of its commits no remote holds; none when left out.
   readonly unpushed?: number
+  // The branch it heads to instead of main, as a worktree a lead opened for a teammate does:
+  // its pull request targets it too, and the row hangs under the worktree whose branch it is.
+  readonly home?: string
 }
 
 // The checks of a demo pull request whose checks stand so, one by one: the same four pipelines,
@@ -204,6 +207,63 @@ const slug = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g,
 export const worktreeRoot = (project: string, group: string): string =>
   `~/.novadeck/worktrees/${project}/${slug(group)}/${project}`
 
+// The work a plan describes, in the worktree `at` names.
+const workOfPlan = (
+  plan: Omit<WorkPlan, "project" | "terminal"> & { readonly terminal?: string | null },
+  at: {
+    readonly projectId: string
+    readonly terminalId: string | null
+    readonly branch: string
+    readonly root: string
+  },
+  conflicts: readonly WorkConflict[],
+  now: number,
+): Work =>
+  standing(
+    summed(
+      {
+        root: at.root,
+        terminalId: at.terminalId,
+        projectId: at.projectId,
+        working: plan.working === true,
+        branch: at.branch,
+        base: plan.home ? `origin/${plan.home}` : "main",
+        ...(plan.home && { home: plan.home }),
+        ...((plan.title ?? plan.terminal) != null && { title: plan.title ?? plan.terminal! }),
+        changedAt: now - (plan.changedMinutesAgo ?? plan.minutesAgo) * minute,
+        ...(plan.fetchedMinutesAgo !== undefined && {
+          fetchedAt: now - plan.fetchedMinutesAgo * minute,
+        }),
+        firstSeenAt: now - plan.minutesAgo * minute,
+        merged: plan.merged === true,
+        added: 0,
+        removed: 0,
+        unreadAdded: 0,
+        unreadRemoved: 0,
+        files: [],
+        truncated: false,
+        folder: { repo: "", project: "" },
+        conflicts: [...conflicts],
+        uncommitted: plan.uncommitted ?? (plan.merged ? 0 : plan.files.length),
+        unpushed: plan.unpushed ?? 0,
+        ...(plan.pullRequest && {
+          pullRequest: {
+            ...demoPullRequest(
+              plan.pullRequest.number,
+              plan.pullRequest.state,
+              undefined,
+              plan.pullRequest.ci,
+              plan.pullRequest.review,
+            ),
+            // Opened from its home, it targets it.
+            ...(plan.home && { base: plan.home }),
+          },
+        }),
+      },
+      plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
+    ),
+  )
+
 // The works a demo opens with, from its plans and its own seed. A plan that names a project
 // or terminal the seed lacks has no work; a conflict between two works is on both.
 export const worksFromPlans = (
@@ -254,45 +314,7 @@ export const worksFromPlans = (
         terminalId: other.terminalId,
       })),
     ]
-    return standing(
-      summed(
-        {
-          root: at.root,
-          terminalId: at.terminalId,
-          projectId: at.projectId,
-          working: plan.working === true,
-          branch: at.branch,
-          base: "main",
-          ...((plan.title ?? plan.terminal) !== null && { title: plan.title ?? plan.terminal! }),
-          changedAt: now - (plan.changedMinutesAgo ?? plan.minutesAgo) * minute,
-          ...(plan.fetchedMinutesAgo !== undefined && {
-            fetchedAt: now - plan.fetchedMinutesAgo * minute,
-          }),
-          firstSeenAt: now - plan.minutesAgo * minute,
-          merged: plan.merged === true,
-          added: 0,
-          removed: 0,
-          unreadAdded: 0,
-          unreadRemoved: 0,
-          files: [],
-          truncated: false,
-          folder: { repo: "", project: "" },
-          conflicts,
-          uncommitted: plan.uncommitted ?? (plan.merged ? 0 : plan.files.length),
-          unpushed: plan.unpushed ?? 0,
-          ...(plan.pullRequest && {
-            pullRequest: demoPullRequest(
-              plan.pullRequest.number,
-              plan.pullRequest.state,
-              undefined,
-              plan.pullRequest.ci,
-              plan.pullRequest.review,
-            ),
-          }),
-        },
-        plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
-      ),
-    )
+    return workOfPlan(plan, at, conflicts, now)
   })
 }
 
@@ -699,6 +721,14 @@ export type DemoWorksControl = {
   // The project's worktrees become one in each state a row draws (galleryWorks), owned by these
   // terminals in turn.
   readonly gallery: (projectId: string, owners: readonly string[]) => void
+  // The terminal's worktree, as a plan describes it, if it has none: what a video's cue plants
+  // when its agent comes (a teammate's, heading to its lead's branch).
+  readonly plant: (
+    at: { readonly projectId: string; readonly terminalId: string; readonly branch: string },
+    plan: Omit<WorkPlan, "project" | "terminal">,
+  ) => void
+  // The terminal's worktree opens this pull request, targeting its home where it has one.
+  readonly openPull: (terminalId: string, pull: NonNullable<WorkPlan["pullRequest"]>) => void
   readonly ownedBy: (terminalId: string) => Work | undefined
   readonly worksOf: (projectId: string) => readonly Work[]
 }
@@ -1123,6 +1153,25 @@ export const createDemoWorks = (
           ...galleryWorks(projectId, owners, now()),
         ],
       })),
+    plant: (at, plan) => {
+      if (ownedBy(at.terminalId)) return
+      const root = worktreeRoot(at.projectId, at.branch)
+      state.update((current) => ({
+        ...current,
+        works: [...current.works, workOfPlan(plan, { ...at, root }, [], now())],
+      }))
+    },
+    openPull: (terminalId, pull) => {
+      const own = ownedBy(terminalId)
+      if (!own) return
+      change(own.root, (work) => ({
+        ...work,
+        pullRequest: {
+          ...demoPullRequest(pull.number, pull.state, work.title, pull.ci, pull.review),
+          ...(work.home && { base: work.home }),
+        },
+      }))
+    },
     ownedBy,
     worksOf: (projectId) =>
       state.getSnapshot().works.filter((work) => work.projectId === projectId),

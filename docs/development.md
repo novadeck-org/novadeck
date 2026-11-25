@@ -235,7 +235,7 @@ open waits for a terminal you're not on), 6 every agent finishes but those waiti
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
 told, an agent works until cue 6; `frontend/demo/src/videos/babcia.ts`) or `launch` (a one-off for the
-launch walkthrough video: project northwind's ten Claude Code, Codex and Antigravity agents on the
+launch walkthrough video: project northwind's ten Claude Code, Codex, Antigravity, OpenCode and Pi agents on the
 Canvas, all working, beside a second project, northwind-docs; its beats are the debug panel's
 "Launch" group, numbered by the video's beat: 3 a spread of states (an agent asking, one failed, one
 done; or each alone), 4 three asks at once (or each alone: a permission, after the three steps
@@ -244,14 +244,19 @@ the lead Orders API opens three teammates, each briefed by its lead as a message
 person a question and messages its lead the same one, the lead answers first and the teammate
 withdraws its ask; another reports done (a done mark and an Update entry, and the same to its lead as
 a message), 6 the page and then the changes (`show { changes }`) or a screenshot of three takes
-on a button (6c) shown in the pane, each cue selecting Order status page first as Babcia's 5
-does, 7 every agent
+on a button (6c), a video (6d), a PDF (6e), a 3D model (6f) or a folder (6g) shown in the pane, each cue
+selecting Order status page first as Babcia's 5 does, 7 every agent
 finishes (each teammate reporting to its lead, which finishes after; whoever waits on the person
 stays waiting, and a second press ends whoever is still working), and for the website's /vs pages 8a
 one agent asking another by message to review its change, which it answers, 8b an agent showing
 its plan in the pane, and 8c a Codex agent asking in Codex's words to run its tests, which once
 allowed runs them and reports done (8a and 8c share Search index, so each does nothing once the
-other has run); `frontend/demo/src/videos/launch.ts`,
+other has run), 9a a check passing and a teammate's pull request opening in the Worktrees panel
+(its worktrees and their pull requests come with Experimental agent worktrees on: App > Agent
+worktrees > On, with Worktrees; the lead's three teammates' worktrees head to its branch, so they
+hang under it on the team wire, from 5a), and 9b the agents writing files in the Files panel (the
+panel and its rail button are there only with `&files=on` or the Launch group's "Files panel on",
+as no other beat shows them; `videos/launch-files.ts`); `frontend/demo/src/videos/launch.ts`,
 sharing the desk's builders with Babcia and Chirp in `videos/desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so a row's

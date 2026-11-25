@@ -33,7 +33,7 @@ import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
 import { createDemoBundledPi } from "./bundled-pi"
 import { withFeedback } from "./feedback"
-import { withFiles } from "./files"
+import { createDemoFiles, withFiles } from "./files"
 import { createDemoForges } from "./forges"
 import { demoHandle } from "./handles"
 import { withHistory } from "./history"
@@ -64,6 +64,7 @@ import { isDemoTour, tourScreens, withTourAgent, type TourScreen } from "./tour"
 import { babciaIntroOf, createBabcia } from "./videos/babcia"
 import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
 import { createLaunch } from "./videos/launch"
+import { launchFiles, launchFilesScene } from "./videos/launch-files"
 import { babciaPlans, chirpPlans, launchPlans, storefrontPlans } from "./work-plans"
 import { withWorks } from "./works"
 import { directoryOf, itemsOf, sessionOf, terminalOf } from "./workspace"
@@ -762,13 +763,29 @@ const plainBackend = (
     )
   }
   if (launch) {
+    const conversing = withInbox(
+      withConversations(launch.under(backend), launch.transcripts, turns, launch.wrap),
+      turns,
+    )
+    // The Files panel adds a button to the rail, so only where it was asked for (see `launchFiles`).
+    const filesAsked = addressParams().get("files") === "on"
+    if (filesAsked) launchFiles.on = true
     return launch.over(
       withWorks(
         withFeedback(
-          withInbox(
-            withConversations(launch.under(backend), launch.transcripts, turns, launch.wrap),
-            turns,
-          ),
+          launchFiles.on
+            ? withFiles(
+                conversing,
+                turns,
+                createDemoFiles(
+                  now,
+                  undefined,
+                  launchFilesScene.slots.map((slot) => slot.handle),
+                  launchFilesScene,
+                ),
+                launchFilesScene,
+              )
+            : conversing,
           turns,
         ),
         { plans: launchPlans, turns },

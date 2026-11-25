@@ -200,6 +200,8 @@ export const createDemoTerminalScreen = ({
       draft: line.draft,
       cursor: line.cursor,
       noteAgain: noted !== undefined && noted.n !== heard,
+      working: status?.working === true,
+      directory: terminal.directory,
     })
   }
 

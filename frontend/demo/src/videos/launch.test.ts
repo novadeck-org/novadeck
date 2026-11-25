@@ -1,6 +1,7 @@
 import { agentContext } from "@novadeck/core/agents/steps"
 import type { InboxEntry } from "@novadeck/core/inbox"
 import { planItemOf } from "@novadeck/core/inbox/plan"
+import type { ItemContent } from "@novadeck/core/items"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
@@ -15,6 +16,7 @@ import { isDemoMessages } from "../messages"
 import { demoTerminalId } from "../samples"
 import { createDemo } from "../variants"
 import { createLaunch, launch, launchCuesOf, launchTranscripts } from "./launch"
+import { launchFiles } from "./launch-files"
 
 const shop = { projectId: "northwind", workspaceSessionId: "initial" }
 const key = (number: number) => ({ ...shop, terminalId: demoTerminalId(shop, number) })
@@ -53,7 +55,7 @@ describe("the launch demo", () => {
     vi.useRealTimers()
   })
 
-  it("opens on the storefront's project, eight agents of all three harnesses at work, and a second project", () => {
+  it("opens on the storefront's project, eight agents of all five harnesses at work, and a second project", () => {
     const { backend } = open()
     const [first, second] = backend.seed.projects
     expect(first?.id).toBe("northwind")
@@ -67,7 +69,7 @@ describe("the launch demo", () => {
     for (const number of Object.values(launch).filter((each) => each <= 10))
       expect(terminals.map((terminal) => terminal.id)).toContain(key(number).terminalId)
     expect(new Set(terminals.map((terminal) => terminal.process))).toEqual(
-      new Set(["claude", "codex", "agy"]),
+      new Set(["claude", "codex", "agy", "opencode", "pi"]),
     )
     for (const project of backend.seed.projects)
       for (const terminal of project.sessions[0]!.terminals)
@@ -412,6 +414,75 @@ describe("the launch demo", () => {
     expect(second.rows()).toEqual([])
   })
 
+  it("opens with a spread of pull requests, and plants the teammates' worktrees under the lead's with 5a", () => {
+    const { backend, cues } = open()
+    const works = backend.works!
+    const pulls = () =>
+      Object.fromEntries(
+        works.state
+          .getSnapshot()
+          .works.filter((work) => work.pullRequest)
+          .map((work) => [work.title, `${work.pullRequest!.state} ${work.pullRequest!.ci}`]),
+      )
+    expect(pulls()).toEqual({
+      "Cart drawer": "open passed",
+      "Order status page": "draft running",
+      "Stripe webhooks": "open failing",
+      "Search index": "open running",
+      "Orders API": "open passed",
+    })
+    expect(works.state.getSnapshot().works.some((work) => work.home)).toBe(false)
+    // 9a before the teammates: only the check passes.
+    cues.checksPass()
+    expect(pulls()["Search index"]).toBe("open passed")
+    expect(works.state.getSnapshot().works.some((work) => work.home)).toBe(false)
+  })
+
+  it("has the teammates' worktrees head to the lead's branch, one opening its pull request with 9a", () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    const all = backend.works!.state.getSnapshot().works
+    const lead = all.find((work) => work.title === "Orders API")!
+    const team = all.filter((work) => work.home !== undefined)
+    expect(team.map((work) => work.title)).toEqual([
+      "Pricing endpoint",
+      "Stock endpoint",
+      "Cart endpoint",
+    ])
+    for (const work of team) expect(work.home).toBe(lead.branch)
+    expect(team.map((work) => work.pullRequest?.base)).toEqual([
+      lead.branch,
+      lead.branch,
+      undefined,
+    ])
+    cues.checksPass()
+    cues.checksPass()
+    const after = backend.works!.state.getSnapshot().works.find((w) => w.title === "Cart endpoint")
+    expect(after?.pullRequest).toMatchObject({ number: 243, state: "open", base: lead.branch })
+  })
+
+  it("offers no Files panel unless asked, and then has the working agents write only on 9b", async () => {
+    expect(open().backend.files).toBeUndefined()
+    launchFiles.on = true
+    try {
+      const { backend, cues } = open()
+      const files = backend.files!
+      const project = () => files.state.getSnapshot().projects["northwind"]!
+      expect(Object.keys(project().writing)).toEqual([])
+      // The tree is northwind's, with what the agents changed so far marked.
+      const listing = await files.list("northwind", "src/components")
+      expect(listing.entries.map((entry) => entry.name)).toContain("CartDrawer.tsx")
+      cues.writeFiles()
+      expect(Object.keys(project().writing).length).toBeGreaterThan(3)
+      // A few seconds on, the tree changed: an agent wrote another file or made a new one.
+      const before = JSON.stringify(project().changes)
+      vi.advanceTimersByTime(30_000)
+      expect(JSON.stringify(project().changes)).not.toBe(before)
+    } finally {
+      launchFiles.on = false
+    }
+  })
+
   it("has the lead open three teammates its team wire draws to, and rest", () => {
     const { cues, terminals, agent, store } = open()
     cues.teammates()
@@ -754,6 +825,58 @@ describe("the launch demo", () => {
     // Shown once each: a cue pressed again goes nowhere.
     cues.show(goThere)
     expect(went).toHaveLength(3)
+  })
+
+  it("shows a video, a PDF, a 3D model and a folder after the page and the changes, each readable", async () => {
+    const { backend, cues, store } = open()
+    cues.show()
+    cues.showChanges()
+    cues.showVideo()
+    cues.showPdf()
+    cues.showModel()
+    await vi.dynamicImportSettled()
+    cues.showFolder()
+    await vi.dynamicImportSettled()
+    const { items } = activeSession(store.getSnapshot())!.state
+    const holder = { terminalId: key(launch.shows).terminalId }
+    expect(items.map((item) => [item.kind, item.name])).toEqual([
+      ["page", "localhost:3000"],
+      ["changes", "Changes · northwind"],
+      ["video", "checkout-walkthrough.webm"],
+      ["pdf", "invoice-1042.pdf"],
+      ["model", "packing-arm.gltf"],
+      ["folder", "screenshots"],
+    ])
+    for (const item of items) expect(item).toMatchObject({ holder })
+    // Their bytes load through the showcase, as the panes read them.
+    const read = async (name: string) => {
+      const item = items.find((each) => each.name === name)!
+      const content = await new Promise<Extract<ItemContent, { state: "ready" }>>((resolve) => {
+        const stop = backend.companions!.follow(shop, item.id, { reveal: undefined }, (next) => {
+          if (next.state === "ready") resolve(next)
+        })
+        void stop
+      })
+      return backend.companions!.part!(shop, item.id, {
+        stamp: content.stamp,
+        offset: 0,
+        reveal: undefined,
+      })
+    }
+    const parts = await Promise.all(
+      ["checkout-walkthrough.webm", "invoice-1042.pdf", "packing-arm.gltf"].map(read),
+    )
+    for (const part of parts) expect(part).toMatchObject({ state: "part" })
+    const pdf = await read("invoice-1042.pdf")
+    expect(pdf.state === "part" && new TextDecoder().decode(pdf.bytes.slice(0, 5))).toBe("%PDF-")
+    const folder = items.find((each) => each.kind === "folder")!
+    const listing = await new Promise<ItemContent>((resolve) => {
+      backend.companions!.follow(shop, folder.id, { within: "", reveal: undefined }, resolve)
+    })
+    expect(listing).toMatchObject({
+      state: "ready",
+      content: { kind: "folder", path: "/home/dev/projects/northwind/screenshots" },
+    })
   })
 
   it("shows the page, then its button's variants, as a screenshot beside the order-status window", () => {

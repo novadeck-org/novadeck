@@ -57,6 +57,15 @@ export const banner =
         ]),
         gap,
       ]
+    // Pi's mark and keys, as harnesses/pi's startup fixture shows them (1.6.0).
+    if (agent === "pi")
+      return [
+        [span(" ▀▀█  ", "muted"), span("v1.6.0", "bold")],
+        [span(" █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash", "muted")],
+        gap,
+      ]
+    if (agent === "opencode")
+      return [...wrap([span("▣  OpenCode", "bold"), span(`  ${directory}`, "muted")], width), gap]
     if (agent === "claude")
       return [...wrap([span("✳ Claude Code", "bold"), span(`  ${directory}`, "muted")], width), gap]
     const name: Line = [span(">_ Codex", "bold")]

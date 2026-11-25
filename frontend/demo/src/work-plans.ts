@@ -263,16 +263,21 @@ export const babciaPlans: readonly WorkPlan[] = [
   },
 ]
 
+// The launch demo's worktrees (`?demo=launch`, with Experimental agent worktrees on): the deck's
+// agents each in theirs, most with a pull request in a different state, the lead's among them.
+// Its teammates' (`launchTeamPlans`) are planted when the lead opens them.
 export const launchPlans: readonly WorkPlan[] = [
   {
     project: "northwind",
     terminal: "Cart drawer",
     minutesAgo: 68,
     conflicts: ["main", "Order status page"],
+    pullRequest: { number: 231, state: "open", ci: "passed", review: "required" },
+    uncommitted: 1,
     files: [
-      file("src/cart/CartDrawer.tsx", 128, 46, { conflict: true }),
-      file("src/cart/useCart.ts", 36, 9),
-      file("src/cart/CartDrawer.test.tsx", 72, 0),
+      file("src/components/CartDrawer.tsx", 128, 46),
+      file("src/cart/useCart.ts", 36, 9, { conflict: true }),
+      file("src/components/CartDrawer.test.tsx", 72, 0),
     ],
   },
   {
@@ -280,15 +285,19 @@ export const launchPlans: readonly WorkPlan[] = [
     terminal: "Order status page",
     minutesAgo: 33,
     conflicts: ["Cart drawer"],
+    pullRequest: { number: 234, state: "draft", ci: "running" },
     files: [
       file("src/cart/useCart.ts", 6, 3, { conflict: true }),
-      file("src/orders/StatusPage.tsx", 85, 0),
+      file("src/app/orders/[id]/page.tsx", 85, 0),
     ],
   },
   {
     project: "northwind",
     terminal: "Stripe webhooks",
     minutesAgo: 150,
+    pullRequest: { number: 228, state: "open", ci: "failing", review: "changes_requested" },
+    uncommitted: 0,
+    unpushed: 1,
     files: [
       file("api/webhooks/stripe.ts", 64, 12, { read: true }),
       file("api/webhooks/stripe.test.ts", 48, 0, { read: true }),
@@ -298,7 +307,22 @@ export const launchPlans: readonly WorkPlan[] = [
     project: "northwind",
     terminal: "Search index",
     minutesAgo: 22,
+    pullRequest: { number: 236, state: "open", ci: "running", review: "required" },
+    uncommitted: 0,
     files: [file("api/search/index.ts", 39, 11, { unread: 0.6 })],
+  },
+  {
+    // The lead of the team: its teammates' worktrees head to its branch.
+    project: "northwind",
+    terminal: "Orders API",
+    minutesAgo: 41,
+    pullRequest: { number: 238, state: "open", ci: "passed", review: "approved" },
+    uncommitted: 0,
+    files: [
+      file("api/server.ts", 38, 6),
+      file("api/orders/route.ts", 54, 8),
+      file("api/openapi.yaml", 42, 0, { status: "added" }),
+    ],
   },
   {
     project: "northwind-docs",
@@ -306,6 +330,61 @@ export const launchPlans: readonly WorkPlan[] = [
     minutesAgo: 100,
     files: [file("docs/api/orders.md", 54, 13)],
   },
+]
+
+// The lead's branch, which its teammates' worktrees head to.
+export const launchLeadBranch = "agent/orders-api"
+
+// The worktrees of the lead's three teammates (by their titles), planted when it opens them: each
+// heads to the lead's branch, so its row hangs under the lead's on the team wire. One has no pull
+// request yet.
+export const launchTeamPlans: readonly (readonly [
+  string,
+  Omit<WorkPlan, "project" | "terminal">,
+])[] = [
+  [
+    "Pricing endpoint",
+    {
+      minutesAgo: 6,
+      home: launchLeadBranch,
+      fetchedMinutesAgo: 2,
+      working: true,
+      pullRequest: { number: 241, state: "open", ci: "running" },
+      uncommitted: 0,
+      files: [
+        file("api/prices/route.ts", 58, 0, { status: "added" }),
+        file("api/prices/route.test.ts", 31, 0, { status: "added" }),
+      ],
+    },
+  ],
+  [
+    "Stock endpoint",
+    {
+      minutesAgo: 6,
+      home: launchLeadBranch,
+      fetchedMinutesAgo: 2,
+      working: true,
+      pullRequest: { number: 242, state: "open", ci: "failing" },
+      uncommitted: 0,
+      files: [
+        file("api/stock/route.ts", 44, 0, { status: "added" }),
+        file("api/stock/levels.ts", 27, 0, { status: "added" }),
+      ],
+    },
+  ],
+  [
+    "Cart endpoint",
+    {
+      minutesAgo: 6,
+      home: launchLeadBranch,
+      fetchedMinutesAgo: 2,
+      working: true,
+      files: [
+        file("api/cart/route.ts", 52, 0, { status: "added" }),
+        file("api/cart/store.ts", 36, 0, { status: "added" }),
+      ],
+    },
+  ],
 ]
 
 // The website's visitor demo: a tidy desk, so few, and the agent at rest has its work read.
