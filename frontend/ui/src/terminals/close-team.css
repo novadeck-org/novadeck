@@ -1,4 +1,4 @@
-/* The team a lead's close dialog lists (CloseTeamRows.tsx): the folded team's rows (tabs.css,
+/* The team a lead's close dialog lists (CloseTeamRows.tsx): the folded team's rows (the toolkit's team-rows.css,
    `.team-fold-row`) as mono caption lines on the shell ground, in a hairline well. The rows
    take the name in the ink and leave the branch, the handle and the count quiet, as the
    sidebar's do; they aren't buttons, so no pointer and no hover. Parts: `.close-team` (the

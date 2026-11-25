@@ -201,6 +201,7 @@ const TeamWireSection = ({
   )
   return (
     <TeamWire
+      rowAttribute="data-terminal-tab-id"
       teams={teams}
       levels={levels}
       chains={chains}
