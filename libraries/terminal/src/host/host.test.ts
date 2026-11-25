@@ -277,6 +277,10 @@ describe("a terminal host's limits", () => {
   })
 })
 
+// No process under any terminal, at once: the platform's own listing (`ps` on macOS) answers on
+// its own clock, which fake timers don't move.
+const idle: Listing = () => Promise.resolve([])
+
 describe("a terminal host's close", () => {
   it("ends the program, then keeps the closed terminal for its viewers until they're done", async () => {
     const { host, programs, open } = hostOf()
@@ -302,7 +306,7 @@ describe("a terminal host's close", () => {
   it("leaves the program running for what it still saves, then ends it", async () => {
     vi.useFakeTimers()
     onTestFinished(() => void vi.useRealTimers())
-    const { programs, host, open } = hostOf({}, undefined, { settle: () => 300 })
+    const { programs, host, open } = hostOf({}, undefined, { listing: idle, settle: () => 300 })
     open("a")
     const closing = host.terminate("a")
     await vi.advanceTimersByTimeAsync(299)
@@ -316,7 +320,7 @@ describe("a terminal host's close", () => {
   it("ends the wait at once when the program exits by itself meanwhile", async () => {
     vi.useFakeTimers()
     onTestFinished(() => void vi.useRealTimers())
-    const { programs, host, open } = hostOf({}, undefined, { settle: () => 2_000 })
+    const { programs, host, open } = hostOf({}, undefined, { listing: idle, settle: () => 2_000 })
     open("a")
     let closed = false
     const closing = host.terminate("a").then(() => {
@@ -333,7 +337,7 @@ describe("a terminal host's close", () => {
   it("leaves a program no more than 1.5 s for what it saves as the host shuts down", async () => {
     vi.useFakeTimers()
     onTestFinished(() => void vi.useRealTimers())
-    const { programs, host, open } = hostOf({}, undefined, { settle: () => 2_000 })
+    const { programs, host, open } = hostOf({}, undefined, { listing: idle, settle: () => 2_000 })
     open("a")
     const done = host.shutdown()
     await vi.advanceTimersByTimeAsync(1_499)
