@@ -14,7 +14,9 @@
    check in the success colour) | "ended" (a cross); data-failed on "done" (a bold cross in the
    danger colour); data-wait="job" (a slow drip, five steps over two seconds, for a job left
    running) | "wake" (a still mark that fills a quarter at a time as data-wake-fill="0" | "1" |
-   "2" | "3" rises, for a wake-up coming near). A spinner takes its element's animation-delay,
+   "2" | "3" rises, for a wake-up coming near; a job left running draws the drip even with a
+   wake-up set). The fill also marks any other wait that comes near or is under way, as
+   checks running on a pull request. A spinner takes its element's animation-delay,
    so glyphs side by side can start at frames of their own (glyphDelay).
 
    Tokens, each optional (its fallback in brackets):

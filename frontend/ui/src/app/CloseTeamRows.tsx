@@ -27,6 +27,8 @@ const CloseTeamRowView = ({
         phase={phase}
         failed={failed}
         className="team-fold-mark"
+        // The dialog's list has no words for it, so a screen reader reads the glyph.
+        hidden={false}
         style={glyphDelay(index)}
       />
       <span className="truncate" {...(tile.state === "sleeping" ? { "data-sleeping": true } : {})}>

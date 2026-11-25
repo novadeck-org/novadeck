@@ -174,7 +174,7 @@ export const TerminalTab = ({
   const label = terminalLabel(terminal.name, shell?.handle)
   // The detail line shows the state: a glyph (a spinner while a program runs) before the
   // program, what the agent needs of the person right after it, or a note while the shell
-  // starts. A tab that has ended is hatched (styles.css); assistive technology says how it
+  // starts. A tab that has ended is hatched (sidebar-item.css); assistive technology says how it
   // ended.
   const { phase, need, snoozed, failed, brightened, text } = shell
     ? terminalNote(

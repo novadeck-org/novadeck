@@ -1,9 +1,11 @@
 /* The sidebar item's own looks (SidebarItem.tsx; the item recipe draws the rest): a row is a
    `.sidebar-item` holding a `.sidebar-item-select` button with a `.sidebar-item-icon`.
    Imported just before sidebar.css, whose rules it was part of, so the cascade holds. What a
-   context adds to an item (the terminal tabs, the team wire) stays with that context.
+   context adds to an item (the terminal tabs, the team wire) stays with that context; what
+   several lists' rows share is here: the actions slot and its end, a row's handle and the ended
+   hatch (below).
 
-   Hooks: the item recipe's, and the `.dragging` class while a row is dragged;
+   Hooks: the item recipe's, the `.dragging` class while a row is dragged, and data-ended (below);
    `:focus-within` tints a row as hovering does. A selected row (data-selected="true") is
    where the person already is, so its select button doesn't offer the pointer's hand, though
    a click may still bring it back into view; a list whose selected row's click does more,
@@ -11,7 +13,7 @@
 
    Tokens, each optional (its fallback in brackets): --item-hover-bg (soft), the
    --item-selected-* tokens (paper, line, the control shadow; also while dragged) and
-   --item-icon-fg (muted). */
+   --item-icon-fg (muted); the handle's and the hatch's are with them below. */
 .sidebar-item:focus-within {
   --_bg: var(--item-hover-bg, var(--color-soft));
 }

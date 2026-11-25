@@ -25,12 +25,14 @@ export const glyphDelay = (index: number): CSSProperties => ({
   animationDelay: `-${((index + 1) * 260) % 800}ms`,
 })
 
-// One glyph's slot, saying what something in a row does (phase-glyph.css). Drawn only: the row
-// says it in words for assistive technology.
+// One glyph's slot, saying what something in a row does (phase-glyph.css). Hidden from assistive
+// technology, as the row says it in words, unless `hidden` is false, for a list with no words of
+// its own for it, where a screen reader reads the glyph.
 export const PhaseGlyph = ({
   phase,
   failed = false,
   wait,
+  hidden = true,
   className = "",
   style,
 }: {
@@ -38,11 +40,12 @@ export const PhaseGlyph = ({
   // Done, but on a failure: a red cross for the green check.
   readonly failed?: boolean
   readonly wait?: GlyphWait | undefined
+  readonly hidden?: boolean
   readonly className?: string
   readonly style?: CSSProperties | undefined
 }): React.JSX.Element => (
   <span
-    aria-hidden
+    {...(hidden ? { "aria-hidden": true } : {})}
     className={`phase-glyph ${className}`.trimEnd()}
     data-phase={phase}
     {...(phase === "done" && failed ? { "data-failed": true } : {})}

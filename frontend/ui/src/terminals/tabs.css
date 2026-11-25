@@ -435,6 +435,10 @@
   display: block;
   white-space: pre;
 }
+/* A sleeping teammate's name dims, as its tab's does. */
+.team-fold-row [data-sleeping] {
+  color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
+}
 
 /* A tab scrolled out of the list's sight (tab-sight.ts) rests its spinners and blinks, which
    pick up again as it scrolls back in. Last in the file, as specific as the rules that start

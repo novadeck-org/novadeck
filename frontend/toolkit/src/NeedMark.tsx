@@ -4,8 +4,9 @@ import { BellOff } from "lucide-react"
 // snoozed.
 export type Need = "unblock" | "ask" | "snoozed"
 
-// The mark right after what a row names (need-mark.css): `!`, `?`, or a bell-off. Drawn only
-// where `hidden` says so; elsewhere a screen reader reads its `!` or `?`.
+// The mark right after what a row names (need-mark.css): `!`, `?`, or a bell-off. With `hidden`
+// it is hidden from assistive technology, for a row that says the need in words; otherwise a
+// screen reader reads its `!` or `?`.
 export const NeedMark = ({
   need,
   hidden = false,
