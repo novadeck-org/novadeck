@@ -760,6 +760,7 @@ export class Terminals {
       closingNow: (terminalId) => this.host.closing(terminalId),
       closeForGood: (record, closedBy) => this.closeForGood(record, closedBy),
       terminate: (record) => this.terminate(record),
+      stopTurn: (record) => stopBeforeClose(record, this.typing),
       remove: (record) => this.remove(record),
       forget: (terminalId) => this.forget(terminalId),
       save: (record) => this.saves.save(record, false),
@@ -1374,8 +1375,10 @@ export class Terminals {
       this.streams.end(input.terminalId)
       return
     }
+    // A terminal already closing had its turn stopped by that close.
+    const wasClosed = record.closed
     this.closeForGood(record, closedBy)
-    await stopBeforeClose(record, () => this.typing.interrupt(record.summary.id))
+    if (!wasClosed) await stopBeforeClose(record, this.typing)
     await this.terminate(record)
     this.remove(record)
     // What its programs left on their way out, as an agent registering again, goes too.
@@ -1444,7 +1447,7 @@ export class Terminals {
     for (const record of running) this.closeForGood(record)
     await Promise.all(
       running.map(async (record) => {
-        await stopBeforeClose(record, () => this.typing.interrupt(record.summary.id))
+        await stopBeforeClose(record, this.typing)
         await this.terminate(record)
         this.remove(record)
         this.forget(record.summary.id)

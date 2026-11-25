@@ -1,3 +1,6 @@
+import { writeFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { agy } from "./agents/agy.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, gate } from "./model/script.js"
@@ -38,6 +41,42 @@ describe.skipIf(!supported)("Antigravity", () => {
     hold.open()
     expect(
       run.model.calls.slice(after).filter((call) => !call.side && asked(call, "Hold on")),
+    ).toEqual([])
+  })
+})
+
+describe.skipIf(!supported)("Antigravity waiting on a confirmation", () => {
+  const it = e2e(agy)
+
+  it("leaves no turn for the next agent when a terminal is closed while it asks", async ({
+    e2e: run,
+  }) => {
+    const { shell } = agy
+    if (!shell) throw new Error("Antigravity has no shell tool")
+    writeFileSync(join(run.sandbox.project, "ask.mjs"), "console.log('ran')\n")
+    run.model.use(
+      own((call) =>
+        asked(call, "Run the ask tool") ? shell.run(call, "node ask.mjs") : undefined,
+      ),
+      own((call) => (asked(call, "Say two") ? { text: "Second done." } : undefined)),
+    )
+    const first = await start(run, agy)
+    await first.submit("Run the ask tool")
+    // A command no seed allows: the agent asks, and the turn waits on the person.
+    await first.poll(
+      async () => ((await first.detail()).requests.length > 0 ? true : undefined),
+      "its tool to ask",
+      60_000,
+    )
+
+    await run.deck.terminals.close({ terminalId: first.id })
+    const after = run.model.mark()
+
+    const second = await start(run, agy)
+    await second.submit("Say two")
+    await second.until("Second done.")
+    expect(
+      run.model.calls.slice(after).filter((call) => !call.side && asked(call, "Run the ask tool")),
     ).toEqual([])
   })
 })

@@ -46,6 +46,7 @@ import type { AgentSetup } from "../agents/agent.js"
 import { setups } from "../agents/index.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, supported, type E2E } from "../fixture.js"
+import type { Snapshot } from "../history.js"
 import { asked, gate, type Call } from "../model/script.js"
 import { nestedRuns, own, prompted, replies, result, start, turn } from "../scenarios.js"
 import { probing, sleep } from "./support.js"
@@ -352,7 +353,10 @@ type Row = { readonly case: string } & Partial<Timed> & { readonly error?: strin
 type Resume = {
   readonly case: string
   readonly resumed?: boolean
-  /** The resumed agent ran the interrupted turn again, as Antigravity 1.5.17 does. */
+  /**
+   * The resumed agent was seen settling from a turn of its own, without showing Ready first:
+   * it ran the turn the kill ended again, as Antigravity 1.5.17 does. Absent where Ready came.
+   */
   readonly replayed?: boolean
   readonly killed?: readonly string[]
   readonly agentMet?: boolean
@@ -410,6 +414,14 @@ spawn(process.execPath, ["-e", "process.on('SIGHUP', () => {}); setInterval(() =
 console.log("stand-in ready")
 setInterval(() => {}, 1000)
 `
+
+/**
+ * A resumed agent at its prompt, or done with a turn it ran again: Antigravity 1.5.17 runs
+ * the turn a kill ended and never shows Ready first (restart.e2e.ts expects the same), and
+ * 1.5.16 or an idle conversation shows Ready.
+ */
+const readyOrSettled = (snapshot: Snapshot): boolean =>
+  snapshot.delivery === "ready" || snapshot.delivery === "settled"
 
 /** What the cases share for one test: its model's rules, its findings and how it hangs up. */
 const lab = (run: E2E, file: string) => {
@@ -487,18 +499,22 @@ const lab = (run: E2E, file: string) => {
    * its own conversation, so nothing of another's runs.
    */
   const settleResumes = async (
-    terminals: readonly { readonly id: string; readonly harness: string }[],
+    terminals: readonly {
+      readonly id: string
+      readonly harness: string
+      readonly control?: boolean
+    }[],
   ) => {
     // Open, so the turn a restored agent runs again isn't held: it ends, and the close that
     // follows leaves the conversation idle. A restored agent binds only as its turn ends, so a
     // close while it runs has no turn to stop.
     held.open()
-    for (const { id, harness } of terminals) {
+    for (const { id, harness, control } of terminals) {
       const agent = harness as keyof typeof harnesses
-      if (!harnesses[agent]?.resumesInterrupted) continue
+      if (control || !harnesses[agent]?.resumesInterrupted) continue
       try {
         const resumed = opened(await run.deck.restore({ id }, { resume: agent }))
-        await resumed.reached("ready", { timeoutMs: 30_000 }).catch(() => {})
+        await resumed.reached(readyOrSettled, { timeoutMs: 30_000 }).catch(() => {})
         await run.deck.terminals.close({ terminalId: resumed.id })
         open.delete(resumed.id)
       } catch {
@@ -604,6 +620,7 @@ const lab = (run: E2E, file: string) => {
         readonly taken: Taken
         readonly agent: RegExp
         readonly harness: string
+        readonly control?: boolean
       }[],
       capMs: number,
       busy: boolean,
@@ -737,7 +754,7 @@ for (const setup of setups) {
           // Its child may start a moment after the line.
           await sleep(500)
           const taken = await census(run, terminal)
-          const one = { id: terminal.id, taken, agent: /node/i, harness }
+          const one = { id: terminal.id, taken, agent: /node/i, harness, control: true }
           return hangUp(kind, [one], controlCapMs, false)
         })
 
@@ -801,8 +818,9 @@ for (const setup of setups) {
             const resumed = opened(await run.deck.restore(terminal, { resume: setup.agent }))
             // Antigravity 1.5.17 runs again the turn the kill ended: it settles there, never
             // showing Ready (as restart.e2e.ts expects), its turn let end by the open gate.
-            const replayed = moment !== "idle" && harnesses[setup.agent].resumesInterrupted === true
-            await resumed.reached(replayed ? "settled" : "ready", { timeoutMs: 60_000 })
+            // Whichever comes first says whether the agent ran the turn again.
+            const replayed =
+              (await resumed.reached(readyOrSettled, { timeoutMs: 60_000 })).delivery === "settled"
             await prompted(resumed, setup)
             const after = run.model.mark()
             await resumed.prompt("Which word")

@@ -50,9 +50,11 @@ export const savingMs = (
 }
 
 // The most a close waits for a working agent's turn to end after its Stop, in milliseconds
-// (see `stopBeforeClose`): the turn's end is told by its Stop hook, well within this, and a
-// close that gets no word of it goes on as it would without the wait.
-export const stopTurnMs = 4_000
+// (see `stopBeforeClose`): the turn's end is told by its Stop hook, within 0.3 s of the Escape
+// measured on Antigravity 1.5.17, and a close that gets no word of it goes on as it would
+// without the wait. Short, so the worst close (this, the save wait and the hangup) stays well
+// within the 15 s the UI waits for a close's answer.
+export const stopTurnMs = 2_000
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -71,21 +73,21 @@ export const stopsBeforeClose = (record: Pick<Record, "bound"> | undefined): boo
 }
 
 /**
- * Stops the working agent of a terminal being closed, as the person's Stop does (`interrupt`),
+ * Stops the working agent of a terminal being closed, as the person's Stop does (`Typing.stopForClose`),
  * and waits for its turn to end, at most `limit` milliseconds in all; what follows, the
  * `savingMs` wait and the hangup, then finds the conversation idle and saved. Never throws
  * and never waits past the limit: a Stop that fails or a turn that goes on leaves the close as it
  * is without this.
  */
 export const stopBeforeClose = async (
-  record: Pick<Record, "bound">,
-  interrupt: () => Promise<unknown>,
+  record: Pick<Record, "bound" | "summary">,
+  typing: { stopForClose(terminalId: string): Promise<unknown> },
   limit: number = stopTurnMs,
 ): Promise<void> => {
   if (!stopsBeforeClose(record)) return
   const until = Date.now() + limit
   const stopped = async () => {
-    await interrupt()
+    await typing.stopForClose(record.summary.id)
     while (record.bound?.activity.state === "working" && Date.now() < until)
       // eslint-disable-next-line no-await-in-loop -- Looked at in turn.
       await sleep(25)

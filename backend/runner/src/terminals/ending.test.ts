@@ -90,6 +90,7 @@ describe("how long an agent is left running before its end", () => {
 describe("the stop before a close", () => {
   const working = (agent: string, state: string) =>
     ({
+      summary: { id: "t1" },
       bound: { binding: { agent }, activity: { state } },
     }) as unknown as Parameters<typeof stopBeforeClose>[0]
 
@@ -101,33 +102,53 @@ describe("the stop before a close", () => {
     expect(stopsBeforeClose(undefined)).toBe(false)
   })
 
+  const typed = (stop: () => Promise<unknown>) => ({ stopForClose: stop })
+
   it("presses the stop and returns once the turn has ended", async () => {
     const record = working("agy", "working")
     let pressed = 0
-    await stopBeforeClose(record, async () => {
-      pressed += 1
-      setTimeout(() => {
-        ;(record.bound!.activity as { state: string }).state = "idle"
-      }, 50)
-    })
+    await stopBeforeClose(
+      record,
+      typed(async () => {
+        pressed += 1
+        setTimeout(() => {
+          ;(record.bound!.activity as { state: string }).state = "idle"
+        }, 50)
+      }),
+    )
     expect(pressed).toBe(1)
     expect(record.bound!.activity.state).toBe("idle")
   })
 
   it("presses nothing where the harness doesn't resume", async () => {
     let pressed = 0
-    await stopBeforeClose(working("codex", "working"), async () => {
-      pressed += 1
-    })
+    await stopBeforeClose(
+      working("codex", "working"),
+      typed(async () => {
+        pressed += 1
+      }),
+    )
     expect(pressed).toBe(0)
   })
 
   it("gives up at its limit on a turn that goes on, a stop that hangs, or one that fails", async () => {
     const started = Date.now()
-    await stopBeforeClose(working("agy", "working"), async () => {}, 100)
-    await stopBeforeClose(working("agy", "working"), () => new Promise(() => {}), 100)
+    await stopBeforeClose(
+      working("agy", "working"),
+      typed(async () => {}),
+      100,
+    )
+    await stopBeforeClose(
+      working("agy", "working"),
+      typed(() => new Promise(() => {})),
+      100,
+    )
     await expect(
-      stopBeforeClose(working("agy", "working"), () => Promise.reject(new Error("refused")), 100),
+      stopBeforeClose(
+        working("agy", "working"),
+        typed(() => Promise.reject(new Error("refused"))),
+        100,
+      ),
     ).resolves.toBeUndefined()
     expect(Date.now() - started).toBeLessThan(1_000)
   })
