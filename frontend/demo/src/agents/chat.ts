@@ -10,6 +10,7 @@ import {
   openQuestion,
 } from "@novadeck/core/conversation"
 import { promptRefusal, shellCommand } from "@novadeck/core/conversation/prompt-refusal"
+import type { AgentMessage, MessageParty } from "@novadeck/core/messages"
 import type { TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type MutableStore } from "@novadeck/core/store"
@@ -28,6 +29,14 @@ export type DemoChat = {
   readonly conversations: Conversations
   // How many items a terminal's conversation opened with: its transcript's, else none.
   readonly opening: (key: TerminalKey) => number
+  // The doorbell brings a terminal's agent a message from another agent, as the runner records it:
+  // the ring's line among its items and the message among those delivered, which the chat draws as
+  // the agent's. Messages that come within `ringBatchMs` of a ring join it, as one ring brings
+  // every message that waited for it.
+  readonly deliver: (key: TerminalKey, from: MessageParty, text: string) => void
+  // The agent in a terminal sends another agent a message with Novadeck's `send` tool, which its
+  // harness records as a call and its result.
+  readonly sent: (key: TerminalKey, to: string, text: string) => void
   // Takes the workspace as it stands, which tells what each terminal runs.
   readonly observe: (workspace: Workspace) => void
 }
@@ -38,6 +47,9 @@ export const answerMs = 400
 // How long an answered request stays up, shown as answered, before the agent reports it
 // settled, in milliseconds.
 export const answeredMs = 500
+
+// How soon after a ring another message still comes with it.
+export const ringBatchMs = 1500
 
 // The most a pasted image the demo takes, in bytes: a larger one shows how a refusal looks.
 const demoImageMaxBytes = 5 * 1024 * 1024
@@ -163,6 +175,29 @@ const shellCall = (command: string) => {
     run: { kind: "run", title: "Ran", detail: shown.trim().split("\n", 1)[0]!.trim() } as const,
   }
 }
+
+// Novadeck's `send` as each harness names it and gives it its input (see the decoders' `novadeckTool`).
+const sendCall = (agent: string, to: string, words: string) =>
+  agent === "agy"
+    ? {
+        tool: "call_mcp_tool",
+        input: {
+          ServerName: "novadeck_novadeck",
+          ToolName: "send",
+          Arguments: { to, text: words },
+          toolSummary: `Message ${to}`,
+          toolAction: "Calling send",
+        },
+      }
+    : {
+        tool:
+          agent === "claude"
+            ? "mcp__plugin_novadeck_novadeck__send"
+            : agent === "codex"
+              ? "mcp__novadeck__send"
+              : "novadeck_send",
+        input: { to, text: words },
+      }
 
 // What each demo agent's tool does as its turn runs, by harness.
 const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
@@ -656,7 +691,89 @@ export const createDemoChat = (
       answering.delete(id)
     }
   }
+  let rings = 0
+  const bring: DemoChat["deliver"] = (key, from, words) => {
+    const found = locate(key)
+    if (!runs(found)) return
+    const { store } = entryOf(key)
+    const now = Date.now()
+    const { items } = store.getSnapshot()
+    const ringing = items.findLast((item) => item.role === "user" && item.kind === "text")
+    const joins = ringing?.ring && ringing.at !== null && now - ringing.at <= ringBatchMs
+    const message: AgentMessage = {
+      id: `demo-delivery-${terminalKeyId(key)}-${items.length + 1}`,
+      hop: 1,
+      from,
+      to: {
+        kind: "agent",
+        terminalId: found.terminal.id,
+        handle: found.terminal.handle ?? "",
+        agent: String(found.terminal.process),
+      },
+      text: words,
+      sentAt: now,
+      state: "delivered",
+      held: null,
+      deliveredAt: now,
+    }
+    store.update((conversation) => ({
+      ...conversation,
+      doorbell: {
+        ...conversation.doorbell,
+        delivered: [...conversation.doorbell.delivered, message],
+      },
+    }))
+    if (joins) return
+    rings += 1
+    const nonce = `D${String(rings).padStart(4, "0")}`
+    append(key, {
+      ...text(
+        "user",
+        `<novadeck-doorbell from="${from.kind === "agent" ? from.handle : ""}" ring="${nonce}"/>`,
+      ),
+      ring: { nonce, replies: false },
+    })
+  }
+  let sends = 0
+  const send: DemoChat["sent"] = (key, to, words) => {
+    const found = locate(key)
+    if (!runs(found)) return
+    sends += 1
+    const call = `demo-send-${sends}`
+    const { tool, input } = sendCall(String(found.terminal.process), to, words)
+    append(
+      key,
+      {
+        role: "assistant",
+        kind: "tool-call",
+        text: JSON.stringify(input),
+        tool,
+        call,
+        author: null,
+        run: { kind: "agent", title: `Messaged ${to}`, detail: words },
+        outcome: null,
+        scripted: false,
+        interrupted: false,
+        ring: null,
+      },
+      {
+        role: "tool",
+        kind: "tool-result",
+        text: `Sent to ${to}.`,
+        tool: null,
+        call,
+        author: null,
+        run: null,
+        outcome: null,
+        scripted: false,
+        interrupted: false,
+        ring: null,
+      },
+    )
+  }
   return {
+    deliver: bring,
+    sent: send,
     conversations: {
       conversation: storeOf,
       refused: promptRefused,

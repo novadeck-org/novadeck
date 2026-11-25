@@ -64,12 +64,12 @@ export const launchGroups = (
             },
             {
               label: "5b · Teammate asks, and its lead answers",
-              hint: "Cart endpoint asks which API version the storefront calls (an Ask entry) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 8 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing",
+              hint: "Cart endpoint asks which API version the storefront calls (an Ask entry) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 8 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing. In the agents' Agent Chat the question lands in Orders API's chat 0.8 s after the cue and the answer in Cart endpoint's, each as the agent's message, with the send that made it among its sender's calls",
               run: () => cues.teammateAsks(),
             },
             {
               label: "5c · Teammate reports done to its lead",
-              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update entry) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane. Run 5a first",
+              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update entry) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane and, in Agent Chat, as the report in Orders API's chat. Run 5a first",
               run: () => cues.teammateDone(),
             },
             {
@@ -114,7 +114,7 @@ export const launchGroups = (
             },
             {
               label: "8a · Agent asks another for a review",
-              hint: "Cart drawer messages Search index to review its change; Search index answers about 4 s after it lands. The exchange reads in either one's Messages pane",
+              hint: "Cart drawer messages Search index to review its change; Search index answers about 4 s after it lands. The exchange reads in either one's Messages pane, and in each one's Agent Chat as the other's message",
               run: () => cues.askReview(),
             },
             {

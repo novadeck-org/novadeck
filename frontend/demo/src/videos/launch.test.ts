@@ -1,4 +1,5 @@
 import { agentContext } from "@novadeck/core/agents/steps"
+import { groupItems } from "@novadeck/core/conversation/turns"
 import type { InboxEntry } from "@novadeck/core/inbox"
 import { planItemOf } from "@novadeck/core/inbox/plan"
 import type { ItemContent } from "@novadeck/core/items"
@@ -915,6 +916,144 @@ describe("the launch demo", () => {
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(3000)
     expect(rows().every((row) => row.kind === "update")).toBe(true)
+  })
+})
+
+describe("the launch demo's messages in the agents' chats", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // What the chat draws of a terminal's agent's deliveries: the doorbell's blocks, each with
+  // who sent its messages and their words.
+  const rings = (backend: ReturnType<typeof open>["backend"], number: number) => {
+    const { items, doorbell } = backend.conversations!.conversation(key(number)).getSnapshot()
+    return groupItems(items, doorbell.delivered, doorbell.notices).flatMap((block) =>
+      block.kind === "doorbell"
+        ? [
+            (block.messages ?? []).map(({ from, text }) => ({
+              from: from.kind === "agent" ? from.handle : "you",
+              text,
+            })),
+          ]
+        : [],
+    )
+  }
+
+  it("opens each teammate's chat on the ring that brought its lead's brief", () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    expect(rings(backend, 11)).toEqual([
+      [{ from: demoHandle(launch.lead), text: "Serve prices from the API." }],
+    ])
+    expect(rings(backend, launch.asking)).toEqual([
+      [{ from: demoHandle(launch.lead), text: "Keep the cart in the API." }],
+    ])
+  })
+
+  it("shows the teammate's question in its lead's chat, and 8 s on the lead's answer in the teammate's", async () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    const asked = rings(backend, launch.lead)
+    cues.teammateAsks()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(rings(backend, launch.lead)).toEqual(asked)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(rings(backend, launch.lead)).toEqual([
+      ...asked,
+      [{ from: demoHandle(launch.asking), text: expect.stringContaining("Which API version") }],
+    ])
+    // Its own chat holds only its brief until the answer comes.
+    await vi.advanceTimersByTimeAsync(7000)
+    expect(rings(backend, launch.asking)).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(rings(backend, launch.asking)).toEqual([
+      expect.anything(),
+      [
+        {
+          from: demoHandle(launch.lead),
+          text: "The storefront calls v2, on port 8787. v1 is retired.",
+        },
+      ],
+    ])
+  })
+
+  it("records the send each message came by in its sender's chat, as the harness does", async () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    cues.teammateAsks()
+    const calls = (number: number) =>
+      backend
+        .conversations!.conversation(key(number))
+        .getSnapshot()
+        .items.filter((item) => item.run?.title.startsWith("Messaged"))
+        .map((item) => ({ tool: item.tool, to: item.run!.title, text: item.run!.detail }))
+    expect(calls(launch.asking)).toEqual([
+      {
+        tool: "mcp__plugin_novadeck_novadeck__send",
+        to: `Messaged ${demoHandle(launch.lead)}`,
+        text: expect.stringContaining("Which API version"),
+      },
+    ])
+    expect(calls(launch.lead)).toEqual([])
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(calls(launch.lead)).toEqual([
+      expect.objectContaining({ to: `Messaged ${demoHandle(launch.asking)}` }),
+    ])
+  })
+
+  it("shows a teammate's done report in its lead's chat", async () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    cues.teammateDone()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(rings(backend, launch.lead).at(-1)).toEqual([
+      {
+        from: demoHandle(launch.reports),
+        text: "Done. The pricing endpoint answers.",
+      },
+    ])
+  })
+
+  it("shows the review in the reviewer's chat, and its answer, 4 s after that, in the asker's", async () => {
+    const { backend, cues } = open()
+    cues.askReview()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(rings(backend, launch.reviewer)).toEqual([
+      [
+        {
+          from: demoHandle(launch.reviews),
+          text: expect.stringContaining("review my cart drawer"),
+        },
+      ],
+    ])
+    expect(rings(backend, launch.reviews)).toEqual([])
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(rings(backend, launch.reviews)).toEqual([
+      [{ from: demoHandle(launch.reviewer), text: expect.stringContaining("doesn't trap focus") }],
+    ])
+  })
+
+  it("brings the reports that finishing sends in one ring, as the doorbell brings what waits", async () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    await vi.advanceTimersByTimeAsync(4000)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(10_000)
+    const reports = rings(backend, launch.lead).flat()
+    expect(reports.filter(({ text }) => text.startsWith("Done."))).toHaveLength(3)
+    expect(rings(backend, launch.lead).at(-1)).toHaveLength(3)
+  })
+
+  it("leaves every earlier beat's chats without a delivery", async () => {
+    const { backend, cues } = open()
+    cues.states()
+    cues.asks()
+    await vi.advanceTimersByTimeAsync(5000)
+    for (const number of [1, 2, 4, 5, 7, 8, 9, 10]) expect(rings(backend, number)).toEqual([])
   })
 })
 

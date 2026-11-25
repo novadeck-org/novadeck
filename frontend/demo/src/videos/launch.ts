@@ -1,11 +1,13 @@
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxEntry } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
+import type { AgentMessage, MessageParty } from "@novadeck/core/messages"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
 import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import type { DemoChat } from "../agents/chat"
 import type { DemoTranscript } from "../agents/transcripts"
 import type { DemoTurns } from "../agents/turns"
 import { isDemoFiles } from "../files"
@@ -53,6 +55,9 @@ import { invoiceBytes } from "./launch-invoice"
 // pane, and every agent finishing; and, for the website's /vs pages, a review one agent asks of
 // another by message, and a plan shown in the pane. It shows
 // nothing the app doesn't do: no cue draws over the app, it only has the agents act.
+// A message one agent sends another lands in the receiver's Agent Chat as the doorbell's delivery,
+// and shows in the sender's as its `send` call; the terminal views stay as they were, as no demo
+// agent's screen draws the doorbell's line.
 
 const shop = "northwind"
 const docs = "northwind-docs"
@@ -409,55 +414,103 @@ const launchSeed = (now: number): WorkspaceSeed => ({
 // emails a plan and the inventory sync (in Antigravity's words) its implementation plan, the
 // cart drawer a question with its own pick.
 export const launchTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
-  deskTranscripts(
-    now,
-    allJobs,
-    home,
-    {
-      permissions: [launch.permission, launch.command],
-      plans: [
-        {
-          number: launch.plan,
-          subject: "Order emails plan",
-          steps:
-            "1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
-        },
-        // Antigravity's dialog holds neither: its plan is the artifact shown beside the window.
-        { number: launch.agyPlan, subject: "1 artifact to review", steps: "" },
-      ],
-      question: {
-        number: launch.question,
-        id: "cart",
-        header: "Cart",
-        question: "Where should the cart be kept between visits?",
-        options: [
+  briefed(
+    deskTranscripts(
+      now,
+      allJobs,
+      home,
+      {
+        permissions: [launch.permission, launch.command],
+        plans: [
           {
-            id: "account",
-            label: "In the customer's account (Recommended)",
-            description: "Follows them across devices, with a cookie for guests.",
+            number: launch.plan,
+            subject: "Order emails plan",
+            steps:
+              "1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
           },
-          {
-            id: "browser",
-            label: "In the browser only",
-            description: "Simple, but a new device starts with an empty cart.",
-          },
-          {
-            id: "session",
-            label: "In the server session",
-            description: "No storage in the browser, but it expires with the session.",
-          },
+          // Antigravity's dialog holds neither: its plan is the artifact shown beside the window.
+          { number: launch.agyPlan, subject: "1 artifact to review", steps: "" },
         ],
+        question: {
+          number: launch.question,
+          id: "cart",
+          header: "Cart",
+          question: "Where should the cart be kept between visits?",
+          options: [
+            {
+              id: "account",
+              label: "In the customer's account (Recommended)",
+              description: "Follows them across devices, with a cookie for guests.",
+            },
+            {
+              id: "browser",
+              label: "In the browser only",
+              description: "Simple, but a new device starts with an empty cart.",
+            },
+            {
+              id: "session",
+              label: "In the server session",
+              description: "No storage in the browser, but it expires with the session.",
+            },
+          ],
+        },
       },
-    },
-    promptOf,
+      promptOf,
+    ),
   )
 
 // A teammate's agent starts on Novadeck's doorbell notice, which it answers by reading the brief
 // its lead sent it: the person never typed its task.
+const nonces = ["Q7mT2c", "R4kW9x", "H2nB6p"]
+const nonceOf = (number: number): string => nonces[number - jobs.length - 1]!
 const noticeOf = (number: number): string =>
-  `<novadeck-doorbell from='' ring='${["Q7mT2c", "R4kW9x", "H2nB6p"][number - jobs.length - 1]}'/>`
+  `<novadeck-doorbell from='' ring='${nonceOf(number)}'/>`
 const promptOf = (number: number, job: Job): string =>
   number > jobs.length ? noticeOf(number) : job.ask
+
+// The teammates' conversations open on that ring, as the runner records it: the line is the
+// doorbell's, and its lead's brief is the message it brought, which the chat draws as the lead's.
+const briefed = (
+  all: Readonly<Record<string, DemoTranscript>>,
+): Readonly<Record<string, DemoTranscript>> =>
+  Object.fromEntries(
+    Object.entries(all).map(([id, transcript]) => {
+      const number = Number(id)
+      const [ring, ...rest] = transcript.items
+      if (number <= jobs.length || !ring) return [id, transcript]
+      const at = ring.at ?? 0
+      const handle = demoHandle(number)
+      const brief: AgentMessage = {
+        id: `ring-${nonceOf(number)}-0`,
+        hop: 1,
+        from: {
+          kind: "agent",
+          terminalId: keyOf(launch.lead).terminalId,
+          handle: demoHandle(launch.lead),
+          agent: jobs[launch.lead - 1]!.agent,
+        },
+        to: {
+          kind: "agent",
+          terminalId: keyOf(number).terminalId,
+          handle,
+          agent: allJobs[number - 1]!.agent,
+        },
+        text: allJobs[number - 1]!.ask,
+        sentAt: at - 3000,
+        state: "delivered",
+        held: null,
+        deliveredAt: at,
+      }
+      return [
+        id,
+        {
+          ...transcript,
+          items: [{ ...ring, ring: { nonce: nonceOf(number), replies: false } }, ...rest],
+          delivered: [brief],
+        },
+      ]
+    }),
+  )
 
 // The agents at work print more as the video goes on, as a build or a test run does: every
 // `pulseMs` each one still at work (not asking, not finished) takes one more step, for as many
@@ -1057,6 +1110,15 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   })
   let latest: Workspace | undefined
   let sink: BackendSink | undefined
+  // The chat of the conversations the demo has, which a message that lands is delivered into.
+  let chatOf: DemoChat | undefined
+  // An agent of northwind as a message's sender, as the runner lists it.
+  const partyOf = (number: number): MessageParty => ({
+    kind: "agent",
+    terminalId: keyOf(number).terminalId,
+    handle: demoHandle(number),
+    agent: allJobs[number - 1]!.agent,
+  })
   const target = { projectId: shop, workspaceSessionId: session }
   const terminal = (number: number): TerminalMetadata | undefined =>
     terminalOf(latest, keyOf(number))
@@ -1259,12 +1321,18 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       teammateAsked = true
       inbox.add(teammateAsk(launch.asking, Date.now()))
       // And its lead, so it knows what the teammate waits on; the rung lead answers.
+      chatOf?.sent(keyOf(launch.asking), lead, `${question.subject} ${question.body}`)
       const sent = messages.send(
         target,
         asking,
         lead,
         `${question.subject} ${question.body}`,
         () => {
+          chatOf?.deliver(
+            keyOf(launch.lead),
+            partyOf(launch.asking),
+            `${question.subject} ${question.body}`,
+          )
           wake(keyOf(launch.lead))
           // The lead answers unless the person took it some other way meanwhile, as Escape does.
           const epoch = turns.epoch(keyOf(launch.lead))
@@ -1274,6 +1342,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               settle()
               return
             }
+            chatOf?.sent(keyOf(launch.lead), asking, leadsAnswer)
             const replied = messages.send(
               target,
               lead,
@@ -1281,6 +1350,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               leadsAnswer,
               // Its lead answered first: the teammate acts on that, and withdraws its ask.
               () => {
+                chatOf?.deliver(keyOf(launch.asking), partyOf(launch.lead), leadsAnswer)
                 backendInbox()?.resolve(teammateAskId, "withdrawn")
                 // An agent the ripple ended is not taken back to work by a late answer.
                 if (!rippled.has(keyOf(launch.asking).terminalId)) work(keyOf(launch.asking))
@@ -1312,7 +1382,9 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           reply: job.done,
           done: { subject: `${job.name} is done`, body: job.done },
         })
+        chatOf?.sent(key, lead, `Done. ${job.done}`)
         messages.send(target, reporting, lead, `Done. ${job.done}`, () => {
+          chatOf?.deliver(keyOf(launch.lead), partyOf(launch.reports), `Done. ${job.done}`)
           if (!ended) wake(keyOf(launch.lead))
         })
       })
@@ -1336,14 +1408,20 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       const ring = (number: number): void => {
         if (!ended && !resting.has(keyOf(number).terminalId)) wake(keyOf(number))
       }
+      chatOf?.sent(keyOf(launch.reviews), to, reviewAsk)
       reviewAsked = messages.send(target, from, to, reviewAsk, () => {
+        chatOf?.deliver(keyOf(launch.reviewer), partyOf(launch.reviews), reviewAsk)
         ring(launch.reviewer)
         // The reviewer answers unless the person stopped it or closed it meanwhile.
         const epoch = turns.epoch(keyOf(launch.reviewer))
         setTimeout(() => {
           if (!sink || ended || !busy(terminal(launch.reviewer))) return
           if (turns.epoch(keyOf(launch.reviewer)) !== epoch) return
-          messages.send(target, to, from, reviewAnswer, () => ring(launch.reviews))
+          chatOf?.sent(keyOf(launch.reviewer), from, reviewAnswer)
+          messages.send(target, to, from, reviewAnswer, () => {
+            chatOf?.deliver(keyOf(launch.reviews), partyOf(launch.reviewer), reviewAnswer)
+            ring(launch.reviews)
+          })
         }, answersMs)
       })
     },
@@ -1494,12 +1572,16 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         reports.delete(found.id)
         finishLead()
       }
+      chatOf?.sent(key, lead, `Done. ${text}`)
       const sent = messages.send(
         target,
         demoHandle(number),
         lead,
         `Done. ${text}`,
-        release,
+        () => {
+          chatOf?.deliver(leadKey, partyOf(number), `Done. ${text}`)
+          release()
+        },
         release,
       )
       if (!sent) release()
@@ -1547,58 +1629,61 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     }),
     // An agent that has been answered or told goes back to work, and works until the cue that
     // finishes it: unless it was told no, and waits for the person.
-    wrap: (conversations: Conversations): Conversations => ({
-      ...conversations,
-      send: async (key, text) => {
-        await conversations.send(key, text)
-        // Prompted again, it is at work, and `finishAll` ends its turn like any other's.
-        resting.delete(key.terminalId)
-        work(key)
-      },
-      answer: async (key, request, answer) => {
-        // Claude Code's plan dialog takes words only in its third option, which needs them
-        // (harnesses/claude's dialogs refuse the others, as plan-dialog.test.ts has it).
-        if (request === `${slot(launch.plan)}:plan` && answer.type === "choice") {
-          const words = (answer.text ?? "").trim() !== ""
-          if (answer.option === "3" ? !words : words)
-            throw new Error("Couldn't answer that here. Answer it in the terminal.")
-        }
-        // Antigravity's review takes words only in its third option, which needs them
-        // (harnesses/agy's plan-dialog refuses the others).
-        if (request === `${slot(launch.agyPlan)}:plan` && answer.type === "choice") {
-          const words = (answer.text ?? "").trim() !== ""
-          if (answer.option === "feedback" ? !words : words)
-            throw new Error("Couldn't answer that here. Answer it in the terminal.")
-        }
-        await conversations.answer(key, request, answer)
-        // Told no, or chatting about a question without words: it waits for the person's next
-        // words, and no cue ends a turn for it.
-        if (declined(answer)) {
-          resting.add(key.terminalId)
-          return
-        }
-        // The search index's tests were the last of its task: allowed, they run, pass, and it
-        // reports. Told what to do instead, it goes on with the person's words.
-        const found = terminalOf(latest, key)
-        const allowed = answer.type === "choice" && answer.option !== "3"
-        if (
-          allowed &&
-          key.terminalId === keyOf(launch.command).terminalId &&
-          found?.state === "running"
-        ) {
-          const job = jobs[launch.command - 1]!
-          resting.add(key.terminalId)
-          turns.finish(key, found, "completed", {
-            after: commandRunsMs,
-            reply: job.done,
-            done: { subject: `${job.name} is done`, body: job.done },
-          })
-          return
-        }
-        resting.delete(key.terminalId)
-        work(key)
-      },
-    }),
+    wrap: (conversations: Conversations, chat: DemoChat): Conversations => {
+      chatOf = chat
+      return {
+        ...conversations,
+        send: async (key, text) => {
+          await conversations.send(key, text)
+          // Prompted again, it is at work, and `finishAll` ends its turn like any other's.
+          resting.delete(key.terminalId)
+          work(key)
+        },
+        answer: async (key, request, answer) => {
+          // Claude Code's plan dialog takes words only in its third option, which needs them
+          // (harnesses/claude's dialogs refuse the others, as plan-dialog.test.ts has it).
+          if (request === `${slot(launch.plan)}:plan` && answer.type === "choice") {
+            const words = (answer.text ?? "").trim() !== ""
+            if (answer.option === "3" ? !words : words)
+              throw new Error("Couldn't answer that here. Answer it in the terminal.")
+          }
+          // Antigravity's review takes words only in its third option, which needs them
+          // (harnesses/agy's plan-dialog refuses the others).
+          if (request === `${slot(launch.agyPlan)}:plan` && answer.type === "choice") {
+            const words = (answer.text ?? "").trim() !== ""
+            if (answer.option === "feedback" ? !words : words)
+              throw new Error("Couldn't answer that here. Answer it in the terminal.")
+          }
+          await conversations.answer(key, request, answer)
+          // Told no, or chatting about a question without words: it waits for the person's next
+          // words, and no cue ends a turn for it.
+          if (declined(answer)) {
+            resting.add(key.terminalId)
+            return
+          }
+          // The search index's tests were the last of its task: allowed, they run, pass, and it
+          // reports. Told what to do instead, it goes on with the person's words.
+          const found = terminalOf(latest, key)
+          const allowed = answer.type === "choice" && answer.option !== "3"
+          if (
+            allowed &&
+            key.terminalId === keyOf(launch.command).terminalId &&
+            found?.state === "running"
+          ) {
+            const job = jobs[launch.command - 1]!
+            resting.add(key.terminalId)
+            turns.finish(key, found, "completed", {
+              after: commandRunsMs,
+              reply: job.done,
+              done: { subject: `${job.name} is done`, body: job.done },
+            })
+            return
+          }
+          resting.delete(key.terminalId)
+          work(key)
+        },
+      }
+    },
     // The cues belong to the backend returned, and add to its Inbox.
     over: (backend: Backend): Backend => {
       inboxOf = () => backend.inbox
