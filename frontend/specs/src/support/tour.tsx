@@ -174,9 +174,22 @@ export const touchStep = async (
   await coachSaysAny(cue === undefined ? [line] : [line, cue], timeout)
   const opened = new Set<HTMLElement>()
   let pressedAt = 0
+  // Whether the box still says this step's line or cue, or is between boxes: a teammate's
+  // question may take its place while the person goes to the subject (a slow runner, 2026-11-25),
+  // and then what is marked is the question's, which the story's next step answers, not this one.
+  const says = (): boolean => {
+    const now =
+      document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
+    return now === "" || now.includes(line) || (cue !== undefined && now.includes(cue))
+  }
+  let displaced = false
   await expect
     .poll(
       async () => {
+        if (!says()) {
+          displaced = true
+          return true
+        }
         const marked = clicked()[0]
         const wanted = new Set(subject().filter((each) => each !== undefined))
         // The subject, once a press can reach it: the tour may say its line with the window
@@ -200,13 +213,18 @@ export const touchStep = async (
           (!marked || Date.now() - pressedAt > 4_000)
         ) {
           opened.add(eye)
-          await showMe().click()
+          // Not for as long as a click waits for a button that goes away with its box (a
+          // question's takes it): what the box says now is read again after.
+          await showMe()
+            .click({ timeout: 3_000 })
+            .catch(() => opened.delete(eye))
         }
         return false
       },
       { timeout: 20_000, interval: 400 },
     )
     .toBe(true)
+  if (displaced) return
   const marked = reachable(new Set(subject().filter((each) => each !== undefined))) ?? clicked()[0]!
   // On its window's header, on the app's own page, as the tour counts a press anywhere in the
   // window: never in a page or a model's frame, which the tour hears by the app's page losing the
@@ -220,11 +238,13 @@ export const touchStep = async (
     .click({ timeout: 3_000 })
     .catch(() => page.elementLocator(header).click({ force: true }))
   if (stays) return
+  // The caption moves on once the step is done, which may wait on more than the press (the
+  // teammates naming themselves), so as long as it took to say.
   await expect
     .poll(
       () =>
         document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? "",
-      { timeout: 15_000 },
+      { timeout: 40_000 },
     )
     .not.toContain(line)
 }
