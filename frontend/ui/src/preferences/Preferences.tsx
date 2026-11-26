@@ -417,6 +417,7 @@ export const Preferences = ({
   notices = false,
   screenReaderKnown = false,
   scalable = false,
+  awake = false,
   systemSounds = false,
   hearSound,
   chat = false,
@@ -506,6 +507,8 @@ export const Preferences = ({
   screenReaderKnown?: boolean
   // Whether the app can scale its windows, as the desktop app can; a browser has its own zoom.
   scalable?: boolean
+  // Whether the app can keep the computer awake while agents work, as the desktop app can.
+  awake?: boolean
   // Whether the system's notifications play the sound themselves, at the system's alert
   // volume, as on macOS.
   systemSounds?: boolean
@@ -775,6 +778,19 @@ export const Preferences = ({
       retry: () => bundledPi?.onChange(true),
     },
     {
+      id: "keep-awake",
+      page: "agents",
+      onPage: false,
+      label: "Keep awake",
+      description:
+        "Add Keep awake while agents work to the Agents page, which keeps this computer from going to sleep on its own while an agent works.",
+      checked: value.keepAwakeOffered,
+      onToggle: (keepAwakeOffered: boolean) => onChange({ ...value, keepAwakeOffered }),
+      disabled: false,
+      // Only where the app can: a browser has no say in the computer's sleep.
+      hidden: !awake,
+    },
+    {
       id: "murmur",
       page: "addons",
       onPage: false,
@@ -808,7 +824,11 @@ export const Preferences = ({
   ]
   const { soundChoice } = value
   const runningToggles = pageToggles("agents", ["shipping-gate"])
-  const agentsRunning = hibernation || worktrees || showAgentMode || runningToggles.length > 0
+  // Keep awake is an Experimental feature: its switch on the Agents page shows only while its
+  // Experimental row is on, and only where the app can keep the computer awake.
+  const showKeepAwake = awake && hasExperimental && value.keepAwakeOffered
+  const agentsRunning =
+    hibernation || worktrees || showAgentMode || showKeepAwake || runningToggles.length > 0
   const pageTitle = pageLabel(shown) ?? ""
   return (
     <Dialog
@@ -980,7 +1000,7 @@ export const Preferences = ({
                       badge={<ExperimentalBadge />}
                     />
                   )}
-                  {(hibernation || worktrees || runningToggles.length > 0) && (
+                  {(hibernation || worktrees || showKeepAwake || runningToggles.length > 0) && (
                     <div className={settingsCardClasses}>
                       {hibernation && (
                         <Select
@@ -1015,6 +1035,31 @@ export const Preferences = ({
                             onChange={worktrees.onChange}
                             labelledBy="agent-worktrees-label"
                             describedBy="agent-worktrees-description"
+                          />
+                        </div>
+                      )}
+                      {showKeepAwake && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <span className="flex min-w-0 flex-col gap-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span id="awake-label">Keep awake while agents work</span>
+                              <ExperimentalBadge />
+                            </span>
+                            <span
+                              id="awake-description"
+                              className="settings-description text-control leading-5"
+                            >
+                              Agents' long tasks finish while you're away: this computer doesn't go
+                              to sleep on its own while an agent works, which uses more battery. The
+                              screen still turns off and locks, and closing a laptop's lid still
+                              puts it to sleep. On Linux, it works on GNOME.
+                            </span>
+                          </span>
+                          <Switch
+                            checked={value.keepAwake}
+                            onChange={(keepAwake) => onChange({ ...value, keepAwake })}
+                            labelledBy="awake-label"
+                            describedBy="awake-description"
                           />
                         </div>
                       )}

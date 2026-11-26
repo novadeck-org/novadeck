@@ -1565,6 +1565,24 @@ any window resize; the browser pane's views keep their own zoom. Nothing else zo
 Ctrl+0 is taken from a terminal on Linux or Windows), and Electron applies no pinch or Ctrl+wheel zoom. A browser has no `showScale`, so the row is hidden there and the
 browser's own zoom does it; the previews demo scales by CSS `zoom` instead.
 
+### Keeping the computer awake
+
+Preferences > Experimental > Keep awake adds Agents > Running > "Keep awake while agents work"
+(`keepAwakeOffered` and `keepAwake` in the preferences, this device's own; the switch is on by
+default). While both are on and IS_EXPERIMENTAL is, the desktop app keeps the computer from
+sleeping on its own as long as an agent is at work. The runner decides what counts
+(`agentAtWork` in `backend/runner/src/terminals/working.ts`: a turn not held on the person's
+answer, subagents running on after a turn, or jobs or a wake-up the agent waits on) and tells
+the main process over the runner's parent port (`RunnerOptions.working`, the `working` report);
+the page tells it what the person wants (`keepAwake` on the bridge). The main process
+(`apps/desktop/src/main/awake/`) holds only while both are true, so it keeps holding with every
+window closed on macOS, and lets go when the runner exits. Its hold is Electron's
+`powerSaveBlocker` `prevent-app-suspension` on every OS, and on Linux also
+`gnome-session-inhibit --inhibit suspend`, as GNOME takes no hold from Electron's: it runs `cat`
+on a pipe from the app, so a crashed app leaves no hold behind. The screen still dims, turns off
+and locks; a laptop's lid still sleeps it. A browser has no `keepAwake`, so the rows are hidden
+there; the previews demo marks what it would tell the app as `data-keep-awake` on the page's root.
+
 ### Observing a terminal another client controls
 
 Two UI clients on one runner (two windows, or the desktop app and a browser) may show the same

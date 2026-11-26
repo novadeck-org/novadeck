@@ -461,6 +461,13 @@ export const revealExperimental = (ui: UiStore): void =>
 export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.agentAvatars
 
+/**
+ * Whether the desktop app keeps the computer awake while agents work: General's switch, which
+ * shows only while Keep awake is on in the Experimental tab, so only while IS_EXPERIMENTAL is.
+ */
+export const keepAwakeOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
+  state.flags.IS_EXPERIMENTAL && state.preferences.keepAwakeOffered && state.preferences.keepAwake
+
 /** Whether the footer offers the onboarding tour: its own switch, with Experimental on. */
 export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.onboardingTour

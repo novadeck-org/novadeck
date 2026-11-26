@@ -129,6 +129,21 @@ describe("readPreferences", () => {
     expect(readPreferences().onboardingTour).toBe(true)
   })
 
+  it("offers Keep awake only once switched on, and keeps General's switch on unless turned off", () => {
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
+    expect(readPreferences()).toMatchObject({ keepAwakeOffered: false, keepAwake: true })
+    localStorage.setItem(
+      preferencesStorageKey,
+      JSON.stringify({ keepAwakeOffered: "yes", keepAwake: "no" }),
+    )
+    expect(readPreferences()).toMatchObject({ keepAwakeOffered: false, keepAwake: true })
+    localStorage.setItem(
+      preferencesStorageKey,
+      JSON.stringify({ keepAwakeOffered: true, keepAwake: false }),
+    )
+    expect(readPreferences()).toMatchObject({ keepAwakeOffered: true, keepAwake: false })
+  })
+
   it("reads screen reader support, Automatic where it was never saved or is unknown", () => {
     const saveSupport = (screenReader: unknown): void =>
       localStorage.setItem(preferencesStorageKey, JSON.stringify({ screenReader }))

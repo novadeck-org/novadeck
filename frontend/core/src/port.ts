@@ -607,6 +607,9 @@ export type BackendFields = {
   // Optional. Scales the app's windows, by a fraction of their normal size; absent where
   // nothing surrounds the page, as in a browser, whose own zoom does it.
   readonly showScale?: (scale: number) => void
+  // Optional. Tells the app whether to keep the computer from sleeping on its own while an
+  // agent works; absent where the page can't, as in a browser.
+  readonly keepAwake?: (on: boolean) => void
   // Optional. Desktop notifications about terminals, as when an agent finishes while the
   // person looks elsewhere: `show` shows one, a newer one for the same terminal replacing
   // it, and `onClick` hears the terminal id of each the person clicks, once the window

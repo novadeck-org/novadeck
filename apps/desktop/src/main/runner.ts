@@ -54,6 +54,11 @@ export type RunnerEvents = {
   /** It can serve, `ms` after it was forked. */
   readonly ready?: (run: number, ms: number) => void
   /**
+   * Whether any of its agents is at work, each time that changes; false once its process
+   * exits, however it ends.
+   */
+  readonly working?: (working: boolean) => void
+  /**
    * Its process exited with `code`: `expected` when the app was closing it and it ended by
    * itself, cleanly. A crash, a kill or the system's OOM killer says more through
    * `child-process-gone`.
@@ -194,9 +199,13 @@ export const startRunner = (options: {
     worker.on("error", (type, location) => events.fatal?.(run, type, location))
     worker.on("message", (report: RunnerReport) => {
       if (report?.type === "ready") events.ready?.(run, Math.round(performance.now() - forkedAt))
+      if (report?.type === "working" && typeof report.working === "boolean")
+        events.working?.(report.working)
     })
     worker.once("exit", (code) => {
       if (child === worker) child = undefined
+      // A runner that crashed mid-turn told no end of it.
+      events.working?.(false)
       // The next connection request starts a new runner.
       events.exited?.(run, code, closing !== undefined && !killed && code === 0)
     })

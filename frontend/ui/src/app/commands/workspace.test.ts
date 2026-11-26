@@ -996,6 +996,8 @@ describe("workspace commands", () => {
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,
+        keepAwakeOffered: false,
+        keepAwake: true,
         appScale: 100,
       })
       expect(app.state().view).not.toBe("grid")

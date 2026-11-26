@@ -15,6 +15,7 @@ import {
   webglContextsArgumentPrefix,
   appearanceChannel,
   scaleChannel,
+  keepAwakeChannel,
   installAppChannel,
   badgeChannel,
   noticeChannel,
@@ -275,6 +276,19 @@ describe("the app's scale", () => {
     expect(electron.messages).toEqual([
       [scaleChannel, 1.5],
       [scaleChannel, undefined],
+    ])
+  })
+})
+
+describe("keeping the computer awake", () => {
+  it("goes to the main process as a boolean, anything else as off", () => {
+    electron.exposed.keepAwake?.(true)
+    electron.exposed.keepAwake?.(false)
+    electron.exposed.keepAwake?.("yes" as unknown as boolean)
+    expect(electron.messages).toEqual([
+      [keepAwakeChannel, true],
+      [keepAwakeChannel, false],
+      [keepAwakeChannel, false],
     ])
   })
 })

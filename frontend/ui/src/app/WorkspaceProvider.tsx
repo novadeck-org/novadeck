@@ -30,6 +30,7 @@ import { dingOf } from "./ding"
 import { watchHistoryDrops } from "./history-drops"
 import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
+import { watchKeepAwake } from "./keep-awake"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
 import { followPersonPreferences, quietly } from "./person-preferences"
@@ -191,6 +192,7 @@ export const WorkspaceProvider = ({
   }, [services])
   useEffect(() => watchAppearance(services.ui, window, services.backend.showAppearance), [services])
   useEffect(() => watchScale(services.ui, services.backend.showScale), [services])
+  useEffect(() => watchKeepAwake(services.ui, services.backend.keepAwake), [services])
   useEffect(
     () =>
       followSavedPreferences(services.ui, window, (next) =>

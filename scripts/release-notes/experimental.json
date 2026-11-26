@@ -27,6 +27,15 @@
         "frontend/ui/src/preferences/bundled-pi.ts"
       ]
     },
+    "keep-awake": {
+      "scopes": ["keep-awake"],
+      "paths": [
+        "apps/desktop/src/main/awake/",
+        "backend/runner/src/terminals/working.ts",
+        "frontend/ui/src/app/keep-awake.ts",
+        "frontend/demo-debug/src/desktop/keep-awake.ts"
+      ]
+    },
     "murmur": {
       "scopes": ["murmur"],
       "paths": [

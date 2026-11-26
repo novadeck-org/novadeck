@@ -56,6 +56,8 @@ export const preferencesFrom = (
     chatView: false,
     agentAvatars: false,
     onboardingTour: false,
+    keepAwakeOffered: false,
+    keepAwake: true,
     appScale: 100,
   }
   if (typeof saved !== "object" || saved === null) return defaults
@@ -85,6 +87,11 @@ export const preferencesFrom = (
       typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
     onboardingTour:
       typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
+    keepAwakeOffered:
+      typeof saved?.keepAwakeOffered === "boolean"
+        ? saved.keepAwakeOffered
+        : defaults.keepAwakeOffered,
+    keepAwake: typeof saved?.keepAwake === "boolean" ? saved.keepAwake : defaults.keepAwake,
     // A saved scale the app doesn't offer is the normal one.
     appScale: appScales.find((scale) => scale === saved?.appScale) ?? defaults.appScale,
   }

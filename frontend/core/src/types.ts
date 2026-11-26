@@ -74,6 +74,11 @@ export type PreferencesValue = {
   // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only
   // with Experimental on.
   onboardingTour: boolean
+  // Whether General offers the switch below, Keep awake, one of the Experimental features.
+  keepAwakeOffered: boolean
+  // Whether the desktop app keeps this computer from sleeping on its own while an agent works,
+  // where General offers it. On by default, so turning on the Experimental row turns it on.
+  keepAwake: boolean
   // How large the whole app is drawn, as a percent of its normal size: its text, terminals and
   // dialogs together. The desktop app scales its windows by it; a browser has its own zoom.
   appScale: AppScale
