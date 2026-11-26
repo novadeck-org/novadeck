@@ -293,7 +293,7 @@ beforeEach(switchTourOn)
 describe("The tour's story", () => {
   it("shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there", async () => {
     await openWorkspace("/?channel=experimental")
-    await openPreferencesOn("Experimental")
+    await openPreferencesOn("Agents")
     const worktrees = preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
     if ((await worktrees.element().getAttribute("aria-checked")) === "true") await worktrees.click()
     await expect.element(worktrees).toHaveAttribute("aria-checked", "false")

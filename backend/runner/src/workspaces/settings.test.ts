@@ -1,32 +1,6 @@
 import { describe, expect, it } from "../test.js"
 import { WorkspaceStore } from "./store.js"
 
-describe("the forges setting", () => {
-  it("reads as none until a forge is switched on, and keeps the ones that are", ({ resources }) => {
-    const store = new WorkspaceStore()
-    resources.defer(() => store.close())
-    expect(store.settings.forges()).toEqual([])
-    store.settings.saveForges(["azure", "github"])
-    expect(store.settings.forges()).toEqual(["github", "azure"])
-    store.settings.saveForges([])
-    expect(store.settings.forges()).toEqual([])
-  })
-
-  it("keeps the known forges of a list a newer build wrote more names in", ({ resources }) => {
-    const store = new WorkspaceStore()
-    resources.defer(() => store.close())
-    store.settings["saveSettingJson"]("forges", ["bitbucket", "gitlab", 3])
-    expect(store.settings.forges()).toEqual(["gitlab"])
-  })
-
-  it("is no part of the runner's settings", ({ resources }) => {
-    const store = new WorkspaceStore()
-    resources.defer(() => store.close())
-    store.settings.saveForges(["gitlab"])
-    expect(store.settings.runner()).not.toHaveProperty("forges")
-  })
-})
-
 describe("Murmur's Experimental switch", () => {
   it("is first saved on where Murmur was on or its files are, and off for everyone else", ({
     resources,
@@ -71,5 +45,42 @@ describe("Murmur's Experimental switch", () => {
     store.settings.saveMurmurSettings({ enabled: true })
     store.settings.carryMurmurSwitch(false)
     expect(store.settings.runner().murmur).toBe(false)
+  })
+})
+
+describe("the agent worktrees switch", () => {
+  it("reads on until the person turns it off", ({ resources }) => {
+    const store = new WorkspaceStore()
+    resources.defer(() => store.close())
+    expect(store.settings.runner().worktrees).toBe(true)
+    store.settings.saveRunner({ worktrees: false })
+    expect(store.settings.runner().worktrees).toBe(false)
+    store.settings.saveRunner({ worktrees: true })
+    expect(store.settings.runner().worktrees).toBe(true)
+  })
+
+  it("is carried on once, as a stable build saved it off at every launch while Experimental", ({
+    resources,
+  }) => {
+    const stable = new WorkspaceStore()
+    resources.defer(() => stable.close())
+    stable.settings.saveRunner({ worktrees: false })
+    stable.settings.carryWorktreesSwitch()
+    expect(stable.settings.runner().worktrees).toBe(true)
+
+    const experimental = new WorkspaceStore()
+    resources.defer(() => experimental.close())
+    experimental.settings.saveRunner({ worktrees: true })
+    experimental.settings.carryWorktreesSwitch()
+    expect(experimental.settings.runner().worktrees).toBe(true)
+  })
+
+  it("keeps an off the person chooses after the carry, across launches", ({ resources }) => {
+    const store = new WorkspaceStore()
+    resources.defer(() => store.close())
+    store.settings.carryWorktreesSwitch()
+    store.settings.saveRunner({ worktrees: false })
+    store.settings.carryWorktreesSwitch()
+    expect(store.settings.runner().worktrees).toBe(false)
   })
 })

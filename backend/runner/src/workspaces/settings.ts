@@ -4,7 +4,6 @@ import {
   agentMode,
   defaultAgentMode,
   defaultHibernateMinutes,
-  forgeName,
   maxPreferences,
   murmurCheck,
   runnerSettings,
@@ -12,7 +11,6 @@ import {
   voiceLanguage,
   voiceModel,
   type AgentMode,
-  type ForgeName,
   type MurmurCheck,
   type MurmurSettings,
   type RunnerSettings,
@@ -158,7 +156,7 @@ export class Settings {
     // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
     // keeps its own order until the person drags its rows, and snoozes none until they do; idle
     // agents are stopped after the default wait until the person chooses another, or never;
-    // agents get no worktrees until the person turns them on, and work as a Herd until they turn
+    // agents get worktrees until the person turns them off, and work as a Herd until they turn
     // Agent modes on and pick Solo or Swarm; Murmur runs only once its Experimental switch is on.
     return {
       transcripts: saved.get("transcripts") !== "false",
@@ -167,7 +165,7 @@ export class Settings {
       inboxSnoozed: inboxEntryIdsOf(saved.get("inboxSnoozed")),
       inboxHistory: inboxHistoryOf(saved.get("inboxHistory")),
       hibernateAfterMinutes: hibernateOf(saved.get("hibernateAfterMinutes")),
-      worktrees: saved.get("worktrees") === "true",
+      worktrees: saved.get("worktrees") !== "false",
       agentModes: saved.get("agentModes") === "true",
       agentMode: agentModeOf(saved.get("agentMode")),
       shippingGate: saved.get("shippingGate") === "true",
@@ -187,25 +185,21 @@ export class Settings {
     this.saveSetting("murmur", JSON.stringify(this.murmurEnabledChoice() === true || hasFiles))
   }
 
+  /**
+   * Agent worktrees' switch as they left Experimental: on for everyone, once. While Experimental,
+   * a stable build saved it off at every launch, so an off saved then says nothing of what the
+   * person wants. Done once (`worktreesCarried`), so an off they choose later stays.
+   */
+  carryWorktreesSwitch(): void {
+    if (this.setting("worktreesCarried") !== undefined) return
+    this.forgetSetting("worktrees")
+    this.saveSetting("worktreesCarried", "true")
+  }
+
   // Each as JSON, which writes a switch as `true` or `false`, as it always was.
   saveRunner(settings: RunnerSettingsChange): void {
     for (const [key, value] of Object.entries(settings))
       if (value !== undefined) this.saveSetting(key, JSON.stringify(value))
-  }
-
-  /** The forges switched on, in the order of the contract; none until the person switches one. */
-  forges(): ForgeName[] {
-    // Leniently: a name a newer build saved (another forge) leaves the known ones.
-    const saved = this.settingJson("forges", (value) => (Array.isArray(value) ? value : null))
-    return forgeName.options.filter((name) => saved?.includes(name) === true)
-  }
-
-  /** Saves the forges switched on. Not part of the runner's settings: Experimental, per forge. */
-  saveForges(forges: readonly ForgeName[]): void {
-    this.saveSettingJson(
-      "forges",
-      forgeName.options.filter((name) => forges.includes(name)),
-    )
   }
 
   /** Voice input's settings: off, on the lighter model, and detecting the language, until chosen. */

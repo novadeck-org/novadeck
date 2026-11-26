@@ -11,17 +11,6 @@
         "backend/runner/assets/tour/"
       ]
     },
-    "agent-worktrees": {
-      "scopes": ["worktrees", "works"],
-      "paths": [
-        "backend/runner/src/worktrees/",
-        "backend/runner/src/works/",
-        "frontend/ui/src/sidebar/WorktreesPanel.tsx",
-        "frontend/ui/src/sidebar/worktree-rows.ts",
-        "frontend/ui/src/sidebar/worktrees.css",
-        "frontend/ui/src/sidebar/files-works.ts"
-      ]
-    },
     "agent-modes": {
       "scopes": [],
       "paths": ["frontend/ui/src/preferences/AgentModePicker.tsx"]
@@ -37,10 +26,6 @@
         "backend/runner/src/harnesses/own-pi.ts",
         "frontend/ui/src/preferences/bundled-pi.ts"
       ]
-    },
-    "forges": {
-      "scopes": ["forges"],
-      "paths": ["backend/runner/src/forges/", "libraries/forges/"]
     },
     "murmur": {
       "scopes": ["murmur"],

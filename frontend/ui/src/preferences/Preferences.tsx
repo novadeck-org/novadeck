@@ -25,8 +25,8 @@ import { AgentModePicker } from "./AgentModePicker"
 import { AgentSwitches } from "./AgentSwitches"
 import { bundledPiDescription, bundledPiLabel, bundledPiNote } from "./bundled-pi"
 import { builtInFont, fontChoices, isBundled } from "./font-choices"
-import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
-import { ForgeSwitches } from "./ForgeSwitches"
+import { forgesExplanation, type ForgeRow } from "./forge-rows"
+import { ForgeRows } from "./ForgeRows"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
@@ -306,17 +306,16 @@ export const Preferences = ({
   }
   // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
   tour?: boolean
-  // Whether agents get git worktrees, an Experimental feature the backend keeps; absent
-  // where the backend has none.
+  // Whether agents get git worktrees, on unless the person turns it off; absent where the
+  // backend has none.
   worktrees?: {
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
-  // The forges whose pull requests the Worktrees panel shows, an Experimental feature the backend keeps;
-  // absent where the backend has none.
+  // The forges whose pull requests the Worktrees panel shows, every one on; absent where the
+  // backend has none.
   forges?: {
-    readonly list: readonly ForgeSwitch[]
-    readonly onChange: (forge: ForgeName, enabled: boolean) => void
+    readonly list: readonly ForgeRow[]
     // Runs the installer of a forge's tool that isn't here; absent where none can run.
     readonly onInstall?: ((forge: ForgeName, command: string) => void) | undefined
     // The forges whose installer runs now.
@@ -429,7 +428,10 @@ export const Preferences = ({
   // The mode picker is an Experimental feature: it shows only with its switch on, and only where
   // the Experimental tab is there to turn it off.
   const showAgentMode = agentMode !== undefined && agentModes?.enabled === true && hasExperimental
-  const hasAgentsTab = hasAgents || hibernation !== undefined || showAgentMode
+  // The forges' rows say how the Worktrees panel reads pull requests, so they go with it.
+  const showForges = forges !== undefined && worktrees?.enabled !== false
+  const hasAgentsTab =
+    hasAgents || hibernation !== undefined || worktrees !== undefined || showForges || showAgentMode
   const hidden = (id: PreferencesTab): boolean =>
     (id === "agents" && !hasAgentsTab) ||
     (id === "addons" && !hasAddons) ||
@@ -465,16 +467,6 @@ export const Preferences = ({
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
       disabled: !tour,
-    },
-    {
-      id: "agent-worktrees",
-      label: "Agent worktrees",
-      description: worktrees
-        ? "Agents work in their own git worktrees, and the sidebar gets a Worktrees panel that lists each one with what it changed since main. Novadeck cleans a worktree up once it's merged or its terminal is closed."
-        : "Not available here.",
-      checked: worktrees?.enabled ?? false,
-      onToggle: (enabled: boolean) => worktrees?.onChange(enabled),
-      disabled: !worktrees,
     },
     {
       id: "agent-modes",
@@ -591,7 +583,7 @@ export const Preferences = ({
         </div>
         <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
           <TabPanel value="agents" className={panelClasses}>
-            {(agents || hibernation || showAgentMode) && (
+            {(agents || hibernation || worktrees || showAgentMode) && (
               <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
                 {agents && (
                   <AgentSwitches
@@ -619,9 +611,39 @@ export const Preferences = ({
                     />
                   </div>
                 )}
+                {/* On for everyone: a way out for whoever keeps worktrees with a tool of their own. */}
+                {worktrees && (
+                  <div className={settingsCardClasses}>
+                    <div className={`preference-row ${settingRowClasses}`}>
+                      <SettingText
+                        id="agent-worktrees-label"
+                        label="Agent worktrees"
+                        description="Agents make their own git worktrees, shown in the Worktrees panel and cleaned up once merged. Turn off only if you manage worktrees with another tool: agents then work in your checkout."
+                        descriptionId="agent-worktrees-description"
+                      />
+                      <Switch
+                        checked={worktrees.enabled}
+                        onChange={worktrees.onChange}
+                        labelledBy="agent-worktrees-label"
+                        describedBy="agent-worktrees-description"
+                      />
+                    </div>
+                  </div>
+                )}
                 {showAgentMode && (
                   <AgentModePicker mode={agentMode.mode} onChange={agentMode.onChange} />
                 )}
+              </Section>
+            )}
+            {showForges && (
+              <Section title="Pull requests" description={forgesExplanation}>
+                <ForgeRows
+                  forges={forges.list}
+                  onInstall={forges.onInstall}
+                  installing={forges.installing}
+                  onSignIn={forges.onSignIn}
+                  signingIn={forges.signingIn}
+                />
               </Section>
             )}
           </TabPanel>
@@ -1188,18 +1210,6 @@ export const Preferences = ({
                     </div>
                   ))}
               </div>
-              {forges && (
-                <Section title="Forge integrations" description={forgesExplanation}>
-                  <ForgeSwitches
-                    forges={forges.list}
-                    onChange={forges.onChange}
-                    onInstall={forges.onInstall}
-                    installing={forges.installing}
-                    onSignIn={forges.onSignIn}
-                    signingIn={forges.signingIn}
-                  />
-                </Section>
-              )}
             </TabPanel>
           )}
         </div>

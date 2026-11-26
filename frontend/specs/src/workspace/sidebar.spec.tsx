@@ -1,6 +1,11 @@
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { pressShortcut } from "../support/keyboard"
+import {
+  closePreferences,
+  openPreferencesOn,
+  preferencesDialog,
+  pressShortcut,
+} from "../support/keyboard"
 import { expectStaysTrue } from "../support/layouts"
 import {
   clickInto,
@@ -217,5 +222,41 @@ describe("sidebar settings", () => {
 
       await expect.poll(order).toEqual(moved)
     })
+  })
+})
+
+describe("the agent worktrees switch", () => {
+  const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
+
+  it("shows the Worktrees panel only while agent worktrees are on", async () => {
+    await openWorkspace("/projects/storefront/sessions/initial/focus?panel=worktrees")
+    await expect.element(sidebar()).toHaveAccessibleName("Worktrees")
+    // Turned off with Worktrees open, the panel goes and the sidebar goes back to Terminals.
+    await openPreferencesOn("Agents")
+    await expect.element(worktrees()).toHaveAttribute("aria-checked", "true")
+    await worktrees().click()
+    await closePreferences()
+    await expect.element(sidebarPanel("Worktrees")).not.toBeInTheDocument()
+    await expect.element(sidebar()).toHaveAccessibleName("Terminals")
+    // On again, it comes back.
+    await openPreferencesOn("Agents")
+    await worktrees().click()
+    await closePreferences()
+    await sidebarPanel("Worktrees").click()
+    await expect.element(sidebar()).toHaveAccessibleName("Worktrees")
+  })
+
+  it("forgets a step back to the Worktrees panel once it is gone", async () => {
+    await openWorkspace()
+    await sidebarPanel("Worktrees").click()
+    await sidebarPanel("Inbox").click()
+    await expect.element(sidebar()).toHaveAccessibleName("Inbox")
+    await openPreferencesOn("Agents")
+    await worktrees().click()
+    await closePreferences()
+    await expect.element(sidebarPanel("Worktrees")).not.toBeInTheDocument()
+    // The Inbox's toggle, with no Worktrees to go back to, hides the sidebar.
+    await sidebarPanel("Inbox").click()
+    await expect.element(sidebar()).not.toBeInTheDocument()
   })
 })

@@ -1,20 +1,13 @@
 import { forgePrograms, type ForgeConnection, type ForgeHost } from "@novadeck/core/forges"
 
-// A forge the person can switch on, as its row shows it.
-export type ForgeSwitch = ForgeConnection
+// A forge as its row shows it: always on, read with its command-line tool where it is installed.
+export type ForgeRow = ForgeConnection
 
-// What the row says beside or under the forge's name: why it can't be switched, what the switch
-// is doing, why the last one failed, or what it reads with. `error` is for an alert.
+// What the row says under the forge's name: why the last look failed, that its tool is missing,
+// or what it reads with. `error` is for an alert.
 export type ForgeNote = { readonly text: string; readonly error: boolean }
 
-export const forgeNote = ({
-  forge,
-  available,
-  enabled,
-  busy,
-  error,
-}: ForgeSwitch): ForgeNote | undefined => {
-  if (busy) return { text: enabled ? "Switching off…" : "Switching on…", error: false }
+export const forgeNote = ({ forge, available, error }: ForgeRow): ForgeNote | undefined => {
   if (error) return { text: error, error: true }
   if (!available) return { text: `Not installed. Needs ${forgePrograms[forge]}`, error: false }
   return { text: `Uses your signed-in ${forgePrograms[forge]}`, error: false }
@@ -40,4 +33,4 @@ export const hostLine = ({ host, state, fix }: ForgeHost): HostLine => ({
 
 // What the section is, above the rows.
 export const forgesExplanation =
-  "Show each worktree's pull request in the Worktrees panel. Novadeck reads them with the signed-in command-line tool of the forge (gh, glab or az), and never asks for a password or token."
+  "The Worktrees panel shows each worktree's pull request and its checks. Novadeck reads them with the forge's signed-in command-line tool (gh, glab or az), and never asks for a password or token."
