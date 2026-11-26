@@ -320,6 +320,9 @@ const Section = ({
   )
 }
 
+// A setting's description, under its name.
+const descriptionClasses = "settings-description text-control leading-5"
+
 // A setting's name and what it does, beside its control.
 const SettingText = ({
   id,
@@ -777,7 +780,7 @@ export const Preferences = ({
       onPage: true,
       label: "Shipping gate",
       description: shippingGate
-        ? "Claude Code, Codex, Antigravity and OpenCode need your OK to push to a branch that isn't theirs, land into another branch, open a PR or merge: your own words in their terminal, or Allow on the card in the chat or the Inbox. Without it they're stopped and told to ask. Applies to agents started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks you as before."
+        ? "Claude Code, Codex, Antigravity, OpenCode and Pi need your OK to push to a branch that isn't theirs, land into another branch, open a PR or merge: your own words in their terminal, or Allow on the card in the chat or the Inbox. Without it they're stopped and told to ask. Applies to agents started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks you as before."
         : "Not available here.",
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),
@@ -1008,30 +1011,22 @@ export const Preferences = ({
                   )}
                   {hibernation && (
                     <div className={settingsCardClasses}>
-                      <div className={`preference-row ${settingRowClasses}`}>
-                        <SettingText
-                          id="idle-agents-label"
-                          label="Stop idle agents after"
-                          description="An agent with nothing to do stops after this long. A message wakes it again."
-                          descriptionId="idle-agents-description"
-                        />
-                        <Select
-                          className="shrink-0 [&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-36"
-                          label="Stop idle agents after"
-                          items={idleChoices}
-                          // A saved wait the list doesn't have shows as it is, without being chosen.
-                          value={idleChoice(hibernation.minutes)}
-                          placeholder={`${hibernation.minutes} minutes`}
-                          onValueChange={(choice) =>
-                            hibernation.onChange(choice === "off" ? null : Number(choice))
-                          }
-                          open={open && shown === "agents" && openSelect === "idle-agents"}
-                          onOpenChange={(expanded) =>
-                            setOpenSelect(expanded ? "idle-agents" : null)
-                          }
-                          portalContainer={dialog}
-                        />
-                      </div>
+                      <Select
+                        className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                        label="Stop idle agents after"
+                        description="An agent with nothing to do stops after this long. A message wakes it again."
+                        descriptionClassName={descriptionClasses}
+                        items={idleChoices}
+                        // A saved wait the list doesn't have shows as it is, without being chosen.
+                        value={idleChoice(hibernation.minutes)}
+                        placeholder={`${hibernation.minutes} minutes`}
+                        onValueChange={(choice) =>
+                          hibernation.onChange(choice === "off" ? null : Number(choice))
+                        }
+                        open={open && shown === "agents" && openSelect === "idle-agents"}
+                        onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
+                        portalContainer={dialog}
+                      />
                     </div>
                   )}
                 </Section>
@@ -1246,27 +1241,21 @@ export const Preferences = ({
               {scalable && (
                 <Section title="Size">
                   <div className={settingsCardClasses}>
-                    <div className={`preference-row ${settingRowClasses}`}>
-                      <SettingText
-                        id="scale-label"
-                        label="Scale"
-                        description="Makes all of Novadeck bigger or smaller. Terminal text has its own size, on the Terminal page."
-                        descriptionId="scale-description"
-                      />
-                      <Select
-                        className="shrink-0 [&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-36"
-                        label="Scale"
-                        items={scaleItems}
-                        value={String(value.appScale)}
-                        onValueChange={(next) => {
-                          const appScale = appScales.find((scale) => String(scale) === next)
-                          if (appScale) onChange({ ...value, appScale })
-                        }}
-                        open={open && shown === "appearance" && openSelect === "scale"}
-                        onOpenChange={(expanded) => setOpenSelect(expanded ? "scale" : null)}
-                        portalContainer={dialog}
-                      />
-                    </div>
+                    <Select
+                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                      label="Scale"
+                      description="Makes all of Novadeck bigger or smaller. Terminal text has its own size, on the Terminal page."
+                      descriptionClassName={descriptionClasses}
+                      items={scaleItems}
+                      value={String(value.appScale)}
+                      onValueChange={(next) => {
+                        const appScale = appScales.find((scale) => String(scale) === next)
+                        if (appScale) onChange({ ...value, appScale })
+                      }}
+                      open={open && shown === "appearance" && openSelect === "scale"}
+                      onOpenChange={(expanded) => setOpenSelect(expanded ? "scale" : null)}
+                      portalContainer={dialog}
+                    />
                   </div>
                 </Section>
               )}
@@ -1580,7 +1569,7 @@ export const Preferences = ({
               <TabPanel value="about" className={panelClasses}>
                 {(version || (experimental && showExperimentalSwitch)) && (
                   // The app itself: its version, and the builds it follows.
-                  <Section label="Version">
+                  <Section title="Version and updates">
                     <div className={settingsCardClasses}>
                       {version && (
                         <VersionRow

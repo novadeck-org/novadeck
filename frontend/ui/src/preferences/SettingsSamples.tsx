@@ -54,29 +54,33 @@ export const NoticePreview = ({
   readonly done: boolean
   // Whether the app can show desktop notifications, as the desktop app can.
   readonly desktop: boolean
-}): React.JSX.Element => (
-  <div className="settings-preview flex flex-wrap items-start gap-4 px-4 py-4" aria-hidden="true">
-    {toast && (
-      <figure className="settings-preview-item m-0 w-72 max-w-full" data-off={!needs || undefined}>
-        <figcaption className="settings-description mb-1.5 text-caption">
-          Needs you{needs ? "" : " · Off"}
-        </figcaption>
-        {toast}
-      </figure>
-    )}
-    {desktop && (
-      <figure className="settings-preview-item m-0 w-64 max-w-full" data-off={!done || undefined}>
-        <figcaption className="settings-description mb-1.5 text-caption">
-          Done{done ? "" : " · Off"}
-        </figcaption>
-        <div className="settings-desktop-notice grid grid-cols-[20px_minmax(0,1fr)] gap-x-2.5 gap-y-0.5 px-3 py-2.5 text-control leading-5">
-          <span className="row-span-2 pt-0.5">
-            <NovaMark size={18} />
-          </span>
-          <span className="truncate font-medium">@fern is done: Flaky runner test</span>
-          <span className="settings-description">Fixed the flaky test in the runner.</span>
-        </div>
-      </figure>
-    )}
-  </div>
-)
+}): React.JSX.Element | null =>
+  !toast && !desktop ? null : (
+    <div className="settings-preview flex flex-wrap items-start gap-4 px-4 py-4" aria-hidden="true">
+      {toast && (
+        <figure
+          className="settings-preview-item m-0 w-72 max-w-full"
+          data-off={!needs || undefined}
+        >
+          <figcaption className="settings-description mb-1.5 text-caption">
+            Needs you{needs ? "" : " · Off"}
+          </figcaption>
+          {toast}
+        </figure>
+      )}
+      {desktop && (
+        <figure className="settings-preview-item m-0 w-64 max-w-full" data-off={!done || undefined}>
+          <figcaption className="settings-description mb-1.5 text-caption">
+            Done{done ? "" : " · Off"}
+          </figcaption>
+          <div className="settings-desktop-notice grid grid-cols-[20px_minmax(0,1fr)] gap-x-2.5 gap-y-0.5 px-3 py-2.5 text-control leading-5">
+            <span className="row-span-2 pt-0.5">
+              <NovaMark size={18} />
+            </span>
+            <span className="truncate font-medium">@fern is done: Flaky runner test</span>
+            <span className="settings-description">Fixed the flaky test in the runner.</span>
+          </div>
+        </figure>
+      )}
+    </div>
+  )

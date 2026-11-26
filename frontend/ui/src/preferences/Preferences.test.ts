@@ -867,6 +867,20 @@ describe("an agent that is not installed, in Preferences", () => {
   })
 })
 
+describe("a choice with words under it", () => {
+  it("reads them with its select", async () => {
+    await show({ tab: "agents", hibernation: { minutes: 60, onChange: () => {} } })
+
+    const trigger = [...document.querySelectorAll('[role="combobox"]')].find((each) =>
+      document
+        .getElementById(each.getAttribute("aria-labelledby") ?? "")
+        ?.textContent?.includes("Stop idle agents after"),
+    )
+    const described = document.getElementById(trigger?.getAttribute("aria-describedby") ?? "")
+    expect(described?.textContent).toContain("A message wakes it again")
+  })
+})
+
 describe("the forges, in Preferences", () => {
   const forges = () => ({
     list: [{ forge: "github" as const, available: true, enabled: true, busy: false, hosts: [] }],

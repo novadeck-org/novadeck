@@ -1,7 +1,7 @@
 import { Portal } from "@ark-ui/react/portal"
 import { Select as ArkSelect, createListCollection } from "@ark-ui/react/select"
 import { Check, ChevronDown } from "lucide-react"
-import { useMemo, type RefObject } from "react"
+import { useId, useMemo, type RefObject } from "react"
 
 import { cn } from "./class-name"
 
@@ -24,6 +24,9 @@ export type SelectProps = {
   readonly onOpenChange?: (open: boolean) => void
   readonly portalContainer?: RefObject<HTMLElement | null>
   readonly className?: string
+  // What the choice does, under the label, read with the trigger; its look is the caller's.
+  readonly description?: string
+  readonly descriptionClassName?: string
 }
 
 export const Select = ({
@@ -38,8 +41,16 @@ export const Select = ({
   onOpenChange,
   portalContainer,
   className,
+  description,
+  descriptionClassName,
 }: SelectProps): React.JSX.Element => {
   const collection = useMemo(() => createListCollection({ items }), [items])
+  const descriptionId = useId()
+  const labelPart = (
+    <ArkSelect.Label className={variant === "icon" ? "sr-only" : undefined}>
+      {label}
+    </ArkSelect.Label>
+  )
   return (
     <ArkSelect.Root
       className={cn("flex min-w-0 items-center justify-between gap-4 text-body", className)}
@@ -61,11 +72,20 @@ export const Select = ({
       lazyMount
       unmountOnExit
     >
-      <ArkSelect.Label className={variant === "icon" ? "sr-only" : undefined}>
-        {label}
-      </ArkSelect.Label>
-      <ArkSelect.Control className="min-w-0">
+      {description === undefined ? (
+        labelPart
+      ) : (
+        <span className="flex min-w-0 flex-col gap-1">
+          {labelPart}
+          <span id={descriptionId} className={descriptionClassName}>
+            {description}
+          </span>
+        </span>
+      )}
+      {/* Beside a description, the trigger keeps its width and the words wrap. */}
+      <ArkSelect.Control className={description === undefined ? "min-w-0" : "min-w-0 shrink-0"}>
         <ArkSelect.Trigger
+          {...(description !== undefined && { "aria-describedby": descriptionId })}
           className={
             variant === "icon"
               ? "icon-button"

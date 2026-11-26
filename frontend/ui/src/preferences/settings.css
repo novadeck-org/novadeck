@@ -275,11 +275,10 @@
   line-height: 1.4;
   white-space: pre;
 }
+/* Off turns the joins off alone: the glyph features the body sets (theme/base.css) stay, as in
+   a terminal. */
 .settings-sample[data-ligatures="off"] {
   font-variant-ligatures: none;
-  font-feature-settings:
-    "calt" 0,
-    "liga" 0;
 }
 .settings-sample[data-ligatures="on"] {
   font-variant-ligatures: contextual common-ligatures;

@@ -436,7 +436,7 @@ Agents:
   the done reports its agents wrote, and withdraws and clears the MCP asks the panel opened
   (those of "Every state at once"), so nothing the agents or the panel made waits. The rows
   of the variant's own, as the `inbox` variant's, stay for the Inbox group's actions. The notices for finishes need the Preferences switch
-  "Notify when an agent finishes" on.
+  "When an agent is done" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
   agent running (each with Open terminal), a request waiting (answer it first), or a
