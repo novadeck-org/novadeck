@@ -50,7 +50,7 @@ describe("what the close question says", () => {
       true,
     )
     expect(text).not.toMatch(/still running/)
-    expect(text).toMatch(/restored/)
+    expect(text).toMatch(/in History/)
   })
 
   it("names the program of a plain terminal", () => {

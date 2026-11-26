@@ -236,7 +236,7 @@ describe("How a resolved entry ended", () => {
       "You answered: Green",
     )
     expect(endedLine(ended({ how: "dismissed", at: 1 }))).toBe(
-      "You dismissed this ask; @moth was told.",
+      "You dismissed this entry; @moth was told.",
     )
     expect(endedLine(ended({ how: "ended", at: 1 }))).toContain("session ended")
     expect(endedLine(ask)).toBeNull()

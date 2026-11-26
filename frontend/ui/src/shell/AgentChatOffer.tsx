@@ -20,7 +20,7 @@ export type AgentChatOfferProps = {
 export const chatOfferText = {
   title: "Agent Chat",
   headline: "Talk to your agents in a chat",
-  line: "Formatted replies, tool calls folded to a line, and permissions, plans and questions answered with a click. The terminal is one click away.",
+  line: "Replies are formatted and tool calls fold to one line. Answer permissions, plans and questions with a click. The terminal is one click away.",
   quiet: "Switch back any time in",
   // Kept whole on one line: the quiet line wraps before it, never inside it.
   path: "Preferences → Appearance",
