@@ -60,7 +60,13 @@ import { Controls } from "./controls.js"
 import { conversationDetail } from "./conversation.js"
 import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
-import { closing, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
+import {
+  closing,
+  shutdownTreeGraceMs,
+  shutdownTreesMs,
+  stopBeforeClose,
+  treeGraceMs,
+} from "./ending.js"
 import { failed } from "./failures.js"
 import { Hibernation } from "./hibernation.js"
 import { historyHost } from "./history-host.js"
@@ -374,6 +380,7 @@ export class Terminals {
     this.claims = new Claims({
       boundElsewhere: (terminalId, agent, session) =>
         sessionHeldElsewhere(this.records.values(), terminalId, agent, session),
+      ownPi: (agent, transcript) => options.bundledPi?.owns(agent, transcript) === true,
     })
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
@@ -754,6 +761,7 @@ export class Terminals {
       closingNow: (terminalId) => this.host.closing(terminalId),
       closeForGood: (record, closedBy) => this.closeForGood(record, closedBy),
       terminate: (record) => this.terminate(record),
+      stopTurn: (record) => stopBeforeClose(record, this.typing),
       remove: (record) => this.remove(record),
       forget: (terminalId) => this.forget(terminalId),
       save: (record) => this.saves.save(record, false),
@@ -1368,7 +1376,10 @@ export class Terminals {
       this.streams.end(input.terminalId)
       return
     }
+    // A terminal already closing had its turn stopped by that close.
+    const wasClosed = record.closed
     this.closeForGood(record, closedBy)
+    if (!wasClosed) await stopBeforeClose(record, this.typing)
     await this.terminate(record)
     this.remove(record)
     // What its programs left on their way out, as an agent registering again, goes too.
@@ -1437,6 +1448,7 @@ export class Terminals {
     for (const record of running) this.closeForGood(record)
     await Promise.all(
       running.map(async (record) => {
+        await stopBeforeClose(record, this.typing)
         await this.terminate(record)
         this.remove(record)
         this.forget(record.summary.id)

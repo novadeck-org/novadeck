@@ -109,6 +109,12 @@ export type HistoryHost = {
   readonly restoredAs: (terminalId: string, row: string) => TerminalSummary | undefined
   /** The transcript path the running terminal's session reported at bind. */
   readonly transcriptOf: (agent: AgentName, sessionId: string) => string | undefined
+  /**
+   * Whether the agent's session, by its transcript, is Novadeck's own pi's (`Claims.own`): it
+   * needs no connection of the person's, and its conversation is the file it named. None is
+   * where omitted.
+   */
+  readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
   /** Whether a line was ever entered in a terminal kept only as saved. */
   readonly ran: (terminalId: string) => boolean
   /** Tells watchers of the terminal's summary. */
@@ -562,6 +568,7 @@ export class ClosedTerminals {
     }
     const report = row.agents[agent]
     if (!report) return { state: "gone", reason: "conversation" }
+    if (this.host.ownPi?.(agent, report.transcript) === true) return this.ownFiles(report, row)
     let asked = pass?.connected.get(agent)
     if (!asked) {
       asked = this.host.connected(agent).catch(() => true)
@@ -603,15 +610,34 @@ export class ClosedTerminals {
     }
   }
 
+  // Novadeck's own pi's session: its folder, and the file it named in its own agent folder,
+  // which the person's pi never reads; held in another terminal as any session is.
+  private async ownFiles(
+    report: AgentReport,
+    row: Pick<ListedClosed, "cwd">,
+  ): Promise<ClosedTerminalState> {
+    const holder = this.host.holder("pi", report.sessionId)
+    if (holder !== undefined) return { state: "open", ...holder }
+    if (await folderGone(this.folderOf(report, row))) return { state: "gone", reason: "folder" }
+    const there = await stat(report.transcript!).then(
+      () => true,
+      (error: NodeJS.ErrnoException) => error.code !== "ENOENT",
+    )
+    return there ? { state: "ready" } : { state: "gone", reason: "conversation" }
+  }
+
   /**
    * Whether an agent running with this session could be restored if closed (see `restorable`).
    * Until `settled`, a turn having ended, no conversation file reads as gone: it is not written yet.
    */
   async restorable(agent: AgentName, sessionId: string, settled = true): Promise<boolean> {
+    const transcript = this.host.transcriptOf(agent, sessionId)
+    // Novadeck's own pi's: kept in its own folder, which it writes as its session starts.
+    if (this.host.ownPi?.(agent, transcript) === true) return true
     if (!(await this.host.connected(agent).catch(() => true))) return false
     const install = await this.host.install(agent).catch(() => undefined)
     if (!install) return true
-    const known = { transcript: this.host.transcriptOf(agent, sessionId) }
+    const known = { transcript }
     const found = await harnesses[agent]
       .conversation(install, sessionId, known)
       .catch(() => "unknown")

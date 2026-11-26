@@ -22,7 +22,12 @@ import { createStore } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
-import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
+import {
+  createDemoMurmur,
+  heldMurmurTiming,
+  requestedMurmur,
+  requestedMurmurSwitch,
+} from "./addons/murmur"
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
 import { addressParams } from "./address"
 import { createDemoChat, type DemoChat } from "./agents/chat"
@@ -114,28 +119,7 @@ export const demoBackend = (
   // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
   // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
-  // Where the tour is offered (the experimental channel) opencode, the tour's agent, is listed too:
-  // installed and not connected, or as the address says: `&opencode=missing` (not installed),
-  // `outdated` or `unsupported` (installed, with Novadeck unable to follow it).
-  const opencodeAs = addressParams().get("opencode")
-  const agents = createStore<readonly AgentConnection[]>(
-    addressParams().get("channel") === "experimental"
-      ? [
-          ...sampleAgents,
-          opencodeAs === "missing"
-            ? missingAgent("opencode")
-            : {
-                agent: "opencode",
-                available: true,
-                connected: opencodeAs === "outdated" || opencodeAs === "unsupported",
-                busy: false,
-                ...((opencodeAs === "outdated" || opencodeAs === "unsupported") && {
-                  limited: opencodeAs,
-                }),
-              },
-        ]
-      : sampleAgents,
-  )
+  const agents = createStore<readonly AgentConnection[]>(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
   // and an install held at its first step where it asks for that (`&install=held`).
@@ -143,6 +127,8 @@ export const demoBackend = (
   const voice = createDemoVoice(held ? heldVoiceTiming : undefined, requestedVoice())
   // Installed unless the address asks otherwise (`&murmur=uninstalled`), as the try demo shows it.
   const murmur = createDemoMurmur(held ? heldMurmurTiming : undefined, requestedMurmur())
+  // Murmur is Experimental: off, as in the app, unless the address asks for it.
+  const murmurSwitch = createStore(requestedMurmurSwitch())
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const numbers = new Map(
@@ -207,6 +193,7 @@ export const demoBackend = (
       set: (enabled) => shippingGate.update(() => enabled),
     },
     bundledPi: createDemoBundledPi(),
+    murmurSwitch: { enabled: murmurSwitch, set: (enabled) => murmurSwitch.update(() => enabled) },
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {
@@ -277,6 +264,12 @@ const leadOf = (terminals: readonly { readonly id: string }[]): string | null =>
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
 export const withMessages = (backend: Backend, now: number): Backend => {
+  // Murmur names a terminal only while its Experimental switch is on, as with the runner.
+  const murmurOn = backend.murmurSwitch?.enabled.getSnapshot() ?? true
+  const namingOf = (slot: string) => {
+    const naming = namings[slot]
+    return naming && (naming.source.kind !== "murmur" || murmurOn) ? naming : undefined
+  }
   const seed: WorkspaceSeed = {
     ...backend.seed,
     projects: backend.seed.projects.map((project) => ({
@@ -288,8 +281,8 @@ export const withMessages = (backend: Backend, now: number): Backend => {
           handle: demoHandle(Number(terminalSlot(terminal.id))),
           // The agent that named the checkout review (moth, the session's first) leads it.
           ...(terminalSlot(terminal.id) === "04" ? { ledBy: leadOf(session.terminals) } : {}),
-          ...(namings[terminalSlot(terminal.id)]
-            ? { titleSource: namings[terminalSlot(terminal.id)]!.source }
+          ...(namingOf(terminalSlot(terminal.id))
+            ? { titleSource: namingOf(terminalSlot(terminal.id))!.source }
             : {}),
         })),
       })),
@@ -886,7 +879,9 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ),
     ),
   )
-  // `&tourStart=fails` makes its first start fail, as a folder of the person's own does, and
+  // `&tourPi=download` has Pi, the tour's agent, not in place as the tour is asked for (a download
+  // plays), `&tourPi=fails` has the first download fail, its retry playing it; else it is in
+  // place. `&tourStart=fails` makes its first start fail, as a folder of the person's own does, and
   // `&tourStart=tickets` as the tour's service with no free run left does. Its agent is played as a runner
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
@@ -917,6 +912,8 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
     if (params.get("tourKeep") === "fails") backend.tour.failKeep()
     if (params.get("tourStart") === "fails") backend.tour.failNext()
     if (params.get("tourStart") === "tickets") backend.tour.failNext("tickets")
+    const piAs = params.get("tourPi")
+    if (piAs === "download" || piAs === "fails") backend.tour.startWithout(piAs)
   }
   if (isDemoInbox(backend.inbox)) {
     const answer = params.get("inboxAnswer")

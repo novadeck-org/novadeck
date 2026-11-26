@@ -1,10 +1,10 @@
 import { homedir } from "node:os"
 import { basename } from "node:path"
 
-import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
+import { ownProgram } from "@novadeck/harness-pi/bundled"
+import type { Project, TourPrepared } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
 import type { OpenPolicy } from "../terminals/options.js"
 import {
@@ -30,8 +30,8 @@ import {
 } from "./folder.js"
 import {
   tourAgent,
-  tourConfig,
   tourEffort,
+  tourEnv,
   tourLaunch,
   tourModel,
   tourWrites,
@@ -57,7 +57,12 @@ export type TourHost = {
    * omitted.
    */
   readonly environment?: () => NodeJS.ProcessEnv
-  readonly connected: (agent: AgentName) => Promise<boolean>
+  /**
+   * Novadeck's own pi, which the tour's agents run (`BundledPi.want`): its download asked for,
+   * whatever its Experimental switch says, resolving once it is in place, rejecting with the
+   * download's own words. Absent where the runner can't start it (no shell files).
+   */
+  readonly ownPi?: () => Promise<string>
   /**
    * A ticket for one run, which the tour's agents' provider takes as its key (`fetchTicket`, from
    * the service at `tourEndpoint()`); a refusal is a `DomainError` in words for the person.
@@ -83,6 +88,9 @@ export type TourHost = {
   /** Makes the folder agents' worktrees live in, whatever the person's setting. */
   readonly worktreesFolder: () => void
 }
+
+// Where the runner can't start Novadeck's own pi.
+const noOwnPi = "Novadeck can't start its own Pi here, so the tour can't start."
 
 // What the run last readied is, once it starts: its folder, its agent's launch, and its terminals.
 type Run = {
@@ -112,8 +120,21 @@ export class Tour {
   }
 
   /**
-   * Readies a run of the tour, always on opencode, GPT-6 Luna at medium effort, paid for by
-   * Novadeck (`launch.ts`): picks its folder (`chooseTourFolder`: the first of
+   * Starts downloading Novadeck's own pi for the tour (`host.ownPi`), whatever its switch in
+   * Preferences says, as the person asking for the tour is their consent, or tries a failed
+   * download again: in the background, its state told in the runner's settings. A runner that
+   * can't start it is a `CONFLICT`.
+   */
+  fetch(): void {
+    const { ownPi } = this.host
+    if (!ownPi) throw new DomainError("CONFLICT", noOwnPi)
+    void ownPi().catch(() => {})
+  }
+
+  /**
+   * Readies a run of the tour, always on Novadeck's own pi, GPT-6 Luna at medium effort, paid for
+   * by Novadeck (`launch.ts`): waits for Novadeck's pi to be in place (`host.ownPi`, which the
+   * consent asked for ahead, `fetch`), then picks its folder (`chooseTourFolder`: the first of
    * `tour`, `tour-2`, ... that is missing, empty or the tour's own, passing over any the person
    * kept), gets a ticket from the tour's service (`host.ticket`: the agents' provider key, and
    * the one thing that can refuse for a reason of Novadeck's, in the service's own words),
@@ -122,8 +143,9 @@ export class Tour {
    * then builds the agent's launch line. The brief never names the person; it names the one
    * teammate the lead opens, on the same agent and model. It also says how the game's
    * dev server is run here (`findServing`), if it can be. The folder is a git repo of its own
-   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). opencode not being
-   * connected to Novadeck is a `CONFLICT`, as its tools would be missing; so are a ticket
+   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). Novadeck's pi that
+   * can't be had (a runner without shell files, a download that failed, in its own words) is a
+   * `CONFLICT`; so are a ticket
    * refused (a person's tickets for the day used, or the free runs off), seed files that
    * can't be read, no folder to use, and a run asked for while another is being readied.
    * Nothing changes for any of them, and a ticket is asked for only once none of the others
@@ -140,11 +162,19 @@ export class Tour {
   }
 
   private async ready(): Promise<TourPrepared> {
-    if (!(await this.host.connected(tourAgent)))
+    const { ownPi } = this.host
+    if (!ownPi) throw new DomainError("CONFLICT", noOwnPi)
+    try {
+      await ownPi()
+    } catch (error) {
       throw new DomainError(
         "CONFLICT",
-        `Novadeck isn't connected to ${agentLabel(tourAgent)}, so the tour can't start.`,
+        `Novadeck couldn't download Pi, so the tour can't start. ${error instanceof Error ? error.message : String(error)}`.slice(
+          0,
+          600,
+        ),
       )
+    }
     // Git first of all: the sandbox is a repo, and nothing is removed for a tour that can't be.
     await requireGit()
     // The files and the folder too, the last local checks that can refuse.
@@ -196,14 +226,15 @@ export class Tour {
 
   /**
    * What a terminal starting in `cwd` gets in its environment on top of the person's: for one in a
-   * folder of the tour (`tour`, `tour-2`, ...) that has a record of its run, the provider and model
-   * of the tour's agents (`tourConfig`), so the lead and every teammate it opens run on the run's
-   * ticket whatever the command line says, and the ticket is in no line of any screen or history.
-   * While the run is live, any shell there gets it. Once the person keeps the project, or in a
-   * runner started again, only a terminal `resumed` there does (a restart, a restore, a session
-   * resumed): it keeps the model on its command line, which without the ticket would reach for the
-   * person's own account, and a dead ticket is the service's own refusal. A fresh agent the person
-   * opens in their project gets their own configuration. The record is what a restart left
+   * folder of the tour (`tour`, `tour-2`, ...) that has a record of its run, the model service of
+   * the tour's agents and the run's ticket as its key (`tourEnv`), which Novadeck's own pi takes
+   * as its model's, so the lead and every teammate it opens run on the run's ticket, and the
+   * ticket is in no line of any screen or history. While the run is live, any shell there gets
+   * it. Once the person keeps the project, or in a runner started again, only a terminal `resumed`
+   * there does (a restart, a restore, a session resumed): its session resumes on Novadeck's own pi
+   * with the model it kept (pi restores it from the session, not the command line), which without
+   * the ticket has no service to reach, and a dead ticket is the service's own refusal. A fresh agent the person opens in their project
+   * gets none of it. The record is what a restart left
    * (`TourRecords`); it goes with the folder's project: where none is open there any more, it is
    * dropped. None elsewhere.
    */
@@ -227,7 +258,34 @@ export class Tour {
     }
     const live = this.run !== undefined && basename(this.run.directory) === name
     if (!live && !resumed) return undefined
-    return { NOVADECK_OPENCODE_CONFIG: tourConfig(run.endpoint, run.ticket) }
+    return tourEnv(run.endpoint, run.ticket)
+  }
+
+  /**
+   * Whether the terminal is in a folder of the tour's whose run is remembered (`TourRecords`),
+   * with its project open: Novadeck's own pi starts there whatever its Experimental switch says,
+   * as the person asked for the tour, and so do its sessions resumed there once the person kept
+   * the project. False for a terminal the runner doesn't have.
+   */
+  paysFor(terminalId: string): boolean {
+    let cwd: string
+    try {
+      cwd = this.host.cwdOf(terminalId)
+    } catch {
+      return false
+    }
+    const folder = folderOf(
+      cwd,
+      this.host.home ?? homedir(),
+      this.host.platform ?? process.platform,
+    )
+    return (
+      folder !== undefined &&
+      this.records.get(basename(folder)) !== undefined &&
+      this.host.projects
+        .list()
+        .some((project) => insideFolder(project.cwd, folder, this.host.platform))
+    )
   }
 
   /**
@@ -244,6 +302,23 @@ export class Tour {
       tourBrief({ ...this.facts, lead: mention(this.host.handleOf(terminalId)) }),
     )
     this.run.lead = terminalId
+    // Kept with the run's record, so the lead resumed in a runner started again still opens
+    // its teammates (`openPolicy`).
+    const name = basename(this.run.directory)
+    const kept = this.records.get(name)
+    if (kept) this.records.set(name, { ...kept, lead: terminalId })
+  }
+
+  // Whether the terminal leads the tour's run in its folder: the run's lead in memory, or, in a
+  // runner started again, the lead its folder's record names, while the folder is still the tour's.
+  private leads(terminalId: string, cwd: string): boolean {
+    if (this.run) return terminalId === this.run.lead
+    const folder = folderOf(
+      cwd,
+      this.host.home ?? homedir(),
+      this.host.platform ?? process.platform,
+    )
+    return folder !== undefined && this.records.get(basename(folder))?.lead === terminalId
   }
 
   /**
@@ -314,9 +389,10 @@ export class Tour {
   /**
    * What an `open_agent` of `terminalId` is subject to: only the run's lead opens agents in the
    * tour's folder, with the tour's write flags; every other terminal there, its teammates, is
-   * refused. An opencode teammate the lead opens in the folder starts on the run's own model and
-   * effort whatever the call names, never judged against the person's models, as the provider
-   * the tour pays for isn't theirs (`pinned`); its provider comes with its shell (`launchEnv`).
+   * refused. A teammate the lead opens in the folder is Novadeck's own pi (`program`), on the
+   * run's own model and effort whatever the call names, never judged against the person's models,
+   * as the service the tour pays for isn't theirs (`pinned`); its service comes with its shell
+   * (`launchEnv`).
    * A terminal elsewhere, and one the runner doesn't have, are left to the call's own checks.
    */
   openPolicy(terminalId: string): OpenPolicy {
@@ -329,11 +405,14 @@ export class Tour {
     if (!this.inTour(cwd)) return {}
     // The lead's teammates write in the folder unasked, for that launch only (`tourWrites`), and
     // only where they start in it: one it opens elsewhere gets none.
-    return terminalId === this.run?.lead
+    return this.leads(terminalId, cwd)
       ? {
           refuseAgent: (agent, at) =>
-            agent !== tourAgent && this.inTour(at) ? "The tour runs OpenCode only." : undefined,
+            agent !== tourAgent && this.inTour(at)
+              ? 'The tour runs Novadeck\'s own Pi only: open your teammates with agent "pi".'
+              : undefined,
           flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
+          program: (agent, at) => (agent === tourAgent && this.inTour(at) ? ownProgram : undefined),
           pinned: (agent, at) =>
             agent === tourAgent && this.inTour(at)
               ? { model: tourModel, effort: tourEffort }

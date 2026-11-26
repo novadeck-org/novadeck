@@ -1,4 +1,5 @@
-import type { TourRun } from "@novadeck/core/port"
+import type { BundledPiFetchState, TourRun } from "@novadeck/core/port"
+import { createStore } from "@novadeck/core/store"
 import type { Runner } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { describe, expect, it } from "vitest"
@@ -20,11 +21,14 @@ const tourAnswering = (prepare: () => Promise<TourRun>): Runner["tour"] =>
     brief: () => Promise.resolve(),
     artist: (terminalId: string) => (rung.push(terminalId), Promise.resolve()),
     keep: () => (kept.push(true), Promise.resolve()),
+    fetch: () => (fetched.push(true), Promise.resolve()),
   }) as unknown as Runner["tour"]
 
 // The terminals the runner was asked to ring the artist's brief to, and the keeps it was asked.
 const rung: string[] = []
 const kept: boolean[] = []
+const fetched: boolean[] = []
+const agent = createStore<BundledPiFetchState>({ state: "off" })
 
 const track = <T>(work: Promise<T>): Promise<T> => work
 
@@ -33,6 +37,7 @@ describe("The runner's tour", () => {
     const tour = runnerTour(
       tourAnswering(() => Promise.resolve(run)),
       track,
+      agent,
     )
     await expect(tour.prepare()).resolves.toEqual(run)
   })
@@ -41,6 +46,7 @@ describe("The runner's tour", () => {
     const tour = runnerTour(
       tourAnswering(() => Promise.resolve(run)),
       track,
+      agent,
     )
     await expect(tour.artist?.("t7")).resolves.toBeUndefined()
     expect(rung).toEqual(["t7"])
@@ -50,9 +56,21 @@ describe("The runner's tour", () => {
     const tour = runnerTour(
       tourAnswering(() => Promise.resolve(run)),
       track,
+      agent,
     )
     await expect(tour.keep?.()).resolves.toBeUndefined()
     expect(kept).toEqual([true])
+  })
+
+  it("starts the download of Novadeck's pi as the runner's call, and shows where it stands", async () => {
+    const tour = runnerTour(
+      tourAnswering(() => Promise.resolve(run)),
+      track,
+      agent,
+    )
+    await expect(tour.fetch()).resolves.toBeUndefined()
+    expect(fetched).toEqual([true])
+    expect(tour.agent).toBe(agent)
   })
 
   it("passes any other refusal on as it came", async () => {
@@ -60,6 +78,7 @@ describe("The runner's tour", () => {
     const tour = runnerTour(
       tourAnswering(() => Promise.reject(conflict)),
       track,
+      agent,
     )
     await expect(tour.prepare()).rejects.toBe(conflict)
   })

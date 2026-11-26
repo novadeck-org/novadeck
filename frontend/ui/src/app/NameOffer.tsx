@@ -2,6 +2,7 @@ import { useEffect } from "react"
 
 import { useWorkspaceServices } from "./controller/context"
 import { offerable } from "./murmur-offer"
+import { shownMurmur } from "./murmur-shown"
 import { currentContext, currentState } from "./selectors"
 
 // A backend that asks to offer Murmur now (the demo's debug panel) puts the chip on the
@@ -20,9 +21,10 @@ export const NameOffer = (): null => {
       seen = count
       const snapshot = workspace.getSnapshot()
       const { selected } = currentState(snapshot)
-      if (!selected || !offerable(murmur.state.getSnapshot())) return
+      // Not while Murmur's Experimental switch is off.
+      if (!selected || !shownMurmur(backend) || !offerable(murmur.state.getSnapshot())) return
       commands.offerNameTo({ context: currentContext(snapshot), id: selected })
     })
-  }, [murmur, workspace, commands])
+  }, [backend, murmur, workspace, commands])
   return null
 }

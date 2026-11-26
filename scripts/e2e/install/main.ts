@@ -3,6 +3,10 @@
 // before the suite when the suite itself has no network, as under `isolated`: its own
 // install then finds them done. Needs `@novadeck/protocol` built.
 
+import { execFileSync } from "node:child_process"
+import { createRequire } from "node:module"
+import { fileURLToPath } from "node:url"
+
 type Installed = { readonly bin: string; readonly version: string }
 
 type Installer = {
@@ -32,12 +36,25 @@ export const harnesses = (
   return names
 }
 
+// Fills the cache with Novadeck's own pi's pinned release, which the tour runs (from pi's GitHub
+// release, not npm), through tsx: its module reads the runner's own sources.
+const ownPiFill = new URL("../../../backend/runner/src/e2e/own-pi-fill.ts", import.meta.url)
+
 export const main = async (): Promise<void> => {
   const { installHarness, pins } = (await import(installer.href)) as Installer
-  for (const name of harnesses(process.env.NOVADECK_E2E_AGENTS, Object.keys(pins))) {
+  const names = harnesses(process.env.NOVADECK_E2E_AGENTS, Object.keys(pins))
+  for (const name of names) {
     // eslint-disable-next-line no-await-in-loop -- One download at a time.
     const installed = await installHarness(name)
     console.log(`${name} ${installed.version}: ${installed.bin}`)
+  }
+  if (names.includes("pi")) {
+    const runner = createRequire(new URL("../../../backend/runner/package.json", import.meta.url))
+    execFileSync(
+      process.execPath,
+      [runner.resolve("tsx/cli"), "--conditions=development", fileURLToPath(ownPiFill)],
+      { stdio: "inherit" },
+    )
   }
 }
 

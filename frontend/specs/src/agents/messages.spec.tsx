@@ -23,6 +23,7 @@ import {
 } from "../support/terminals"
 import {
   expectStaysAbsent,
+  openWorkspace,
   recordChanges,
   tabDescription,
   terminalTab,
@@ -224,6 +225,12 @@ describe("Who named a terminal", () => {
     await openMessagesDemo()
     expect(await namedBy("Checkout implementation")).toBe("Named by you")
     expect(await namedBy("Checkout review")).toBe("Named by the agent in @moth")
+    // Murmur is Experimental, and off: it named nothing, so the menu names no one.
+    expect(await namedBy("Tests")).toBeNull()
+  })
+
+  it("says Murmur named one while Murmur's Experimental switch is on", async () => {
+    await openWorkspace("/?demo=messages&murmur=installed")
     expect(await namedBy("Tests")).toBe("Named by Murmur")
   })
 

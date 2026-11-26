@@ -2,6 +2,7 @@ import { rmSync } from "node:fs"
 
 import type { Choice } from "@novadeck/harness-core/harness"
 import { doorbell } from "@novadeck/harness-core/prompts"
+import { ownProgram } from "@novadeck/harness-pi/bundled"
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -255,6 +256,12 @@ export type ClaimsHost = {
     agent: AgentName,
     session: string | undefined,
   ) => boolean
+  /**
+   * Whether the agent's session, by its transcript, is Novadeck's own pi's (`ownPiSession`): it
+   * resumes on Novadeck's own pi (`ownProgram`), which needs no connection of the person's. None
+   * is where omitted.
+   */
+  readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
 }
 
 /**
@@ -327,6 +334,7 @@ export class Claims {
     transcript?: string,
   ): ResumeCheck {
     const { resume } = harnesses[agent].launch
+    const own = this.own(agent, transcript)
     const key = `${agent}:${session}`
     const claimant = this.claims.get(key)
     const bound = this.host.boundElsewhere(terminalId, agent, session)
@@ -334,13 +342,19 @@ export class Claims {
     const availability = resumeAvailability({
       agent,
       resumes: resume !== undefined,
-      connected,
+      connected: connected || own,
       session,
       inUse,
     })
     if (availability.state !== "ready") return { ok: false, reason: availability.reason }
     if (!resume || session === undefined) return { ok: false, reason: "unsupported" }
-    return { ok: true, argv: resume(session, choice, launch, transcript), key }
+    const [program = "", ...rest] = resume(session, choice, launch, transcript)
+    return { ok: true, argv: [own ? ownProgram : program, ...rest], key }
+  }
+
+  /** Whether the agent's session, by its transcript, resumes on Novadeck's own pi. */
+  own(agent: AgentName, transcript: string | undefined): boolean {
+    return this.host.ownPi?.(agent, transcript) === true
   }
 
   /**

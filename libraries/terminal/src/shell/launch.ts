@@ -1,6 +1,6 @@
 import { basename, delimiter } from "node:path"
 
-import { fishQuote, psQuote } from "./quote.js"
+import { fishQuote, psQuote, shQuote } from "./quote.js"
 import { checked, type ShellScriptPaths } from "./scripts.js"
 import { pathKey } from "./windows-path.js"
 
@@ -35,6 +35,26 @@ const startingShells = new Set(["bash", "zsh", "fish", "pwsh", "powershell", "cm
 
 /** Whether the integration for `shell` runs a startup command; see `shellLaunch`. */
 export const startsCommands = (shell: string): boolean => startingShells.has(shellName(shell))
+
+/**
+ * The program at `path`, as the first word of a command line `shell` runs (its startup command,
+ * a line it reads as typed), so a path with spaces still runs: quoted in its language, and in
+ * PowerShell after its call operator, `&`, as a quoted word there is a string, not a command.
+ * cmd takes it in double quotes, which no Windows path holds.
+ */
+export const programWord = (shell: string, path: string): string => {
+  switch (shellName(shell)) {
+    case "fish":
+      return fishQuote(path)
+    case "pwsh":
+    case "powershell":
+      return `& ${psQuote(path)}`
+    case "cmd":
+      return `"${path}"`
+    default:
+      return shQuote(path)
+  }
+}
 
 export type ShellLaunchOptions = {
   readonly shell: string

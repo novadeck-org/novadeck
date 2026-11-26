@@ -1,12 +1,49 @@
 import type { DemoTour } from "@novadeck/demo/tour"
 
-import type { DemoActionGroup } from "./types"
+import type { DemoAction, DemoActionGroup } from "./types"
 
 const screens = {
   startup: { label: "folder trust", what: "its folder-trust screen" },
   "sign-in": { label: "sign-in", what: "its sign-in screen" },
   hooks: { label: "hooks", what: "its prompt with Novadeck's hooks off" },
 } as const
+
+// Where Novadeck's own pi, the tour's agent, stands, as the consent says it; the Experimental
+// row of Preferences is its own (see `bundledPiGroups`).
+const piStates = (tour: DemoTour): readonly DemoAction[] => {
+  const where = "The tour's consent (Help > Take the tour)"
+  return [
+    {
+      label: "Tour Pi: not asked for",
+      hint: `${where}: Pi's download hasn't started, so the consent reads Downloading Pi… and Start waits (opening the consent starts the download)`,
+      run: () => tour.showAgent({ state: "off" }),
+    },
+    {
+      label: "Tour Pi: downloading, size unknown",
+      hint: `${where}: the consent reads Downloading Pi… and Start the tour waits`,
+      run: () => tour.showAgent({ state: "downloading" }),
+    },
+    {
+      label: "Tour Pi: downloading",
+      hint: `${where}: the consent reads Downloading Pi: 12.3 of 59.0 MB and Start the tour waits`,
+      run: () => tour.showAgent({ state: "downloading", received: 12_345_678, size: 58_977_130 }),
+    },
+    {
+      label: "Tour Pi: ready",
+      hint: `${where}: no download line, and Start the tour is ready`,
+      run: () => tour.showAgent({ state: "ready" }),
+    },
+    {
+      label: "Tour Pi: failed",
+      hint: `${where}: the consent says in red Could not reach github.com. Check the connection., with Try again, which plays the download again`,
+      run: () =>
+        tour.showAgent({
+          state: "failed",
+          error: "Could not reach github.com. Check the connection.",
+        }),
+    },
+  ]
+}
 
 // Novadeck's tour: a start the backend refuses, and its story's controls. Its consent opens
 // from the footer's Help menu, there with Experimental on ("Experimental on" under App >
@@ -16,6 +53,7 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
     section: "App",
     title: "Tour",
     actions: [
+      ...piStates(tour),
       {
         label: "Fail next start",
         hint: "The next Start the tour shows why it can't start (a folder of yours at ~/.novadeck/tour); the consent stays open",

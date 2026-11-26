@@ -2949,3 +2949,43 @@ describe("the harness version a screen shows", () => {
     expect(versionOf(record.bound?.binding)).toBe("0.166.0")
   })
 })
+
+describe("closing a terminal whose agent works", () => {
+  const closed = async (terminals: ReturnType<typeof fixture>, agent: "agy" | "claude") => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as {
+      records: Map<string, { bound: Bound | null }>
+      typing: { stopForClose: (id: string) => Promise<void> }
+      terminate: (record: unknown) => Promise<void>
+    }
+    const record = inside.records.get(terminal.id)!
+    record.bound = {
+      binding: { agent, sessionId: "s", instance: null },
+      activity: { ...fresh(0), state: "working" },
+      telemetry: null,
+    }
+    const steps: string[] = []
+    inside.typing.stopForClose = async () => {
+      steps.push("stopped")
+      ;(record.bound!.activity as { state: string }).state = "idle"
+    }
+    const terminate = inside.terminate.bind(manager)
+    inside.terminate = (one) => {
+      steps.push("ended")
+      return terminate(one)
+    }
+    await manager.close({ terminalId: terminal.id })
+    return steps
+  }
+
+  it("presses the Stop first where its harness would resume the turn, and nowhere else", async ({
+    terminals,
+  }) => {
+    expect(await closed(terminals, "agy")).toEqual(["stopped", "ended"])
+    expect(await closed(terminals, "claude")).toEqual(["ended"])
+  })
+})

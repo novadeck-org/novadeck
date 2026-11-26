@@ -37,7 +37,7 @@ const openGeneral = async (): Promise<void> => {
 }
 
 const tab = (
-  name: "Agents" | "General" | "Appearance" | "Addons" | "Shortcuts" | "About",
+  name: "Agents" | "General" | "Appearance" | "Addons" | "Shortcuts" | "About" | "Experimental",
 ): Locator => preferencesDialog().getByRole("tab", { name })
 
 const viewModeChoice = (name: "Focus" | "Grid" | "Canvas"): Locator =>
@@ -542,6 +542,43 @@ describe("Preferences Addons", () => {
         .element(murmurCard().getByRole("button", { name: "Try again" }))
         .not.toBeInTheDocument()
       await expect.element(murmurCard().getByRole("alert")).not.toBeInTheDocument()
+    })
+  })
+
+  context("while Murmur's Experimental switch is off, as it starts", () => {
+    it("leaves Murmur out of Addons until the switch is turned on", async () => {
+      // An app that follows experimental builds, which has the Experimental tab.
+      await openWorkspace("/?channel=experimental")
+      await showAddons()
+      await expect.element(voiceCard()).toBeVisible()
+      await expect.element(murmurCard()).not.toBeInTheDocument()
+
+      await tab("Experimental").click()
+      const murmurSwitch = preferencesDialog().getByRole("switch", { name: "Murmur" })
+      await expect.element(murmurSwitch).toHaveAttribute("aria-checked", "false")
+      await murmurSwitch.click()
+      await expect.element(murmurSwitch).toHaveAttribute("aria-checked", "true")
+
+      await tab("Addons").click()
+      await expect.element(murmurCard()).toBeVisible()
+    })
+  })
+
+  context("when the person turns Experimental off", () => {
+    it("turns Murmur off with it, and leaves it out of Addons", async () => {
+      await openWorkspace("/?channel=experimental&murmur=installed")
+      await showAddons()
+      await expect.element(murmurCard()).toBeVisible()
+
+      await tab("About").click()
+      const experimental = preferencesDialog().getByRole("switch", { name: "Experimental" })
+      await expect.element(experimental).toHaveAttribute("aria-checked", "true")
+      await experimental.click()
+      await expect.element(tab("Experimental")).not.toBeInTheDocument()
+
+      await tab("Addons").click()
+      await expect.element(voiceCard()).toBeVisible()
+      await expect.element(murmurCard()).not.toBeInTheDocument()
     })
   })
 

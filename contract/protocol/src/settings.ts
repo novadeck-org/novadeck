@@ -66,6 +66,11 @@ export const runnerSettings = z.strictObject({
   // off, it fetches and starts none, and keeps a copy it has. From revision 16: a runner before
   // it drops the key, and a UI offers the switch only where the runner's settings report it.
   bundledPi: z.boolean().optional(),
+  // Whether Murmur may run, an Experimental feature, off until the person turns it on (on for
+  // whoever turned Murmur on before it was one): off, the runner names no terminal with it,
+  // installs and updates nothing, and keeps what is installed. From revision 20: a runner before
+  // it drops the key, and a UI hides Murmur only where the runner's settings report the switch.
+  murmur: z.boolean().optional(),
 })
 
 // Where the fetch of Novadeck's own pi stands: `off` while its switch is off, `downloading`

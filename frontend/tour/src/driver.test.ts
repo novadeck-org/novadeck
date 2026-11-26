@@ -221,8 +221,7 @@ describe("The tour's driver", () => {
     it("says each screen's own words", () => {
       expect(screenCoach("sign-in").note).toMatch(/its own question/)
       expect(screenCoach("startup").note).toMatch(/its own question/)
-      // opencode's hooks are Novadeck's plugin, which only the person's environment keeps out.
-      expect(screenCoach("hooks").note).toMatch(/OPENCODE_CONFIG_CONTENT/)
+      expect(screenCoach("hooks").note).toMatch(/until that's answered/)
     })
 
     it("says what its step says otherwise", () => {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { unwatchFile, watchFile } from "node:fs"
+import { readdirSync, unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -50,6 +50,15 @@ import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
 const log = logs.for("runner")
+
+// Whether a folder holds anything: no folder, or one that can't be read, holds nothing.
+const hasContents = (folder: string): boolean => {
+  try {
+    return readdirSync(folder).length > 0
+  } catch {
+    return false
+  }
+}
 
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
@@ -358,14 +367,19 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
   started.push(voice)
+  const murmurDirectory =
+    options.murmur?.directory ??
+    (options.database === undefined
+      ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
+      : join(dirname(options.database), "murmur"))
+  // Murmur is Experimental: it runs only while its switch is on, saved once as Murmur was, and
+  // on where its files are, so Addons keeps their Uninstall.
+  store.settings.carryMurmurSwitch(hasContents(murmurDirectory))
   const murmur = new Murmur(store.settings, {
+    switchedOn: () => store.settings.runner().murmur === true,
     engine: options.murmur?.engine,
     source: options.murmur?.source,
-    directory:
-      options.murmur?.directory ??
-      (options.database === undefined
-        ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
-        : join(dirname(options.database), "murmur")),
+    directory: murmurDirectory,
     ...(options.softwareGraphics !== undefined && {
       softwareGraphics: options.softwareGraphics,
     }),
@@ -456,6 +470,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       : new BundledPi({
           data: dirname(options.shell),
           enabled: () => store.settings.runner().bundledPi === true,
+          // The tour's terminals start it whatever its switch says: the person asked for the tour.
+          allows: (terminalId) => tour.paysFor(terminalId),
         })
   bundledPi?.switched()
   const terminals = new Terminals({
@@ -528,7 +544,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...(options.agents?.home !== undefined && { home: options.agents.home }),
     // Where the game's server command is looked for: the person's terminal's PATH.
     environment: () => agents.environment(),
-    connected: (agent) => agents.connected(agent),
+    // Novadeck's own pi, which the tour's agents run, downloaded whatever its switch says.
+    ...(bundledPi && { ownPi: () => bundledPi.want() }),
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),

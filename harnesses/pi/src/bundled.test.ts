@@ -163,10 +163,24 @@ describe("Novadeck's pi launcher", () => {
     await writeFile(join(git, "Git", "bin", "bash.exe"), "")
     const withGit = raw((await launch(["go"], { ...none, ProgramFiles: git })).stdout)
     expect(withGit?.endsWith(`novadeck.mjs" go`)).toBe(true)
-    // Any bash.exe on PATH, as pi takes one.
+    // WSL's launchers, in System32 and WindowsApps, which run commands in Linux: none of them.
+    const system = join(root, "windows")
+    const apps = join(root, "local")
+    await mkdir(join(system, "System32"), { recursive: true })
+    await mkdir(join(apps, "Microsoft", "WindowsApps"), { recursive: true })
+    await writeFile(join(system, "System32", "bash.exe"), "")
+    await writeFile(join(apps, "Microsoft", "WindowsApps", "bash.exe"), "")
+    const wsl = {
+      ...none,
+      PATH: [tools, join(system, "System32"), join(apps, "Microsoft", "WindowsApps")].join(";"),
+    }
+    const onlyWsl = raw((await launch(["go"], wsl)).stdout)
+    expect(onlyWsl?.endsWith(`novadeck.mjs" ${powershellTools.join(" ")} go`)).toBe(true)
+    // Any other bash.exe on PATH, as pi takes one.
     await writeFile(join(tools, "bash.exe"), "")
     const onPath = raw((await launch(["go"], none)).stdout)
     expect(onPath?.endsWith(`novadeck.mjs" go`)).toBe(true)
+    expect(raw((await launch(["go"], wsl)).stdout)?.endsWith(`novadeck.mjs" go`)).toBe(true)
   })
 })
 
@@ -192,7 +206,7 @@ describe("Novadeck's pi launcher's text", () => {
     const order = [
       `if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools`,
       `if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools`,
-      "where $PATH:bash.exe >nul 2>nul && goto tools",
+      `for /f "delims=" %%b in ('where $PATH:bash.exe 2^>nul') do for %%d in ("%%~dpb.") do`,
       `set "novadeck_tools=--tools -bash,+powershell"`,
     ].map((line) => cmd.indexOf(line))
     expect(order.every((at) => at > 0)).toBe(true)

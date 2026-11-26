@@ -4,18 +4,21 @@ import { z } from "zod"
 
 /**
  * What a run of the tour was given, for its folder: the service's endpoint and the ticket the
- * tour's agents' provider takes as its key, and when the ticket was said to end.
+ * tour's agents' provider takes as its key, when the ticket was said to end, and its lead.
  */
 export type TourRecord = {
   readonly endpoint: string
   readonly ticket: string
   readonly expiresAt?: string | undefined
+  /** The terminal its lead's brief was rung to, which opens its teammates, a restart after too. */
+  readonly lead?: string | undefined
 }
 
 const record = z.object({
   endpoint: z.string().min(1),
   ticket: z.string().min(1),
   expiresAt: z.string().optional(),
+  lead: z.string().optional(),
 })
 
 /**

@@ -11,6 +11,7 @@ import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadec
 
 import { DomainError } from "../errors.js"
 import type { BundledPi } from "../harnesses/bundled-pi.js"
+import { ownPiStartup } from "../harnesses/own-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { locate } from "../harnesses/service.js"
 import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
@@ -140,7 +141,9 @@ export class Launcher {
       if (!paths) return undefined
       const reports = await listenForReports({
         ...this.host.handlers,
-        ...(bundledPi && { fetch: (name, progress) => bundledPi.fetch(name, progress) }),
+        ...(bundledPi && {
+          fetch: (name, progress, terminalId) => bundledPi.fetch(name, progress, terminalId),
+        }),
       })
       if (!this.host.stopping()) return { paths, reports }
       await reports.close()
@@ -276,6 +279,12 @@ export class Launcher {
     const { cols, rows } = input
     const id = input.id ?? input.terminalId ?? ""
     const token = randomBytes(24).toString("hex")
+    // Novadeck's own pi starts by its word, which runs its launcher in this shell's form.
+    const command =
+      startup &&
+      (integration
+        ? ownPiStartup(startup.command, shell, integration.paths.bundledPi.launcher)
+        : startup.command)
     const launch = (withStartup: boolean): ShellLaunch =>
       integration
         ? shellLaunch(shell, integration.paths, base, {
@@ -285,7 +294,7 @@ export class Launcher {
               startup &&
               this.options.shellArgs === undefined && {
                 startup: {
-                  command: startup.command,
+                  command: command!,
                   file: join(integration.paths.resume, randomUUID()),
                 },
               }),
@@ -295,7 +304,7 @@ export class Launcher {
     // The shell reads the command from a file only it and the runner can read.
     if (launched.resumeFile)
       try {
-        writeFileSync(launched.resumeFile, startup!.command, {
+        writeFileSync(launched.resumeFile, command!, {
           mode: 0o600,
           flag: "wx",
         })

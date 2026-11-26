@@ -1,11 +1,12 @@
 import type { Tour, TourRun } from "@novadeck/core/port"
+import { createStore } from "@novadeck/core/store"
 
 import { startTour, type TourEffects } from "./start"
 import { describe, expect, it } from "./test"
 
 const run = (brief: TourRun["brief"]): TourRun => ({
   directory: "/home/x/.novadeck/tour",
-  command: brief === "launch" ? 'opencode --model m "Start"' : "opencode --model m",
+  command: brief === "launch" ? 'novadeck-pi --model m "Start"' : "novadeck-pi --model m",
   brief,
   removed: ["old"],
   page: true,
@@ -15,6 +16,8 @@ const run = (brief: TourRun["brief"]): TourRun => ({
 const effects = (prepared: Promise<TourRun>): TourEffects & { readonly done: string[] } => {
   const done: string[] = []
   const tour: Tour = {
+    agent: createStore({ state: "ready" }),
+    fetch: () => Promise.resolve(),
     prepare: () => {
       done.push("prepare")
       return prepared
@@ -43,7 +46,7 @@ describe("Starting the tour", () => {
     expect(world.done).toEqual([
       "prepare",
       "open in place of old",
-      'add opencode --model m "Start"',
+      'add novadeck-pi --model m "Start"',
     ])
   })
 

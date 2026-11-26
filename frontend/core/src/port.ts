@@ -296,8 +296,15 @@ export type TourRun = {
 }
 
 export type Tour = {
-  // Readies a run, on opencode and a model of Novadeck's alone; rejects, with a sentence to
-  // show, where it can't start (opencode not connected, no free run to give, a folder of the
+  // Where Novadeck's own pi, the tour's agent, stands: its download is off (not asked for),
+  // under way, in place, or failed, which `prepare` waits on.
+  readonly agent: Store<BundledPiFetchState>
+  // Starts downloading Novadeck's pi for the tour, whatever its Experimental switch says (asking
+  // for the tour is the consent), or tries a failed download again; answers at once, and `agent`
+  // says how it goes.
+  readonly fetch: () => Promise<void>
+  // Readies a run, on Novadeck's own pi and a model of Novadeck's alone; rejects, with a sentence
+  // to show, where it can't start (its download failed, no free run to give, a folder of the
   // person's own in the way).
   readonly prepare: () => Promise<TourRun>
   // Rings the tour's start line to the agent in the terminal, once it shows there.
@@ -448,7 +455,7 @@ export type BackendFields = {
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
   }
-  // Optional. Novadeck's tour: a live run of opencode, on a model Novadeck pays for, in
+  // Optional. Novadeck's tour: a live run of Novadeck's own pi, on a model Novadeck pays for, in
   // a folder of the backend's own, which the UI opens as a project of its own. Absent where the
   // backend has none.
   readonly tour?: Tour
@@ -474,6 +481,14 @@ export type BackendFields = {
   // Optional. Murmur: a model on the backend's machine writes titles for its terminals.
   // Absent where the backend cannot run one.
   readonly murmur?: Murmur
+  // Optional. Whether Murmur may run, an Experimental switch the runner keeps: while off, the
+  // backend names nothing with it, and the app shows none of Murmur (its offer, its Addons
+  // section, its footer chip). Absent where the backend has no such switch, as a runner from
+  // before it (revision 20), whose Murmur always shows.
+  readonly murmurSwitch?: {
+    readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
   // Optional. The Inbox: what the agents in every project wait on the person for, one
   // row per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's

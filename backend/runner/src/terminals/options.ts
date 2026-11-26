@@ -30,7 +30,7 @@ import type { Connections } from "./sleepers.js"
  */
 export type OpenPolicy = {
   readonly refusal?: string
-  /** Why `agent` may not be opened in `cwd`, the folder the call resolved (the tour runs opencode only). */
+  /** Why `agent` may not be opened in `cwd`, the folder the call resolved (the tour runs Novadeck's pi only). */
   readonly refuseAgent?: (agent: AgentName, cwd: string) => string | undefined
   /** The flags for the agent opened in `cwd`, the folder the call resolved. */
   readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
@@ -43,6 +43,11 @@ export type OpenPolicy = {
     agent: AgentName,
     cwd: string,
   ) => { readonly model: string; readonly effort?: Effort } | undefined
+  /**
+   * The program word a new agent in `cwd` starts with in place of its harness's own, which then
+   * needs no connection of the person's (Novadeck's own pi, `ownProgram`, in the tour's folder).
+   */
+  readonly program?: (agent: AgentName, cwd: string) => string | undefined
 }
 
 export type TerminalOptions = {
@@ -78,8 +83,8 @@ export type TerminalOptions = {
    * them, shells start as they are and no agent session is reported.
    */
   shellFiles?: Promise<InstalledShell | undefined>
-  /** Novadeck's own pi, which its launcher has fetch it; none is fetched when omitted. */
-  bundledPi?: Pick<BundledPi, "fetch">
+  /** Novadeck's own pi, which its launcher has fetch it and its sessions resume on; none is fetched when omitted. */
+  bundledPi?: Pick<BundledPi, "fetch" | "owns">
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
   /** The git worktrees agents open and own, and whether they are on; agents get none when omitted. */

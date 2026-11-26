@@ -307,13 +307,7 @@ describe("the story in the demo", () => {
     const backend = plainDemo("plain", undefined, undefined, demoTurns())
     const tour = backend.tour
     if (!isDemoTour(tour)) throw new Error("no demo tour")
-    tour.follow(
-      {
-        getSnapshot: () => [{ agent: "opencode", available: true, connected: true, busy: false }],
-        subscribe: () => () => {},
-      },
-      () => undefined,
-    )
+    tour.follow(() => undefined)
     tour.goNoPage()
     await expect(tour.prepare()).resolves.toMatchObject({ page: false })
     // The lead's player takes the plan as it starts; the run after has its page again.

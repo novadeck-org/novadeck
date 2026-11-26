@@ -128,6 +128,8 @@ export type CallsHost = LeadsHost &
     /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it, null when the person did or the agent closed its own. */
     readonly closeForGood: (record: Record, closedBy?: string | null) => void
     readonly terminate: (record: Record) => Promise<void>
+    /** Stops the turn of a closing terminal's agent where its harness would resume it (`stopBeforeClose`). */
+    readonly stopTurn: (record: Record) => Promise<void>
     readonly remove: (record: Record) => void
     readonly forget: (terminalId: string) => void
     /** Saves what restores the terminal, without its screen. */
@@ -258,7 +260,24 @@ export class Calls {
       const refusal = this.host.messaging().refusal(call.terminalId, request.message, request.agent)
       if (refusal) return refused(refusal)
     }
-    if (request.agent !== undefined && !(await this.host.launcher().connected(request.agent)))
+    // A program of Novadeck's own for the folder it asks for needs no connection of the person's,
+    // nor does a session of Novadeck's own pi to resume (`Claims.own`).
+    const word =
+      request.agent !== undefined && request.resume === undefined
+        ? policy.program?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
+        : undefined
+    const ownSession =
+      request.agent !== undefined &&
+      request.resume !== undefined &&
+      this.host
+        .claims()
+        .own(request.agent, transcriptFor(this.host.rows(), request.agent, request.resume))
+    if (
+      request.agent !== undefined &&
+      word === undefined &&
+      !ownSession &&
+      !(await this.host.launcher().connected(request.agent))
+    )
       return refused(
         `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't ` +
           `${request.message === undefined ? "report its sessions" : "take the task"}; the user ` +
@@ -334,6 +353,7 @@ export class Calls {
                 choice,
                 request.message !== undefined,
                 policy.flags?.(request.agent, cwd),
+                word,
               )
     } catch (error) {
       if (!(error instanceof RangeError)) throw error
@@ -561,6 +581,8 @@ export class Calls {
     choice: { readonly model?: string; readonly effort?: Effort },
     withTask: boolean,
     flags: readonly string[] = [],
+    // The word it starts by in place of its harness's own (`OpenPolicy.program`).
+    word?: string,
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce?: string }> {
     const { launch } = harnesses[agent]
     const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
@@ -570,7 +592,7 @@ export class Calls {
       : undefined
     const [program = "", ...rest] = prompted ?? launch.start
     // Right after the program, so before any flag of a prompt's that takes the line.
-    const command = commandLine([program, ...launch.choose(choice), ...flags, ...rest])
+    const command = commandLine([word ?? program, ...launch.choose(choice), ...flags, ...rest])
     return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }
 
@@ -687,7 +709,10 @@ export class Calls {
       await this.host.close(record.summary.id, closedBy)
       return !this.host.stopping()
     }
+    // A terminal already closing had its turn stopped by that close.
+    const wasClosed = record.closed
     this.host.closeForGood(record, closedBy)
+    if (!wasClosed) await this.host.stopTurn(record)
     await this.host.terminate(record)
     if (this.host.stopping()) return false
     this.host.remove(record)

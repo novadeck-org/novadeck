@@ -488,6 +488,20 @@ export class Typing {
   }
 
   /**
+   * The Stop of a close (`stopBeforeClose`): as `interrupt`, and where a request waits on the
+   * person, which refuses it, one Escape written as it is, which leaves such a dialog and ends
+   * the turn that waited on it. The terminal is going, so no draft is kept or put back.
+   */
+  async stopForClose(terminalId: string): Promise<void> {
+    try {
+      await this.interrupt(terminalId)
+    } catch (error) {
+      if (!(error instanceof DomainError) || error.reason !== "pending") throw error
+      this.written(terminalId, "\u001b")
+    }
+  }
+
+  /**
    * Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`).
    * With `setAside`, the questions it names that the agent waits on are set aside first, in
    * the same turn of the queue (see `Answers.setAside`): where that Escape ended the turn, the

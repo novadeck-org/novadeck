@@ -1,6 +1,7 @@
 import { onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { expectStaysTrue } from "../support/layouts"
 import { switchProject } from "../support/sessions"
 import { closeToasts } from "../support/toasts"
@@ -196,6 +197,24 @@ describe("Murmur's one-time offer", () => {
       expect(chip().query()).toBeNull()
     },
   )
+
+  it("with Murmur's Experimental switch off, a finished turn shows no chip and the footer nothing", async () => {
+    // An app that follows experimental builds, where the person turns Murmur off.
+    await openWorkspace("/?demo=agents&murmur=uninstalled&turnMs=2000&channel=experimental")
+    await openPreferencesOn("Experimental")
+    const murmurSwitch = preferencesDialog().getByRole("switch", { name: "Murmur" })
+    await expect.element(murmurSwitch).toHaveAttribute("aria-checked", "true")
+    await murmurSwitch.click()
+    await expect.element(murmurSwitch).toHaveAttribute("aria-checked", "false")
+    await userEvent.keyboard("{Escape}")
+    await expect.element(preferencesDialog()).not.toBeInTheDocument()
+    await terminalTab("Build").click()
+    await typeInto("Build", "Ship the docs")
+    await userEvent.keyboard("{Enter}")
+
+    await expectStaysAbsent(chip(), { ms: afterTurn })
+    expect(footerButton().query()).toBeNull()
+  })
 
   context("when the finished terminal does not qualify", () => {
     it("lets go of a finish in a session that is not on screen, and takes the next that is", async () => {

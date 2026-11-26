@@ -263,9 +263,9 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const installs = createDemoInstalls()
   // On the panel's own agents, which the tour runs one of. The inner demo's tour is the one its
   // player follows, so the panel's actions reach it.
-  const tour = isDemoTour(inner.tour) ? inner.tour : demoTour(states.agents.state, () => latest)
+  const tour = isDemoTour(inner.tour) ? inner.tour : demoTour(() => latest)
   if (isDemoTour(tour)) {
-    tour.follow(states.agents.state, () => latest)
+    tour.follow(() => latest)
     // The lead's command waits in the panel's own approvals, which the person answers there.
     tour.approver(
       (from, command, cwd) =>
@@ -367,7 +367,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...launchGroups(launchCuesOf(inner), () => launch.rehearsals.rehearse({ reboot: true })),
           ...doorbellGroups(inner.messages),
           ...messageGroups(inner.messages),
-          ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
+          ...murmurGroups(
+            isDemoMurmur(inner.murmur) ? inner.murmur : undefined,
+            inner.murmurSwitch,
+          ),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
           ...historyGroups(inner.history),
           ...filesGroups(isDemoFiles(inner.files) ? inner.files : undefined),

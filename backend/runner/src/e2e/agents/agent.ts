@@ -281,6 +281,12 @@ export type Rewind = {
  */
 export type AgentSetup = {
   readonly agent: AgentName
+  /**
+   * True for Novadeck's own pi (agents/own-pi.ts): the runner downloads it itself, from the e2e
+   * cache's copy (own-pi-cache.ts), so nothing is installed for it and no connection of the person's
+   * pi is made.
+   */
+  readonly own?: true
   /** The product's name, as a scenario names its tests: "Claude Code", "Codex", "Antigravity". */
   readonly name: string
   readonly dialect: Dialect

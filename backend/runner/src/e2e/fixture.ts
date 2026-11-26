@@ -20,6 +20,7 @@ import { installHarness } from "./install.js"
 import { createE2ESandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./keychain.js"
 import { chat } from "./model/chat.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
+import { ownInstalled } from "./own-pi-cache.js"
 import { unknownShapes } from "./shapes.js"
 import { unsupported } from "./support.js"
 import { startTrace, tracesAll, tracing } from "./trace.js"
@@ -77,11 +78,15 @@ export type E2E = {
   readonly deck: Deck
 }
 
+// A setup's harness installed, or for Novadeck's own pi, which the runner downloads, nothing.
+const installed = (setup: AgentSetup) =>
+  setup.own ? Promise.resolve(ownInstalled) : installHarness(setup.agent)
+
 /** The test `e2e` gives, its setups seeded as `seed` says. */
 const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOptions["handles"]) => {
   const runs = setups.every(selected)
   beforeAll(async () => {
-    if (supported && runs) await Promise.all(setups.map((setup) => installHarness(setup.agent)))
+    if (supported && runs) await Promise.all(setups.map(installed))
   })
   const test = base.extend<{ e2e: E2E }>({
     e2e: async ({ resources, task, onTestFailed }, use) => {
@@ -107,8 +112,11 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         if (tracesAll) resources.defer(() => trace.write())
       }
       // Installed before the file's tests: these are the same installs, already done.
-      const installs = await Promise.all(setups.map((setup) => installHarness(setup.agent)))
-      const sandbox = createE2ESandbox({ proxy: model.proxy, bins: installs.map((one) => one.bin) })
+      const installs = await Promise.all(setups.map(installed))
+      const sandbox = createE2ESandbox({
+        proxy: model.proxy,
+        bins: installs.map((one) => one.bin).filter(Boolean),
+      })
       resources.defer(() =>
         rmSync(sandbox.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
       )
@@ -154,7 +162,8 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         await deck.close()
       }
       resources.defer(close)
-      for (const setup of setups)
+      // Novadeck's own pi is no connection of the person's pi: it reports as it starts.
+      for (const setup of setups.filter(({ own }) => !own))
         // eslint-disable-next-line no-await-in-loop -- One plugin command at a time, as the runner runs them.
         await deck.connect(setup.agent)
       for (const setup of setups)

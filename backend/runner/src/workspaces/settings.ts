@@ -159,7 +159,7 @@ export class Settings {
     // keeps its own order until the person drags its rows, and snoozes none until they do; idle
     // agents are stopped after the default wait until the person chooses another, or never;
     // agents get no worktrees until the person turns them on, and work as a Herd until they turn
-    // Agent modes on and pick Solo or Swarm.
+    // Agent modes on and pick Solo or Swarm; Murmur runs only once its Experimental switch is on.
     return {
       transcripts: saved.get("transcripts") !== "false",
       welcomed: saved.get("welcomed") === "true",
@@ -172,7 +172,19 @@ export class Settings {
       agentMode: agentModeOf(saved.get("agentMode")),
       shippingGate: saved.get("shippingGate") === "true",
       bundledPi: saved.get("bundledPi") === "true",
+      murmur: saved.get("murmur") === "true",
     }
+  }
+
+  /**
+   * Murmur's Experimental switch, first saved as Murmur was: on where the person had turned
+   * Murmur on before it became Experimental, or where its files are on disk (`hasFiles`), so
+   * Addons keeps their Uninstall; off for everyone else. Saved once, so turning Murmur itself
+   * off later leaves the switch as it is.
+   */
+  carryMurmurSwitch(hasFiles: boolean): void {
+    if (this.setting("murmur") !== undefined) return
+    this.saveSetting("murmur", JSON.stringify(this.murmurEnabledChoice() === true || hasFiles))
   }
 
   // Each as JSON, which writes a switch as `true` or `false`, as it always was.
