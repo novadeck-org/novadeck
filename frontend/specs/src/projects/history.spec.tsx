@@ -104,7 +104,7 @@ describe("The History panel", () => {
         .getByRole("button", { name: /^docs-site / })
         .click()
       await expect
-        .element(page.getByText("Terminals you close show up here, so you can bring them back."))
+        .element(page.getByText("Terminals you close appear here, so you can bring them back."))
         .toBeVisible()
       await expect.element(find()).not.toBeInTheDocument()
     })

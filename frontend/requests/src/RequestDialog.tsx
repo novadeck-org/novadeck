@@ -1034,7 +1034,7 @@ const Form = ({
 const reasons = {
   unrecognized: "Novadeck can't read this dialog. It may have changed in an update.",
   unsupported: "Novadeck can't answer this dialog. Answer it in the terminal.",
-  failed: "That answer didn't take.",
+  failed: "That answer didn't go through.",
 } as const
 
 // "Save for debugging" under a dialog no adapter read: writes it, and says where it went.

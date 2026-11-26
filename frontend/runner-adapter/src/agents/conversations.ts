@@ -321,14 +321,14 @@ const failure = (
 ): Error => {
   if (hasCode(error, "DISCONNECTED", "CLOSED")) return new Error("The runner is offline.")
   if (images && hasCode(error, "PROMPT_REFUSED"))
-    return new Error("An image couldn't go. Remove it and paste it again.")
+    return new Error("An image couldn't be sent. Remove it and paste it again.")
   // The agent never showed an image in its box: it came back out, with the words.
   if (
     hasCode(error, "PROMPT_FAILED") &&
     readTolerantly(promptFailure, (error as { data?: unknown }).data)?.reason === "image-not-shown"
   )
     return withReturned(
-      new Error("The agent didn't take the image. It is back in the box."),
+      new Error("The agent didn't accept the image. It is back in the box."),
       wordsOf(error),
     )
   // Refused before anything was written: the text has a shape the agent reads as more than
@@ -340,9 +340,7 @@ const failure = (
   if (hasCode(error, "BOX_NOT_CLEARED")) return notCleared()
   if (hasCode(error, "PROMPT_FAILED"))
     return withReturned(
-      new SettleInTerminal(
-        "The prompt didn't land in the agent's box. It may be there as a draft.",
-      ),
+      new SettleInTerminal("The prompt didn't reach the agent's box. It may be there as a draft."),
       wordsOf(error),
     )
   // Keys went to set a question aside and it didn't go as expected: the question may still be
@@ -383,7 +381,7 @@ const refusal = (error: unknown): Error => {
   }
   if (hasCode(error, "WORDS_NOT_SENT")) return new WordsLost()
   if (hasCode(error, "ANSWER_FAILED"))
-    return new Error("That answer didn't take. Answer it in the terminal.")
+    return new Error("That answer didn't go through. Answer it in the terminal.")
   if (hasCode(error, "NOT_FOUND")) return new Error("That request is already answered.")
   return new Error("Couldn't answer for the agent.")
 }
@@ -874,7 +872,7 @@ export const createRunnerConversations = (
       track(streams.upload(terminalId, file)).catch((error: unknown) => {
         if (hasCode(error, "DISCONNECTED", "CLOSED")) throw new Error("The runner is offline.")
         if (hasCode(error, "UPLOAD_TOO_LARGE"))
-          throw new Error("It is over the size the runner takes.")
+          throw new Error("It's larger than the runner accepts.")
         throw new Error("The runner couldn't save it.")
       }),
     // A picture the runner can't show is none. One it could not be asked for, or that its session

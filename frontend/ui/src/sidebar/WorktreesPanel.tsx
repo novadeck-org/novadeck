@@ -662,7 +662,7 @@ const WorktreesPanelView = ({
           <div className="worktrees-empty">
             <h3 className="text-body">No worktrees</h3>
             <p className="text-control">
-              When an agent opens or takes a git worktree in this project, it shows up here with its
+              When an agent opens or takes a git worktree in this project, it appears here with its
               branch, and you can close it.
             </p>
           </div>

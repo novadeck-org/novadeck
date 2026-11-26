@@ -35,7 +35,7 @@ export const agentNote = ({
 // is on, or while the person changes it.
 export const agentLost = ({ connected, busy, lost }: AgentSwitch): string | undefined =>
   lost && !connected && !busy
-    ? "Disconnected outside Novadeck. Its sleeping agents can't wake, so messages to them wait, and its sessions can't resume, until you connect it again."
+    ? "Disconnected outside Novadeck. Until you connect it again, its sleeping agents can't wake, messages to them wait, and its sessions can't resume."
     : undefined
 
 type Limit = NonNullable<AgentSwitch["limited"]>
@@ -44,11 +44,11 @@ type Limit = NonNullable<AgentSwitch["limited"]>
 // where none, or while it changes. The words of a reason, which any agent may have.
 const limitNotes: Readonly<Record<Limit, string>> = {
   "own-status-line":
-    "It runs your own status line, which keeps Novadeck's out on Windows, so messages can't wake it until you've sent it a prompt. Removing your status line from its settings lifts this.",
+    "It runs your own status line, which keeps Novadeck's out on Windows. Messages can't wake it until you've sent it a prompt. Remove your status line from its settings to fix this.",
   outdated:
-    "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Updating it turns them on.",
+    "This version is too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it to turn them on.",
   unsupported:
-    "This version is newer than Novadeck knows, so it runs without sessions resuming, messages or the chat. Installing the release Novadeck works with instead turns them on.",
+    "This version is newer than Novadeck knows. It runs, but without resumed sessions, messages or the chat. Install the release Novadeck works with to turn them on.",
 }
 
 // The words of one agent for a reason, where the agent's own command or versions say more: they
@@ -56,15 +56,15 @@ const limitNotes: Readonly<Record<Limit, string>> = {
 const agentLimitNotes: Readonly<Partial<Record<AgentName, Partial<Record<Limit, string>>>>> = {
   opencode: {
     outdated:
-      "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (opencode upgrade) to turn them on.",
+      "This version is too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it (opencode upgrade) to turn them on.",
     unsupported:
-      "Novadeck works with OpenCode 1 so far, so OpenCode 2 runs without sessions resuming, messages or the chat. Installing OpenCode 1 (1.18 or later) instead turns them on.",
+      "Novadeck works with OpenCode 1 so far. OpenCode 2 runs, but without resumed sessions, messages or the chat. Install OpenCode 1 (1.18 or later) to turn them on.",
   },
   pi: {
     outdated:
-      "This version is too old for Novadeck, so it runs without sessions resuming, messages or the chat. Update it (pi update) to turn them on.",
+      "This version is too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it (pi update) to turn them on.",
     unsupported:
-      "Novadeck works with Pi 1 so far, so Pi 2 runs without sessions resuming, messages or the chat. Installing Pi 1 (1.0 or later) instead turns them on.",
+      "Novadeck works with Pi 1 so far. Pi 2 runs, but without resumed sessions, messages or the chat. Install Pi 1 (1.0 or later) to turn them on.",
   },
 }
 
@@ -75,4 +75,4 @@ export const agentLimit = ({ agent, connected, busy, limited }: AgentSwitch): st
 
 // What connecting means, shown above the switches.
 export const agentsExplanation =
-  "Connecting lets Novadeck resume an agent's sessions after a restart, wake it for messages and show it in the chat. It adds a small plugin; turning it off removes it."
+  "A connected agent resumes its sessions after a restart, wakes for messages, and shows in the chat. Connecting adds a small plugin. Turn an agent off and its plugin is removed."

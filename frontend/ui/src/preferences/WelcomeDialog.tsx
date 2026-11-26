@@ -450,7 +450,7 @@ const WelcomeForm = ({
               Connect your agents
             </h3>
             <p className="modal-description mt-2 mb-0 text-body leading-[1.7]">
-              Unlock Novadeck features inside your coding agents.
+              Connected agents resume their sessions, get messages and show in the chat.
             </p>
           </div>
 

@@ -382,12 +382,12 @@ describe("the Novadeck Agent row", () => {
       experimental: experimental(true),
       bundledPi: {
         enabled: true,
-        fetch: { state: "failed", error: "Could not reach github.com. Check the connection." },
+        fetch: { state: "failed", error: "Couldn't reach github.com. Check your connection." },
         onChange: (enabled) => changes.push(enabled),
       },
     })
     expect(note()?.getAttribute("role")).toBe("alert")
-    expect(note()?.textContent).toContain("Could not reach github.com.")
+    expect(note()?.textContent).toContain("Couldn't reach github.com.")
     // The switch is described by its note too.
     expect(piSwitch()?.getAttribute("aria-describedby")).toBe(
       "bundled-pi-description bundled-pi-note",

@@ -134,7 +134,7 @@ const downloadWatched = async (
     if (signal?.aborted) throw new DownloadError(stoppedLine)
     if (controller.signal.aborted)
       throw new DownloadError(
-        "The download stalled: no data came for a while. Check the connection.",
+        "The download stalled: no data came for a while. Check your connection.",
       )
     throw error
   } finally {

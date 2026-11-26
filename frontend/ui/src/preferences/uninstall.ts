@@ -126,7 +126,7 @@ export const disconnectAgent = async (
   agents.set(agent, false)
   const after = await settled(agents.state, agent)
   if (!after.connected) return undefined
-  return after.error ?? "It is still connected."
+  return after.error ?? "It's still connected."
 }
 
 // Removes the app after disconnecting each agent in turn. The first agent that stays

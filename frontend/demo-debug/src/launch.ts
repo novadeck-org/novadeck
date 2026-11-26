@@ -64,12 +64,12 @@ export const launchGroups = (
             },
             {
               label: "5b · Teammate asks, and its lead answers",
-              hint: "Cart endpoint asks which API version the storefront calls (an Ask entry) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 8 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing",
+              hint: "Cart endpoint asks which API version the storefront calls (an Ask entry) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 8 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing. In Agent Chat the question rings Orders API (at rest) at 0.8 s; the answer reaches Cart endpoint, at work, inside the ring of its brief, and Orders API ends its turn",
               run: () => cues.teammateAsks(),
             },
             {
               label: "5c · Teammate reports done to its lead",
-              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update entry) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane. Run 5a first",
+              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update entry) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane and, in Agent Chat, as a ring in Orders API's chat; the lead reads it and ends its turn about 2.5 s on. Run 5a first",
               run: () => cues.teammateDone(),
             },
             {
@@ -108,13 +108,18 @@ export const launchGroups = (
               run: (context) => cues.showFolder(context.select),
             },
             {
+              label: "6h · Agent shows a CSV",
+              hint: "Order status page shows exports/orders-week.csv, the week's orders, as a file item on its pane's bar, read as a table",
+              run: (context) => cues.showCsv(context.select),
+            },
+            {
               label: "7 · Everyone finishes",
               hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while their exchange is on its way (they finish when it settles). Each teammate messages its lead its report as it finishes, and the lead finishes about 1 s after the ripple starts. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
             },
             {
               label: "8a · Agent asks another for a review",
-              hint: "Cart drawer messages Search index to review its change; Search index answers about 4 s after it lands. The exchange reads in either one's Messages pane",
+              hint: "Cart drawer messages Search index to review its change; Search index answers about 4 s after it lands. The exchange reads in either one's Messages pane, and in Agent Chat: Cart drawer and Search index end their turns first (so each is at rest), the request rings Search index at 0.8 s and the answer rings Cart drawer at about 5.6 s",
               run: () => cues.askReview(),
             },
             {

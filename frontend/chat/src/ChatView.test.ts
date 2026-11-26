@@ -1808,7 +1808,7 @@ describe("a chat with images pasted into its box", () => {
     })
     await chat.take()
     expect(chat.attachments()).toHaveLength(8)
-    expect(chat.container.textContent).toContain("8 images at most, so 2 went")
+    expect(chat.container.textContent).toContain("8 images at most, so 2 didn't fit")
   })
 
   it("goes with the words, and leaves a text paste to the box", async () => {

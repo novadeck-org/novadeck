@@ -463,8 +463,8 @@ const InboxListView = (): React.JSX.Element => {
           <h3 className="text-body">Nothing needs you</h3>
           <p className="text-control">
             {working
-              ? "Your agents are working. When one needs you, it shows up here."
-              : "When an agent needs you, it shows up here."}
+              ? "Your agents are working. When one needs you, it appears here."
+              : "When an agent needs you, it appears here."}
           </p>
         </div>
       ) : (

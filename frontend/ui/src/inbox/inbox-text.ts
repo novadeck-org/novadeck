@@ -223,7 +223,7 @@ export const endedLine = (entry: InboxEntry): string | null => {
     case "terminal":
       return `You answered ${who}'s ${thing} in its terminal.`
     case "dismissed":
-      return `You dismissed this ask; ${who} was told.`
+      return `You dismissed this entry. ${who} was told.`
     case "replied":
       return `You wrote to ${who} in its terminal, so this ask is closed.`
     case "released":
@@ -242,7 +242,7 @@ export const endedLine = (entry: InboxEntry): string | null => {
       return `${who}'s permit no longer stands.`
     case "gone":
       return entry.kind === "trouble"
-        ? "The messages no longer wait: they were stopped or withdrawn."
+        ? "The messages no longer wait. They were stopped or withdrawn."
         : `Closed in the terminal, by an answer Novadeck didn't see.`
     case "ended":
       return `${who}'s agent session ended, or its terminal closed.`
