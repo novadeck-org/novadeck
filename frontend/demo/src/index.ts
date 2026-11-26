@@ -30,7 +30,7 @@ import {
 } from "./addons/murmur"
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
 import { addressParams } from "./address"
-import { createDemoChat } from "./agents/chat"
+import { createDemoChat, type DemoChat } from "./agents/chat"
 import { createDemoInstalls, missingAgent } from "./agents/installs"
 import type { DemoAgentLink } from "./agents/link"
 import { withShellItems } from "./agents/shell-items"
@@ -349,10 +349,11 @@ export const withConversations = (
   backend: Backend,
   transcripts: Readonly<Record<string, DemoTranscript>>,
   turns: DemoTurns,
-  wrap: (conversations: Conversations) => Conversations = (conversations) => conversations,
+  wrap: (conversations: Conversations, chat: DemoChat) => Conversations = (conversations) =>
+    conversations,
 ): Backend => {
   const chat = createDemoChat(backend.seed, transcripts, turns)
-  const conversations = wrap(chat.conversations)
+  const conversations = wrap(chat.conversations, chat)
   const link: DemoAgentLink = {
     conversations,
     opening: chat.opening,
