@@ -276,6 +276,49 @@ describe("Novadeck's opencode plugin", () => {
     expect(made.map((one) => one.event)).toEqual(["SessionStart", "UserPromptSubmit"])
   })
 
+  it("reports no bind of a session another was bound over while its messages were read", async () => {
+    messagesAnswer = () => new Promise(() => {})
+    const hooks = await start()
+    void emit(hooks, "session.created", {
+      info: { id: "ses_a", title: "Fixing the build (fork #1)" },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await emit(hooks, "session.created", {
+      info: { id: "ses_b", title: "New session - 2026-11-26T10:00:00.000Z" },
+    })
+    // Past the wait for the first one's read.
+    await new Promise((resolve) => setTimeout(resolve, 2600))
+    const made = await settled(1)
+    expect(made.map((one) => `${one.event}:${one.payload.session_id}`)).toEqual([
+      "SessionStart:ses_b",
+    ])
+  })
+
+  it("writes no record from a read of messages that outlasted the bind's wait after the prompt's", async () => {
+    let answerRead!: (found: unknown) => void
+    messagesAnswer = () => new Promise((resolve) => (answerRead = resolve))
+    sessions.ses_a = {}
+    const hooks = await start()
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "msg_new", sessionID: "ses_a" },
+        parts: [{ id: "p_new", type: "text", text: "new" }],
+      },
+    )
+    answerRead({
+      data: [
+        {
+          info: { id: "msg_old", sessionID: "ses_a", role: "user" },
+          parts: [{ id: "p_old", type: "text", text: "old" }],
+        },
+      ],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const lines = (await readFile(join(dir, "sessions", "ses_a.jsonl"), "utf8")).trim().split("\n")
+    expect(lines.map((line) => JSON.parse(line).info?.id)).toEqual(["msg_new"])
+  })
+
   it("binds the session a prompt makes and adds the prompt's delivery to it", async () => {
     const hooks = await start()
     await emit(hooks, "session.created", { info: { id: "ses_a" } })

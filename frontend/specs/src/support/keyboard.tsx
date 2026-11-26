@@ -114,6 +114,9 @@ export const openPreferences = async (triesLeft = 3): Promise<void> => {
     .element(preferencesDialog(), { timeout: 2_000 })
     .toBeVisible()
     .catch((error: unknown) => {
+      // A dialog that came just past the wait took the key: pressing again would aim at its
+      // button behind it.
+      if (preferencesDialog().query()) return
       if (triesLeft === 1) throw error
       return openPreferences(triesLeft - 1)
     })

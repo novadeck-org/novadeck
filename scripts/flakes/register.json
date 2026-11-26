@@ -783,7 +783,7 @@
       "test": "src/e2e/",
       "signature": "fox can't reach ready: timed out after \\d+ ms\\. fox: unbound → fresh → working → settled",
       "status": "fixed",
-      "cause": "Antigravity 1.5.17's new process resumed the conversation moth had cleared away with /clear (moth now on another), named it in its PreInvocation, and the runner bound fox to it: fox never reached ready (run 45750019107's trace). #1268 knew a conversation as held only while it was a terminal's bound session or root. A terminal now keeps the sessions its running process left for another, and those count as held while that process lives. Earlier sightings predate #1268 and #1276.",
+      "cause": "After a /clear: Antigravity 1.5.17's new process resumed the conversation moth had cleared away (moth now on another), named it in its PreInvocation, and the runner bound fox to it, so fox never reached ready (run 45750019107's trace). #1268 knew a conversation as held only while it was a terminal's bound session or root. A terminal now keeps the sessions its running process left for another, and those count as held while that process lives. The history and restart sightings had no /clear (moth's process had ended, or the runner restarted), which this doesn't cover: both predate #1268 and #1276, which may have fixed them. A return of either is news.",
       "seen": [
         "main's E2E night run 45750019107 (Antigravity Windows quirks), lifecycle /clear",
         "main run 45607671436 (Antigravity Windows 1/2), history",
@@ -800,7 +800,7 @@
         "^Core scenarios \\(macOS\\)$"
       ],
       "test": "src/e2e/",
-      "signature": "can't reach working: timed out after \\d+ ms\\. \\w+: ready → drafting\\. Its agent: no agent|its transcript to hold a assistant item\\. Its agent: no agent",
+      "signature": "can't reach working: timed out after \\d+ ms\\. \\w+: ready → drafting\\. Its agent: no agent|its transcript to hold a assistant item\\. Its agent: no agent|its request to show a questions dialog\\. Its agent: no agent|to show (?:Standing by|Reported it done)\\.\\. Its agent: no agent",
       "status": "fixed",
       "cause": "A product bug in Novadeck's opencode plugin: on a new session it read opencode's server (backfill) before reporting SessionStart, while the prompt's own hook went straight out, so on a loaded Windows runner the prompt's UserPromptSubmit reached the runner while the terminal had no bound agent (3 s late in run 45722060140, never in others). A fresh session now binds at once, and a prompt waits for its session's bind, whose backfill read is capped at 2 s.",
       "seen": [

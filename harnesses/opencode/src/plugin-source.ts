@@ -335,6 +335,9 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
     if (existsSync(transcript(id))) return
     try {
       const found = await client.session.messages({ path: { id } })
+      // A read that outlasted bind's wait comes after newer records were written (the prompt's):
+      // its older ones would then show after them, so they are left out.
+      if (existsSync(transcript(id))) return
       for (const { info, parts } of found?.data ?? []) {
         if (info?.role === "user") keepPrompt(info, parts ?? [])
         else {
@@ -377,6 +380,8 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
         ])
         clearTimeout(timer)
       }
+      // Another session was bound while this one's read ran: the runner follows that one.
+      if (bound.root !== id) return
       report("SessionStart", {
         session_id: id,
         source: source ?? (first ? "startup" : "switch"),

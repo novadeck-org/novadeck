@@ -205,6 +205,7 @@ jobs:
             | jq --arg name "$WORKFLOW_NAME" '. + {workflow_name: $name}' > "$RUNNER_TEMP/run/run.json"
           # Through the retry, as Tally's downloads are (a 503 from GitHub's storage ended it).
           while read -r name; do
+            # shellcheck disable=SC2016 # Its own bash expands them, from its arguments and env.
             node scripts/ci/setup/retry.ts "The retry record $name couldn't be downloaded" \
               -- bash -c 'got=$(mktemp -d) && gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$1" --dir "$got" && mv "$got" "$2"' \
               _ "$name" "$RUNNER_TEMP/run/$name"
@@ -288,6 +289,7 @@ jobs:
               mkdir -p "$folder"
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "$folder/run.json"
             fi
+            # shellcheck disable=SC2016 # Its own bash expands them, from its arguments and env.
             node scripts/ci/setup/retry.ts "The retry record $name of run $run couldn't be downloaded" \
               -- bash -c 'got=$(mktemp -d) && gh run download "$1" --repo "$GITHUB_REPOSITORY" --name "$2" --dir "$got" && mv "$got" "$3"' \
               _ "$run" "$name" "$folder/$name"

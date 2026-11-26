@@ -72,13 +72,15 @@ export const prompted = async (
   const questions = [setup.trust?.folder?.shows, setup.trust?.hooks?.shows].filter(
     (question) => question !== undefined,
   )
+  // What a screen showed once stays: a resumed session's replayed conversation can scroll its
+  // banner away before the loading line goes.
+  let seen = false
   await poll(
     async () => {
       const shown = await terminal.screen()
-      const at = typeof banner === "string" ? shown.includes(banner) : banner.test(shown)
-      return at &&
-        !questions.some((question) => question.test(shown)) &&
-        !setup.loading?.test(shown)
+      const loading = setup.loading?.test(shown) === true
+      seen ||= loading || (typeof banner === "string" ? shown.includes(banner) : banner.test(shown))
+      return seen && !loading && !questions.some((question) => question.test(shown))
         ? true
         : undefined
     },
