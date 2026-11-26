@@ -224,7 +224,7 @@ describe("watching the workspace", () => {
         ...state,
         drafts: setChatDraft(state.drafts, context, "01", "half a thought"),
         attachments: { [context]: { "01": [image("a")] } },
-        imageNotes: { [context]: { "01": "The box holds 3 images at most, so 1 went." } },
+        imageNotes: { [context]: { "01": "The box holds 3 images at most, so 1 didn't fit." } },
         replies: setChatReply(state.replies, context, "01", { request: "r", dialog: "d" }),
         shells: { [context]: { "01": [{ text: "!ls", at: 1 }] } },
         answering: { [context]: { "01": true } },

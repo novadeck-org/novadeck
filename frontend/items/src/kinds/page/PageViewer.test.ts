@@ -191,7 +191,7 @@ describe("a page beside a terminal", () => {
       await ready()
       await vi.waitFor(() =>
         expect(notice()).toBe(
-          "This page has no mobile viewport tag: a phone would lay it out 980 wide and shrink it.",
+          "This page has no mobile viewport tag: a phone would lay it out 980 pixels wide and shrink it.",
         ),
       )
       tag = "width=device-width, initial-scale=1"

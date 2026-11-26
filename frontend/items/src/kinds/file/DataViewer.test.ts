@@ -72,7 +72,7 @@ describe("a data file's tree", () => {
         fileOf("session.jsonl", ['{"a":1}', '{"b":'], { truncated: true, total: null }),
       )
       expect(container.querySelector(".artifact-cut")?.textContent).toContain(
-        "Only its start came, as it's longer than Novadeck reads at once, so some records may be missing.",
+        "Novadeck reads only the start of a file this long, so some records may be missing.",
       )
     })
 
@@ -107,7 +107,7 @@ describe("a data file's tree", () => {
       )
       expect(toSource).not.toHaveBeenCalled()
       expect(container.textContent).toContain(
-        "Only its start came, as it's longer than Novadeck reads at once, so the JSON can't be read as a whole.",
+        "Novadeck reads only the start of a file this long, so the JSON can't be read as a whole.",
       )
     })
 

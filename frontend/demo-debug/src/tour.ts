@@ -35,11 +35,11 @@ const piStates = (tour: DemoTour): readonly DemoAction[] => {
     },
     {
       label: "Tour Pi: failed",
-      hint: `${where}: the consent says in red Could not reach github.com. Check the connection., with Try again, which plays the download again`,
+      hint: `${where}: the consent says in red Couldn't reach github.com. Check your connection., with Try again, which plays the download again`,
       run: () =>
         tour.showAgent({
           state: "failed",
-          error: "Could not reach github.com. Check the connection.",
+          error: "Couldn't reach github.com. Check your connection.",
         }),
     },
   ]

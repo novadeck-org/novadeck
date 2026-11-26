@@ -320,7 +320,7 @@ const HistoryPanelView = ({
         {matches.length === 0 && (
           <p className="history-empty" role="status">
             {rows.length === 0
-              ? "Terminals you close show up here, so you can bring them back."
+              ? "Terminals you close appear here, so you can bring them back."
               : `No closed terminal matches “${typed.trim()}”.`}
           </p>
         )}

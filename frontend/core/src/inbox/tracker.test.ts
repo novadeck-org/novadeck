@@ -358,8 +358,8 @@ describe("The Inbox's answer tracker", () => {
 
   it("words a failure by its error, or says it didn't take", () => {
     expect(answerFailure(new Error("Out of room."))).toBe("Out of room.")
-    expect(answerFailure(new Error(""))).toBe("That didn't take. Try again.")
-    expect(answerFailure("no")).toBe("That didn't take. Try again.")
+    expect(answerFailure(new Error(""))).toBe("That didn't go through. Try again.")
+    expect(answerFailure("no")).toBe("That didn't go through. Try again.")
   })
 })
 

@@ -843,7 +843,7 @@ describe("the app's uninstall", () => {
   })
 
   it("keeps a reason of the length the app's preload takes, with the advice it ends in", () => {
-    const advice = " Novadeck has stopped your terminals; quit it and open it again."
+    const advice = " Novadeck stopped your terminals. Quit Novadeck and open it again."
     const reason = `${"a".repeat(266 - advice.length)}${advice}`
     expect(reason).toHaveLength(266)
     expect(uninstallResultOf({ kind: "failed", reason })).toEqual({ kind: "failed", reason })

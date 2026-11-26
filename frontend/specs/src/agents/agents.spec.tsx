@@ -419,7 +419,7 @@ describe("Connecting agents", () => {
       await dialog.getByRole("button", { name: "Grid", exact: true }).click()
       await expect.element(dialog.getByText("Everything side by side.")).toBeVisible()
       await dialog.getByRole("button", { name: "Canvas", exact: true }).click()
-      await expect.element(dialog.getByText("Spread out on a zoomable canvas.")).toBeVisible()
+      await expect.element(dialog.getByText("Spread out. Zoom in where it matters.")).toBeVisible()
       await expect.element(agentChoice(dialog, "Claude Code")).toBeChecked()
       // Not installed, it offers installing instead.
       expect(agentChoice(dialog, "Antigravity").query()).toBeNull()

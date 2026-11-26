@@ -160,7 +160,7 @@ describe("Preferences", () => {
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "true")
       await expect
         .element(transcriptsSwitch())
-        .toHaveAccessibleDescription(/Saved encrypted on this computer/)
+        .toHaveAccessibleDescription(/saved encrypted on this computer/)
       await transcriptsSwitch().click()
       await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
       await closePreferences()
@@ -200,7 +200,7 @@ describe("Preferences", () => {
       await expect.element(transcriptsSwitch()).toBeDisabled()
       await expect
         .element(transcriptsSwitch())
-        .toHaveAccessibleDescription(/Not available on this computer.*can.t keep a key safe/)
+        .toHaveAccessibleDescription(/Not available on this computer.*no safe place for the key/)
     })
   })
 

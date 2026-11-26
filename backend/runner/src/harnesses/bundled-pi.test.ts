@@ -582,7 +582,7 @@ describe("fetching Novadeck's pi over the network", () => {
         ...release,
         source: "https://release.test/down/",
       }),
-    ).rejects.toThrow("Could not reach release.test. Check the connection.")
+    ).rejects.toThrow("Couldn't reach release.test. Check your connection.")
   })
 
   it("fetches the licence first, and no archive where it can't be had", async ({ resources }) => {
@@ -596,7 +596,7 @@ describe("fetching Novadeck's pi over the network", () => {
         source: "https://release.test/counted/",
         licence: "https://licence.test/LICENSE",
       }),
-    ).rejects.toThrow("Could not reach licence.test.")
+    ).rejects.toThrow("Couldn't reach licence.test.")
     expect(archives).toBe(0)
   })
 
