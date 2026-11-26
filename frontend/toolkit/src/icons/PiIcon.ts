@@ -1,9 +1,10 @@
 import { createLucideIcon } from "lucide-react"
 
-// A pi mark: the Greek letter, as a bar over two legs, the right one curling out, on the 24-unit
-// grid. Drawn for Novadeck (pi's own mark is a wordless glyph too), not copied from its assets.
+// The pi mark: a 4×4 pixel glyph, a bar hooking down over a stepped left leg, with a short right
+// leg meeting the hook's corner. Traced from pi's own mark (pi-mono's PiLogo, MIT; pi.dev's favicon
+// is the same glyph) as outlines on 4-unit cells, the way the Claude icon traces Clawd's pixels.
 export const PiIcon = createLucideIcon("Pi", [
-  ["path", { d: "M5 7h14", key: "bar" }],
-  ["path", { d: "M9 7v11", key: "left" }],
-  ["path", { d: "M15 7v8a3 3 0 0 0 3 3", key: "right" }],
+  ["path", { d: "M4 4h12v8h-4v4H8v4H4Z", key: "glyph" }],
+  ["path", { d: "M8 8h4v4H8Z", key: "hole" }],
+  ["path", { d: "M16 12h4v8h-4Z", key: "leg" }],
 ])
