@@ -139,8 +139,11 @@ const pageLabel = (id: string): string | undefined =>
 
 // A setting search found: its row, on its page.
 type Found = PreferenceRow<{ readonly page: string; readonly row: HTMLElement }>
-// What takes focus in a row search jumps to: its control.
+// What takes focus in a row search jumps to: its control, its switch first, as a card that shows
+// a choice beside its switch (Stop idle agents' wait) turns on and off by the switch.
 const rowControls = '[role="switch"], [role="combobox"], [role="radio"], input, button'
+const rowControl = (row: HTMLElement): HTMLElement | null =>
+  row.querySelector<HTMLElement>('[role="switch"]') ?? row.querySelector<HTMLElement>(rowControls)
 // Where a key types: `/` searches anywhere else.
 const typingFields =
   'input:not([type="range"]):not([type="radio"]):not([type="checkbox"]):not([type="button"]), textarea, select, [contenteditable="true"]'
@@ -711,8 +714,7 @@ export const Preferences = ({
       const { row } = target
       row.scrollIntoView?.({ block: "center" })
       // A row with no control, as a shortcut's, leaves focus on its page.
-      const control =
-        row.querySelector<HTMLElement>(rowControls) ?? row.closest<HTMLElement>('[role="tabpanel"]')
+      const control = rowControl(row) ?? row.closest<HTMLElement>('[role="tabpanel"]')
       control?.focus({ preventScroll: true })
       tint(row)
     })
@@ -734,7 +736,7 @@ export const Preferences = ({
         ? document.getElementById(`${id}-label`)?.closest<HTMLElement>(".settings-row")
         : null
       row?.scrollIntoView?.({ block: "center" })
-      const control = row?.querySelector<HTMLElement>(rowControls) ?? panel
+      const control = (row ? rowControl(row) : null) ?? panel
       control?.focus({ preventScroll: true })
       if (row) tint(row)
     })
@@ -1489,7 +1491,12 @@ export const Preferences = ({
               </Section>
               <Section title="Accessibility">
                 <div className={settingsStackClasses}>
-                  <div className={`preference-row ${settingRowClasses}`}>
+                  {/* A group named and described by its words, so the choices are read with them. */}
+                  <fieldset
+                    className={`preference-row ${settingRowClasses} m-0 min-w-0`}
+                    aria-labelledby="screen-reader-label"
+                    aria-describedby="screen-reader-description"
+                  >
                     <SettingText
                       id="screen-reader-label"
                       icon={Accessibility}
@@ -1524,7 +1531,7 @@ export const Preferences = ({
                         describedBy="screen-reader-description"
                       />
                     )}
-                  </div>
+                  </fieldset>
                 </div>
               </Section>
               {transcripts && (

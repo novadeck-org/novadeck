@@ -31,7 +31,9 @@
    comments are, ending at a block `.settings-sample-cursor`. Its `pre` carries data-ligatures.
    `.settings-stack`: settings each on a card of its own, as the welcome dialog draws its
    choices (the solid choice card): a `.settings-row` per card, led by a `.choice-card-tile`
-   that takes the brand tile while the card's switch is on, and its description small. A
+   that takes the brand tile while the card's switch is on (its look is the choice card's
+   own, not repeated here), and its description small. On a page narrower than 560px a
+   card's control wraps under its words. A
    `.settings-label` (a setting's name) is set medium everywhere. In a `.settings-card` led by
    a row with a tile, that tile does the same, and the rows under it line up with its words. A
    card whose agent waits to be installed (data-agent-install) is drawn dashed, as the
@@ -179,7 +181,8 @@
   opacity: var(--settings-range-disabled-opacity, 0.5);
 }
 
-.choice-card {
+.choice-card,
+.settings-stack > .settings-row {
   --_bg: var(--choice-card-bg, color-mix(in srgb, var(--color-paper) 60%, transparent));
   --_fg: var(--choice-card-fg, var(--color-muted));
   --_border-color: var(--choice-card-border-color, var(--color-line));
@@ -205,7 +208,8 @@
   --_border-color: var(--choice-card-checked-border-color, var(--color-line-strong));
   --_shadow: var(--choice-card-checked-shadow, var(--shadow-control));
 }
-.choice-card.solid {
+.choice-card.solid,
+.settings-stack > .settings-row {
   --_bg: var(--choice-card-solid-bg, var(--color-paper));
   --_fg: var(--choice-card-solid-fg, var(--color-ink));
 }
@@ -237,7 +241,13 @@
     border-color var(--motion-state) var(--ease-interface),
     color var(--motion-state) var(--ease-interface);
 }
-.choice-card[data-state="checked"] .choice-card-tile {
+.choice-card[data-state="checked"] .choice-card-tile,
+.settings-stack
+  > .settings-row:has([role="switch"][aria-checked="true"])
+  .choice-card-tile:not([data-missing]),
+.settings-card
+  > .settings-row:first-child:has([role="switch"][aria-checked="true"])
+  .choice-card-tile {
   --_highlight: inset 0 1px 0
     color-mix(in srgb, var(--brand-tile-fg, var(--color-on-strong)) 8%, transparent);
   --_drop: 0 6px 14px -8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
@@ -320,34 +330,9 @@
 .settings-stack {
   list-style: none;
 }
-.settings-stack > .settings-row,
+/* Its cards are the solid choice card (above), whatever the row recipe's hairline says. */
 .settings-stack > .settings-row + .settings-row {
-  border: var(--border-width) solid var(--choice-card-border-color, var(--color-line));
-  border-radius: var(--choice-card-radius, var(--radius-panel));
-  background-color: var(--choice-card-solid-bg, var(--color-paper));
-  color: var(--choice-card-solid-fg, var(--color-ink));
-  box-shadow: var(--settings-card-shadow, var(--card-shadow, var(--shadow-control)));
-  transition:
-    background-color var(--motion-feedback) var(--ease-interface),
-    box-shadow var(--motion-feedback) var(--ease-interface);
-}
-.settings-stack > .settings-row:has([role="switch"][aria-checked="true"]) {
-  background-color: var(--choice-card-solid-checked-bg, var(--color-shell));
-  box-shadow: var(--choice-card-solid-checked-shadow, var(--shadow-panel));
-}
-.settings-stack > .settings-row:has([role="switch"][aria-checked="true"]) .choice-card-tile,
-.settings-card
-  > .settings-row:first-child:has([role="switch"][aria-checked="true"])
-  .choice-card-tile {
-  --_highlight: inset 0 1px 0
-    color-mix(in srgb, var(--brand-tile-fg, var(--color-on-strong)) 8%, transparent);
-  --_drop: 0 6px 14px -8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
-  border-color: var(--brand-tile-border-color);
-  background: var(
-    --brand-tile-bg,
-    linear-gradient(180deg, var(--color-strong-hover), var(--color-strong))
-  );
-  color: var(--brand-tile-fg, var(--color-on-strong));
+  border-top-color: var(--_border-color);
 }
 .settings-stack > .settings-row:has([data-agent-install]) {
   border-style: dashed;
@@ -367,4 +352,18 @@
 .settings-stack > .settings-row .settings-note {
   font-size: var(--text-caption);
   line-height: 18px;
+}
+/* On a narrow page, as a small window at a large scale, a card's control goes under its words,
+   and what a card holds under its head starts at its edge. */
+.preferences-panels {
+  container-type: inline-size;
+}
+@container (max-width: 560px) {
+  .settings-stack > .settings-row,
+  .settings-card > .settings-row {
+    flex-wrap: wrap;
+  }
+  .settings-card > .settings-row:first-child:has(.choice-card-tile) ~ .settings-row > :first-child {
+    margin-left: 0;
+  }
 }

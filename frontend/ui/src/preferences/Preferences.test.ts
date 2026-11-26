@@ -1082,6 +1082,27 @@ describe("searching Preferences", () => {
     expect(document.activeElement?.closest(".settings-row")?.textContent).toContain("Ring the bell")
   })
 
+  it("focuses a card's switch over the choice beside it", async () => {
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      hibernation: { minutes: 30, onChange: () => {} },
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("appearance")))
+    mounted.push(page)
+    await nextFrame()
+    await type("stop idle")
+    await act(async () => (document.querySelector(".preferences-result") as HTMLElement).click())
+    await nextFrame()
+
+    expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("idle-agents-label")
+  })
+
   it("finds a switch only the Experimental page has there, and one that stands on its page once", async () => {
     await show({
       tab: "appearance",
