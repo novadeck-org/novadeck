@@ -223,7 +223,7 @@ export const endedLine = (entry: InboxEntry): string | null => {
     case "terminal":
       return `You answered ${who}'s ${thing} in its terminal.`
     case "dismissed":
-      return `You dismissed this entry; ${who} was told.`
+      return `You dismissed this entry. ${who} was told.`
     case "replied":
       return `You wrote to ${who} in its terminal, so this ask is closed.`
     case "released":
