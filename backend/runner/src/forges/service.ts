@@ -54,7 +54,7 @@ export type RepositoryFacts = {
 }
 
 export type ForgesOptions = {
-  /** The forges switched on, and saving them; nothing runs for a forge that is off. */
+  /** The forges switched on (the runner gives every one), and saving them; nothing runs for one that is off. */
   readonly enabled: () => readonly ForgeName[]
   readonly save: (forges: readonly ForgeName[]) => void
   /** The repositories of the worktrees Novadeck tracks. */

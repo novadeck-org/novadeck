@@ -411,7 +411,7 @@ export const scriptedRunner = ({
         agentModes: false,
         agentMode: "herd",
         shippingGate: false,
-        worktrees: false,
+        worktrees: true,
       })),
       set: api.settings.set.handler(() => {}),
       watch: api.settings.watch.handler(idle),

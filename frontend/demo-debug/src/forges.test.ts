@@ -115,9 +115,6 @@ describe("the debug panel's Forges group", () => {
 
   it("is empty of forge states where the backend's are not the demo's", () => {
     const [group] = forgesGroups({} as DemoLaunch, {})
-    expect(group!.actions.map((action) => action.label)).toEqual([
-      "Offered",
-      "Not offered",
-    ])
+    expect(group!.actions.map((action) => action.label)).toEqual(["Offered", "Not offered"])
   })
 })

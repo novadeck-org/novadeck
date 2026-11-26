@@ -2480,9 +2480,10 @@ one from an earlier runner.
   gone at its next start), and after how
   many idle minutes an agent is stopped to rest as a sleeper (30 by default, at most a week,
   `null` for never; see "Idle agents rest" in agent-messaging.md), and whether agents may
-  open git worktrees through Novadeck's tools (off until the person turns it on, in
-  Preferences' Experimental tab), whether Solo and Swarm may be picked (`agentModes`, off until
-  the person turns it on in the same tab; while off, agents work as a Herd whatever `agentMode`
+  open git worktrees through Novadeck's tools (on until the person turns it off, in
+  Preferences' Agents tab; carried on once for everyone as it left Experimental, since a stable
+  launch had saved it off), whether Solo and Swarm may be picked (`agentModes`, off until
+  the person turns it on in Preferences' Experimental tab; while off, agents work as a Herd whatever `agentMode`
   holds, and the saved pick returns with the switch), whether the shipping gate is on
   (`shippingGate`, off until the person turns it on in the same tab; see "The shipping gate" in
   agent-messaging.md), whether Murmur may run (`murmur`, revision 20, off until the person turns

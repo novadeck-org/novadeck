@@ -2268,7 +2268,7 @@ const agentSettingsOf = async (call: McpCall): Promise<{ mode: AgentMode; gated:
   }
 }
 
-// Whether the user turned agent worktrees on, as the runner says; off where it can't say. The
+// Whether the user has agent worktrees on (as they are until turned off), as the runner says; off where it can't say. The
 // listing is cached by some harnesses for the whole session, so the runner refuses the calls
 // while it is off all the same.
 const offered = async (call: McpCall): Promise<{ worktrees: boolean; gate: boolean }> => {

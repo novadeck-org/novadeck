@@ -11,8 +11,9 @@ import {
   useSyncExternalStore,
 } from "react"
 
-// The pull request of the work a changes item shows, as the forges found it: the app's works, which carry each one's (see core's `works`). Outside the workspace, or
-// where the backend has no works, there is none and the item shows no link.
+// The pull request of the work a changes item shows, as the forges found it: the app's works,
+// which carry each one's (see core's `works`). Outside the workspace, or where the backend has no
+// works, there is none and the item shows no link.
 
 export type PullRequests = {
   readonly state: Store<WorksState>
