@@ -66,6 +66,7 @@ import {
   chatViewOn,
   revealExperimental,
   switchOffExperimental,
+  switchOffMurmur,
   type ExperimentalFeatures,
 } from "./ui-store"
 import { useForgeRuns } from "./useForgeRuns"
@@ -265,12 +266,13 @@ type ExperimentalSetting = {
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
-// Turning it off turns agent worktrees, agent modes and forge integrations off with it.
+// Turning it off turns agent worktrees, agent modes and forge integrations off with it, and
+// Murmur too, though only on the person's flip (`switchOffMurmur`).
 // The switch is hidden while off until the person taps the version ten times; once revealed, or
 // on at any time in this run, it stays until the next launch (`experimentalRevealed`).
 const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
-  features: ExperimentalFeatures,
+  features: ExperimentalFeatures & Pick<Backend, "murmurSwitch">,
   open: boolean,
 ): ExperimentalSetting | undefined => {
   const { commands, ui } = useWorkspaceServices()
@@ -311,7 +313,10 @@ const useExperimental = (
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
         channel.set(next ? "experimental" : "stable")
-        if (!next) switchOffExperimental(features)
+        if (!next) {
+          switchOffExperimental(features)
+          switchOffMurmur(features.murmurSwitch)
+        }
       },
     }
   )

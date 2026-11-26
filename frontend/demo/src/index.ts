@@ -285,6 +285,12 @@ const leadOf = (terminals: readonly { readonly id: string }[]): string | null =>
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
 export const withMessages = (backend: Backend, now: number): Backend => {
+  // Murmur names a terminal only while its Experimental switch is on, as with the runner.
+  const murmurOn = backend.murmurSwitch?.enabled.getSnapshot() ?? true
+  const namingOf = (slot: string) => {
+    const naming = namings[slot]
+    return naming && (naming.source.kind !== "murmur" || murmurOn) ? naming : undefined
+  }
   const seed: WorkspaceSeed = {
     ...backend.seed,
     projects: backend.seed.projects.map((project) => ({
@@ -296,8 +302,8 @@ export const withMessages = (backend: Backend, now: number): Backend => {
           handle: demoHandle(Number(terminalSlot(terminal.id))),
           // The agent that named the checkout review (moth, the session's first) leads it.
           ...(terminalSlot(terminal.id) === "04" ? { ledBy: leadOf(session.terminals) } : {}),
-          ...(namings[terminalSlot(terminal.id)]
-            ? { titleSource: namings[terminalSlot(terminal.id)]!.source }
+          ...(namingOf(terminalSlot(terminal.id))
+            ? { titleSource: namingOf(terminalSlot(terminal.id))!.source }
             : {}),
         })),
       })),

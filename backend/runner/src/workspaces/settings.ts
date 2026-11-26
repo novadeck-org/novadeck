@@ -178,12 +178,13 @@ export class Settings {
 
   /**
    * Murmur's Experimental switch, first saved as Murmur was: on where the person had turned
-   * Murmur on before it became Experimental, off for everyone else. Saved once, so turning
-   * Murmur itself off later leaves the switch as it is.
+   * Murmur on before it became Experimental, or where its files are on disk (`hasFiles`), so
+   * Addons keeps their Uninstall; off for everyone else. Saved once, so turning Murmur itself
+   * off later leaves the switch as it is.
    */
-  carryMurmurSwitch(): void {
+  carryMurmurSwitch(hasFiles: boolean): void {
     if (this.setting("murmur") !== undefined) return
-    this.saveSetting("murmur", JSON.stringify(this.murmurEnabledChoice() === true))
+    this.saveSetting("murmur", JSON.stringify(this.murmurEnabledChoice() === true || hasFiles))
   }
 
   // Each as JSON, which writes a switch as `true` or `false`, as it always was.

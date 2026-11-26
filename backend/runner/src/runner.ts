@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { unwatchFile, watchFile } from "node:fs"
+import { readdirSync, unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -50,6 +50,15 @@ import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
 const log = logs.for("runner")
+
+// Whether a folder holds anything: no folder, or one that can't be read, holds nothing.
+const hasContents = (folder: string): boolean => {
+  try {
+    return readdirSync(folder).length > 0
+  } catch {
+    return false
+  }
+}
 
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
@@ -358,17 +367,19 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
   started.push(voice)
-  // Murmur is Experimental: it runs only while its switch is on, saved once as Murmur was.
-  store.settings.carryMurmurSwitch()
+  const murmurDirectory =
+    options.murmur?.directory ??
+    (options.database === undefined
+      ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
+      : join(dirname(options.database), "murmur"))
+  // Murmur is Experimental: it runs only while its switch is on, saved once as Murmur was, and
+  // on where its files are, so Addons keeps their Uninstall.
+  store.settings.carryMurmurSwitch(hasContents(murmurDirectory))
   const murmur = new Murmur(store.settings, {
     switchedOn: () => store.settings.runner().murmur === true,
     engine: options.murmur?.engine,
     source: options.murmur?.source,
-    directory:
-      options.murmur?.directory ??
-      (options.database === undefined
-        ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
-        : join(dirname(options.database), "murmur")),
+    directory: murmurDirectory,
     ...(options.softwareGraphics !== undefined && {
       softwareGraphics: options.softwareGraphics,
     }),

@@ -7,8 +7,11 @@ default titles, and agent terminals are titled by their agents.
 
 It is Experimental: it shows and runs only while its switch in Preferences > Experimental is on
 (the runner's `murmur` setting, revision 20). The switch starts off, except where the person had
-turned Murmur on before it became Experimental: the runner saves it once at start, on for them and
-off for everyone else (`carryMurmurSwitch`), so turning Murmur itself off later leaves it as it is.
+turned Murmur on before it became Experimental, or has its files on disk (so a stable-channel user,
+who has no Experimental tab, keeps Addons' Uninstall): the runner saves it once at start, on for
+them and off for everyone else (`carryMurmurSwitch`), so turning Murmur itself off later leaves it
+as it is. Turning Experimental off in Preferences turns Murmur off with it; a stable channel read at
+start does not, unlike the other Experimental features, or it would undo the carry.
 While it is off the runner describes nothing, installs nothing (an install is refused, an install
 under way stops) and fetches no engine an app update left behind, and the titles murmur wrote go,
 as when Murmur is turned off; the engine and model stay on disk. The app shows none of Murmur: no
