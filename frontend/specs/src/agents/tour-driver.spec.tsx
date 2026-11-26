@@ -54,6 +54,19 @@ describe("The tour's driver", () => {
     await expect.element(page.getByText(/^Act 2, Your call\./), leadNamed).toBeInTheDocument()
   })
 
+  it("turns Nyx's narration off and on beside End tour, keeping the choice for the next tour", async () => {
+    await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
+    await coachSays("That's your agent. It does the work. I talk.")
+    const narration = page.getByRole("button", { name: "Narration" })
+    await expect.element(narration).toHaveAttribute("aria-pressed", "true")
+    await narration.click()
+    await expect.element(narration).toHaveAttribute("aria-pressed", "false")
+    expect(localStorage.getItem("novadeck.tour.voice-off")).toBe("1")
+    await narration.click()
+    await expect.element(narration).toHaveAttribute("aria-pressed", "true")
+    expect(localStorage.getItem("novadeck.tour.voice-off")).toBeNull()
+  })
+
   it("marks the agent's window to look at while it starts, in the page's own element", async () => {
     await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
     await coachSays("That's your agent. It does the work. I talk.")

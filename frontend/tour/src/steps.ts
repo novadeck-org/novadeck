@@ -429,3 +429,26 @@ export const leftCoach = (terminalId?: string): Coach => ({
   // with, so there is nothing the person could run again by a key.
   note: "Its terminal says why. End the tour and take it again.",
 })
+
+// Every line the caption box letters, which Nyx's voice-over says, by the key its take is named
+// for (`NARRATION.md`, the takes in `voice/`): a step's line by its id and its cue as
+// `<id>.cue`, the run without a page's own ending as `play-model`, then the coaches off the story
+// and the closing card's.
+export const narration = (): ReadonlyMap<string, string> => {
+  const lines = new Map<string, string>()
+  const add = (key: string, coach: Coach): void => {
+    lines.set(key, coach.line)
+    if (coach.cue) lines.set(`${key}.cue`, coach.cue.line)
+  }
+  for (const step of played.page) add(step.id, step.coach)
+  add("play-model", modelPlayStep.coach)
+  lines.set("screen", screenCoach("startup").line)
+  lines.set("team-screen", teamScreenLine)
+  add("question", questionCoach)
+  add("permission", permissionCoach(""))
+  add("ended", endedCoach)
+  add("left", leftCoach())
+  add("left.team", leftCoach(""))
+  lines.set("closing", closingLine)
+  return lines
+}

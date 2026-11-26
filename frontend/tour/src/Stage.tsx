@@ -1,13 +1,22 @@
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Eye } from "lucide-react"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Eye, Volume2, VolumeOff } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import { createPortal } from "react-dom"
 
 import { firstTarget, outOfSight, targetElements, windowSelector, type TargetsOf } from "./anchors"
 import { captionDelayMs, hasPointed } from "./caption"
 import { placeBox, sameBox, type Box } from "./place"
 import { tourActs, type Coach, type TourAct } from "./steps"
+import { tourVoice } from "./voice"
 
 import "./print.css"
 
@@ -501,6 +510,11 @@ export const TourStage = ({
     coach && (coach.cue && !present ? { ...coach.cue, cue: true } : { ...coach, cue: false })
   const slot = useFooterSlot(!away)
   const wiping = useWipe(act)
+  // She stops as the tour goes out of sight, and as it ends.
+  useEffect(() => {
+    if (away) tourVoice.stop()
+  }, [away])
+  useEffect(() => () => tourVoice.stop(), [])
   // What else the caption box keeps clear of, kept while the same, so its placing isn't redone
   // on every render.
   const clear = useMemo(
@@ -563,21 +577,39 @@ export const TourStage = ({
   )
 }
 
-// The stage's control, End tour: in the footer's middle, or, with the footer hidden (as in Zen),
-// at the workspace's foot. Which act is on, the live region says.
-const Controls = ({ onEnd }: { readonly onEnd: () => void }): React.JSX.Element => (
-  <span className="tour-print tour-controls">
-    <button type="button" className="tour-button" onClick={onEnd}>
-      End tour
-    </button>
-  </span>
-)
+// The stage's controls, Nyx's voice on or off and End tour: in the footer's middle, or, with the
+// footer hidden (as in Zen), at the workspace's foot. Which act is on, the live region says.
+const Controls = ({ onEnd }: { readonly onEnd: () => void }): React.JSX.Element => {
+  const speaking = useSyncExternalStore(tourVoice.subscribe, tourVoice.on)
+  return (
+    <span className="tour-print tour-controls">
+      <Tooltip content={speaking ? "Narration on" : "Narration off"}>
+        <button
+          type="button"
+          aria-label="Narration"
+          aria-pressed={speaking}
+          className="tour-button tour-voice"
+          onClick={() => tourVoice.set(!speaking)}
+        >
+          {speaking ? (
+            <Volume2 aria-hidden="true" size={15} strokeWidth={2.25} />
+          ) : (
+            <VolumeOff aria-hidden="true" size={15} strokeWidth={2.25} />
+          )}
+        </button>
+      </Tooltip>
+      <button type="button" className="tour-button" onClick={onEnd}>
+        End tour
+      </button>
+    </span>
+  )
+}
 
 // A cue's box showing is no caption of the step's: its hold counts from its line's.
 const noCaption = (): void => {}
 
 // Where the controls stand at the workspace's foot, which the caption box keeps clear of.
-const controlsWidth = 110
+const controlsWidth = 150
 const noBoxes: readonly Box[] = []
 const footlessControls = (area: Box): readonly Box[] => [
   {
@@ -649,6 +681,10 @@ const CaptionBox = ({
   useEffect(() => {
     if (shown) onShown(said.line)
   }, [shown, onShown, said.line])
+  // And Nyx says it, cue or line, as it shows.
+  useEffect(() => {
+    if (shown) tourVoice.say(said.line)
+  }, [shown, said.line])
   const [place, setPlace] = useState<{ readonly left: number; readonly top: number } | null>(null)
   useLayoutEffect(() => {
     const element = box.current

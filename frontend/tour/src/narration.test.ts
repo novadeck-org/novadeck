@@ -1,40 +1,8 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import {
-  closingLine,
-  endedCoach,
-  leftCoach,
-  permissionCoach,
-  questionCoach,
-  screenCoach,
-  stepsOf,
-  teamScreenLine,
-  type Coach,
-} from "./steps"
+import { narration as spoken, screenCoach, stepsOf } from "./steps"
 import { describe, expect, it } from "./test"
-
-// Every line the caption box letters, which Nyx's voice-over says, by the key its take is
-// named for: a step's line by its id and its cue as `<id>.cue`, the run without a page's own
-// ending as `play-model`, then the coaches off the story and the closing card's.
-const spoken = (): ReadonlyMap<string, string> => {
-  const lines = new Map<string, string>()
-  const add = (key: string, coach: Coach): void => {
-    lines.set(key, coach.line)
-    if (coach.cue) lines.set(`${key}.cue`, coach.cue.line)
-  }
-  for (const step of stepsOf(true)) add(step.id, step.coach)
-  add("play-model", stepsOf(false).at(-1)!.coach)
-  lines.set("screen", screenCoach("startup").line)
-  lines.set("team-screen", teamScreenLine)
-  add("question", questionCoach)
-  add("permission", permissionCoach("terminal"))
-  add("ended", endedCoach)
-  add("left", leftCoach())
-  add("left.team", leftCoach("terminal"))
-  lines.set("closing", closingLine)
-  return lines
-}
 
 // The script's takes by key, each with its audio tags taken out, as the caption shows it.
 const script = (): readonly (readonly [string, string])[] =>
@@ -55,6 +23,19 @@ describe("The tour's narration script", () => {
     const takes = script()
     expect(new Set(takes.map(([key]) => key)).size).toBe(takes.length)
     expect(Object.fromEntries(takes)).toEqual(Object.fromEntries(spoken()))
+  })
+
+  it("keys every line the run without a page says, too", () => {
+    const lines = new Set(spoken().values())
+    const missing = stepsOf(false)
+      .flatMap(({ coach }) => [coach.line, ...(coach.cue ? [coach.cue.line] : [])])
+      .filter((line) => !lines.has(line))
+    expect(missing).toEqual([])
+  })
+
+  it("gives every line its own words, so a line finds its take", () => {
+    const lines = [...spoken().values()]
+    expect(new Set(lines).size).toBe(lines.length)
   })
 
   it("says the same words at every screen a lead may hold at", () => {

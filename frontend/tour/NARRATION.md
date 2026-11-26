@@ -18,7 +18,10 @@ written is in [VOICE.md](../../VOICE.md), "The tour".
 - **The jokes:** lines marked ★ are the jokes. Make two or three takes of each, since the
   delivery makes or breaks them, and keep the best.
 - **Files:** one file per line, named for its key: `start.mp3`, `files.cue.mp3`. Put them all
-  in one folder and say where.
+  in one folder, then run `node scripts/tour-voice/takes.ts <folder>`. It trims the silence
+  around each take, brings them all to one loudness, and writes them to `src/voice/`, where the
+  tour plays them. It also lists the lines with no take yet, files that match no line, and takes
+  longer than their box stays on screen. A line with no take is shown and not spoken.
 - **Length:** short and clipped, as in the skits. A cue gives way as soon as its subject is on
   screen, so keep cues under about 2 s. `start` shows for 3 s, so keep it under about 2.5 s.
   The others can run to about 3 s.
@@ -66,3 +69,11 @@ What she says while something outside the story holds the tour up.
 - [ ] `left.team`: `[flat, unimpressed] A teammate quit.`
 
 The act wipes ("Act 2, Your call") aren't spoken.
+
+## How the tour plays them
+
+`src/voice.ts` plays a line's take as its caption box shows, cues included. A new line stops the
+one before it where it is, since the box it belonged to has gone. A box drawn again for the same
+line doesn't say it twice. She stops while the person is in another project, and when the tour
+ends. The Narration button beside End tour turns her off or on, and the choice is kept for every
+tour after.

@@ -884,7 +884,7 @@ App:
   (`holdMs`: 3 s, the first and the finish) from when its caption box is shown (`onCaption`, the
   reducer's `caption` event); a caption that hasn't shown `captionWaitMs` (8 s) after the step
   was done on screen is given up on, and the hold counts from then. Its
-  steps (`frontend/tour/src/steps.ts`), in Nyx's voice, a script for her voice-over (`frontend/tour/NARRATION.md`): "That's your agent. It does the work. I talk."
+  steps (`frontend/tour/src/steps.ts`), spoken by Nyx as each box shows (her takes in `frontend/tour/src/voice/`, the script in `frontend/tour/NARRATION.md`, Narration beside End tour turns her off): "That's your agent. It does the work. I talk."
   (`start`, the lead describes itself); "Your call. What game? Make it a good one." (`ask`, the Inbox's button,
   then the lead's sheet in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
   approval's Run command is marked, and the step waits on the person: the lead hires no one
