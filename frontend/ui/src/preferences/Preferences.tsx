@@ -884,7 +884,7 @@ export const Preferences = ({
           >
             <TabList
               // A menu down the dialog's side: the open page's mark stands on the divider, as the
-              // tab bar's underline stood under it. On a phone it turns into a row that scrolls.
+              // tab bar's line stood under it. On a phone it turns into a row that scrolls.
               // It pads out by the focus ring, which its scrolling would clip.
               className="preferences-tabs flex min-h-0 flex-1 flex-col overflow-y-auto pt-1 pr-1 pb-3 pl-3 [scrollbar-width:none] max-[640px]:flex-row max-[640px]:gap-4 max-[640px]:overflow-x-auto max-[640px]:px-4 max-[640px]:pb-2"
               label="Preference sections"
