@@ -51,6 +51,7 @@ import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
 import { onTheWayLine, type OnTheWay } from "../terminals/closes.js"
 import { mention } from "../terminals/handles.js"
+import { includeLimit, type Included } from "../worktrees/include.js"
 import { object } from "./json.js"
 import type { CallType } from "./reports.js"
 
@@ -1759,6 +1760,75 @@ type Worktree = {
   readonly kept?: string
   readonly keptHead?: string
   readonly branchDeleted?: boolean
+  /** open_worktree: the ignored files it got from the checkout. */
+  readonly included?: Included
+}
+
+/** How many files `open_worktree` names before it counts the rest. */
+const namedFiles = 8
+
+/** Files as `open_worktree` names them: the first few, and how many more. */
+const filesSaid = (paths: readonly string[]): string =>
+  paths.slice(0, namedFiles).join(", ") +
+  (paths.length > namedFiles ? " and " + (paths.length - namedFiles) + " more" : "")
+
+/**
+ * The ignored files a new worktree got from the checkout, as `open_worktree` says it: which, by
+ * what, which weren't, and that it has no other ignored files (installed dependencies, build
+ * output).
+ */
+export const includedSaid = (included: Included | undefined): string => {
+  if (included === undefined) return ""
+  const { from, by, copied, failed } = included
+  const source = by === "file" ? "its .worktreeinclude" : ".env*"
+  const nothing =
+    ": the worktree has no ignored files, such as .env files, installed dependencies or build output."
+  if (included.unread)
+    return (
+      " Novadeck couldn't list the ignored files of " + from + ", so none were copied" + nothing
+    )
+  if (included.over)
+    return (
+      " The ignored files of " +
+      from +
+      " that " +
+      source +
+      " picks come to more than Novadeck copies (" +
+      includeLimit.files.toLocaleString("en-US") +
+      " files or " +
+      Math.round(includeLimit.bytes / 1024 / 1024) +
+      " MB), so none were copied" +
+      nothing
+    )
+  const pickedNone =
+    copied.length + failed.length === 0
+      ? by === "file"
+        ? " Its .worktreeinclude picks none of the ignored files of " + from + "."
+        : " " + from + " has no ignored .env files to copy."
+      : ""
+  const had =
+    copied.length === 0
+      ? ""
+      : " It has the ignored files " +
+        source +
+        " picks" +
+        (by === "default" ? " (the repository has no .worktreeinclude)" : "") +
+        ", copied from " +
+        from +
+        ": " +
+        filesSaid(copied) +
+        "."
+  const missed =
+    failed.length === 0
+      ? ""
+      : " Not copied, as the worktree has its own or the copy failed: " + filesSaid(failed) + "."
+  const others = copied.length + failed.length > 0 ? "other " : ""
+  const rest =
+    " The worktree has no " +
+    others +
+    "ignored files" +
+    (by === "default" ? ", such as installed dependencies or build output." : ".")
+  return pickedNone + had + missed + rest
 }
 
 /** Where a new branch came from when origin had one of its name, as `open_worktree` says it. */
@@ -1858,7 +1928,9 @@ const openWorktree: Tool<Worktree> = {
     answer.branch +
     originSaid(answer) +
     (answer.home === undefined ? "" : ", home " + answer.home) +
-    ". You own it. Work there with absolute paths and git -C " +
+    ". You own it." +
+    includedSaid(answer.included) +
+    " Work there with absolute paths and git -C " +
     answer.path +
     ", never cd and then git. " +
     (answer.instructions?.length
