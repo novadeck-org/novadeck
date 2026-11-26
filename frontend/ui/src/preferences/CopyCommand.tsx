@@ -58,7 +58,7 @@ export const CopyCommand = ({
       </span>
       {copy === "failed" && (
         <span className="settings-note text-caption">
-          Couldn't copy. Select it and copy it yourself.
+          Select it and copy it yourself.
         </span>
       )}
     </div>
