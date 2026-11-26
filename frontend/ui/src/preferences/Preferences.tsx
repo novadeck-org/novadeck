@@ -230,6 +230,7 @@ export const Preferences = ({
   agentMode,
   shippingGate,
   bundledPi,
+  murmurSwitch,
   tour = false,
   worktrees,
   forges,
@@ -295,6 +296,12 @@ export const Preferences = ({
   bundledPi?: {
     readonly enabled: boolean
     readonly fetch: BundledPiFetchState
+    readonly onChange: (enabled: boolean) => void
+  }
+  // Whether Murmur shows and may run, an Experimental feature the backend keeps; absent where it
+  // has no Murmur or no switch for it, as a runner from before it.
+  murmurSwitch?: {
+    readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
   // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
@@ -501,6 +508,16 @@ export const Preferences = ({
       note: bundledPi && bundledPiNote(bundledPi.enabled, bundledPi.fetch),
       // Switched on again, a failed download is tried again.
       retry: () => bundledPi?.onChange(true),
+    },
+    {
+      id: "murmur",
+      label: MURMUR_NAME,
+      description: `Name terminals with a small model that runs on this computer's graphics, over the agents' own titles. Adds ${MURMUR_NAME} to the Addons tab, to install from there. While off, nothing is named or downloaded, and an install stays on disk.`,
+      checked: murmurSwitch?.enabled ?? false,
+      onToggle: (enabled: boolean) => murmurSwitch?.onChange(enabled),
+      disabled: !murmurSwitch,
+      // Only where the backend has Murmur and a runner with its switch (revision 20).
+      hidden: !murmurSwitch,
     },
   ]
   const lastView = value.enabledViews.length === 1
@@ -1026,9 +1043,12 @@ export const Preferences = ({
                   portalContainer={dialog}
                 />
               </Section>
-              <Section title={MURMUR_NAME} description={murmurDescription}>
-                <MurmurAddon murmur={murmur} />
-              </Section>
+              {/* Not while Murmur's Experimental switch is off, nor where the backend has none. */}
+              {murmur && (
+                <Section title={MURMUR_NAME} description={murmurDescription}>
+                  <MurmurAddon murmur={murmur} />
+                </Section>
+              )}
             </TabPanel>
           )}
           <TabPanel value="shortcuts" className={panelClasses}>

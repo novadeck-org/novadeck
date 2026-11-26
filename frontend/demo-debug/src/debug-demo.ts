@@ -367,7 +367,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...launchGroups(launchCuesOf(inner), () => launch.rehearsals.rehearse({ reboot: true })),
           ...doorbellGroups(inner.messages),
           ...messageGroups(inner.messages),
-          ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
+          ...murmurGroups(
+            isDemoMurmur(inner.murmur) ? inner.murmur : undefined,
+            inner.murmurSwitch,
+          ),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
           ...historyGroups(inner.history),
           ...filesGroups(isDemoFiles(inner.files) ? inner.files : undefined),

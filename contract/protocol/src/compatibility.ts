@@ -49,7 +49,9 @@ export const compatibility: Compatibility = {
   // 18: a work's pull request says its target branch, its checks one by one and where its review
   // stands (`base`, `checks`, `review`), the checks' state and the review read tolerantly.
   // 19: the repositories of a project whose origin keeps failing to fetch (`works.origins`).
-  revision: 19,
+  // 20: Murmur behind an Experimental switch (settings' `murmur`, which a runner before it drops);
+  // a UI hides Murmur's offer and controls only where the runner's settings report it off.
+  revision: 20,
   oldestClient: 11,
   oldestRunner: 12,
 }

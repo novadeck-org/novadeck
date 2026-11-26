@@ -515,6 +515,13 @@ export const switchOffBundledPi = (bundledPi: Backend["bundledPi"]): void => {
   if (bundledPi?.enabled.getSnapshot()) bundledPi.set(false)
 }
 
+// Turns Murmur off where its Experimental switch is on, as the person turning Experimental off
+// does. Only then: unlike the others it is not switched off where the channel reads stable, as
+// the runner carries it on for those who had Murmur on or its files on disk.
+export const switchOffMurmur = (murmurSwitch: Backend["murmurSwitch"]): void => {
+  if (murmurSwitch?.enabled.getSnapshot()) murmurSwitch.set(false)
+}
+
 // The Experimental features a backend keeps as settings, which all go off with the switch.
 export type ExperimentalFeatures = Pick<
   Backend,

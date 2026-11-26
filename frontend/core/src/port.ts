@@ -474,6 +474,14 @@ export type BackendFields = {
   // Optional. Murmur: a model on the backend's machine writes titles for its terminals.
   // Absent where the backend cannot run one.
   readonly murmur?: Murmur
+  // Optional. Whether Murmur may run, an Experimental switch the runner keeps: while off, the
+  // backend names nothing with it, and the app shows none of Murmur (its offer, its Addons
+  // section, its footer chip). Absent where the backend has no such switch, as a runner from
+  // before it (revision 20), whose Murmur always shows.
+  readonly murmurSwitch?: {
+    readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
   // Optional. The Inbox: what the agents in every project wait on the person for, one
   // row per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's

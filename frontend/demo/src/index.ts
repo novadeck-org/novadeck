@@ -22,7 +22,12 @@ import { createStore } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
-import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
+import {
+  createDemoMurmur,
+  heldMurmurTiming,
+  requestedMurmur,
+  requestedMurmurSwitch,
+} from "./addons/murmur"
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
 import { addressParams } from "./address"
 import { createDemoChat } from "./agents/chat"
@@ -143,6 +148,8 @@ export const demoBackend = (
   const voice = createDemoVoice(held ? heldVoiceTiming : undefined, requestedVoice())
   // Installed unless the address asks otherwise (`&murmur=uninstalled`), as the try demo shows it.
   const murmur = createDemoMurmur(held ? heldMurmurTiming : undefined, requestedMurmur())
+  // Murmur is Experimental: off, as in the app, unless the address asks for it.
+  const murmurSwitch = createStore(requestedMurmurSwitch())
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const numbers = new Map(
@@ -207,6 +214,7 @@ export const demoBackend = (
       set: (enabled) => shippingGate.update(() => enabled),
     },
     bundledPi: createDemoBundledPi(),
+    murmurSwitch: { enabled: murmurSwitch, set: (enabled) => murmurSwitch.update(() => enabled) },
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {
@@ -277,6 +285,12 @@ const leadOf = (terminals: readonly { readonly id: string }[]): string | null =>
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
 export const withMessages = (backend: Backend, now: number): Backend => {
+  // Murmur names a terminal only while its Experimental switch is on, as with the runner.
+  const murmurOn = backend.murmurSwitch?.enabled.getSnapshot() ?? true
+  const namingOf = (slot: string) => {
+    const naming = namings[slot]
+    return naming && (naming.source.kind !== "murmur" || murmurOn) ? naming : undefined
+  }
   const seed: WorkspaceSeed = {
     ...backend.seed,
     projects: backend.seed.projects.map((project) => ({
@@ -288,8 +302,8 @@ export const withMessages = (backend: Backend, now: number): Backend => {
           handle: demoHandle(Number(terminalSlot(terminal.id))),
           // The agent that named the checkout review (moth, the session's first) leads it.
           ...(terminalSlot(terminal.id) === "04" ? { ledBy: leadOf(session.terminals) } : {}),
-          ...(namings[terminalSlot(terminal.id)]
-            ? { titleSource: namings[terminalSlot(terminal.id)]!.source }
+          ...(namingOf(terminalSlot(terminal.id))
+            ? { titleSource: namingOf(terminalSlot(terminal.id))!.source }
             : {}),
         })),
       })),
