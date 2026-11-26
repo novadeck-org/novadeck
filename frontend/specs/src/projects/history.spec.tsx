@@ -45,7 +45,7 @@ describe("The History panel", () => {
         .map((each) => each.getAttribute("aria-label"))
       expect(toggles.at(-1)).toBe("History")
       await expect.element(row("Coupon codes")).toBeVisible()
-      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 15$/ })).toBeVisible()
     })
 
     it("names a plain terminal's folder after its title, where a tab names its program", async () => {
@@ -70,7 +70,7 @@ describe("The History panel", () => {
       await find().fill("tax")
       await expect.element(row("Tax rounding")).toBeVisible()
       await expect.element(row("Coupon codes")).not.toBeInTheDocument()
-      await expect.element(page.getByRole("heading", { name: /^History 1\/14$/ })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 1\/15$/ })).toBeVisible()
     })
 
     it("finds a row by its handle, typed with its @", async () => {
@@ -118,7 +118,7 @@ describe("The History panel", () => {
       await expect.poll(() => item.getAttribute("data-selected")).toBe("true")
       await expect.element(row("Coupon codes")).toHaveAttribute("aria-current", "true")
       // No terminal came of it: the row is still listed, and so is every other.
-      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 15$/ })).toBeVisible()
       expect(document.body.textContent).toMatch(/6 terminals/)
       // Its Restore stays out while the pointer is elsewhere, as it is selected.
       await page.getByRole("heading", { name: /^History/ }).hover()
@@ -152,7 +152,7 @@ describe("The History panel", () => {
       // A click selects it, as any row, and restores nothing.
       await gone.click()
       await expect.element(gone).toHaveAttribute("aria-current", "true")
-      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 15$/ })).toBeVisible()
     })
 
     it("offers to connect a disconnected agent, reachable by keyboard, in Preferences", async () => {
@@ -217,7 +217,7 @@ describe("The History panel", () => {
       // The sidebar stays on History, and the row shows it is restoring, inert, until it goes.
       await expect.element(sidebarPanel("History")).toBeChecked()
       await expect.element(row("Coupon codes")).not.toBeInTheDocument()
-      await expect.element(page.getByRole("heading", { name: /^History 13$/ })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
     })
 
     it("lists the restored terminal at the top of the Terminals list", async () => {
@@ -238,7 +238,7 @@ describe("The History panel", () => {
       button.click()
       button.click()
       await expect.element(terminal("Coupon codes")).toBeVisible()
-      await expect.element(page.getByRole("heading", { name: /^History 13$/ })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 14$/ })).toBeVisible()
       // However long the runner takes, one terminal was made from the row.
       await sleep(300)
       // The footer counts six terminals and the one restored, not two.
