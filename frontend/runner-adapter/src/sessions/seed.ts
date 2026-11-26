@@ -88,6 +88,7 @@ export const runnerTerminal = (
     ...(summary.agentRan ? { agentRan: true } : {}),
     ...(summary.restorable ? { restorable: true } : {}),
     ...(summary.busy ? { busy: true } : {}),
+    ...(summary.nova ? { nova: true } : {}),
     titleSource: summary.titleSource,
   }
   if (!summary.started) {

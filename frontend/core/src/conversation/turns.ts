@@ -8,6 +8,7 @@ import type {
 } from "../conversation"
 import { harnesses } from "../harnesses"
 import type { AgentMessage, DeliveredNotice } from "../messages"
+import { agentNamed } from "../terminals/agent-look"
 import type { AgentStatus } from "../types"
 import { counted } from "../units"
 
@@ -709,9 +710,9 @@ export const turnStatus = (agent: AgentStatus | undefined): TurnStatus | null =>
   }
 }
 
-// An agent as its harness names it, as a person does.
-export const agentName = (agent: string | null): string =>
-  harnesses.find(({ id }) => id === agent)?.shortName ?? "The agent"
+// An agent as its harness names it, as a person does; Nova, where it is (`nova`).
+export const agentName = (agent: string | null, nova?: boolean): string =>
+  agentNamed(agent, nova) ?? "The agent"
 
 // Whether the agent's conversation records a shell command the person sends it, with its
 // output. An agent no harness names is taken to, so the chat says nothing of it.

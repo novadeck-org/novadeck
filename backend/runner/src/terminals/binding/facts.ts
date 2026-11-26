@@ -65,6 +65,8 @@ export type BindingsHost = {
   readonly cards?: (terminalId: string) => number
   /** How many of the shipping gate's permits stand in a terminal; none without the gate. */
   readonly permits?: (terminalId: string) => number
+  /** Whether the agent's session, by its transcript, is Novadeck's own pi's (Nova). */
+  readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (
     record: Record,
@@ -324,6 +326,8 @@ export class Bindings {
     record.transcript = transcript
     this.watch(record, transcript)
     this.settle(record, transcript)
+    // Nova's is told from the person's pi's by it, which a client shows by its name.
+    if (this.host.ownPi?.(binding.agent, transcript) === true) this.publishAgent(record, false)
     // No detail snapshot says so (it carries no transcript): a chat that waits on it asks
     // again by its own backoff, and at the next snapshot.
   }
@@ -737,6 +741,10 @@ export class Bindings {
     const cards = this.host.cards?.(record.summary.id) ?? 0
     const activity = bound ? withCards(activitySummary(bound.activity), cards) : null
     const permits = this.host.permits?.(record.summary.id) ?? 0
+    const nova =
+      bound !== null &&
+      bound !== undefined &&
+      this.host.ownPi?.(bound.binding.agent, record.transcript ?? undefined) === true
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
     // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended
@@ -756,6 +764,7 @@ export class Bindings {
       !moved &&
       summary.agentRan === agentRan &&
       summary.agent === agent &&
+      (summary.nova ?? false) === nova &&
       summary.ready === ready &&
       (summary.expecting ?? null) === expecting &&
       summary.startup === startup &&
@@ -765,11 +774,12 @@ export class Bindings {
       (summary.permits ?? 0) === permits
     )
       return
-    const { permits: _was, ...rest } = summary
+    const { permits: _was, nova: _nova, ...rest } = summary
     record.summary = {
       ...rest,
       agentRan,
       agent,
+      ...(nova && { nova }),
       ready,
       expecting,
       startup,

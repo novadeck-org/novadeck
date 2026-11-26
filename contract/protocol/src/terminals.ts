@@ -159,6 +159,9 @@ export const terminalSummary = z.strictObject({
   // The agent that reported a session in this shell since its last prompt, so a client
   // can name the program where the process alone cannot, as on Windows. Null otherwise.
   agent: agentNameRead.nullable(),
+  // True when that agent (or, for a sleeper, `restingAgent`) is Nova, Novadeck's own pi: still
+  // `pi` as an agent, but a client shows it as Nova. Absent otherwise, and from a runner before 22.
+  nova: z.boolean().optional(),
   // The agent whose own empty prompt shows there, with Novadeck's hooks running for it,
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.

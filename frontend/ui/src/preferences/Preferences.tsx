@@ -7,7 +7,7 @@ import { viewModes } from "@novadeck/core/state"
 import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog } from "@novadeck/toolkit/Dialog"
-import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
+import { NovaIcon } from "@novadeck/toolkit/icons/NovaIcon"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Select } from "@novadeck/toolkit/Select"
 import { Switch } from "@novadeck/toolkit/Switch"
@@ -872,7 +872,7 @@ export const Preferences = ({
     },
     {
       id: "bundled-pi",
-      icon: PiIcon,
+      icon: NovaIcon,
       page: "agents",
       onPage: true,
       label: bundledPiLabel,

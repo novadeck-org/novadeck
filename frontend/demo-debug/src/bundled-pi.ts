@@ -3,9 +3,9 @@ import { isDemoBundledPi } from "@novadeck/demo/bundled-pi"
 
 import type { DemoActionGroup } from "./types"
 
-const where = "Preferences > Experimental > Novadeck Agent (Pi built in)"
+const where = "Preferences > Experimental > Nova"
 
-// The states of Novadeck Agent's row, each put on the demo's at once (it needs the Experimental tab,
+// The states of Nova's row, each put on the demo's at once (it needs the Experimental tab,
 // which the experimental channel shows).
 export const bundledPiGroups = (
   backend: Pick<Backend, "bundledPi">,
@@ -15,7 +15,7 @@ export const bundledPiGroups = (
   return [
     {
       section: "App",
-      title: "Novadeck Agent",
+      title: "Nova",
       actions: [
         {
           label: "Off",

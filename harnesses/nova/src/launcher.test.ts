@@ -18,7 +18,7 @@ import {
 const run = promisify(execFile)
 
 // What the runner says while Novadeck's pi is switched off (backend/runner's harnesses/bundled-pi.ts).
-const turnOn = "Turn on Novadeck Agent in Preferences > Experimental."
+const turnOn = "Turn on Nova in Preferences > Experimental."
 
 // The fake pi prints its words, one a line, then what its environment says of Novadeck's pi.
 const fakePi = (platform: NodeJS.Platform): string =>

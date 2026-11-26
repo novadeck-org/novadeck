@@ -563,7 +563,7 @@ describe("workspace metadata API", () => {
     await settings.return?.(undefined)
   })
 
-  it("offers no Novadeck Agent switch where the runner has no shell files to start it from", async ({
+  it("offers no Nova switch where the runner has no shell files to start it from", async ({
     resources,
   }) => {
     const app = await fixture(resources)

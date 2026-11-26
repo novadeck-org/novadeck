@@ -73,7 +73,7 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "ids"> & {
 }
 // A closed terminal's icon: its agent's, or its last program's, or a plain terminal's.
 const historyIcon = (row: ClosedTerminal): React.JSX.Element => {
-  const Icon = programIcon(row.agent ?? row.program ?? "")
+  const Icon = programIcon(row.agent ?? row.program ?? "", row.nova)
   return <Icon size={14} strokeWidth={1.5} />
 }
 

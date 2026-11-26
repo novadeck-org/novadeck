@@ -344,7 +344,7 @@ describe("the Agents work as choice", () => {
   })
 })
 
-describe("the Novadeck Agent row", () => {
+describe("the Nova row", () => {
   const piSwitch = (): HTMLElement | null =>
     document.querySelector('[role="switch"][aria-labelledby="bundled-pi-label"]')
   const note = (): HTMLElement | null =>
@@ -366,9 +366,7 @@ describe("the Novadeck Agent row", () => {
         onChange: (enabled) => changes.push(enabled),
       },
     })
-    expect(document.getElementById("bundled-pi-label")?.textContent).toBe(
-      "Novadeck Agent (Pi built in)",
-    )
+    expect(document.getElementById("bundled-pi-label")?.textContent).toBe("Nova")
     expect(document.getElementById("bundled-pi-description")?.textContent).toContain("50–60 MB")
     expect(note()).toBeNull()
     piSwitch()?.click()

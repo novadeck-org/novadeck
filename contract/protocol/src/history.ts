@@ -22,7 +22,7 @@ export const closedTerminalState = z.discriminatedUnion("state", [
 
 // A terminal the person or an agent closed, kept for 7 days. Its `id` is the one the
 // terminal had; `agent` is the program's icon, null for a plain terminal, whose last
-// `program` stands in for it; `closedBy` is the handle of the agent that closed it, null
+// `program` stands in for it; `nova` when that agent is Nova; `closedBy` is the handle of the agent that closed it, null
 // when the person did.
 export const closedTerminal = z.strictObject({
   id,
@@ -31,6 +31,8 @@ export const closedTerminal = z.strictObject({
   summary: z.string().max(historyLimits.summary).nullable(),
   handle: handle.nullable(),
   agent: agentNameRead.nullable(),
+  // True when `agent` is Nova, Novadeck's own pi, which a client shows as Nova. Absent otherwise.
+  nova: z.boolean().optional(),
   program: z.string().max(historyLimits.program).nullable(),
   cwd: directory,
   closedAt: z.number(),

@@ -568,6 +568,7 @@ export class Sleepers {
     const reported = this.reported(row, delivered)
     return savedSummaryOf(row, {
       agent: resting.agent,
+      nova: this.host.claims().own(resting.agent, row.agents[resting.agent]?.transcript),
       waking: this.wakes.has(row.id),
       reported,
       lastTurnAt: this.lastTurnAt(row, resting, reported),

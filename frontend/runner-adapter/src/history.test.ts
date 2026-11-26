@@ -50,6 +50,18 @@ describe("History, as the runner reports it", () => {
     await vi.waitFor(() => expect(ids()).toEqual([id(3), id(2), id(1)]))
   })
 
+  it("keeps a row that says its agent is Nova", async () => {
+    const { stream, history } = followed()
+    stream.push({ type: "reset" })
+    stream.push({ type: "changed", closed: closed(1, { agent: "pi", nova: true }) })
+    stream.push({ type: "changed", closed: closed(2, { agent: "pi" }) })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(history.state.getSnapshot().rows).toHaveLength(2))
+    const [second, first] = history.state.getSnapshot().rows
+    expect(first).toMatchObject({ agent: "pi", nova: true })
+    expect(second).not.toHaveProperty("nova")
+  })
+
   it("follows later changes, and forgets what a new sequence doesn't report", async () => {
     const { history, stream, ids } = followed()
     stream.push({ type: "reset" })

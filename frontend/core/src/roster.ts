@@ -135,6 +135,7 @@ type TerminalFacts = Pick<
   | "agentRan"
   | "restorable"
   | "busy"
+  | "nova"
 >
 
 // What the backend says of a terminal now: its name or directory, its handle, and who
@@ -148,7 +149,7 @@ export const updateTerminal = (
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
   if (!current) return roster
   const { name, directory, handle, handleGivenAt, titleSource, ledBy, openedBy } = change
-  const { agentRan, restorable, busy } = change
+  const { agentRan, restorable, busy, nova } = change
   const facts: Partial<TerminalFacts> = {
     ...(name !== undefined && name !== current.name && { name }),
     ...(directory !== undefined && directory !== current.directory && { directory }),
@@ -162,6 +163,7 @@ export const updateTerminal = (
     ...(agentRan !== undefined && agentRan !== (current.agentRan ?? false) && { agentRan }),
     ...(restorable !== undefined && restorable !== (current.restorable ?? false) && { restorable }),
     ...(busy !== undefined && busy !== (current.busy ?? false) && { busy }),
+    ...(nova !== undefined && nova !== (current.nova ?? false) && { nova }),
   }
   if (!Object.keys(facts).length) return roster
   return {
@@ -366,6 +368,7 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     ...(terminal.agentRan ? { agentRan: terminal.agentRan } : {}),
     ...(terminal.restorable ? { restorable: true } : {}),
     ...(terminal.busy ? { busy: true } : {}),
+    ...(terminal.nova ? { nova: true } : {}),
     ...(terminal.titleSource ? { titleSource: terminal.titleSource } : {}),
     ...statusFields(status),
   }

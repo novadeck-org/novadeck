@@ -78,6 +78,14 @@ const setProcess = (key: TerminalKey, process: string): BackendAction => ({
   process,
 })
 
+// Whether the agent there is Nova, as the runner's summary says.
+const setNova = (key: TerminalKey, nova: boolean): BackendAction => ({
+  type: "terminal/update",
+  target: sessionTarget(key),
+  terminalId: key.terminalId,
+  nova,
+})
+
 // A name the person gave it.
 export const rename = (key: TerminalKey, name: string): BackendAction => ({
   type: "terminal/update",
@@ -180,6 +188,15 @@ const agentSays = (key: TerminalKey, agent: AgentStatus): BackendAction[] => [
 // An agent started at the prompt, resting.
 export const runAgent = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
+  setNova(key, false),
+  ...agentSays(key, resting),
+]
+
+// Nova, Novadeck's own pi, started at the prompt, resting: the agent is `pi`, and the runner says
+// it is Nova's, so the tab, window and rows show its name and Novadeck's mark in place of Pi's.
+export const runNova = (key: TerminalKey): BackendAction[] => [
+  setProcess(key, "pi"),
+  setNova(key, true),
   ...agentSays(key, resting),
 ]
 
@@ -248,6 +265,7 @@ export const mcpAsk = (
 // An agent the terminal's program is, which Novadeck hears nothing from.
 export const unheardAgent = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
+  setNova(key, false),
   setStatus(key, { state: "running" }),
 ]
 

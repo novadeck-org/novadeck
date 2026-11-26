@@ -260,7 +260,7 @@ describe("Novadeck's pi behind its Experimental switch", () => {
     pi.switched()
     await expect(pi.fetch("pi", () => {})).rejects.toThrow(turnOnLine)
     await expect(fetchBundledPi({ data, ...linux, ...release, enabled: false })).rejects.toThrow(
-      "Turn on Novadeck Agent in Preferences > Experimental.",
+      "Turn on Nova in Preferences > Experimental.",
     )
 
     expect(pi.state()).toEqual({ state: "off" })

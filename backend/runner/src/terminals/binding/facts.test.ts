@@ -881,3 +881,60 @@ describe("the agent a terminal starts, in its summary", () => {
     expect(bound.summary.expecting).toBeNull()
   })
 })
+
+describe("Nova, Novadeck's own pi, in the summary", () => {
+  const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+  const theirs = "/home/p/.pi/agent/sessions/--t--/1_two.jsonl"
+
+  /** A terminal with a pi session bound, as `transcript` names it, and bindings that tell Nova's. */
+  const piOf = (transcript: string | null) => {
+    const announce = vi.fn<(record: Record) => void>()
+    const host = {
+      messaging: () => ({ shownAgent: () => undefined, deliveredAt: () => new Map() }),
+      turns: () => ({ inbox: noReports, redactor: undefined }),
+      typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
+      rebound: () => {},
+      companion: () => ({ shelled: () => {} }),
+      looked: () => {},
+      announce,
+      detailed: () => {},
+      ownPi: (agent: AgentName, path: string | undefined) => agent === "pi" && path === own,
+    } as unknown as BindingsHost
+    const bound = record({ agentRan: true })
+    bound.bound = {
+      binding: { agent: "pi", sessionId: "one", instance: "1" },
+      activity: started(0),
+      telemetry: null,
+    } as Record["bound"]
+    bound.transcript = transcript
+    return { ends: new Bindings(host), bound, announce }
+  }
+
+  it("is set for a pi session under Nova's own folder, and not for the person's pi", () => {
+    const nova = piOf(own)
+    nova.ends.publishAgent(nova.bound, false)
+    expect(nova.bound.summary).toMatchObject({ agent: "pi", nova: true })
+    const person = piOf(theirs)
+    person.ends.publishAgent(person.bound, false)
+    expect(person.bound.summary.agent).toBe("pi")
+    expect(person.bound.summary.nova).toBeUndefined()
+  })
+
+  it("is announced once the transcript that tells it is known", () => {
+    const { ends, bound, announce } = piOf(null)
+    ends.publishAgent(bound, false)
+    expect(bound.summary.nova).toBeUndefined()
+    bound.transcript = null
+    ends.learnTranscript(bound, "one", own)
+    expect(bound.summary.nova).toBe(true)
+    expect(announce).toHaveBeenCalledTimes(2)
+  })
+
+  it("goes when the agent leaves", () => {
+    const { ends, bound } = piOf(own)
+    ends.publishAgent(bound, false)
+    expect(bound.summary.nova).toBe(true)
+    ends.endBinding(bound)
+    expect(bound.summary.nova).toBeUndefined()
+  })
+})

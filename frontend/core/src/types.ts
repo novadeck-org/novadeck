@@ -270,6 +270,9 @@ export type TerminalMetadata = {
   openedBy?: string | null
   // Whether an agent has run in it since it opened, running now or since exited.
   agentRan?: boolean
+  // Whether its agent (or the one resting there) is Nova, Novadeck's own pi: still the agent
+  // `pi`, shown as Nova. Absent reads as false, as for a runner before it says (see `agentLook`).
+  nova?: boolean
   // Whether closing it can be undone from History: the backend can bring it back as it
   // is. Absent reads as false, and where the backend says nothing of History.
   restorable?: boolean

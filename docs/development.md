@@ -288,7 +288,9 @@ Terminals:
   in sight in Grid and Canvas, wakes by itself: waking, then its agent resting; one the panel set,
   from here or the gallery, stays asleep), waking (that agent on its way back), loading
   output, another window holding its keyboard (idle, or typing so a key shows the strip's busy
-  form; see "Observing a terminal another client controls"), back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
+  form; see "Observing a terminal another client controls"), back at the prompt, running a long program, Claude Code, Codex, Antigravity or Nova (a pi the
+  runner says is Novadeck's own: its tab, window header, chat and avatar say Nova with Novadeck's mark, and
+  the footer's pi account leaves it out; any other agent there makes it the person's again), a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
@@ -300,7 +302,7 @@ Terminals:
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
   planning, subagents, asking, waiting, paused at its limit (resetting soon, or in 8 days) or at a model's own (weekly Fable), waiting on a wake-up due in minutes or in 7 days, asleep (plain, done, asking),
-  waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
+  waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent), but for "Nova", which is always a pi. "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
   an agent that works on with a question open. You stay on one that needs permission, and the
@@ -975,8 +977,8 @@ App:
   name line ends in "#812" tinted by its state (its page opens from the row's actions under the
   pointer), and the work's changes item (in the showcase, select its row) has
   a "#812" chip in its row, which opens the page in the browser.
-- **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
-  Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",
+- **Nova:** the App section's group for Novadeck's own pi (Preferences > Experimental >
+  Nova, which needs the experimental channel). "Off", "Starting",
   "Downloading, size unknown", "Downloading", "Ready" and "Failed" put the row in that state
   without a reboot: the note under its description reads "Starting the download…", "Downloading
   pi…", the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in

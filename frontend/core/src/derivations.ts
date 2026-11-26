@@ -86,6 +86,7 @@ const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
                 handle: each.handle,
                 ...(each.handleGivenAt ? { handleGivenAt: each.handleGivenAt } : {}),
                 program: each.state === "running" ? each.process : undefined,
+                ...(each.state === "running" && each.nova ? { nova: true as const } : {}),
                 live: critterLive(each),
               },
             ],

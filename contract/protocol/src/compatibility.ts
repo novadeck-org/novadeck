@@ -54,7 +54,9 @@ export const compatibility: Compatibility = {
   // 21: the tour runs on Novadeck's own pi (`tour.fetch` downloads it ahead, and settings'
   // `bundledPiFetch` says where that download stands while its switch is off too); a UI offers
   // the tour only to a runner at 21, as one before it runs the tour on opencode.
-  revision: 21,
+  // 22: a terminal and a closed terminal say when their agent is Nova, Novadeck's own pi (`nova`),
+  // which a UI before it shows as Pi.
+  revision: 22,
   oldestClient: 11,
   oldestRunner: 12,
 }
