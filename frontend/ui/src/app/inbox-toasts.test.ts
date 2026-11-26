@@ -61,7 +61,7 @@ const setup = (items: InboxEntry[] = [], pings = true) => {
           terminal: "t9",
           panel: "terminals",
           dialog: null,
-          section: "general",
+          section: "notifications",
         },
         dialogDepth: 0,
         navigationType: "POP",

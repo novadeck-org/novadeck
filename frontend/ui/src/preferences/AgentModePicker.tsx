@@ -1,6 +1,6 @@
 import type { AgentMode } from "@novadeck/core/port"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import { agentModeChoice, agentModeChoices } from "./agent-mode-choices"
 import { AgentModeMap } from "./AgentModeMap"
@@ -11,23 +11,29 @@ const items = agentModeChoices.map(({ mode, label }) => ({ value: mode, label })
 // "Agents work as": the modes by name in a switch, as Appearance's Mode is, and under it the
 // picked mode's map beside what it's for, what agents then do and what it costs. Once the
 // person changes it, a line says when running agents follow it.
+// `badge` stands beside its name, as Experimental's mark does while the picker is one.
 export const AgentModePicker = ({
   mode,
   onChange,
+  badge,
 }: {
   readonly mode: AgentMode
   readonly onChange: (mode: AgentMode) => void
+  readonly badge?: ReactNode
 }): React.JSX.Element => {
   const [first] = useState(mode)
   const choice = agentModeChoice(mode)
   return (
     <>
-      <div className={`agent-mode-preferences mt-2.5 ${settingsCardClasses}`}>
+      <div className={`agent-mode-preferences @container ${settingsCardClasses}`}>
         <fieldset
           className={`preference-row ${settingRowClasses} m-0 min-w-0 max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2.5`}
           aria-labelledby="agent-mode-label"
         >
-          <span id="agent-mode-label">Agents work as</span>
+          <span className="flex items-center gap-2">
+            <span id="agent-mode-label">Agents work as</span>
+            {badge}
+          </span>
           <SegmentGroup
             label="Agents work as"
             items={items}
@@ -41,10 +47,16 @@ export const AgentModePicker = ({
             indicatorClassName="absolute"
           />
         </fieldset>
-        <div className="settings-row @container/agent-mode-map grid grid-cols-[272px_minmax(0,1fr)] items-center gap-5 px-4 py-3.5 max-[480px]:grid-cols-1 max-[480px]:justify-items-center">
+        {/* The map stacks over its words where the card is too narrow for both side by side, as
+            beside a menu in a small window; search passes it by (data-search-skip): it is no
+            setting of its own. */}
+        <div
+          className="settings-row @container/agent-mode-map grid grid-cols-[272px_minmax(0,1fr)] items-center gap-5 px-4 py-3.5 @max-[560px]:grid-cols-1 @max-[560px]:justify-items-center"
+          data-search-skip=""
+        >
           <AgentModeMap mode={choice.mode} label={choice.map} />
           <div
-            className="flex min-w-0 flex-col gap-2 text-body max-[480px]:justify-self-stretch"
+            className="flex min-w-0 flex-col gap-2 text-body @max-[560px]:justify-self-stretch"
             aria-live="polite"
           >
             <p className="m-0">{choice.lead}</p>

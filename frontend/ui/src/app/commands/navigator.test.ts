@@ -60,11 +60,11 @@ describe("workspace navigator", () => {
   context("when opening dialogs", () => {
     it("counts the entries each dialog adds above the background", () => {
       const { navigator, calls, location } = open()
-      navigator.go({ dialog: "preferences", section: "general" })
+      navigator.go({ dialog: "preferences", section: "notifications" })
       expect(location().dialogDepth).toBe(1)
       navigator.go({ section: "shortcuts" })
       expect(location().dialogDepth).toBe(2)
-      navigator.go({ section: "general" }, true)
+      navigator.go({ section: "notifications" }, true)
       expect(location().dialogDepth).toBe(2)
       expect(calls.map(({ options }) => options?.state)).toEqual([
         { dialogDepth: 1 },

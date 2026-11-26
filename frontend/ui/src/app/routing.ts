@@ -17,7 +17,7 @@ import {
 } from "@novadeck/core/types"
 import { matchPath } from "react-router"
 
-import { preferencesTabs, type PreferencesTab } from "../preferences/settings"
+import { fallbackTab, preferencesTabOf, type PreferencesTab } from "../preferences/settings"
 
 export type WorkspaceRoute = {
   projectId: string
@@ -26,8 +26,8 @@ export type WorkspaceRoute = {
   terminal: string
   panel: SidebarPanel
   dialog: "search" | "preferences" | null
-  // The Preferences tab the URL names; null where it names none, and Preferences opens Agents
-  // where it has the tab, else General.
+  // The Preferences page the URL names; null where it names none, and Preferences opens Agents
+  // where it has the page, else Appearance.
   section: PreferencesTab | null
 }
 
@@ -57,10 +57,10 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
   section: null,
 })
 
-// The Preferences tab a URL names: none where it names none, General where the name is
-// not a tab's.
+// The Preferences page a URL names: none where it names none, a former page's successor, and
+// Appearance where the name was never a page's.
 const sectionOf = (name: string | null): PreferencesTab | null =>
-  name === null ? null : (preferencesTabs.find(({ id }) => id === name)?.id ?? "general")
+  name === null ? null : (preferencesTabOf(name) ?? fallbackTab)
 
 // Whether the app shows the Files panel: where the backend has the project's files to show.
 export const filesShown = (backend: Pick<Backend, "files">): boolean => backend.files !== undefined

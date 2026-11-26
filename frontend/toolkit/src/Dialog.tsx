@@ -21,6 +21,9 @@ export type DialogProps = {
   readonly closeOnInteractOutside?: boolean
   // False for a dialog only its own button closes.
   readonly closeOnEscape?: boolean
+  // Called on Escape before the dialog closes; preventing its default keeps the dialog open, as
+  // for Escape taking something away inside it first.
+  readonly onEscapeKeyDown?: (event: KeyboardEvent) => void
 }
 
 // Parts that name and describe a dialog; Ark wires their ids.
@@ -43,12 +46,14 @@ export const Dialog = ({
   role = "dialog",
   closeOnInteractOutside,
   closeOnEscape,
+  onEscapeKeyDown,
 }: DialogProps): React.JSX.Element => (
   <ArkDialog.Root
     open={open}
     role={role}
     {...(closeOnInteractOutside === undefined ? {} : { closeOnInteractOutside })}
     {...(closeOnEscape === undefined ? {} : { closeOnEscape })}
+    {...(onEscapeKeyDown === undefined ? {} : { onEscapeKeyDown })}
     onOpenChange={(details) => onOpenChange(details.open)}
     aria-label={label}
     onExitComplete={onExitComplete}

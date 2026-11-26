@@ -230,7 +230,7 @@ describe("The Inbox's toasts", () => {
     it("rings no toast, and no OS notice", async () => {
       await open()
       await page.getByRole("button", { name: "Workspace preferences" }).click()
-      await preferencesDialog().getByRole("tab", { name: "General" }).click()
+      await preferencesDialog().getByRole("tab", { name: "Notifications" }).click()
       const toggle = preferencesDialog().getByRole("switch", {
         name: "Notify when an agent needs you",
       })

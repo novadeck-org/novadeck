@@ -59,7 +59,14 @@ describe("The tour", () => {
     await openPreferencesOn("Experimental")
     const tourSwitch = preferencesDialog().getByRole("switch", { name: "Onboarding tour" })
     await expect.element(tourSwitch).toBeDisabled()
-    await expect.element(preferencesDialog().getByText("Not available here.").first()).toBeVisible()
+    await expect
+      .element(
+        preferencesDialog()
+          .getByRole("tabpanel", { name: "Experimental" })
+          .getByText("Not available here.")
+          .first(),
+      )
+      .toBeVisible()
     await closePreferences()
     await expect.element(page.getByRole("button", { name: "Feedback", exact: true })).toBeVisible()
     expect(helpButton().query()).toBeNull()

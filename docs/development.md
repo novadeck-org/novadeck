@@ -922,7 +922,7 @@ App:
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
 - **Screen reader:** boot as a desktop app that says a screen reader runs, or that none does, for
-  Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
+  Preferences > Terminal's Screen reader support on Automatic: the terminal in focus keeps a
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
 - **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
@@ -1392,9 +1392,10 @@ so links work with the packaged `file://` UI and static hosting. For example:
 
 The path selects a project, workspace session, and view. Query parameters select
 the terminal, sidebar panel, and dialog (`dialog=search` or `dialog=preferences`);
-Preferences also takes `section=` a tab's id (`agents`, `appearance`, `general`, `addons`,
-`shortcuts`, `about`, `experimental`); an unknown name, or a tab the backend has none of, opens
-General. With no `section=`, it opens Agents where the backend has that tab, else General. Back and Forward restore navigation
+Preferences also takes `section=` a page's id (`agents`, `appearance`, `terminal`,
+`notifications`, `addons`, `shortcuts`, `about`, `experimental`); the former `general` opens
+Notifications, and an unknown name, or a page the backend has none of, opens Appearance. With no
+`section=`, it opens Agents where the backend has that page, else Appearance. Back and Forward restore navigation
 without discarding terminal drafts or output. Sidebar visibility, search text,
 canvas gestures, and other temporary controls stay out of the URL.
 

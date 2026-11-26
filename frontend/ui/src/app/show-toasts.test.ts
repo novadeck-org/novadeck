@@ -24,7 +24,7 @@ const setup = () => {
           terminal: "01",
           panel: "terminals",
           dialog: null,
-          section: "general",
+          section: "notifications",
         },
         dialogDepth: 0,
         navigationType: "POP",
