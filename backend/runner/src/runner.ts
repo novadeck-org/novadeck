@@ -567,11 +567,14 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),
+      // Through a promise, as the store refuses a missing project at once.
       remove: (id) =>
-        projects.remove(id).catch((error: unknown) => {
-          // Removed meanwhile, as from another window.
-          if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error
-        }),
+        Promise.resolve()
+          .then(() => projects.remove(id))
+          .catch((error: unknown) => {
+            // Removed meanwhile, as from another window.
+            if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error
+          }),
     },
     notice: (terminalId, text) => terminals.messaging.notice(terminalId, text, { always: true }),
     cwdOf: (terminalId) => terminals.get(terminalId).cwd,

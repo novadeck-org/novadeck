@@ -2524,7 +2524,7 @@ one from an earlier runner.
   `BufferGeometryUtils.js`, `SkeletonUtils.js` with its license). The seed's `.gitignore` keeps
   `vendor/` out of the sandbox's git, so worktrees don't carry it and agents' searches skip it
   (the project's note tells agents never to read it). The runner reads the files in one place
-  (`seedFiles`, `tour/seed.ts`): from the repository (`assets/tour/seed` and the packages'
+  (`seedFiles`, `tour/seed.ts`): from the repository (`assets/seed` and the packages'
   folders in `node_modules`) in development, tests and a standalone runner, and from the folders
   `RunnerOptions.tour` names (`TourAssets`: `seed`, `phaser`, `three`) where given. The packaged
   desktop app ships them as `extraResources` (`tour/seed`, and each library's few files in its

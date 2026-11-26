@@ -76,6 +76,7 @@ export const allSystemsFolders = [
   ".github/actions/e2e-harness-cache/",
   "backend/relay/",
   "backend/runner/",
+  "backend/tour/",
   "harnesses/",
   "libraries/emulator/",
   "libraries/sandbox/",

@@ -53,9 +53,15 @@ export const findProgram: FindProgram = (name, { env, extensions }) => {
   return undefined
 }
 
+// The variables that would send git elsewhere or change what it prints, which the runner's
+// git leaves out of the person's environment (its `gitEnv`).
+const redirecting =
+  /^GIT_(DIR|WORK_TREE|INDEX_FILE|INDEX_VERSION|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|NAMESPACE|PREFIX|CONFIG.*|EXTERNAL_DIFF|DIFF_OPTS|PAGER|EDITOR|SEQUENCE_EDITOR|.*_PATHSPECS|REPLACE_REF_BASE|NO_REPLACE_OBJECTS|SHALLOW_FILE|GRAFT_FILE|ATTR_SOURCE|TRACE.*)$/
+
 /**
- * Git as the runner runs it for the tour: in `cwd`, found on the PATH the process has now,
- * pathspecs taken literally, and its output kept up to `cap` within `ms`.
+ * Git as the runner runs it for the tour: in `cwd`, found on the PATH the process has now, in
+ * the process's environment without what would redirect it, no prompts or optional locks, in
+ * English, its monitor off and pathspecs taken literally, its output kept up to `cap` within `ms`.
  */
 export const git: Git = (cwd, args, { cap, ms }) =>
   new Promise((done) => {
@@ -63,10 +69,20 @@ export const git: Git = (cwd, args, { cap, ms }) =>
     if (program === undefined) return done({ ok: false, kind: "no-git", said: "" })
     execFile(
       program,
-      ["-c", "core.quotepath=off", ...args],
+      ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false", ...args],
       {
         cwd,
-        env: { ...process.env, GIT_LITERAL_PATHSPECS: "1" },
+        env: {
+          ...Object.fromEntries(
+            Object.entries(process.env).filter(([name]) => !redirecting.test(name.toUpperCase())),
+          ),
+          GIT_OPTIONAL_LOCKS: "0",
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_NO_LAZY_FETCH: "1",
+          LC_ALL: "C",
+          LANGUAGE: "C",
+          GIT_LITERAL_PATHSPECS: "1",
+        },
         maxBuffer: cap,
         timeout: ms,
         windowsHide: true,
