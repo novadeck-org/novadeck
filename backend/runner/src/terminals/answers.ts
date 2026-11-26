@@ -449,7 +449,7 @@ export class Answers {
         if (this.host.working(terminalId))
           throw new DomainError(
             "CONFLICT",
-            "The agent's turn is still running, so its dialog takes key presses, not a prompt.",
+            "The agent's turn is still running. Try again once it ends.",
           )
         words = read.prompt(given)
         if (words === undefined)
@@ -467,7 +467,7 @@ export class Answers {
           if (chat === null)
             throw new DomainError("CONFLICT", "The dialog can't be set aside to talk it over.")
           if (chat === "field" && given.text === undefined)
-            throw new DomainError("CONFLICT", "Add some words to talk it over there.")
+            throw new DomainError("CONFLICT", "Type a reply to chat about this.")
           if (chat === "prompt") words = given.text
         }
         const steps = read.keys(given)
@@ -479,7 +479,10 @@ export class Answers {
           this.readMs * (held ? 2 : 1) + this.answeredMs + this.settleMs + 5_000,
         )
         if (needs > this.holdMs)
-          throw new DomainError("CONFLICT", "That answer takes too long to enter.")
+          throw new DomainError(
+            "CONFLICT",
+            "That answer takes too long to type in. Answer it in the terminal.",
+          )
         if (given.type === "choice" && read.dialog.type === "choices") {
           const { option } = given
           words =

@@ -28,9 +28,9 @@ describe("the Novadeck Agent row's note", () => {
     expect(
       bundledPiNote(true, {
         state: "failed",
-        error: "Could not reach github.com. Check the connection.",
+        error: "Couldn't reach github.com. Check your connection.",
       }),
-    ).toEqual({ text: "Could not reach github.com. Check the connection.", error: true })
+    ).toEqual({ text: "Couldn't reach github.com. Check your connection.", error: true })
     expect(bundledPiNote(true, { state: "failed" })).toEqual({
       text: "The download failed.",
       error: true,

@@ -40,7 +40,7 @@ const installedState: MurmurState = {
 }
 
 const softwareSample = {
-  reason: "This computer reports only software rendering; no graphics hardware answered.",
+  reason: "This computer reports only software rendering. Murmur needs graphics hardware.",
   source: "app",
 } as const
 

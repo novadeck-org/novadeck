@@ -98,7 +98,7 @@ describe("Preferences' Uninstall Novadeck", () => {
         await dialog().getByRole("button", { name: "Uninstall", exact: true }).click()
         await expect
           .poll(() => dialog().getByRole("alert").element().textContent, slow)
-          .toMatch(/quit it and open it again\.$/)
+          .toMatch(/Quit Novadeck and open it again\.$/)
       }
       await retry()
       await retry()

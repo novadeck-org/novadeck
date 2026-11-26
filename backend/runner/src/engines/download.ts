@@ -65,7 +65,7 @@ export const download = async (options: {
       { signal },
     )
     if (hash.digest("hex") !== options.sha256)
-      throw new DownloadError("The download is damaged: its checksum doesn't match. Try again.")
+      throw new DownloadError("The download is damaged: its checksum doesn't match.")
     await rename(part, to)
   } catch (error) {
     await rm(part, { force: true })

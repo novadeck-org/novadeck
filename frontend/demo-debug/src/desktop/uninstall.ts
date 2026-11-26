@@ -23,7 +23,7 @@ export const sampleLeftover = "sudo rm /etc/apparmor.d/novadeck"
 // The reason the app gives once it has stopped the terminals: ending in its advice, and
 // the same on every retry.
 export const stoppedReason =
-  "Novadeck couldn't remove its files: permission denied. Novadeck has stopped your terminals. Quit it and open it again."
+  "Novadeck couldn't remove its files: permission denied. Novadeck stopped your terminals. Quit Novadeck and open it again."
 
 // What macOS says when it won't let the app move itself to the Trash.
 export const trashReason =
@@ -145,7 +145,7 @@ export const uninstallGroup = (launch: DemoLaunch): DemoActionGroup => {
       },
       {
         label: "Fails after terminals ended",
-        hint: "Reason ends in Quit it and open it again; every retry fails the same",
+        hint: "Reason ends in Quit Novadeck and open it again; every retry fails the same",
         reboots: true,
         run: boot("stopped"),
       },

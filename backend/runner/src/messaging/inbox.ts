@@ -889,7 +889,7 @@ export class Inbox {
       entry.content.kind !== "ask" ||
       !same(entry, this.host.owner(entry.terminalId))
     )
-      throw new DomainError("CONFLICT", "This entry is no longer waiting in that agent's session.")
+      throw new DomainError("CONFLICT", "Its agent is no longer waiting on this entry.")
     const parsed = askAnswer.safeParse(input)
     if (!parsed.success)
       throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this entry.")

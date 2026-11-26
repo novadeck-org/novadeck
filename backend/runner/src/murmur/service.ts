@@ -113,7 +113,8 @@ class Unusable extends EngineError {}
 
 const switchedOff = "Turn on Murmur in Preferences > Experimental."
 
-const softwareOnly = "This computer reports only software rendering. No graphics hardware answered."
+const softwareOnly =
+  "This computer reports only software rendering. Murmur needs graphics hardware."
 
 const linuxHint =
   process.platform === "linux" ? " On Linux, check that a Vulkan driver is installed." : ""

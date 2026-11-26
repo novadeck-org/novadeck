@@ -220,7 +220,7 @@ const failed = (reason: string): UninstallResult => ({ kind: "failed", reason })
 const reasonOf = (error: unknown, general: string): string =>
   (error instanceof Error ? reasonText(error.message) : "") || general
 
-const stoppedAdvice = "Novadeck has stopped your terminals. Quit it and open it again."
+const stoppedAdvice = "Novadeck stopped your terminals. Quit Novadeck and open it again."
 
 const macTrashReason =
   "Novadeck could not be moved to the Trash. Allow it in System Settings > Privacy & Security > App Management, and try again."
@@ -355,7 +355,7 @@ export const uninstaller = (host: UninstallHost): Uninstaller => {
     if (!isTarget(target)) return failed("Novadeck can't be uninstalled from this copy.")
     const options = { platform: host.platform, home: host.home }
     if (!pathsOf(target, keepData).every((path) => isRemovable(path, options)))
-      return failed("Novadeck isn't where it should be, so nothing was removed.")
+      return failed("Novadeck isn't in a folder it knows how to remove, so nothing was removed.")
     if (host.stopping()) return failed("Novadeck is quitting.")
     if (target.kind === "mac") {
       const refused = await macTrash(target)
