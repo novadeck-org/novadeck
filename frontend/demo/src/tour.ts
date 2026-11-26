@@ -9,13 +9,14 @@ import {
   type Item,
   type ItemContent,
 } from "@novadeck/core/items"
-import type { AgentConnection, Approval, Backend, Tour, TerminalKey } from "@novadeck/core/port"
+import type { Approval, Backend, BundledPiFetchState, Tour, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import type { CompanionWindowMeta, Workspace } from "@novadeck/core/types"
 import type { WorkPreview } from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
+import { createDemoBundledPi } from "./bundled-pi"
 import { listEntries } from "./files"
 import { isDemoInbox, type DemoInbox } from "./inbox"
 import { createDemoMessages, isDemoMessages, type DemoMessages } from "./messages"
@@ -135,12 +136,14 @@ export type DemoTour = Tour & {
   readonly goQuiet: (quiet?: boolean) => void
   // Answers the screen an agent waits at.
   readonly answer: () => void
-  // Follows another set of connected agents and workspace: the debug demo's, which runs the
-  // tour on the panel's agents and reuses the inner demo's tour (and so its player).
-  readonly follow: (
-    agents: Store<readonly AgentConnection[]>,
-    workspace: () => Workspace | undefined,
-  ) => void
+  // Follows another workspace: the debug demo's, which reuses the inner demo's tour (and so
+  // its player).
+  readonly follow: (workspace: () => Workspace | undefined) => void
+  // Puts Novadeck's pi, the tour's agent, in any state at once, as the debug panel asks.
+  readonly showAgent: (state: BundledPiFetchState) => void
+  // Pi isn't in place as the demo opens, as `&tourPi=` asks: `download` plays a download once the
+  // tour is asked for, `fails` has the first one fail (its retry plays the download).
+  readonly startWithout: (how: "download" | "fails") => void
   // What a spec asks of the address: `patienceMs` is what the UI waits before nudging, and
   // `screenMs` answers a held screen on its own after that long.
   readonly configure: (options: { patienceMs?: number; screenMs?: number; story?: boolean }) => void
@@ -197,11 +200,41 @@ export const isDemoTour = (tour: Tour | undefined): tour is DemoTour =>
 
 // The demo's tour: readies a run as the runner does, with nothing to empty, answering the
 // projects open at its folder as removed (the UI removes them from the workspace).
-export const demoTour = (
-  initialAgents: Store<readonly AgentConnection[]>,
-  initialWorkspace: () => Workspace | undefined,
-): DemoTour => {
-  let agents = initialAgents
+export const demoTour = (initialWorkspace: () => Workspace | undefined): DemoTour => {
+  // Novadeck's pi, in place unless a spec or the panel says otherwise; a download plays as
+  // the runner's does, and `prepare` waits for it.
+  const pi = createDemoBundledPi()
+  pi.show(true, { state: "ready" })
+  let firstFails = false
+  const download = (): Promise<void> => {
+    const { state } = pi.fetch.getSnapshot()
+    if (state === "ready" || state === "downloading") return Promise.resolve()
+    if (firstFails) {
+      firstFails = false
+      pi.show(true, { state: "downloading", received: 19_000_000, size: 58_977_130 })
+      setTimeout(
+        () =>
+          pi.show(true, {
+            state: "failed",
+            error: "Could not reach github.com. Check the connection.",
+          }),
+        400,
+      )
+    } else pi.set(true)
+    return Promise.resolve()
+  }
+  const inPlace = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const check = (): void => {
+        const found = pi.fetch.getSnapshot()
+        if (found.state !== "ready" && found.state !== "failed") return
+        stop()
+        if (found.state === "ready") resolve()
+        else reject(new Error(found.error ?? "Pi's download failed."))
+      }
+      const stop = pi.fetch.subscribe(check)
+      check()
+    })
   let workspace = initialWorkspace
   let failing: "folder" | "tickets" | undefined
   let keepFails = false
@@ -235,9 +268,15 @@ export const demoTour = (
     answer: () => {
       events.forEach((each) => each("answer"))
     },
-    follow: (nextAgents, nextWorkspace) => {
-      agents = nextAgents
+    follow: (nextWorkspace) => {
       workspace = nextWorkspace
+    },
+    agent: pi.fetch,
+    fetch: download,
+    showAgent: (state) => pi.show(true, state),
+    startWithout: (how) => {
+      firstFails = how === "fails"
+      pi.show(true, { state: "off" })
     },
     story: () => story,
     askPermission: (ask = true) => {
@@ -301,16 +340,14 @@ export const demoTour = (
       failing = undefined
       const { demoRun, demoRefusal } = await loadRuns()
       if (fails) throw demoRefusal(fails)
-      const connected = agents
-        .getSnapshot()
-        .some((each) => each.agent === "opencode" && each.connected)
-      if (!connected)
-        throw new Error("Novadeck isn't connected to OpenCode, so the tour can't start.")
+      // As the runner's does, it waits for Pi to be in place, and says why where it isn't.
+      if (pi.fetch.getSnapshot().state === "off") void download()
+      await inPlace()
       const removed = (workspace()?.projects ?? [])
         .filter((project) => project.directory === demoTourFolder)
         .map((project) => project.id)
       return {
-        ...demoRun("opencode"),
+        ...demoRun("pi"),
         directory: demoTourFolder,
         removed,
         page: plan.noPage !== true,
@@ -337,7 +374,12 @@ export const demoTour = (
 // The harness a tour terminal's command starts, which names its agent.
 export const tourHarness = (command: string): AgentName | undefined => {
   const program = command.trim().split(/\s+/)[0]
-  return program === "claude" || program === "codex" || program === "agy" || program === "opencode"
+  if (program === "novadeck-pi") return "pi"
+  return program === "claude" ||
+    program === "codex" ||
+    program === "agy" ||
+    program === "opencode" ||
+    program === "pi"
     ? program
     : undefined
 }
@@ -397,9 +439,7 @@ export const withTourAgent = (
   let latest: Workspace | undefined
   // The demo's tour, on its own agents, joins here, not in every demo: the website's visitor
   // demo, which offers no tour, carries none of it.
-  const tour = isDemoTour(backend.tour)
-    ? backend.tour
-    : demoTour(backend.agents?.state ?? createStore<readonly AgentConnection[]>([]), () => latest)
+  const tour = isDemoTour(backend.tour) ? backend.tour : demoTour(() => latest)
   const own = backend.approvals ? undefined : tourApprovals()
   if (own) tour.approver(own.ask)
   let sink: Parameters<NonNullable<Backend["start"]>>[0] | undefined

@@ -1,6 +1,6 @@
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentConnection, AgentMode, Backend, BundledPiFetchState } from "@novadeck/core/port"
-import { createStore } from "@novadeck/core/store"
+import { createStore, type Store } from "@novadeck/core/store"
 import { newer, type AgentIntegration, type RunnerSettingsState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
 
@@ -110,6 +110,11 @@ export const runnerSwitches = (
    */
   readonly followAgents: () => void
   readonly stopAgents: () => void
+  /**
+   * Where the download of Novadeck's own pi stands, as the runner tells it, which the tour's
+   * agent is; it follows the runner's settings whether or not the Experimental switch is on.
+   */
+  readonly piDownload: Store<BundledPiFetchState>
 } => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
@@ -252,7 +257,7 @@ export const runnerSwitches = (
     takes("worktrees", allowed, worktrees, settings.worktrees)
     takes("bundledPi", piOn, bundledPi, settings.bundledPi === true)
     // Where its download stands is the runner's alone to tell, whatever this client switched.
-    if (piOn !== undefined) bundledPiFetch.update(() => knownFetch(settings.bundledPiFetch))
+    bundledPiFetch.update(() => knownFetch(settings.bundledPiFetch))
     takes("murmur", murmurOn, murmurSwitch, settings.murmur === true)
     // Welcomed on another device: the first-run choice is made.
     if (welcomed !== undefined && settings.welcomed) welcome.update(() => false)
@@ -261,6 +266,7 @@ export const runnerSwitches = (
     take,
     followAgents,
     stopAgents,
+    piDownload: bundledPiFetch,
     ...(kept !== undefined
       ? {
           transcripts: {

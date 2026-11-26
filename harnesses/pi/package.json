@@ -33,6 +33,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./own-model": {
+      "development": "./src/own-model.ts",
+      "types": "./dist/own-model.d.ts",
+      "default": "./dist/own-model.js"
+    },
     "./plugin": {
       "development": "./src/plugin.ts",
       "types": "./dist/plugin.d.ts",

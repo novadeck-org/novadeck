@@ -4,8 +4,8 @@ import type { TourRun } from "@novadeck/core/port"
 const startLine = "Start the Novadeck tour: follow AGENTS.md in this folder."
 
 // The launch lines of each harness's scripted agent, which the demo's other states still play
-// (a terminal that starts one); the tour's own run is opencode's alone (`demoTourRun`), as the
-// runner's is (backend/runner/src/tour/launch.ts).
+// (a terminal that starts one); the tour's own run is Novadeck's pi's alone, as the runner's is
+// (backend/runner/src/tour/launch.ts).
 const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed" | "page">>> = {
   claude: {
     command: `claude --model haiku --effort low --permission-mode acceptEdits "${startLine}"`,
@@ -28,9 +28,9 @@ const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed"
     model: "openrouter/openai/gpt-6-luna",
   },
   pi: {
-    command: `pi --model openai/gpt-6-luna --thinking low "${startLine}"`,
-    brief: "launch",
-    model: "openai/gpt-6-luna",
+    command: "novadeck-pi --model novadeck/gpt-6-luna --thinking medium",
+    brief: "doorbell",
+    model: "novadeck/gpt-6-luna",
   },
 }
 

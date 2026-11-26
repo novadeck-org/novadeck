@@ -6,7 +6,6 @@ import type { AgentMode, Backend, BundledPiFetchState } from "@novadeck/core/por
 import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { SchemePreference, Tile } from "@novadeck/core/types"
-import { tourAgent } from "@novadeck/tour/consent"
 import { TourConsentDialog } from "@novadeck/tour/TourConsent"
 import { useTourOffer, useTourRun } from "@novadeck/tour/TourProvider"
 import {
@@ -652,12 +651,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
         <TourConsentDialog
           consent={tour.consent}
           agent={tour.agent}
-          installing={installs.installing.has(tourAgent)}
-          installError={installs.failures.get(tourAgent)}
-          // The installer runs in a terminal behind the dialog, which stays open, and the tour
-          // starts nothing of its own once opencode is there.
-          onInstall={(command) => installs.install(tourAgent, command, { quiet: true })}
-          onConnect={tour.connect}
+          onRetry={tour.retry}
           onStart={tour.start}
           onClose={tour.close}
         />

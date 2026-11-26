@@ -1,5 +1,5 @@
 {
-  "revision": 20,
+  "revision": 21,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -9166,6 +9166,7 @@
         "additionalProperties": false
       }
     },
+    "tour.fetch": {"since":21,"input":{"x-optional":true},"output":{"x-optional":true}},
     "tour.brief": {
       "input": {
         "type": "object",

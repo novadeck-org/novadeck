@@ -236,8 +236,13 @@ export class Sleepers {
     const { id, sessionId } = record.summary
     if (!this.host.resumes() || this.host.closed(id) || !harnesses[agent].launch.resume)
       return false
-    // Asleep, it couldn't be woken until its harness is connected again.
-    if (this.host.connections?.disconnected(agent) === true) return false
+    // Asleep, it couldn't be woken until its harness is connected again; Novadeck's own pi
+    // needs no connection of the person's.
+    if (
+      this.host.connections?.disconnected(agent) === true &&
+      !this.host.claims().own(agent, record.agents[agent]?.transcript)
+    )
+      return false
     const session = record.agents[agent]?.sessionId
     if (session === undefined || !agentSessionId.safeParse(session).success) return false
     return this.host.projectOf(sessionId) !== undefined && this.host.saves().saved(id) !== undefined
@@ -366,6 +371,9 @@ export class Sleepers {
     let any = false
     for (const id of this.sessions.keys()) {
       if (this.resting(id)?.agent !== agent || this.wakes.has(id)) continue
+      // Novadeck's own pi's sessions wake without the person's connection.
+      const transcript = this.row(id, this.sessions.get(id))?.agents[agent]?.transcript
+      if (this.host.claims().own(agent, transcript)) continue
       any = true
       this.stick(id, agent)
     }

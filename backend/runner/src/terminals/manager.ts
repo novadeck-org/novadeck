@@ -380,6 +380,7 @@ export class Terminals {
     this.claims = new Claims({
       boundElsewhere: (terminalId, agent, session) =>
         sessionHeldElsewhere(this.records.values(), terminalId, agent, session),
+      ownPi: (agent, transcript) => options.bundledPi?.owns(agent, transcript) === true,
     })
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.

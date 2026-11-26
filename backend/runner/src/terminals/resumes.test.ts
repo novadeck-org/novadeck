@@ -153,6 +153,37 @@ describe("the session an agent asks to resume in a new terminal", () => {
     })
   })
 
+  it("resumes Novadeck's own pi's session on its own word, with no connection of the person's", () => {
+    const own = "/data/bundled/pi/agent/sessions/--tour--/2026_s-1.jsonl"
+    const mine = new Claims({
+      boundElsewhere: () => false,
+      ownPi: (agent, transcript) => agent === "pi" && transcript === own,
+    })
+    expect(
+      mine.check("t1", "pi", "s-1", false, undefined, ["--model", "novadeck/gpt-6-luna"], own),
+    ).toEqual({
+      ok: true,
+      // pi's session keeps its own model, which a resume doesn't name again.
+      argv: ["novadeck-pi", "--session", own],
+      key: "pi:s-1",
+    })
+    // The person's own pi's session is theirs, and needs their connection.
+    const theirs = "/home/me/.pi/agent/sessions/--p--/2026_s-2.jsonl"
+    expect(mine.check("t1", "pi", "s-2", false, undefined, undefined, theirs)).toEqual({
+      ok: false,
+      reason: "not-connected",
+    })
+    expect(mine.check("t1", "pi", "s-2", true, undefined, undefined, theirs)).toMatchObject({
+      argv: ["pi", "--session", theirs],
+    })
+    // Taken by another terminal, it is in use as any session.
+    mine.claim("pi:s-1", "other")
+    expect(mine.check("t1", "pi", "s-1", false, undefined, undefined, own)).toEqual({
+      ok: false,
+      reason: "in-use",
+    })
+  })
+
   it("is refused for a disconnected agent, a session another terminal runs or was given", () => {
     expect(claims().check("", "claude", "s-1", false)).toEqual({
       ok: false,

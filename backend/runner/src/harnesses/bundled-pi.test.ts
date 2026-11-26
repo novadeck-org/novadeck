@@ -19,11 +19,13 @@ import {
   bundledPiHome,
   bundledPiProgram,
   fetchBundledPi,
+  ownPiSession,
   pinnedPi,
   progressLine,
   type PinnedPi,
   turnOnLine,
 } from "./bundled-pi.js"
+import { ownPiStartup } from "./own-pi.js"
 
 const licenceText = "MIT License\n\nCopyright (c) pi's authors\n"
 
@@ -344,6 +346,70 @@ describe("Novadeck's pi behind its Experimental switch", () => {
   it("fetches only its own pi", async ({ resources }) => {
     const { pi } = await service(resources, { value: true })
     await expect(pi.fetch("claude", () => {})).rejects.toThrow("Novadeck has no claude of its own.")
+  })
+
+  it("fetches for the tour, and for the tour's terminals, whatever the switch says", async ({
+    resources,
+  }) => {
+    const release = await fakeRelease(resources)
+    const data = await folder(resources)
+    const pi = new BundledPi({
+      data,
+      enabled: () => false,
+      allows: (terminalId) => terminalId === "tour-lead",
+      env: {
+        NOVADECK_BUNDLED_PI_SOURCE: release.source,
+        NOVADECK_BUNDLED_PI_LICENCE: release.licence,
+      },
+      platform: "linux",
+      arch: "x64",
+      pinned: release.pinned,
+    })
+    pi.switched()
+    // Another terminal's launcher is refused as ever.
+    await expect(pi.fetch("pi", () => {}, "elsewhere")).rejects.toThrow(turnOnLine)
+    // The tour's own terminal starts it, and the switch going off then stops nothing of it.
+    await pi.fetch("pi", () => {}, "tour-lead")
+    expect(pi.state()).toEqual({ state: "ready" })
+    pi.switched()
+    expect(pi.state()).toEqual({ state: "ready" })
+    // The tour asking for it gives its program, and the switch going off stops nothing more.
+    await expect(pi.want()).resolves.toContain(bundledPiFolder(data))
+    pi.switched()
+    expect(pi.state()).toEqual({ state: "ready" })
+  })
+
+  // POSIX paths: Windows' own are its `join`'s.
+  it.skipIf(process.platform === "win32")(
+    "tells its own sessions apart from the person's pi's, by their transcript",
+    () => {
+      const data = "/home/a/.config/novadeck"
+      const pi = new BundledPi({ data, enabled: () => false, platform: "linux" })
+      const own = `${bundledPiHome(data)}/sessions/--tour--/2026_s1.jsonl`
+      expect(pi.owns("pi", own)).toBe(true)
+      expect(pi.owns("pi", "/home/a/.pi/agent/sessions/--tour--/2026_s1.jsonl")).toBe(false)
+      expect(pi.owns("pi", `${bundledPiHome(data)}-other/s.jsonl`)).toBe(false)
+      expect(pi.owns("pi", undefined)).toBe(false)
+      // Another agent's session is never its.
+      expect(pi.owns("opencode", own)).toBe(false)
+      expect(ownPiSession(own, data, "linux")).toBe(true)
+    },
+  )
+})
+
+describe("starting Novadeck's own pi by its word", () => {
+  it("runs its launcher in the form each shell runs a quoted path", () => {
+    const launcher = "/Users/a b/Library/Application Support/novadeck/shell/bundled/pi"
+    expect(ownPiStartup("novadeck-pi --model x", "/bin/zsh", launcher)).toBe(
+      `'${launcher}' --model x`,
+    )
+    expect(ownPiStartup("novadeck-pi", "/bin/bash", launcher)).toBe(`'${launcher}'`)
+    expect(ownPiStartup("novadeck-pi --thinking medium", "pwsh.exe", "C:\\a b\\pi.cmd")).toBe(
+      "& 'C:\\a b\\pi.cmd' --thinking medium",
+    )
+    // Any other command is its own.
+    expect(ownPiStartup("pi --model x", "/bin/bash", launcher)).toBe("pi --model x")
+    expect(ownPiStartup("novadeck-pie", "/bin/bash", launcher)).toBe("novadeck-pie")
   })
 })
 

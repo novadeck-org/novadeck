@@ -1,20 +1,19 @@
 import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
-import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
 import { brandName, NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
-import { CircleStop, Clock, FolderLock, Globe } from "lucide-react"
+import { CircleStop, Clock, Download, FolderLock, Globe } from "lucide-react"
 import { useState } from "react"
 
-import type { TourAgentState, TourConsent } from "./consent"
+import type { TourAgentNote, TourConsent } from "./consent"
 
 export const tourHeading = "Take the tour"
 
-// What the person agrees to: opencode's agents run, on a model Novadeck pays for, which is
-// where what they read and write goes.
+// What the person agrees to: Novadeck's own Pi agents run, on a model Novadeck pays for, which is
+// where what they read and write goes, and Pi is downloaded once.
 const facts = [
   {
     icon: Clock,
-    text: "Runs three OpenCode agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+    text: "Runs three Pi agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
   },
   {
     icon: Globe,
@@ -24,34 +23,31 @@ const facts = [
     icon: FolderLock,
     text: "Works in a sandbox repo under ~/.novadeck, made fresh each time. A game you finish is yours to keep.",
   },
+  {
+    icon: Download,
+    text: "Downloads Pi, Novadeck's own agent, once: about 50–60 MB.",
+  },
   { icon: CircleStop, text: "Close the tour's terminal to stop it at any time." },
 ] as const
 
 /**
- * Asks the person before the tour runs: opencode's agents on Novadeck's model, and where their
- * words go. There is no agent to pick. Where opencode isn't installed, or Novadeck isn't connected
- * to it, the consent offers to do that right here. Starting waits for the backend to ready the
- * run; one it refuses (its service has no free run to give) shows why and stays open.
+ * Asks the person before the tour runs: Novadeck's own Pi agents on Novadeck's model, and where
+ * their words go. There is no agent to pick. Pi downloads in the background from the moment the
+ * consent opens; Start waits for it, and a download that failed shows why, with a button to try
+ * again. Starting waits for the backend to ready the run; one it refuses (its service has no free
+ * run to give) shows why and stays open.
  */
 export const TourConsentDialog = ({
   consent,
   agent,
-  installing,
-  installError,
-  onInstall,
-  onConnect,
+  onRetry,
   onStart,
   onClose,
 }: {
   // Absent while it is closed.
   readonly consent: TourConsent | null
-  readonly agent: TourAgentState
-  // opencode's installer is running (in a terminal behind the dialog), or it is being connected after.
-  readonly installing: boolean
-  // Why the last install didn't end with opencode installed and connected, where it didn't.
-  readonly installError?: string | undefined
-  readonly onInstall: (command: string) => void
-  readonly onConnect: () => void
+  readonly agent: TourAgentNote
+  readonly onRetry: () => void
   readonly onStart: () => void
   readonly onClose: () => void
 }): React.JSX.Element => {
@@ -75,10 +71,7 @@ export const TourConsentDialog = ({
         <TourConsentBody
           consent={shown}
           agent={agent}
-          installing={installing}
-          installError={installError}
-          onInstall={onInstall}
-          onConnect={onConnect}
+          onRetry={onRetry}
           onStart={onStart}
           onClose={onClose}
         />
@@ -87,50 +80,21 @@ export const TourConsentDialog = ({
   )
 }
 
-// What the person gets by pressing the step's button, and what it costs them: when to pick it.
-const steps = {
-  install: {
-    note: "Install adds OpenCode to this computer with its own installer, then connects it to Novadeck. Pick it if you don't have OpenCode; the tour is the only reason to, and it stays installed after.",
-    action: "Install OpenCode",
-  },
-  update: {
-    note: "This OpenCode is older than Novadeck works with (1.18 or later), so it can't follow the tour's agents. Update it with `opencode upgrade`, then take the tour.",
-  },
-  unsupported: {
-    note: "Novadeck works with OpenCode 1 so far, so it can't follow this OpenCode 2. Install OpenCode 1 (1.18 or later) to take the tour.",
-  },
-  connect: {
-    note: "Connect adds Novadeck's small plugin to OpenCode, so the tour's agents can use Novadeck's tools. Pick it to take the tour; Preferences disconnects it again.",
-    action: "Connect OpenCode",
-  },
-} as const
-
 const TourConsentBody = ({
   consent,
   agent,
-  installing,
-  installError,
-  onInstall,
-  onConnect,
+  onRetry,
   onStart,
   onClose,
 }: {
   readonly consent: TourConsent
-  readonly agent: TourAgentState
-  readonly installing: boolean
-  readonly installError?: string | undefined
-  readonly onInstall: (command: string) => void
-  readonly onConnect: () => void
+  readonly agent: TourAgentNote
+  readonly onRetry: () => void
   readonly onStart: () => void
   readonly onClose: () => void
 }): React.JSX.Element => {
   const { starting } = consent
-  // Why the tour can't start now, in words: its start's refusal, or why opencode isn't ready.
-  const error =
-    consent.error ?? agent.error ?? (agent.step === "install" ? installError : undefined)
-  const { step, installer } = agent
-  const waiting = starting || step === "connecting" || installing
-  const needed = step === "ready" || step === "connecting" ? undefined : steps[step]
+  const ready = agent.step === "ready"
   return (
     <>
       <SubjectBar>
@@ -141,7 +105,7 @@ const TourConsentBody = ({
       </SubjectBar>
       <DialogTitle className="modal-title m-0 text-heading font-medium">{tourHeading}</DialogTitle>
       <DialogDescription className="modal-description m-0 text-body leading-[1.6]">
-        OpenCode agents lead a small team that builds a little browser game you choose. You answer a
+        Pi agents lead a small team that builds a little browser game you choose. You answer a
         question or two, approve one command, and play the game at the end.
       </DialogDescription>
       <ul className="tour-facts m-0 flex flex-col gap-2 p-0">
@@ -152,44 +116,29 @@ const TourConsentBody = ({
           </li>
         ))}
       </ul>
-      {needed && (
-        <div
-          className="tour-agent flex items-start justify-between gap-3"
-          role="group"
-          aria-label="OpenCode"
-        >
-          <span className="flex min-w-0 items-start gap-2.5 text-body leading-[1.5]">
-            <OpencodeIcon size={15} className="tour-fact-icon mt-0.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0">
-              {needed.note}
-              {step === "install" && installer !== undefined && (
-                <>
-                  {" "}
-                  It runs <code className="[overflow-wrap:anywhere]">{installer}</code>.
-                </>
-              )}
-              {step === "install" && installer === undefined && " Install it from opencode.ai."}
-            </span>
-          </span>
-          {(step === "connect" || (step === "install" && installer !== undefined)) && (
-            <button
-              type="button"
-              className="button min-h-8 shrink-0 px-3 text-control"
-              aria-disabled={installing || starting || undefined}
-              onClick={() => {
-                if (installing || starting) return
-                if (step === "connect") onConnect()
-                else if (installer !== undefined) onInstall(installer)
-              }}
-            >
-              {installing ? "Installing…" : "action" in needed ? needed.action : null}
-            </button>
-          )}
+      {agent.step === "waiting" && (
+        <p className="tour-agent m-0 text-body leading-[1.5]" role="status">
+          {agent.text}
+        </p>
+      )}
+      {agent.step === "failed" && (
+        <div className="tour-agent flex items-start justify-between gap-3" role="alert">
+          <p className="tour-error m-0 min-w-0 text-body">{agent.text}</p>
+          <button
+            type="button"
+            className="button min-h-8 shrink-0 px-3 text-control"
+            aria-disabled={starting || undefined}
+            onClick={() => {
+              if (!starting) onRetry()
+            }}
+          >
+            Try again
+          </button>
         </div>
       )}
-      {error && (
+      {consent.error && (
         <div role="alert">
-          <p className="tour-error m-0 text-body">{error}</p>
+          <p className="tour-error m-0 text-body">{consent.error}</p>
         </div>
       )}
       <div className="mt-2 flex justify-end gap-2">
@@ -200,12 +149,12 @@ const TourConsentBody = ({
           type="button"
           className="button primary"
           data-tour-start=""
-          aria-disabled={waiting || step !== "ready" || undefined}
+          aria-disabled={starting || !ready || undefined}
           onClick={() => {
-            if (!waiting && step === "ready") onStart()
+            if (!starting && ready) onStart()
           }}
         >
-          {starting ? "Starting…" : step === "connecting" ? "Connecting…" : "Start the tour"}
+          {starting ? "Starting…" : agent.step === "waiting" ? "Waiting for Pi…" : "Start the tour"}
         </button>
       </div>
     </>

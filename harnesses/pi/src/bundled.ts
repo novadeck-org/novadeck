@@ -18,6 +18,14 @@ export type BundledPi = {
 }
 
 /**
+ * The word a command line starts Novadeck's own pi with, in place of its launcher's path: the
+ * runner stores and compares commands with it, and turns it into the launcher's path, in the
+ * form the terminal's shell runs (`programWord`), as the shell starts the command. It is on no
+ * PATH, so a person who types it runs nothing; agent `pi` is its agent.
+ */
+export const ownProgram = "novadeck-pi"
+
+/**
  * Says to Novadeck's extension that it runs in Novadeck's own pi: what it writes for the
  * person's pi (the models their picker offers) it leaves alone.
  */
@@ -68,10 +76,14 @@ exec "$novadeck_program" -e ${quoted(pi.extension)} "$@"
 
 /**
  * The launcher for Windows, as the POSIX one, which also gives pi `powershellTools` where pi
- * would find no bash, looking where pi looks, in its order (docs/windows.md, 1.6.0): Git
- * Bash in Program Files, then in Program Files (x86), then `bash.exe` on PATH (`$PATH:`, so not
- * the current folder, which pi doesn't search). No `if (...)`
- * blocks hold a path: a ")" in "Program Files (x86)" would end them.
+ * would find no bash of Windows' own, looking where pi looks, in its order (docs/windows.md,
+ * 1.6.0): Git Bash in Program Files, then in Program Files (x86), then `bash.exe` on PATH
+ * (`$PATH:`, so not the current folder, which pi doesn't search), but for WSL's launchers in
+ * System32 and WindowsApps, which pi would take, and which run the agent's commands in Linux,
+ * where the project's Windows paths don't hold: told by the name of the folder holding it
+ * (`"%%~dpb."`, its folder with no trailing separator), whatever form its path takes. No `if (...)` blocks hold a path: a ")" in
+ * "Program Files (x86)" would end them (a `for` variable's value is put in after a line is read,
+ * so one doesn't).
  */
 // A path as cmd reads it in a batch file, in double quotes: a `%` doubled, so no variable is
 // read in it; `call` reads its line twice, so a path it runs takes four (`called`).
@@ -90,7 +102,7 @@ set "${bundledMark}=bundled"
 set "novadeck_tools="
 if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools
 if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools
-where $PATH:bash.exe >nul 2>nul && goto tools
+for /f "delims=" %%b in ('where $PATH:bash.exe 2^>nul') do for %%d in ("%%~dpb.") do if /i not "%%~nxd"=="System32" if /i not "%%~nxd"=="WindowsApps" goto tools
 set "novadeck_tools=${powershellTools.join(" ")}"
 :tools
 if not exist "${cmdPath(pi.extension)}" goto plain

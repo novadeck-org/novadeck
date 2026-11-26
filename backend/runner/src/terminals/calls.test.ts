@@ -50,7 +50,13 @@ describe("the models call", () => {
 describe("the open call", () => {
   // Calls over a runner of fakes: a caller `moth` in /work, a client that opens every
   // terminal it is asked for as `t2`, and a record of what was asked, sent and noticed.
-  const setup = (bound: string[] = [], resting: string[] = [], rows: { agents: object }[] = []) => {
+  const setup = (
+    bound: string[] = [],
+    resting: string[] = [],
+    rows: { agents: object }[] = [],
+    // The transcript of a session that is Novadeck's own pi's (`Claims.own`).
+    own?: string,
+  ) => {
     const records = new Map<string, unknown>([
       [
         "t1",
@@ -74,6 +80,9 @@ describe("the open call", () => {
     let unwanted: AgentName | undefined
     let flagged: readonly string[] | undefined
     let given: { model: string; effort?: "low" | "max" } | undefined
+    // The program word its policy starts agents by, and whether the person's harness is connected.
+    let word: string | undefined
+    let online = true
     // How the client answers: it confirms the terminal in time, confirms it only after the
     // runner made it and the deadline passed, or makes none in time.
     let window: "confirms" | "slow" | "late" = "confirms"
@@ -112,10 +121,11 @@ describe("the open call", () => {
         }),
         ...(flagged !== undefined && { flags: () => flagged! }),
         ...(given !== undefined && { pinned: () => given }),
+        ...(word !== undefined && { program: () => word }),
       }),
       claims: () => claims,
       launcher: () => ({
-        connected: () => Promise.resolve(true),
+        connected: () => Promise.resolve(online),
         startsCommands: () => Promise.resolve(true),
         directory: (path: string) => Promise.resolve(path),
       }),
@@ -175,6 +185,7 @@ describe("the open call", () => {
     } as unknown as CallsHost
     const claims = new Claims({
       boundElsewhere: (_id, agent, session) => bound.includes(`${agent}:${session}`),
+      ownPi: (agent, transcript) => agent === "pi" && own !== undefined && transcript === own,
     })
     const run = new Calls(1000, host)
     // The person's client: what it is asked, and its answer to the next request.
@@ -205,6 +216,8 @@ describe("the open call", () => {
       barAgent: (agent: AgentName) => (unwanted = agent),
       flag: (flags: readonly string[]) => (flagged = flags),
       give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
+      word: (next: string) => (word = next),
+      offline: () => (online = false),
       mode: (next: AgentMode) => (mode = next),
       window: (next: typeof window) => (window = next),
       open: (request: object) =>
@@ -253,6 +266,32 @@ describe("the open call", () => {
     expect(run.sent).toEqual([])
     expect(run.notices).toEqual([{ to: "t2", text: leadNotice.openedLed("moth") }])
     expect(run.opened.startedWith).toBeUndefined()
+  })
+
+  it("starts an agent by its policy's own program, with no connection of the person's", async () => {
+    const run = setup()
+    run.offline()
+    // Without its own program, the person's harness must be connected.
+    expect(await run.open({ agent: "pi" })).toMatchObject({ ok: false })
+    run.word("novadeck-pi")
+    run.give({ model: "novadeck/gpt-6-luna" })
+    expect(await run.open({ agent: "pi", lead: true })).toMatchObject({ ok: true })
+    expect(run.asked.map(({ command }) => command)).toEqual([
+      "novadeck-pi --model novadeck/gpt-6-luna",
+    ])
+  })
+
+  it("resumes a session of Novadeck's own pi with no connection of the person's", async () => {
+    const own = "/data/bundled/pi/agent/sessions/--t--/1_s-9.jsonl"
+    const rows = [{ agents: { pi: { sessionId: "s-9", seq: 1, transcript: own } } }]
+    const run = setup([], [], rows, own)
+    run.offline()
+    expect(await run.open({ agent: "pi", resume: "s-9" })).toMatchObject({ ok: true })
+    expect(run.asked.map(({ command }) => command)).toEqual([`novadeck-pi --session ${own}`])
+    // The person's own pi's session still needs their pi.
+    const theirs = setup([], [], [{ agents: { pi: { sessionId: "s-8", seq: 1 } } }], own)
+    theirs.offline()
+    expect(await theirs.open({ agent: "pi", resume: "s-8" })).toMatchObject({ ok: false })
   })
 
   it("lets a lead open fifteen teammates a minute, from a budget that keeps other opens to five", async () => {
