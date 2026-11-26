@@ -290,7 +290,7 @@ Terminals:
   output, another window holding its keyboard (idle, or typing so a key shows the strip's busy
   form; see "Observing a terminal another client controls"), back at the prompt, running a long program, Claude Code, Codex, Antigravity or Nova (a pi the
   runner says is Novadeck's own: its tab, window header, chat and avatar say Nova with Novadeck's mark, and
-  the footer's pi account leaves it out; any other agent there makes it the person's again), a failed
+  the footer's pi account leaves it out; any other agent there makes it the person's again), Nova asleep (its tab, sleep screen and close dialog say nova), a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal

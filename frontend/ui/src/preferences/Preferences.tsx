@@ -838,7 +838,7 @@ export const Preferences = ({
       onPage: true,
       label: "Onboarding tour",
       description: tour
-        ? "Adds a Help menu to the footer, with a short tour: three Pi agents at work in a sandbox repo. Novadeck pays for the model."
+        ? "Adds a Help menu to the footer, with a short tour: three Nova agents at work in a sandbox repo. Novadeck pays for the model."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),

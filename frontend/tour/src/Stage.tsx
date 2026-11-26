@@ -1,4 +1,5 @@
-import { harnesses, type AgentName } from "@novadeck/core/harnesses"
+import type { AgentName } from "@novadeck/core/harnesses"
+import { agentNamed } from "@novadeck/core/terminals/agent-look"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Eye } from "lucide-react"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -395,7 +396,8 @@ const useFooterSlot = (looking: boolean): HTMLElement | null => {
   return looking ? slot : null
 }
 
-const nameOf = (agent: AgentName): string => harnesses.find(({ id }) => id === agent)?.name ?? agent
+// The tour's agents are Nova, Novadeck's own pi, whatever their harness says.
+const nameOf = (agent: AgentName): string => agentNamed(agent, true, "name") ?? agent
 
 // The small line under an act's name on its wipe.
 const actLabel = (act: TourAct, agent: AgentName): string =>

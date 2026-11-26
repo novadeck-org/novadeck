@@ -45,6 +45,7 @@ import {
   rename,
   runAgent,
   runNova,
+  sleepingNova,
   runProgram,
   sleeping,
   starting,
@@ -738,6 +739,11 @@ export const createDemoStates = (
           "Nova",
           "A pi the runner says is Nova's: its tab, window header, chat and Messages avatar say Nova with Novadeck's mark, and the footer's pi account leaves it out",
           (key, { dispatch }) => dispatch(runNova(key)),
+        ),
+        setting(
+          "Nova, asleep",
+          "Nova with its session saved and no process: its tab says nova, its screen waits to wake nova, and closing it says nova is asleep in it",
+          (key, { dispatch }) => dispatch(sleepingNova(key)),
         ),
         leading(
           "Leads the others",

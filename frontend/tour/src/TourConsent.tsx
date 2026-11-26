@@ -13,7 +13,7 @@ export const tourHeading = "Take the tour"
 const facts = [
   {
     icon: Clock,
-    text: "Runs three Pi agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+    text: "Runs three Nova agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
   },
   {
     icon: Globe,

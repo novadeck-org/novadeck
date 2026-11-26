@@ -130,6 +130,7 @@ export const sleeping = (
   reported = false,
   endedAt?: number,
 ): BackendAction[] => [
+  setNova(key, false),
   setStatus(key, {
     state: "sleeping",
     agent,
@@ -198,6 +199,12 @@ export const runNova = (key: TerminalKey): BackendAction[] => [
   setProcess(key, "pi"),
   setNova(key, true),
   ...agentSays(key, resting),
+]
+
+// Nova asleep, its session saved: its tab, sleep screen and close dialog say nova.
+export const sleepingNova = (key: TerminalKey): BackendAction[] => [
+  ...sleeping(key, "pi"),
+  setNova(key, true),
 ]
 
 // The report an agent makes through its MCP `done` call when its task is finished, which the
@@ -277,6 +284,7 @@ export const atStartupScreen = (
   screen: NonNullable<AgentStatus["startup"]> = "startup",
 ): BackendAction[] => [
   setProcess(key, program),
+  setNova(key, false),
   setStatus(key, { state: "running", agent: { working: false, startup: screen } }),
 ]
 
@@ -284,6 +292,7 @@ export const atStartupScreen = (
 // shows already, and holds what is sent until it is ready.
 export const agentStarting = (key: TerminalKey, agent: AgentName): BackendAction[] => [
   setProcess(key, agent),
+  setNova(key, false),
   setStatus(key, { state: "running", expecting: agent }),
 ]
 

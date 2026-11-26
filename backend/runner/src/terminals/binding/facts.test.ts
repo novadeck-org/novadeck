@@ -937,4 +937,19 @@ describe("Nova, Novadeck's own pi, in the summary", () => {
     ends.endBinding(bound)
     expect(bound.summary.nova).toBeUndefined()
   })
+
+  it("isn't kept for the person's pi bound in the same terminal after Nova's", () => {
+    const { ends, bound } = piOf(own)
+    ends.publishAgent(bound, false)
+    expect(bound.summary.nova).toBe(true)
+    bound.bound = {
+      binding: { agent: "pi", sessionId: "two", instance: "2" },
+      activity: started(0),
+      telemetry: null,
+    } as Record["bound"]
+    bound.transcript = theirs
+    ends.publishAgent(bound, false)
+    expect(bound.summary).toMatchObject({ agent: "pi" })
+    expect(bound.summary.nova).toBeUndefined()
+  })
 })

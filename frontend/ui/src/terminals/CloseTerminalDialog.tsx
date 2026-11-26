@@ -1,3 +1,4 @@
+import { programWord } from "@novadeck/core/terminals/agent-look"
 import { closeReasons, type CloseReason } from "@novadeck/core/terminals/closing"
 import { shellCommandCut } from "@novadeck/core/terminals/ending"
 import { handleText } from "@novadeck/core/terminals/handle"
@@ -28,9 +29,9 @@ type CloseTerminalDialogProps = {
 // What a sleeping or waking agent's terminal says: where the agent is, with its session saved.
 const restingWords = (terminal: TerminalMetadata, then: string): string | undefined =>
   terminal.state === "sleeping"
-    ? `${terminal.agent === "newer" ? "An agent" : terminal.agent} is asleep in it, with its session saved, but ${then}`
+    ? `${terminal.agent === "newer" ? "An agent" : programWord(terminal.agent, terminal.nova)} is asleep in it, with its session saved, but ${then}`
     : terminal.state === "starting" && terminal.restoredProcess
-      ? `${terminal.restoredProcess} is waking in it, with its session saved, but ${then}`
+      ? `${programWord(terminal.restoredProcess, terminal.nova)} is waking in it, with its session saved, but ${then}`
       : undefined
 
 const commandSentence = (command: string | undefined): string =>
