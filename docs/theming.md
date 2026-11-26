@@ -470,7 +470,7 @@ there too.
 
 Novadeck rings with a sound that follows the theme: each theme names its default in
 `sound` (Coolant goes with Felt, both Phosphor tubes with Afterglow), and Preferences'
-General tab can override it with any sound the app has (`soundChoice`, `"theme"` by
+Notifications page can override it with any sound the app has (`soundChoice`, `"theme"` by
 default, so a theme change takes effect at once). The sounds are the files in
 `frontend/ui/src/sounds/<id>.wav`, listed with their names in `noticeSounds` in
 `contract/protocol/src/sounds.ts`. To add a sound, put its file in that folder and add

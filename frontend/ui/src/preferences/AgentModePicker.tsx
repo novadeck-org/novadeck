@@ -1,6 +1,6 @@
 import type { AgentMode } from "@novadeck/core/port"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import { agentModeChoice, agentModeChoices } from "./agent-mode-choices"
 import { AgentModeMap } from "./AgentModeMap"
@@ -11,23 +11,29 @@ const items = agentModeChoices.map(({ mode, label }) => ({ value: mode, label })
 // "Agents work as": the modes by name in a switch, as Appearance's Mode is, and under it the
 // picked mode's map beside what it's for, what agents then do and what it costs. Once the
 // person changes it, a line says when running agents follow it.
+// `badge` stands beside its name, as Experimental's mark does while the picker is one.
 export const AgentModePicker = ({
   mode,
   onChange,
+  badge,
 }: {
   readonly mode: AgentMode
   readonly onChange: (mode: AgentMode) => void
+  readonly badge?: ReactNode
 }): React.JSX.Element => {
   const [first] = useState(mode)
   const choice = agentModeChoice(mode)
   return (
     <>
-      <div className={`agent-mode-preferences mt-2.5 ${settingsCardClasses}`}>
+      <div className={`agent-mode-preferences ${settingsCardClasses}`}>
         <fieldset
           className={`preference-row ${settingRowClasses} m-0 min-w-0 max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2.5`}
           aria-labelledby="agent-mode-label"
         >
-          <span id="agent-mode-label">Agents work as</span>
+          <span className="flex items-center gap-2">
+            <span id="agent-mode-label">Agents work as</span>
+            {badge}
+          </span>
           <SegmentGroup
             label="Agents work as"
             items={items}

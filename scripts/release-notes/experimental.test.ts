@@ -24,21 +24,24 @@ const listed: Experimental = new Map([
 ])
 
 describe("the features still behind Preferences > Experimental", () => {
-  it("are the Experimental tab's rows, so a feature that leaves it is announced, and a new one is held", () => {
+  it("are the Experimental rows, so a feature that leaves them is announced, and a new one is held", () => {
     const preferences = readFileSync(
       join(import.meta.dirname, "../../frontend/ui/src/preferences/Preferences.tsx"),
       "utf8",
       // A Windows checkout has CRLF endings.
     ).replaceAll("\r\n", "\n")
-    const rows = /const experimentalToggles = \[(?<rows>[\s\S]*?)\n {2}\]\n/.exec(preferences)
+    const rows = /const experimentalToggles(?:: [^=]+)? = \[(?<rows>[\s\S]*?)\n {2}\]\n/.exec(
+      preferences,
+    )
     expect(rows).not.toBeNull()
     const ids = [...rows!.groups!["rows"]!.matchAll(/^ {6}id: "(?<id>[a-z-]+)",$/gm)].map(
       (found) => found.groups!["id"]!,
     )
-    // The forges have a section of their own under the rows, in the Experimental tab's panel.
-    const panel = /<TabPanel value="experimental"[\s\S]*?<\/TabPanel>/.exec(preferences)
-    expect(panel).not.toBeNull()
-    if (panel![0].includes(`<Section title="Forge integrations"`)) ids.push("forges")
+    // The forges have a section of their own, marked Experimental, on the Agents page.
+    if (
+      /<Section\s+title="Forge integrations"\s+badge=\{<ExperimentalBadge \/>\}/.test(preferences)
+    )
+      ids.push("forges")
     expect([...checkoutExperimental().keys()].toSorted()).toEqual(ids.toSorted())
   })
 

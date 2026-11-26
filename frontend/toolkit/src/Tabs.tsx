@@ -5,18 +5,23 @@ import { cn } from "./class-name"
 
 type PartProps = { readonly children: ReactNode; readonly className?: string }
 
+// Tabs side by side by default; `vertical` stacks them, as a menu down a dialog's side, where
+// the arrow keys move up and down and the indicator follows each tab's top.
 export const Tabs = ({
   value,
   onValueChange,
+  orientation = "horizontal",
   children,
   className,
 }: PartProps & {
   readonly value: string
   readonly onValueChange: (value: string) => void
+  readonly orientation?: "horizontal" | "vertical"
 }): React.JSX.Element => (
   <ArkTabs.Root
     value={value}
     onValueChange={(details) => onValueChange(details.value)}
+    orientation={orientation}
     className={className}
   >
     {children}

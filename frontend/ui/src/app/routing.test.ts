@@ -125,24 +125,28 @@ describe("route reconciliation", () => {
       expect(sectionOf("?terminal=01")).toBeNull()
     })
 
-    it("is the tab the URL names, General included", () => {
+    it("is the page the URL names", () => {
       expect(sectionOf("?terminal=01&dialog=preferences&section=agents")).toBe("agents")
-      expect(sectionOf("?terminal=01&dialog=preferences&section=general")).toBe("general")
+      expect(sectionOf("?terminal=01&dialog=preferences&section=terminal")).toBe("terminal")
     })
 
-    it("is General where the name is not a tab's", () => {
-      expect(sectionOf("?terminal=01&dialog=preferences&section=nothing")).toBe("general")
+    it("is Notifications for General, the page that held its notifications before it went", () => {
+      expect(sectionOf("?terminal=01&dialog=preferences&section=general")).toBe("notifications")
     })
 
-    it("is kept in the URL where it is named, General too, and left out where none is", () => {
+    it("is Appearance where the name was never a page's", () => {
+      expect(sectionOf("?terminal=01&dialog=preferences&section=nothing")).toBe("appearance")
+    })
+
+    it("is kept in the URL where it is named, and left out where none is", () => {
       const route = workspaceRoute(fixture())
       const open = { ...route, dialog: "preferences" as const }
 
       expect(routeUrl({ ...open, section: null })).toBe(
         "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences",
       )
-      expect(routeUrl({ ...open, section: "general" })).toBe(
-        "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences&section=general",
+      expect(routeUrl({ ...open, section: "notifications" })).toBe(
+        "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences&section=notifications",
       )
     })
   })
