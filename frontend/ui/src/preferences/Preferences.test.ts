@@ -665,6 +665,15 @@ describe("the Appearance tab", () => {
     expect(panel()?.textContent).not.toContain("Bell")
     expect(panel()?.textContent).not.toContain("Hear it")
   })
+
+  it("holds Scale under Size, apart from the theme", async () => {
+    await show({ tab: "appearance", scalable: true })
+
+    const size = panel()?.querySelector('section[aria-labelledby="preferences-size"]')
+    expect(size?.textContent).toContain("Scale")
+    const theme = panel()?.querySelector('section[aria-labelledby="preferences-theme"]')
+    expect(theme?.textContent).not.toContain("Scale")
+  })
 })
 
 describe("the Terminal page", () => {
@@ -682,8 +691,17 @@ describe("the Terminal page", () => {
     expect(panel()?.textContent).toContain("Terminal font")
     expect(panel()?.textContent).toContain("Ligatures")
     expect(panel()?.textContent).toContain("Screen reader support")
-    expect(panel()?.textContent).toContain("Transcripts")
+    expect(panel()?.textContent).toContain("Keep recent output")
     expect(panel()?.textContent).not.toContain("View modes")
+  })
+
+  it("draws a sample of the terminal text in the size and font set", async () => {
+    await show({ tab: "terminal", value: { ...readPreferences(), fontSize: 21 } })
+
+    const sample = panel()?.querySelector<HTMLElement>(".settings-sample")
+    expect(sample?.style.fontSize).toBe("21px")
+    expect(sample?.style.fontFamily).toContain("JetBrains Mono")
+    expect(sample?.getAttribute("aria-hidden")).toBe("true")
   })
 })
 
@@ -698,11 +716,23 @@ describe("the Notifications page", () => {
       agents: { list: [], onChange: () => {} },
     })
 
-    expect(panel()?.textContent).toContain("Notify when an agent needs you")
-    expect(panel()?.textContent).toContain("Notify when an agent finishes")
-    expect(panel()?.textContent).not.toContain("Transcripts")
+    expect(panel()?.textContent).toContain("When an agent needs you")
+    expect(panel()?.textContent).toContain("When an agent is done")
+    expect(panel()?.textContent).not.toContain("Keep recent output")
     expect(panel()?.textContent).not.toContain("Text size")
     expect(panel()?.textContent).not.toContain("View modes")
+  })
+
+  it("shows what each switch brings, dimmed while it is off", async () => {
+    await show({
+      tab: "notifications",
+      notices: true,
+      askToast: createElement("div", { className: "ask-toast" }),
+      value: { ...readPreferences(), notifyNeeds: true, notifyFinished: false },
+    })
+
+    const items = [...(panel()?.querySelectorAll(".settings-preview-item") ?? [])]
+    expect(items.map((item) => item.hasAttribute("data-off"))).toEqual([false, true])
   })
 
   it("holds no bell where the backend shows no desktop notifications", async () => {
@@ -843,18 +873,22 @@ describe("the forges, in Preferences", () => {
   })
   const agentsPanel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
   const section = () =>
-    agentsPanel()?.querySelector('section[aria-labelledby="preferences-pull-requests"]')
+    agentsPanel()?.querySelector(
+      'section[aria-labelledby="preferences-worktrees-and-pull-requests"]',
+    )
+  const list = () => section()?.querySelector('ul[aria-label="Forges"]')
 
-  it("are rows with no switch under Agents, where the backend has forges", async () => {
+  it("are rows with no switch under Agents, beside agent worktrees, where the backend has forges", async () => {
     await show({
       tab: "agents",
       forges: forges(),
       worktrees: { enabled: true, onChange: () => {} },
     })
     expect(selected()).toBe("Agents")
-    expect(section()?.querySelector("h3")?.textContent).toBe("Pull requests")
-    expect(section()?.querySelector('ul[aria-label="Forges"] li')).not.toBeNull()
-    expect(section()?.querySelector('[role="switch"]')).toBeNull()
+    expect(section()?.querySelector("h3")?.textContent).toBe("Worktrees and pull requests")
+    expect(section()?.textContent).toContain("Agent worktrees")
+    expect(list()?.querySelector("li")).not.toBeNull()
+    expect(list()?.querySelector('[role="switch"]')).toBeNull()
   })
 
   it("go with agent worktrees, whose panel shows the pull requests, and aren't in Experimental", async () => {
@@ -863,7 +897,7 @@ describe("the forges, in Preferences", () => {
       forges: forges(),
       worktrees: { enabled: false, onChange: () => {} },
     })
-    expect(section()).toBeNull()
+    expect(list()).toBeNull()
     mounted.splice(0).forEach((page) => page.unmount())
 
     await show({ tab: "experimental", experimental: experimental(true), forges: forges() })
@@ -876,7 +910,8 @@ describe("the forges, in Preferences", () => {
 
   it("are absent where the backend has none", async () => {
     await show({ tab: "agents", worktrees: { enabled: true, onChange: () => {} } })
-    expect(section()).toBeNull()
+    expect(section()).not.toBeNull()
+    expect(list()).toBeNull()
   })
 })
 

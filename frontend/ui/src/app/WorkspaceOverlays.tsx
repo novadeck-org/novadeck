@@ -21,6 +21,7 @@ import {
 } from "react"
 
 import { AskAgent } from "../feedback/AskAgent"
+import { AskToastSample } from "../inbox/InboxToasts"
 import { terminalElement } from "../interaction/dom"
 import type { MurmurAddonValue } from "../preferences/MurmurAddon"
 import { disconnectAgent, runUninstall } from "../preferences/uninstall"
@@ -714,6 +715,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       <Suspense fallback={null}>
         <Loaded dialog="preferences" onLoaded={onLoaded} />
         <Preferences
+          askToast={<AskToastSample />}
           key={`preferences/${context}`}
           onExitComplete={onExitComplete}
           open={settings}

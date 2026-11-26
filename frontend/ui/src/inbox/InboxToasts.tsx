@@ -3,7 +3,16 @@ import type { InboxEntry } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, shownToasts, ToastRegion } from "@novadeck/toolkit/Toast"
-import { ArrowRightLeft, Eye, Folder, Info, Terminal, Unplug, type LucideIcon } from "lucide-react"
+import {
+  ArrowRightLeft,
+  Eye,
+  Folder,
+  Info,
+  ShieldQuestionMark,
+  Terminal,
+  Unplug,
+  type LucideIcon,
+} from "lucide-react"
 import { useEffect, useMemo } from "react"
 
 import { focusSheetSoon } from "./inbox-dom"
@@ -231,6 +240,26 @@ const InboxToast = ({
   const text = toastText(entry, now)
   return <ToastCard text={text} Icon={iconOf(entry)} />
 }
+
+// The toast an agent's ask brings, with made-up words, for Preferences to show what its
+// Notifications switch turns on: the app hands it over, as one feature draws none of another's.
+const askSample: ToastText = {
+  type: "unblock",
+  tint: "attention",
+  handle: "owl",
+  novadeck: false,
+  said: "wants to run a command",
+  command: "pnpm test",
+  subject: "pnpm test",
+  age: "now",
+  title: "Flaky runner test",
+  project: "novadeck",
+}
+export const AskToastSample = (): React.JSX.Element => (
+  <div className="floating">
+    <ToastCard text={askSample} Icon={ShieldQuestionMark} />
+  </div>
+)
 
 // What a toast says of what an agent wants to show on a terminal the person isn't on, in
 // the Inbox toasts' words: quiet, like the updates it sits among.

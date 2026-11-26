@@ -1,8 +1,44 @@
 import type { AgentName } from "@novadeck/core/harnesses"
+import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
+import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
+import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
+import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
+import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { Switch } from "@novadeck/toolkit/Switch"
+import type { ComponentType } from "react"
 
 import { agentLabels, agentLimit, agentLost, agentNote, type AgentSwitch } from "./agent-switches"
 import { settingRowClasses, settingsCardClasses } from "./settings"
+
+// Each agent's mark, as the welcome dialog's cards show it.
+const icons: Readonly<Record<AgentName, ComponentType<{ size?: number; strokeWidth?: number }>>> = {
+  claude: ClaudeIcon,
+  codex: CodexIcon,
+  agy: AntigravityIcon,
+  opencode: OpencodeIcon,
+  pi: PiIcon,
+}
+
+// The agent's mark in a tile, as on the welcome dialog's cards; an outline where it isn't
+// installed.
+const Tile = ({
+  agent,
+  missing = false,
+}: {
+  readonly agent: AgentName
+  readonly missing?: boolean
+}): React.JSX.Element => {
+  const Icon = icons[agent]
+  return (
+    <span
+      className="choice-card-tile settings-agent-tile flex size-8 flex-none items-center justify-center"
+      data-missing={missing || undefined}
+      aria-hidden="true"
+    >
+      <Icon size={16} strokeWidth={1.5} />
+    </span>
+  )
+}
 
 // The command that installs an agent that isn't here, where the backend knows one.
 const installerOf = ({ available, installer }: AgentSwitch): string | undefined =>
@@ -44,36 +80,39 @@ export const AgentSwitches = ({
       const lost = agentLost(toggle)
       return (
         <li key={toggle.agent} className={settingRowClasses}>
-          <div className="flex min-w-0 flex-col gap-1">
-            <span id={`agent-${toggle.agent}`}>{label}</span>
-            {limit && (
-              <span
-                id={`agent-${toggle.agent}-limit`}
-                className="settings-note text-control leading-5"
-                data-tone="warning"
-              >
-                {limit}
-              </span>
-            )}
-            {lost && (
-              <span
-                id={`agent-${toggle.agent}-lost`}
-                className="settings-note text-control leading-5"
-                data-tone="warning"
-              >
-                {lost}
-              </span>
-            )}
-            {note && toggle.error && (
-              <span
-                id={`agent-${toggle.agent}-note`}
-                className="settings-note text-control leading-5"
-                data-tone="danger"
-                role="alert"
-              >
-                {note}
-              </span>
-            )}
+          <div className="flex min-w-0 items-center gap-3">
+            <Tile agent={toggle.agent} missing={!toggle.available} />
+            <div className="flex min-w-0 flex-col gap-1">
+              <span id={`agent-${toggle.agent}`}>{label}</span>
+              {limit && (
+                <span
+                  id={`agent-${toggle.agent}-limit`}
+                  className="settings-note text-control leading-5"
+                  data-tone="warning"
+                >
+                  {limit}
+                </span>
+              )}
+              {lost && (
+                <span
+                  id={`agent-${toggle.agent}-lost`}
+                  className="settings-note text-control leading-5"
+                  data-tone="warning"
+                >
+                  {lost}
+                </span>
+              )}
+              {note && toggle.error && (
+                <span
+                  id={`agent-${toggle.agent}-note`}
+                  className="settings-note text-control leading-5"
+                  data-tone="danger"
+                  role="alert"
+                >
+                  {note}
+                </span>
+              )}
+            </div>
           </div>
           {/* A short state sits beside the switch, so the row keeps its height. */}
           <div className="flex shrink-0 items-center gap-3">
@@ -124,17 +163,20 @@ const InstallRow = ({
 }): React.JSX.Element => (
   <li className={settingRowClasses}>
     {/* It takes the row's width, so the command shows as much as fits. */}
-    <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <span id={`agent-${agent}`}>{label}</span>
-      <span id={`agent-${agent}-note`} className="settings-note text-control leading-5">
-        {running ? "Installing in a terminal of its own." : "Not installed. Install runs"}
-        {/* Whole, wrapping where it must, so nothing it will do is hidden. */}
-        {!running && (
-          <code className="settings-installer mt-0.5 block [overflow-wrap:anywhere]">
-            {command}
-          </code>
-        )}
-      </span>
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <Tile agent={agent} missing />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span id={`agent-${agent}`}>{label}</span>
+        <span id={`agent-${agent}-note`} className="settings-note text-control leading-5">
+          {running ? "Installing in a terminal of its own." : "Not installed. Install runs"}
+          {/* Whole, wrapping where it must, so nothing it will do is hidden. */}
+          {!running && (
+            <code className="settings-installer mt-0.5 block [overflow-wrap:anywhere]">
+              {command}
+            </code>
+          )}
+        </span>
+      </div>
     </div>
     <button
       type="button"

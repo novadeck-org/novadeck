@@ -412,7 +412,7 @@ describe("dictation", () => {
       await pressShortcut("preferences")
       await preferencesDialog().getByRole("tab", { name: "Addons" }).click()
       const card = preferencesDialog().getByRole("region", { name: "Voice input" })
-      const enabled = card.getByRole("switch", { name: "Enabled" })
+      const enabled = card.getByRole("switch", { name: "Use voice input" })
       await expect.element(enabled).toHaveAttribute("aria-checked", "false")
       await expect.element(enabled).toBeDisabled()
       await card.getByRole("button", { name: "Install" }).click()

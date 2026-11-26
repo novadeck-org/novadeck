@@ -161,7 +161,7 @@ describe("Murmur's one-time offer", () => {
       const card = await preferencesMurmur()
       await expect.element(card.getByRole("button", { name: "Install" })).toBeVisible()
       await expect
-        .element(card.getByRole("switch", { name: "Enabled" }))
+        .element(card.getByRole("switch", { name: "Name terminals" }))
         .toHaveAttribute("aria-checked", "false")
     })
 

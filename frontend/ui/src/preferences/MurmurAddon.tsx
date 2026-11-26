@@ -183,7 +183,7 @@ export const MurmurAddon = ({
         <AddonRow
           scope="murmur"
           id="enabled"
-          label="Enabled"
+          label="Name terminals"
           description="Turns on when you install it."
         >
           <Switch
@@ -229,19 +229,20 @@ export const MurmurAddon = ({
             </AddonDetails>
           </>
         ) : (
-          <AddonRow scope="murmur" id="enabled" label="Enabled">
+          <AddonRow
+            scope="murmur"
+            id="enabled"
+            label="Name terminals"
+            {...(check && { description: deviceText(check) })}
+          >
             <Switch
               checked={state.enabled}
               onChange={(enabled) => actions.set({ enabled })}
               disabled={busy}
               labelledBy="murmur-enabled"
+              {...(check && { describedBy: "murmur-enabled-description" })}
             />
           </AddonRow>
-        )}
-        {check && (
-          <div className={addonRowClasses}>
-            <span className={addonNoteClasses}>{deviceText(check)}</span>
-          </div>
         )}
         <AddonRow
           scope="murmur"

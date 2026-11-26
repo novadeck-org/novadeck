@@ -94,7 +94,7 @@ const chooseMode = async (name: "System" | "Light" | "Dark"): Promise<void> => {
 }
 
 const transcriptsSwitch = (): Locator =>
-  preferencesDialog().getByRole("switch", { name: "Transcripts" })
+  preferencesDialog().getByRole("switch", { name: "Keep recent output" })
 
 const ligaturesSwitch = (): Locator =>
   preferencesDialog().getByRole("switch", { name: "Ligatures" })
@@ -303,10 +303,10 @@ describe("Preferences", () => {
       await expect.element(tab("Shortcuts")).toHaveAttribute("aria-selected", "false")
       const notifications = preferencesDialog().getByRole("tabpanel", { name: "Notifications" })
       await expect
-        .element(notifications.getByRole("switch", { name: "Notify when an agent needs you" }))
+        .element(notifications.getByRole("switch", { name: "When an agent needs you" }))
         .toBeVisible()
       await expect
-        .element(notifications.getByRole("switch", { name: "Transcripts" }))
+        .element(notifications.getByRole("switch", { name: "Keep recent output" }))
         .not.toBeInTheDocument()
     })
 
@@ -331,9 +331,7 @@ describe("Preferences", () => {
 
       await expect.element(tab("Notifications")).toHaveAttribute("aria-selected", "true")
       await expect
-        .element(
-          preferencesDialog().getByRole("switch", { name: "Notify when an agent needs you" }),
-        )
+        .element(preferencesDialog().getByRole("switch", { name: "When an agent needs you" }))
         .toBeVisible()
     })
   })
@@ -414,9 +412,11 @@ describe("Preferences Addons", () => {
       await expect.element(voiceCard().getByText("Model", { exact: true })).not.toBeInTheDocument()
       // Off until it is installed, and the install turns it on.
       await expect
-        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .element(voiceCard().getByRole("switch", { name: "Use voice input" }))
         .toHaveAttribute("aria-checked", "false")
-      await expect.element(voiceCard().getByRole("switch", { name: "Enabled" })).toBeDisabled()
+      await expect
+        .element(voiceCard().getByRole("switch", { name: "Use voice input" }))
+        .toBeDisabled()
       await voiceCard().getByRole("button", { name: "Install" }).click()
 
       await expect.element(voiceCard().getByText(/Downloading engine/)).toBeVisible()
@@ -424,10 +424,10 @@ describe("Preferences Addons", () => {
       await expect.element(voiceCard().getByRole("button", { name: "Cancel" })).toBeVisible()
       await expect.element(voiceCard().getByText(/Downloading model/)).toBeVisible()
 
-      const enabled = voiceCard().getByRole("switch", { name: "Enabled" })
+      const enabled = voiceCard().getByRole("switch", { name: "Use voice input" })
       // The demo's install takes a few seconds, its three steps together.
       await expect.element(enabled, { timeout: 10_000 }).toHaveAttribute("aria-checked", "true")
-      await expect.element(voiceCard().getByText(/Checked: a test clip took/)).toBeVisible()
+      await expect.element(voiceCard().getByText(/A test clip took/)).toBeVisible()
       await expect.element(voiceCard().getByText("Model", { exact: true })).not.toBeInTheDocument()
       await expect.element(voiceCard().getByText(/Also install/)).not.toBeInTheDocument()
     })
@@ -451,12 +451,12 @@ describe("Preferences Addons", () => {
       await openWorkspace()
       await showAddons()
       await expect
-        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .element(voiceCard().getByRole("switch", { name: "Use voice input" }))
         .toHaveAttribute("aria-checked", "true")
 
-      await voiceCard().getByRole("switch", { name: "Enabled" }).click()
+      await voiceCard().getByRole("switch", { name: "Use voice input" }).click()
       await expect
-        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .element(voiceCard().getByRole("switch", { name: "Use voice input" }))
         .toHaveAttribute("aria-checked", "false")
 
       await voiceCard().getByRole("button", { name: "Uninstall" }).click()
@@ -464,14 +464,16 @@ describe("Preferences Addons", () => {
       await expect.element(confirm.getByText(/freeing 602 MB/)).toBeVisible()
       await confirm.getByRole("button", { name: "Cancel" }).click()
       await expect.element(confirm).not.toBeInTheDocument()
-      await expect.element(voiceCard().getByRole("switch", { name: "Enabled" })).toBeVisible()
+      await expect
+        .element(voiceCard().getByRole("switch", { name: "Use voice input" }))
+        .toBeVisible()
 
       await voiceCard().getByRole("button", { name: "Uninstall" }).click()
       await confirm.getByRole("button", { name: "Uninstall" }).click()
       await expect.element(voiceCard().getByRole("button", { name: "Install" })).toBeVisible()
       // Back to the card before an install: off until the next install turns it on.
       await expect
-        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .element(voiceCard().getByRole("switch", { name: "Use voice input" }))
         .toHaveAttribute("aria-checked", "false")
     })
   })
@@ -488,9 +490,11 @@ describe("Preferences Addons", () => {
       await expect.element(murmurCard().getByText(/GPU/)).not.toBeInTheDocument()
       // Off until it is installed, and the install turns it on.
       await expect
-        .element(murmurCard().getByRole("switch", { name: "Enabled" }))
+        .element(murmurCard().getByRole("switch", { name: "Name terminals" }))
         .toHaveAttribute("aria-checked", "false")
-      await expect.element(murmurCard().getByRole("switch", { name: "Enabled" })).toBeDisabled()
+      await expect
+        .element(murmurCard().getByRole("switch", { name: "Name terminals" }))
+        .toBeDisabled()
       await murmurCard().getByRole("button", { name: "Install" }).click()
 
       await expect.element(murmurCard().getByText(/Downloading engine/)).toBeVisible()
@@ -502,7 +506,7 @@ describe("Preferences Addons", () => {
         .element(murmurCard().getByText("Runs on Intel Arc Graphics."), { timeout: 10_000 })
         .toBeVisible()
       await expect
-        .element(murmurCard().getByRole("switch", { name: "Enabled" }))
+        .element(murmurCard().getByRole("switch", { name: "Name terminals" }))
         .toHaveAttribute("aria-checked", "true")
     })
 
@@ -586,7 +590,7 @@ describe("Preferences Addons", () => {
       await expect.element(murmurCard()).toBeVisible()
 
       await tab("About").click()
-      const experimental = preferencesDialog().getByRole("switch", { name: "Experimental" })
+      const experimental = preferencesDialog().getByRole("switch", { name: "Experimental builds" })
       await expect.element(experimental).toHaveAttribute("aria-checked", "true")
       await experimental.click()
       await expect.element(tab("Experimental")).not.toBeInTheDocument()
@@ -602,7 +606,7 @@ describe("Preferences Addons", () => {
       await openWorkspace("/?murmur=uninstalled")
       await showAddons()
       await murmurCard().getByRole("button", { name: "Install" }).click()
-      const enabled = murmurCard().getByRole("switch", { name: "Enabled" })
+      const enabled = murmurCard().getByRole("switch", { name: "Name terminals" })
       await expect.element(murmurCard().getByText(/Runs on/), { timeout: 10_000 }).toBeVisible()
 
       await enabled.click()
@@ -618,7 +622,7 @@ describe("Preferences Addons", () => {
       await confirm.getByRole("button", { name: "Uninstall" }).click()
       await expect.element(murmurCard().getByRole("button", { name: "Install" })).toBeVisible()
       await expect
-        .element(murmurCard().getByRole("switch", { name: "Enabled" }))
+        .element(murmurCard().getByRole("switch", { name: "Name terminals" }))
         .toHaveAttribute("aria-checked", "false")
     })
   })
@@ -983,7 +987,7 @@ describe("Appearance preference", () => {
   })
 
   describe("the bell", () => {
-    const sound = () => preferencesDialog().getByRole("combobox", { name: "Sound" })
+    const sound = () => preferencesDialog().getByRole("combobox", { name: "Bell" })
     const savedChoice = () =>
       JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}").soundChoice
 
@@ -1072,14 +1076,12 @@ describe("Appearance preference", () => {
       await openNotifications()
 
       await expect
-        .element(
-          preferencesDialog().getByRole("switch", { name: "Notify when an agent needs you" }),
-        )
+        .element(preferencesDialog().getByRole("switch", { name: "When an agent needs you" }))
         .toBeVisible()
       await expect.element(soundSwitch()).not.toBeInTheDocument()
       await expectStaysAbsent(soundSwitch())
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Sound" }))
+        .element(preferencesDialog().getByRole("combobox", { name: "Bell" }))
         .not.toBeInTheDocument()
     })
   })

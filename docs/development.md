@@ -954,7 +954,7 @@ App:
   The page's hand-offs to a pretend window go nowhere a page can see, so the demo only notes them
   (`frontend/demo-debug/src/desktop/project-windows.ts`). Specs use `&windows=on` and
   `&windows=extra` and the `projectWindows` handle of `support/backend.ts`.
-- **Forges:** the App section's group for the forges (Preferences > Agents > Pull requests, and
+- **Forges:** the App section's group for the forges (Preferences > Agents > Worktrees and pull requests, and
   the pull request marks in Worktrees). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
   gitlab.com, and Azure DevOps not installed, offering an install; the storefront's worktrees carry
   a draft, an open, a merged and a closed pull request. "Offered" boots with the forges offered;

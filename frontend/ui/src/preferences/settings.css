@@ -23,6 +23,13 @@
    an optional `.choice-card-tile` holding its icon, which takes the brand tile once
    checked. `.choice-card.solid`: a choice at full strength at rest that fills under the
    pointer and when checked, as the welcome's are; disabled, it is muted.
+   `.settings-agent-tile`: an agent's mark beside its name, on the choice-card tile; an outline
+   (data-missing) where the agent isn't installed.
+   `.settings-sample`: a few lines of terminal text at the top of a card, drawn in the font,
+   size and ligatures the terminals use, in the terminal's colours.
+   `.settings-preview`: what a setting makes appear, at the top of a card: its
+   `.settings-preview-item`s, each a caption over the thing, dimmed with data-off while the
+   setting that shows it is off.
 
    Hooks: data-found on a `.settings-row`, a moment after search jumps to it: it tints and
    fades back. On a choice card, data-state="checked" | "unchecked", data-disabled, and the
@@ -47,7 +54,9 @@
    --choice-card-tile-border-color (line): the icon tile at rest. Checked, it takes
    --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color.
    --choice-card-tile-disabled-opacity (0.7).
-   --settings-range-disabled-opacity (0.5). */
+   --settings-range-disabled-opacity (0.5).
+   --settings-preview-bg (canvas): the ground of a sample or a preview.
+   --settings-preview-off-opacity (0.4): a preview item while its setting is off. */
 
 .preferences-main {
   border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
@@ -247,4 +256,55 @@
   padding: 0;
   min-height: 0;
   text-decoration: underline;
+}
+
+.settings-agent-tile[data-missing] {
+  border-style: dashed;
+  border-color: var(--color-line-strong);
+  background: transparent;
+  color: var(--color-muted);
+}
+
+/* The sample takes the terminal's own colours, so it reads as one. */
+.settings-sample {
+  margin: 0;
+  overflow: hidden;
+  border-bottom: var(--border-width) solid var(--separator-bg, var(--color-line));
+  background-color: var(--terminal-bg, var(--settings-preview-bg, var(--color-canvas)));
+  color: var(--terminal-fg, var(--color-ink));
+  line-height: 1.4;
+  white-space: pre;
+}
+.settings-sample[data-ligatures="off"] {
+  font-variant-ligatures: none;
+  font-feature-settings:
+    "calt" 0,
+    "liga" 0;
+}
+.settings-sample[data-ligatures="on"] {
+  font-variant-ligatures: contextual common-ligatures;
+}
+.settings-sample-accent {
+  color: var(--color-strong);
+}
+.settings-sample-muted {
+  color: var(--color-muted);
+}
+
+.settings-preview {
+  border-bottom: var(--border-width) solid var(--separator-bg, var(--color-line));
+  background-color: var(--settings-preview-bg, var(--color-canvas));
+}
+.settings-preview-item {
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.settings-preview-item[data-off] {
+  opacity: var(--settings-preview-off-opacity, 0.4);
+}
+/* A desktop notification, drawn plainly: no system's own look. */
+.settings-desktop-notice {
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-paper);
+  box-shadow: var(--shadow-control);
 }
