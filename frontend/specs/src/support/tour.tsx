@@ -256,6 +256,14 @@ export const touchStep = async (
           displaced = true
           return true
         }
+        // Nothing pressed while the box shown isn't this step's own: as one box gives way to
+        // another, the next is in the page a second before it shows, and what the tour marks may
+        // already be the next box's. A teammate's question coming mid-step had its row and then
+        // its answers pressed here as if they opened this step's subject, which answered it
+        // before the story's next step could (a slow runner, 2026-11-26).
+        const now =
+          document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
+        if (!now.includes(line) && (cue === undefined || !now.includes(cue))) return false
         const marked = clicked()[0]
         const wanted = new Set(subject().filter((each) => each !== undefined))
         // The subject, once a press can reach it: the tour may say its line with the window
