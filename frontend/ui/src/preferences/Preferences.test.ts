@@ -140,7 +140,31 @@ describe("the Agents tab", () => {
     await show({ tab: "agents", hibernation: { minutes: null, onChange: () => {} } })
 
     expect(selected()).toBe("Agents")
-    expect(panel()?.textContent).toContain("Stop idle agents after")
+    expect(panel()?.textContent).toContain("Stop idle agents")
+  })
+
+  it("stops idle agents with a switch, its wait beside it only while on", async () => {
+    const changes: (number | null)[] = []
+    const idleSwitch = (): HTMLElement | null =>
+      document.querySelector('[role="switch"][aria-labelledby="idle-agents-label"]')
+    await show({
+      tab: "agents",
+      hibernation: { minutes: 30, onChange: (minutes) => changes.push(minutes) },
+    })
+    expect(idleSwitch()?.getAttribute("aria-checked")).toBe("true")
+    expect(panel()?.querySelector('[role="combobox"]')).not.toBeNull()
+    idleSwitch()?.click()
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({
+      tab: "agents",
+      hibernation: { minutes: null, onChange: (minutes) => changes.push(minutes) },
+    })
+    expect(idleSwitch()?.getAttribute("aria-checked")).toBe("false")
+    expect(panel()?.querySelector('[role="combobox"]')).toBeNull()
+    idleSwitch()?.click()
+    // Off, then on again with an hour, the wait it starts with.
+    expect(changes).toEqual([null, 60])
   })
 
   const worktreesSwitch = (): HTMLElement | null =>
@@ -358,12 +382,12 @@ describe("the Novadeck Agent row", () => {
       experimental: experimental(true),
       bundledPi: {
         enabled: true,
-        fetch: { state: "failed", error: "Could not reach github.com. Check the connection." },
+        fetch: { state: "failed", error: "Couldn't reach github.com. Check your connection." },
         onChange: (enabled) => changes.push(enabled),
       },
     })
     expect(note()?.getAttribute("role")).toBe("alert")
-    expect(note()?.textContent).toContain("Could not reach github.com.")
+    expect(note()?.textContent).toContain("Couldn't reach github.com.")
     // The switch is described by its note too.
     expect(piSwitch()?.getAttribute("aria-describedby")).toBe(
       "bundled-pi-description bundled-pi-note",
@@ -397,6 +421,61 @@ describe("the Murmur row", () => {
     expect(murmurSwitch()?.getAttribute("aria-checked")).toBe("false")
     murmurSwitch()?.click()
     expect(changes).toEqual([true])
+  })
+})
+
+describe("Keep awake", () => {
+  it("has no Experimental row where the app can't keep the computer awake, as in a browser", async () => {
+    await show({ tab: "experimental", experimental: experimental(true) })
+    expect(document.getElementById("keep-awake-label")).toBeNull()
+  })
+
+  it("is offered in the Experimental tab, and turning it on adds its switch to the Agents page", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      awake: true,
+      onChange: (next) => changes.push(next.keepAwakeOffered),
+    })
+    expect(document.getElementById("keep-awake-label")?.textContent).toBe("Keep awake")
+    expect(document.getElementById("keep-awake-description")?.textContent).toContain("Agents page")
+    document
+      .querySelector<HTMLElement>('[role="switch"][aria-labelledby="keep-awake-label"]')
+      ?.click()
+    expect(changes).toEqual([true])
+  })
+
+  it("shows its switch on the Agents page, on by default and badged, only while the Experimental row is on", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "agents",
+      experimental: experimental(true),
+      awake: true,
+      value: { ...readPreferences(), keepAwakeOffered: true },
+      onChange: (next) => changes.push(next.keepAwake),
+    })
+    const general = document.querySelector<HTMLElement>(
+      '[role="switch"][aria-labelledby="awake-label"]',
+    )
+    expect(document.getElementById("awake-label")?.textContent).toBe("Keep awake while agents work")
+    expect(general?.getAttribute("aria-checked")).toBe("true")
+    expect(general?.closest(".preference-row")?.textContent).toContain("Experimental")
+    general?.click()
+    expect(changes).toEqual([false])
+  })
+
+  it("has no switch on the Agents page while the Experimental row is off, or Experimental itself is", async () => {
+    await show({ tab: "agents", experimental: experimental(true), awake: true })
+    expect(document.getElementById("awake-label")).toBeNull()
+    for (const page of mounted.splice(0)) page.unmount()
+    await show({
+      tab: "agents",
+      experimental: experimental(false),
+      awake: true,
+      value: { ...readPreferences(), keepAwakeOffered: true },
+    })
+    expect(document.getElementById("awake-label")).toBeNull()
   })
 })
 
@@ -665,6 +744,15 @@ describe("the Appearance tab", () => {
     expect(panel()?.textContent).not.toContain("Bell")
     expect(panel()?.textContent).not.toContain("Hear it")
   })
+
+  it("holds Scale under Size, apart from the theme", async () => {
+    await show({ tab: "appearance", scalable: true })
+
+    const size = panel()?.querySelector('section[aria-labelledby="preferences-size"]')
+    expect(size?.textContent).toContain("Scale")
+    const theme = panel()?.querySelector('section[aria-labelledby="preferences-theme"]')
+    expect(theme?.textContent).not.toContain("Scale")
+  })
 })
 
 describe("the Terminal page", () => {
@@ -682,8 +770,34 @@ describe("the Terminal page", () => {
     expect(panel()?.textContent).toContain("Terminal font")
     expect(panel()?.textContent).toContain("Ligatures")
     expect(panel()?.textContent).toContain("Screen reader support")
-    expect(panel()?.textContent).toContain("Transcripts")
+    expect(panel()?.textContent).toContain("Keep recent output")
     expect(panel()?.textContent).not.toContain("View modes")
+  })
+
+  it("offers screen reader support as three choices where the app can tell, else a switch", async () => {
+    await show({ tab: "terminal", screenReaderKnown: true })
+    const choices = [...(panel()?.querySelectorAll('[role="radiogroup"] input') ?? [])]
+    expect(choices.map((choice) => choice.getAttribute("aria-label"))).toEqual([
+      "Automatic",
+      "On",
+      "Off",
+    ])
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({ tab: "terminal" })
+    expect(
+      panel()?.querySelector('[role="switch"][aria-labelledby="screen-reader-label"]'),
+    ).not.toBeNull()
+  })
+
+  it("draws a sample of the terminal text in the size and font set", async () => {
+    await show({ tab: "terminal", value: { ...readPreferences(), fontSize: 21 } })
+
+    const sample = panel()?.querySelector<HTMLElement>(".settings-sample pre")
+    expect(sample?.style.fontSize).toBe("21px")
+    expect(sample?.style.fontFamily).toContain("JetBrains Mono")
+    expect(sample?.closest("[aria-hidden]")?.getAttribute("aria-hidden")).toBe("true")
+    expect(panel()?.querySelector(".settings-sample-caption")?.textContent).toContain("21px")
   })
 })
 
@@ -698,9 +812,9 @@ describe("the Notifications page", () => {
       agents: { list: [], onChange: () => {} },
     })
 
-    expect(panel()?.textContent).toContain("Notify when an agent needs you")
-    expect(panel()?.textContent).toContain("Notify when an agent finishes")
-    expect(panel()?.textContent).not.toContain("Transcripts")
+    expect(panel()?.textContent).toContain("When an agent needs you")
+    expect(panel()?.textContent).toContain("When an agent is done")
+    expect(panel()?.textContent).not.toContain("Keep recent output")
     expect(panel()?.textContent).not.toContain("Text size")
     expect(panel()?.textContent).not.toContain("View modes")
   })
@@ -837,24 +951,42 @@ describe("an agent that is not installed, in Preferences", () => {
   })
 })
 
+describe("a choice with words under it", () => {
+  it("reads them with its select", async () => {
+    await show({ tab: "appearance", scalable: true })
+
+    const trigger = [...document.querySelectorAll('[role="combobox"]')].find((each) =>
+      document
+        .getElementById(each.getAttribute("aria-labelledby") ?? "")
+        ?.textContent?.includes("Scale"),
+    )
+    const described = document.getElementById(trigger?.getAttribute("aria-describedby") ?? "")
+    expect(described?.textContent).toContain("Terminal text has its own size")
+  })
+})
+
 describe("the forges, in Preferences", () => {
   const forges = () => ({
     list: [{ forge: "github" as const, available: true, enabled: true, busy: false, hosts: [] }],
   })
   const agentsPanel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
   const section = () =>
-    agentsPanel()?.querySelector('section[aria-labelledby="preferences-pull-requests"]')
+    agentsPanel()?.querySelector(
+      'section[aria-labelledby="preferences-worktrees-and-pull-requests"]',
+    )
+  const list = () => section()?.querySelector('ul[aria-label="Forges"]')
 
-  it("are rows with no switch under Agents, where the backend has forges", async () => {
+  it("are rows with no switch under Agents, beside agent worktrees, where the backend has forges", async () => {
     await show({
       tab: "agents",
       forges: forges(),
       worktrees: { enabled: true, onChange: () => {} },
     })
     expect(selected()).toBe("Agents")
-    expect(section()?.querySelector("h3")?.textContent).toBe("Pull requests")
-    expect(section()?.querySelector('ul[aria-label="Forges"] li')).not.toBeNull()
-    expect(section()?.querySelector('[role="switch"]')).toBeNull()
+    expect(section()?.querySelector("h3")?.textContent).toBe("Worktrees and pull requests")
+    expect(section()?.textContent).toContain("Agent worktrees")
+    expect(list()?.querySelector("li")).not.toBeNull()
+    expect(list()?.querySelector('[role="switch"]')).toBeNull()
   })
 
   it("go with agent worktrees, whose panel shows the pull requests, and aren't in Experimental", async () => {
@@ -863,7 +995,7 @@ describe("the forges, in Preferences", () => {
       forges: forges(),
       worktrees: { enabled: false, onChange: () => {} },
     })
-    expect(section()).toBeNull()
+    expect(list()).toBeNull()
     mounted.splice(0).forEach((page) => page.unmount())
 
     await show({ tab: "experimental", experimental: experimental(true), forges: forges() })
@@ -876,7 +1008,8 @@ describe("the forges, in Preferences", () => {
 
   it("are absent where the backend has none", async () => {
     await show({ tab: "agents", worktrees: { enabled: true, onChange: () => {} } })
-    expect(section()).toBeNull()
+    expect(section()).not.toBeNull()
+    expect(list()).toBeNull()
   })
 })
 
@@ -947,6 +1080,27 @@ describe("searching Preferences", () => {
 
     expect(document.activeElement?.getAttribute("role")).toBe("switch")
     expect(document.activeElement?.closest(".settings-row")?.textContent).toContain("Ring the bell")
+  })
+
+  it("focuses a card's switch over the choice beside it", async () => {
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      hibernation: { minutes: 30, onChange: () => {} },
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("appearance")))
+    mounted.push(page)
+    await nextFrame()
+    await type("stop idle")
+    await act(async () => (document.querySelector(".preferences-result") as HTMLElement).click())
+    await nextFrame()
+
+    expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("idle-agents-label")
   })
 
   it("finds a switch only the Experimental page has there, and one that stands on its page once", async () => {

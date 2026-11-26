@@ -7,7 +7,7 @@ import type { DemoLaunch } from "./debug-demo"
 import type { DemoAction, DemoActionContext, DemoActionGroup } from "./types"
 import { placed } from "./works"
 
-const where = "Preferences > Agents > Pull requests"
+const where = "Preferences > Agents > Worktrees and pull requests"
 
 // One action per state the forges' rows can be in, each moving the demo's forges to it.
 const scenarios: readonly {

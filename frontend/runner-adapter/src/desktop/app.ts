@@ -399,6 +399,7 @@ export const desktopOptions = (
   const beforeQuit = app?.beforeQuit
   const showAppearance = app?.showAppearance
   const showScale = app?.showScale
+  const keepAwake = app?.keepAwake
   const openLogs = app?.openLogs
   const pagePicture = app?.pagePicture
   const pageLook = app?.lookAtPage
@@ -423,6 +424,7 @@ export const desktopOptions = (
     ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
     ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
     ...(showScale ? { showScale: (scale) => showScale(scale) } : {}),
+    ...(keepAwake ? { keepAwake: (on) => keepAwake(on) } : {}),
     ...(notices ? { notices } : {}),
     ...(badge ? { badge } : {}),
     ...(windowFocus ? { windowFocus } : {}),

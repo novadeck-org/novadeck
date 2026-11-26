@@ -47,7 +47,7 @@ describe("demo uninstall", () => {
       { kind: "failed", reason: stoppedReason },
       { kind: "failed", reason: stoppedReason },
     ])
-    expect(stoppedReason.endsWith("quit it and open it again.")).toBe(true)
+    expect(stoppedReason.endsWith("Quit Novadeck and open it again.")).toBe(true)
     expect(await run("trash")).toEqual([
       { kind: "failed", reason: trashReason },
       { kind: "removed" },

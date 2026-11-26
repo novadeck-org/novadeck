@@ -13,6 +13,7 @@ import type { LeadsHost } from "../terminals/leads.js"
 import { peerOf } from "../terminals/peers-host.js"
 import type { Record } from "../terminals/record.js"
 import { titleRefusal } from "../terminals/titles.js"
+import type { Included } from "./include.js"
 import type { WorktreeRecord } from "./records.js"
 import { homeSaid, type OriginBranch, type Worktrees } from "./worktrees.js"
 
@@ -194,6 +195,8 @@ export type WorktreeAnswer =
       readonly tracking?: boolean
       /** open_worktree: instruction files at its top. */
       readonly instructions?: readonly string[]
+      /** open_worktree: the ignored files it got from the checkout (see `copyIncluded`). */
+      readonly included?: Included
       /** open_worktree and take_worktree: the branch its work belongs on. */
       readonly home?: string
       /** take_worktree: home was given but stays as it was (the worktree isn't yours yet). */
@@ -286,6 +289,7 @@ export class WorktreeCalls {
       ...(opened.origin !== undefined && { origin: opened.origin }),
       ...(opened.tracking !== undefined && { tracking: opened.tracking }),
       instructions: opened.instructions,
+      included: opened.included,
       ...(opened.home !== undefined && { home: opened.home }),
       ...(opened.title !== undefined && { title: opened.title }),
     }

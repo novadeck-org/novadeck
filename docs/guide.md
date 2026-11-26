@@ -87,6 +87,20 @@ start others and lead them. The wires show who leads whom.
 
 Once a terminal has messages, click its **Messages** icon to read its conversations with other agents.
 
+## Worktrees
+
+Agents make their own git worktrees, so they stay out of each other's way and out of your
+checkout. The **Worktrees** panel lists them with their pull requests, and they're cleaned up once
+merged. If you manage worktrees with another tool, turn **Agent worktrees** off in Preferences >
+Agents.
+
+A new worktree gets your checkout's ignored `.env` files. To copy other ignored files, such as
+local config or certificates, list them in a `.worktreeinclude` file at the repository's top, in
+`.gitignore` syntax. It replaces the `.env*` default, so list those too. A pattern without a `/`
+picks files by their own name, outside ignored folders like `node_modules`; to copy a folder or
+something inside one, write its path (`.venv/`, `certs/local/**`). Dependencies and build output
+aren't copied unless you name them, and the agent is told what it got.
+
 ## Agents show you their work
 
 ![An order status page shown in a pane next to the agent's terminal.](assets/guide/show-page.webp)

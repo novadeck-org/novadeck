@@ -436,7 +436,7 @@ Agents:
   the done reports its agents wrote, and withdraws and clears the MCP asks the panel opened
   (those of "Every state at once"), so nothing the agents or the panel made waits. The rows
   of the variant's own, as the `inbox` variant's, stay for the Inbox group's actions. The notices for finishes need the Preferences switch
-  "Notify when an agent finishes" on.
+  "When an agent is done" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
   agent running (each with Open terminal), a request waiting (answer it first), or a
@@ -954,7 +954,7 @@ App:
   The page's hand-offs to a pretend window go nowhere a page can see, so the demo only notes them
   (`frontend/demo-debug/src/desktop/project-windows.ts`). Specs use `&windows=on` and
   `&windows=extra` and the `projectWindows` handle of `support/backend.ts`.
-- **Forges:** the App section's group for the forges (Preferences > Agents > Pull requests, and
+- **Forges:** the App section's group for the forges (Preferences > Agents > Worktrees and pull requests, and
   the pull request marks in Worktrees). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
   gitlab.com, and Azure DevOps not installed, offering an install; the storefront's worktrees carry
   a draft, an open, a merged and a closed pull request. "Offered" boots with the forges offered;
@@ -1564,6 +1564,24 @@ opened later at their `zoomFactor` and again at `dom-ready`. Electron gives ever
 any window resize; the browser pane's views keep their own zoom. Nothing else zooms the page: the View menu carries no zoom role (so no Ctrl+- or
 Ctrl+0 is taken from a terminal on Linux or Windows), and Electron applies no pinch or Ctrl+wheel zoom. A browser has no `showScale`, so the row is hidden there and the
 browser's own zoom does it; the previews demo scales by CSS `zoom` instead.
+
+### Keeping the computer awake
+
+Preferences > Experimental > Keep awake adds Agents > Running > "Keep awake while agents work"
+(`keepAwakeOffered` and `keepAwake` in the preferences, this device's own; the switch is on by
+default). While both are on and IS_EXPERIMENTAL is, the desktop app keeps the computer from
+sleeping on its own as long as an agent is at work. The runner decides what counts
+(`agentAtWork` in `backend/runner/src/terminals/working.ts`: a turn not held on the person's
+answer, subagents running on after a turn, or jobs or a wake-up the agent waits on) and tells
+the main process over the runner's parent port (`RunnerOptions.working`, the `working` report);
+the page tells it what the person wants (`keepAwake` on the bridge). The main process
+(`apps/desktop/src/main/awake/`) holds only while both are true, so it keeps holding with every
+window closed on macOS, and lets go when the runner exits. Its hold is Electron's
+`powerSaveBlocker` `prevent-app-suspension` on every OS, and on Linux also
+`gnome-session-inhibit --inhibit suspend`, as GNOME takes no hold from Electron's: it runs `cat`
+on a pipe from the app, so a crashed app leaves no hold behind. The screen still dims, turns off
+and locks; a laptop's lid still sleeps it. A browser has no `keepAwake`, so the rows are hidden
+there; the previews demo marks what it would tell the app as `data-keep-awake` on the page's root.
 
 ### Observing a terminal another client controls
 

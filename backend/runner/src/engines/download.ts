@@ -21,7 +21,7 @@ const open = async (from: string, signal: AbortSignal): Promise<AsyncIterable<Ui
     response = await fetch(from, { signal })
   } catch (error) {
     if (signal.aborted) throw error
-    throw new DownloadError(`Could not reach ${new URL(from).host}. Check the connection.`)
+    throw new DownloadError(`Couldn't reach ${new URL(from).host}. Check your connection.`)
   }
   if (!response.ok || response.body === null)
     throw new DownloadError(`${new URL(from).host} answered ${response.status}.`)
@@ -65,7 +65,7 @@ export const download = async (options: {
       { signal },
     )
     if (hash.digest("hex") !== options.sha256)
-      throw new DownloadError("The download is damaged: its checksum is not the expected one.")
+      throw new DownloadError("The download is damaged: its checksum doesn't match.")
     await rename(part, to)
   } catch (error) {
     await rm(part, { force: true })

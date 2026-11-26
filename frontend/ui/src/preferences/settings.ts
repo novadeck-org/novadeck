@@ -24,6 +24,9 @@ export const fallbackTab: PreferencesTab = "appearance"
 
 // Settings sit in cards on the settings ground, one row per setting (settings.css).
 export const settingsCardClasses = "card settings-card overflow-hidden"
+// Settings each standing on a card of its own, as the welcome dialog draws its choices
+// (settings.css); a card above holds settings that belong together.
+export const settingsStackClasses = "settings-stack m-0 flex flex-col gap-2 p-0"
 export const settingRowClasses =
   "settings-row flex min-h-13 items-center justify-between gap-6 px-4 py-3 text-body"
 

@@ -63,6 +63,8 @@ const initial = (): UiState =>
       chatView: false,
       agentAvatars: false,
       onboardingTour: false,
+      keepAwakeOffered: false,
+      keepAwake: true,
       appScale: 100,
     },
   })
@@ -435,6 +437,10 @@ describe("the IS_EXPERIMENTAL flag", () => {
 
   it("turns on and off, and leaves the state as it was when it doesn't change", () => {
     const ui = createUiStore(initial())
+    // Set at all, even to what the store starts with, it is known.
+    expect(ui.getSnapshot().experimentalKnown).toBe(false)
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", false)
+    expect(ui.getSnapshot().experimentalKnown).toBe(true)
     const before = ui.getSnapshot()
     setFeatureFlag(ui, "IS_EXPERIMENTAL", false)
     expect(ui.getSnapshot()).toBe(before)

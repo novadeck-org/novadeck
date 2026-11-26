@@ -82,6 +82,10 @@ export type UiState = {
   // persisted, so a switch turned off hides again at the next launch; a reconnect to the runner,
   // which makes the store afresh, hides it too.
   readonly experimentalRevealed: boolean
+  // Whether IS_EXPERIMENTAL has been set in this store, as the desktop app's channel answered
+  // or the person flipped it, so its value is the app's and not the store's first `false`.
+  // What only Experimental turns on waits for it (`watchKeepAwake`). Never persisted.
+  readonly experimentalKnown: boolean
   // Which addon's offer (voice input or murmur) came up in this run of the app: each run
   // offers at most one unasked ("none": a window that is not the app's first leaves it to
   // the first); never persisted.
@@ -221,6 +225,7 @@ export const initialUi = ({
   agentFocus: null,
   crashLoopDismissed: false,
   experimentalRevealed: false,
+  experimentalKnown: false,
   addonOffer: extraWindow ? "none" : null,
   nameOffer: null,
   crashLoop: 0,
@@ -461,6 +466,13 @@ export const revealExperimental = (ui: UiStore): void =>
 export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.agentAvatars
 
+/**
+ * Whether the desktop app keeps the computer awake while agents work: General's switch, which
+ * shows only while Keep awake is on in the Experimental tab, so only while IS_EXPERIMENTAL is.
+ */
+export const keepAwakeOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
+  state.flags.IS_EXPERIMENTAL && state.preferences.keepAwakeOffered && state.preferences.keepAwake
+
 /** Whether the footer offers the onboarding tour: its own switch, with Experimental on. */
 export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.onboardingTour
@@ -473,15 +485,18 @@ export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): voi
 
 // The state with one feature flag set. IS_EXPERIMENTAL seen on reveals Preferences' Experimental
 // switch for the rest of this run, however it goes off later: this window's switch, another
-// window's, or a channel read at a launch.
-export const withFeatureFlag = (state: UiState, flag: FeatureFlag, on: boolean): UiState =>
-  state.flags[flag] === on
+// window's, or a channel read at a launch. Set at all, even to what it was, it is known.
+export const withFeatureFlag = (state: UiState, flag: FeatureFlag, on: boolean): UiState => {
+  const known = state.experimentalKnown || flag === "IS_EXPERIMENTAL"
+  return state.flags[flag] === on && known === state.experimentalKnown
     ? state
     : {
         ...state,
         flags: { ...state.flags, [flag]: on },
         experimentalRevealed: state.experimentalRevealed || (flag === "IS_EXPERIMENTAL" && on),
+        experimentalKnown: known,
       }
+}
 
 // Turns the agent modes switch off where it is on, as the Experimental switch going off does:
 // the runner then has agents work as a Herd, and the saved pick stays for when it goes on again.

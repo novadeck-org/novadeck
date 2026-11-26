@@ -285,7 +285,8 @@ const ShownPage = ({
       {unmobile && (
         <div className="pane-notice" data-tone="warning" role="status">
           <p>
-            This page has no mobile viewport tag: a phone would lay it out 980 wide and shrink it.
+            This page has no mobile viewport tag: a phone would lay it out 980 pixels wide and
+            shrink it.
           </p>
         </div>
       )}

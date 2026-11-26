@@ -6,6 +6,7 @@ import { currentBranch, keysOfBranch, writeKeys } from "../checkouts/home.js"
 import { behindMain, mainBranch } from "../checkouts/repository.js"
 import { logs } from "../log.js"
 import { Cleanup, type CleanupHost, type OriginStatus, type OwnerState } from "./cleanup.js"
+import { copyIncluded, type Included, type Limit } from "./include.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
 import {
   addWorktree,
@@ -57,6 +58,8 @@ export type WorktreesHost = {
   readonly hooksFolder?: string
   /** How long a new worktree waits for the remote's main; five seconds when omitted. */
   readonly freshMainMs?: number
+  /** The most ignored files a new worktree gets (see `includeLimit`), which tests lower. */
+  readonly includeLimit?: Limit
 }
 
 type Failure = { readonly ok: false; readonly reason: string }
@@ -113,6 +116,8 @@ export type Opened = {
   readonly home?: string
   /** Its title, as its branch's key holds it. */
   readonly title?: string
+  /** The ignored files it got from the checkout it was made from (see `copyIncluded`). */
+  readonly included: Included
 }
 
 export type Taken =
@@ -519,10 +524,13 @@ export class Worktrees {
             title: input.title,
           },
     )
+    // From the checkout the agent asked from: where its own ignored files, such as .env, are.
+    const included = await copyIncluded(repository.top, real, this.host.includeLimit)
     this.made({ root: real, projectId: input.projectId })
     return {
       ok: true,
       path: real,
+      included,
       branch: input.branch,
       existing: tip !== undefined,
       base,

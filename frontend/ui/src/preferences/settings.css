@@ -23,6 +23,22 @@
    an optional `.choice-card-tile` holding its icon, which takes the brand tile once
    checked. `.choice-card.solid`: a choice at full strength at rest that fills under the
    pointer and when checked, as the welcome's are; disabled, it is muted.
+   `.settings-agent-tile`: an agent's mark beside its name, on the choice-card tile; an outline
+   (data-missing) where the agent isn't installed.
+   `.settings-sample`: a few lines of terminal text above Terminal's cards, drawn in the font,
+   size and ligatures the terminals use, on the workspace's deepest ground: a
+   `.settings-sample-caption` naming them, then the lines, coloured as a prompt, a keyword and
+   comments are, ending at a block `.settings-sample-cursor`. Its `pre` carries data-ligatures.
+   `.settings-stack`: settings each on a card of its own, as the welcome dialog draws its
+   choices (the solid choice card): a `.settings-row` per card, led by a `.choice-card-tile`
+   that takes the brand tile while the card's switch is on (its look is the choice card's
+   own, not repeated here), and its description small. On a page narrower than 560px a
+   card's control wraps under its words. A
+   `.settings-label` (a setting's name) is set medium everywhere. In a `.settings-card` led by
+   a row with a tile, that tile does the same, and the rows under it line up with its words. A
+   card whose agent waits to be installed (data-agent-install) is drawn dashed, as the
+   welcome's Add card. `.settings-section-title`: a section's title,
+   as the welcome titles its own.
 
    Hooks: data-found on a `.settings-row`, a moment after search jumps to it: it tints and
    fades back. On a choice card, data-state="checked" | "unchecked", data-disabled, and the
@@ -47,7 +63,9 @@
    --choice-card-tile-border-color (line): the icon tile at rest. Checked, it takes
    --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color.
    --choice-card-tile-disabled-opacity (0.7).
-   --settings-range-disabled-opacity (0.5). */
+   --settings-range-disabled-opacity (0.5).
+   --settings-preview-bg (canvas): the ground of the terminal sample.
+   The stack's cards read the choice card's tokens (--choice-card-*), as above. */
 
 .preferences-main {
   border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
@@ -163,7 +181,8 @@
   opacity: var(--settings-range-disabled-opacity, 0.5);
 }
 
-.choice-card {
+.choice-card,
+.settings-stack > .settings-row {
   --_bg: var(--choice-card-bg, color-mix(in srgb, var(--color-paper) 60%, transparent));
   --_fg: var(--choice-card-fg, var(--color-muted));
   --_border-color: var(--choice-card-border-color, var(--color-line));
@@ -189,7 +208,8 @@
   --_border-color: var(--choice-card-checked-border-color, var(--color-line-strong));
   --_shadow: var(--choice-card-checked-shadow, var(--shadow-control));
 }
-.choice-card.solid {
+.choice-card.solid,
+.settings-stack > .settings-row {
   --_bg: var(--choice-card-solid-bg, var(--color-paper));
   --_fg: var(--choice-card-solid-fg, var(--color-ink));
 }
@@ -221,7 +241,13 @@
     border-color var(--motion-state) var(--ease-interface),
     color var(--motion-state) var(--ease-interface);
 }
-.choice-card[data-state="checked"] .choice-card-tile {
+.choice-card[data-state="checked"] .choice-card-tile,
+.settings-stack
+  > .settings-row:has([role="switch"][aria-checked="true"])
+  .choice-card-tile:not([data-missing]),
+.settings-card
+  > .settings-row:first-child:has([role="switch"][aria-checked="true"])
+  .choice-card-tile {
   --_highlight: inset 0 1px 0
     color-mix(in srgb, var(--brand-tile-fg, var(--color-on-strong)) 8%, transparent);
   --_drop: 0 6px 14px -8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
@@ -247,4 +273,97 @@
   padding: 0;
   min-height: 0;
   text-decoration: underline;
+}
+
+.settings-agent-tile[data-missing] {
+  border-style: dashed;
+  border-color: var(--color-line-strong);
+  background: transparent;
+  color: var(--color-muted);
+}
+
+/* The sample takes the terminal's own colours, so it reads as one. */
+.settings-sample {
+  overflow: hidden;
+  border: var(--border-width) solid var(--choice-card-border-color, var(--color-line));
+  border-radius: var(--choice-card-radius, var(--radius-panel));
+  background-color: var(--settings-preview-bg, var(--color-canvas));
+  color: var(--color-ink);
+  line-height: 1.45;
+}
+.settings-sample-caption {
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+}
+/* Off turns the joins off alone: the glyph features the body sets (theme/base.css) stay, as in
+   a terminal. */
+.settings-sample [data-ligatures="off"] {
+  font-variant-ligatures: none;
+}
+.settings-sample [data-ligatures="on"] {
+  font-variant-ligatures: contextual common-ligatures;
+}
+.settings-sample-keyword {
+  color: var(--color-syntax-keyword);
+}
+.settings-sample-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  background-color: var(--color-strong);
+}
+.settings-sample-accent {
+  color: var(--color-strong);
+}
+.settings-sample-muted {
+  color: var(--color-muted);
+}
+
+.settings-section-title {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+.settings-stack {
+  list-style: none;
+}
+/* Its cards are the solid choice card (above), whatever the row recipe's hairline says. */
+.settings-stack > .settings-row + .settings-row {
+  border-top-color: var(--_border-color);
+}
+.settings-stack > .settings-row:has([data-agent-install]) {
+  border-style: dashed;
+  border-color: var(--welcome-install-border-color, var(--color-line-strong));
+  background-color: transparent;
+  box-shadow: none;
+}
+.settings-label {
+  font-weight: var(--font-weight-medium);
+}
+/* A card led by a setting with a tile holds what belongs to that setting under it, lined up
+   with its words. */
+.settings-card > .settings-row:first-child:has(.choice-card-tile) ~ .settings-row > :first-child {
+  margin-left: calc(38px + var(--spacing) * 3);
+}
+.settings-stack > .settings-row .settings-description,
+.settings-stack > .settings-row .settings-note {
+  font-size: var(--text-caption);
+  line-height: 18px;
+}
+/* On a narrow page, as a small window at a large scale, a card's control goes under its words,
+   and what a card holds under its head starts at its edge. */
+.preferences-panels {
+  container-type: inline-size;
+}
+@container (max-width: 560px) {
+  .settings-stack > .settings-row,
+  .settings-card > .settings-row {
+    flex-wrap: wrap;
+  }
+  .settings-card > .settings-row:first-child:has(.choice-card-tile) ~ .settings-row > :first-child {
+    margin-left: 0;
+  }
 }

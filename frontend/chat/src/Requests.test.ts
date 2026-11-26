@@ -183,13 +183,13 @@ describe("a request's card", () => {
 
   it("says why an answer didn't go, and clears it once the person changes something", async () => {
     const onAnswer = vi.fn<() => Promise<void>>(async () => {
-      throw new Error("That answer didn't take. Answer it in the terminal.")
+      throw new Error("That answer didn't go through. Answer it in the terminal.")
     })
     const { container } = show(choices, onAnswer)
     click(button(container, "Yes"))
     await settle()
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-      "That answer didn't take. Answer it in the terminal.",
+      "That answer didn't go through. Answer it in the terminal.",
     )
     click(ownRow(container, "No, and tell"))
     expect(container.querySelector('[role="alert"]')).toBeNull()
@@ -249,7 +249,7 @@ describe("a request's card", () => {
     rerender({ type: "raw", text: "Allow this?\n1. Yes", reason: "failed" })
     expect(container.querySelector(".request-options")).toBeNull()
     expect(container.querySelector("pre")?.textContent).toBe("Allow this?\n1. Yes")
-    expect(container.textContent).toContain("That answer didn't take.")
+    expect(container.textContent).toContain("That answer didn't go through.")
     expect(terminalKey(container)).not.toBeNull()
   })
 

@@ -3,11 +3,12 @@ import { murmurDownloadSize, type MurmurState } from "@novadeck/core/addons/murm
 
 // What an installed murmur with no passed check says, beside Try again.
 export const murmurUncheckedText =
-  "Murmur is installed but has not passed its check on this computer yet."
+  "Murmur is installed, but hasn't passed its check on this computer yet."
 
 // What the murmur card says, as plain functions of the addon's state.
 
-export const murmurDescription = "Names your terminals from what they're doing, on this computer."
+export const murmurDescription =
+  "Names your terminals from what they're doing, with a small model on this computer."
 
 // What an install downloads: the engine and the model.
 export const murmurInstallSize = ({ sizes }: MurmurState): number => sizes.engine + sizes.model

@@ -1385,7 +1385,7 @@ describe("a GPU that is gone", () => {
 
     expect(context.store.settings.murmurCheck()).toBeNull()
     expect(context.murmur.state()).toMatchObject({ installed: true, check: null })
-    expect(context.murmur.state().failure).toMatch(/device murmur was checked on isn't there now/)
+    expect(context.murmur.state().failure).toMatch(/device Murmur was checked on isn't there now/)
   })
 
   it("is why murmur stopped, not the engine's failures before it", async ({ resources }) => {

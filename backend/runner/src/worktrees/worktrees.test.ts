@@ -117,6 +117,19 @@ describe("opening a worktree", () => {
     })
   })
 
+  it("gives it the checkout's ignored .env files, and says so", async ({ fx: f }) => {
+    writeFileSync(join(f.repo, ".gitignore"), ".env\n")
+    git(f.repo, "add", ".gitignore")
+    git(f.repo, "commit", "--quiet", "-m", "ignore")
+    writeFileSync(join(f.repo, ".env"), "SECRET=1\n")
+    const opened = await open(f, "feat/env")
+    if (!opened.ok) throw new Error(opened.reason)
+    expect(opened.included).toEqual({ from: f.repo, by: "default", copied: [".env"], failed: [] })
+    expect(readFileSync(join(opened.path, ".env"), "utf8")).toBe("SECRET=1\n")
+    // Ignored, it is nothing the worktree holds: a merged one still goes without a keep.
+    expect(git(opened.path, "status", "--porcelain")).toBe("")
+  })
+
   it("starts from `from` and takes the group it is given", async ({ fx: f }) => {
     writeFileSync(join(f.repo, "b.txt"), "b\n")
     git(f.repo, "add", "-A")

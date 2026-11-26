@@ -183,7 +183,7 @@ describe("restarting to update", () => {
 
 // The About tab holds the Experimental switch, hidden while off until the version is tapped ten
 // times; once shown it stays for the rest of the run.
-const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental" })
+const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental builds" })
 const experimentalTab = () => preferencesDialog().getByRole("tab", { name: "Experimental" })
 const tapVersion = async (times: number): Promise<void> => {
   const version = preferencesDialog().getByText("0.0.79", { exact: true })

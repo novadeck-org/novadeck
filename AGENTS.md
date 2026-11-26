@@ -4,6 +4,7 @@ Before changing this repository, read each file in this list:
 
 - [README.md](README.md) for what Novadeck is.
 - [GLOSSARY.md](GLOSSARY.md) for the names the app shows people, in its copy, docs and notes.
+- [VOICE.md](VOICE.md) for how the app's copy sounds.
 - [docs/development.md](docs/development.md) for setup, the repository map and releases.
 - [CODING.md](CODING.md) for code and test style.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for issues and pull requests.

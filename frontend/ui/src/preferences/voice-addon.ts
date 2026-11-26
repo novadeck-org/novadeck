@@ -40,4 +40,4 @@ export const voiceOnDisk = (state: VoiceState): boolean =>
   state.engineInstalled || state.installed.length > 0
 
 export const checkText = ({ milliseconds }: NonNullable<VoiceState["check"]>): string =>
-  `Checked: a test clip took ${(milliseconds / 1000).toFixed(1)} s.`
+  `A test clip took ${(milliseconds / 1000).toFixed(1)} s on this computer.`

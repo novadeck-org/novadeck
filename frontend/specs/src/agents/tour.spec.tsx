@@ -151,7 +151,7 @@ describe("The tour", () => {
     it("says why Pi's download failed, with a Try again that downloads it again", async () => {
       await openWorkspace(`${offered}&tourPi=fails`)
       await offerFromHelp()
-      await consentSays("Could not reach github.com. Check the connection.")
+      await consentSays("Couldn't reach github.com. Check your connection.")
       const waiting = consent().getByRole("button", { name: "Start the tour" })
       await expect.element(waiting).toHaveAttribute("aria-disabled", "true")
       await consent().getByRole("button", { name: "Try again" }).click()

@@ -379,8 +379,8 @@ unread". Looking means that terminal is the selected one of the session on scree
 clears the unread mark of a reply. The desktop app also shows one system notification for
 a `done` report, "@moth is done: <its name>" with the report's subject, and one for a
 failed turn, "@moth stopped with an error: <its name>"; clicking one brings Novadeck to
-the front with that terminal selected, or opens its report in the Inbox. **Notify when an
-agent finishes** in Preferences turns both notifications off; the marks stay. Marks
+the front with that terminal selected, or opens its report in the Inbox. **When an agent
+is done** (Preferences → Notifications) turns both notifications off; the marks stay. Marks
 belong to the window that showed them: another window keeps its own, and a reload or a
 restart forgets those of unread replies. The browser build (`pnpm dev:web`) shows no
 notifications. The behaviour specs' demo (`?demo=agents`) finishes a prompt you give its
@@ -539,8 +539,8 @@ if you've left by then, the OS ping rings instead (where there are no desktop
 notifications, as in the browser, it waits for you to come back). Toasts already showing
 close when the Inbox opens, when you select their terminal or when one of those dialogs
 opens; their items stay in the Inbox, as they do when you close or ignore a toast. A toast
-also leaves once its item has been answered elsewhere, after the same grace. "Notify when an
-agent needs you" in Preferences turns both off.
+also leaves once its item has been answered elsewhere, after the same grace. "When an agent
+needs you" (Preferences → Notifications) turns both off.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
@@ -704,7 +704,7 @@ agent.
   it read-only above a separator and its fresh prompt (on Windows, scrolled up just above
   a fresh screen); a resumed agent shows its own history instead. A closed plain terminal's
   output is kept for the 7 days its row stays in History; an agent's row keeps none.
-  Transcripts are on by default and can be turned off in Preferences,
+  Transcripts are on by default and can be turned off in Preferences → Terminal → Keep recent output,
   which also forgets the saved ones. A changed terminal's transcript is saved about every
   30 seconds, and when its shell exits or restarts. What looks like a secret (a known
   token prefix, a value named like a secret, a key, a long key-like run) is masked before

@@ -45,11 +45,11 @@ export const bundledPiGroups = (
         },
         {
           label: "Failed",
-          hint: `${where}: the switch on, the note in red reads Could not reach github.com. Check the connection., with Try again, which plays the download again`,
+          hint: `${where}: the switch on, the note in red reads Couldn't reach github.com. Check your connection., with Try again, which plays the download again`,
           run: () =>
             pi.show(true, {
               state: "failed",
-              error: "Could not reach github.com. Check the connection.",
+              error: "Couldn't reach github.com. Check your connection.",
             }),
         },
       ],

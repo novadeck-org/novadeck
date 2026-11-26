@@ -79,6 +79,12 @@ export const noticeCloseChannel = "novadeck:notice-close"
 export const notificationsQuietChannel = "novadeck:notifications-quiet"
 
 /**
+ * Renderer-to-main report of whether the person wants the computer kept awake while agents
+ * work, a boolean; see main/awake/keep-awake.ts.
+ */
+export const keepAwakeChannel = "novadeck:keep-awake"
+
+/**
  * Renderer-to-main report of the Inbox count for the app icon, `{ count, image }`; see
  * main/notices/badge.ts.
  */
@@ -284,8 +290,13 @@ export type RunnerCommand =
 /** How often the main process beats to the runner, in ms. */
 export const mainBeatMs = 1_000
 
-/** Messages from the runner's utility process to the main process: it is ready to serve. */
-export type RunnerReport = { readonly type: "ready" }
+/**
+ * Messages from the runner's utility process to the main process: it is ready to serve, and
+ * whether any agent is at work, each time that changes (see main/awake/keep-awake.ts).
+ */
+export type RunnerReport =
+  | { readonly type: "ready" }
+  | { readonly type: "working"; readonly working: boolean }
 
 /**
  * Main-to-renderer report of what the app's other windows show, `{ elsewhere, voice }`, sent on

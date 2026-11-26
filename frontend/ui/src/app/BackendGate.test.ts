@@ -73,7 +73,7 @@ const failing = (kind: ConnectFailure["kind"], code: string, more: Partial<Conne
         kind === "incompatible"
           ? "The runner is older than this app. Update Novadeck where the runner runs."
           : kind === "outdated"
-            ? "A newer version of Novadeck has used this workspace. Open the newer Novadeck instead; this copy is out of date."
+            ? "A newer version of Novadeck has used this workspace, so this copy is out of date. Open the newer one."
             : "The runner didn't start.",
       code,
       detail: `runner said ${code}`,
