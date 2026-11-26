@@ -2468,7 +2468,7 @@ one from an earlier runner.
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
 - `settings.get()` and
-  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, agentModes?, agentMode?, shippingGate? })`
+  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, agentModes?, agentMode?, shippingGate?, bundledPi?, murmur? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
   Inbox entries that ask in the order the person dragged them into, and the entries they snoozed
@@ -2485,7 +2485,9 @@ one from an earlier runner.
   the person turns it on in the same tab; while off, agents work as a Herd whatever `agentMode`
   holds, and the saved pick returns with the switch), whether the shipping gate is on
   (`shippingGate`, off until the person turns it on in the same tab; see "The shipping gate" in
-  agent-messaging.md), and how agents work with each other,
+  agent-messaging.md), whether Murmur may run (`murmur`, revision 20, off until the person turns
+  it on in the same tab, and first saved on where they had turned Murmur on before it was
+  Experimental, or have its files on disk; see [murmur.md](murmur.md)), and how agents work with each other,
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
@@ -2500,10 +2502,10 @@ one from an earlier runner.
 
 - `tour.prepare()` readies a run of Novadeck's tour (`backend/runner/src/tour/`), always on
   Novadeck's own pi (the pinned pi `harnesses/bundled-pi.ts` downloads, agent `pi`) with GPT-6 Luna
-  at medium effort, paid for by Novadeck through its website (revision 20; from 12 to 19 it ran
+  at medium effort, paid for by Novadeck through its website (revision 21; from 12 to 20 it ran
   opencode, and before 12 the input took the person's own `agent`, which is now optional and
   ignored, so an older UI still works against a newer runner; a UI of this build offers the tour
-  only to a runner at 20). First of all it waits for Novadeck's pi to be in place
+  only to a runner at 21). First of all it waits for Novadeck's pi to be in place
   (`BundledPi.want`: the download the consent asked for ahead with `tour.fetch`, joined, started or
   tried again, whatever the Experimental switch says); a runner without shell files, which can't
   start it, and a download that fails are a `CONFLICT` ("Novadeck couldn't download Pi, so the
@@ -2636,11 +2638,11 @@ one from an earlier runner.
   worktrees" setting (never changed by the tour): the MCP server lists the worktree tools and
   the calls go through (`WorktreesWiring.enabled(terminalId)`), the folder counts as ready for
   the agent's process once it exists, and each worktree's changes are shown on its owner's bar.
-- `tour.fetch()` (revision 20) starts downloading Novadeck's own pi for the tour, whatever its
+- `tour.fetch()` (revision 21) starts downloading Novadeck's own pi for the tour, whatever its
   Experimental switch says (the person asking for the tour is the consent), joins a download
   under way or tries a failed one again (`BundledPi.want`), and answers at once; from then on the
   switch going off stops nothing. Where it stands is the runner settings' `bundledPiFetch`, which
-  says so while the switch is off too (UIs before 20 show it only while the switch is on). The
+  says so while the switch is off too (UIs before 21 show it only while the switch is on). The
   consent asks for it as it opens, so the download is mostly done by Start. A runner without
   shell files, which can't start Novadeck's pi, is a `CONFLICT`.
 - `tour.brief({ terminalId })` rings the lead's script (composed of the run last readied) to the

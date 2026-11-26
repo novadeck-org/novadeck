@@ -97,6 +97,9 @@ const setup = (
       record.closed = true
       steps.push(`closing ${record.summary.handle}`)
     },
+    stopTurn: async (record: Record) => {
+      steps.push(`stopped ${record.summary.handle}`)
+    },
     terminate: async (record: Record) => {
       steps.push(`ended ${record.summary.handle}`)
     },
@@ -157,7 +160,13 @@ describe("an agent closing its own terminal", () => {
     await vi.advanceTimersByTimeAsync(selfCloseMs - 1)
     expect(run.steps).toEqual([])
     await vi.advanceTimersByTimeAsync(1)
-    expect(run.steps).toEqual(["closing moth", "ended moth", "removed moth", "forgot id-moth"])
+    expect(run.steps).toEqual([
+      "closing moth",
+      "stopped moth",
+      "ended moth",
+      "removed moth",
+      "forgot id-moth",
+    ])
     expect(run.records.has("id-fox")).toBe(true)
   })
 
@@ -363,7 +372,13 @@ describe("an agent closing another agent's terminal", () => {
     await settle()
     run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person")
     await settle()
-    expect(run.steps).toEqual(["closing fox", "ended fox", "removed fox", "forgot id-fox"])
+    expect(run.steps).toEqual([
+      "closing fox",
+      "stopped fox",
+      "ended fox",
+      "removed fox",
+      "forgot id-fox",
+    ])
     expect(run.notices).toEqual([
       { to: "id-moth", always: true, text: closeNotice.confirmed("fox", "Terminal", "Codex") },
     ])
@@ -506,7 +521,13 @@ describe("an agent closing a terminal where agents decide for themselves", () =>
     })
     await settle()
     expect(requested).toEqual([])
-    expect(run.steps).toEqual(["closing fox", "ended fox", "removed fox", "forgot id-fox"])
+    expect(run.steps).toEqual([
+      "closing fox",
+      "stopped fox",
+      "ended fox",
+      "removed fox",
+      "forgot id-fox",
+    ])
   })
 
   it("closes at once a busy terminal an agent opened, though no client could be asked", async () => {

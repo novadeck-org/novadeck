@@ -41,6 +41,19 @@
     "forges": {
       "scopes": ["forges"],
       "paths": ["backend/runner/src/forges/", "libraries/forges/"]
+    },
+    "murmur": {
+      "scopes": ["murmur"],
+      "paths": [
+        "backend/runner/src/murmur/",
+        "engines/murmur/",
+        "frontend/ui/src/preferences/MurmurAddon.tsx",
+        "frontend/ui/src/preferences/murmur-addon.ts",
+        "frontend/ui/src/shell/FooterMurmur.tsx",
+        "frontend/ui/src/shell/footer-murmur.ts",
+        "frontend/ui/src/app/NameChip.tsx",
+        "frontend/ui/src/app/murmur-offer.ts"
+      ]
     }
   }
 }

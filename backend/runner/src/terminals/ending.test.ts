@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { describe, expect, it, onTestFinished } from "vitest"
 
-import { agentProcess, apartOf, savingMs } from "./ending.js"
+import { agentProcess, apartOf, savingMs, stopBeforeClose, stopsBeforeClose } from "./ending.js"
 
 const bound = (instance: string | null) =>
   ({ bound: { binding: { instance } } }) as Parameters<typeof agentProcess>[0]
@@ -84,5 +84,72 @@ describe("how long an agent is left running before its end", () => {
     expect(savingMs(at("claude", "idle", 10_000), 10_000)).toBe(0)
     expect(savingMs({ bound: null })).toBe(0)
     expect(savingMs(undefined)).toBe(0)
+  })
+})
+
+describe("the stop before a close", () => {
+  const working = (agent: string, state: string) =>
+    ({
+      summary: { id: "t1" },
+      bound: { binding: { agent }, activity: { state } },
+    }) as unknown as Parameters<typeof stopBeforeClose>[0]
+
+  it("is for a working agent whose harness resumes interrupted conversations", () => {
+    expect(stopsBeforeClose(working("agy", "working"))).toBe(true)
+    expect(stopsBeforeClose(working("agy", "idle"))).toBe(false)
+    expect(stopsBeforeClose(working("claude", "working"))).toBe(false)
+    expect(stopsBeforeClose({ bound: null })).toBe(false)
+    expect(stopsBeforeClose(undefined)).toBe(false)
+  })
+
+  const typed = (stop: () => Promise<unknown>) => ({ stopForClose: stop })
+
+  it("presses the stop and returns once the turn has ended", async () => {
+    const record = working("agy", "working")
+    let pressed = 0
+    await stopBeforeClose(
+      record,
+      typed(async () => {
+        pressed += 1
+        setTimeout(() => {
+          ;(record.bound!.activity as { state: string }).state = "idle"
+        }, 50)
+      }),
+    )
+    expect(pressed).toBe(1)
+    expect(record.bound!.activity.state).toBe("idle")
+  })
+
+  it("presses nothing where the harness doesn't resume", async () => {
+    let pressed = 0
+    await stopBeforeClose(
+      working("codex", "working"),
+      typed(async () => {
+        pressed += 1
+      }),
+    )
+    expect(pressed).toBe(0)
+  })
+
+  it("gives up at its limit on a turn that goes on, a stop that hangs, or one that fails", async () => {
+    const started = Date.now()
+    await stopBeforeClose(
+      working("agy", "working"),
+      typed(async () => {}),
+      100,
+    )
+    await stopBeforeClose(
+      working("agy", "working"),
+      typed(() => new Promise(() => {})),
+      100,
+    )
+    await expect(
+      stopBeforeClose(
+        working("agy", "working"),
+        typed(() => Promise.reject(new Error("refused"))),
+        100,
+      ),
+    ).resolves.toBeUndefined()
+    expect(Date.now() - started).toBeLessThan(1_000)
   })
 })

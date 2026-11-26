@@ -3567,6 +3567,7 @@ describe("saved terminals", () => {
       agentMode: "herd",
       shippingGate: false,
       bundledPi: false,
+      murmur: false,
     })
     workspace.settings.saveRunner({ transcripts: false })
     workspace.settings.saveRunner({ welcomed: true })
@@ -3582,6 +3583,7 @@ describe("saved terminals", () => {
       agentMode: "herd",
       shippingGate: false,
       bundledPi: false,
+      murmur: false,
     })
   })
 
@@ -3790,6 +3792,7 @@ describe("the messages", () => {
       agentMode: "herd",
       shippingGate: false,
       bundledPi: false,
+      murmur: false,
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()

@@ -74,6 +74,11 @@ export const requestedMurmur = (): DemoMurmurStart => {
     : "installed"
 }
 
+// Whether Murmur's Experimental switch starts on: off, as in the app, unless the address names
+// a Murmur state (`&murmur=…`), which asks for Murmur to show.
+export const requestedMurmurSwitch = (): boolean =>
+  typeof window !== "undefined" && addressParams().has("murmur")
+
 // What the debug panel puts murmur in.
 export type DemoMurmurScenario =
   | DemoMurmurStart

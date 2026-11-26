@@ -49,10 +49,12 @@ export const compatibility: Compatibility = {
   // 18: a work's pull request says its target branch, its checks one by one and where its review
   // stands (`base`, `checks`, `review`), the checks' state and the review read tolerantly.
   // 19: the repositories of a project whose origin keeps failing to fetch (`works.origins`).
-  // 20: the tour runs on Novadeck's own pi (`tour.fetch` downloads it ahead, and settings'
+  // 20: Murmur behind an Experimental switch (settings' `murmur`, which a runner before it drops);
+  // a UI hides Murmur's offer and controls only where the runner's settings report it off.
+  // 21: the tour runs on Novadeck's own pi (`tour.fetch` downloads it ahead, and settings'
   // `bundledPiFetch` says where that download stands while its switch is off too); a UI offers
-  // the tour only to a runner at 20, as one before it runs the tour on opencode.
-  revision: 20,
+  // the tour only to a runner at 21, as one before it runs the tour on opencode.
+  revision: 21,
   oldestClient: 11,
   oldestRunner: 12,
 }

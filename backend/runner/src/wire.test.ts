@@ -657,6 +657,14 @@ describe("workspace metadata API", () => {
     await expect(other.client.tour.fetch()).rejects.toMatchObject({ code: "CONFLICT" })
   })
 
+  it("reports Murmur's Experimental switch, off until turned on", async ({ resources }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    expect(await client.settings.get()).toMatchObject({ murmur: false })
+    await client.settings.set({ murmur: true })
+    expect(await client.settings.get()).toMatchObject({ murmur: true })
+  })
+
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
     const app = await fixture(resources)
     const { client } = await app.connect()

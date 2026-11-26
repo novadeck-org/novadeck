@@ -160,8 +160,8 @@ describe("the Novadeck Agent setting", () => {
 })
 
 describe("the tour", () => {
-  it("isn't offered by a runner at revision 19, which runs the tour on opencode", () => {
-    const app = scripted({ shown: [], tourRevision: 19 })
+  it("isn't offered by a runner at revision 20, which runs the tour on opencode", () => {
+    const app = scripted({ shown: [], tourRevision: 20 })
     expect(app.backend.tour).toBeUndefined()
     app.stop()
   })
@@ -172,12 +172,44 @@ describe("the tour", () => {
     app.stop()
   })
 
-  it("asks the runner to download Novadeck's pi from revision 20", async () => {
-    const app = scripted({ shown: [], bundledPi: false, tourRevision: 20 })
+  it("asks the runner to download Novadeck's pi from revision 21", async () => {
+    const app = scripted({ shown: [], bundledPi: false, tourRevision: 21 })
     const { agent, fetch } = app.backend.tour!
     expect(agent.getSnapshot()).toEqual({ state: "off" })
     await fetch()
     expect(app.of("tour fetch")).toEqual([[]])
+    app.stop()
+  })
+})
+
+describe("Murmur's Experimental switch", () => {
+  it("isn't offered by a runner from before it (revision 19), which reports no switch", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.murmurSwitch).toBeUndefined()
+    app.stop()
+  })
+
+  it("shows what the runner said, and changes it there", async () => {
+    const app = scripted({ shown: [], murmur: false })
+    const { enabled, set } = app.backend.murmurSwitch!
+    expect(enabled.getSnapshot()).toBe(false)
+    set(true)
+    expect(enabled.getSnapshot()).toBe(true)
+    await app.idle()
+    expect(app.of("settings")).toEqual([{ murmur: true }])
+    app.stop()
+  })
+
+  it("goes back when the runner could not change it", async () => {
+    const app = scripted({
+      shown: [],
+      murmur: false,
+      saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
+    })
+    const { enabled, set } = app.backend.murmurSwitch!
+    set(true)
+    await app.idle()
+    expect(enabled.getSnapshot()).toBe(false)
     app.stop()
   })
 })

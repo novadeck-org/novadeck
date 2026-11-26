@@ -725,8 +725,10 @@ App:
   story shows there, as no real agent shows two; answering an added request for an
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.
-- **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
-  offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
+- **Murmur:** Experimental, so its switch starts off and none of it shows, unless the address
+  names a Murmur state (`&murmur=…`) or a debug action shows one (each switches it on first;
+  "Switched off" turns it off). Switched on, the demo has it installed and on, as the try demo
+  shows it, and never offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
   on the network, the second works) or `offered-out` (the offer already shown in three sessions)
   in the address starts it otherwise. The offer is a chip,
   "Name it for me", beside the title of the first terminal whose agent finishes a turn (or the
@@ -969,7 +971,8 @@ App:
   first). The "CI failing", "CI running", "CI passed" and "No CI" actions set how an open pull
   request's checks stand (one is made open where there was none; a pull request that is done has none),
   with its four checks one by one to match; "Review approved", "Changes requested", "Review required"
-  and "No review" set where its review stands. Every demo pull request targets main (`base`); the
+  and "No review" set where its review stands ("No review" draws no review segment). Every demo pull
+  request targets main (`base`); the
   storefront's open ones carry a request for changes (#814), a review still required (#816) and an
   approval (#818). The Worktrees row draws them as the bar under its "#812", a segment per check and
   one for the review.

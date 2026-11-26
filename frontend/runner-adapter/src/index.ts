@@ -199,6 +199,7 @@ export const connectRunnerBackend = async (
         worktrees,
         bundledPi,
         bundledPiFetch,
+        murmur,
       },
       agents,
       forges,
@@ -242,6 +243,8 @@ export const connectRunnerBackend = async (
           // Only from a runner that reports the switch (revision 16 on).
           ...(bundledPi !== undefined && { bundledPi }),
           ...(bundledPiFetch !== undefined && { bundledPiFetch }),
+          // Only from a runner that reports the switch (revision 20 on).
+          ...(murmur !== undefined && { murmur }),
         })
         created.push(next)
         return next.backend

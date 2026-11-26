@@ -51,6 +51,7 @@ import { useRouteDialog, type RouteDialog } from "./controller/useRouteDialog"
 import { Preferences, TerminalSearch, TourClosingCard, TourStage } from "./deferred-views"
 import { dingOf } from "./ding"
 import { moveQuestionOf, sameMoveQuestion } from "./move-question"
+import { useShownMurmur } from "./murmur-shown"
 import { NameOffer } from "./NameOffer"
 import {
   closeQuestion,
@@ -64,6 +65,7 @@ import {
   chatViewOn,
   revealExperimental,
   switchOffExperimental,
+  switchOffMurmur,
   type ExperimentalFeatures,
 } from "./ui-store"
 import { useForgeRuns } from "./useForgeRuns"
@@ -136,6 +138,19 @@ const useAgentModes = (
     () => agentModes?.enabled.getSnapshot() ?? false,
   )
   return agentModes && { enabled, onChange: agentModes.set }
+}
+
+// Whether Murmur shows and may run, for Preferences; undefined where the backend has no Murmur or
+// no switch for it.
+const useMurmurSwitch = (
+  backend: Pick<Backend, "murmur" | "murmurSwitch">,
+): { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void } | undefined => {
+  const { murmurSwitch } = backend
+  const enabled = useSyncExternalStore(
+    murmurSwitch?.enabled.subscribe ?? always,
+    () => murmurSwitch?.enabled.getSnapshot() ?? false,
+  )
+  return backend.murmur && murmurSwitch && { enabled, onChange: murmurSwitch.set }
 }
 
 // Whether the shipping gate is on, for Preferences; undefined where the backend has none.
@@ -250,12 +265,13 @@ type ExperimentalSetting = {
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
-// Turning it off turns agent worktrees, agent modes and forge integrations off with it.
+// Turning it off turns agent worktrees, agent modes and forge integrations off with it, and
+// Murmur too, though only on the person's flip (`switchOffMurmur`).
 // The switch is hidden while off until the person taps the version ten times; once revealed, or
 // on at any time in this run, it stays until the next launch (`experimentalRevealed`).
 const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
-  features: ExperimentalFeatures,
+  features: ExperimentalFeatures & Pick<Backend, "murmurSwitch">,
   open: boolean,
 ): ExperimentalSetting | undefined => {
   const { commands, ui } = useWorkspaceServices()
@@ -296,7 +312,10 @@ const useExperimental = (
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
         channel.set(next ? "experimental" : "stable")
-        if (!next) switchOffExperimental(features)
+        if (!next) {
+          switchOffExperimental(features)
+          switchOffMurmur(features.murmurSwitch)
+        }
       },
     }
   )
@@ -412,6 +431,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const agentMode = useAgentMode(backend.agentMode)
   const shippingGate = useShippingGate(backend.shippingGate)
   const bundledPi = useBundledPi(backend.bundledPi)
+  const murmurSwitch = useMurmurSwitch(backend)
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents, backend.projectWindows?.extra === true)
   const installs = useInstalls(backend.agents)
@@ -442,7 +462,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   }
   const approval = useApproval(backend.approvals, setAside)
   const voice = useVoice(backend.voice)
-  const murmur = useMurmur(backend.murmur)
+  const murmur = useMurmur(useShownMurmur(backend))
   const { go, closeDialog } = navigation
   const { chooseRecent, updatePreferences, openSearchResult, closeSwitcher } = commands
   const { confirmClose, cancelClose, retryAfterCrashLoop, dismissCrashLoop } = commands
@@ -710,6 +730,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(agentMode ? { agentMode } : {})}
           {...(shippingGate ? { shippingGate } : {})}
           {...(bundledPi ? { bundledPi } : {})}
+          {...(murmurSwitch ? { murmurSwitch } : {})}
           {...(worktrees ? { worktrees } : {})}
           tour={tour !== undefined}
           notices={backend.notices !== undefined}

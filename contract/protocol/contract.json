@@ -1,5 +1,5 @@
 {
-  "revision": 20,
+  "revision": 21,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -8867,6 +8867,7 @@
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
           "bundledPi": {"type":"boolean"},
+          "murmur": {"type":"boolean"},
           "transcriptsAvailable": {"type":"boolean"},
           "bundledPiFetch": {
             "type": "object",
@@ -8928,7 +8929,8 @@
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
-          "bundledPi": {"type":"boolean"}
+          "bundledPi": {"type":"boolean"},
+          "murmur": {"type":"boolean"}
         },
         "additionalProperties": false
       },
@@ -8965,6 +8967,7 @@
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
           "bundledPi": {"type":"boolean"},
+          "murmur": {"type":"boolean"},
           "transcriptsAvailable": {"type":"boolean"},
           "bundledPiFetch": {
             "type": "object",
@@ -9163,7 +9166,7 @@
         "additionalProperties": false
       }
     },
-    "tour.fetch": {"since":20,"input":{"x-optional":true},"output":{"x-optional":true}},
+    "tour.fetch": {"since":21,"input":{"x-optional":true},"output":{"x-optional":true}},
     "tour.brief": {
       "input": {
         "type": "object",

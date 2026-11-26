@@ -128,6 +128,8 @@ export type CallsHost = LeadsHost &
     /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it, null when the person did or the agent closed its own. */
     readonly closeForGood: (record: Record, closedBy?: string | null) => void
     readonly terminate: (record: Record) => Promise<void>
+    /** Stops the turn of a closing terminal's agent where its harness would resume it (`stopBeforeClose`). */
+    readonly stopTurn: (record: Record) => Promise<void>
     readonly remove: (record: Record) => void
     readonly forget: (terminalId: string) => void
     /** Saves what restores the terminal, without its screen. */
@@ -707,7 +709,10 @@ export class Calls {
       await this.host.close(record.summary.id, closedBy)
       return !this.host.stopping()
     }
+    // A terminal already closing had its turn stopped by that close.
+    const wasClosed = record.closed
     this.host.closeForGood(record, closedBy)
+    if (!wasClosed) await this.host.stopTurn(record)
     await this.host.terminate(record)
     if (this.host.stopping()) return false
     this.host.remove(record)

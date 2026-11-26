@@ -459,6 +459,15 @@ export type Harness = {
    * next process resumes and runs by itself (Antigravity's, as it starts).
    */
   readonly saveMs?: number
+  /**
+   * Set where a process that starts resumes the conversations of its home that look
+   * interrupted, running them by itself (Antigravity's 1.5.17, as it starts), and a conversation
+   * whose process ends mid-turn looks so. A terminal closed while its agent works then has the
+   * turn stopped first, as the person's Stop does, so the work they closed isn't carried on
+   * by the next agent started there. Unset for Claude Code, Codex, opencode and pi, which
+   * leave an interrupted conversation as it is until the person resumes it.
+   */
+  readonly resumesInterrupted?: true
 }
 
 /**

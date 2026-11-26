@@ -162,13 +162,16 @@ export const scripted = ({
   follows = false,
   bundledPi,
   tourRevision,
+  murmur,
 }: {
   // Where the runner has a tour, the contract revision it is at (it serves `tour.fetch` from
-  // 20); absent, as a runner without one.
+  // 21); absent, as a runner without one.
   tourRevision?: number
   shown: readonly Saved[]
   // Whether Novadeck's own pi is on, as a runner from revision 16 says; absent, as one before it.
   bundledPi?: boolean
+  // Whether Murmur's Experimental switch is on, as a runner from revision 20 says; absent, as one before it.
+  murmur?: boolean
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
@@ -241,7 +244,7 @@ export const scripted = ({
     supports: (path: string) =>
       (follows &&
         (path === "settings.watch" || path === "preferences.get" || path === "agents.watch")) ||
-      (path === "tour.fetch" && (tourRevision ?? 0) >= 20),
+      (path === "tour.fetch" && (tourRevision ?? 0) >= 21),
     preferences: {
       get: unused,
       set: note("preference", () => answers.preference()),
@@ -405,6 +408,7 @@ export const scripted = ({
       bundledPi,
       bundledPiFetch: { state: bundledPi ? ("ready" as const) : ("off" as const) },
     }),
+    ...(murmur !== undefined && { murmur }),
     ...(forges ? { forges } : {}),
     agents: [
       { agent: "claude", available: true, connected: false },

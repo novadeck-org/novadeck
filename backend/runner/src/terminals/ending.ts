@@ -49,6 +49,63 @@ export const savingMs = (
   return save === undefined ? 0 : Math.max(0, ended + save - now)
 }
 
+// The most a close waits for a working agent's turn to end after its Stop, in milliseconds
+// (see `stopBeforeClose`): the turn's end is told by its Stop hook, within 0.3 s of the Escape
+// measured on Antigravity 1.5.17, and a close that gets no word of it goes on as it would
+// without the wait. Short, so the worst close (this, the save wait and the hangup) stays well
+// within the 15 s the UI waits for a close's answer.
+export const stopTurnMs = 2_000
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Whether closing this terminal first stops its agent's turn: its harness resumes interrupted
+ * conversations (`Harness.resumesInterrupted`) and the agent works, so ending its process now
+ * would leave the turn for the next agent started there to carry on.
+ */
+export const stopsBeforeClose = (record: Pick<Record, "bound"> | undefined): boolean => {
+  const bound = record?.bound
+  return (
+    bound != null &&
+    bound.activity.state === "working" &&
+    harnesses[bound.binding.agent].resumesInterrupted === true
+  )
+}
+
+/**
+ * Stops the working agent of a terminal being closed, as the person's Stop does (`Typing.stopForClose`),
+ * and waits for its turn to end, at most `limit` milliseconds in all; what follows, the
+ * `savingMs` wait and the hangup, then finds the conversation idle and saved. Never throws
+ * and never waits past the limit: a Stop that fails or a turn that goes on leaves the close as it
+ * is without this.
+ */
+export const stopBeforeClose = async (
+  record: Pick<Record, "bound" | "summary">,
+  typing: { stopForClose(terminalId: string): Promise<unknown> },
+  limit: number = stopTurnMs,
+): Promise<void> => {
+  if (!stopsBeforeClose(record)) return
+  const until = Date.now() + limit
+  const stopped = async () => {
+    await typing.stopForClose(record.summary.id)
+    while (record.bound?.activity.state === "working" && Date.now() < until)
+      // eslint-disable-next-line no-await-in-loop -- Looked at in turn.
+      await sleep(25)
+  }
+  let timer: NodeJS.Timeout | undefined
+  const limited = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, limit)
+  })
+  try {
+    // The Stop's own waits count against the limit too.
+    await Promise.race([stopped(), limited])
+  } catch {
+    // A Stop the agent refused: the close goes on as it would without it.
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /**
  * What the harnesses of a terminal's agents run apart from it (`Harness.apart`), found by
  * each session's own transcript: the bound session's, and with none bound, each harness's

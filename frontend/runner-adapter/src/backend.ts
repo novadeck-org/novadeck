@@ -220,6 +220,9 @@ export type RunnerBackendOptions = {
   // the runner said at startup; not offered when absent, as from a runner before revision 16.
   readonly bundledPi?: boolean
   readonly bundledPiFetch?: RunnerSettingsState["bundledPiFetch"]
+  // Whether Murmur may run (an Experimental switch), as the runner said at startup; absent from
+  // a runner before revision 20, whose Murmur has no switch.
+  readonly murmur?: boolean
   // Whether the runner lets agents open worktrees, as it said at startup; not offered when
   // absent.
   readonly worktrees?: boolean
@@ -2444,7 +2447,7 @@ export const runnerBackend = (
     boot: boot.store,
     ...switches,
     ...(person && { preferences: person.preferences }),
-    // Only from a runner at revision 20: one before it runs the tour on opencode.
+    // Only from a runner at revision 21: one before it runs the tour on opencode.
     ...(runner.tour &&
       has("tour.fetch") && {
         // The tours it removes are this window's to remove, as it opens the new one: the projects

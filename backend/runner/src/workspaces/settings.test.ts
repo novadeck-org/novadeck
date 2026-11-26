@@ -26,3 +26,50 @@ describe("the forges setting", () => {
     expect(store.settings.runner()).not.toHaveProperty("forges")
   })
 })
+
+describe("Murmur's Experimental switch", () => {
+  it("is first saved on where Murmur was on or its files are, and off for everyone else", ({
+    resources,
+  }) => {
+    const fresh = new WorkspaceStore()
+    resources.defer(() => fresh.close())
+    fresh.settings.carryMurmurSwitch(false)
+    expect(fresh.settings.runner().murmur).toBe(false)
+
+    const declined = new WorkspaceStore()
+    resources.defer(() => declined.close())
+    declined.settings.saveMurmurSettings({ enabled: false })
+    declined.settings.carryMurmurSwitch(false)
+    expect(declined.settings.runner().murmur).toBe(false)
+
+    const using = new WorkspaceStore()
+    resources.defer(() => using.close())
+    using.settings.saveMurmurSettings({ enabled: true })
+    using.settings.carryMurmurSwitch(false)
+    expect(using.settings.runner().murmur).toBe(true)
+
+    // Installed, then turned off: on, so Addons keeps the files' Uninstall.
+    const installed = new WorkspaceStore()
+    resources.defer(() => installed.close())
+    installed.settings.saveMurmurSettings({ enabled: false })
+    installed.settings.carryMurmurSwitch(true)
+    expect(installed.settings.runner().murmur).toBe(true)
+  })
+
+  it("is saved once: Murmur turned off later, or the switch changed, stays as it is", ({
+    resources,
+  }) => {
+    const store = new WorkspaceStore()
+    resources.defer(() => store.close())
+    store.settings.saveMurmurSettings({ enabled: true })
+    store.settings.carryMurmurSwitch(false)
+    store.settings.saveMurmurSettings({ enabled: false })
+    store.settings.carryMurmurSwitch(false)
+    expect(store.settings.runner().murmur).toBe(true)
+
+    store.settings.saveRunner({ murmur: false })
+    store.settings.saveMurmurSettings({ enabled: true })
+    store.settings.carryMurmurSwitch(false)
+    expect(store.settings.runner().murmur).toBe(false)
+  })
+})
