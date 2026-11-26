@@ -167,6 +167,8 @@ export type RunnerBackendOptions = {
   readonly showAppearance?: Backend["showAppearance"]
   // Where the app's windows follow the person's scale.
   readonly showScale?: Backend["showScale"]
+  // Where the app keeps the computer awake while agents work.
+  readonly keepAwake?: Backend["keepAwake"]
   // Where the app shows desktop notifications.
   readonly notices?: Backend["notices"]
   // Where the app shows the Inbox count on the app icon.
@@ -2469,6 +2471,7 @@ export const runnerBackend = (
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
     ...(options.showScale ? { showScale: options.showScale } : {}),
+    ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.badge ? { badge: options.badge } : {}),
     ...(options.windowFocus ? { windowFocus: options.windowFocus } : {}),

@@ -50,6 +50,12 @@ export type DesktopBridge = {
    */
   showScale?(scale: number): void
   /**
+   * Whether the person wants the computer kept from sleeping on its own while an agent works,
+   * as Preferences says. The app holds it only while the runner says one is at work; the
+   * screen still turns off and locks. Absent from apps that came before it.
+   */
+  keepAwake?(on: boolean): void
+  /**
    * The path on this machine of a file the person pasted, such as one copied
    * in a file manager, or "" for one that is no file there, as a copied image's bytes.
    * Absent from apps that came before it.

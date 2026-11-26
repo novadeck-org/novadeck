@@ -42,6 +42,7 @@ import {
   webglContextsArgumentPrefix,
   appearanceChannel,
   scaleChannel,
+  keepAwakeChannel,
   badgeChannel,
   directoryPickerChannel,
   dismissWhatsNewChannel,
@@ -272,6 +273,10 @@ const bridge = {
   // Only a number crosses; the main process clamps it.
   showScale: (scale) => {
     ipcRenderer.send(scaleChannel, typeof scale === "number" ? scale : undefined)
+  },
+  // Only a boolean crosses; the main process drops anything else.
+  keepAwake: (on) => {
+    ipcRenderer.send(keepAwakeChannel, on === true)
   },
   beforeQuit: (save) => {
     beforeQuit = save

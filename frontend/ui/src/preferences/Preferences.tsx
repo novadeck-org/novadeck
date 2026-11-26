@@ -441,6 +441,7 @@ export const Preferences = ({
   notices = false,
   screenReaderKnown = false,
   scalable = false,
+  awake = false,
   systemSounds = false,
   hearSound,
   chat = false,
@@ -531,6 +532,8 @@ export const Preferences = ({
   screenReaderKnown?: boolean
   // Whether the app can scale its windows, as the desktop app can; a browser has its own zoom.
   scalable?: boolean
+  // Whether the app can keep the computer awake while agents work, as the desktop app can.
+  awake?: boolean
   // Whether the system's notifications play the sound themselves, at the system's alert
   // volume, as on macOS.
   systemSounds?: boolean
@@ -802,6 +805,19 @@ export const Preferences = ({
       retry: () => bundledPi?.onChange(true),
     },
     {
+      id: "keep-awake",
+      page: "agents",
+      onPage: false,
+      label: "Keep awake",
+      description:
+        "Add Keep awake while agents work to the Agents page, which keeps this computer from going to sleep on its own while an agent works.",
+      checked: value.keepAwakeOffered,
+      onToggle: (keepAwakeOffered: boolean) => onChange({ ...value, keepAwakeOffered }),
+      disabled: false,
+      // Only where the app can: a browser has no say in the computer's sleep.
+      hidden: !awake,
+    },
+    {
       id: "murmur",
       page: "addons",
       onPage: false,
@@ -836,7 +852,10 @@ export const Preferences = ({
   const { soundChoice } = value
   // The shipping gate goes with the worktrees and pull requests it guards.
   const gitToggles = pageToggles("agents", ["shipping-gate"])
-  const agentsRunning = hibernation !== undefined || showAgentMode
+  // Keep awake is an Experimental feature: its switch on the Agents page shows only while its
+  // Experimental row is on, and only where the app can keep the computer awake.
+  const showKeepAwake = awake && hasExperimental && value.keepAwakeOffered
+  const agentsRunning = hibernation !== undefined || showAgentMode || showKeepAwake
   const agentsGit = worktrees !== undefined || showForges || gitToggles.length > 0
   const pageTitle = pageLabel(shown) ?? ""
   return (
@@ -1009,24 +1028,53 @@ export const Preferences = ({
                       badge={<ExperimentalBadge />}
                     />
                   )}
-                  {hibernation && (
+                  {(hibernation || showKeepAwake) && (
                     <div className={settingsCardClasses}>
-                      <Select
-                        className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                        label="Stop idle agents after"
-                        description="An agent with nothing to do stops after this long. A message wakes it again."
-                        descriptionClassName={descriptionClasses}
-                        items={idleChoices}
-                        // A saved wait the list doesn't have shows as it is, without being chosen.
-                        value={idleChoice(hibernation.minutes)}
-                        placeholder={`${hibernation.minutes} minutes`}
-                        onValueChange={(choice) =>
-                          hibernation.onChange(choice === "off" ? null : Number(choice))
-                        }
-                        open={open && shown === "agents" && openSelect === "idle-agents"}
-                        onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
-                        portalContainer={dialog}
-                      />
+                      {hibernation && (
+                        <Select
+                          className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                          label="Stop idle agents after"
+                          description="An agent with nothing to do stops after this long. A message wakes it again."
+                          descriptionClassName={descriptionClasses}
+                          items={idleChoices}
+                          // A saved wait the list doesn't have shows as it is, without being chosen.
+                          value={idleChoice(hibernation.minutes)}
+                          placeholder={`${hibernation.minutes} minutes`}
+                          onValueChange={(choice) =>
+                            hibernation.onChange(choice === "off" ? null : Number(choice))
+                          }
+                          open={open && shown === "agents" && openSelect === "idle-agents"}
+                          onOpenChange={(expanded) =>
+                            setOpenSelect(expanded ? "idle-agents" : null)
+                          }
+                          portalContainer={dialog}
+                        />
+                      )}
+                      {showKeepAwake && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <span className="flex min-w-0 flex-col gap-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span id="awake-label">Keep awake while agents work</span>
+                              <ExperimentalBadge />
+                            </span>
+                            <span
+                              id="awake-description"
+                              className="settings-description text-control leading-5"
+                            >
+                              Agents' long tasks finish while you're away: this computer doesn't go
+                              to sleep on its own while an agent works, which uses more battery. The
+                              screen still turns off and locks, and closing a laptop's lid still
+                              puts it to sleep. On Linux, it works on GNOME.
+                            </span>
+                          </span>
+                          <Switch
+                            checked={value.keepAwake}
+                            onChange={(keepAwake) => onChange({ ...value, keepAwake })}
+                            labelledBy="awake-label"
+                            describedBy="awake-description"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </Section>

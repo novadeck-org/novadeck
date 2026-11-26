@@ -128,6 +128,10 @@ const runner = createRunner({
   // Told only when the app saw no graphics hardware; otherwise the installs' checks decide.
   ...(softwareGraphics && { softwareGraphics }),
   transcriptKey,
+  // The main process keeps the computer awake while an agent works, where the person wants it.
+  working: (working) =>
+    // eslint-disable-next-line unicorn/require-post-message-target-origin -- Electron's parent port, not a window.
+    process.parentPort.postMessage({ type: "working", working } satisfies RunnerReport),
 })
 
 // How it ends is a standalone runner's too: the main process's close, or a signal of the

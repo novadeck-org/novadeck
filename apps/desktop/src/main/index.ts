@@ -1,6 +1,7 @@
 // The desktop app's main process: what runs before anything else, then the launch that starts
 // the runner and opens the window, and the app's own events. Each domain is put together in
 // its own folder; this hands them to each other.
+import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
 import { mkdir, readFile, realpath, rm } from "node:fs/promises"
@@ -24,6 +25,7 @@ import {
   nativeTheme,
   net,
   Notification,
+  powerSaveBlocker,
   screen,
   webContents,
   powerMonitor,
@@ -50,6 +52,8 @@ import {
   windowControlsSide,
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
+import { systemHold } from "./awake/holds.js"
+import { createKeepAwake, registerKeepAwakeIpc } from "./awake/keep-awake.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
 import { feedbackAbout, feedbackOrigin, registerFeedbackIpc, sendFeedback } from "./feedback.js"
 import { detectSoftwareGraphics } from "./graphics/software.js"
@@ -599,6 +603,20 @@ const launch = async (): Promise<void> => {
   // Settled before the runner makes its database, which marks a data folder as used: a
   // launch that dies in between must not make the next one look like an update.
   await news.settleLaunch()
+  // The computer stays awake while an agent works, where the person wants it (Preferences): the
+  // runner says when agents work, the page what the person wants. GNOME's hold is started
+  // outside an AppImage's mount, as the system's programs expect.
+  const keepAwake = createKeepAwake(
+    systemHold({
+      platform: process.platform,
+      blocker: powerSaveBlocker,
+      spawn,
+      env: installedEnvironment(process.env, appImageMounts()),
+      log: logger.for("awake"),
+    }),
+  )
+  registerKeepAwakeIpc(ipcMain, (event) => appWindow(event) !== undefined, keepAwake.wanted)
+  process.once("exit", keepAwake.end)
   runner = startRunner({
     transcriptKey,
     entry: join(currentDirectory, "runner.js"),
@@ -611,7 +629,7 @@ const launch = async (): Promise<void> => {
     murmurSource: murmur.source,
     softwareGraphics,
     log: (start) => JSON.stringify(logSetup(start)),
-    events: logRunnerEvents(logger, !app.isPackaged),
+    events: { ...logRunnerEvents(logger, !app.isPackaged), working: keepAwake.working },
   })
   // A port is shell access: only the main frame of this app's own window showing its
   // own UI may ask for one.

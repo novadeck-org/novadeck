@@ -30,6 +30,7 @@ import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { SeenTerminals } from "./terminals/seen.js"
 import { Uploads } from "./terminals/uploads.js"
+import { watchWorking } from "./terminals/working.js"
 import { TourRecords } from "./tour/records.js"
 import type { TourAssets } from "./tour/seed.js"
 import { Tour } from "./tour/tour.js"
@@ -50,6 +51,10 @@ import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
 const log = logs.for("runner")
+
+// The owner `RunnerOptions.working`'s watch of the terminals is under: no client's session,
+// so none releases it; it ends as the runner closes.
+const workingWatcher = "runner:working"
 
 // Whether a folder holds anything: no folder, or one that can't be read, holds nothing.
 const hasContents = (folder: string): boolean => {
@@ -133,6 +138,12 @@ export type RunnerOptions = {
   softwareGraphics?: boolean
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
+  /**
+   * Told whether any agent is at work (`agentAtWork`), each time that changes: nothing until
+   * one is, and false once the runner closes. The desktop app keeps the computer awake while
+   * one is.
+   */
+  working?: (working: boolean) => void
 }
 
 export type Runner = {
@@ -769,6 +780,14 @@ const startRunner = (options: RunnerOptions): Runner => {
     seen,
   } = wire(options)
   let closing: Promise<void> | undefined
+  if (options.working)
+    watchWorking(terminals.watch(workingWatcher), options.working, (id) =>
+      terminals.scheduled(id),
+    ).catch((error: unknown) =>
+      log.error("working.failed", "Novadeck stopped following whether agents work", {
+        err: error,
+      }),
+    )
   const devices = new Devices(store.devices)
   const sessions = createSessions({
     revision: compatibility.revision,

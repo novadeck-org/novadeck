@@ -80,6 +80,8 @@ const setup = (initiallyWide = true) => {
         chatView: false,
         agentAvatars: false,
         onboardingTour: false,
+        keepAwakeOffered: false,
+        keepAwake: true,
         appScale: 100,
         sound: true,
         soundVolume: 0.6,

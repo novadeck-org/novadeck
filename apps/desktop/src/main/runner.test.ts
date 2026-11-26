@@ -64,6 +64,7 @@ const start = (options: { transcriptKey?: Promise<string | null> } = {}) => {
     events: {
       spawned: record("spawned"),
       ready: record("ready"),
+      working: record("working"),
       exited: record("exited"),
       fatal: record("fatal"),
       killed: record("killed"),
@@ -113,6 +114,17 @@ describe("the runner's process", () => {
       ])
     })
 
+    it("says whether its agents work, and nothing for a report that isn't one", () => {
+      const { current, heard } = start()
+      current().emit("message", { type: "working", working: true })
+      current().emit("message", { type: "working", working: "yes" })
+      current().emit("message", { type: "working", working: false })
+      expect(heard.filter(([event]) => event === "working")).toEqual([
+        ["working", true],
+        ["working", false],
+      ])
+    })
+
     it("says when it is ready, and how long it took", () => {
       const { current, heard } = start()
       vi.advanceTimersByTime(40)
@@ -134,8 +146,13 @@ describe("the runner's process", () => {
   context("when it exits on its own", () => {
     it("says it was unexpected, and the next port starts it again with its own log", () => {
       const { runner, workers, heard } = start()
+      workers[0]?.emit("message", { type: "working", working: true })
       workers[0]?.exit(1)
-      expect(heard.at(-1)).toEqual(["exited", 1, 1, false])
+      // A runner that crashed mid-turn told no end of it: its agents count as stopped.
+      expect(heard.slice(-2)).toEqual([
+        ["working", false],
+        ["exited", 1, 1, false],
+      ])
       expect(runner.deliver(port)).toBe(true)
       expect(workers).toHaveLength(2)
       expect(workers[1]?.args.at(-1)).toBe("--novadeck-log=log-2")
