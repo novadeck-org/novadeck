@@ -122,7 +122,7 @@ const screenReaderChoices = [
 ]
 
 const screenReaderExplanation = (known: boolean): string =>
-  "Lets a screen reader read the terminal you're in. Terminals draw a little slower." +
+  "Your screen reader reads the terminal you're in. Terminals draw a little slower for it." +
   (known ? " Automatic follows your system." : "")
 
 // Section titles match the sidebar's panel titles.
@@ -826,7 +826,7 @@ export const Preferences = ({
       onPage: true,
       label: "Agent avatars",
       description:
-        "Show each terminal's critter from Messages in its tab and window header. On a zoomed-out Canvas, it grows so you can still tell windows apart.",
+        "Each terminal's critter, from Messages, in its tab and window header. Zoom out on Canvas and it grows, so you can still tell windows apart.",
       checked: value.agentAvatars,
       onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
       disabled: false,
@@ -838,7 +838,7 @@ export const Preferences = ({
       onPage: true,
       label: "Onboarding tour",
       description: tour
-        ? "A Help menu in the footer that offers a short tour: three Pi agents in a sandbox repo, on a model Novadeck pays for."
+        ? "A Help menu in the footer, with a short tour: three Pi agents at work in a sandbox repo. Novadeck pays for the model."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
@@ -851,7 +851,7 @@ export const Preferences = ({
       onPage: false,
       label: "Agent modes",
       description: agentModes
-        ? "Pick how agents work together, on the Agents page: Solo for one or two agents you steer yourself, Herd for several side by side, Swarm for a big goal split across agents. While this is off, agents work as Herd."
+        ? "How agents work together, picked on the Agents page. Solo: one or two, steered by you. Herd: several, side by side. Swarm: one big goal, split up. Off, they work as Herd."
         : "Not available here.",
       checked: agentModes?.enabled ?? false,
       onToggle: (enabled: boolean) => agentModes?.onChange(enabled),
@@ -864,7 +864,7 @@ export const Preferences = ({
       onPage: true,
       label: "Shipping gate",
       description: shippingGate
-        ? "Claude Code, Codex, Antigravity, OpenCode and Pi need your OK to push to a branch that isn't theirs, land into another branch, open a PR or merge: your own words in their terminal, or Allow on the card in the chat or the Inbox. Without it they're stopped and told to ask. Applies to agents started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks you as before."
+        ? "Agents need your OK to push to a branch that isn't theirs, land into another one, open a PR or merge. Your own words in their terminal count, or Allow on the card in the chat or the Inbox. Without it, they're stopped and told to ask. Covers Claude Code, Codex, Antigravity, OpenCode and Pi, started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks the old way."
         : "Not available here.",
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),
@@ -893,7 +893,7 @@ export const Preferences = ({
       onPage: false,
       label: "Keep awake",
       description:
-        "Add Keep awake while agents work to the Agents page, which keeps this computer from going to sleep on its own while an agent works.",
+        "Adds Keep awake while agents work to the Agents page. This computer stays up while an agent works.",
       checked: value.keepAwakeOffered,
       onToggle: (keepAwakeOffered: boolean) => onChange({ ...value, keepAwakeOffered }),
       disabled: false,
@@ -906,7 +906,7 @@ export const Preferences = ({
       page: "addons",
       onPage: false,
       label: MURMUR_NAME,
-      description: `Name terminals with a small model that runs on this computer's graphics, over the agents' own titles. Adds ${MURMUR_NAME} to the Addons page, to install from there. While off, nothing is named or downloaded, and an install stays on disk.`,
+      description: `A small model on this computer's graphics names your terminals, over the agents' own titles. Adds ${MURMUR_NAME} to the Addons page, to install from there. Off: nothing named, nothing downloaded, and an install stays on disk.`,
       checked: murmurSwitch?.enabled ?? false,
       onToggle: (enabled: boolean) => murmurSwitch?.onChange(enabled),
       disabled: !murmurSwitch,
@@ -1123,8 +1123,8 @@ export const Preferences = ({
                             label="Stop idle agents"
                             description={
                               hibernation.minutes === null
-                                ? "Off: an agent with nothing to do keeps running until you close it."
-                                : "An agent with nothing to do stops after this long. A message wakes it again."
+                                ? "Off: an idle agent keeps running until you close it."
+                                : "An agent with nothing to do stops after this long. A message wakes it."
                             }
                             descriptionId="idle-agents-description"
                           />
@@ -1199,7 +1199,7 @@ export const Preferences = ({
                             id="agent-worktrees-label"
                             icon={GitBranch}
                             label="Agent worktrees"
-                            description="Each agent works in a git worktree of its own, shown in the Worktrees panel and cleaned up once merged. Turn off only if another tool manages your worktrees: agents then work in your checkout."
+                            description="Each agent gets a git worktree of its own, shown in the Worktrees panel and cleaned up once merged. Turn this off only if another tool runs your worktrees. Agents then work in your checkout."
                             descriptionId="agent-worktrees-description"
                           />
                           <Switch
@@ -1404,7 +1404,7 @@ export const Preferences = ({
                       label="Scale"
                       icon={<SettingTile icon={Scaling} />}
                       labelClassName="settings-label"
-                      description="Makes all of Novadeck bigger or smaller. Terminal text has its own size, on the Terminal page."
+                      description="All of Novadeck, bigger or smaller. Terminal text has its own size, on the Terminal page."
                       descriptionClassName={descriptionClasses}
                       items={scaleItems}
                       value={String(value.appScale)}
@@ -1475,8 +1475,8 @@ export const Preferences = ({
                       label="Ligatures"
                       description={
                         terminalLigatures
-                          ? "Draw pairs such as => and != as one symbol, in terminals and code."
-                          : "Draw pairs such as => and != as one symbol in code. Terminals join them only in the built-in JetBrains Mono."
+                          ? "Pairs like => and != drawn as one symbol, in terminals and code."
+                          : "Pairs like => and != drawn as one symbol in code. Terminals join them only in the built-in JetBrains Mono."
                       }
                       descriptionId="ligatures-description"
                     />
@@ -1544,8 +1544,8 @@ export const Preferences = ({
                         label="Keep recent output"
                         description={
                           transcripts.available
-                            ? "Shows each terminal's recent output again after Novadeck restarts. Saved encrypted on this computer."
-                            : "Not available on this computer: recent output is saved only encrypted, and Novadeck can't keep a key safe here."
+                            ? "Terminals come back from a restart with their recent output. Saved encrypted, on this computer."
+                            : "Not on this computer. Output is saved only encrypted, and Novadeck has no safe place for the key here."
                         }
                         descriptionId="transcripts-description"
                       />
@@ -1571,8 +1571,8 @@ export const Preferences = ({
                       label="When an agent needs you"
                       description={
                         notices
-                          ? "A question, an approval, or trouble that stopped it. A toast while you're in Novadeck, or a desktop notification while it's in the background. Either opens the Inbox."
-                          : "A question, an approval, or trouble that stopped it. A toast in the corner, which opens the Inbox."
+                          ? "A question, an approval, or trouble that stopped it. You get a toast in Novadeck, or a desktop notification when it's in the background. Either one opens the Inbox."
+                          : "A question, an approval, or trouble that stopped it. You get a toast in the corner. It opens the Inbox."
                       }
                       descriptionId="notify-needs-description"
                     />
@@ -1590,7 +1590,7 @@ export const Preferences = ({
                       label="When an agent is done"
                       description={
                         notices
-                          ? "It reported its task done, or a turn failed. A desktop notification while Novadeck is in the background."
+                          ? "It reported done, or a turn failed. You get a desktop notification while Novadeck is in the background."
                           : "Only in the desktop app."
                       }
                       descriptionId="notify-finished-description"
@@ -1613,7 +1613,7 @@ export const Preferences = ({
                         id="sound-label"
                         icon={Volume2}
                         label="Ring the bell"
-                        description="When an agent needs you or is done. Quiet during Do Not Disturb, where the system tells Novadeck."
+                        description="When an agent needs you or is done. Silent in Do Not Disturb, when the system reports it."
                         descriptionId="sound-description"
                       />
                       <Switch
@@ -1689,7 +1689,7 @@ export const Preferences = ({
                 <Section
                   title="Voice input"
                   icon={<Mic size={16} strokeWidth={1.5} />}
-                  description="Speak prompts into a terminal. Speech is turned into text on this computer and never leaves it."
+                  description="Speak your prompts. Speech becomes text on this computer and never leaves it."
                 >
                   <VoiceInput
                     voice={voice}
@@ -1759,7 +1759,7 @@ export const Preferences = ({
                             id="experimental-label"
                             icon={FlaskConical}
                             label="Experimental builds"
-                            description="Get each release as soon as it's out, before it's promoted to stable, and try features still being built on the Experimental page. Turning this off keeps the version you have until the next stable one."
+                            description="Every release the day it's out, before it's stable, plus features still being built, on the Experimental page. Turn it off and you keep this version until the next stable one."
                             descriptionId="experimental-description"
                           />
                           <Switch
@@ -1784,7 +1784,7 @@ export const Preferences = ({
                             id="about-logs"
                             icon={ScrollText}
                             label="Logs"
-                            description="What Novadeck recorded of its recent runs, never what your terminals showed. Attach them to a bug report."
+                            description="Novadeck's own logs, never your terminal output. Attach them to a bug report."
                             descriptionId="about-logs-description"
                           />
                           <button

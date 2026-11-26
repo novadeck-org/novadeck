@@ -14,7 +14,7 @@ import { prefersReducedMotion } from "../interaction/reduced-motion"
 const captions: Record<ViewMode, string> = {
   focus: "One terminal, full attention.",
   grid: "Everything side by side.",
-  canvas: "Spread out on a zoomable canvas.",
+  canvas: "Spread out. Zoom in where it matters.",
 }
 
 type View = ViewPresentation & { readonly id: ViewMode; readonly caption: string }
@@ -25,7 +25,7 @@ const canvas = present("canvas")
 
 // What the chat view's choice shows, as it changes.
 const chatCaptions = {
-  on: "Agents read as a chat: your words, their replies and steps.",
+  on: "Agents as a chat: your words, their replies, their steps.",
   off: "Agents keep their own terminal screens.",
 }
 
@@ -103,21 +103,21 @@ const agentCards: readonly AgentCard[] = [
     agent: "claude",
     className: "agent",
     icon: ClaudeIcon,
-    title: "Build something great",
+    title: "Builder",
     harness: "Claude Code",
-    prompt: "Let’s bring this idea to life.",
-    replies: ["I’ll start with the big picture."],
-    steps: ["A place for every project", "Room for every possibility"],
+    prompt: "Let’s build this.",
+    replies: ["Starting with the big picture."],
+    steps: ["Read the project", "Picked where to start"],
     at: 1300,
   },
   {
     agent: "codex",
     className: "review",
     icon: CodexIcon,
-    title: "A fresh perspective",
+    title: "Reviewer",
     harness: "Codex",
     prompt: "Review the changes",
-    replies: ["A second pair of eyes,", "right beside your work."],
+    replies: ["Reading them now.", "Two things look off."],
     steps: [],
     at: 1450,
   },
@@ -128,7 +128,7 @@ const agentCards: readonly AgentCard[] = [
     title: "Planner",
     harness: "Antigravity",
     prompt: "Plan the release",
-    replies: ["Every step, in order."],
+    replies: ["Five steps. In order."],
     steps: [],
     at: 1750,
   },

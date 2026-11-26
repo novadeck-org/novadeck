@@ -111,9 +111,11 @@ describe("the sandbox notice", () => {
       vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"))
       await notice().getByRole("button", { name: "Copy" }).click()
       await expect.element(notice().getByRole("button", { name: "Copy failed" })).toBeVisible()
-      await expect.element(notice().getByText("Select the command and copy it.")).toBeVisible()
+      await expect
+        .element(notice().getByText("Couldn't copy. Select it and copy it yourself."))
+        .toBeVisible()
       expect(notice().element().querySelector("[aria-live=polite]")?.textContent).toBe(
-        "Copy failed. Select the command to copy it.",
+        "Couldn't copy. Select the command and copy it yourself.",
       )
       await press("{Escape}")
       await expect.element(notice()).not.toBeInTheDocument()

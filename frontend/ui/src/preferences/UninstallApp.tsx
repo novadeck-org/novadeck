@@ -185,7 +185,7 @@ const UninstallBody = ({
         {title}
         <DialogDescription className="modal-description m-0 text-body">
           {outcome.leftover
-            ? "One step is left for you. Run this in a terminal."
+            ? "One step left, and it's yours. Run this in a terminal."
             : "You can quit Novadeck now."}
         </DialogDescription>
         {outcome.leftover && (

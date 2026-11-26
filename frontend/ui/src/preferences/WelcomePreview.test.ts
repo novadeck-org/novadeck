@@ -45,8 +45,8 @@ describe("the welcome dialog's preview", () => {
     show({ claude: false, codex: false, agy: true })
     expect(terminal("Planner")?.querySelector("[data-connected]")).not.toBeNull()
     expect(terminal("Planner")?.querySelector(".welcome-scan")).not.toBeNull()
-    expect(terminal("Build something great")?.querySelector("[data-connected]")).toBeNull()
-    expect(terminal("A fresh perspective")?.querySelector("[data-connected]")).toBeNull()
+    expect(terminal("Builder")?.querySelector("[data-connected]")).toBeNull()
+    expect(terminal("Reviewer")?.querySelector("[data-connected]")).toBeNull()
   })
 
   it("shows Antigravity not connected when it is not chosen", () => {
@@ -63,8 +63,8 @@ describe("the chat view, in the welcome dialog's preview", () => {
   it("draws the agents' cards as a chat, each with its box, and leaves a plain terminal be", () => {
     mounted.push(render(createElement(WelcomePreview, { connected, chat: true })))
     for (const [title, harness] of [
-      ["Build something great", "Claude Code"],
-      ["A fresh perspective", "Codex"],
+      ["Builder", "Claude Code"],
+      ["Reviewer", "Codex"],
       ["Planner", "Antigravity"],
     ] as const) {
       expect(terminal(title)?.querySelector(".welcome-chat")).not.toBeNull()
@@ -78,18 +78,18 @@ describe("the chat view, in the welcome dialog's preview", () => {
   it("draws terminals while the chat view isn't chosen", () => {
     show(connected)
     expect(document.querySelector(".welcome-chat")).toBeNull()
-    expect(terminal("Build something great")?.textContent).toContain("❯ Let’s bring this idea")
+    expect(terminal("Builder")?.textContent).toContain("❯ Let’s build this")
   })
 
   it("says what the choice changed as it changes, until a layout is picked", () => {
     const page = render(createElement(WelcomePreview, { connected, chat: true }))
     mounted.push(page)
-    expect(caption()).toBe("Spread out on a zoomable canvas.")
+    expect(caption()).toBe("Spread out. Zoom in where it matters.")
     page.rerender(createElement(WelcomePreview, { connected, chat: false }))
     expect(caption()).toBe("Agents keep their own terminal screens.")
     expect(document.querySelector(".welcome-chat")).toBeNull()
     page.rerender(createElement(WelcomePreview, { connected, chat: true }))
-    expect(caption()).toBe("Agents read as a chat: your words, their replies and steps.")
+    expect(caption()).toBe("Agents as a chat: your words, their replies, their steps.")
     const grid = [...document.querySelectorAll("button")].find(
       (each) => each.textContent === "Grid",
     )
