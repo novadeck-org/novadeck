@@ -4,6 +4,7 @@ import type { DeliveryState, MessageState, TerminalMessages } from "@novadeck/pr
 import { wrap, type Message } from "../messaging/messages.js"
 import { describe, expect, it } from "../test.js"
 import { claude } from "./agents/claude.js"
+import { codex } from "./agents/codex.js"
 import { createHistory } from "./history.js"
 import type { Call } from "./model/script.js"
 import {
@@ -261,6 +262,28 @@ describe("prompted", () => {
     await prompted(terminal, claude, 2000)
 
     expect(screens).toEqual([])
+  })
+
+  it("waits for a resumed session's loading line to go, though its replay covers the banner", async () => {
+    // Codex's banner with "Resuming session…", then its replayed conversation over the banner.
+    const screens = [
+      "",
+      ">_ OpenAI Codex (v0.172.0)\n Resuming session…\n› Ask Codex to do anything",
+      " Resuming session…\n› Ask Codex to do anything",
+      "• Earlier: Done.\n› Ask Codex to do anything",
+    ]
+    const terminal = { handle: "moth", screen: async () => screens.shift() ?? "" }
+
+    await prompted(terminal, codex, 2000)
+
+    expect(screens).toEqual([])
+  })
+
+  it("takes no screen while its loading line shows, banner and all", async () => {
+    const loading = ">_ OpenAI Codex (v0.172.0)\n Resuming session…\n› Ask Codex to do anything"
+    const terminal = { handle: "moth", screen: async () => loading }
+
+    await expect(prompted(terminal, codex, 300)).rejects.toThrow(/Resuming session/)
   })
 
   it("fails with the screen while a startup question stays", async () => {
