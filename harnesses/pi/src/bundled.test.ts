@@ -172,8 +172,6 @@ describe("Novadeck's pi launcher", () => {
     await writeFile(join(apps, "Microsoft", "WindowsApps", "bash.exe"), "")
     const wsl = {
       ...none,
-      SystemRoot: system,
-      LOCALAPPDATA: apps,
       PATH: [tools, join(system, "System32"), join(apps, "Microsoft", "WindowsApps")].join(";"),
     }
     const onlyWsl = raw((await launch(["go"], wsl)).stdout)
@@ -208,7 +206,7 @@ describe("Novadeck's pi launcher's text", () => {
     const order = [
       `if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools`,
       `if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools`,
-      `for /f "delims=" %%b in ('where $PATH:bash.exe 2^>nul') do if /i not "%%~dpb"=="%SystemRoot%\\System32\\"`,
+      `for /f "delims=" %%b in ('where $PATH:bash.exe 2^>nul') do for %%d in ("%%~dpb.") do`,
       `set "novadeck_tools=--tools -bash,+powershell"`,
     ].map((line) => cmd.indexOf(line))
     expect(order.every((at) => at > 0)).toBe(true)

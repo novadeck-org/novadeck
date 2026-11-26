@@ -80,7 +80,8 @@ exec "$novadeck_program" -e ${quoted(pi.extension)} "$@"
  * 1.6.0): Git Bash in Program Files, then in Program Files (x86), then `bash.exe` on PATH
  * (`$PATH:`, so not the current folder, which pi doesn't search), but for WSL's launchers in
  * System32 and WindowsApps, which pi would take, and which run the agent's commands in Linux,
- * where the project's Windows paths don't hold. No `if (...)` blocks hold a path: a ")" in
+ * where the project's Windows paths don't hold: told by the name of the folder holding it
+ * (`"%%~dpb."`, its folder with no trailing separator), whatever form its path takes. No `if (...)` blocks hold a path: a ")" in
  * "Program Files (x86)" would end them (a `for` variable's value is put in after a line is read,
  * so one doesn't).
  */
@@ -101,7 +102,7 @@ set "${bundledMark}=bundled"
 set "novadeck_tools="
 if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools
 if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools
-for /f "delims=" %%b in ('where $PATH:bash.exe 2^>nul') do if /i not "%%~dpb"=="%SystemRoot%\\System32\\" if /i not "%%~dpb"=="%LOCALAPPDATA%\\Microsoft\\WindowsApps\\" goto tools
+for /f "delims=" %%b in ('where $PATH:bash.exe 2^>nul') do for %%d in ("%%~dpb.") do if /i not "%%~nxd"=="System32" if /i not "%%~nxd"=="WindowsApps" goto tools
 set "novadeck_tools=${powershellTools.join(" ")}"
 :tools
 if not exist "${cmdPath(pi.extension)}" goto plain

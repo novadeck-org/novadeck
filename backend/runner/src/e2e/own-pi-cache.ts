@@ -51,6 +51,14 @@ const fetchCopy = async (): Promise<{ readonly source: string; readonly licence:
 }
 
 /**
+ * Fills the e2e cache with this system's archive of the pinned pi and its licence, as
+ * `ownPiFromCache` would: for the install step that runs with the network (own-pi-fill.ts), the
+ * suite then running without.
+ */
+export const fillOwnPiCache = (): Promise<{ readonly source: string; readonly licence: string }> =>
+  fetchCopy()
+
+/**
  * Downloads, once per e2e cache, this system's archive of the pinned pi and its licence
  * (`pinnedPi`), checked against their checksums, and points the runner at them: the folder holding
  * them is the archives' source and the file the licence. Returns what puts the two variables back
