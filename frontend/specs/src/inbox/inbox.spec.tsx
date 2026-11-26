@@ -720,7 +720,7 @@ describe("Dismissing an ask", () => {
     await expect.element(resolved).toHaveAttribute("data-settled", "dismissed")
     await expect.element(dismissButton("webhooks")).not.toBeInTheDocument()
     await row("webhooks").click()
-    await expect.element(page.getByRole("dialog")).toMatchTextContent("You dismissed this ask")
+    await expect.element(page.getByRole("dialog")).toMatchTextContent("You dismissed this entry")
   })
 
   it("dismisses on Delete, with the keyboard on to the next row", async () => {

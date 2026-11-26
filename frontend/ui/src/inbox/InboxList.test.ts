@@ -653,7 +653,7 @@ describe("The Inbox's list", () => {
 
       expect(document.querySelector(".console-tag")?.textContent).toBe("Dismissed")
       expect(document.querySelector(".inbox-sheet .request-note")?.textContent).toBe(
-        "You dismissed this ask; @moth was told.",
+        "You dismissed this entry; @moth was told.",
       )
       expect(document.querySelector(".inbox-sheet .request-options")).toBeNull()
       inbox.press("j")
