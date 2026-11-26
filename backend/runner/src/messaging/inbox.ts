@@ -372,7 +372,7 @@ type AskQuestions = Extract<AgentAsk["shape"], { type: "questions" }>["questions
  */
 const questionAnswers = (questions: AskQuestions, given: QuestionsAnswer): QuestionAnswers => {
   if (given.length !== questions.length)
-    throw new DomainError("ANSWER_FAILED", "Answer each of this ask's questions.")
+    throw new DomainError("ANSWER_FAILED", "Answer every question.")
   return questions.map((each, at) => {
     const { options, text } = given[at]!
     const picked = [...new Set(options)].toSorted((a, b) => a - b)
@@ -382,7 +382,7 @@ const questionAnswers = (questions: AskQuestions, given: QuestionsAnswer): Quest
       throw new DomainError("ANSWER_FAILED", "Choose one option for each question that takes one.")
     const words = cleanText(text).trim()
     if (picked.length === 0 && !words)
-      throw new DomainError("ANSWER_FAILED", "Answer each of this ask's questions.")
+      throw new DomainError("ANSWER_FAILED", "Answer every question.")
     return {
       question: each.question,
       ...(each.header !== null && { header: each.header }),
@@ -409,13 +409,13 @@ const replyOf = (
 } => {
   if (answer.type === "done") {
     if (ask.shape.type !== "action")
-      throw new DomainError("ANSWER_FAILED", "This ask has no action to mark done.")
+      throw new DomainError("ANSWER_FAILED", "This entry has no action to mark done.")
     const label = ask.shape.doneLabel
     return { words: label, text: "", choice: { action: label }, own: "" }
   }
   if (answer.type === "questions") {
     if (ask.shape.type !== "questions")
-      throw new DomainError("ANSWER_FAILED", "This ask has no questions to answer.")
+      throw new DomainError("ANSWER_FAILED", "This entry has no questions to answer.")
     const answers = questionAnswers(ask.shape.questions, answer.answers)
     const words = answers
       .map(
@@ -428,7 +428,7 @@ const replyOf = (
   }
   const picked = answer.option
   if (picked !== null && (ask.shape.type !== "options" || !ask.shape.options[picked]))
-    throw new DomainError("ANSWER_FAILED", "Choose one of this ask's options.")
+    throw new DomainError("ANSWER_FAILED", "Choose one of the listed options.")
   const label =
     picked !== null && ask.shape.type === "options" ? ask.shape.options[picked]!.label : ""
   const text = answer.text.trim()
@@ -835,7 +835,7 @@ export class Inbox {
       !owner ||
       !same(entry, owner)
     )
-      throw new DomainError("NOT_FOUND", "This ask is not open.")
+      throw new DomainError("NOT_FOUND", "This entry isn't open anymore.")
     this.put({ ...entry, state: "withdrawn", cause: "dismissed" })
     const queued = this.dismissals.get(entry.terminalId)
     const note = { subject: entry.content.ask.subject, action: entry.content.ask.shape.type }
@@ -889,9 +889,10 @@ export class Inbox {
       entry.content.kind !== "ask" ||
       !same(entry, this.host.owner(entry.terminalId))
     )
-      throw new DomainError("CONFLICT", "This ask is no longer waiting in that agent session.")
+      throw new DomainError("CONFLICT", "This entry is no longer waiting on the agent.")
     const parsed = askAnswer.safeParse(input)
-    if (!parsed.success) throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this ask.")
+    if (!parsed.success)
+      throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this entry.")
     const { ask } = entry.content
     const { words, text, choice, own } = replyOf(ask, parsed.data)
     const answered: StoredEntry = {
