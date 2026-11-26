@@ -13,7 +13,14 @@ import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
 import { MessagesSquare, Search, SquareTerminal, X } from "lucide-react"
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+  type RefObject,
+} from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
@@ -119,6 +126,35 @@ type ExperimentalToggle = {
   readonly retry?: () => void
 }
 
+// The window width at which the menu turns from a column into a row above the page (the
+// `max-[640px]` classes below), where its arrow keys turn with it.
+const narrowQuery = "(max-width: 640px)"
+const subscribeNarrow = (changed: () => void): (() => void) => {
+  if (typeof matchMedia !== "function") return () => {}
+  const query = matchMedia(narrowQuery)
+  query.addEventListener("change", changed)
+  return () => query.removeEventListener("change", changed)
+}
+const isNarrow = (): boolean => typeof matchMedia === "function" && matchMedia(narrowQuery).matches
+const useNarrow = (): boolean => useSyncExternalStore(subscribeNarrow, isNarrow, () => false)
+
+// The tint each row search jumped to fades on, so a second jump to it starts afresh.
+const fading = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>()
+const tint = (row: HTMLElement): void => {
+  clearTimeout(fading.get(row))
+  delete row.dataset.found
+  // A reflow between, so the animation plays again on a row that still had it.
+  void row.offsetWidth
+  row.dataset.found = ""
+  fading.set(
+    row,
+    setTimeout(() => delete row.dataset.found, foundFor),
+  )
+}
+
+// Every page shows, where nothing says otherwise.
+const everyPage = (): boolean => true
+
 // Marks what is still being built, beside its name or its section's title.
 const ExperimentalBadge = (): React.JSX.Element => (
   <span className="badge settings-badge shrink-0 px-1.5 text-[10px] leading-4 font-normal">
@@ -134,11 +170,14 @@ const ExperimentalRows = ({
   scope = "",
   bare = false,
   onGoTo,
+  shows = everyPage,
 }: {
   readonly toggles: readonly ExperimentalToggle[]
   readonly scope?: string
   readonly bare?: boolean
-  readonly onGoTo?: (page: PreferencesTab) => void
+  // Goes to a toggle's page, where `shows` says Preferences has it.
+  readonly onGoTo?: ((page: PreferencesTab) => void) | undefined
+  readonly shows?: (page: PreferencesTab) => boolean
 }): React.JSX.Element | null => {
   if (toggles.length === 0) return null
   const rows = toggles.map(
@@ -175,7 +214,7 @@ const ExperimentalRows = ({
                 )}
               </span>
             )}
-            {onGoTo && (
+            {onGoTo && shows(page) && (
               <button
                 type="button"
                 className="button link addon-action w-fit text-control"
@@ -231,10 +270,13 @@ const Section = ({
       {(title || description) && (
         <header className="px-0.5">
           {title && (
-            <h3 id={id} className={`${sectionTitleClasses} flex items-center gap-2`}>
-              {title}
+            // The badge stands beside the title, out of the name it gives the section.
+            <div className="flex items-center gap-2">
+              <h3 id={id} className={sectionTitleClasses}>
+                {title}
+              </h3>
               {badge}
-            </h3>
+            </div>
           )}
           {description && <p className={sectionDescriptionClasses}>{description}</p>}
         </header>
@@ -371,7 +413,8 @@ export const Preferences = ({
   chat = false,
 }: {
   open: boolean
-  // The tab to show; null for none named, which opens Agents where the backend has it, else General.
+  // The page to show; null for none named, which opens Agents where the backend has it, else
+  // Appearance.
   tab: PreferencesTab | null
   onTabChange: (tab: PreferencesTab) => void
   // An agent whose switch to bring into view and focus once the dialog is open, where the
@@ -527,6 +570,7 @@ export const Preferences = ({
     return () => cancelAnimationFrame(frame)
   }, [open, focusAgent, hasAgents])
   const panels = useRef<HTMLDivElement>(null)
+  const narrow = useNarrow()
   const searchField = useRef<HTMLInputElement>(null)
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   // What the person searches for, and the rows that match it, read from the pages as typed.
@@ -550,17 +594,27 @@ export const Preferences = ({
   // Opens the page a match is on and brings its row into view, tinted a moment, with its
   // control focused where it has one.
   const jump = ({ target }: Found): void => {
+    // Focus waits in the field while the results go, so it never falls out of the dialog.
+    searchField.current?.focus({ preventScroll: true })
     search("")
     changeTab(target.page)
     requestAnimationFrame(() => {
       const { row } = target
       row.scrollIntoView?.({ block: "center" })
-      row.querySelector<HTMLElement>(rowControls)?.focus({ preventScroll: true })
-      row.dataset.found = ""
-      setTimeout(() => delete row.dataset.found, foundFor)
+      // A row with no control, as a shortcut's, leaves focus on its page.
+      const control =
+        row.querySelector<HTMLElement>(rowControls) ?? row.closest<HTMLElement>('[role="tabpanel"]')
+      control?.focus({ preventScroll: true })
+      tint(row)
     })
   }
-  // `/` searches, as in the app's lists, unless the person is typing.
+  // `/` searches, as in the app's lists, unless the person is typing. Escape takes a search away
+  // first, before it closes Preferences (the dialog's onEscapeKeyDown).
+  const searching = query.trim() !== ""
+  const searchingNow = useRef(searching)
+  useEffect(() => {
+    searchingNow.current = searching
+  }, [searching])
   useEffect(() => {
     if (!open) return undefined
     const onKey = (event: KeyboardEvent): void => {
@@ -590,8 +644,9 @@ export const Preferences = ({
   const showAgentMode = agentMode !== undefined && agentModes?.enabled === true && hasExperimental
   // Agents holds the agents, how they run and their Experimental features; a backend with none
   // of them, as the website's demo, has no page for it.
-  const hasAgentExperiments =
-    hasExperimental && (!!bundledPi || !!shippingGate || !!worktrees || !!forges)
+  // Shipping gate and Agent worktrees stand there whenever Experimental is on, offered or not,
+  // as they always stood in the Experimental list.
+  const hasAgentExperiments = hasExperimental
   const hasAgentsTab =
     hasAgents || hibernation !== undefined || showAgentMode || hasAgentExperiments
   const hidden = (id: PreferencesTab): boolean =>
@@ -721,7 +776,8 @@ export const Preferences = ({
     ...sounds.map(({ id, name }) => ({ label: name, value: id })),
   ]
   const { soundChoice } = value
-  const agentsRunning = hibernation || showAgentMode || pageToggles("agents").length > 0
+  const runningToggles = pageToggles("agents", ["shipping-gate", "agent-worktrees"])
+  const agentsRunning = hibernation || showAgentMode || runningToggles.length > 0
   const pageTitle = pageLabel(shown) ?? ""
   return (
     <Dialog
@@ -740,6 +796,15 @@ export const Preferences = ({
       }}
       contentRef={dialog}
       label="Preferences"
+      // It opens on the open page's tab, where the arrow keys move between pages and `/` searches.
+      initialFocusEl={() =>
+        dialog.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? null
+      }
+      onEscapeKeyDown={(event) => {
+        if (!searchingNow.current) return
+        event.preventDefault()
+        search("")
+      }}
       backdropClassName="overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center"
       className="modal flex h-[min(800px,calc(100dvh-64px))] w-[min(1080px,calc(100vw-64px))] flex-col overflow-clip max-[640px]:h-[calc(100dvh-24px)] max-[640px]:w-[calc(100vw-24px)]"
@@ -747,7 +812,7 @@ export const Preferences = ({
       <Tabs
         value={shown}
         onValueChange={changeTab}
-        orientation="vertical"
+        orientation={narrow ? "horizontal" : "vertical"}
         className="grid min-h-0 flex-1 grid-cols-[232px_minmax(0,1fr)] max-[640px]:flex max-[640px]:flex-col"
       >
         <TabInView tab={shown} within={dialog} />
@@ -797,14 +862,16 @@ export const Preferences = ({
               ) : (
                 found.map((match) => (
                   <button
-                    key={`${match.target.page}\n${match.label}`}
+                    key={`${match.target.page}\n${match.section}\n${match.label}`}
                     type="button"
                     className="tab preferences-result flex min-h-11 flex-col items-start justify-center px-2 py-1 text-left text-body"
                     onClick={() => jump(match)}
                   >
                     <span>{match.label}</span>
                     <span className="settings-description text-caption leading-4">
-                      {match.page}
+                      {match.section && match.section !== match.label
+                        ? `${match.page} · ${match.section}`
+                        : match.page}
                     </span>
                   </button>
                 ))
@@ -821,7 +888,7 @@ export const Preferences = ({
               // It pads out by the focus ring, which its scrolling would clip.
               className="preferences-tabs flex min-h-0 flex-1 flex-col overflow-y-auto pt-1 pr-1 pb-3 pl-3 [scrollbar-width:none] max-[640px]:flex-row max-[640px]:gap-4 max-[640px]:overflow-x-auto max-[640px]:px-4 max-[640px]:pb-2"
               label="Preference sections"
-              indicatorClassName="right-0 h-(--height) w-0.5 max-[640px]:hidden"
+              indicatorClassName="right-0 h-(--height) w-0.5 max-[640px]:right-auto max-[640px]:bottom-0 max-[640px]:h-0.5 max-[640px]:w-(--width)"
             >
               {preferencesTabs
                 .filter(({ id }) => !hidden(id))
@@ -837,7 +904,7 @@ export const Preferences = ({
             </TabList>
           </div>
         </div>
-        <div className="preferences-main flex min-h-0 min-w-0 flex-col">
+        <div className="preferences-main flex min-h-0 min-w-0 flex-col max-[640px]:flex-1">
           <div className="modal-header preferences-heading flex shrink-0 items-start justify-between gap-4 px-8 pt-5 pb-4 max-[640px]:px-4">
             <div className="min-w-0">
               <h2 className="m-0 text-title font-medium">{pageTitle}</h2>
@@ -846,8 +913,7 @@ export const Preferences = ({
               )}
               {shown === "experimental" && (
                 <p className={sectionDescriptionClasses}>
-                  Features still being built. Each one also shows on its own page while Experimental
-                  is on.
+                  Features still being built, each with the page where you'll find it.
                 </p>
               )}
             </div>
@@ -883,8 +949,7 @@ export const Preferences = ({
                       badge={<ExperimentalBadge />}
                     />
                   )}
-                  {(hibernation ||
-                    pageToggles("agents", ["shipping-gate", "agent-worktrees"]).length > 0) && (
+                  {(hibernation || runningToggles.length > 0) && (
                     <div className={settingsCardClasses}>
                       {hibernation && (
                         <Select
@@ -904,10 +969,7 @@ export const Preferences = ({
                           portalContainer={dialog}
                         />
                       )}
-                      <ExperimentalRows
-                        toggles={pageToggles("agents", ["shipping-gate", "agent-worktrees"])}
-                        bare
-                      />
+                      <ExperimentalRows toggles={runningToggles} bare />
                     </div>
                   )}
                 </Section>
@@ -1358,7 +1420,11 @@ export const Preferences = ({
                 </Section>
                 {/* Not while Murmur's Experimental switch is off, nor where the backend has none. */}
                 {murmur && (
-                  <Section title={MURMUR_NAME} description={murmurDescription}>
+                  <Section
+                    title={MURMUR_NAME}
+                    {...(hasExperimental ? { badge: <ExperimentalBadge /> } : {})}
+                    description={murmurDescription}
+                  >
                     <MurmurAddon murmur={murmur} />
                   </Section>
                 )}
@@ -1459,6 +1525,7 @@ export const Preferences = ({
                   toggles={toggles}
                   scope="index-"
                   onGoTo={(page) => changeTab(page)}
+                  shows={(page) => !hidden(page)}
                 />
               </TabPanel>
             )}

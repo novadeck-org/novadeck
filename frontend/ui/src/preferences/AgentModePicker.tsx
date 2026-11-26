@@ -25,7 +25,7 @@ export const AgentModePicker = ({
   const choice = agentModeChoice(mode)
   return (
     <>
-      <div className={`agent-mode-preferences ${settingsCardClasses}`}>
+      <div className={`agent-mode-preferences @container ${settingsCardClasses}`}>
         <fieldset
           className={`preference-row ${settingRowClasses} m-0 min-w-0 max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-2.5`}
           aria-labelledby="agent-mode-label"
@@ -47,10 +47,16 @@ export const AgentModePicker = ({
             indicatorClassName="absolute"
           />
         </fieldset>
-        <div className="settings-row @container/agent-mode-map grid grid-cols-[272px_minmax(0,1fr)] items-center gap-5 px-4 py-3.5 max-[480px]:grid-cols-1 max-[480px]:justify-items-center">
+        {/* The map stacks over its words where the card is too narrow for both side by side, as
+            beside a menu in a small window; search passes it by (data-search-skip): it is no
+            setting of its own. */}
+        <div
+          className="settings-row @container/agent-mode-map grid grid-cols-[272px_minmax(0,1fr)] items-center gap-5 px-4 py-3.5 @max-[560px]:grid-cols-1 @max-[560px]:justify-items-center"
+          data-search-skip=""
+        >
           <AgentModeMap mode={choice.mode} label={choice.map} />
           <div
-            className="flex min-w-0 flex-col gap-2 text-body max-[480px]:justify-self-stretch"
+            className="flex min-w-0 flex-col gap-2 text-body @max-[560px]:justify-self-stretch"
             aria-live="polite"
           >
             <p className="m-0">{choice.lead}</p>

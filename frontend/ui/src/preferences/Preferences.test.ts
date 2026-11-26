@@ -873,7 +873,8 @@ describe("the forge integrations, in Preferences", () => {
     const section = document
       .querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
       ?.querySelector('section[aria-labelledby="preferences-forge-integrations"]')
-    expect(section?.querySelector("h3")?.textContent).toBe("Forge integrationsExperimental")
+    expect(section?.querySelector("h3")?.textContent).toBe("Forge integrations")
+    expect(section?.querySelector(".settings-badge")?.textContent).toBe("Experimental")
     expect(section?.querySelector('ul[aria-label="Forges"] [role=switch]')).not.toBeNull()
   })
 
@@ -912,6 +913,44 @@ describe("searching Preferences", () => {
 
     expect(results()).toEqual([])
     expect(document.body.textContent).toContain("Nothing matches “zebra”.")
+  })
+
+  it("takes the search away on Escape, and leaves Preferences open", async () => {
+    let closed = 0
+    await show({ tab: "appearance", notices: true, onClose: () => (closed += 1) })
+    await type("bell")
+    await act(async () => {
+      field().dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      )
+    })
+
+    expect(field().value).toBe("")
+    expect(results()).toEqual([])
+    expect(closed).toBe(0)
+  })
+
+  it("focuses the control of the row it opens", async () => {
+    // Opening a page rerenders on it, as the app's route does.
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      notices: true,
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("appearance")))
+    mounted.push(page)
+    await nextFrame()
+    await type("ring the bell")
+    await act(async () => (document.querySelector(".preferences-result") as HTMLElement).click())
+    await nextFrame()
+
+    expect(document.activeElement?.getAttribute("role")).toBe("switch")
+    expect(document.activeElement?.closest(".settings-row")?.textContent).toContain("Ring the bell")
   })
 
   it("opens a match's page, and shows the pages again", async () => {
@@ -955,6 +994,19 @@ describe("an Experimental feature, while Experimental is on", () => {
     )
     goTo?.click()
     expect(opened).toEqual(["appearance"])
+  })
+
+  it("offers no way to a page Preferences doesn't show", async () => {
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      murmurSwitch: { enabled: false, onChange: () => {} },
+    })
+
+    expect(document.body.textContent).toContain("Murmur")
+    expect(
+      [...document.querySelectorAll("button")].some((button) => button.textContent === "On Addons"),
+    ).toBe(false)
   })
 
   it("is on no page while Experimental is off", async () => {
