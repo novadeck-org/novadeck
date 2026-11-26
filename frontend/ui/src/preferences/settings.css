@@ -25,14 +25,17 @@
    pointer and when checked, as the welcome's are; disabled, it is muted.
    `.settings-agent-tile`: an agent's mark beside its name, on the choice-card tile; an outline
    (data-missing) where the agent isn't installed.
-   `.settings-sample`: a few lines of terminal text at the top of a card, drawn in the font,
-   size and ligatures the terminals use, in the terminal's colours.
+   `.settings-sample`: a few lines of terminal text above Terminal's cards, drawn in the font,
+   size and ligatures the terminals use, on the workspace's deepest ground: a
+   `.settings-sample-caption` naming them, then the lines, coloured as a prompt, a keyword and
+   comments are, ending at a block `.settings-sample-cursor`. Its `pre` carries data-ligatures.
    `.settings-stack`: settings each on a card of its own, as the welcome dialog draws its
    choices (the solid choice card): a `.settings-row` per card, led by a `.choice-card-tile`
    that takes the brand tile while the card's switch is on, and its description small. A
    `.settings-label` (a setting's name) is set medium everywhere. In a `.settings-card` led by
-   a row with a tile, that tile does the same, and the rows under it line up with its words. A card whose agent waits to be installed (data-agent-install)
-   is drawn dashed, as the welcome's Add card. `.settings-section-title`: a section's title,
+   a row with a tile, that tile does the same, and the rows under it line up with its words. A
+   card whose agent waits to be installed (data-agent-install) is drawn dashed, as the
+   welcome's Add card. `.settings-section-title`: a section's title,
    as the welcome titles its own.
 
    Hooks: data-found on a `.settings-row`, a moment after search jumps to it: it tints and
@@ -271,22 +274,34 @@
 
 /* The sample takes the terminal's own colours, so it reads as one. */
 .settings-sample {
-  margin: 0;
   overflow: hidden;
   border: var(--border-width) solid var(--choice-card-border-color, var(--color-line));
   border-radius: var(--choice-card-radius, var(--radius-panel));
-  background-color: var(--terminal-bg, var(--settings-preview-bg, var(--color-canvas)));
-  color: var(--terminal-fg, var(--color-ink));
-  line-height: 1.4;
-  white-space: pre;
+  background-color: var(--settings-preview-bg, var(--color-canvas));
+  color: var(--color-ink);
+  line-height: 1.45;
+}
+.settings-sample-caption {
+  color: var(--color-muted);
+  font-size: var(--text-caption);
 }
 /* Off turns the joins off alone: the glyph features the body sets (theme/base.css) stay, as in
    a terminal. */
-.settings-sample[data-ligatures="off"] {
+.settings-sample [data-ligatures="off"] {
   font-variant-ligatures: none;
 }
-.settings-sample[data-ligatures="on"] {
+.settings-sample [data-ligatures="on"] {
   font-variant-ligatures: contextual common-ligatures;
+}
+.settings-sample-keyword {
+  color: var(--color-syntax-keyword);
+}
+.settings-sample-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  background-color: var(--color-strong);
 }
 .settings-sample-accent {
   color: var(--color-strong);

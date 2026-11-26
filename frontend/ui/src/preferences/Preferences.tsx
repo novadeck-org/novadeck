@@ -1423,6 +1423,10 @@ export const Preferences = ({
                 {/* What the cards under it change, as they change it. */}
                 <TerminalSample
                   family={terminalFamily}
+                  font={
+                    terminalFonts.items.find((item) => item.value === terminalFonts.value)?.label ??
+                    terminalFamily
+                  }
                   size={value.fontSize}
                   ligatures={value.ligatures && terminalLigatures}
                 />

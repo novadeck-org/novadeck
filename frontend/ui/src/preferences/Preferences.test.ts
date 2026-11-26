@@ -793,10 +793,11 @@ describe("the Terminal page", () => {
   it("draws a sample of the terminal text in the size and font set", async () => {
     await show({ tab: "terminal", value: { ...readPreferences(), fontSize: 21 } })
 
-    const sample = panel()?.querySelector<HTMLElement>(".settings-sample")
+    const sample = panel()?.querySelector<HTMLElement>(".settings-sample pre")
     expect(sample?.style.fontSize).toBe("21px")
     expect(sample?.style.fontFamily).toContain("JetBrains Mono")
-    expect(sample?.getAttribute("aria-hidden")).toBe("true")
+    expect(sample?.closest("[aria-hidden]")?.getAttribute("aria-hidden")).toBe("true")
+    expect(panel()?.querySelector(".settings-sample-caption")?.textContent).toContain("21px")
   })
 })
 
