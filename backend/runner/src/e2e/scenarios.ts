@@ -76,7 +76,11 @@ export const prompted = async (
     async () => {
       const shown = await terminal.screen()
       const at = typeof banner === "string" ? shown.includes(banner) : banner.test(shown)
-      return at && !questions.some((question) => question.test(shown)) ? true : undefined
+      return at &&
+        !questions.some((question) => question.test(shown)) &&
+        !setup.loading?.test(shown)
+        ? true
+        : undefined
     },
     `${terminal.handle} to show its prompt (${String(banner)}), past any startup question`,
     timeoutMs,

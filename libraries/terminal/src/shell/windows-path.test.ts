@@ -253,8 +253,10 @@ describe("refreshing PATH", () => {
     "reads it through PowerShell where the relay can't run",
     async () => {
       const missing = await readRegistry(process.env, readMs, "C:\\Nowhere\\relay.exe")
-      // Folders, not two reads that both ran out of time.
-      expect(Array.isArray(missing) && missing.length).toBeGreaterThan(0)
+      // Folders, not two reads that both ran out of time (the failure names what came instead:
+      // "timeout", or undefined for a read that failed outright).
+      expect(missing).toBeInstanceOf(Array)
+      expect((missing as readonly string[]).length).toBeGreaterThan(0)
       expect(missing).toEqual(await readRegistry(process.env, readMs))
     },
     // A missing relay fails at once; then PowerShell, twice.

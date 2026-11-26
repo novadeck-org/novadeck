@@ -105,6 +105,15 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     expect(record.summary.lastProgram).toBe("bash")
   })
 
+  it("is the agent that binds after a sample named the program it runs as, where no command line is told, as pi's `node` on macOS", () => {
+    on("darwin")
+    const record = running("node")
+    record.foreground = { process: { name: "node", argv: null }, group: null }
+    expect(boundProgram(record, "pi")).toBe(true)
+    expect(record.summary.lastProgram).toBe("pi")
+    expect(record.changed).toBe(true)
+  })
+
   it("is the agent that binds before the first sample, as Antigravity does within a second of starting", () => {
     on("linux")
     const record = running(null)

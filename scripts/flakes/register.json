@@ -615,10 +615,11 @@
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/agents/chat.spec.tsx > The chat view > stays once Experimental is turned off, as it isn't one of the experimental features",
       "signature": "VitestBrowserElementError: Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Preferences' \\}\\)",
-      "status": "known",
-      "cause": "Unknown, not reproduced. Enter on the focused Workspace preferences button opened no Preferences for the 30 s the test had: the page's route still read Build's terminal with no dialog, so the press never reached the button or its navigation was lost; the other cases of its block took 0.7 to 2.5 s and the retry passed at once. Not the lazy Preferences chunk (its first open took about 1 s in preferences.spec in the same job), and not #1089 to #1095: the font list asks for fonts only once local-fonts is granted, and the scale row is hidden in a browser. Locally, with focus, keys and route writes logged, the file passed 7 of 7 whole runs at 6x CPU throttling (6 of them side by side) and the case 9 repeats under CPU load: there the demo's toasts closed first, each giving focus back to the chat's box, and nothing moved focus or wrote the route in the 70 ms between the button's focus and Enter.",
+      "status": "fixed",
+      "cause": "Probable cause, not reproduced: the specs' openPreferences focused the Workspace preferences button and pressed Enter once, and a tab click before it sends focus into the terminal a frame or more later, so on a loaded runner the key could land in the terminal instead. openPreferences now presses again, up to three times, while the dialog hasn't shown in 2 s. Before that: Unknown, not reproduced. Enter on the focused Workspace preferences button opened no Preferences for the 30 s the test had: the page's route still read Build's terminal with no dialog, so the press never reached the button or its navigation was lost; the other cases of its block took 0.7 to 2.5 s and the retry passed at once. Not the lazy Preferences chunk (its first open took about 1 s in preferences.spec in the same job), and not #1089 to #1095: the font list asks for fonts only once local-fonts is granted, and the scale row is hidden in a browser. Locally, with focus, keys and route writes logged, the file passed 7 of 7 whole runs at 6x CPU throttling (6 of them side by side) and the case 9 repeats under CPU load: there the demo's toasts closed first, each giving focus back to the chat's box, and nothing moved focus or wrote the route in the 70 ms between the button's focus and Enter.",
       "seen": [
-        "test/register-shard-log-names (#1110) run 44650472631 job 136009886832 (macOS, 3/3), behaviour, after #1057; #1110 touches only register.json and match.test.ts"
+        "test/register-shard-log-names (#1110) run 44650472631 job 136009886832 (macOS, 3/3), behaviour, after #1057; #1110 touches only register.json and match.test.ts",
+        "main's nightly run 45732931191 (macOS 3/3), retried and passed"
       ]
     },
     {
@@ -710,6 +711,221 @@
       "status": "known",
       "cause": "Not reproduced yet. The person's keys (\"xyz\" at 65) reached the TUI before the ring's last \\r (at 78), so on a busy runner they went in before the doorbell's Enter, into its line, which is what the hold during a ring is meant to stop. It could be a real race in the hold rather than in the test.",
       "seen": ["#1152 run 44827540904 attempt 1 job 136603855817 (Linux, 3/3)"]
+    },
+    {
+      "id": "harness-pi-bundled-powershell-windows",
+      "jobs": ["^Test \\(Windows(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/bundled.test.ts > Novadeck's pi launcher > ",
+      "signature": "Test timed out in \\d+ms|AssertionError: expected false to be true",
+      "status": "fixed",
+      "cause": "One test made seven `cmd`/relay/`where` launches in a row, which take 1 to 5 s each on a loaded Windows runner, so it ran past the 20 s limit (runs 45883213819 and nightly 45885955229). Split into four tests of one or two launches each, assertions unchanged. The all-tries failure at line 180 (run 45722060685) ran a pull request commit from before #1288's `where` check skips System32 and WindowsApps.",
+      "seen": [
+        "feat/tour-own-pi run 45722060685 (Windows 1/3), failed all tries",
+        "refactor/tour-package run 45883213819 (Windows 1/3), retried and passed",
+        "main's nightly run 45885955229 (Windows 1/3), retried and passed"
+      ]
+    },
+    {
+      "id": "harness-opencode-plugin-launcher-order",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/plugin.test.ts > the plugin with the shipping gate on > ",
+      "signature": "ENOTEMPTY: directory not empty, rmdir|to have a length of \\d+ but got \\d+",
+      "status": "fixed",
+      "cause": "The tests' stand-in hook launcher appended its report before it took the answer a test queued, so a test that went on at the report queued its next answer for the report before (2 replies of 3), or ended and removed the folder under a hook still writing (ENOTEMPTY). It now takes the answer first and reports last, and the test that asserted nothing was sent waits for each report.",
+      "seen": [
+        "feat/bundled-pi run 45586937307 (Linux 1/3), ENOTEMPTY",
+        "feat/worktrees-stable run 45791672717 (macOS), length 2"
+      ]
+    },
+    {
+      "id": "viewers-pdf-redrawn-trouble-message",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/pdf.test.ts > a PDF it can't draw > draws it once it's written again as a PDF",
+      "signature": "expected \\[ 'unreadable' \\] to deeply equal \\[ 'unreadable', null \\]",
+      "status": "fixed",
+      "cause": "The frame's trouble(null) reaches the pane as a postMessage after the frame's DOM shows its pages; the test read the troubles at once. It now polls for them.",
+      "seen": ["feat/worktree-include run 45833035936 (Linux 1/3), retried and passed"]
+    },
+    {
+      "id": "scripts-libraries-fence-lint-windows",
+      "jobs": ["^Test \\(Windows(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "scripts/libraries/fence.test.ts",
+      "signature": "Hook timed out in 10000ms",
+      "status": "fixed",
+      "cause": "Its beforeAll runs oxlint once over about 60 probes: about 1 s locally, 11.4 s on a loaded Windows runner, past the hook's 10 s default. It has 60 s now.",
+      "seen": ["feat/keep-awake run 45825741785 attempt 1 (Windows), passed on the rerun"]
+    },
+    {
+      "id": "e2e-agy-second-terminal-reply-late",
+      "jobs": [
+        "^Antigravity \\(Windows(?:, [1-4][/-][2-4])?\\)$",
+        "^Antigravity \\(macOS(?:, [1-4][/-][2-4])?\\)$",
+        "^Antigravity(?: \\([1-4][/-][2-4]\\))?$"
+      ],
+      "test": "src/e2e/agy-second-terminal.e2e.ts > Antigravity > starts a second terminal that is its own while the first is mid-turn",
+      "signature": "expected undefined to be 'Second done\\.'",
+      "status": "fixed",
+      "cause": "The test read the second terminal's last reply from its summary the moment its screen drew it; the reply reaches the summary a moment later (no words-written event yet in the trace of run 45873678292). It now waits for the reply. #1268's binding fix held: the second terminal bound its own session.",
+      "seen": [
+        "feat/voice-guide run 45873678292 (Antigravity Windows 2/2), retried and passed",
+        "feat/worktrees-stable run 45786027795 (Antigravity Windows 2/2), retried and passed"
+      ]
+    },
+    {
+      "id": "e2e-agy-resumes-cleared-conversation",
+      "jobs": [
+        "^Antigravity \\(Windows(?:, [1-4][/-][2-4])?\\)$",
+        "^Antigravity \\(Windows quirks\\)$",
+        "^Antigravity \\(macOS(?:, [1-4][/-][2-4])?\\)$",
+        "^Antigravity(?: \\([1-4][/-][2-4]\\))?$",
+        "^Core scenarios \\(macOS\\)$"
+      ],
+      "test": "src/e2e/",
+      "signature": "fox can't reach ready: timed out after \\d+ ms\\. fox: unbound → fresh → working → settled",
+      "status": "fixed",
+      "cause": "Antigravity 1.5.17's new process resumed the conversation moth had cleared away with /clear (moth now on another), named it in its PreInvocation, and the runner bound fox to it: fox never reached ready (run 45750019107's trace). #1268 knew a conversation as held only while it was a terminal's bound session or root. A terminal now keeps the sessions its running process left for another, and those count as held while that process lives. Earlier sightings predate #1268 and #1276.",
+      "seen": [
+        "main's E2E night run 45750019107 (Antigravity Windows quirks), lifecycle /clear",
+        "main run 45607671436 (Antigravity Windows 1/2), history",
+        "main run 45573876937 (Antigravity Linux 2/3), restart"
+      ]
+    },
+    {
+      "id": "e2e-opencode-prompt-before-bind",
+      "jobs": [
+        "^(?:opencode|OpenCode) \\(Windows(?:, [1-4][/-][2-4])?\\)$",
+        "^(?:opencode|OpenCode) \\(macOS(?:, [1-4][/-][2-4])?\\)$",
+        "^(?:opencode|OpenCode)(?: \\([1-4][/-][2-4]\\))?$",
+        "^Mixed(?: \\((?:macOS|Windows)\\))?$",
+        "^Core scenarios \\(macOS\\)$"
+      ],
+      "test": "src/e2e/",
+      "signature": "can't reach working: timed out after \\d+ ms\\. \\w+: ready → drafting\\. Its agent: no agent|its transcript to hold a assistant item\\. Its agent: no agent",
+      "status": "fixed",
+      "cause": "A product bug in Novadeck's opencode plugin: on a new session it read opencode's server (backfill) before reporting SessionStart, while the prompt's own hook went straight out, so on a loaded Windows runner the prompt's UserPromptSubmit reached the runner while the terminal had no bound agent (3 s late in run 45722060140, never in others). A fresh session now binds at once, and a prompt waits for its session's bind, whose backfill read is capped at 2 s.",
+      "seen": [
+        "main run 45693565400 (opencode Windows 1/2), chat",
+        "feat/tour-own-pi run 45722060140 (OpenCode Windows 1/2), chat",
+        "feat/agy-1.5.17 run 45600155064 (opencode Windows 3/3), answers",
+        "fix/agy-stop-before-close run 45704231487 (Mixed Windows), team.mixed"
+      ]
+    },
+    {
+      "id": "e2e-codex-resuming-drops-keys",
+      "jobs": [
+        "^Codex \\(Windows(?:, [1-4][/-][2-4])?\\)$",
+        "^Codex \\(macOS(?:, [1-4][/-][2-4])?\\)$",
+        "^Codex(?: \\([1-4][/-][2-4]\\))?$"
+      ],
+      "test": "src/e2e/tools-unasked.e2e.ts > Novadeck's tools unasked in Codex > runs them in a session resumed as the runner restarts",
+      "signature": "Timed out after \\d+ ms waiting for moth to show Describe this terminal",
+      "status": "fixed",
+      "cause": "Codex draws its composer under \"Resuming session…\" and drops keys typed there; the test's prompt check passed on the composer and typed too early (the trace shows the keys typed, then lost). Scenarios now wait for a harness's loading line to go before typing.",
+      "seen": ["feat/bundled-pi run 45623992951 (Codex Windows 1/2), retried and passed"]
+    },
+    {
+      "id": "e2e-pi-macos-restart-before-sample",
+      "jobs": ["^Pi \\(macOS(?:, [1-4][/-][2-4])?\\)$", "^pi \\(macOS(?:, [1-4][/-][2-4])?\\)$"],
+      "test": "src/e2e/sleeping.e2e.ts > pi > wakes when a window restores it, resuming the session it held",
+      "signature": "expected \\{ …\\(\\d+\\) \\} to match object \\{ sleeping: true \\}",
+      "status": "fixed",
+      "cause": "A product bug: on macOS, which tells no command line, pi's node process was sampled as the terminal's program before pi bound, and binding refused to replace a name already sampled, so a restart within the next sample saved the terminal with no agent to resume, awake. Binding now takes the agent over such a name where no command line is told.",
+      "seen": [
+        "main run 45668938761 (pi macOS 3/3)",
+        "main's E2E night run 45750019107 (Pi macOS 3/3)"
+      ]
+    },
+    {
+      "id": "e2e-codex-diff-pager-dialog-lost",
+      "jobs": ["^Codex \\(macOS(?:, [1-4][/-][2-4])?\\)$"],
+      "test": "src/e2e/answers.e2e.ts > Codex's /diff pager over an approval > closes the pager by itself for a terminal nobody looks at, and the approval answers",
+      "signature": "The request's dialog isn't on the agent's screen",
+      "status": "known",
+      "cause": "Unknown. The PermissionRequest hook arrived about 10 s in, and the answer then found no dialog on Codex's screen; the artifact kept no screen. The test now records the screen at that answer, so its next failure shows it.",
+      "seen": ["main run 45668938761 (Codex macOS 2/2), retried and passed"]
+    },
+    {
+      "id": "e2e-windows-detached-launch-slow",
+      "jobs": [
+        "^Pi \\(Windows(?:, [1-4][/-][2-4])?\\)$",
+        "^pi \\(Windows(?:, [1-4][/-][2-4])?\\)$",
+        "^Claude Code \\(Windows(?:, [1-4][/-][2-4])?\\)$"
+      ],
+      "test": "src/e2e/detached.e2e.ts > ",
+      "signature": "Timed out after \\d+ ms waiting for \\w+: the servers to start",
+      "status": "known",
+      "cause": "The test's PowerShell `Start-Process` launcher takes a minute or more on a loaded Windows runner (61 s in run 45668938761, still running at 60 s in pi's traces); why isn't known. The Windows launch now has 120 s, within the test's 180 s.",
+      "seen": [
+        "fix/nightly-pi-1125 run 45566919880 (pi Windows 1/3)",
+        "main run 45668938761 (Claude Code Windows 2/3)",
+        "fix/harness-display-names run 45704785815 (Pi Windows 2/3)"
+      ]
+    },
+    {
+      "id": "ui-tour-story-caption-beat",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/agents/tour-story.spec.tsx > The tour's story > ",
+      "signature": "not to contain '|The tour never said |expect\\.poll\\(\\) function didn't resolve in time",
+      "status": "fixed",
+      "cause": "The story's presses raced the tour's caption: a teammate's question landed while the spec was still on the team step, and a box swapped in was in the page before it showed, so the spec pressed the question's marks as its step's subject and answered it (#1296); a step's window press didn't always land in it (#1295); earlier #1265 and #1267. After #1296 none of these signatures came back in 10 whole-file runs under heavy CPU load.",
+      "seen": [
+        "feat/worktrees-stable run 45791672717 (Linux 1/3), the last sighting, before #1296",
+        "main's nightly run 45525985837 (macOS 2/3), failed all tries"
+      ]
+    },
+    {
+      "id": "ui-tour-story-worktrees-panel-budget",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/agents/tour-story.spec.tsx > The tour's story > shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there",
+      "signature": "Test timed out in 30000ms|TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
+      "status": "fixed",
+      "cause": "The one story test without its siblings' 240 s budget (walks): it plays the tour to the team step, about 28 s unloaded against the 30 s default, so a loaded runner timed it out; the short locator.click timeouts were what was left of the 30 s. Reproduced twice in 10 loaded runs; it has walks' budget now.",
+      "seen": ["feat/pi-harness run 45401874650", "main's nightly run 45487367593 (Windows 1/3)"]
+    },
+    {
+      "id": "ui-inbox-sheet-press-held-back",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/inbox/inbox.spec.tsx > An Inbox entry's sheet > ",
+      "signature": "toMatchTextContent|Cannot find element with locator: getByRole\\('dialog', \\{ name: 'Dev server' \\}\\)|expected false to be true",
+      "status": "fixed",
+      "cause": "The sheet's card ignores a press for 400 ms after the context over it moves it (movedGuardMs, ConsoleSheet.tsx), and on a loaded runner the context came in after the spec's stillness check, so a press was held back. The spec presses again while what a press brings hasn't shown, one press at a time, and the failing-reply case waits for the list to settle first, as its siblings do. Not reproduced: reasoned from the guard and the failure text.",
+      "seen": [
+        "main's nightly run 45885955229 (Windows 1/3), numbers them with its pick",
+        "main's nightly run 45687457349 (Windows 1/3), keeps the sheet and says why"
+      ]
+    },
+    {
+      "id": "ui-inbox-history-dismiss-before-settled",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/inbox/inbox.spec.tsx > The Inbox's history > offers no Mark all read and no Clear settled",
+      "signature": "TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
+      "status": "fixed",
+      "cause": "The only dismiss case that didn't wait for the list to settle: a row landing above moved the Dismiss button from under the pointer, and terminal-content took the click for 27 s. It now waits for the settled rows first.",
+      "seen": [
+        "fix/harness-display-names run 45704785943 (Windows 1/3)",
+        "main's nightly run 45573870960 (macOS)"
+      ]
+    },
+    {
+      "id": "ui-agents-chat-drop-region-missing",
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
+      "test": "src/agents/chat.spec.tsx > Dropping files on the chat > takes no file but an image, and says so",
+      "signature": "Cannot find element with locator: getByRole\\('region', \\{ name: /\\^Build",
+      "status": "known",
+      "cause": "Unknown, macOS only, not reproduced in 11 runs with and without CPU load: the Build terminal's region wasn't found after the drop. The path is synchronous and the composer isn't remounted after openChat; the recorded error is cut at 1000 characters.",
+      "seen": [
+        "main's nightly run 45573870960 (macOS 3/3)",
+        "feat/pi-harness run 45500179157 (macOS 3/3)"
+      ]
+    },
+    {
+      "id": "ui-companions-canvas-window-under-sidebar",
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
+      "test": "src/companions/companions.spec.tsx > The pane in Canvas > opens inside its terminal's window and covers the terminal, as in a narrow Grid window",
+      "signature": "TimeoutError: locator\\.click: Timeout \\d+ms exceeded",
+      "status": "known",
+      "cause": "Unknown, not reproduced in 15 runs: for 29 s the Build Studio taskbar icon stayed under the sidebar's tab list, so the Canvas window sat behind the sidebar after layout settled, as in ui-companions-canvas-taskbar-click.",
+      "seen": ["main's nightly run 45732931191 (macOS 3/3), retried and passed"]
     }
   ]
 }

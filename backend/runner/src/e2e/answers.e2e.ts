@@ -7,7 +7,7 @@ import type { AgentDetail, AgentName, RequestAnswer } from "@novadeck/protocol"
 import { harnesses } from "../harnesses/registry.js"
 import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
-import type { DeckTerminal } from "./deck.js"
+import { withScreen, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked, text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
@@ -1339,7 +1339,13 @@ describe.skipIf(!supported || !codexSetup)("Codex's /diff pager over an approval
     expect(choices(request).detail).toContain("echo approved > probe-out.txt")
     const calls = run.model.calls.length
     const yes = option(choices(request), /^Yes, proceed/, false)
-    await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+    // With its screen where it fails: one macOS run lost the dialog here (CI run 45668938761) and
+    // left no screen to tell where the pager or the dialog was.
+    await t1
+      .answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+      .catch(async (error: unknown) => {
+        throw await withScreen(error, t1.screen)
+      })
     await run.model.waitFor((call) => result(call) !== undefined, { after: calls })
     await unrequested(t1)
   })

@@ -10,20 +10,24 @@ import { pluginSource } from "./plugin-source.js"
 import { events, files } from "./plugin.js"
 import { minimum, unknownFrom } from "./version.js"
 
-// A stand-in for Novadeck's hook launcher, run by each hook command: it records the report
-// and prints the answer a test queued for its event, once.
+// A stand-in for Novadeck's hook launcher, run by each hook command: it prints the answer a test
+// queued for its event, once, and records the report as its last step, so a report that shows in
+// reports.jsonl has taken its answer and touches the folder no more (a test that goes on, or
+// ends, at once would else queue an answer this report takes, or remove the folder under it).
 const launcher = `
 const fs = require("node:fs"), path = require("node:path")
 const [dir, event] = process.argv.slice(2)
 let input = ""
 process.stdin.on("data", (chunk) => (input += chunk))
 process.stdin.on("end", () => {
-  fs.appendFileSync(path.join(dir, "reports.jsonl"), JSON.stringify({ event, payload: JSON.parse(input) }) + "\\n")
   const queued = path.join(dir, "answers", event)
+  let answer = ""
   if (fs.existsSync(queued)) {
-    process.stdout.write(fs.readFileSync(queued, "utf8"))
+    answer = fs.readFileSync(queued, "utf8")
     fs.rmSync(queued)
   }
+  fs.appendFileSync(path.join(dir, "reports.jsonl"), JSON.stringify({ event, payload: JSON.parse(input) }) + "\\n")
+  process.stdout.write(answer)
 })
 `
 
@@ -40,6 +44,8 @@ let interfaceCalls: string[]
 // Each reply the plugin sent to a permission's request, and what opencode answers one with.
 let permissionReplies: { path: { id: string; permissionID: string }; body: { response: string } }[]
 let replyAnswer: () => Promise<unknown>
+// What opencode answers a read of a session's messages with.
+let messagesAnswer: () => Promise<unknown>
 
 const client = () => ({
   postSessionIdPermissionsPermissionId: async (options: (typeof permissionReplies)[number]) => {
@@ -53,7 +59,7 @@ const client = () => ({
       data: sessions[path.id] ? { id: path.id, ...sessions[path.id] } : undefined,
     }),
     list: async () => ({ data: [] }),
-    messages: async () => ({ data: [] }),
+    messages: async () => await messagesAnswer(),
     promptAsync: async ({ path, body }: { path: { id: string }; body: { parts: unknown[] } }) => {
       prompted.push({ id: path.id, ...body })
       return { data: undefined }
@@ -137,6 +143,7 @@ beforeEach(async () => {
   interfaceCalls = []
   permissionReplies = []
   replyAnswer = async () => ({ data: true })
+  messagesAnswer = async () => ({ data: [] })
 })
 afterEach(async () => {
   process.env = { ...saved }
@@ -227,6 +234,46 @@ describe("Novadeck's opencode plugin", () => {
       openrouter: { options: { baseURL: "b", apiKey: "k" } },
       theirs: {},
     })
+  })
+
+  // Its server can be slow to answer a read of a session's messages (a loaded Windows runner's was
+  // seen to outlast the first turn): the session a prompt just made has none to write, so its
+  // binding never waits for that read, or the prompt's own report would reach the runner first.
+  it("reports a session made just now before its prompt, though opencode never answers a read of its messages", async () => {
+    messagesAnswer = () => new Promise(() => {})
+    const hooks = await start()
+    await emit(hooks, "session.created", {
+      info: { id: "ses_a", title: "New session - 2026-11-26T10:00:00.000Z" },
+    })
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "msg_1", sessionID: "ses_a" },
+        parts: [{ id: "p1", type: "text", text: "go" }],
+      },
+    )
+    const made = await settled(2)
+    expect(made.map((one) => one.event)).toEqual(["SessionStart", "UserPromptSubmit"])
+    expect(made[0]!.payload).toEqual(
+      expect.objectContaining({ session_id: "ses_a", source: "startup" }),
+    )
+  })
+
+  it("reports a session it didn't just make before its prompt too, waiting only so long for opencode's read of its messages", async () => {
+    messagesAnswer = () => new Promise(() => {})
+    const hooks = await start()
+    void emit(hooks, "session.created", {
+      info: { id: "ses_a", title: "Fixing the build (fork #1)" },
+    })
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "msg_1", sessionID: "ses_a" },
+        parts: [{ id: "p1", type: "text", text: "go" }],
+      },
+    )
+    const made = await settled(2)
+    expect(made.map((one) => one.event)).toEqual(["SessionStart", "UserPromptSubmit"])
   })
 
   it("binds the session a prompt makes and adds the prompt's delivery to it", async () => {
@@ -723,6 +770,7 @@ describe("the plugin with the shipping gate on", () => {
 
   it("replies to nothing but a shell command's permission of a named call", async () => {
     const hooks = await start({}, true)
+    let made = 0
     for (const each of [
       { ...asked, permission: "edit" },
       { ...asked, permission: "external_directory" },
@@ -733,12 +781,17 @@ describe("the plugin with the shipping gate on", () => {
       await answered("PermissionRequest", { reply: "once" })
       // eslint-disable-next-line no-await-in-loop -- As above.
       await emit(hooks, "permission.asked", each)
+      // Its report is not awaited by the plugin: it has taken its answer once it shows.
+      made += 1
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await settled(made)
     }
     expect(permissionReplies).toEqual([])
     // While the gate is off the answer says nothing to it, whatever it prints.
     const off = await start()
     await answered("PermissionRequest", { reply: "once" })
     await emit(off, "permission.asked", asked)
+    await settled(made + 1)
     expect(permissionReplies).toEqual([])
   })
 

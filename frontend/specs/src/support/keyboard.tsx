@@ -100,13 +100,23 @@ export const preferencesDialog = (): Locator => page.getByRole("dialog", { name:
  * after `closeToasts` would take a click meant for the button; Enter on the focused button
  * reaches it whatever stands over it.
  */
-export const openPreferences = async (): Promise<void> => {
+export const openPreferences = async (triesLeft = 3): Promise<void> => {
   await closeToasts()
   const button = page.getByRole("button", { name: "Workspace preferences" })
   await expect.element(button).toBeVisible()
   button.element().focus()
   await expect.element(button).toHaveFocus()
   await press("{Enter}")
+  // Pressed again where the key went elsewhere: the workspace sends focus into the terminal a
+  // frame or more after a click on its tab, and on a loaded runner that can come after the
+  // button took the focus and before the key, which then types into the terminal.
+  await expect
+    .element(preferencesDialog(), { timeout: 2_000 })
+    .toBeVisible()
+    .catch((error: unknown) => {
+      if (triesLeft === 1) throw error
+      return openPreferences(triesLeft - 1)
+    })
   await expectFocusWithin(preferencesDialog())
 }
 

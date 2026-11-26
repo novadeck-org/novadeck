@@ -346,7 +346,16 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
   }
 
   // Tells Novadeck the root session that runs here, once for each it switches to.
-  const bind = async (id, source) => {
+  // Its records from before this process are written first (backfill), so the runner finds the
+  // whole transcript when it binds. That read of opencode's server can be slow (a loaded Windows
+  // runner's outlasted the first turn), and the prompt's own hook comes right behind the event
+  // that made the session: so a prompt's report waits for the bind in flight (returned here to
+  // whoever asks for the same session), and the read for no longer than backfillMs, else the
+  // prompt's report would reach the runner first and name a session no terminal is bound to.
+  // "fresh" is a session made just now, with nothing to write: it is reported at once.
+  const binding = new Map()
+  const backfillMs = 2000
+  const bind = (id, source, fresh) => {
     // A session the person left for opencode's home (/new), as the TUI plugin marks it, is bound
     // again when they go back to it: the runner ended its binding then.
     const mark = join(leftFolder, String(id))
@@ -356,16 +365,27 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
         rmSync(mark, { force: true })
       } catch {}
     }
-    if (bound.root === id && source !== "compact" && !back) return
+    if (bound.root === id && source !== "compact" && !back) return binding.get(id) ?? Promise.resolve()
     const first = bound.root === null
     bound.root = id
-    await backfill(id)
-    report("SessionStart", {
-      session_id: id,
-      source: source ?? (first ? "startup" : "switch"),
-      transcript_path: transcript(id),
-      version,
-    })
+    const run = (async () => {
+      if (!fresh) {
+        let timer
+        await Promise.race([
+          backfill(id),
+          new Promise((resolve) => (timer = setTimeout(resolve, backfillMs))),
+        ])
+        clearTimeout(timer)
+      }
+      report("SessionStart", {
+        session_id: id,
+        source: source ?? (first ? "startup" : "switch"),
+        transcript_path: transcript(id),
+        version,
+      })
+    })()
+    binding.set(id, run)
+    return run
   }
 
   // A session opencode was started on, as the shim read its command line, which a plugin
@@ -462,7 +482,7 @@ export const NovadeckPlugin = async ({ client, directory, worktree }) => {
                 agent_type: kinds.get(info.parentID) ?? null,
                 title: cut(info.title, 200),
               })
-            } else await bind(info.id)
+            } else await bind(info.id, undefined, /^New session - \S+$/.test(String(info.title ?? "")))
             return
           }
           case "message.updated":

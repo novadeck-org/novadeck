@@ -81,6 +81,23 @@ const press = async (open: ReturnType<typeof sheet>, name: RegExp | string): Pro
   await cardStill()
   await answer(open, name).click()
 }
+// Presses a row as `press` does, and again while what it brings hasn't shown: the card holds a
+// click back for a moment (`movedGuardMs`) after the context over it moves it, and on a loaded
+// runner the context can come in after the card stood still for as long as the spec watched, so
+// the press is taken for one aimed at where the card was, as a person would press again. Only a
+// press that brings nothing is repeated, so a row that needs two presses gets them one at a time.
+const pressUntil = async (
+  open: ReturnType<typeof sheet>,
+  name: RegExp | string,
+  brings: () => Promise<void>,
+  triesLeft = 3,
+): Promise<void> => {
+  await press(open, name)
+  await brings().catch((error: unknown) => {
+    if (triesLeft === 1) throw error
+    return pressUntil(open, name, brings, triesLeft - 1)
+  })
+}
 // A row that takes the person's own words: the field in its place, named by the row's words.
 const ownWords = (open: ReturnType<typeof sheet>, name: string) =>
   open.getByRole("textbox", { name, exact: true })
@@ -457,12 +474,13 @@ describe("An Inbox entry's sheet", () => {
 
       await expect.element(open).toMatchTextContent("Hard to undo: This sets the database schema")
       await expect.element(open.getByText("its pick")).toBeVisible()
-      await press(open, /Our own retries/)
-      await expect.element(answer(open, /Our own retries/)).toMatchTextContent("↵ again to send it")
+      await pressUntil(open, /Our own retries/, () =>
+        expect.element(answer(open, /Our own retries/)).toMatchTextContent("↵ again to send it"),
+      )
       await expectStaysAbsent(confirmation())
-      await press(open, /Our own retries/)
-
-      await expect.element(confirmation()).toMatchTextContent("Reply queued for @fox.")
+      await pressUntil(open, /Our own retries/, () =>
+        expect.element(confirmation()).toMatchTextContent("Reply queued for @fox."),
+      )
     })
 
     it("keeps a reply it has not sent as a draft on the row", async () => {
@@ -486,15 +504,24 @@ describe("An Inbox entry's sheet", () => {
   context("when a reply fails", () => {
     it("keeps the sheet and says why, and shows no receipt", async () => {
       await openInbox(`${inbox}&inboxAnswer=failed`)
+      // The list is still filling in, and a row that lands above this one moves its sheet.
+      await lookAway()
+      await expect.element(rows()).toHaveLength(settledRows)
       await row("How should failed payment webhooks retry").click()
       const open = sheet("Dev server")
-      await press(open, /Our own retries/)
-      await press(open, /Our own retries/)
-      await expect.element(open.getByRole("alert")).toMatchTextContent("Try again")
+      await pressUntil(open, /Our own retries/, () =>
+        expect.element(answer(open, /Our own retries/)).toMatchTextContent("↵ again to send it"),
+      )
+      await pressUntil(open, /Our own retries/, () =>
+        expect.element(open.getByRole("alert")).toMatchTextContent("Try again"),
+      )
       await expectStaysAbsent(confirmation())
-      await press(open, /Our own retries/)
-      await press(open, /Our own retries/)
-      await expect.element(confirmation()).toMatchTextContent("Reply queued for @fox.")
+      await pressUntil(open, /Our own retries/, () =>
+        expect.element(answer(open, /Our own retries/)).toMatchTextContent("↵ again to send it"),
+      )
+      await pressUntil(open, /Our own retries/, () =>
+        expect.element(confirmation()).toMatchTextContent("Reply queued for @fox."),
+      )
     })
 
     it("says a stale ask is no longer available, keeping the words", async () => {
@@ -649,6 +676,9 @@ describe("The Inbox's history", () => {
   it("offers no Mark all read and no Clear settled", async () => {
     await openInbox()
     await lookAway()
+    // The list is still filling in, and a row that lands above this one moves its buttons
+    // from under the pointer.
+    await expect.element(rows()).toHaveLength(settledRows)
     await rows().filter({ hasText: "webhooks" }).hover()
     await dismissButton("webhooks").click()
 

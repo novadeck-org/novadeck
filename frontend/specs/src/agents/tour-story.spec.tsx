@@ -291,28 +291,33 @@ const playToClosing = async (address?: string): Promise<void> => {
 beforeEach(switchTourOn)
 
 describe("The tour's story", () => {
-  it("shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there", async () => {
-    await openWorkspace("/?channel=experimental")
-    await openPreferencesOn("Agents")
-    const worktrees = preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
-    if ((await worktrees.element().getAttribute("aria-checked")) === "true") await worktrees.click()
-    await expect.element(worktrees).toHaveAttribute("aria-checked", "false")
-    await closePreferences()
-    expect(sidebarPanel("Worktrees").query()).toBeNull()
-    await beginTour()
-    await answerSheet("Fantasy", "RPG")
-    await allowRun()
-    await seePage()
-    // The teammates open their worktrees: the panel is there to show them.
-    await coachSays("Look. It hired its own help.", 20_000)
-    await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
-    await sidebarPanel("Worktrees").click()
-    await expect.element(page.getByText("models", { exact: true }).first()).toBeVisible()
-    await expect.element(page.getByText("game", { exact: true }).first()).toBeVisible()
-    // Another project has none, as the setting says.
-    await switchProject("storefront")
-    await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
-  })
+  it(
+    "shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there",
+    walks,
+    async () => {
+      await openWorkspace("/?channel=experimental")
+      await openPreferencesOn("Agents")
+      const worktrees = preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
+      if ((await worktrees.element().getAttribute("aria-checked")) === "true")
+        await worktrees.click()
+      await expect.element(worktrees).toHaveAttribute("aria-checked", "false")
+      await closePreferences()
+      expect(sidebarPanel("Worktrees").query()).toBeNull()
+      await beginTour()
+      await answerSheet("Fantasy", "RPG")
+      await allowRun()
+      await seePage()
+      // The teammates open their worktrees: the panel is there to show them.
+      await coachSays("Look. It hired its own help.", 20_000)
+      await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
+      await sidebarPanel("Worktrees").click()
+      await expect.element(page.getByText("models", { exact: true }).first()).toBeVisible()
+      await expect.element(page.getByText("game", { exact: true }).first()).toBeVisible()
+      // Another project has none, as the setting says.
+      await switchProject("storefront")
+      await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
+    },
+  )
 
   it(
     "plays from the agent's start to its closing card, the person's answer and yes included",

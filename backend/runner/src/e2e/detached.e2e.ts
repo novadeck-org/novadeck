@@ -145,12 +145,19 @@ const caffeinated = async (pid: number): Promise<readonly number[]> => {
   })
 }
 
-/** Has the agent run the script; allows it once where its harness asks, in that harness's words. */
+/**
+ * Has the agent run the script; allows it once where its harness asks, in that harness's words.
+ * `timeoutMs` is how long the servers have to be up. On Windows the `Start-Process` launcher
+ * (a fresh `powershell.exe`) is the slow one: in Claude Code's trace its command ran 61 s, and
+ * in pi's five it was still running when the minute ran out, so those tests give it twice that.
+ * What makes a PowerShell start take a minute on the runner is not known.
+ */
 const launch = async (
   run: E2E,
   setup: AgentSetup,
   terminal: DeckTerminal,
   count: number,
+  timeoutMs = 60_000,
 ): Promise<void> => {
   const pids = join(run.sandbox.project, "detached.pids")
   const answered = new Set<string>()
@@ -175,7 +182,7 @@ const launch = async (
       return undefined
     },
     "the servers to start",
-    60_000,
+    timeoutMs,
   )
 }
 
@@ -455,6 +462,9 @@ for (const setup of setups) {
 // job (libraries/terminal/src/pty/jobs.ts).
 const windowsVariants = ["detached", "start", "startProcess"] as const
 
+/** How long the Windows tests give their servers to start (see `launch`). */
+const windowsLaunchMs = 120_000
+
 /**
  * What the agent runs on Windows, as `node detach.mjs <word> [<name>...]`: each named server, by
  * a launcher that exits at once, then a word once all are up. Node runs in every harness's
@@ -565,7 +575,7 @@ for (const setup of setups) {
           scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
           const terminal = await start(run, setup)
           await turn(terminal, "Say ok", "Okay then.")
-          await launch(run, setup, terminal, windowsVariants.length)
+          await launch(run, setup, terminal, windowsVariants.length, windowsLaunchMs)
           await expect.poll(() => windowsLeft(run), { timeout: 5_000 }).toEqual([])
         },
       )
@@ -580,7 +590,7 @@ for (const setup of setups) {
             scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
             const terminal = command ? await opened(run, setup, command) : await start(run, setup)
             await turn(terminal, "Say ok", "Okay then.")
-            await launch(run, setup, terminal, windowsVariants.length)
+            await launch(run, setup, terminal, windowsVariants.length, windowsLaunchMs)
             expect(windowsLeft(run)).toEqual(windowsVariants.toSorted())
 
             const began = performance.now()
@@ -603,7 +613,7 @@ for (const setup of setups) {
         scriptedWindows(run, setup, `node detach.mjs ${word} ${windowsVariants.join(" ")}`)
         const terminal = await opened(run, setup, itsCommand)
         await turn(terminal, "Say ok", "Okay then.")
-        await launch(run, setup, terminal, windowsVariants.length)
+        await launch(run, setup, terminal, windowsVariants.length, windowsLaunchMs)
         const agent = agentOf(run, terminal)
         expect(agent).toBeDefined()
         // The agent dies without a word, as one killed or crashed.

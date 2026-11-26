@@ -536,7 +536,8 @@ describe("a PDF it can't draw", () => {
     await expect.poll(() => troubles).toEqual(["unreadable"])
     viewer.update({ bytes: pdfOf(2) })
     await opened(pane, 2)
-    expect(troubles).toEqual(["unreadable", null])
+    // The frame's word reaches the pane as a message, after the DOM it drew shows.
+    await expect.poll(() => troubles).toEqual(["unreadable", null])
     expect(docOf(pane)!.querySelector<HTMLElement>('[role="alert"]')!.hidden).toBe(true)
   })
 })

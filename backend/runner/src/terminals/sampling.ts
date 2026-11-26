@@ -118,14 +118,20 @@ export const endWaitMs = (record: Pick<Record, "endKeyAt">, pollMs: number): num
  * the agent is the program a fresh shell resumes, should this one be lost; the sampler
  * says so elsewhere, once it has sampled: an agent that binds and stops within a sample's
  * time (a poll is a second) would leave no program at all, so a terminal with none yet
- * takes the agent. Whether that changed it, which the caller saves.
+ * takes the agent. Where a sample names no command line (macOS), the sampler would name the
+ * agent for any program but the shell (see `sampledProgram`), so a name from before the
+ * binding, as `node` for an agent that is a script (pi), or the shell's own, gives way to it
+ * at once: a restart within the sample's time would otherwise find no agent to resume.
+ * Whether that changed it, which the caller saves.
  */
 export const boundProgram = (
-  record: Pick<Record, "summary" | "changed">,
+  record: Pick<Record, "summary" | "changed" | "foreground">,
   agent: AgentName,
 ): boolean => {
   const { lastProgram } = record.summary
-  if (lastProgram === agent || (!foregroundHidden() && lastProgram !== null)) return false
+  const named =
+    !foregroundHidden() && lastProgram !== null && record.foreground?.process?.argv !== null
+  if (lastProgram === agent || named) return false
   record.summary = { ...record.summary, lastProgram: agent }
   record.changed = true
   return true

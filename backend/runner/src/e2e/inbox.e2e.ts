@@ -352,8 +352,13 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       const finishing = gate()
-      run.model.use(asksAndWorksOn(run, finishing))
+      run.model.use(replies("Warm up", "Warmed up."), asksAndWorksOn(run, finishing))
       const terminal = await start(run, setup)
+      // A harness that makes its session at the first prompt (opencode) can take longer than the
+      // window a person's Enter and its hook must fall in on a loaded runner, and Novadeck then
+      // doesn't know the box is empty: the turn's Stop goes on with the reply as context, not the
+      // line this test is for. A second prompt, with the session made, falls in it.
+      await turn(terminal, "Warm up", "Warmed up.")
       const calls = run.model.mark()
       await terminal.submit("Ask and work on")
       await run.model.waitFor(

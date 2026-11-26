@@ -103,6 +103,13 @@ export const namesHeldConversation = (
       const running = !other.hibernating && (!binding?.instance || live(binding.instance))
       if (!running) continue
       if (sessionHeldElsewhere([other], terminalId, agent, sessionId)) return true
+      // One its process cleared away for another is its own still, as long as it runs.
+      if (
+        binding?.instance &&
+        other.passed?.instance === binding.instance &&
+        other.passed.sessions.has(key)
+      )
+        return true
     }
     return false
   })
@@ -792,7 +799,22 @@ export class Reports {
       statusLine,
       awaited: (sessionId) => this.host.messaging().awaits(id, sessionId),
     })
+    const before = record.root
     record.root = root
+    // A session its process left for another stays its own while that process runs.
+    if (
+      before?.instance &&
+      root?.instance === before.instance &&
+      root.sessionId !== before.sessionId &&
+      changes.some((change) => change.type === "new")
+    )
+      record.passed = {
+        instance: before.instance,
+        sessions: new Set([
+          ...(record.passed?.instance === before.instance ? record.passed.sessions : []),
+          `${before.agent}:${before.sessionId}`,
+        ]),
+      }
     // What the root session was told before and holds still, kept with its report: a
     // session resumed after a restart is the same session, while another holds nothing.
     const told = toldOf(record.agents, root)

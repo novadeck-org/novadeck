@@ -3,7 +3,7 @@ import type { Approval } from "@novadeck/protocol"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool } from "./model/script.js"
-import { own, result, start } from "./scenarios.js"
+import { own, result, start, through } from "./scenarios.js"
 
 // An agent's ask to run a command (`open_terminal` with a `command`) goes to the window the
 // person used last, for every harness (see messaging.e2e.ts for the rule on parity): two
@@ -68,6 +68,7 @@ describe.skipIf(!supported)("an ask with two windows on the project", () => {
           not: (typeof windows)[number],
         ) => {
           const calls = run.model.mark()
+          const mark = t.mark()
           await t.submit(prompt)
           await t.poll(
             async () => (received[to].length > 0 ? true : undefined),
@@ -80,6 +81,11 @@ describe.skipIf(!supported)("an ask with two windows on the project", () => {
           received.right.length = 0
           deck.terminals.answerApproval({ requestId: request.requestId, approved: false }, to)
           await run.model.waitFor((call) => result(call) !== undefined, { after: calls })
+          // The turn ends with the notice of the decline, which its Stop may go on with as a turn
+          // of its own: the next prompt is the person's after all of it, not typed into it
+          // (opencode's, on a slow runner, took the second prompt as queued in that turn and
+          // answered it without the tool).
+          await through(t, ["working", "settled"], { after: mark })
         }
 
         use("left", "right")
