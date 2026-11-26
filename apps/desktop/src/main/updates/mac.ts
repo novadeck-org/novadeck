@@ -339,7 +339,7 @@ const installReason = (error: unknown): string => {
   if (code === "EPERM" || code === "EACCES")
     return "macOS didn't allow Novadeck to replace itself. Allow it in System Settings under Privacy & Security, App Management, or install the update by hand."
   if (code === "ENOSPC") return "There is no space left on the disk."
-  if (code === "EROFS") return "Novadeck is on a disk that cannot be written to."
+  if (code === "EROFS") return "Novadeck is on a read-only disk."
   const text = reasonText(error instanceof Error ? error.message : "")
   return text ? `The update could not be installed: ${text}` : "The update could not be installed."
 }

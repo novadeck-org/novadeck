@@ -99,7 +99,7 @@ export const livePages = () => {
         const labels = passkeyLabels(accounts)
         const options = {
           type: "question" as const,
-          message: `Which passkey do you sign in to ${relyingPartyId} with?`,
+          message: `Choose a passkey to sign in to ${relyingPartyId}.`,
           buttons: [...labels, "Cancel"],
           cancelId: labels.length,
           noLink: true,

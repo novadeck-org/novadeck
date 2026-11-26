@@ -278,7 +278,7 @@ describe("installing from a portable copy", () => {
     await portableInstaller(host).install()
     const end = phases(states).at(-1)
     expect(end).toMatchObject({ phase: "failed" })
-    expect(end?.phase === "failed" && end.reason).toContain("could not be checked")
+    expect(end?.phase === "failed" && end.reason).toContain("check the installed copy")
     expect(end?.phase === "failed" && end.reason).toContain("install.sh")
     expect(calls).toEqual([])
     expect(logged).toHaveLength(1)
