@@ -145,20 +145,30 @@ const interrupted = (): boolean => {
   return interruptions.some((each) => now.includes(each))
 }
 
+/** A terminal's window, as the tour draws it on every view. */
+const windowSelector = '[data-terminal]:not([data-terminal="true"])'
+
 /** A window's header, which a press goes to (see `touchStep`), or the element itself. */
 const headerOf = (marked: HTMLElement): HTMLElement =>
+  marked.closest<HTMLElement>(windowSelector)?.querySelector<HTMLElement>(".terminal-header") ??
   marked
-    .closest<HTMLElement>('[data-terminal]:not([data-terminal="true"])')
-    ?.querySelector<HTMLElement>(".terminal-header") ?? marked
+
+/** What a press on `marked` counts in, as the tour hears it: its whole window, or the element. */
+const windowOf = (marked: HTMLElement): HTMLElement =>
+  marked.closest<HTMLElement>(windowSelector) ?? marked
+
+/** The middle of an element, where a press on it lands. */
+const middleOf = (element: HTMLElement): { readonly x: number; readonly y: number } => {
+  const box = element.getBoundingClientRect()
+  return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+}
 
 /**
  * Whether the middle of an element, where a press lands, is in the workspace's area on screen: not
  * past its edge, nor under the rail, a panel, the header or the footer.
  */
 const onScreen = (element: HTMLElement): boolean => {
-  const box = element.getBoundingClientRect()
-  const x = box.left + box.width / 2
-  const y = box.top + box.height / 2
+  const { x, y } = middleOf(element)
   const area = document.querySelector<HTMLElement>("[data-workspace-area]")?.getBoundingClientRect()
   const [left, top, right, bottom] = area
     ? [area.left, area.top, area.right, area.bottom]
@@ -166,9 +176,58 @@ const onScreen = (element: HTMLElement): boolean => {
   return x >= left && y >= top && x <= right && y <= bottom
 }
 
-/** Of what the tour marks, one of `wanted` that a press can reach. */
+/** An element, briefly, for a failure to say what a press met. */
+const named = (element: Element | null): string =>
+  element === null
+    ? "nothing"
+    : `${element.tagName.toLowerCase()}${element.getAttribute("aria-label") ? ` "${element.getAttribute("aria-label")}"` : ""}${element.className && typeof element.className === "string" ? `.${element.className.split(/\s+/).slice(0, 3).join(".")}` : ""}`
+
+/**
+ * What is drawn over the middle of `marked`'s header, taking a press there: null where nothing
+ * outside its window is (a window of its own, or a part of the window, as on Canvas the overlay
+ * that selects a window not selected yet).
+ */
+const coverOf = (marked: HTMLElement): Element | null => {
+  const { x, y } = middleOf(headerOf(marked))
+  const hit = document.elementFromPoint(x, y)
+  return hit !== null && windowOf(marked).contains(hit) ? null : (hit ?? document.body)
+}
+
+/** Of what the tour marks, one of `wanted` that a press can reach: on screen, and not covered. */
 const reachable = (wanted: ReadonlySet<HTMLElement>): HTMLElement | undefined =>
-  clicked().find((each) => wanted.has(each) && onScreen(headerOf(each)))
+  clicked().find((each) => wanted.has(each) && onScreen(headerOf(each)) && coverOf(each) === null)
+
+/**
+ * Presses `marked`'s window by its header, as `touchStep` does, and says where the press went
+ * where it missed the window (null where it landed there): the view can move between the look
+ * and the press (a window landing, the eye's move).
+ */
+const pressWindow = async (marked: HTMLElement): Promise<string | null> => {
+  const within = windowOf(marked)
+  const first: { target: EventTarget | null } = { target: null }
+  const heard = (event: Event): void => {
+    first.target ??= event.target
+  }
+  document.addEventListener("pointerdown", heard, true)
+  try {
+    // Forced: where the window takes the press itself (on Canvas, a window not selected takes it,
+    // to select itself), a click would wait on the part that takes it; that it lands in the window
+    // is checked here, instead. A press into a frame (a pane's page or model) is heard in the
+    // frame's own page, not this one, so none heard counts as landed.
+    await page.elementLocator(headerOf(marked)).click({ force: true, timeout: 3_000 })
+  } catch (error) {
+    return `the press failed (${error instanceof Error ? error.message.split("\n")[0] : String(error)})`
+  } finally {
+    document.removeEventListener("pointerdown", heard, true)
+  }
+  const landed = first.target
+  if (landed === null || (landed instanceof Node && within.contains(landed))) return null
+  return `the press landed on ${named(landed instanceof Element ? landed : null)}`
+}
+
+/** What the caption box says now, once shown. */
+const captionNow = (): string =>
+  document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
 
 /**
  * Plays a step that waits on the person, as they would: once its caption says `line` (or its
@@ -197,6 +256,14 @@ export const touchStep = async (
           displaced = true
           return true
         }
+        // Nothing pressed while the box shown isn't this step's own: as one box gives way to
+        // another, the next is in the page a second before it shows, and what the tour marks may
+        // already be the next box's. A teammate's question coming mid-step had its row and then
+        // its answers pressed here as if they opened this step's subject, which answered it
+        // before the story's next step could (a slow runner, 2026-11-26).
+        const now =
+          document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
+        if (!now.includes(line) && (cue === undefined || !now.includes(cue))) return false
         const marked = clicked()[0]
         const wanted = new Set(subject().filter((each) => each !== undefined))
         // The subject, once a press can reach it: the tour may say its line with the window
@@ -231,27 +298,66 @@ export const touchStep = async (
       { timeout: 20_000, interval: 400 },
     )
     .toBe(true)
+    .catch((error: unknown) => {
+      const first = clicked()[0]
+      const where = !first
+        ? "nothing was marked"
+        : onScreen(headerOf(first))
+          ? `what it marked was under ${named(coverOf(first))}`
+          : "what it marked was off screen"
+      throw new Error(`"${line}"'s subject never came within reach: ${where}`, { cause: error })
+    })
   if (displaced) return
-  const marked = reachable(new Set(subject().filter((each) => each !== undefined))) ?? clicked()[0]!
   // On its window's header, on the app's own page, as the tour counts a press anywhere in the
   // window: never in a page or a model's frame, which the tour hears by the app's page losing the
   // focus, which a page sharing its browser with other specs may not have to lose; and on no
-  // control of the pane's (its tab's open button opens it over everything). Where the window takes
-  // the press itself (on Canvas, a window not selected takes it, to select itself), pressed all the
-  // same, as a person would.
-  const header = headerOf(marked)
-  await page
-    .elementLocator(header)
-    .click({ timeout: 3_000 })
-    .catch(() => page.elementLocator(header).click({ force: true }))
-  if (stays) return
+  // control of the pane's (its tab's open button opens it over everything). Pressed again where
+  // the press missed the window, or the caption hasn't moved on a while after it (a press the
+  // tour can't have heard, as a person would press again): the tour keeps the first it hears.
+  const presses: string[] = []
+  const said = (what: string): void => {
+    if (presses.at(-1) !== what) presses.push(what)
+  }
+  let landedAt: number | null = null
+  const press = async (): Promise<void> => {
+    const marked = reachable(new Set(subject().filter((each) => each !== undefined)))
+    if (!marked) {
+      const first = clicked()[0]
+      said(
+        first
+          ? `its subject was out of reach (${onScreen(headerOf(first)) ? `under ${named(coverOf(first))}` : "off screen"})`
+          : "nothing was marked",
+      )
+      return
+    }
+    const missed = await pressWindow(marked)
+    said(missed ?? "landed in its window")
+    if (missed === null) landedAt = Date.now()
+  }
+  await press()
+  if (stays) {
+    if (landedAt === null) await press()
+    if (landedAt === null) throw new Error(`Pressing "${line}"'s subject: ${presses.join("; ")}`)
+    return
+  }
   // The caption moves on once the step is done, which may wait on more than the press (the
   // teammates naming themselves), so as long as it took to say.
-  await expect
-    .poll(
-      () =>
-        document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? "",
-      { timeout: 40_000 },
-    )
-    .not.toContain(line)
+  const deadline = Date.now() + 40_000
+  for (;;) {
+    if (!captionNow().includes(line)) return
+    if (Date.now() > deadline)
+      throw new Error(
+        `The tour never moved on from "${line}": it says "${captionNow()}". Presses: ${presses.join("; ")}. Windows: ${[
+          ...document.querySelectorAll<HTMLElement>(windowSelector),
+        ]
+          .map((each) => each.getAttribute("aria-label"))
+          .join(", ")}`,
+      )
+    if (landedAt === null || Date.now() - landedAt > 10_000) {
+      // eslint-disable-next-line no-await-in-loop -- Each press waits for the one before.
+      await press()
+    }
+    // eslint-disable-next-line no-await-in-loop -- The caption is read again after a while.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+  }
 }

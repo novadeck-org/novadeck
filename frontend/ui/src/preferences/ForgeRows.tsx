@@ -1,24 +1,20 @@
 import { forgeTitles, type ForgeName } from "@novadeck/core/forges"
-import { Switch } from "@novadeck/toolkit/Switch"
 
-import { forgeNote, hostLine, type ForgeSwitch } from "./forge-switches"
+import { forgeNote, hostLine, type ForgeRow } from "./forge-rows"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
-// One switch per forge: on has Novadeck read its pull requests with its command-line tool's
-// sign-in, off stops. A forge whose tool is not installed, or one mid-change, cannot be
-// switched; one with a known installer offers Install in place of its switch, where
-// `onInstall` is given. Under a switched-on forge, each host it found and whether its tool is
-// signed in there, with Sign in for one signed out, where `onSignIn` is given.
-export const ForgeSwitches = ({
+// One row per forge, each always on: Novadeck reads its pull requests with its command-line
+// tool's sign-in. A forge whose tool is not installed and has a known installer offers Install,
+// where `onInstall` is given. Under an installed forge, each host it found and whether its tool
+// is signed in there, with Sign in for one signed out, where `onSignIn` is given.
+export const ForgeRows = ({
   forges,
-  onChange,
   onInstall,
   installing,
   onSignIn,
   signingIn,
 }: {
-  readonly forges: readonly ForgeSwitch[]
-  readonly onChange: (forge: ForgeName, enabled: boolean) => void
+  readonly forges: readonly ForgeRow[]
   readonly onInstall?: ((forge: ForgeName, command: string) => void) | undefined
   // The forges whose installer runs now.
   readonly installing?: ReadonlySet<ForgeName> | undefined
@@ -29,7 +25,7 @@ export const ForgeSwitches = ({
 }): React.JSX.Element => (
   <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Forges">
     {forges.map((connection) => {
-      const { forge, available, enabled, busy, installer } = connection
+      const { forge, available, installer } = connection
       const label = forgeTitles[forge]
       if (!available && installer && onInstall)
         return (
@@ -43,7 +39,7 @@ export const ForgeSwitches = ({
           />
         )
       const note = forgeNote(connection)
-      const hosts = available && enabled ? connection.hosts.map(hostLine) : []
+      const hosts = available ? connection.hosts.map(hostLine) : []
       return (
         <li key={forge} className={settingRowClasses}>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -99,16 +95,6 @@ export const ForgeSwitches = ({
                 })}
               </ul>
             )}
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <Switch
-              checked={enabled}
-              onChange={(next) => onChange(forge, next)}
-              labelledBy={`forge-${forge}`}
-              {...(note ? { describedBy: `forge-${forge}-note` } : {})}
-              disabled={!available || busy}
-              busy={busy}
-            />
           </div>
         </li>
       )

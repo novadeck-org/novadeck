@@ -244,11 +244,11 @@ describe("the agent worktrees setting", () => {
   it("shows what the runner said, and changes it there", async () => {
     const app = scripted({ shown: [] })
     const worktrees = app.backend.worktrees!
-    expect(worktrees.enabled.getSnapshot()).toBe(false)
-    worktrees.set(true)
     expect(worktrees.enabled.getSnapshot()).toBe(true)
+    worktrees.set(false)
+    expect(worktrees.enabled.getSnapshot()).toBe(false)
     await app.idle()
-    expect(app.of("settings")).toEqual([{ worktrees: true }])
+    expect(app.of("settings")).toEqual([{ worktrees: false }])
     app.stop()
   })
 
@@ -258,10 +258,10 @@ describe("the agent worktrees setting", () => {
       saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
     })
     const { enabled, set } = app.backend.worktrees!
-    set(true)
-    expect(enabled.getSnapshot()).toBe(true)
-    await app.idle()
+    set(false)
     expect(enabled.getSnapshot()).toBe(false)
+    await app.idle()
+    expect(enabled.getSnapshot()).toBe(true)
     app.stop()
   })
 })

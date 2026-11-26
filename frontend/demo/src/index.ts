@@ -116,8 +116,7 @@ export const demoBackend = (
   const agentModes = createStore(false)
   const shippingGate = createStore(false)
   const agentMode = createStore<AgentMode>("herd")
-  // Agent worktrees start on, so the demo shows the Worktrees panel they bring; a stable update
-  // channel (the debug demo's page starts on one) turns them off as the app does.
+  // Agent worktrees start on, as in the app, so the demo shows the Worktrees panel they bring.
   const worktrees = createStore(true)
   const agents = createStore<readonly AgentConnection[]>(sampleAgents)
   const welcomeOpen = createStore(welcome)
@@ -708,8 +707,7 @@ const plainBackend = (
   const launch = variant === "launch" ? createLaunch(turns, now) : undefined
   // Every agent takes a prompt, works a moment, and finishes, however it is sent; the
   // seeds and the debug panel drive the same turns. The forges are offered here, beside the
-  // worktrees, as one Experimental feature beside the other: not in `demoBackend`, so the
-  // visitor's and the showcase's demos, which have no Experimental tab, don't carry them.
+  // worktrees: not in `demoBackend`, so the visitor's and the showcase's demos don't carry them.
   const shell = demoBackend(createDemoEngine(), {
     welcome:
       variant === "welcome" ||

@@ -3562,7 +3562,7 @@ describe("saved terminals", () => {
       inboxSnoozed: [],
       inboxHistory: [],
       hibernateAfterMinutes: 60,
-      worktrees: false,
+      worktrees: true,
       agentModes: false,
       agentMode: "herd",
       shippingGate: false,
@@ -3578,7 +3578,7 @@ describe("saved terminals", () => {
       inboxSnoozed: [],
       inboxHistory: [],
       hibernateAfterMinutes: 60,
-      worktrees: false,
+      worktrees: true,
       agentModes: false,
       agentMode: "herd",
       shippingGate: false,
@@ -3650,16 +3650,16 @@ describe("saved terminals", () => {
     expect(workspace.settings.runner().bundledPi).toBe(false)
   })
 
-  it("keep whether agents get worktrees, off until turned on", ({ kept }) => {
+  it("keep whether agents get worktrees, on until turned off", ({ kept }) => {
     const workspace = kept()
-    expect(workspace.settings.runner().worktrees).toBe(false)
-    workspace.settings.saveRunner({ worktrees: true })
-    expect(workspace.settings.runner().worktrees).toBe(true)
-    // Changing another setting leaves it as it was.
-    workspace.settings.saveRunner({ transcripts: false })
     expect(workspace.settings.runner().worktrees).toBe(true)
     workspace.settings.saveRunner({ worktrees: false })
     expect(workspace.settings.runner().worktrees).toBe(false)
+    // Changing another setting leaves it as it was.
+    workspace.settings.saveRunner({ transcripts: false })
+    expect(workspace.settings.runner().worktrees).toBe(false)
+    workspace.settings.saveRunner({ worktrees: true })
+    expect(workspace.settings.runner().worktrees).toBe(true)
   })
 
   it("keep the Inbox's order the person dragged its rows into, and read a broken one as none", ({
@@ -3787,7 +3787,7 @@ describe("the messages", () => {
       inboxSnoozed: [],
       inboxHistory: [],
       hibernateAfterMinutes: 60,
-      worktrees: false,
+      worktrees: true,
       agentModes: false,
       agentMode: "herd",
       shippingGate: false,

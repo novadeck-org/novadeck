@@ -34,8 +34,8 @@ const partners = (
 // The panel's group for the Worktrees panel's states, on the selected terminal's first worktree: a
 // terminal without one gets a worktree at its first change, so each action works on a
 // terminal without one too.
-// The Worktrees panel shows only with agent worktrees on: "On, with Worktrees" in the App section's
-// Agent worktrees group boots with it.
+// The Worktrees panel shows only with agent worktrees on, as the demo starts; the App section's
+// Agent worktrees group boots without the setting, or with it again.
 export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[] =>
   isDemoWorks(works)
     ? [

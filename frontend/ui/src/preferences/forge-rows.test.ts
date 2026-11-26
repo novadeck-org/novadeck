@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { forgeNote, hostLine, type ForgeSwitch } from "./forge-switches"
+import { forgeNote, hostLine, type ForgeRow } from "./forge-rows"
 
-const github: ForgeSwitch = {
+const github: ForgeRow = {
   forge: "github",
   available: true,
   enabled: true,
@@ -10,22 +10,15 @@ const github: ForgeSwitch = {
   hosts: [],
 }
 
-describe("a forge's switch note", () => {
-  it("says which tool it reads with once the forge can be switched", () => {
+describe("a forge's note", () => {
+  it("says which tool it reads with where the tool is installed", () => {
     expect(forgeNote(github)).toEqual({ text: "Uses your signed-in gh", error: false })
-    expect(forgeNote({ ...github, forge: "azure", enabled: false })?.text).toBe(
-      "Uses your signed-in az",
-    )
-  })
-
-  it("says it is switching, in the direction it goes", () => {
-    expect(forgeNote({ ...github, busy: true })?.text).toBe("Switching off…")
-    expect(forgeNote({ ...github, enabled: false, busy: true })?.text).toBe("Switching on…")
+    expect(forgeNote({ ...github, forge: "azure" })?.text).toBe("Uses your signed-in az")
   })
 
   it("gives the last failure as an error, and the tool a missing forge needs", () => {
     expect(forgeNote({ ...github, error: "no token" })).toEqual({ text: "no token", error: true })
-    expect(forgeNote({ ...github, forge: "gitlab", available: false, enabled: false })).toEqual({
+    expect(forgeNote({ ...github, forge: "gitlab", available: false })).toEqual({
       text: "Not installed. Needs glab",
       error: false,
     })

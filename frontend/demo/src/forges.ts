@@ -50,9 +50,6 @@ export type ForgesScenario =
   | "refused"
   | "refused-unmendable"
   | "several-hosts"
-  | "on-but-missing"
-  | "busy"
-  | "error"
 
 const connection = (
   forge: ForgeName,
@@ -78,7 +75,7 @@ export const scenarioOf = (scenario: ForgesScenario): readonly ForgeConnection[]
           ? on("signed-in")
           : forge === "gitlab"
             ? on("signed-out")
-            : connection(forge, { available: false, enabled: false })
+            : connection(forge, { available: false, enabled: true })
       case "signed-in":
         return on("signed-in")
       case "signed-out":
@@ -109,23 +106,9 @@ export const scenarioOf = (scenario: ForgesScenario): readonly ForgeConnection[]
                 },
               ],
             })
-          : connection(forge, { available: true, enabled: false })
-      case "on-but-missing":
-        // Switched on, then its tool was uninstalled: it can't be looked at until it is back.
-        return connection(forge, { available: false, enabled: true })
+          : on("signed-in")
       case "missing":
-        return connection(forge, { available: false, enabled: false })
-      case "busy":
-        return forge === "github"
-          ? { ...on("signed-in"), busy: true }
-          : connection(forge, { available: true, enabled: false })
-      case "error":
-        return forge === "github"
-          ? {
-              ...connection(forge, { available: true, enabled: false }),
-              error: `${forgePrograms[forge]} could not read its token. Run ${demoSignIn[forge]}, then try again.`,
-            }
-          : connection(forge, { available: true, enabled: false })
+        return connection(forge, { available: false, enabled: true })
     }
   })
 
@@ -193,7 +176,7 @@ export const createDemoForges = (): DemoForges => {
   }
   return {
     state,
-    // A switch is instant in the demo; a runner's takes a moment, which the "busy" scenario shows.
+    // Every forge is on, as a runner has them: only an older client switches one.
     set: (forge, enabled) =>
       change(forge, (each) => ({
         ...each,

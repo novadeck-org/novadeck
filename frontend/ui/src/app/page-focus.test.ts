@@ -36,7 +36,7 @@ const ui = () =>
           terminal: "",
           panel: "terminals",
           dialog: null,
-          section: "general",
+          section: "notifications",
         },
         dialogDepth: 0,
         navigationType: "POP",

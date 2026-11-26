@@ -1,9 +1,13 @@
 /* The settings recipe: Preferences and the choices the welcome shares with it.
 
    Parts:
-   `.preferences-heading`: the dialog's title and tabs, a `.modal-header`.
-   `.preferences-panels`: the settings ground the sections sit on; each
-   `.preferences-panel` (a tab's panel) shows its focus inside its edge.
+   `.preferences-nav`: the menu down the dialog's side: its title, `.preferences-search` (a
+   `.field`), and the pages as tabs (the tab recipe), the open one marked on the divider; while
+   the person searches, `.preferences-result`s stand in for the pages.
+   `.preferences-main`: the open page beside it, behind the divider: `.preferences-heading`, the
+   page's title (a `.modal-header`), over `.preferences-panels`, the settings ground the
+   sections sit on; each `.preferences-panel` (a page) shows its focus inside its edge.
+   `.settings-badge`: the Experimental mark beside a setting's name (the badge recipe).
    A section's title is a `.section-label` (the label recipe).
    `.settings-description`: the muted text under a title or beside a setting.
    `.settings-note`: a setting's state beside its control, which reads its tone as text
@@ -20,7 +24,8 @@
    checked. `.choice-card.solid`: a choice at full strength at rest that fills under the
    pointer and when checked, as the welcome's are; disabled, it is muted.
 
-   Hooks: on a choice card, data-state="checked" | "unchecked", data-disabled, and the
+   Hooks: data-found on a `.settings-row`, a moment after search jumps to it: it tints and
+   fades back. On a choice card, data-state="checked" | "unchecked", data-disabled, and the
    focus of the input inside it (:has(:focus-visible)).
 
    Tokens, each optional (its fallback in brackets):
@@ -44,8 +49,50 @@
    --choice-card-tile-disabled-opacity (0.7).
    --settings-range-disabled-opacity (0.5). */
 
+.preferences-main {
+  border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
+}
+@media (max-width: 640px) {
+  .preferences-main {
+    border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
+    border-left: 0;
+  }
+}
+/* The search field's input draws nothing of its own: the field around it does, and shows its
+   focus while the input has it. */
+.preferences-search input {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  outline: none;
+}
+.preferences-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+.preferences-search:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: var(--focus-ring-offset);
+}
+.preferences-result {
+  border-radius: var(--radius-control);
+}
+.preferences-result:is(:hover, :focus-visible) {
+  background-color: var(--item-hover-bg, var(--color-soft));
+}
 .preferences-panels {
   background-color: var(--region-settings-bg, var(--color-shell));
+}
+.settings-badge {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.settings-row[data-found] {
+  animation: settings-found 1.6s var(--ease-interface);
+}
+@keyframes settings-found {
+  from {
+    background-color: var(--item-hover-bg, var(--color-soft));
+  }
 }
 .preferences-panel {
   transition: opacity var(--motion-feedback) var(--ease-interface);

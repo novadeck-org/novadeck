@@ -18,7 +18,7 @@ const route = {
   terminal: "",
   panel: "terminals",
   dialog: null,
-  section: "general",
+  section: "notifications",
 } as const
 
 // This device's UI, with its preferences, following a runner that holds `values`.

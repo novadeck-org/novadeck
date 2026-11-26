@@ -430,14 +430,14 @@ export type BackendFields = {
     readonly mode: Store<AgentMode>
     readonly set: (mode: AgentMode) => void
   }
-  // Optional. Whether agents may open git worktrees through Novadeck's tools, an Experimental
-  // feature kept by the runner. Absent where the backend has none.
+  // Optional. Whether agents may open git worktrees through Novadeck's tools, on until the person
+  // turns it off, kept by the runner. Absent where the backend has none.
   readonly worktrees?: {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
-  // Optional. The forges whose pull requests the Worktrees panel shows on works, an
-  // Experimental feature kept by the runner. Absent where the backend has none.
+  // Optional. The forges whose pull requests the Worktrees panel shows on works, every one on
+  // (a runner from before them reports each as it was switched). Absent where the backend has none.
   readonly forges?: Forges
   // Optional. The agents whose sessions resume after a restart once connected: each
   // connection installs a small plugin into the agent, and disconnecting removes it.

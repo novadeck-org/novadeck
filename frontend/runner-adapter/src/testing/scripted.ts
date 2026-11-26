@@ -403,7 +403,7 @@ export const scripted = ({
     agentModes: false,
     agentMode: "herd",
     shippingGate: false,
-    worktrees: false,
+    worktrees: true,
     ...(bundledPi !== undefined && {
       bundledPi,
       bundledPiFetch: { state: bundledPi ? ("ready" as const) : ("off" as const) },

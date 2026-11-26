@@ -483,12 +483,6 @@ export const withFeatureFlag = (state: UiState, flag: FeatureFlag, on: boolean):
         experimentalRevealed: state.experimentalRevealed || (flag === "IS_EXPERIMENTAL" && on),
       }
 
-// Turns agent worktrees off where they are on, as the Experimental switch going off does, so the
-// setting never stays on without its toggle.
-export const switchOffWorktrees = (worktrees: Backend["worktrees"]): void => {
-  if (worktrees?.enabled.getSnapshot()) worktrees.set(false)
-}
-
 // Turns the agent modes switch off where it is on, as the Experimental switch going off does:
 // the runner then has agents work as a Herd, and the saved pick stays for when it goes on again.
 export const switchOffAgentModes = (agentModes: Backend["agentModes"]): void => {
@@ -499,14 +493,6 @@ export const switchOffAgentModes = (agentModes: Backend["agentModes"]): void => 
 // runner then stops gating and leaves what the harnesses do as it was.
 export const switchOffShippingGate = (shippingGate: Backend["shippingGate"]): void => {
   if (shippingGate?.enabled.getSnapshot()) shippingGate.set(false)
-}
-
-// Switches every forge integration off where it is on, as the Experimental switch going off does,
-// for the same reason.
-// A forge being switched (on, as far as anyone knows) goes off too: its switch lands after.
-export const switchOffForges = (forges: Backend["forges"]): void => {
-  for (const connection of forges?.state.getSnapshot() ?? [])
-    if (connection.enabled || connection.busy) forges?.set(connection.forge, false)
 }
 
 // Turns Novadeck's own pi off where it is on, as the Experimental switch going off does: the
@@ -523,29 +509,22 @@ export const switchOffMurmur = (murmurSwitch: Backend["murmurSwitch"]): void => 
 }
 
 // The Experimental features a backend keeps as settings, which all go off with the switch.
-export type ExperimentalFeatures = Pick<
-  Backend,
-  "worktrees" | "forges" | "agentModes" | "shippingGate" | "bundledPi"
->
+export type ExperimentalFeatures = Pick<Backend, "agentModes" | "shippingGate" | "bundledPi">
 
 export const switchOffExperimental = ({
-  worktrees,
-  forges,
   agentModes,
   shippingGate,
   bundledPi,
 }: ExperimentalFeatures): void => {
-  switchOffWorktrees(worktrees)
   switchOffAgentModes(agentModes)
   switchOffShippingGate(shippingGate)
   switchOffBundledPi(bundledPi)
-  switchOffForges(forges)
 }
 
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
-// leaves it off. A channel found stable, or unreadable, also turns agent worktrees, agent modes and
-// forge integrations off.
+// leaves it off. A channel found stable, or unreadable, also turns agent modes, the shipping gate
+// and Novadeck's own pi off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,

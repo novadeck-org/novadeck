@@ -663,7 +663,7 @@ export const contract = {
       .output(agentIntegration),
   },
   // Forges whose pull requests the Worktrees panel shows, through each one's own signed-in
-  // command-line tool (forges.ts): an Experimental feature.
+  // command-line tool (forges.ts).
   forges: {
     // Where each forge stands. With `fresh` the runner reads the person's login environment
     // and each repository's remote again first, and asks each tool afresh whether it is signed

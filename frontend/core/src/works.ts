@@ -80,8 +80,8 @@ export type Work = {
   // Absent where the repository's top is neither inside nor above the project's folder.
   readonly folder?: { readonly repo: string; readonly project: string } | undefined
   readonly conflicts: readonly WorkConflict[]
-  // Its branch's pull request on its repository's forge, where a forge the person switched on
-  // found one (forges.ts); absent where none did, or none could be asked.
+  // Its branch's pull request on its repository's forge, where a forge found one
+  // (forges.ts); absent where none did, or none could be asked.
   readonly pullRequest?: PullRequest | undefined
   // How many paths hold changes not committed, and how many of HEAD's commits no remote holds.
   // Absent where they couldn't be read.

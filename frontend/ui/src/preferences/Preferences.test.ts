@@ -41,11 +41,11 @@ const selected = (): string | null =>
   document.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? null
 
 describe("the preferences of a backend with no addons", () => {
-  it("opens General, not the Addons panel, when a URL names Addons", async () => {
+  it("opens Appearance, not the Addons page, when a URL names Addons", async () => {
     await show({})
 
     expect(tabs()).not.toContain("Addons")
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Appearance")
     expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).toBeNull()
   })
 
@@ -53,7 +53,7 @@ describe("the preferences of a backend with no addons", () => {
     await show({ chat: true })
 
     expect(tabs()).not.toContain("Addons")
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Appearance")
   })
 })
 
@@ -84,9 +84,9 @@ describe("a tab the narrow window's list has scrolled out of sight", () => {
       await nextFrame()
       expect(brought).toEqual(["About"])
 
-      page.rerender(createElement(Preferences, props(true, "general")))
+      page.rerender(createElement(Preferences, props(true, "terminal")))
       await nextFrame()
-      expect(brought).toEqual(["About", "General"])
+      expect(brought).toEqual(["About", "Terminal"])
     } finally {
       Element.prototype.scrollIntoView = scrollIntoView
     }
@@ -109,7 +109,7 @@ describe("the Agents tab", () => {
       agents: { list: [agent("claude")], onChange: () => {} },
     })
 
-    expect(tabs().slice(0, 3)).toEqual(["Agents", "Appearance", "General"])
+    expect(tabs().slice(0, 3)).toEqual(["Agents", "Appearance", "Terminal"])
     expect(selected()).toBe("Agents")
   })
 
@@ -122,16 +122,18 @@ describe("the Agents tab", () => {
 
     expect(panel()?.querySelectorAll('ul[aria-label="Agents"] [role=switch]')).toHaveLength(3)
     expect(panel()?.textContent).toContain("Stop idle agents after")
-    const general = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
-    expect(general?.textContent).not.toContain("Stop idle agents after")
-    expect(general?.querySelector('ul[aria-label="Agents"]')).toBeNull()
+    const notifications = document.querySelector(
+      '[role="tabpanel"][aria-labelledby$="notifications"]',
+    )
+    expect(notifications?.textContent).not.toContain("Stop idle agents after")
+    expect(notifications?.querySelector('ul[aria-label="Agents"]')).toBeNull()
   })
 
-  it("is absent where the backend has neither agents nor a wait, and a URL naming it opens General", async () => {
+  it("is absent where the backend has neither agents nor a wait, and a URL naming it opens Appearance", async () => {
     await show({ tab: "agents" })
 
     expect(tabs()).not.toContain("Agents")
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Appearance")
   })
 
   it("is there for the idle wait alone", async () => {
@@ -139,6 +141,39 @@ describe("the Agents tab", () => {
 
     expect(selected()).toBe("Agents")
     expect(panel()?.textContent).toContain("Stop idle agents after")
+  })
+
+  const worktreesSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
+
+  it("holds the agent worktrees switch, on as the backend says, which writes its setting", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "agents",
+      worktrees: { enabled: true, onChange: (enabled) => changes.push(enabled) },
+    })
+
+    expect(selected()).toBe("Agents")
+    expect(worktreesSwitch()?.closest('[role="tabpanel"]')).toBe(panel())
+    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("true")
+    worktreesSwitch()?.click()
+    expect(changes).toEqual([false])
+  })
+
+  it("leaves agent worktrees out where the backend has none, and out of Experimental", async () => {
+    await show({ tab: "agents", hibernation: { minutes: 60, onChange: () => {} } })
+    expect(worktreesSwitch()).toBeNull()
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      worktrees: { enabled: true, onChange: () => {} },
+    })
+    const experimentalPanel = document.querySelector(
+      '[role="tabpanel"][aria-labelledby$="experimental"]',
+    )
+    expect(experimentalPanel?.textContent).not.toContain("Agent worktrees")
   })
 })
 
@@ -358,7 +393,7 @@ describe("the Murmur row", () => {
       murmurSwitch: { enabled: false, onChange: (enabled) => changes.push(enabled) },
     })
     expect(document.getElementById("murmur-label")?.textContent).toBe("Murmur")
-    expect(document.getElementById("murmur-description")?.textContent).toContain("Addons tab")
+    expect(document.getElementById("murmur-description")?.textContent).toContain("Addons page")
     expect(murmurSwitch()?.getAttribute("aria-checked")).toBe("false")
     murmurSwitch()?.click()
     expect(changes).toEqual([true])
@@ -380,17 +415,17 @@ describe("the tab Preferences opens on when none is named", () => {
     expect(selected()).toBe("Agents")
   })
 
-  it("is General where the backend has no agents", async () => {
+  it("is Appearance where the backend has no agents", async () => {
     await show({ tab: null })
 
     expect(tabs()).not.toContain("Agents")
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Appearance")
   })
 
-  it("is General where General is named, though Agents is first", async () => {
-    await show({ tab: "general", agents: { list: [agent], onChange: () => {} } })
+  it("is the page the URL names, though Agents is first", async () => {
+    await show({ tab: "terminal", agents: { list: [agent], onChange: () => {} } })
 
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Terminal")
   })
 })
 
@@ -452,10 +487,10 @@ describe("the About tab", () => {
     await show({ tab: "about" })
 
     expect(tabs()).not.toContain("About")
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Appearance")
   })
 
-  it("holds the version, the Experimental switch and the logs, which General doesn't", async () => {
+  it("holds the version, the Experimental switch and the logs, which Notifications doesn't", async () => {
     await show({
       tab: "about",
       version: "0.4.2",
@@ -470,9 +505,11 @@ describe("the About tab", () => {
       panel?.querySelector('[role="switch"][aria-labelledby="experimental-label"]'),
     ).not.toBeNull()
     expect(panel?.textContent).toContain("Open logs folder")
-    const general = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
-    expect(general?.textContent).not.toContain("0.4.2")
-    expect(general?.textContent).not.toContain("Experimental")
+    const notifications = document.querySelector(
+      '[role="tabpanel"][aria-labelledby$="notifications"]',
+    )
+    expect(notifications?.textContent).not.toContain("0.4.2")
+    expect(notifications?.textContent).not.toContain("Experimental")
   })
 })
 
@@ -538,11 +575,11 @@ describe("the hidden Experimental switch", () => {
 })
 
 describe("the Experimental tab", () => {
-  it("is absent while the Experimental switch is off, and a URL naming it opens General", async () => {
+  it("is absent while the Experimental switch is off, and a URL naming it opens Appearance", async () => {
     await show({ tab: "experimental", experimental: experimental(false) })
 
     expect(tabs()).not.toContain("Experimental")
-    expect(selected()).toBe("General")
+    expect(selected()).toBe("Appearance")
   })
 
   it("is absent until the app has said whether the switch is on", async () => {
@@ -559,7 +596,7 @@ describe("the Experimental tab", () => {
     const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
     expect(panel?.querySelector('input[name="agent-presentation"]')).toBeNull()
     expect(
-      panel?.querySelector('[role="switch"][aria-labelledby="agent-avatars-label"]'),
+      panel?.querySelector('[role="switch"][aria-labelledby$="agent-avatars-label"]'),
     ).not.toBeNull()
   })
 
@@ -605,54 +642,6 @@ describe("the Experimental tab", () => {
     ;(gate as HTMLElement).click()
     expect(changes).toEqual([true])
   })
-
-  const worktreesSwitch = (): HTMLElement | null =>
-    document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
-
-  it("holds the agent worktrees switch, which writes the backend's setting", async () => {
-    const changes: boolean[] = []
-    await show({
-      tab: "experimental",
-      experimental: experimental(true),
-      worktrees: { enabled: false, onChange: (enabled) => changes.push(enabled) },
-    })
-
-    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
-    expect(worktreesSwitch()?.hasAttribute("disabled")).toBe(false)
-    worktreesSwitch()?.click()
-    expect(changes).toEqual([true])
-  })
-
-  it("shows agent worktrees on, and disabled where the backend has none", async () => {
-    await show({
-      tab: "experimental",
-      experimental: experimental(true),
-      worktrees: { enabled: true, onChange: () => {} },
-    })
-    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("true")
-    mounted.splice(0).forEach((page) => page.unmount())
-
-    await show({ tab: "experimental", experimental: experimental(true) })
-    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
-    expect(
-      worktreesSwitch()?.hasAttribute("disabled") ||
-        worktreesSwitch()?.getAttribute("aria-disabled") === "true" ||
-        worktreesSwitch()?.hasAttribute("data-disabled"),
-    ).toBe(true)
-    expect(document.body.textContent).toContain("Not available here.")
-  })
-
-  it("sits in the Experimental panel, which General's selection hides", async () => {
-    await show({
-      tab: "general",
-      experimental: experimental(true),
-      worktrees: { enabled: false, onChange: () => {} },
-    })
-    expect(selected()).toBe("General")
-    const panel = worktreesSwitch()?.closest('[role="tabpanel"]')
-    expect(panel?.getAttribute("aria-labelledby")).toMatch(/experimental$/)
-    expect(panel?.hasAttribute("hidden")).toBe(true)
-  })
 })
 
 describe("the Appearance tab", () => {
@@ -662,50 +651,69 @@ describe("the Appearance tab", () => {
   it("comes second, and a URL naming it opens it", async () => {
     await show({ tab: "appearance" })
 
-    expect(tabs().slice(0, 2)).toEqual(["Appearance", "General"])
+    expect(tabs().slice(0, 2)).toEqual(["Appearance", "Terminal"])
     expect(selected()).toBe("Appearance")
   })
 
-  it("holds the theme, the layout and the text, and no bell", async () => {
-    await show({ tab: "appearance", notices: true })
+  it("holds the theme, the scale and the layout, and neither the text nor a bell", async () => {
+    await show({ tab: "appearance", notices: true, scalable: true })
 
     expect(panel()?.textContent).toContain("Theme")
+    expect(panel()?.textContent).toContain("Scale")
     expect(panel()?.textContent).toContain("View modes")
-    expect(panel()?.textContent).toContain("Text size")
-    expect(panel()?.textContent).toContain("Terminal font")
-    expect(panel()?.textContent).toContain("Ligatures")
+    expect(panel()?.textContent).not.toContain("Text size")
     expect(panel()?.textContent).not.toContain("Bell")
     expect(panel()?.textContent).not.toContain("Hear it")
   })
 })
 
-describe("the General tab", () => {
+describe("the Terminal page", () => {
   const panel = (): Element | null =>
-    document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
+    document.querySelector('[role="tabpanel"][aria-labelledby$="terminal"]')
 
-  it("holds the notifications and the transcripts, and none of the text or agents", async () => {
+  it("holds the text, screen reader support and the transcripts", async () => {
     await show({
-      tab: "general",
+      tab: "terminal",
+      transcripts: { enabled: true, available: true, onChange: () => {} },
+    })
+
+    expect(selected()).toBe("Terminal")
+    expect(panel()?.textContent).toContain("Text size")
+    expect(panel()?.textContent).toContain("Terminal font")
+    expect(panel()?.textContent).toContain("Ligatures")
+    expect(panel()?.textContent).toContain("Screen reader support")
+    expect(panel()?.textContent).toContain("Transcripts")
+    expect(panel()?.textContent).not.toContain("View modes")
+  })
+})
+
+describe("the Notifications page", () => {
+  const panel = (): Element | null =>
+    document.querySelector('[role="tabpanel"][aria-labelledby$="notifications"]')
+
+  it("holds the notifications, and none of the text, agents or transcripts", async () => {
+    await show({
+      tab: "notifications",
       transcripts: { enabled: true, available: true, onChange: () => {} },
       agents: { list: [], onChange: () => {} },
     })
 
     expect(panel()?.textContent).toContain("Notify when an agent needs you")
     expect(panel()?.textContent).toContain("Notify when an agent finishes")
-    expect(panel()?.textContent).toContain("Transcripts")
+    expect(panel()?.textContent).not.toContain("Transcripts")
     expect(panel()?.textContent).not.toContain("Text size")
     expect(panel()?.textContent).not.toContain("View modes")
   })
 
   it("holds no bell where the backend shows no desktop notifications", async () => {
-    await show({ tab: "general" })
+    await show({ tab: "notifications" })
 
     expect(panel()?.textContent).not.toContain("Bell")
     expect(panel()?.textContent).not.toContain("Hear it")
   })
 
   it("holds the bell, led by the theme's own sound, where it does", async () => {
-    await show({ tab: "general", notices: true })
+    await show({ tab: "notifications", notices: true })
 
     expect(panel()?.textContent).toContain("Ring the bell")
     expect(panel()?.textContent).toContain("Theme's bell (Felt)")
@@ -714,7 +722,7 @@ describe("the General tab", () => {
 
   it("names the sound of the theme in effect", async () => {
     await show({
-      tab: "general",
+      tab: "notifications",
       notices: true,
       value: {
         ...readPreferences(),
@@ -829,28 +837,245 @@ describe("an agent that is not installed, in Preferences", () => {
   })
 })
 
-describe("the forge integrations, in Preferences", () => {
-  const forges = (on = true) => ({
-    list: [{ forge: "github" as const, available: true, enabled: on, busy: false, hosts: [] }],
-    onChange: () => {},
+describe("the forges, in Preferences", () => {
+  const forges = () => ({
+    list: [{ forge: "github" as const, available: true, enabled: true, busy: false, hosts: [] }],
   })
-  const panel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
+  const agentsPanel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
+  const section = () =>
+    agentsPanel()?.querySelector('section[aria-labelledby="preferences-pull-requests"]')
 
-  it("has a section under the Experimental switches where the backend has forges", async () => {
+  it("are rows with no switch under Agents, where the backend has forges", async () => {
+    await show({
+      tab: "agents",
+      forges: forges(),
+      worktrees: { enabled: true, onChange: () => {} },
+    })
+    expect(selected()).toBe("Agents")
+    expect(section()?.querySelector("h3")?.textContent).toBe("Pull requests")
+    expect(section()?.querySelector('ul[aria-label="Forges"] li')).not.toBeNull()
+    expect(section()?.querySelector('[role="switch"]')).toBeNull()
+  })
+
+  it("go with agent worktrees, whose panel shows the pull requests, and aren't in Experimental", async () => {
+    await show({
+      tab: "agents",
+      forges: forges(),
+      worktrees: { enabled: false, onChange: () => {} },
+    })
+    expect(section()).toBeNull()
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({ tab: "experimental", experimental: experimental(true), forges: forges() })
+    const experimentalPanel = document.querySelector(
+      '[role="tabpanel"][aria-labelledby$="experimental"]',
+    )
+    expect(experimentalPanel?.textContent).not.toContain("Pull requests")
+    expect(experimentalPanel?.querySelector('ul[aria-label="Forges"]')).toBeNull()
+  })
+
+  it("are absent where the backend has none", async () => {
+    await show({ tab: "agents", worktrees: { enabled: true, onChange: () => {} } })
+    expect(section()).toBeNull()
+  })
+})
+
+describe("searching Preferences", () => {
+  const field = (): HTMLInputElement =>
+    document.querySelector<HTMLInputElement>('input[aria-label="Search preferences"]')!
+  const type = async (text: string): Promise<void> => {
+    await act(async () => {
+      const input = field()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+  const results = (): string[] =>
+    [...document.querySelectorAll(".preferences-result")].map(
+      (result) => result.firstElementChild?.textContent ?? "",
+    )
+
+  it("lists the settings of every page that match, in place of the pages", async () => {
+    await show({ tab: "appearance", notices: true })
+    await type("bell")
+
+    expect(results()).toContain("Ring the bell")
+    expect(document.querySelector('[role="tablist"]')?.closest("[hidden]")).not.toBeNull()
+  })
+
+  it("says so where nothing matches", async () => {
+    await show({ tab: "appearance" })
+    await type("zebra")
+
+    expect(results()).toEqual([])
+    expect(document.body.textContent).toContain("Nothing matches “zebra”.")
+  })
+
+  it("takes the search away on Escape, and leaves Preferences open", async () => {
+    let closed = 0
+    await show({ tab: "appearance", notices: true, onClose: () => (closed += 1) })
+    await type("bell")
+    await act(async () => {
+      field().dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      )
+    })
+
+    expect(field().value).toBe("")
+    expect(results()).toEqual([])
+    expect(closed).toBe(0)
+  })
+
+  it("focuses the control of the row it opens", async () => {
+    // Opening a page rerenders on it, as the app's route does.
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      notices: true,
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("appearance")))
+    mounted.push(page)
+    await nextFrame()
+    await type("ring the bell")
+    await act(async () => (document.querySelector(".preferences-result") as HTMLElement).click())
+    await nextFrame()
+
+    expect(document.activeElement?.getAttribute("role")).toBe("switch")
+    expect(document.activeElement?.closest(".settings-row")?.textContent).toContain("Ring the bell")
+  })
+
+  it("finds a switch only the Experimental page has there, and one that stands on its page once", async () => {
+    await show({
+      tab: "appearance",
+      experimental: experimental(true),
+      murmurSwitch: { enabled: false, onChange: () => {} },
+    })
+    await type("murmur")
+    expect(results()).toContain("Murmur")
+    await type("agent avatars")
+    expect(results()).toEqual(["Agent avatars"])
+    expect(document.querySelector(".preferences-result")?.textContent).toContain("Appearance")
+  })
+
+  it("reads the pages again as a setting changes under the results", async () => {
+    const props = (sound: boolean) => ({
+      open: true,
+      tab: "notifications" as const,
+      notices: true,
+      value: { ...readPreferences(), sound },
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: () => {},
+    })
+    const page = render(createElement(Preferences, props(true)))
+    mounted.push(page)
+    await nextFrame()
+    await type("volume")
+    expect(results()).toEqual(["Volume"])
+
+    await act(async () => page.rerender(createElement(Preferences, props(false))))
+    await eventually(() => expect(results()).toEqual([]))
+  })
+
+  it("is focused by / from a slider, as from any control that doesn't type", async () => {
+    await show({ tab: "terminal" })
+    const slider = document.querySelector<HTMLInputElement>('input[type="range"]')!
+    slider.focus()
+    await act(async () => {
+      slider.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true }),
+      )
+    })
+    expect(document.activeElement).toBe(field())
+  })
+
+  it("opens a match's page, and shows the pages again", async () => {
+    const opened: string[] = []
+    await show({ tab: "appearance", notices: true, onTabChange: (tab) => opened.push(tab) })
+    await type("ring the bell")
+    await act(async () => (document.querySelector(".preferences-result") as HTMLElement).click())
+
+    expect(opened).toEqual(["notifications"])
+    expect(field().value).toBe("")
+    expect(results()).toEqual([])
+  })
+})
+
+describe("an Experimental feature, while Experimental is on", () => {
+  const panel = (page: string): Element | null =>
+    document.querySelector(`[role="tabpanel"][aria-labelledby$="${page}"]`)
+
+  it("stands on its own page, marked Experimental", async () => {
+    await show({ tab: "appearance", experimental: experimental(true) })
+
+    const row = panel("appearance")
+      ?.querySelector('[role="switch"][aria-labelledby="agent-avatars-label"]')
+      ?.closest(".settings-row")
+    expect(row?.querySelector(".settings-badge")?.textContent).toBe("Experimental")
+  })
+
+  it("is listed on the Experimental page with the page it's on, which it opens", async () => {
+    const opened: string[] = []
     await show({
       tab: "experimental",
       experimental: experimental(true),
-      forges: forges(),
+      onTabChange: (tab) => opened.push(tab),
     })
-    const section = panel()?.querySelector(
-      'section[aria-labelledby="preferences-forge-integrations"]',
+
+    const row = panel("experimental")
+      ?.querySelector('[role="switch"][aria-labelledby="index-agent-avatars-label"]')
+      ?.closest(".settings-row")
+    const goTo = [...(row?.querySelectorAll("button") ?? [])].find(
+      (button) => button.textContent === "On Appearance",
     )
-    expect(section?.querySelector("h3")?.textContent).toBe("Forge integrations")
-    expect(section?.querySelector('ul[aria-label="Forges"] [role=switch]')).not.toBeNull()
+    goTo?.click()
+    expect(opened).toEqual(["appearance"])
   })
 
-  it("has none where the backend has none", async () => {
-    await show({ tab: "experimental", experimental: experimental(true) })
-    expect(panel()?.textContent).not.toContain("Forge integrations")
+  it("leaves focus on the switch on the page it opens", async () => {
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      experimental: experimental(true),
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("experimental")))
+    mounted.push(page)
+    await nextFrame()
+    const goTo = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (button) => button.textContent === "On Appearance",
+    )
+    await act(async () => goTo?.click())
+    await nextFrame()
+
+    expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("agent-avatars-label")
+  })
+
+  it("offers no way to a page Preferences doesn't show", async () => {
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      murmurSwitch: { enabled: false, onChange: () => {} },
+    })
+
+    expect(document.body.textContent).toContain("Murmur")
+    expect(
+      [...document.querySelectorAll("button")].some((button) => button.textContent === "On Addons"),
+    ).toBe(false)
+  })
+
+  it("is on no page while Experimental is off", async () => {
+    await show({ tab: "appearance", experimental: experimental(false) })
+
+    expect(document.querySelector('[aria-labelledby$="agent-avatars-label"]')).toBeNull()
   })
 })

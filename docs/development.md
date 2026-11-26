@@ -252,8 +252,8 @@ one agent asking another by message to review its change, which it answers, 8b a
 its plan in the pane, and 8c a Codex agent asking in Codex's words to run its tests, which once
 allowed runs them and reports done (8a and 8c share Search index, so each does nothing once the
 other has run), 9a a check passing and a teammate's pull request opening in the Worktrees panel
-(its worktrees and their pull requests come with Experimental agent worktrees on: App > Agent
-worktrees > On, with Worktrees; the lead's three teammates' worktrees head to its branch, so they
+(its worktrees and their pull requests come with agent worktrees on, as the demo starts; the
+lead's three teammates' worktrees head to its branch, so they
 hang under it on the team wire, from 5a), and 9b the agents writing files in the Files panel (the
 panel and its rail button are there only with `&files=on` or the Launch group's "Files panel on",
 as no other beat shows them; `videos/launch-files.ts`); `frontend/demo/src/videos/launch.ts`,
@@ -331,8 +331,8 @@ Terminals:
   done dim and restore the trash button (hover it for why). Worktrees not read yet empties the panel for 3 s,
   with no count and no empty state, as before the runner first reports the worktrees. Refuse the
   next close shows the refusal above the list. Close every worktree closes the selected project's, leaving the list empty with
-  what appears there; other projects keep theirs. The demo starts with Agent worktrees off
-  (Preferences > Experimental), which hides Worktrees until it is turned on. New worktree adds another clean worktree to the selected
+  what appears there; other projects keep theirs. The demo starts with Agent worktrees on
+  (Preferences > Agents); turned off, Worktrees hides until it is on again. New worktree adds another clean worktree to the selected
   terminal's, and the Worktrees toggle in the rail flares the History toggle's dot and ring for a
   moment (close Worktrees first: it shows nothing while Worktrees is open); any first change that makes a
   terminal's worktree flares it too. "Every state in Worktrees"
@@ -648,8 +648,7 @@ Agents:
   head naming the agent, a clash at the line that submits the order (the last writer shown, a
   picker on its right), the merge set in the summary line (each agent a toggle, everyone merged
   each time it is opened), and the lines Moth removed folded into "5 lines of main removed". It
-  needs agent worktrees on (the App section's "Agent worktrees" group: "On, with
-  Worktrees"). The Files group's "Agent writes Checkout.tsx" (and the agents' own writes) grow the
+  needs agent worktrees on, as the demo starts. The Files group's "Agent writes Checkout.tsx" (and the agents' own writes) grow the
   selected agent's change by a line, pulse it and put the agent's cursor after it, which becomes a
   trail once "Agent stops writing (Files only)" runs; a clash follows the agent that wrote last.
   The File preview group's "Third agent clashes with the others" adds `owl` over the same line (a
@@ -923,7 +922,7 @@ App:
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
 - **Screen reader:** boot as a desktop app that says a screen reader runs, or that none does, for
-  Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
+  Preferences > Terminal's Screen reader support on Automatic: the terminal in focus keeps a
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
 - **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and
@@ -938,12 +937,9 @@ App:
   bar: the mark, project and views keep to the header's top, Search and Preferences to its bottom,
   below them; in Zen a strip as tall as the buttons holds them. "Own title bar" boots back to
   a window with its own, as on Linux and in a browser.
-- **Agent worktrees:** the page's update channel starts stable, which turns the
-  setting off, so the rail has no Worktrees toggle, as in a stable build. "On, with Worktrees" boots on
-  the experimental channel with the setting on, for the Worktrees panel and the Worktrees group's
-  actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
-  the Agent worktrees row disabled, reading "Not available here."; "Offered" boots
-  back to normal.
+- **Agent worktrees:** the setting starts on, as in the app, whatever the page's update channel.
+  "Not offered" boots a backend without the setting, so Preferences > Agents has no Agent
+  worktrees row and the rail no Worktrees toggle; "Offered" boots back to normal.
 - **Project windows:** the App section's group for the desktop app's project windows. "Offered"
   boots with a backend that can open windows; "Not offered" boots one that can't, as a browser, so a
   project's menu has no Open in new window; "A second window, not the first" boots as a window that isn't the app's first, with no
@@ -958,15 +954,13 @@ App:
   The page's hand-offs to a pretend window go nowhere a page can see, so the demo only notes them
   (`frontend/demo-debug/src/desktop/project-windows.ts`). Specs use `&windows=on` and
   `&windows=extra` and the `projectWindows` handle of `support/backend.ts`.
-- **Forges:** the App section's group for the forge integrations (Preferences > Experimental >
-  Forge integrations, which needs the experimental channel, and the pull request marks in
-  Worktrees). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
+- **Forges:** the App section's group for the forges (Preferences > Agents > Pull requests, and
+  the pull request marks in Worktrees). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
   gitlab.com, and Azure DevOps not installed, offering an install; the storefront's worktrees carry
-  a draft, an open, a merged and a closed pull request. "Offered, experimental channel" boots on
-  the experimental channel with the forges offered; "Not offered" boots a backend without them, so
-  the section is gone. The state actions (GitHub signed in with GitLab signed out, All signed in, All
-  signed out, CLI missing, Token refused, Switch under way, Switch failed) move the rows without a
-  reboot. In the demo, Sign in and Install close Preferences and run in a terminal that plays the
+  a draft, an open, a merged and a closed pull request. "Offered" boots with the forges offered;
+  "Not offered" boots a backend without them, so the section is gone. The state actions (GitHub
+  signed in with GitLab signed out, All signed in, All signed out, CLI missing, Token refused, Token
+  refused with nothing to run, Several hosts) move the rows without a reboot. In the demo, Sign in and Install close Preferences and run in a terminal that plays the
   command, then flips the host to Signed in, or the forge to installed (Install lists the command
   first). The "CI failing", "CI running", "CI passed" and "No CI" actions set how an open pull
   request's checks stand (one is made open where there was none; a pull request that is done has none),
@@ -979,7 +973,7 @@ App:
   The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
   the selected terminal's worktree, or the project's first (one is made if it has none): the row's
   name line ends in "#812" tinted by its state (its page opens from the row's actions under the
-  pointer), and the work's changes item (in the showcase with "On, with Worktrees", select its row) has
+  pointer), and the work's changes item (in the showcase, select its row) has
   a "#812" chip in its row, which opens the page in the browser.
 - **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
   Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",
@@ -1398,9 +1392,10 @@ so links work with the packaged `file://` UI and static hosting. For example:
 
 The path selects a project, workspace session, and view. Query parameters select
 the terminal, sidebar panel, and dialog (`dialog=search` or `dialog=preferences`);
-Preferences also takes `section=` a tab's id (`agents`, `appearance`, `general`, `addons`,
-`shortcuts`, `about`, `experimental`); an unknown name, or a tab the backend has none of, opens
-General. With no `section=`, it opens Agents where the backend has that tab, else General. Back and Forward restore navigation
+Preferences also takes `section=` a page's id (`agents`, `appearance`, `terminal`,
+`notifications`, `addons`, `shortcuts`, `about`, `experimental`); the former `general` opens
+Notifications, and an unknown name, or a page the backend has none of, opens Appearance. With no
+`section=`, it opens Agents where the backend has that page, else Appearance. Back and Forward restore navigation
 without discarding terminal drafts or output. Sidebar visibility, search text,
 canvas gestures, and other temporary controls stay out of the URL.
 

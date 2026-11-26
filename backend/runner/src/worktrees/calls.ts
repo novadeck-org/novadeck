@@ -24,8 +24,8 @@ export type WorktreeCallsHost = Pick<
   /** The service; none where the runner keeps no ownership (some tests). */
   readonly worktrees: () => Worktrees | undefined
   /**
-   * Whether agent worktrees are on for the terminal: the person turned them on (Preferences,
-   * Experimental), or it is one of the tour's (`Wiring.enabled`).
+   * Whether agent worktrees are on for the terminal: the person left them on (Preferences,
+   * Agents), or it is one of the tour's (`Wiring.enabled`).
    */
   readonly enabled: (terminalId: string) => boolean
   /** The project a session belongs to. */
@@ -47,7 +47,7 @@ export type WorktreesWiring = {
   readonly ready: (startedAt: number | undefined, relists: boolean, terminalId?: string) => boolean
   /** Whether a folder is in a git repository, from the files alone (`repositoryKnown`). */
   readonly inRepository?: (folder: string, wait: boolean) => Promise<boolean | undefined>
-  /** A branch's pull request, where a forge the person switched on found one (`Forges`). */
+  /** A branch's pull request, where a forge found one (`Forges`). */
   readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
 }
 
@@ -74,7 +74,7 @@ export const worktreeHost = (
 /** What an agent hears when agent worktrees are off. */
 export const offRefusal =
   "Agent worktrees are off: the user can turn them on in Novadeck's Preferences, under " +
-  "Experimental. Work in your terminal's own checkout."
+  "Agents. Work in your terminal's own checkout."
 
 // A worktree's title is read as a terminal's own is, then checked by `titleRefusal`.
 const titleText = z.string().max(4096)

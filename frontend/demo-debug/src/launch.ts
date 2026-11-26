@@ -139,7 +139,7 @@ export const launchGroups = (
             },
             {
               label: "9a · A check passes and a PR opens",
-              hint: "With Agent worktrees on (App group), the Worktrees panel changes as it is open: Search index's running checks pass, and, after 5a, Cart endpoint's worktree opens its pull request with checks of its own. The teammates' worktrees (Pricing, Stock, Cart endpoint) appear under Orders API's with 5a",
+              hint: "With Agent worktrees on (as the demo starts), the Worktrees panel changes as it is open: Search index's running checks pass, and, after 5a, Cart endpoint's worktree opens its pull request with checks of its own. The teammates' worktrees (Pricing, Stock, Cart endpoint) appear under Orders API's with 5a",
               run: () => cues.checksPass(),
             },
             {
