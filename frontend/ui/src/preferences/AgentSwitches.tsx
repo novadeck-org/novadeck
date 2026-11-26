@@ -8,7 +8,7 @@ import { Switch } from "@novadeck/toolkit/Switch"
 import type { ComponentType } from "react"
 
 import { agentLabels, agentLimit, agentLost, agentNote, type AgentSwitch } from "./agent-switches"
-import { settingRowClasses, settingsCardClasses } from "./settings"
+import { settingRowClasses, settingsStackClasses } from "./settings"
 
 // Each agent's mark, as the welcome dialog's cards show it.
 const icons: Readonly<Record<AgentName, ComponentType<{ size?: number; strokeWidth?: number }>>> = {
@@ -31,11 +31,11 @@ const Tile = ({
   const Icon = icons[agent]
   return (
     <span
-      className="choice-card-tile settings-agent-tile flex size-8 flex-none items-center justify-center"
+      className="choice-card-tile settings-agent-tile flex size-[38px] flex-none items-center justify-center"
       data-missing={missing || undefined}
       aria-hidden="true"
     >
-      <Icon size={16} strokeWidth={1.5} />
+      <Icon size={20} strokeWidth={1.4} />
     </span>
   )
 }
@@ -60,7 +60,7 @@ export const AgentSwitches = ({
   // The agents whose installer runs now.
   readonly installing?: ReadonlySet<AgentName> | undefined
 }): React.JSX.Element => (
-  <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Agents">
+  <ul className={settingsStackClasses} aria-label="Agents">
     {agents.map((toggle) => {
       const label = agentLabels[toggle.agent]
       const installer = onInstall ? installerOf(toggle) : undefined
@@ -83,7 +83,9 @@ export const AgentSwitches = ({
           <div className="flex min-w-0 items-center gap-3">
             <Tile agent={toggle.agent} missing={!toggle.available} />
             <div className="flex min-w-0 flex-col gap-1">
-              <span id={`agent-${toggle.agent}`}>{label}</span>
+              <span id={`agent-${toggle.agent}`} className="settings-label">
+                {label}
+              </span>
               {limit && (
                 <span
                   id={`agent-${toggle.agent}-limit`}
@@ -166,7 +168,9 @@ const InstallRow = ({
     <div className="flex min-w-0 flex-1 items-center gap-3">
       <Tile agent={agent} missing />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span id={`agent-${agent}`}>{label}</span>
+        <span id={`agent-${agent}`} className="settings-label">
+          {label}
+        </span>
         <span id={`agent-${agent}-note`} className="settings-note text-control leading-5">
           {running ? "Installing in a terminal of its own." : "Not installed. Install runs"}
           {/* Whole, wrapping where it must, so nothing it will do is hidden. */}

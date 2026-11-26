@@ -27,9 +27,13 @@
    (data-missing) where the agent isn't installed.
    `.settings-sample`: a few lines of terminal text at the top of a card, drawn in the font,
    size and ligatures the terminals use, in the terminal's colours.
-   `.settings-preview`: what a setting makes appear, at the top of a card: its
-   `.settings-preview-item`s, each a caption over the thing, dimmed with data-off while the
-   setting that shows it is off.
+   `.settings-stack`: settings each on a card of its own, as the welcome dialog draws its
+   choices (the solid choice card): a `.settings-row` per card, led by a `.choice-card-tile`
+   that takes the brand tile while the card's switch is on, and its description small. A
+   `.settings-label` (a setting's name) is set medium everywhere. In a `.settings-card` led by
+   a row with a tile, that tile does the same, and the rows under it line up with its words. A card whose agent waits to be installed (data-agent-install)
+   is drawn dashed, as the welcome's Add card. `.settings-section-title`: a section's title,
+   as the welcome titles its own.
 
    Hooks: data-found on a `.settings-row`, a moment after search jumps to it: it tints and
    fades back. On a choice card, data-state="checked" | "unchecked", data-disabled, and the
@@ -55,8 +59,8 @@
    --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color.
    --choice-card-tile-disabled-opacity (0.7).
    --settings-range-disabled-opacity (0.5).
-   --settings-preview-bg (canvas): the ground of a sample or a preview.
-   --settings-preview-off-opacity (0.4): a preview item while its setting is off. */
+   --settings-preview-bg (canvas): the ground of the terminal sample.
+   The stack's cards read the choice card's tokens (--choice-card-*), as above. */
 
 .preferences-main {
   border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
@@ -269,7 +273,8 @@
 .settings-sample {
   margin: 0;
   overflow: hidden;
-  border-bottom: var(--border-width) solid var(--separator-bg, var(--color-line));
+  border: var(--border-width) solid var(--choice-card-border-color, var(--color-line));
+  border-radius: var(--choice-card-radius, var(--radius-panel));
   background-color: var(--terminal-bg, var(--settings-preview-bg, var(--color-canvas)));
   color: var(--terminal-fg, var(--color-ink));
   line-height: 1.4;
@@ -290,20 +295,61 @@
   color: var(--color-muted);
 }
 
-.settings-preview {
-  border-bottom: var(--border-width) solid var(--separator-bg, var(--color-line));
-  background-color: var(--settings-preview-bg, var(--color-canvas));
+.settings-section-title {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
 }
-.settings-preview-item {
-  transition: opacity var(--motion-feedback) var(--ease-interface);
+
+.settings-stack {
+  list-style: none;
 }
-.settings-preview-item[data-off] {
-  opacity: var(--settings-preview-off-opacity, 0.4);
+.settings-stack > .settings-row,
+.settings-stack > .settings-row + .settings-row {
+  border: var(--border-width) solid var(--choice-card-border-color, var(--color-line));
+  border-radius: var(--choice-card-radius, var(--radius-panel));
+  background-color: var(--choice-card-solid-bg, var(--color-paper));
+  color: var(--choice-card-solid-fg, var(--color-ink));
+  box-shadow: var(--settings-card-shadow, var(--card-shadow, var(--shadow-control)));
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
 }
-/* A desktop notification, drawn plainly: no system's own look. */
-.settings-desktop-notice {
-  border: var(--border-width) solid var(--color-line);
-  border-radius: var(--radius-panel);
-  background-color: var(--color-paper);
-  box-shadow: var(--shadow-control);
+.settings-stack > .settings-row:has([role="switch"][aria-checked="true"]) {
+  background-color: var(--choice-card-solid-checked-bg, var(--color-shell));
+  box-shadow: var(--choice-card-solid-checked-shadow, var(--shadow-panel));
+}
+.settings-stack > .settings-row:has([role="switch"][aria-checked="true"]) .choice-card-tile,
+.settings-card
+  > .settings-row:first-child:has([role="switch"][aria-checked="true"])
+  .choice-card-tile {
+  --_highlight: inset 0 1px 0
+    color-mix(in srgb, var(--brand-tile-fg, var(--color-on-strong)) 8%, transparent);
+  --_drop: 0 6px 14px -8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
+  border-color: var(--brand-tile-border-color);
+  background: var(
+    --brand-tile-bg,
+    linear-gradient(180deg, var(--color-strong-hover), var(--color-strong))
+  );
+  color: var(--brand-tile-fg, var(--color-on-strong));
+}
+.settings-stack > .settings-row:has([data-agent-install]) {
+  border-style: dashed;
+  border-color: var(--welcome-install-border-color, var(--color-line-strong));
+  background-color: transparent;
+  box-shadow: none;
+}
+.settings-label {
+  font-weight: var(--font-weight-medium);
+}
+/* A card led by a setting with a tile holds what belongs to that setting under it, lined up
+   with its words. */
+.settings-card > .settings-row:first-child:has(.choice-card-tile) ~ .settings-row > :first-child {
+  margin-left: calc(38px + var(--spacing) * 3);
+}
+.settings-stack > .settings-row .settings-description,
+.settings-stack > .settings-row .settings-note {
+  font-size: var(--text-caption);
+  line-height: 18px;
 }

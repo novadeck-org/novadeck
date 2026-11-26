@@ -1,7 +1,7 @@
 import { Portal } from "@ark-ui/react/portal"
 import { Select as ArkSelect, createListCollection } from "@ark-ui/react/select"
 import { Check, ChevronDown } from "lucide-react"
-import { useId, useMemo, type RefObject } from "react"
+import { useId, useMemo, type ReactNode, type RefObject } from "react"
 
 import { cn } from "./class-name"
 
@@ -27,6 +27,9 @@ export type SelectProps = {
   // What the choice does, under the label, read with the trigger; its look is the caller's.
   readonly description?: string
   readonly descriptionClassName?: string
+  // A mark before the label, as a settings card's tile, and the label's own class.
+  readonly icon?: ReactNode
+  readonly labelClassName?: string
 }
 
 export const Select = ({
@@ -43,11 +46,13 @@ export const Select = ({
   className,
   description,
   descriptionClassName,
+  icon,
+  labelClassName,
 }: SelectProps): React.JSX.Element => {
   const collection = useMemo(() => createListCollection({ items }), [items])
   const descriptionId = useId()
   const labelPart = (
-    <ArkSelect.Label className={variant === "icon" ? "sr-only" : undefined}>
+    <ArkSelect.Label className={variant === "icon" ? "sr-only" : labelClassName}>
       {label}
     </ArkSelect.Label>
   )
@@ -72,13 +77,18 @@ export const Select = ({
       lazyMount
       unmountOnExit
     >
-      {description === undefined ? (
+      {description === undefined && icon === undefined ? (
         labelPart
       ) : (
-        <span className="flex min-w-0 flex-col gap-1">
-          {labelPart}
-          <span id={descriptionId} className={descriptionClassName}>
-            {description}
+        <span className="flex min-w-0 items-center gap-3">
+          {icon}
+          <span className="flex min-w-0 flex-col gap-1">
+            {labelPart}
+            {description !== undefined && (
+              <span id={descriptionId} className={descriptionClassName}>
+                {description}
+              </span>
+            )}
           </span>
         </span>
       )}

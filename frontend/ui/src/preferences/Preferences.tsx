@@ -7,21 +7,44 @@ import { viewModes } from "@novadeck/core/state"
 import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog } from "@novadeck/toolkit/Dialog"
+import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Select } from "@novadeck/toolkit/Select"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
 import {
+  Accessibility,
+  ALargeSmall,
+  BellRing,
+  CircleCheck,
+  Coffee,
+  FlaskConical,
+  GitBranch,
+  History,
+  Info,
+  Ligature,
+  Map,
   Mic,
   MessagesSquare,
   Monitor,
   Moon,
+  Network,
+  Palette,
+  PawPrint,
+  Scaling,
+  ScrollText,
   Search,
+  ShieldCheck,
   SquareTerminal,
   Sun,
+  SunMoon,
   Tag,
+  Timer,
+  Type,
+  Volume2,
   X,
+  type LucideIcon,
 } from "lucide-react"
 import {
   useEffect,
@@ -36,7 +59,6 @@ import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
 import { soundChoiceOf, soundInEffect, soundName, sounds } from "../sounds"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
-import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentModePicker } from "./AgentModePicker"
 import { AgentSwitches } from "./AgentSwitches"
@@ -58,10 +80,11 @@ import {
   preferencesTabs,
   settingRowClasses,
   settingsCardClasses,
+  settingsStackClasses,
   versionText,
   type PreferencesTab,
 } from "./settings"
-import { NoticePreview, TerminalSample } from "./SettingsSamples"
+import { TerminalSample } from "./SettingsSamples"
 import { useThemeMonoFamily } from "./theme-font"
 import { UninstallApp, type UninstallValue } from "./UninstallApp"
 import { useInstalledFonts } from "./useInstalledFonts"
@@ -74,9 +97,8 @@ const schemeItems = [
   { label: "Light", value: "light", icon: <Sun size={13} aria-hidden="true" /> },
   { label: "Dark", value: "dark", icon: <Moon size={13} aria-hidden="true" /> },
 ] as const
-// How long an idle agent runs before it is stopped, in minutes; null for never.
+// How long an idle agent runs before it is stopped, in minutes, while stopping is on.
 const idleChoices = [
-  { label: "Off", value: "off" },
   { label: "15 minutes", value: "15" },
   { label: "30 minutes", value: "30" },
   { label: "1 hour", value: "60" },
@@ -91,10 +113,10 @@ const agentPresentations = [
 
 const scaleItems = appScales.map((scale) => ({ label: `${scale}%`, value: String(scale) }))
 
-// Screen reader support's choices: Automatic only where the app can tell when one runs. Plain
-// words, as the menu is as wide as its button; the row's description says what they do.
-const screenReaderChoices = (known: boolean) => [
-  ...(known ? [{ label: "Automatic", value: "auto" }] : []),
+// Screen reader support's choices where the app can tell when one runs; elsewhere a switch.
+// Plain words: the card's description says what they do.
+const screenReaderChoices = [
+  { label: "Automatic", value: "auto" },
   { label: "On", value: "on" },
   { label: "Off", value: "off" },
 ]
@@ -104,7 +126,7 @@ const screenReaderExplanation = (known: boolean): string =>
   (known ? " Automatic follows your system." : "")
 
 // Section titles match the sidebar's panel titles.
-const sectionTitleClasses = "section-label m-0 text-label font-medium"
+const sectionTitleClasses = "settings-section-title m-0"
 // A group inside a section, as Layout's two sets of choices.
 const groupTitleClasses = "text-body font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
@@ -129,6 +151,8 @@ const foundFor = 1600
 // page too (`onPage`), or only the feature it turns on does.
 type ExperimentalToggle = {
   readonly id: string
+  // Its mark on its card.
+  readonly icon: LucideIcon
   readonly page: PreferencesTab
   readonly onPage: boolean
   readonly label: string
@@ -197,7 +221,19 @@ const ExperimentalRows = ({
 }): React.JSX.Element | null => {
   if (toggles.length === 0) return null
   const rows = toggles.map(
-    ({ id: name, page, onPage, label, description, checked, onToggle, disabled, note, retry }) => {
+    ({
+      id: name,
+      icon,
+      page,
+      onPage,
+      label,
+      description,
+      checked,
+      onToggle,
+      disabled,
+      note,
+      retry,
+    }) => {
       // Only a switch that stands on two pages needs its ids kept apart.
       const id = onGoTo && !onPage ? name : `${scope}${name}`
       const twice = onGoTo !== undefined && onPage && shows(page)
@@ -207,43 +243,51 @@ const ExperimentalRows = ({
           className={`preference-row ${settingRowClasses}`}
           {...(twice ? { "data-search-skip": "" } : {})}
         >
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <span id={`${id}-label`}>{label}</span>
-              {!onGoTo && <ExperimentalBadge />}
-            </span>
-            <span id={`${id}-description`} className="settings-description text-control leading-5">
-              {description}
-            </span>
-            {note && (
-              <span
-                className="settings-note flex flex-wrap items-center gap-x-2 gap-y-1 text-control leading-5"
-                data-experimental-note={name}
-                // A failure is said at once; progress as the person pauses.
-                {...(note.error ? { "data-tone": "danger", role: "alert" } : { role: "status" })}
-              >
-                <span id={`${id}-note`}>{note.text}</span>
-                {note.error && (
-                  <button
-                    type="button"
-                    className="button min-h-7 px-2.5 text-control"
-                    aria-label={`Try again: ${label}`}
-                    onClick={retry}
-                  >
-                    Try again
-                  </button>
-                )}
+          <span className="flex min-w-0 items-center gap-3">
+            <SettingTile icon={icon} />
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="flex flex-wrap items-center gap-2">
+                <span id={`${id}-label`} className="settings-label">
+                  {label}
+                </span>
+                {!onGoTo && <ExperimentalBadge />}
               </span>
-            )}
-            {onGoTo && shows(page) && (
-              <button
-                type="button"
-                className="button link addon-action w-fit text-control"
-                onClick={() => onGoTo(page, onPage ? name : "")}
+              <span
+                id={`${id}-description`}
+                className="settings-description text-control leading-5"
               >
-                On {pageLabel(page)}
-              </button>
-            )}
+                {description}
+              </span>
+              {note && (
+                <span
+                  className="settings-note flex flex-wrap items-center gap-x-2 gap-y-1 text-control leading-5"
+                  data-experimental-note={name}
+                  // A failure is said at once; progress as the person pauses.
+                  {...(note.error ? { "data-tone": "danger", role: "alert" } : { role: "status" })}
+                >
+                  <span id={`${id}-note`}>{note.text}</span>
+                  {note.error && (
+                    <button
+                      type="button"
+                      className="button min-h-7 px-2.5 text-control"
+                      aria-label={`Try again: ${label}`}
+                      onClick={retry}
+                    >
+                      Try again
+                    </button>
+                  )}
+                </span>
+              )}
+              {onGoTo && shows(page) && (
+                <button
+                  type="button"
+                  className="button link addon-action w-fit text-control"
+                  onClick={() => onGoTo(page, onPage ? name : "")}
+                >
+                  On {pageLabel(page)}
+                </button>
+              )}
+            </span>
           </span>
           <Switch
             checked={checked}
@@ -256,7 +300,7 @@ const ExperimentalRows = ({
       )
     },
   )
-  return bare ? <>{rows}</> : <div className={settingsCardClasses}>{rows}</div>
+  return bare ? <>{rows}</> : <div className={settingsStackClasses}>{rows}</div>
 }
 
 // The switch of an agent in the Agents section, or its Install where it isn't installed, where
@@ -323,22 +367,41 @@ const Section = ({
 // A setting's description, under its name.
 const descriptionClasses = "settings-description text-control leading-5"
 
-// A setting's name and what it does, beside its control.
+// A setting's mark, in the welcome dialog's tile.
+const SettingTile = ({ icon: Icon }: { readonly icon: LucideIcon }): React.JSX.Element => (
+  <span
+    className="choice-card-tile flex size-[38px] flex-none items-center justify-center"
+    aria-hidden="true"
+  >
+    <Icon size={20} strokeWidth={1.4} />
+  </span>
+)
+
+// A setting's mark, name and what it does, beside its control.
 const SettingText = ({
   id,
+  icon,
   label,
   description,
   descriptionId,
 }: {
   id: string
+  icon?: LucideIcon
   label: string
-  description: string
-  descriptionId: string
+  description?: string
+  descriptionId?: string
 }): React.JSX.Element => (
-  <span className="flex min-w-0 flex-col gap-1">
-    <span id={id}>{label}</span>
-    <span id={descriptionId} className="settings-description text-control leading-5">
-      {description}
+  <span className="flex min-w-0 items-center gap-3">
+    {icon && <SettingTile icon={icon} />}
+    <span className="flex min-w-0 flex-col gap-1">
+      <span id={id} className="settings-label">
+        {label}
+      </span>
+      {description && (
+        <span id={descriptionId} className={descriptionClasses}>
+          {description}
+        </span>
+      )}
     </span>
   </span>
 )
@@ -368,14 +431,20 @@ const VersionRow = ({
     } else setTaps(taps + 1)
   }
   return (
-    // The row itself is the list, so the card's hairline runs between it and the row after.
+    // The row itself is the list, so it stands as a card of its own among the others.
     <dl className={`preference-row ${settingRowClasses} m-0`}>
-      <dt className="m-0 flex min-w-0 flex-col">
-        <span>Version</span>
-        <span role="status" className="settings-description text-control leading-5 not-empty:mt-1">
-          {onReveal && left <= revealCountdown
-            ? `Tap ${left === 1 ? "once more" : `${left} more times`} to show Experimental`
-            : ""}
+      <dt className="m-0 flex min-w-0 items-center gap-3">
+        <SettingTile icon={Info} />
+        <span className="flex min-w-0 flex-col">
+          <span className="settings-label">Version</span>
+          <span
+            role="status"
+            className="settings-description text-control leading-5 not-empty:mt-1"
+          >
+            {onReveal && left <= revealCountdown
+              ? `Tap ${left === 1 ? "once more" : `${left} more times`} to show Experimental`
+              : ""}
+          </span>
         </span>
       </dt>
       {/* A hidden gesture, as Android's: the switch it shows is no secret, only out of the
@@ -406,10 +475,13 @@ const TabInView = ({
 }
 
 // The list's value for a wait; none for one the list lacks.
-const idleChoice = (minutes: number | null): string => {
-  const value = minutes === null ? "off" : String(minutes)
+const idleChoice = (minutes: number): string => {
+  const value = String(minutes)
   return idleChoices.some((choice) => choice.value === value) ? value : ""
 }
+
+// The wait Stop idle agents turns on with: the last one set while open, else an hour.
+const defaultWait = 60
 
 export const Preferences = ({
   open,
@@ -445,7 +517,6 @@ export const Preferences = ({
   systemSounds = false,
   hearSound,
   chat = false,
-  askToast,
 }: {
   open: boolean
   // The page to show; null for none named, which opens Agents where the backend has it, else
@@ -541,8 +612,6 @@ export const Preferences = ({
   hearSound?: (volume: number, sound?: NoticeSound) => void
   // Whether the backend reads agents' conversations, which the chat view shows.
   chat?: boolean
-  // The Inbox's toast for an agent's ask, which Notifications shows above its switches.
-  askToast?: ReactNode
   // Agents whose sessions resume once connected; absent where the backend has none.
   agents?: {
     readonly list: readonly AgentSwitch[]
@@ -610,6 +679,12 @@ export const Preferences = ({
   const panels = useRef<HTMLDivElement>(null)
   const narrow = useNarrow()
   const searchField = useRef<HTMLInputElement>(null)
+  // The wait Stop idle agents turns back on with: the last one it had.
+  const idleMinutes = hibernation?.minutes ?? null
+  const lastWait = useRef(idleMinutes ?? defaultWait)
+  useEffect(() => {
+    if (idleMinutes !== null) lastWait.current = idleMinutes
+  }, [idleMinutes])
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   // What the person searches for, and the rows that match it, read from the pages as typed.
   const [query, setQuery] = useState("")
@@ -744,6 +819,7 @@ export const Preferences = ({
   const experimentalToggles: readonly ExperimentalToggle[] = [
     {
       id: "agent-avatars",
+      icon: PawPrint,
       page: "appearance",
       onPage: true,
       label: "Agent avatars",
@@ -755,6 +831,7 @@ export const Preferences = ({
     },
     {
       id: "onboarding-tour",
+      icon: Map,
       page: "about",
       onPage: true,
       label: "Onboarding tour",
@@ -767,6 +844,7 @@ export const Preferences = ({
     },
     {
       id: "agent-modes",
+      icon: Network,
       page: "agents",
       onPage: false,
       label: "Agent modes",
@@ -779,6 +857,7 @@ export const Preferences = ({
     },
     {
       id: "shipping-gate",
+      icon: ShieldCheck,
       page: "agents",
       onPage: true,
       label: "Shipping gate",
@@ -791,6 +870,7 @@ export const Preferences = ({
     },
     {
       id: "bundled-pi",
+      icon: PiIcon,
       page: "agents",
       onPage: true,
       label: bundledPiLabel,
@@ -806,6 +886,7 @@ export const Preferences = ({
     },
     {
       id: "keep-awake",
+      icon: Coffee,
       page: "agents",
       onPage: false,
       label: "Keep awake",
@@ -819,6 +900,7 @@ export const Preferences = ({
     },
     {
       id: "murmur",
+      icon: Tag,
       page: "addons",
       onPage: false,
       label: MURMUR_NAME,
@@ -1029,42 +1111,64 @@ export const Preferences = ({
                     />
                   )}
                   {(hibernation || showKeepAwake) && (
-                    <div className={settingsCardClasses}>
+                    <div className={settingsStackClasses}>
                       {hibernation && (
-                        <Select
-                          className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                          label="Stop idle agents after"
-                          description="An agent with nothing to do stops after this long. A message wakes it again."
-                          descriptionClassName={descriptionClasses}
-                          items={idleChoices}
-                          // A saved wait the list doesn't have shows as it is, without being chosen.
-                          value={idleChoice(hibernation.minutes)}
-                          placeholder={`${hibernation.minutes} minutes`}
-                          onValueChange={(choice) =>
-                            hibernation.onChange(choice === "off" ? null : Number(choice))
-                          }
-                          open={open && shown === "agents" && openSelect === "idle-agents"}
-                          onOpenChange={(expanded) =>
-                            setOpenSelect(expanded ? "idle-agents" : null)
-                          }
-                          portalContainer={dialog}
-                        />
+                        // A switch, and the wait beside it while it's on.
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="idle-agents-label"
+                            icon={Timer}
+                            label="Stop idle agents"
+                            description={
+                              hibernation.minutes === null
+                                ? "Off: an agent with nothing to do keeps running until you close it."
+                                : "An agent with nothing to do stops after this long. A message wakes it again."
+                            }
+                            descriptionId="idle-agents-description"
+                          />
+                          <span className="flex shrink-0 items-center gap-3">
+                            {hibernation.minutes !== null && (
+                              <Select
+                                className="[&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-32"
+                                label="Stop idle agents after"
+                                items={idleChoices}
+                                // A saved wait the list doesn't have shows as it is, without being chosen.
+                                value={idleChoice(hibernation.minutes)}
+                                placeholder={`${hibernation.minutes} minutes`}
+                                onValueChange={(choice) => hibernation.onChange(Number(choice))}
+                                open={open && shown === "agents" && openSelect === "idle-agents"}
+                                onOpenChange={(expanded) =>
+                                  setOpenSelect(expanded ? "idle-agents" : null)
+                                }
+                                portalContainer={dialog}
+                              />
+                            )}
+                            <Switch
+                              checked={hibernation.minutes !== null}
+                              onChange={(on) => hibernation.onChange(on ? lastWait.current : null)}
+                              labelledBy="idle-agents-label"
+                              describedBy="idle-agents-description"
+                            />
+                          </span>
+                        </div>
                       )}
                       {showKeepAwake && (
                         <div className={`preference-row ${settingRowClasses}`}>
-                          <span className="flex min-w-0 flex-col gap-1">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span id="awake-label">Keep awake while agents work</span>
-                              <ExperimentalBadge />
-                            </span>
-                            <span
-                              id="awake-description"
-                              className="settings-description text-control leading-5"
-                            >
-                              Agents' long tasks finish while you're away: this computer doesn't go
-                              to sleep on its own while an agent works, which uses more battery. The
-                              screen still turns off and locks, and closing a laptop's lid still
-                              puts it to sleep. On Linux, it works on GNOME.
+                          <span className="flex min-w-0 items-center gap-3">
+                            <SettingTile icon={Coffee} />
+                            <span className="flex min-w-0 flex-col gap-1">
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span id="awake-label" className="settings-label">
+                                  Keep awake while agents work
+                                </span>
+                                <ExperimentalBadge />
+                              </span>
+                              <span id="awake-description" className={descriptionClasses}>
+                                Agents' long tasks finish while you're away: this computer doesn't
+                                go to sleep on its own while an agent works, which uses more
+                                battery. The screen still turns off and locks, and closing a
+                                laptop's lid still puts it to sleep. On Linux, it works on GNOME.
+                              </span>
                             </span>
                           </span>
                           <Switch
@@ -1084,13 +1188,14 @@ export const Preferences = ({
                 // requests the Worktrees panel reads.
                 <Section title="Worktrees and pull requests">
                   {(worktrees || gitToggles.length > 0) && (
-                    <div className={settingsCardClasses}>
+                    <div className={settingsStackClasses}>
                       {/* On for everyone: a way out for whoever keeps worktrees with a tool of
                           their own. */}
                       {worktrees && (
                         <div className={`preference-row ${settingRowClasses}`}>
                           <SettingText
                             id="agent-worktrees-label"
+                            icon={GitBranch}
                             label="Agent worktrees"
                             description="Each agent works in a git worktree of its own, shown in the Worktrees panel and cleaned up once merged. Turn off only if another tool manages your worktrees: agents then work in your checkout."
                             descriptionId="agent-worktrees-description"
@@ -1123,10 +1228,12 @@ export const Preferences = ({
             </TabPanel>
             <TabPanel value="appearance" className={panelClasses}>
               <Section title="Theme">
-                <div className={settingsCardClasses}>
+                <div className={settingsStackClasses}>
                   <Select
                     className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-52`}
                     label="Theme"
+                    icon={<SettingTile icon={Palette} />}
+                    labelClassName="settings-label"
                     items={themeItems}
                     // A saved theme the app doesn't have shows as the one drawn, Coolant,
                     // without being chosen, so picking Coolant saves it.
@@ -1150,6 +1257,7 @@ export const Preferences = ({
                   >
                     <SettingText
                       id="theme-scheme-label"
+                      icon={SunMoon}
                       label="Mode"
                       description={
                         onlyScheme
@@ -1288,10 +1396,12 @@ export const Preferences = ({
               </Section>
               {scalable && (
                 <Section title="Size">
-                  <div className={settingsCardClasses}>
+                  <div className={settingsStackClasses}>
                     <Select
                       className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
                       label="Scale"
+                      icon={<SettingTile icon={Scaling} />}
+                      labelClassName="settings-label"
                       description="Makes all of Novadeck bigger or smaller. Terminal text has its own size, on the Terminal page."
                       descriptionClassName={descriptionClasses}
                       items={scaleItems}
@@ -1310,15 +1420,15 @@ export const Preferences = ({
             </TabPanel>
             <TabPanel value="terminal" className={panelClasses}>
               <Section title="Text">
-                <div className={settingsCardClasses}>
-                  {/* What the rows under it change, as they change it. */}
-                  <TerminalSample
-                    family={terminalFamily}
-                    size={value.fontSize}
-                    ligatures={value.ligatures && terminalLigatures}
-                  />
+                {/* What the cards under it change, as they change it. */}
+                <TerminalSample
+                  family={terminalFamily}
+                  size={value.fontSize}
+                  ligatures={value.ligatures && terminalLigatures}
+                />
+                <div className={settingsStackClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
-                    <span id="font-size-label">Text size</span>
+                    <SettingText id="font-size-label" icon={ALargeSmall} label="Text size" />
                     <span className="flex shrink-0 items-center gap-3">
                       <input
                         type="range"
@@ -1341,6 +1451,8 @@ export const Preferences = ({
                   <Select
                     className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-52`}
                     label="Terminal font"
+                    icon={<SettingTile icon={Type} />}
+                    labelClassName="settings-label"
                     items={terminalFonts.items}
                     value={terminalFonts.value}
                     onValueChange={(choice) =>
@@ -1353,6 +1465,7 @@ export const Preferences = ({
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="ligatures-label"
+                      icon={Ligature}
                       label="Ligatures"
                       description={
                         terminalLigatures
@@ -1371,45 +1484,52 @@ export const Preferences = ({
                 </div>
               </Section>
               <Section title="Accessibility">
-                <div className={settingsCardClasses}>
+                <div className={settingsStackClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="screen-reader-label"
+                      icon={Accessibility}
                       label="Screen reader support"
                       description={screenReaderExplanation(screenReaderKnown)}
                       descriptionId="screen-reader-description"
                     />
-                    <Select
-                      className="shrink-0 [&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-36"
-                      label="Screen reader support"
-                      items={screenReaderChoices(screenReaderKnown)}
-                      // Where nothing can tell, Automatic keeps the text, as On does.
-                      value={
-                        value.screenReader === "auto" && !screenReaderKnown
-                          ? "on"
-                          : value.screenReader
-                      }
-                      onValueChange={(choice) =>
-                        onChange({
-                          ...value,
-                          screenReader:
-                            screenReaderPreferences.find((each) => each === choice) ??
-                            value.screenReader,
-                        })
-                      }
-                      open={open && shown === "terminal" && openSelect === "screen-reader"}
-                      onOpenChange={(expanded) => setOpenSelect(expanded ? "screen-reader" : null)}
-                      portalContainer={dialog}
-                    />
+                    {/* Three states where the app can tell when a screen reader runs; on or off
+                        where it can't, which keeps the text, as Automatic does there. */}
+                    {screenReaderKnown ? (
+                      <SegmentGroup
+                        label="Screen reader support"
+                        items={screenReaderChoices}
+                        value={value.screenReader}
+                        onValueChange={(choice) =>
+                          onChange({
+                            ...value,
+                            screenReader:
+                              screenReaderPreferences.find((each) => each === choice) ??
+                              value.screenReader,
+                          })
+                        }
+                        className="flex shrink-0 gap-1"
+                        itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-control"
+                        indicatorClassName="absolute"
+                      />
+                    ) : (
+                      <Switch
+                        checked={value.screenReader !== "off"}
+                        onChange={(on) => onChange({ ...value, screenReader: on ? "on" : "off" })}
+                        labelledBy="screen-reader-label"
+                        describedBy="screen-reader-description"
+                      />
+                    )}
                   </div>
                 </div>
               </Section>
               {transcripts && (
                 <Section title="After a restart">
-                  <div className={settingsCardClasses}>
+                  <div className={settingsStackClasses}>
                     <div className={`preference-row ${settingRowClasses}`}>
                       <SettingText
                         id="transcripts-label"
+                        icon={History}
                         label="Keep recent output"
                         description={
                           transcripts.available
@@ -1432,16 +1552,11 @@ export const Preferences = ({
             </TabPanel>
             <TabPanel value="notifications" className={panelClasses}>
               <Section title="Notify me">
-                <div className={settingsCardClasses}>
-                  <NoticePreview
-                    toast={askToast}
-                    needs={value.notifyNeeds}
-                    done={notices && value.notifyFinished}
-                    desktop={notices}
-                  />
+                <div className={settingsStackClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="notify-needs-label"
+                      icon={BellRing}
                       label="When an agent needs you"
                       description={
                         notices
@@ -1460,6 +1575,7 @@ export const Preferences = ({
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="notify-finished-label"
+                      icon={CircleCheck}
                       label="When an agent is done"
                       description={
                         notices
@@ -1484,6 +1600,7 @@ export const Preferences = ({
                     <div className={`preference-row ${settingRowClasses}`}>
                       <SettingText
                         id="sound-label"
+                        icon={Volume2}
                         label="Ring the bell"
                         description="When an agent needs you or is done. Quiet during Do Not Disturb, where the system tells Novadeck."
                         descriptionId="sound-description"
@@ -1618,7 +1735,7 @@ export const Preferences = ({
                 {(version || (experimental && showExperimentalSwitch)) && (
                   // The app itself: its version, and the builds it follows.
                   <Section title="Version and updates">
-                    <div className={settingsCardClasses}>
+                    <div className={settingsStackClasses}>
                       {version && (
                         <VersionRow
                           version={version}
@@ -1629,6 +1746,7 @@ export const Preferences = ({
                         <div className={`preference-row ${settingRowClasses}`}>
                           <SettingText
                             id="experimental-label"
+                            icon={FlaskConical}
                             label="Experimental builds"
                             description="Get each release as soon as it's out, before it's promoted to stable, and try features still being built on the Experimental page. Turning this off keeps the version you have until the next stable one."
                             descriptionId="experimental-description"
@@ -1647,15 +1765,17 @@ export const Preferences = ({
                 )}
                 {(logs || pageToggles("about").length > 0) && (
                   <Section title="Help">
-                    <div className={settingsCardClasses}>
+                    <div className={settingsStackClasses}>
                       <ExperimentalRows toggles={pageToggles("about")} bare />
                       {logs && (
-                        <AddonRow
-                          scope="about"
-                          id="logs"
-                          label="Logs"
-                          description="What Novadeck recorded of its recent runs, never what your terminals showed. Attach them to a bug report."
-                        >
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="about-logs"
+                            icon={ScrollText}
+                            label="Logs"
+                            description="What Novadeck recorded of its recent runs, never what your terminals showed. Attach them to a bug report."
+                            descriptionId="about-logs-description"
+                          />
                           <button
                             type="button"
                             className="button min-h-8 shrink-0 px-3 text-control"
@@ -1664,7 +1784,7 @@ export const Preferences = ({
                           >
                             Open logs folder
                           </button>
-                        </AddonRow>
+                        </div>
                       )}
                     </div>
                   </Section>

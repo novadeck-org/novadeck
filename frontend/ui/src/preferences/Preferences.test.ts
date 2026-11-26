@@ -140,7 +140,31 @@ describe("the Agents tab", () => {
     await show({ tab: "agents", hibernation: { minutes: null, onChange: () => {} } })
 
     expect(selected()).toBe("Agents")
-    expect(panel()?.textContent).toContain("Stop idle agents after")
+    expect(panel()?.textContent).toContain("Stop idle agents")
+  })
+
+  it("stops idle agents with a switch, its wait beside it only while on", async () => {
+    const changes: (number | null)[] = []
+    const idleSwitch = (): HTMLElement | null =>
+      document.querySelector('[role="switch"][aria-labelledby="idle-agents-label"]')
+    await show({
+      tab: "agents",
+      hibernation: { minutes: 30, onChange: (minutes) => changes.push(minutes) },
+    })
+    expect(idleSwitch()?.getAttribute("aria-checked")).toBe("true")
+    expect(panel()?.querySelector('[role="combobox"]')).not.toBeNull()
+    idleSwitch()?.click()
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({
+      tab: "agents",
+      hibernation: { minutes: null, onChange: (minutes) => changes.push(minutes) },
+    })
+    expect(idleSwitch()?.getAttribute("aria-checked")).toBe("false")
+    expect(panel()?.querySelector('[role="combobox"]')).toBeNull()
+    idleSwitch()?.click()
+    // Off, then on again with an hour, the wait it starts with.
+    expect(changes).toEqual([null, 60])
   })
 
   const worktreesSwitch = (): HTMLElement | null =>
@@ -750,6 +774,22 @@ describe("the Terminal page", () => {
     expect(panel()?.textContent).not.toContain("View modes")
   })
 
+  it("offers screen reader support as three choices where the app can tell, else a switch", async () => {
+    await show({ tab: "terminal", screenReaderKnown: true })
+    const choices = [...(panel()?.querySelectorAll('[role="radiogroup"] input') ?? [])]
+    expect(choices.map((choice) => choice.getAttribute("aria-label"))).toEqual([
+      "Automatic",
+      "On",
+      "Off",
+    ])
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({ tab: "terminal" })
+    expect(
+      panel()?.querySelector('[role="switch"][aria-labelledby="screen-reader-label"]'),
+    ).not.toBeNull()
+  })
+
   it("draws a sample of the terminal text in the size and font set", async () => {
     await show({ tab: "terminal", value: { ...readPreferences(), fontSize: 21 } })
 
@@ -776,18 +816,6 @@ describe("the Notifications page", () => {
     expect(panel()?.textContent).not.toContain("Keep recent output")
     expect(panel()?.textContent).not.toContain("Text size")
     expect(panel()?.textContent).not.toContain("View modes")
-  })
-
-  it("shows what each switch brings, dimmed while it is off", async () => {
-    await show({
-      tab: "notifications",
-      notices: true,
-      askToast: createElement("div", { className: "ask-toast" }),
-      value: { ...readPreferences(), notifyNeeds: true, notifyFinished: false },
-    })
-
-    const items = [...(panel()?.querySelectorAll(".settings-preview-item") ?? [])]
-    expect(items.map((item) => item.hasAttribute("data-off"))).toEqual([false, true])
   })
 
   it("holds no bell where the backend shows no desktop notifications", async () => {
@@ -924,15 +952,15 @@ describe("an agent that is not installed, in Preferences", () => {
 
 describe("a choice with words under it", () => {
   it("reads them with its select", async () => {
-    await show({ tab: "agents", hibernation: { minutes: 60, onChange: () => {} } })
+    await show({ tab: "appearance", scalable: true })
 
     const trigger = [...document.querySelectorAll('[role="combobox"]')].find((each) =>
       document
         .getElementById(each.getAttribute("aria-labelledby") ?? "")
-        ?.textContent?.includes("Stop idle agents after"),
+        ?.textContent?.includes("Scale"),
     )
     const described = document.getElementById(trigger?.getAttribute("aria-describedby") ?? "")
-    expect(described?.textContent).toContain("A message wakes it again")
+    expect(described?.textContent).toContain("Terminal text has its own size")
   })
 })
 

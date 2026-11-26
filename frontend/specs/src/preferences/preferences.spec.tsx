@@ -170,11 +170,13 @@ describe("Preferences", () => {
   })
 
   context("when choosing how long idle agents run", () => {
-    it("stops them after an hour by default, and keeps another choice, or never", async () => {
+    it("stops them after an hour by default, keeps another wait, and turns off and on again with it", async () => {
       await openWorkspace()
       await openPreferencesOn("Agents")
       const idle = () =>
         preferencesDialog().getByRole("combobox", { name: "Stop idle agents after" })
+      const stopping = () => preferencesDialog().getByRole("switch", { name: "Stop idle agents" })
+      await expect.element(stopping()).toHaveAttribute("aria-checked", "true")
       await expect.element(idle()).toHaveTextContent("1 hour")
       await idle().click()
       await preferencesDialog().getByRole("option", { name: "4 hours" }).click()
@@ -182,9 +184,11 @@ describe("Preferences", () => {
       await closePreferences()
       await openPreferencesOn("Agents")
       await expect.element(idle()).toHaveTextContent("4 hours")
-      await idle().click()
-      await preferencesDialog().getByRole("option", { name: "Off" }).click()
-      await expect.element(idle()).toHaveTextContent("Off")
+      await stopping().click()
+      await expect.element(stopping()).toHaveAttribute("aria-checked", "false")
+      await expect.element(idle()).not.toBeInTheDocument()
+      await stopping().click()
+      await expect.element(idle()).toHaveTextContent("4 hours")
     })
   })
 
@@ -219,8 +223,7 @@ describe("Preferences", () => {
   })
 
   context("when choosing screen reader support", () => {
-    const support = () =>
-      preferencesDialog().getByRole("combobox", { name: "Screen reader support" })
+    const support = () => preferencesDialog().getByRole("switch", { name: "Screen reader support" })
     // The text xterm keeps for a screen reader: its tree of rows and its live region.
     const liveRegion = () =>
       terminal("Checkout implementation").element().querySelector(".xterm-accessibility")
@@ -229,14 +232,14 @@ describe("Preferences", () => {
       await openWorkspace()
       await outputDrawn()
       await openTerminal()
-      // A browser can't tell whether a reader runs, so it offers no Automatic, and keeps the text.
-      await expect.element(support()).toHaveTextContent("On")
-      await support().click()
+      // A browser can't tell whether a reader runs, so it offers a switch, no Automatic, and keeps
+      // the text.
+      await expect.element(support()).toHaveAttribute("aria-checked", "true")
       await expect
-        .element(preferencesDialog().getByRole("option", { name: /^Automatic/ }))
+        .element(preferencesDialog().getByRole("radio", { name: "Automatic" }))
         .not.toBeInTheDocument()
-      await preferencesDialog().getByRole("option", { name: /^Off/ }).click()
-      await expect.element(support()).toHaveTextContent("Off")
+      await support().click()
+      await expect.element(support()).toHaveAttribute("aria-checked", "false")
       await closePreferences()
 
       await clickInto("Checkout implementation")
@@ -244,9 +247,8 @@ describe("Preferences", () => {
 
       await reloadWorkspace()
       await openTerminal()
-      await expect.element(support()).toHaveTextContent("Off")
+      await expect.element(support()).toHaveAttribute("aria-checked", "false")
       await support().click()
-      await preferencesDialog().getByRole("option", { name: /^On/ }).click()
       await closePreferences()
       await clickInto("Checkout implementation")
       await expect.poll(liveRegion).not.toBeNull()
@@ -262,8 +264,8 @@ describe("Preferences", () => {
       await outputDrawn()
       await openTerminal()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Screen reader support" }))
-        .toHaveTextContent("Automatic")
+        .element(preferencesDialog().getByRole("radio", { name: "Automatic" }))
+        .toBeChecked()
       await closePreferences()
       await clickInto("Checkout implementation")
       await expectStaysTrue(() => liveRegion() === null, "the terminal keeps no reader's text")
