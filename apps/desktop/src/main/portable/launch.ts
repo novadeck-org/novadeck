@@ -58,7 +58,7 @@ const alertPortableNotStarted = async (path: string): Promise<void> => {
   await dialog.showMessageBox({
     type: "error",
     message: "A newer Novadeck did not start.",
-    detail: `This copy is older than the one you last used, which may have upgraded your workspace, so it was not opened. Open the newer copy yourself. It is at ${path}.`,
+    detail: `This copy is older than the one you used last. That one may have upgraded your workspace, so this copy did not open. Open the newer copy yourself. It is at ${path}.`,
   })
 }
 

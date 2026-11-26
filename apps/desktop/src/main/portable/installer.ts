@@ -116,7 +116,8 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
     if (replaced?.unchecked) {
       host.log("The installed copy could not be checked.", replaced.image)
       return failure(
-        "The installed copy could not be checked, so it was left as it is. " + host.uncheckedAdvice,
+        "Novadeck couldn't check the installed copy, so it left that copy alone. " +
+          host.uncheckedAdvice,
       )
     }
     if (host.stopping()) return failure(quitting)
