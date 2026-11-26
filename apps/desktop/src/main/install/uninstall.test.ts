@@ -286,7 +286,7 @@ describe("uninstalling on Linux", () => {
     expect(await uninstaller(host).uninstall({ keepData: true })).toEqual({
       kind: "failed",
       reason:
-        "EACCES: permission denied. Novadeck has stopped your terminals; quit it and open it again.",
+        "EACCES: permission denied. Novadeck has stopped your terminals. Quit it and open it again.",
     })
     expect(calls).toEqual(["shutdown", `remove ${image}`])
   })
@@ -365,7 +365,7 @@ describe("uninstalling on macOS", () => {
     })
     expect(await uninstaller(host).uninstall({ keepData: false })).toEqual({
       kind: "failed",
-      reason: "EBUSY. Novadeck has stopped your terminals; quit it and open it again.",
+      reason: "EBUSY. Novadeck has stopped your terminals. Quit it and open it again.",
     })
   })
 })
@@ -397,7 +397,7 @@ describe("uninstalling on Windows", () => {
     const { host, calls } = windows({ startUninstaller: async () => false })
     expect(await uninstaller(host).uninstall({ keepData: false })).toMatchObject({
       kind: "failed",
-      reason: expect.stringContaining("quit it and open it again") as string,
+      reason: expect.stringContaining("Quit it and open it again") as string,
     })
     expect(calls).toEqual(["shutdown"])
   })
@@ -530,7 +530,7 @@ describe("a failure after the shutdown", () => {
     const failure = {
       kind: "failed",
       reason:
-        "EACCES: permission denied. Novadeck has stopped your terminals; quit it and open it again.",
+        "EACCES: permission denied. Novadeck has stopped your terminals. Quit it and open it again.",
     }
     expect(await one.uninstall({ keepData: true })).toEqual(failure)
     expect(await one.uninstall({ keepData: true })).toEqual(failure)

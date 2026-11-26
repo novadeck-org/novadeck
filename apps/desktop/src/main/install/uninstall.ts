@@ -220,7 +220,7 @@ const failed = (reason: string): UninstallResult => ({ kind: "failed", reason })
 const reasonOf = (error: unknown, general: string): string =>
   (error instanceof Error ? reasonText(error.message) : "") || general
 
-const stoppedAdvice = "Novadeck has stopped your terminals; quit it and open it again."
+const stoppedAdvice = "Novadeck has stopped your terminals. Quit it and open it again."
 
 const macTrashReason =
   "Novadeck could not be moved to the Trash. Allow it in System Settings > Privacy & Security > App Management, and try again."
