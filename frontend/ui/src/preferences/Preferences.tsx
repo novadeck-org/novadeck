@@ -838,7 +838,7 @@ export const Preferences = ({
       onPage: true,
       label: "Onboarding tour",
       description: tour
-        ? "A Help menu in the footer, with a short tour: three Pi agents at work in a sandbox repo. Novadeck pays for the model."
+        ? "Adds a Help menu to the footer, with a short tour: three Pi agents at work in a sandbox repo. Novadeck pays for the model."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
@@ -851,7 +851,7 @@ export const Preferences = ({
       onPage: false,
       label: "Agent modes",
       description: agentModes
-        ? "Lets you pick how agents work together, on the Agents page. Solo: one or two agents, steered by you. Herd: several, side by side. Swarm: one big goal, split across agents. While this is off, agents work as Herd."
+        ? "Adds a choice of how agents work together to the Agents page. Solo: one or two agents, steered by you. Herd: several, side by side. Swarm: one big goal, split across agents. While this is off, agents work as Herd."
         : "Not available here.",
       checked: agentModes?.enabled ?? false,
       onToggle: (enabled: boolean) => agentModes?.onChange(enabled),
@@ -864,7 +864,7 @@ export const Preferences = ({
       onPage: true,
       label: "Shipping gate",
       description: shippingGate
-        ? "Agents need your OK to push to a branch that isn't theirs, land into another branch, open a PR or merge. To give it, say so in their terminal, or press Allow on the card in the chat or the Inbox. Without it, they're stopped and told to ask. It covers Claude Code, Codex, Antigravity, OpenCode and Pi agents started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks you as it did without the gate."
+        ? "Agents need your OK to push to a branch that isn't theirs, land into another branch, open a PR or merge. To give it, say so in their terminal, or press Allow on the card in the chat or the Inbox. Without it, they're stopped and told to ask. It covers Claude Code, Codex, Antigravity, OpenCode and Pi agents started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks in its own permission dialog instead."
         : "Not available here.",
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),
@@ -893,7 +893,7 @@ export const Preferences = ({
       onPage: false,
       label: "Keep awake",
       description:
-        "Adds Keep awake while agents work to the Agents page. It keeps this computer from going to sleep on its own while an agent works.",
+        "Adds a Keep awake switch to the Agents page. It keeps this computer from going to sleep on its own while an agent works.",
       checked: value.keepAwakeOffered,
       onToggle: (keepAwakeOffered: boolean) => onChange({ ...value, keepAwakeOffered }),
       disabled: false,
@@ -906,7 +906,7 @@ export const Preferences = ({
       page: "addons",
       onPage: false,
       label: MURMUR_NAME,
-      description: `A small model on this computer's graphics names your terminals, over the agents' own titles. Adds ${MURMUR_NAME} to the Addons page, to install from there. Off: nothing named, nothing downloaded, and an install stays on disk.`,
+      description: `A small model on this computer's graphics names your terminals, in place of the agents' own titles. This adds ${MURMUR_NAME} to the Addons page, where you install it. Off: nothing is named or downloaded, and an install stays on disk.`,
       checked: murmurSwitch?.enabled ?? false,
       onToggle: (enabled: boolean) => murmurSwitch?.onChange(enabled),
       disabled: !murmurSwitch,

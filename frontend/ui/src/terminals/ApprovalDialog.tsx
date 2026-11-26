@@ -182,7 +182,7 @@ const CommandView = ({
 // The words under the title: none for a command, whose body says it.
 const descriptionOf = ({ action, target }: ApprovalView): string | null => {
   if (action.type === "newer")
-    return "Update Novadeck to answer it. Until then it waits, and nothing is answered from here."
+    return "Update Novadeck to answer it. Until then the agent waits, and Not now leaves it unanswered."
   if (action.type === "run") return null
   if (action.type === "take")
     return `It would own the worktree on branch “${clipped(action.branch, 60)}” from now on, and ${target ? short(target) : "its agent"} is told.`

@@ -64,7 +64,7 @@ export const closeDescription = (
   if (own.length > 0) return own.map((reason) => sentences(terminal)[reason]).join(" ")
   if (leads) return null
   return keepsHistory
-    ? "Nothing's running here. It's in History if you want it back."
+    ? "Nothing's running here. It goes to History, so you can bring it back."
     : sentences(terminal).program
 }
 
