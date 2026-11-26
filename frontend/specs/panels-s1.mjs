@@ -1,0 +1,10 @@
+import { start, act, openDebug, closeDebug, OUT, S } from "./panels-lib.mjs"
+const { b, p } = await start()
+await openDebug(p)
+await p.locator(".segment", { hasText: "plain" }).click()
+await p.waitForTimeout(3000)
+await closeDebug(p)
+await p.screenshot({ path: S + "plain.png" })
+console.log(await p.evaluate(() => [...document.querySelectorAll("button")].map(e => e.getAttribute("aria-label")||e.textContent.trim()).slice(0,30).join(" | ")))
+console.log(p.url())
+await b.close()

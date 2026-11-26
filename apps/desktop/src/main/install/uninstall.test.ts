@@ -339,7 +339,7 @@ describe("uninstalling on macOS", () => {
     const result = await one.uninstall({ keepData: false })
     expect(result).toMatchObject({ kind: "failed" })
     expect((result as { reason: string }).reason).toContain("App Management")
-    expect((result as { reason: string }).reason).not.toContain("quit it")
+    expect((result as { reason: string }).reason).not.toContain("Quit it")
     expect(calls).toEqual([])
     refuse = false
     expect(await one.uninstall({ keepData: false })).toEqual({ kind: "removed" })

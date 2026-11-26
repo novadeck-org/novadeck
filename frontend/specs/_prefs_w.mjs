@@ -1,0 +1,12 @@
+import { start, debug, shotBox, SHOTS } from "./_prefs_lib.mjs"
+const { b, p } = await start()
+await debug(p, "Welcome dialog")
+await p.waitForTimeout(2500)
+const d = p.getByRole("dialog").first()
+console.log((await d.innerText()).replace(/\n+/g, " / "))
+await d.screenshot({ path: SHOTS + "/w-full-1.png" })
+await p.waitForTimeout(8000)
+await d.screenshot({ path: SHOTS + "/w-full-2.png" })
+await p.waitForTimeout(3000)
+await d.screenshot({ path: SHOTS + "/w-full-3.png" })
+await b.close()

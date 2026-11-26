@@ -145,7 +145,7 @@ export const uninstallGroup = (launch: DemoLaunch): DemoActionGroup => {
       },
       {
         label: "Fails after terminals ended",
-        hint: "Reason ends in quit it and open it again; every retry fails the same",
+        hint: "Reason ends in Quit it and open it again; every retry fails the same",
         reboots: true,
         run: boot("stopped"),
       },
