@@ -11,7 +11,7 @@ import { reuse } from "./entries"
 
 // Why an answer didn't take, as the person reads it.
 export const answerFailure = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : "That didn't take. Try again."
+  error instanceof Error && error.message ? error.message : "That didn't go through. Try again."
 
 // The terminal an entry is about, by its full address.
 export const keyOf = ({ source }: InboxEntry): TerminalKey => ({

@@ -252,7 +252,7 @@ export const useFileShown = (file: TreeFile, loaded: FileDiffState): FileShown =
         : loaded.state === "failed"
           ? "Can't read this file's changes."
           : loaded.state === "ready" && run?.badName
-            ? "This file's name isn't valid text, so its changes can't be asked of git."
+            ? "This file's name isn't valid text, so Novadeck can't ask git for its changes."
             : loaded.state === "ready" && run?.big
               ? "This change is too large to show here."
               : loaded.state === "ready" && !run
