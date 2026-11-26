@@ -1,6 +1,8 @@
 import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 
+import { ownService } from "./model.js"
+
 /**
  * Nova, Novadeck's own pi, which its launcher starts: the pinned pi (`pin.ts`) that Novadeck
  * downloads into its own data folder (the runner's harnesses/bundled-pi.ts), apart from the
@@ -56,16 +58,27 @@ const quoted = (path: string): string => `'${path.replaceAll("'", `'\\''`)}'`
 
 /**
  * The launcher for Linux and macOS: asks the runner for the program each time
- * (`novadeck-relay fetch pi`), which refuses while Novadeck's pi is switched off in Preferences >
+ * (`novadeck-relay fetch pi`), which refuses while Nova is switched off in Preferences >
  * Experimental, answers at once when it is in place, and otherwise fetches it, the relay showing
- * the progress. Then it starts it with Novadeck's extension and its own agent folder, with pi's
- * check for a newer version off, as Novadeck pins the version. Not on PATH: Novadeck types its path.
+ * the progress. The relay prints the variables of Novadeck's model service the runner gives a
+ * Nova started by hand (a ticket of its own; a tour's terminal has its run's already), one
+ * `NAME=value` a line, and only the service's two are taken (`ownService`). Then it starts the
+ * program with Novadeck's extension and its own agent folder, with pi's check for a newer version
+ * off, as Novadeck pins the version. Novadeck types its path, and it is `nova` on the PATH of
+ * Novadeck's terminals (`novaCommand`).
  */
 export const posixLauncher = (pi: BundledPi): string => `#!/bin/sh
 ${header("#", "launcher for its own pi")}
 # Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
 novadeck_program=${quoted(pi.program)}
-${quoted(pi.relay)} fetch pi || exit 1
+novadeck_service=$(${quoted(pi.relay)} fetch pi) || exit 1
+while IFS= read -r novadeck_line; do
+  case "$novadeck_line" in
+    ${ownService.baseUrl}=*|${ownService.key}=*) export "$novadeck_line" ;;
+  esac
+done <<novadeck_end
+$novadeck_service
+novadeck_end
 PI_CODING_AGENT_DIR=${quoted(pi.home)}
 PI_SKIP_VERSION_CHECK=1
 ${bundledMark}=bundled
@@ -96,7 +109,12 @@ ${header("rem", "launcher for its own pi")}
 rem Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
 setlocal
 set "novadeck_program=${cmdPath(pi.program)}"
-call "${cmdPath(pi.relay, true)}" fetch pi || exit /b 1
+set "novadeck_service=%TEMP%\\novadeck-nova-%RANDOM%%RANDOM%.env"
+call "${cmdPath(pi.relay, true)}" fetch pi >"%novadeck_service%"
+if errorlevel 1 goto failed
+for /f "usebackq tokens=1* delims==" %%a in ("%novadeck_service%") do call :service "%%a" "%%b"
+del "%novadeck_service%" 2>nul
+set "novadeck_service="
 set "PI_CODING_AGENT_DIR=${cmdPath(pi.home)}"
 set "PI_SKIP_VERSION_CHECK=1"
 set "${bundledMark}=bundled"
@@ -113,7 +131,34 @@ exit /b %ERRORLEVEL%
 :plain
 "%novadeck_program%" %novadeck_tools% %*
 exit /b %ERRORLEVEL%
+:failed
+del "%novadeck_service%" 2>nul
+exit /b 1
+rem Takes the model service's two variables alone of what the runner gave.
+:service
+if "%~1"=="${ownService.baseUrl}" set "${ownService.baseUrl}=%~2"
+if "%~1"=="${ownService.key}" set "${ownService.key}=%~2"
+exit /b 0
 `
+
+/** The command Nova is on the PATH of Novadeck's terminals: its launcher, in the shims' folder. */
+export const novaCommand = "nova"
+
+/**
+ * The launcher's files for `platform`: under the shell folder's `bundled` folder (`bundledLauncher`,
+ * which Novadeck types the path of), and as `novaCommand` in the shims' folder (`novaShim`).
+ */
+export const novaShim = (
+  platform: NodeJS.Platform,
+  pi: BundledPi,
+): { readonly path: string; readonly content: string; readonly mode?: number } => {
+  const { content, mode } = bundledLauncher(platform, pi)
+  return {
+    path: platform === "win32" ? `${novaCommand}.cmd` : novaCommand,
+    content,
+    ...(mode !== undefined && { mode }),
+  }
+}
 
 /** The launcher's file for `platform`, under the shell folder's `bundled` folder. */
 export const bundledLauncher = (

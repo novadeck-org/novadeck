@@ -29,7 +29,7 @@ describe("Novadeck's launchers in a shell", () => {
     }
   })
 
-  it("puts the shims first only with harnesses that use them, and names those harnesses", () => {
+  it("puts the shims first with harnesses that use them, or for Nova, and names those harnesses", () => {
     const posix: InstalledShell = {
       ...shellPaths("/data", "linux"),
       launcher: "/data/hook",
@@ -42,10 +42,15 @@ describe("Novadeck's launchers in a shell", () => {
       NOVADECK_BIN: posix.bin,
       NOVADECK_SHIMS: "codex",
     })
-    const without = shellLaunch("bash", posix, { PATH: "/usr/bin" }).env
-    expect(without.PATH).toBe("/usr/bin")
-    expect(without).not.toHaveProperty("NOVADECK_BIN")
+    // With none, the folder still goes first where Nova has a build, as its `nova` is there:
+    // every shim in it runs its program unchanged, as NOVADECK_SHIMS names none.
+    const without = shellLaunch("bash", posix, { PATH: "/usr/bin" }, {}, "linux").env
+    expect(without.PATH).toBe(`${posix.bin}${delimiter}/usr/bin`)
     expect(without).not.toHaveProperty("NOVADECK_SHIMS")
+    // Where it has none, nothing is put first.
+    const bare = shellLaunch("bash", posix, { PATH: "/usr/bin" }, {}, "freebsd").env
+    expect(bare.PATH).toBe("/usr/bin")
+    expect(bare).not.toHaveProperty("NOVADECK_BIN")
   })
 
   it("has a Windows cmd's startup command wait for its job through the relay", () => {
@@ -69,12 +74,13 @@ describe("Novadeck's launchers in a shell", () => {
     writeFileSync(join(real, "xdg-open"), "#!/bin/sh\n", { mode: 0o755 })
     const scoped = shellLaunch("bash", posix, { PATH: real }, { scoped: true }, "linux").env
     expect(scoped).toMatchObject({
-      PATH: `${posix.open}${delimiter}${real}`,
+      // Behind the shims' folder, first for Nova's `nova`, which holds no `xdg-open`.
+      PATH: `${posix.bin}${delimiter}${posix.open}${delimiter}${real}`,
       NOVADECK_OPEN: posix.open,
       BROWSER: join(posix.open, "xdg-open"),
     })
-    // Not the harnesses' shims, which go first only while one that has them is connected.
-    expect(scoped).not.toHaveProperty("NOVADECK_BIN")
+    // None of the harnesses' shims applies, as none that has them is connected.
+    expect(scoped).not.toHaveProperty("NOVADECK_SHIMS")
     // The person's own browser stands, and none is named where no xdg-open is there.
     expect(
       shellLaunch("bash", posix, { PATH: real, BROWSER: "firefox" }, { scoped: true }, "linux").env
@@ -90,7 +96,8 @@ describe("Novadeck's launchers in a shell", () => {
     const unscoped = shellLaunch("bash", posix, { PATH: "/usr/bin" }, { scoped: false }).env
     expect(unscoped).not.toHaveProperty("NOVADECK_OPEN")
     expect(unscoped).not.toHaveProperty("BROWSER")
-    expect(unscoped.PATH).toBe("/usr/bin")
+    // Only the shims' folder goes first, for Nova's `nova`: no folder of opening shims.
+    expect(unscoped.PATH).toBe(`${posix.bin}${delimiter}/usr/bin`)
   })
 
   it("leaves out the MCP server's on Windows, whose plugins start the relay itself", () => {

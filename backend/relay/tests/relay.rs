@@ -577,6 +577,22 @@ fn fetches_through_the_runner_showing_its_progress() {
 
 #[cfg(unix)]
 #[test]
+fn prints_the_variables_the_runner_gives_its_agent_and_only_plain_ones() {
+    let (stdout, _, ok, _) = fetched(
+        "fetch-env",
+        &[
+            r#"{"ready":true,"env":{"NOVADECK_PI_BASE_URL":"https://novadeck.dev/tour/v1","NOVADECK_PI_KEY":"ndt_a-B_1","EVIL":"x; rm -rf ~"}}"#,
+        ],
+    );
+    assert!(ok);
+    assert_eq!(
+        stdout,
+        "NOVADECK_PI_BASE_URL=https://novadeck.dev/tour/v1\nNOVADECK_PI_KEY=ndt_a-B_1\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn fails_with_the_runners_reason_or_its_own() {
     let (_, stderr, ok, _) = fetched(
         "fetch-failed",

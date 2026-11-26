@@ -3,6 +3,7 @@ import { readdirSync, unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
+import { noFreeModel, NovaTickets } from "@novadeck/harness-nova/ticket"
 import { compatibility, errors, forgeName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
@@ -479,6 +480,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const shippingTerminals = (): Terminals => terminals
   // Novadeck's own pi (Experimental), fetched into the data folder beside the shell files: its
   // launcher asks for it, and its switch, read live, starts its fetch, here as the runner starts.
+  // The ticket Novas started by hand share (`NovaTickets`), for the runner's life.
+  const novaTickets = new NovaTickets()
   // Only with the shell files, which hold its launcher.
   const bundledPi =
     options.shell === undefined
@@ -488,6 +491,15 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           enabled: () => store.settings.runner().bundledPi === true,
           // The tour's terminals start it whatever its switch says: the person asked for the tour.
           allows: (terminalId) => tour.paysFor(terminalId),
+          // A Nova started by hand runs on Novadeck's model with a ticket of its own, which the
+          // runner's Novas share; the tour's terminals have their run's already.
+          service: async (terminalId, progress) => {
+            if (tour.isTours(terminalId)) return undefined
+            const given = await novaTickets.service()
+            if (given.ok) return given.env
+            progress(`${noFreeModel} ${given.reason}`)
+            return undefined
+          },
         })
   bundledPi?.switched()
   const terminals = new Terminals({

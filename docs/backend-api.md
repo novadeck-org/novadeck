@@ -1244,7 +1244,18 @@ Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner ref
 `Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started; but
 for a terminal in a folder of the tour's whose run it remembers, with its project open
 (`Tour.paysFor`): the person asked for the tour, and the tour's sessions resume there after a
-restart or once the project is kept.
+restart or once the project is kept. Once it is in place the runner says so with the variables
+its Nova is given, `{"ready": true, "env": {...}}`: for a terminal outside the tour's folder, the
+model service's (`NOVADECK_PI_BASE_URL`, `NOVADECK_PI_KEY`), with a ticket the runner's Novas share
+until it nears its end (harnesses/nova's `NovaTickets`); none for the tour's, whose shells have
+their run's. Where the service refuses, a progress line says why and Nova starts without it. The
+relay prints them on stdout, one `NAME=value` a line, a value of plain characters alone, and the
+launcher takes those two names alone. The fetch also starts a new session in Nova's agent folder
+on Novadeck's model where its `settings.json` names no model of its own (`seededSettings`).
+
+The same launcher is `nova` (`nova.cmd` on Windows) in the shims' folder, which goes first on
+PATH in Novadeck's terminals wherever Nova has a build for the system, so a person starts it by
+that name; it hides any other `nova` there (Panic's Nova, OpenStack's client), never outside.
 
 Commands start it by the word `novadeck-pi` (harnesses/nova's `novaProgram`), which the runner turns
 into the launcher's path as the shell starts the command (`novaStartup`). A pi session whose

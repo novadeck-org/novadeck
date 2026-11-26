@@ -4,7 +4,7 @@ import { launchHooks } from "@novadeck/harness-agy/plugin"
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 import { manifest } from "@novadeck/harness-core/plugin"
-import { bundledLauncher } from "@novadeck/harness-nova/launcher"
+import { bundledLauncher, novaShim } from "@novadeck/harness-nova/launcher"
 import { buildFor, bundledPiHome, bundledPiProgram } from "@novadeck/harness-nova/pin"
 import { extensionFile } from "@novadeck/harness-pi/plugin"
 import type { AgentName } from "@novadeck/protocol"
@@ -337,22 +337,21 @@ export const shellFiles = (
   )
   // Novadeck's own pi's launcher, where pi publishes a build for this system.
   const build = buildFor(platform, process.arch)
-  const launcher =
-    build &&
-    bundledLauncher(platform, {
-      program: bundledPiProgram(paths.bundledPi.data, build),
-      home: bundledPiHome(paths.bundledPi.data),
-      relay: paths.relay,
-      extension: join(paths.plugins.pi, extensionFile),
-    })
-  const bundled = launcher
+  const nova = build && {
+    program: bundledPiProgram(paths.bundledPi.data, build),
+    home: bundledPiHome(paths.bundledPi.data),
+    relay: paths.relay,
+    extension: join(paths.plugins.pi, extensionFile),
+  }
+  // Its launcher, which Novadeck types the path of, and the same as `nova` in the shims' folder,
+  // first on PATH in Novadeck's terminals, so a person starts it by its name.
+  const bundled = nova
     ? [
-        file(
-          paths.bundledPi.launcher,
-          launcher.path.endsWith(".cmd") ? crlf(launcher.content) : launcher.content,
-          launcher.mode,
-        ),
-      ]
+        [paths.bundledPi.launcher, bundledLauncher(platform, nova)] as const,
+        [join(paths.bin, novaShim(platform, nova).path), novaShim(platform, nova)] as const,
+      ].map(([path, each]) =>
+        file(path, each.path.endsWith(".cmd") ? crlf(each.content) : each.content, each.mode),
+      )
     : []
   const bin = shims.map((each) =>
     file(

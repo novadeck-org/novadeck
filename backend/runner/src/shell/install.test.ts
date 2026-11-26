@@ -160,6 +160,18 @@ describe("Novadeck's own pi's launcher", () => {
     expect(launcher?.content).toContain(`-e '${join(paths.plugins.pi, "novadeck.mjs")}'`)
   })
 
+  it("is nova in the shims' folder too, the same launcher, CRLF on Windows", () => {
+    const paths = shellPaths(join("/data", "shell"), "linux")
+    const files = shellFiles(paths, "linux")
+    const launcher = files.find((file) => file.path === paths.bundledPi.launcher)
+    const nova = files.find((file) => file.path === join(paths.bin, "nova"))
+    expect(nova).toEqual({ ...launcher, path: join(paths.bin, "nova") })
+    const windows = shellPaths("C:\\data\\shell", "win32")
+    const cmd = shellFiles(windows, "win32").find((file) => file.path.endsWith("nova.cmd"))
+    expect(cmd?.content).toContain("\r\n")
+    expect(cmd?.content).not.toMatch(/(?<!\r)\n/)
+  })
+
   it("is a cmd file with CRLF line endings on Windows", () => {
     const paths = shellPaths("C:\\data\\shell", "win32")
     const launcher = shellFiles(paths, "win32").find(

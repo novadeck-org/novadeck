@@ -693,6 +693,16 @@ describe("relay fetches", () => {
     expect(asked).toEqual(["pi"])
   })
 
+  it("gives the agent's variables with its ready, where the fetch gives any", async ({
+    resources,
+  }) => {
+    const env = { NOVADECK_PI_BASE_URL: "https://novadeck.dev/tour/v1", NOVADECK_PI_KEY: "T1" }
+    const reports = await listenForReports(handlers({ fetch: () => Promise.resolve(env) }))
+    resources.defer(() => reports.close())
+
+    expect(await relay(reports.endpoint, [fetchLine()])).toEqual([{ ready: true, env }])
+  })
+
   it("waits past the read limit for a fetch that takes long", async ({ resources }) => {
     const reports = await listenForReports(
       handlers({ fetch: () => new Promise((resolve) => setTimeout(resolve, 150)) }),
