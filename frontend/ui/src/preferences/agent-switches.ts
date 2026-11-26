@@ -46,9 +46,9 @@ const limitNotes: Readonly<Record<Limit, string>> = {
   "own-status-line":
     "It runs your own status line, which keeps Novadeck's out on Windows. Messages can't wake it until you've sent it a prompt. Remove your status line from its settings to fix this.",
   outdated:
-    "Too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it to turn them on.",
+    "This version is too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it to turn them on.",
   unsupported:
-    "Newer than Novadeck knows. It runs, but without resumed sessions, messages or the chat. Install the release Novadeck works with to turn them on.",
+    "This version is newer than Novadeck knows. It runs, but without resumed sessions, messages or the chat. Install the release Novadeck works with to turn them on.",
 }
 
 // The words of one agent for a reason, where the agent's own command or versions say more: they
@@ -56,13 +56,13 @@ const limitNotes: Readonly<Record<Limit, string>> = {
 const agentLimitNotes: Readonly<Partial<Record<AgentName, Partial<Record<Limit, string>>>>> = {
   opencode: {
     outdated:
-      "Too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it (opencode upgrade) to turn them on.",
+      "This version is too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it (opencode upgrade) to turn them on.",
     unsupported:
       "Novadeck works with OpenCode 1 so far. OpenCode 2 runs, but without resumed sessions, messages or the chat. Install OpenCode 1 (1.18 or later) to turn them on.",
   },
   pi: {
     outdated:
-      "Too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it (pi update) to turn them on.",
+      "This version is too old for Novadeck. It runs, but without resumed sessions, messages or the chat. Update it (pi update) to turn them on.",
     unsupported:
       "Novadeck works with Pi 1 so far. Pi 2 runs, but without resumed sessions, messages or the chat. Install Pi 1 (1.0 or later) to turn them on.",
   },
@@ -75,4 +75,4 @@ export const agentLimit = ({ agent, connected, busy, limited }: AgentSwitch): st
 
 // What connecting means, shown above the switches.
 export const agentsExplanation =
-  "A connected agent resumes its sessions after a restart, wakes for messages, and shows in the chat. Connecting adds a small plugin. Switch it off and the plugin goes."
+  "A connected agent resumes its sessions after a restart, wakes for messages, and shows in the chat. Connecting adds a small plugin. Turn an agent off and its plugin is removed."

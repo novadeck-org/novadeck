@@ -41,14 +41,12 @@ const CopyFix = ({ fix }: { readonly fix: string }): React.JSX.Element => {
       </button>
       <span aria-live="polite" aria-atomic className="sr-only">
         {copy === "failed"
-          ? "Couldn't copy. Select the command and copy it yourself."
+          ? "Copy failed. Select the command and copy it yourself."
           : copy === "copied"
             ? "Copied"
             : ""}
       </span>
-      {copy === "failed" && (
-        <span className="sandbox-text">Couldn't copy. Select it and copy it yourself.</span>
-      )}
+      {copy === "failed" && <span className="sandbox-text">Select it and copy it yourself.</span>}
     </>
   )
 }

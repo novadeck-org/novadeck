@@ -107,7 +107,7 @@ const agentCards: readonly AgentCard[] = [
     harness: "Claude Code",
     prompt: "Let’s build this.",
     replies: ["Starting with the big picture."],
-    steps: ["Read the project", "Picked where to start"],
+    steps: ["Looked through the project", "Picked where to start"],
     at: 1300,
   },
   {
@@ -117,7 +117,7 @@ const agentCards: readonly AgentCard[] = [
     title: "Reviewer",
     harness: "Codex",
     prompt: "Review the changes",
-    replies: ["Reading them now.", "Two things look off."],
+    replies: ["Reading them now.", "Two things seem wrong."],
     steps: [],
     at: 1450,
   },
