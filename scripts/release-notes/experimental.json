@@ -12,13 +12,11 @@
     },
     "shipping-gate": { "scopes": ["shipping"], "paths": ["backend/runner/src/shipping/"] },
     "bundled-pi": {
-      "scopes": ["bundled-pi"],
+      "scopes": ["bundled-pi", "nova"],
       "paths": [
         "backend/runner/src/harnesses/bundled-pi.ts",
+        "harnesses/nova/",
         "backend/relay/src/fetch.rs",
-        "harnesses/pi/src/bundled.ts",
-        "harnesses/pi/src/own-model.ts",
-        "backend/runner/src/harnesses/own-pi.ts",
         "frontend/ui/src/preferences/bundled-pi.ts"
       ]
     },

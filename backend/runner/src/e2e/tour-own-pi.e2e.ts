@@ -2,9 +2,9 @@ import { existsSync } from "node:fs"
 import { readdir } from "node:fs/promises"
 import { delimiter, join } from "node:path"
 
+import { bundledPiHome } from "@novadeck/harness-nova/pin"
 import { afterAll, beforeAll } from "vitest"
 
-import { bundledPiHome } from "../harnesses/bundled-pi.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { ownPi } from "./agents/own-pi.js"
 import type { DeckTerminal } from "./deck.js"

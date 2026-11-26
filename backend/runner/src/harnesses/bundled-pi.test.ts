@@ -4,6 +4,14 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 
+import {
+  buildFolder,
+  bundledPiFolder,
+  bundledPiHome,
+  bundledPiProgram,
+  ownPiSession,
+  type PinnedPi,
+} from "@novadeck/harness-nova/pin"
 import { http, HttpResponse } from "msw"
 import { setupServer } from "msw/node"
 import { afterAll, afterEach, beforeAll } from "vitest"
@@ -11,21 +19,7 @@ import { afterAll, afterEach, beforeAll } from "vitest"
 import { describe, expect, it } from "../test.js"
 import { folder, sha256 } from "../testing/engines.js"
 import type { Resources } from "../testing/resources.js"
-import {
-  BundledPi,
-  buildFolder,
-  buildFor,
-  bundledPiFolder,
-  bundledPiHome,
-  bundledPiProgram,
-  fetchBundledPi,
-  ownPiSession,
-  pinnedPi,
-  progressLine,
-  type PinnedPi,
-  turnOnLine,
-} from "./bundled-pi.js"
-import { ownPiStartup } from "./own-pi.js"
+import { BundledPi, fetchBundledPi, progressLine, turnOnLine } from "./bundled-pi.js"
 
 const licenceText = "MIT License\n\nCopyright (c) pi's authors\n"
 
@@ -70,30 +64,7 @@ const fakeRelease = async (
 
 const linux = { platform: "linux", arch: "x64", enabled: true } as const
 
-describe("the pinned pi", () => {
-  it("names a build, with its checksum, for every system Novadeck ships for", () => {
-    for (const system of ["linux-x64", "darwin-x64", "darwin-arm64", "win32-x64"]) {
-      const [platform = "", arch = ""] = system.split("-")
-      const build = buildFor(platform as NodeJS.Platform, arch)
-      expect(build?.sha256).toMatch(/^[0-9a-f]{64}$/)
-      expect(build?.file).toMatch(/^pi-(linux|darwin|windows)-(x64|arm64)\.(tar\.gz|zip)$/)
-    }
-    expect(buildFor("win32", "x64")?.program).toBe("pi.exe")
-    expect(buildFor("darwin", "arm64")?.program).toBe("pi/pi")
-    expect(buildFor("freebsd", "x64")).toBeUndefined()
-    expect(pinnedPi.source).toContain(`/v${pinnedPi.version}/`)
-  })
-
-  it("lives in Novadeck's data folder, its agent folder apart from its builds", () => {
-    const build = buildFor("linux", "x64")
-    if (!build) throw new Error("no Linux build")
-    expect(bundledPiFolder("/data")).toBe(join("/data", "bundled", "pi"))
-    expect(bundledPiHome("/data")).toBe(join("/data", "bundled", "pi", "agent"))
-    expect(bundledPiProgram("/data", build)).toBe(
-      join("/data", "bundled", "pi", `1.6.0-${build.sha256.slice(0, 12)}`, "pi", "pi"),
-    )
-  })
-
+describe("the pinned pi's download", () => {
   it("says a download's progress in megabytes and whole percent", () => {
     expect(progressLine("1.6.0", 12_345_678, 58_977_130)).toBe(
       "Downloading Pi 1.6.0: 12.3 of 59.0 MB (20%)",
@@ -395,22 +366,6 @@ describe("Novadeck's pi behind its Experimental switch", () => {
       expect(ownPiSession(own, data, "linux")).toBe(true)
     },
   )
-})
-
-describe("starting Novadeck's own pi by its word", () => {
-  it("runs its launcher in the form each shell runs a quoted path", () => {
-    const launcher = "/Users/a b/Library/Application Support/novadeck/shell/bundled/pi"
-    expect(ownPiStartup("novadeck-pi --model x", "/bin/zsh", launcher)).toBe(
-      `'${launcher}' --model x`,
-    )
-    expect(ownPiStartup("novadeck-pi", "/bin/bash", launcher)).toBe(`'${launcher}'`)
-    expect(ownPiStartup("novadeck-pi --thinking medium", "pwsh.exe", "C:\\a b\\pi.cmd")).toBe(
-      "& 'C:\\a b\\pi.cmd' --thinking medium",
-    )
-    // Any other command is its own.
-    expect(ownPiStartup("pi --model x", "/bin/bash", launcher)).toBe("pi --model x")
-    expect(ownPiStartup("novadeck-pie", "/bin/bash", launcher)).toBe("novadeck-pie")
-  })
 })
 
 describe("fetching Novadeck's pi over the network", () => {

@@ -2,9 +2,9 @@ import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 
 /**
- * Novadeck's own pi (backend/runner's harnesses/bundled-pi.ts), which its launcher starts: a pinned pi
- * that Novadeck downloads into its own data folder, apart from the person's pi on PATH, which
- * the shim starts and these files leave as it is.
+ * Nova, Novadeck's own pi, which its launcher starts: the pinned pi (`pin.ts`) that Novadeck
+ * downloads into its own data folder (the runner's harnesses/bundled-pi.ts), apart from the
+ * person's pi on PATH, which pi's shim starts and these files leave as it is.
  */
 export type BundledPi = {
   /** Its program, once in place. */
@@ -18,12 +18,13 @@ export type BundledPi = {
 }
 
 /**
- * The word a command line starts Novadeck's own pi with, in place of its launcher's path: the
- * runner stores and compares commands with it, and turns it into the launcher's path, in the
- * form the terminal's shell runs (`programWord`), as the shell starts the command. It is on no
- * PATH, so a person who types it runs nothing; agent `pi` is its agent.
+ * The word a command line starts Nova with, in place of its launcher's path: the runner stores
+ * and compares commands with it, and turns it into the launcher's path, in the form the
+ * terminal's shell runs (`programWord`, `novaStartup`), as the shell starts the command. It is
+ * Novadeck's own and on no PATH, so no program a person runs (another `nova`, say) is ever
+ * taken for it; agent `pi` is its agent.
  */
-export const ownProgram = "novadeck-pi"
+export const novaProgram = "novadeck-pi"
 
 /**
  * Says to Novadeck's extension that it runs in Novadeck's own pi: what it writes for the

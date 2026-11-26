@@ -12,7 +12,7 @@ import {
   posixLauncher,
   powershellTools,
   type BundledPi,
-} from "./bundled.js"
+} from "./launcher.js"
 
 const run = promisify(execFile)
 

@@ -1237,7 +1237,7 @@ the relay, the hook launcher prints what `relay.json` would, as it is written fr
 same tables.
 
 **Fetch**, run by the launcher of Novadeck's own pi (`shell/bundled/pi`, from
-harnesses/pi's `bundled.ts`) as `novadeck-relay fetch pi` before each start: the runner answers
+harnesses/nova's `launcher.ts`) as `novadeck-relay fetch pi` before each start: the runner answers
 at once where the program is in place, and otherwise downloads the pinned build for its system
 (`harnesses/bundled-pi.ts`), the relay showing its progress in the terminal. While Novadeck
 Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner refuses with
@@ -1246,8 +1246,8 @@ for a terminal in a folder of the tour's whose run it remembers, with its projec
 (`Tour.paysFor`): the person asked for the tour, and the tour's sessions resume there after a
 restart or once the project is kept.
 
-Commands start it by the word `novadeck-pi` (harnesses/pi's `ownProgram`), which the runner turns
-into the launcher's path as the shell starts the command (`ownPiStartup`). A pi session whose
+Commands start it by the word `novadeck-pi` (harnesses/nova's `novaProgram`), which the runner turns
+into the launcher's path as the shell starts the command (`novaStartup`). A pi session whose
 transcript lies in Novadeck's pi's own agent folder (`ownPiSession`) is Novadeck's pi's: its
 resume, a sleeper's wake and a History restore start `novadeck-pi --session <file>`
 (`Claims.own`), needing no connection of the person's pi; a sleeper of it is never stuck on
@@ -2574,7 +2574,7 @@ one from an earlier runner.
   `command` starts Novadeck's own pi there (`novadeck-pi --model novadeck/gpt-6-luna --thinking
   medium`; pi asks no permission for an edit, so no write flag), with no prompt on it, and nothing
   written to pi's settings. `novadeck-pi` is the word Novadeck stores and compares the command
-  by (`ownProgram`; `expectedAgent` reads it as `pi`): as the terminal's shell starts it, the
+  by (`novaProgram`; `expectedAgent` reads it as `pi`): as the terminal's shell starts it, the
   runner puts the launcher's path there in the form that shell runs a quoted path (`ownPiStartup`,
   `programWord`: `& '…'` in PowerShell), so the stored line holds no path of the computer's, and a
   person typing the word runs nothing. Its model service is not on the line: before
@@ -2593,7 +2593,7 @@ one from an earlier runner.
   project gets none of it (the Terminals option `launchEnv`, `Tour.launchEnv`). What they get is
   `NOVADECK_PI_BASE_URL` (the endpoint) and `NOVADECK_PI_KEY` (the ticket), from which Novadeck's
   extension, in Novadeck's own pi alone, registers the `novadeck` provider and its one model,
-  `gpt-6-luna` (`harnesses/pi/src/own-model.ts`: OpenAI's Chat Completions, OpenRouter's
+  `gpt-6-luna` (`harnesses/nova/src/model.ts`: OpenAI's Chat Completions, OpenRouter's
   reasoning field, `max_completion_tokens`, its context held under the 272k past which it costs
   double), and takes both out of pi's environment before anything runs, so no command of the
   agent's (its bash or powershell tool) and no pi started from one sees the key. Without them
@@ -2602,7 +2602,7 @@ one from an earlier runner.
   own keys, as pi does with a session's model it can't find. Nothing is written to pi's settings
   or models. pi then calls `POST <endpoint>/chat/completions` with
   `Authorization: Bearer <ticket>`, streaming with its usage, and the effort as
-  `reasoning.effort` (probed in `own-model.ts`, against the live service too). `brief` is always
+  `reasoning.effort` (probed in `model.ts`, against the live service too). `brief` is always
   `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself

@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { samePath } from "@novadeck/harness-core/paths"
-import { ownModel } from "@novadeck/harness-pi/own-model"
+import { ownModel } from "@novadeck/harness-nova/model"
 import type { AgentName, Approval } from "@novadeck/protocol"
 import {
   branches,

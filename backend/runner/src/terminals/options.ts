@@ -45,7 +45,7 @@ export type OpenPolicy = {
   ) => { readonly model: string; readonly effort?: Effort } | undefined
   /**
    * The program word a new agent in `cwd` starts with in place of its harness's own, which then
-   * needs no connection of the person's (Novadeck's own pi, `ownProgram`, in the tour's folder).
+   * needs no connection of the person's (Nova, `novaProgram`, in the tour's folder).
    */
   readonly program?: (agent: AgentName, cwd: string) => string | undefined
 }

@@ -2,8 +2,9 @@ import { existsSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
 
+import { buildFor, pinnedPi } from "@novadeck/harness-nova/pin"
+
 import { download } from "../engines/download.js"
-import { buildFor, pinnedPi } from "../harnesses/bundled-pi.js"
 import { cacheFolder, type Installed } from "./install.js"
 
 // Novadeck's own pi (harnesses/bundled-pi.ts) is not installed from npm: the runner downloads the

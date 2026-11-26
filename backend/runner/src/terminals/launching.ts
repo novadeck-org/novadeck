@@ -4,6 +4,7 @@ import { access, realpath, stat } from "node:fs/promises"
 import { delimiter, dirname, isAbsolute, join, resolve as resolvePath, win32 } from "node:path"
 
 import type { Install } from "@novadeck/harness-core/harness"
+import { novaStartup } from "@novadeck/harness-nova/startup"
 import type { AgentName } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
 import type { RunSpec, Terminal } from "@novadeck/terminal/host"
@@ -11,7 +12,6 @@ import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadec
 
 import { DomainError } from "../errors.js"
 import type { BundledPi } from "../harnesses/bundled-pi.js"
-import { ownPiStartup } from "../harnesses/own-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { locate } from "../harnesses/service.js"
 import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
@@ -283,7 +283,7 @@ export class Launcher {
     const command =
       startup &&
       (integration
-        ? ownPiStartup(startup.command, shell, integration.paths.bundledPi.launcher)
+        ? novaStartup(startup.command, shell, integration.paths.bundledPi.launcher)
         : startup.command)
     const launch = (withStartup: boolean): ShellLaunch =>
       integration

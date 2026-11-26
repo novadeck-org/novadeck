@@ -4,8 +4,7 @@ import { join } from "node:path"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { hookCommand, hookSeconds, type Dialect } from "@novadeck/harness-core/hook-command"
 
-import { extensionSource } from "./extension-source.js"
-import { ownProvider, ownProviderConfig, ownService, ownUnavailable } from "./own-model.js"
+import { extensionSource, type ExtensionConfig } from "./extension-source.js"
 import { minimum, unknownFrom } from "./version.js"
 
 /**
@@ -69,30 +68,32 @@ export const connected: Harness["connected"] = (install) =>
  * own), the folder of agents' worktrees (whose project trust it answers for one process), and,
  * while the shipping gate is on (`machine.shippingGate`), its refusal of a shell command. pi takes
  * no hook command, so nothing here is pi's own configuration: the shim names it for one launch.
+ * With `own`, the model Nova runs on (@novadeck/harness-nova's `withNova`), which the extension
+ * registers in Nova alone; without it, Nova's terminals get no model of Novadeck's.
  */
-export const files: Harness["files"] = (platform, launchers, machine = {}) => [
-  {
-    path: extensionFile,
-    content: extensionSource({
-      hooks: Object.fromEntries(events.map((event) => [event, hook(platform, event)])),
-      // Its own limit for a hook, which the relay keeps well under.
-      hookMs: hookSeconds(platform) * 1000,
-      mcp: [launchers.mcp.command, ...(launchers.mcp.args ?? [])],
-      worktrees: machine.worktreesRoot ?? null,
-      minimum,
-      unknownFrom,
-      prefix: toolPrefix,
-      stoppedFolder,
-      pidVariable,
-      continueCap,
-      own: {
-        provider: ownProvider,
-        variables: ownService,
-        config: ownProviderConfig,
-        unavailable: ownUnavailable,
-      },
-      // Only while the Experimental shipping gate is on: off, the extension is as it always was.
-      ...(machine.shippingGate === true && { gate: true }),
-    }),
-  },
-]
+export const filesWith =
+  (own?: ExtensionConfig["own"]): Harness["files"] =>
+  (platform, launchers, machine = {}) => [
+    {
+      path: extensionFile,
+      content: extensionSource({
+        hooks: Object.fromEntries(events.map((event) => [event, hook(platform, event)])),
+        // Its own limit for a hook, which the relay keeps well under.
+        hookMs: hookSeconds(platform) * 1000,
+        mcp: [launchers.mcp.command, ...(launchers.mcp.args ?? [])],
+        worktrees: machine.worktreesRoot ?? null,
+        minimum,
+        unknownFrom,
+        prefix: toolPrefix,
+        stoppedFolder,
+        pidVariable,
+        continueCap,
+        ...(own !== undefined && { own }),
+        // Only while the Experimental shipping gate is on: off, the extension is as it always was.
+        ...(machine.shippingGate === true && { gate: true }),
+      }),
+    },
+  ]
+
+/** The extension's file for the person's pi alone, with no model of Novadeck's (`filesWith`). */
+export const files: Harness["files"] = filesWith()

@@ -2,7 +2,7 @@ import { rmSync } from "node:fs"
 
 import type { Choice } from "@novadeck/harness-core/harness"
 import { doorbell } from "@novadeck/harness-core/prompts"
-import { ownProgram } from "@novadeck/harness-pi/bundled"
+import { novaProgram } from "@novadeck/harness-nova/launcher"
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -258,7 +258,7 @@ export type ClaimsHost = {
   ) => boolean
   /**
    * Whether the agent's session, by its transcript, is Novadeck's own pi's (`ownPiSession`): it
-   * resumes on Novadeck's own pi (`ownProgram`), which needs no connection of the person's. None
+   * resumes on Nova (`novaProgram`), which needs no connection of the person's. None
    * is where omitted.
    */
   readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
@@ -349,7 +349,7 @@ export class Claims {
     if (availability.state !== "ready") return { ok: false, reason: availability.reason }
     if (!resume || session === undefined) return { ok: false, reason: "unsupported" }
     const [program = "", ...rest] = resume(session, choice, launch, transcript)
-    return { ok: true, argv: [own ? ownProgram : program, ...rest], key }
+    return { ok: true, argv: [own ? novaProgram : program, ...rest], key }
   }
 
   /** Whether the agent's session, by its transcript, resumes on Novadeck's own pi. */

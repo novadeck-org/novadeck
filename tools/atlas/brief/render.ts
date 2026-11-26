@@ -3,7 +3,7 @@ import type { Anchor, Area, Atlas, JsonSchema, Procedure, Table } from "../src/a
 import type { StoreMethod } from "../src/runner-lens.ts"
 
 // Briefs: the atlas as short Markdown for an agent to read before it works in a part of
-// the code. Each keeps to what fits in a glance (the index under 8000 characters, every
+// the code. Each keeps to what fits in a glance (the index under 8500 characters, every
 // other brief under 6000, about 1.5k tokens; brief.test.ts enforces both), names areas by
 // their tokens, and says plainly where the static trace stops.
 
