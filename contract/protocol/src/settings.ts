@@ -49,7 +49,7 @@ export const runnerSettings = z.strictObject({
   // message or a look wakes it; null for never.
   hibernateAfterMinutes: z.number().int().min(1).max(maxHibernateMinutes).nullable(),
   // Whether agents may open git worktrees through Novadeck's tools, which tracks and cleans
-  // them up; an Experimental feature, off until the person turns it on.
+  // them up; on until the person turns it off (off until turned on while it was Experimental).
   worktrees: z.boolean(),
   // Whether Solo and Swarm may be picked, an Experimental feature, off until the person turns
   // it on: while off, agents work as a Herd whatever `agentMode` holds.

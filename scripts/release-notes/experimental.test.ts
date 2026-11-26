@@ -37,11 +37,6 @@ describe("the features still behind Preferences > Experimental", () => {
     const ids = [...rows!.groups!["rows"]!.matchAll(/^ {6}id: "(?<id>[a-z-]+)",$/gm)].map(
       (found) => found.groups!["id"]!,
     )
-    // The forges have a section of their own, marked Experimental, on the Agents page.
-    if (
-      /<Section\s+title="Forge integrations"\s+badge=\{<ExperimentalBadge \/>\}/.test(preferences)
-    )
-      ids.push("forges")
     expect([...checkoutExperimental().keys()].toSorted()).toEqual(ids.toSorted())
   })
 

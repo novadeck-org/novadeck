@@ -5,7 +5,7 @@ const nothing = (): (() => void) => () => {}
 
 // What a changes item reads its work's pull request from: the backend's works. Following them
 // has the backend read every worktree's git, so an item asks for them only where that finds pull
-// requests: while a forge is switched on, from the moment one is until none is; and while none
+// requests: while a forge is on (every one is, but a runner from before them may have none on); and while none
 // is, what the works last said of them is stale, so no link shows. A backend without forges
 // (a demo's) has its works say so themselves. Without works there is nothing to read, and the
 // item shows no link.

@@ -12,8 +12,8 @@ import { updateShell } from "./ui-store"
 const noWorktrees = createStore(false)
 
 // Whether the sidebar shows the Worktrees panel and its toggle: where the backend reports the
-// worktrees' work, and only while the person has agent worktrees on (Preferences →
-// Experimental), which a stable build always turns off. A backend without that setting has none.
+// worktrees' work, and only while the person has agent worktrees on (Preferences → Agents), as
+// they are until turned off. A backend without that setting has none.
 // The tour's own project shows them whatever the setting says, as the tour's story is the work its
 // agents do in their worktrees; the setting itself is never changed, and no other project is
 // touched.

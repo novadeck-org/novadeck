@@ -18,7 +18,7 @@
  *   own.
  * - `open_worktree` makes a git worktree for the agent's work and `take_worktree`,
  *   `give_worktree` and `close_worktree` claim, hand on and remove one; they are listed only
- *   while the user has agent worktrees on (Preferences, Experimental).
+ *   while the user has agent worktrees on (Preferences, Agents).
  * - `lead` asks the person to let it lead an agent already running in another terminal,
  *   and `release` ends such a lead; `send` and `agents` message the agents in the
  *   project's other terminals and list them; `describe` names and says what the agent's own
@@ -2268,7 +2268,7 @@ const agentSettingsOf = async (call: McpCall): Promise<{ mode: AgentMode; gated:
   }
 }
 
-// Whether the user turned agent worktrees on, as the runner says; off where it can't say. The
+// Whether the user has agent worktrees on (as they are until turned off), as the runner says; off where it can't say. The
 // listing is cached by some harnesses for the whole session, so the runner refuses the calls
 // while it is off all the same.
 const offered = async (call: McpCall): Promise<{ worktrees: boolean; gate: boolean }> => {

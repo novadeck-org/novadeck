@@ -804,9 +804,9 @@ with every safety check again at that time:
   status unreadable, submodules, a git repository of its own inside that holds work) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there. The panel
-  and its rail toggle show only while Preferences → Experimental → Agent worktrees is
-  on (`useWorktreesShown`), so a stable build, which turns that setting off, has no Worktrees panel; a
-  link naming it then opens Terminals. A closed worktree's memory goes with it (`works.json` and its snapshot).
+  and its rail toggle show only while Preferences → Agents → Agent worktrees is
+  on (`useWorktreesShown`), as it is until the person turns it off; with it off, a
+  link naming it opens Terminals. A closed worktree's memory goes with it (`works.json` and its snapshot).
   A work also carries what it holds that lives only in its worktree: `uncommitted` (paths changed and not
   committed, read from the snapshot the pass already takes: the working tree as a tree against HEAD's
   tree, one `git diff-tree` run when the key changes, plus the untracked files the snapshot leaves
@@ -992,9 +992,9 @@ with every safety check again at that time:
   shutdown keeps every terminal.
 - **Worktrees** come from the same server's `open_worktree`, `take_worktree`, `close_worktree`
   and `give_worktree` (`backend/runner/src/worktrees/`, called from `terminals/calls.ts`). They
-  are experimental: listed (the tool listing asks the runner, with the `worktrees` call) and
-  allowed only while the person has Preferences → Experimental → Agent worktrees on
-  (`runnerSettings.worktrees`); the listing doesn't refresh mid-session, so a call made while
+  are listed (the tool listing asks the runner, with the `worktrees` call) and
+  allowed only while the person has Preferences → Agents → Agent worktrees on
+  (`runnerSettings.worktrees`, on until turned off); the listing doesn't refresh mid-session, so a call made while
   it is off is refused with a sentence that says how to turn it on. A worktree lives at
   `~/.novadeck/worktrees/<project id>/<group>/<repo folder>` (`worktrees/root.ts`); `group`
   defaults to the branch made safe as a folder name, and two repositories with one folder

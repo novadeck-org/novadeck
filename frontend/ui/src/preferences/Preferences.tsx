@@ -37,8 +37,8 @@ import {
   type BundledPiNote,
 } from "./bundled-pi"
 import { builtInFont, fontChoices, isBundled } from "./font-choices"
-import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
-import { ForgeSwitches } from "./ForgeSwitches"
+import { forgesExplanation, type ForgeRow } from "./forge-rows"
+import { ForgeRows } from "./ForgeRows"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import { matchRows, rowsOf, type PreferenceRow } from "./preferences-search"
@@ -471,17 +471,16 @@ export const Preferences = ({
   }
   // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
   tour?: boolean
-  // Whether agents get git worktrees, an Experimental feature the backend keeps; absent
-  // where the backend has none.
+  // Whether agents get git worktrees, on unless the person turns it off; absent where the
+  // backend has none.
   worktrees?: {
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
-  // The forges whose pull requests the Worktrees panel shows, an Experimental feature the backend keeps;
-  // absent where the backend has none.
+  // The forges whose pull requests the Worktrees panel shows, every one on; absent where the
+  // backend has none.
   forges?: {
-    readonly list: readonly ForgeSwitch[]
-    readonly onChange: (forge: ForgeName, enabled: boolean) => void
+    readonly list: readonly ForgeRow[]
     // Runs the installer of a forge's tool that isn't here; absent where none can run.
     readonly onInstall?: ((forge: ForgeName, command: string) => void) | undefined
     // The forges whose installer runs now.
@@ -642,13 +641,19 @@ export const Preferences = ({
   // The mode picker is an Experimental feature: it shows only with its switch on, and only where
   // the Experimental page is there to turn it off.
   const showAgentMode = agentMode !== undefined && agentModes?.enabled === true && hasExperimental
-  // Agents holds the agents, how they run and their Experimental features; a backend with none
-  // of them, as the website's demo, has no page for it.
-  // Shipping gate and Agent worktrees stand there whenever Experimental is on, offered or not,
-  // as they always stood in the Experimental list.
+  // Agents holds the agents, how they run, their pull requests and their Experimental features;
+  // a backend with none of them, as the website's demo, has no page for it. Shipping gate stands
+  // there whenever Experimental is on, offered or not, as it always stood in the Experimental list.
   const hasAgentExperiments = hasExperimental
+  // The forges' rows say how the Worktrees panel reads pull requests, so they go with it.
+  const showForges = forges !== undefined && worktrees?.enabled !== false
   const hasAgentsTab =
-    hasAgents || hibernation !== undefined || showAgentMode || hasAgentExperiments
+    hasAgents ||
+    hibernation !== undefined ||
+    worktrees !== undefined ||
+    showForges ||
+    showAgentMode ||
+    hasAgentExperiments
   const hidden = (id: PreferencesTab): boolean =>
     (id === "agents" && !hasAgentsTab) ||
     (id === "addons" && !hasAddons) ||
@@ -691,18 +696,6 @@ export const Preferences = ({
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
       disabled: !tour,
-    },
-    {
-      id: "agent-worktrees",
-      page: "agents",
-      onPage: true,
-      label: "Agent worktrees",
-      description: worktrees
-        ? "Agents work in their own git worktrees, and the sidebar gets a Worktrees panel that lists each one with what it changed since main. Novadeck cleans a worktree up once it's merged or its terminal is closed."
-        : "Not available here.",
-      checked: worktrees?.enabled ?? false,
-      onToggle: (enabled: boolean) => worktrees?.onChange(enabled),
-      disabled: !worktrees,
     },
     {
       id: "agent-modes",
@@ -776,8 +769,8 @@ export const Preferences = ({
     ...sounds.map(({ id, name }) => ({ label: name, value: id })),
   ]
   const { soundChoice } = value
-  const runningToggles = pageToggles("agents", ["shipping-gate", "agent-worktrees"])
-  const agentsRunning = hibernation || showAgentMode || runningToggles.length > 0
+  const runningToggles = pageToggles("agents", ["shipping-gate"])
+  const agentsRunning = hibernation || worktrees || showAgentMode || runningToggles.length > 0
   const pageTitle = pageLabel(shown) ?? ""
   return (
     <Dialog
@@ -949,7 +942,7 @@ export const Preferences = ({
                       badge={<ExperimentalBadge />}
                     />
                   )}
-                  {(hibernation || runningToggles.length > 0) && (
+                  {(hibernation || worktrees || runningToggles.length > 0) && (
                     <div className={settingsCardClasses}>
                       {hibernation && (
                         <Select
@@ -969,20 +962,33 @@ export const Preferences = ({
                           portalContainer={dialog}
                         />
                       )}
+                      {/* On for everyone: a way out for whoever keeps worktrees with a tool of
+                          their own. */}
+                      {worktrees && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="agent-worktrees-label"
+                            label="Agent worktrees"
+                            description="Agents make their own git worktrees, shown in the Worktrees panel and cleaned up once merged. Turn off only if you manage worktrees with another tool: agents then work in your checkout."
+                            descriptionId="agent-worktrees-description"
+                          />
+                          <Switch
+                            checked={worktrees.enabled}
+                            onChange={worktrees.onChange}
+                            labelledBy="agent-worktrees-label"
+                            describedBy="agent-worktrees-description"
+                          />
+                        </div>
+                      )}
                       <ExperimentalRows toggles={runningToggles} bare />
                     </div>
                   )}
                 </Section>
               )}
-              {hasExperimental && forges && (
-                <Section
-                  title="Forge integrations"
-                  badge={<ExperimentalBadge />}
-                  description={forgesExplanation}
-                >
-                  <ForgeSwitches
+              {showForges && (
+                <Section title="Pull requests" description={forgesExplanation}>
+                  <ForgeRows
                     forges={forges.list}
-                    onChange={forges.onChange}
                     onInstall={forges.onInstall}
                     installing={forges.installing}
                     onSignIn={forges.onSignIn}

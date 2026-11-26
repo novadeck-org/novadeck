@@ -411,6 +411,8 @@ export const scriptedRunner = ({
         agentModes: false,
         agentMode: "herd",
         shippingGate: false,
+        // Off, unlike a runner's default: the counter run measures busy terminals, and its
+        // script has no works to answer the Worktrees panel with.
         worktrees: false,
       })),
       set: api.settings.set.handler(() => {}),

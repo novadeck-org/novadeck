@@ -2,8 +2,8 @@ import type { Store } from "./store"
 
 // Forges: where a repository's pull requests live (GitHub, GitLab, Azure DevOps). A backend
 // that offers them reads each with the token of the forge's own command-line tool, signed in
-// by the person, and puts a work's pull request on the work (works.ts). An Experimental
-// feature: each forge is off until the person switches it on.
+// by the person, and puts a work's pull request on the work (works.ts). Every forge is on: there
+// are no switches.
 
 export type ForgeName = "github" | "gitlab" | "azure"
 

@@ -142,6 +142,39 @@ describe("the Agents tab", () => {
     expect(selected()).toBe("Agents")
     expect(panel()?.textContent).toContain("Stop idle agents after")
   })
+
+  const worktreesSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
+
+  it("holds the agent worktrees switch, on as the backend says, which writes its setting", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "agents",
+      worktrees: { enabled: true, onChange: (enabled) => changes.push(enabled) },
+    })
+
+    expect(selected()).toBe("Agents")
+    expect(worktreesSwitch()?.closest('[role="tabpanel"]')).toBe(panel())
+    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("true")
+    worktreesSwitch()?.click()
+    expect(changes).toEqual([false])
+  })
+
+  it("leaves agent worktrees out where the backend has none, and out of Experimental", async () => {
+    await show({ tab: "agents", hibernation: { minutes: 60, onChange: () => {} } })
+    expect(worktreesSwitch()).toBeNull()
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      worktrees: { enabled: true, onChange: () => {} },
+    })
+    const experimentalPanel = document.querySelector(
+      '[role="tabpanel"][aria-labelledby$="experimental"]',
+    )
+    expect(experimentalPanel?.textContent).not.toContain("Agent worktrees")
+  })
 })
 
 const experimental = (on: boolean | undefined, revealed = false) => ({
@@ -609,59 +642,6 @@ describe("the Experimental tab", () => {
     ;(gate as HTMLElement).click()
     expect(changes).toEqual([true])
   })
-
-  const worktreesSwitch = (): HTMLElement | null =>
-    document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
-
-  it("holds the agent worktrees switch, which writes the backend's setting", async () => {
-    const changes: boolean[] = []
-    await show({
-      tab: "experimental",
-      experimental: experimental(true),
-      worktrees: { enabled: false, onChange: (enabled) => changes.push(enabled) },
-    })
-
-    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
-    expect(worktreesSwitch()?.hasAttribute("disabled")).toBe(false)
-    worktreesSwitch()?.click()
-    expect(changes).toEqual([true])
-  })
-
-  it("shows agent worktrees on, and disabled where the backend has none", async () => {
-    await show({
-      tab: "experimental",
-      experimental: experimental(true),
-      worktrees: { enabled: true, onChange: () => {} },
-    })
-    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("true")
-    mounted.splice(0).forEach((page) => page.unmount())
-
-    await show({ tab: "experimental", experimental: experimental(true) })
-    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
-    expect(
-      worktreesSwitch()?.hasAttribute("disabled") ||
-        worktreesSwitch()?.getAttribute("aria-disabled") === "true" ||
-        worktreesSwitch()?.hasAttribute("data-disabled"),
-    ).toBe(true)
-    expect(document.body.textContent).toContain("Not available here.")
-  })
-
-  it("sits on the Agents page and in the Experimental list, both hidden while another is open", async () => {
-    await show({
-      tab: "terminal",
-      experimental: experimental(true),
-      worktrees: { enabled: false, onChange: () => {} },
-    })
-    expect(selected()).toBe("Terminal")
-    const pages = [
-      ...document.querySelectorAll('[role="switch"][aria-labelledby$="agent-worktrees-label"]'),
-    ].map((toggle) => toggle.closest('[role="tabpanel"]'))
-    expect(pages.map((page) => page?.getAttribute("aria-labelledby"))).toEqual([
-      expect.stringMatching(/agents$/),
-      expect.stringMatching(/experimental$/),
-    ])
-    expect(pages.every((page) => page?.hasAttribute("hidden"))).toBe(true)
-  })
 })
 
 describe("the Appearance tab", () => {
@@ -857,30 +837,46 @@ describe("an agent that is not installed, in Preferences", () => {
   })
 })
 
-describe("the forge integrations, in Preferences", () => {
-  const forges = (on = true) => ({
-    list: [{ forge: "github" as const, available: true, enabled: on, busy: false, hosts: [] }],
-    onChange: () => {},
+describe("the forges, in Preferences", () => {
+  const forges = () => ({
+    list: [{ forge: "github" as const, available: true, enabled: true, busy: false, hosts: [] }],
   })
-  const panel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
+  const agentsPanel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
+  const section = () =>
+    agentsPanel()?.querySelector('section[aria-labelledby="preferences-pull-requests"]')
 
-  it("has a section on the Agents page, marked Experimental, where the backend has forges", async () => {
+  it("are rows with no switch under Agents, where the backend has forges", async () => {
     await show({
       tab: "agents",
-      experimental: experimental(true),
       forges: forges(),
+      worktrees: { enabled: true, onChange: () => {} },
     })
-    const section = document
-      .querySelector('[role="tabpanel"][aria-labelledby$="agents"]')
-      ?.querySelector('section[aria-labelledby="preferences-forge-integrations"]')
-    expect(section?.querySelector("h3")?.textContent).toBe("Forge integrations")
-    expect(section?.querySelector(".settings-badge")?.textContent).toBe("Experimental")
-    expect(section?.querySelector('ul[aria-label="Forges"] [role=switch]')).not.toBeNull()
+    expect(selected()).toBe("Agents")
+    expect(section()?.querySelector("h3")?.textContent).toBe("Pull requests")
+    expect(section()?.querySelector('ul[aria-label="Forges"] li')).not.toBeNull()
+    expect(section()?.querySelector('[role="switch"]')).toBeNull()
   })
 
-  it("has none where the backend has none", async () => {
-    await show({ tab: "experimental", experimental: experimental(true) })
-    expect(panel()?.textContent).not.toContain("Forge integrations")
+  it("go with agent worktrees, whose panel shows the pull requests, and aren't in Experimental", async () => {
+    await show({
+      tab: "agents",
+      forges: forges(),
+      worktrees: { enabled: false, onChange: () => {} },
+    })
+    expect(section()).toBeNull()
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({ tab: "experimental", experimental: experimental(true), forges: forges() })
+    const experimentalPanel = document.querySelector(
+      '[role="tabpanel"][aria-labelledby$="experimental"]',
+    )
+    expect(experimentalPanel?.textContent).not.toContain("Pull requests")
+    expect(experimentalPanel?.querySelector('ul[aria-label="Forges"]')).toBeNull()
+  })
+
+  it("are absent where the backend has none", async () => {
+    await show({ tab: "agents", worktrees: { enabled: true, onChange: () => {} } })
+    expect(section()).toBeNull()
   })
 })
 

@@ -61,7 +61,7 @@ export type OwnedWorktree = {
   readonly branch: string
   readonly state: GitState | null
   readonly gone: boolean
-  /** Its branch's pull request, where a forge the person switched on found one. */
+  /** Its branch's pull request, where a forge found one. */
   readonly pullRequest?: PullRequest | undefined
   /** Its repository's git common dir and the commit it started from, where known. */
   readonly commonDir?: string | undefined
@@ -547,7 +547,7 @@ const worktreePathChars = 160
 
 /**
  * A branch's pull request as a lookup names it: its number, how it stands, and its checks
- * while open, as a forge the person switched on found them.
+ * while open, as a forge found them.
  */
 const requestText = ({ number, state, ci }: PullRequest): string =>
   `PR #${number} ${state}${ci && ci !== "none" ? `, checks ${ci}` : ""}`

@@ -4,11 +4,10 @@ import { isDemoForges, type ForgesScenario } from "@novadeck/demo/forges"
 import { isDemoWorks, type DemoWorks } from "@novadeck/demo/works"
 
 import type { DemoLaunch } from "./debug-demo"
-import { pageUpdateChannel } from "./desktop/updates"
 import type { DemoAction, DemoActionContext, DemoActionGroup } from "./types"
 import { placed } from "./works"
 
-const where = "Preferences > Experimental > Forge integrations"
+const where = "Preferences > Agents > Pull requests"
 
 // One action per state the forges' rows can be in, each moving the demo's forges to it.
 const scenarios: readonly {
@@ -19,27 +18,27 @@ const scenarios: readonly {
   {
     label: "GitHub signed in, GitLab signed out",
     scenario: "start",
-    hint: `${where}: GitHub on, github.com Signed in; GitLab on, gitlab.com Signed out with a Sign in button; Azure DevOps not installed, with Install and its command (the state the demo starts in)`,
+    hint: `${where}: GitHub, github.com Signed in; GitLab, gitlab.com Signed out with a Sign in button; Azure DevOps not installed, with Install and its command (the state the demo starts in)`,
   },
   {
     label: "All signed in",
     scenario: "signed-in",
-    hint: `${where}: the three forges on, each host Signed in, no buttons`,
+    hint: `${where}: each forge's host Signed in, no buttons`,
   },
   {
     label: "All signed out",
     scenario: "signed-out",
-    hint: `${where}: the three forges on, each host Signed out with a Sign in button; Sign in closes Preferences and runs the command in a terminal, and when it ends the host reads Signed in`,
+    hint: `${where}: each forge's host Signed out with a Sign in button; Sign in closes Preferences and runs the command in a terminal, and when it ends the host reads Signed in`,
   },
   {
     label: "CLI missing",
     scenario: "missing",
-    hint: `${where}: GitHub reads Not installed. Needs gh with a disabled switch; GitLab and Azure DevOps offer Install with their command, which runs in a terminal, then the forge's switch appears`,
+    hint: `${where}: GitHub reads Not installed. Needs gh; GitLab and Azure DevOps offer Install with their command, which runs in a terminal, then the forge's host appears, Signed out`,
   },
   {
     label: "Token refused",
     scenario: "refused",
-    hint: `${where}: the three forges on, each host reads Token refused with the command that mends it shown under it`,
+    hint: `${where}: each forge's host reads Token refused with the command that mends it shown under it`,
   },
   {
     label: "Token refused, nothing to run",
@@ -49,22 +48,7 @@ const scenarios: readonly {
   {
     label: "Several hosts",
     scenario: "several-hosts",
-    hint: `${where}: GitHub on with two hosts, github.com Signed in and github.example.com Signed out with a Sign in button; the others off`,
-  },
-  {
-    label: "On, CLI since uninstalled",
-    scenario: "on-but-missing",
-    hint: `${where}: the three forges switched on but their tools gone: each row reads not installed, with Install where there is an installer, and lists no hosts`,
-  },
-  {
-    label: "Switch under way",
-    scenario: "busy",
-    hint: `${where}: GitHub's switch is pending and its note reads Switching off…; the others are off`,
-  },
-  {
-    label: "Switch failed",
-    scenario: "error",
-    hint: `${where}: GitHub is off and its note, in red, says gh could not read its token`,
+    hint: `${where}: GitHub with two hosts, github.com Signed in and github.example.com Signed out with a Sign in button; the others Signed in`,
   },
 ]
 
@@ -209,17 +193,14 @@ export const forgesGroups = (
       title: "Forges",
       actions: [
         {
-          label: "Offered, experimental channel",
-          hint: `Boots on the experimental channel with forge integrations offered: ${where} shows the three forges as the demo starts`,
+          label: "Offered",
+          hint: `${where} shows the three forges, as the demo starts`,
           reboots: true,
-          run: () => {
-            pageUpdateChannel.channel = "experimental"
-            launch.setForges(true)
-          },
+          run: () => launch.setForges(true),
         },
         {
           label: "Not offered",
-          hint: `${where} has no section, as on a runner without forges (needs the experimental channel to see the tab)`,
+          hint: `${where} has no section, as on a runner without forges`,
           reboots: true,
           run: () => launch.setForges(false),
         },
