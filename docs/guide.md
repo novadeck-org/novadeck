@@ -97,8 +97,9 @@ Agents.
 A new worktree gets your checkout's ignored `.env` files. To copy other ignored files, such as
 local config or certificates, list them in a `.worktreeinclude` file at the repository's top, in
 `.gitignore` syntax. It replaces the `.env*` default, so list those too. A pattern without a `/`
-doesn't reach into ignored folders like `node_modules`. Dependencies and build output aren't
-copied, and the agent is told so.
+picks files by their own name, outside ignored folders like `node_modules`; to copy a folder or
+something inside one, write its path (`.venv/`, `certs/local/**`). Dependencies and build output
+aren't copied unless you name them, and the agent is told what it got.
 
 ## Agents show you their work
 

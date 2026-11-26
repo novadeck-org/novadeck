@@ -1049,15 +1049,19 @@ with every safety check again at that time:
   - **A new worktree gets the checkout's ignored files** (`worktrees/include.ts`), as Conductor,
     Claude Code and the Codex app give theirs: the patterns of `.worktreeinclude` at the top of the
     checkout the agent asked from (`.gitignore` syntax; an empty one copies nothing), else `.env*`,
-    pick among the files git ignores there (`ls-files --others --ignored`, once with
-    `--exclude-standard --directory`, once with the patterns), so tracked files and untracked ones
-    that aren't ignored are never copied. A match inside a folder ignored as a whole (`node_modules`,
-    `.venv`) counts only by a pattern with a `/` in it, or a negation, so `.env*` never leaves a
-    package's own `.env` as a `node_modules` that is no install. Files go shallowest first, up to
-    2,000 files and 512 MB, as copy-on-write clones where the file system makes them, symlinks as
-    symlinks, and never over a file the worktree has. The answer's `included` says what was copied,
-    by what, and how many weren't; the tool's text says that other ignored files (installed
-    dependencies, build output) aren't there. A copy never fails the open.
+    pick among the files git ignores there, so tracked files and untracked ones that aren't ignored
+    are never copied. A pattern with a `/` (`certs/local/**`, `.venv/`) picks what git matches by
+    it (`ls-files --others --ignored --exclude-from`, with the negations). One without picks a
+    file by its own name only, never by a folder above it (a Python venv named `.env`), and never
+    inside a folder git ignores as a whole (`--directory` lists it alone), so `.env*` leaves
+    node_modules' own `.env` files. Whether each is ignored is read from git's own listing of
+    ignored files (check-ignore reads paths as pathspecs). Patterns that pick more than 2,000
+    files or 512 MB get nothing, as part of a folder is worse than none. Files are copied as
+    copy-on-write clones where the file system makes them, symlinks as symlinks (a relative one
+    that reaches nothing from the worktree points absolutely at what it reached), never over a
+    file the worktree has. The answer's `included` says what was copied, what wasn't, and why
+    none were (`over`, `unread`); the tool's text says so, and that the worktree has no other
+    ignored files. A copy never fails the open.
   - **A worktree's changes stay on its owner's bar** (`worktrees/changes-shown.ts`). While
     agent worktrees are on, each time `open_worktree` makes one or `take_worktree` adopts one
     (the service's `onMade`), the runner shows it there as a changes item, as the agent's own

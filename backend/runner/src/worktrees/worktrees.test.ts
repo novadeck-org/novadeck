@@ -124,7 +124,7 @@ describe("opening a worktree", () => {
     writeFileSync(join(f.repo, ".env"), "SECRET=1\n")
     const opened = await open(f, "feat/env")
     if (!opened.ok) throw new Error(opened.reason)
-    expect(opened.included).toEqual({ from: f.repo, by: "default", copied: [".env"], left: 0 })
+    expect(opened.included).toEqual({ from: f.repo, by: "default", copied: [".env"], failed: [] })
     expect(readFileSync(join(opened.path, ".env"), "utf8")).toBe("SECRET=1\n")
     // Ignored, it is nothing the worktree holds: a merged one still goes without a keep.
     expect(git(opened.path, "status", "--porcelain")).toBe("")

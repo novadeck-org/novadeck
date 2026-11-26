@@ -15,7 +15,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
-import { copyIncluded, patternLines, reaching } from "./include.js"
+import { copyIncluded, nameMatches, patternLines, patternsOf } from "./include.js"
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync("git", ["-c", "user.name=T", "-c", "user.email=t@example.com", ...args], {
@@ -57,12 +57,29 @@ describe("patterns of a .worktreeinclude", () => {
     expect(patternLines("# secrets\r\n.env\r\n\r\ncerts/**\r\n")).toEqual([".env", "certs/**"])
   })
 
-  it("reaches into an ignored folder only by a path, or a negation that may undo one", () => {
-    expect(reaching([".env*", "certs/local/**", ".venv/", "!certs/local/*.pem"])).toEqual([
-      "certs/local/**",
-      ".venv/",
-      "!certs/local/*.pem",
+  it("drops a byte order mark", () => {
+    expect(patternLines("\uFEFF.env\n")).toEqual([".env"])
+  })
+
+  it("tells negations, and paths by a `/` anywhere, from names", () => {
+    expect(patternsOf([".env*", "certs/local/**", ".venv/", "!*.pem", "a\\ "])).toEqual([
+      { text: ".env*", negated: false, path: false },
+      { text: "certs/local/**", negated: false, path: true },
+      { text: ".venv/", negated: false, path: true },
+      { text: "*.pem", negated: true, path: false },
+      { text: "a\\ ", negated: false, path: false },
     ])
+  })
+
+  it("matches a name as git does", () => {
+    expect(nameMatches(".env*", ".env.local")).toBe(true)
+    expect(nameMatches(".env*", "x.env")).toBe(false)
+    expect(nameMatches("*.local", ".env.local")).toBe(true)
+    expect(nameMatches("secret?.json", "secret1.json")).toBe(true)
+    expect(nameMatches("[!a]*.txt", "b.txt")).toBe(true)
+    expect(nameMatches("[!a]*.txt", "a.txt")).toBe(false)
+    expect(nameMatches("\\*.txt", "*.txt")).toBe(true)
+    expect(nameMatches("\\*.txt", "a.txt")).toBe(false)
   })
 })
 
@@ -82,7 +99,7 @@ describe("copying ignored files into a new worktree", () => {
       from: fx.repo,
       by: "default",
       copied: [".env", "apps/web/.env.local"],
-      left: 0,
+      failed: [],
     })
     expect(readFileSync(join(fx.worktree, ".env"), "utf8")).toBe("SECRET=1\n")
     expect(has(fx, "notes.txt")).toBe(false)
@@ -108,7 +125,7 @@ describe("copying ignored files into a new worktree", () => {
     expect(included).toMatchObject({
       by: "file",
       copied: ["config.local.json", "certs/local/dev.crt"],
-      left: 0,
+      failed: [],
     })
     // `.env` matches the default, which a .worktreeinclude replaces; notes.txt isn't ignored.
     expect(has(fx, ".env")).toBe(false)
@@ -126,14 +143,19 @@ describe("copying ignored files into a new worktree", () => {
   it("never writes over a file the worktree has", async ({ fx }) => {
     write(join(fx.repo, ".env"), "checkout\n")
     write(join(fx.worktree, ".env"), "worktree\n")
-    expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({ copied: [], left: 1 })
+    expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({
+      copied: [],
+      failed: [".env"],
+    })
     expect(readFileSync(join(fx.worktree, ".env"), "utf8")).toBe("worktree\n")
   })
 
   it.skipIf(process.platform === "win32")(
-    "copies a symlink as a symlink to the same target",
+    "copies a symlink as a symlink, relative where it reaches a file from the worktree",
     async ({ fx }) => {
+      // A file both have, as a tracked one is.
       write(join(fx.repo, "shared.env"))
+      write(join(fx.worktree, "shared.env"))
       symlinkSync("shared.env", join(fx.repo, ".env"))
       expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({ copied: [".env"] })
       expect(lstatSync(join(fx.worktree, ".env")).isSymbolicLink()).toBe(true)
@@ -141,21 +163,57 @@ describe("copying ignored files into a new worktree", () => {
     },
   )
 
-  it("keeps to the limit, shallowest first, and counts what it left", async ({ fx }) => {
+  it("copies nothing past the limit, so a folder never comes in part", async ({ fx }) => {
     write(join(fx.repo, "a/b/.env"))
     write(join(fx.repo, "a/.env"))
     write(join(fx.repo, ".env"))
     expect(
       await copyIncluded(fx.repo, fx.worktree, { files: 2, bytes: 1024 * 1024 }),
-    ).toMatchObject({ copied: [".env", "a/.env"], left: 1 })
-    write(join(fx.repo, ".env.big"), "x".repeat(100))
-    rmSync(join(fx.worktree, ".env"))
-    rmSync(join(fx.worktree, "a"), { recursive: true })
-    expect(await copyIncluded(fx.repo, fx.worktree, { files: 10, bytes: 50 })).toMatchObject({
-      copied: [".env"],
-      left: 3,
+    ).toMatchObject({ copied: [], over: true })
+    expect(has(fx, ".env")).toBe(false)
+    expect(await copyIncluded(fx.repo, fx.worktree, { files: 10, bytes: 5 })).toMatchObject({
+      copied: [],
+      over: true,
+    })
+    expect(await copyIncluded(fx.repo, fx.worktree, { files: 3, bytes: 6 })).toMatchObject({
+      copied: [".env", "a/.env", "a/b/.env"],
     })
   })
+
+  it("lists a file once where git lists its folder too", async ({ fx }) => {
+    // An untracked folder holding only ignored files: git lists the folder and its file.
+    write(join(fx.repo, ".gitignore"), "node_modules/\ncerts/\n.env*\nconfig/local.json\n")
+    write(join(fx.repo, "config/local.json"))
+    write(join(fx.repo, ".worktreeinclude"), ".env*\nconfig/*.json\n")
+    expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({
+      copied: ["config/local.json"],
+      failed: [],
+    })
+  })
+
+  it("leaves a Python venv named .env, which ignores itself, by the default", async ({ fx }) => {
+    write(join(fx.repo, ".gitignore"), "node_modules/\n")
+    write(join(fx.repo, ".env/.gitignore"), "*\n")
+    write(join(fx.repo, ".env/pyvenv.cfg"))
+    write(join(fx.repo, ".env/lib/site/pkg.py"))
+    write(join(fx.repo, ".env/lib/site/.env"))
+    expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({ copied: [], failed: [] })
+    expect(has(fx, ".env")).toBe(false)
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "points a relative symlink that reaches nothing from the worktree absolutely",
+    async ({ fx }) => {
+      // Deeper than the checkout, as ~/.novadeck/worktrees/<project>/<group>/<repo> is.
+      const deep = join(dirname(fx.repo), "worktrees", "p", "g", "repo")
+      git(fx.repo, "worktree", "add", "--quiet", "-b", "deep", deep)
+      write(join(fx.repo, "..", "shared", "app.env"))
+      symlinkSync("../shared/app.env", join(fx.repo, ".env"))
+      expect(await copyIncluded(fx.repo, deep)).toMatchObject({ copied: [".env"] })
+      expect(readlinkSync(join(deep, ".env"))).toBe(join(dirname(fx.repo), "shared", "app.env"))
+      expect(readFileSync(join(deep, ".env"), "utf8")).toBe("x\n")
+    },
+  )
 
   it("says git couldn't list the checkout, and copies nothing", async ({ fx }) => {
     const notRepo = dirname(fx.repo)

@@ -1764,54 +1764,71 @@ type Worktree = {
   readonly included?: Included
 }
 
-/** How many copied files `open_worktree` names before it counts the rest. */
+/** How many files `open_worktree` names before it counts the rest. */
 const namedFiles = 8
+
+/** Files as `open_worktree` names them: the first few, and how many more. */
+const filesSaid = (paths: readonly string[]): string =>
+  paths.slice(0, namedFiles).join(", ") +
+  (paths.length > namedFiles ? " and " + (paths.length - namedFiles) + " more" : "")
 
 /**
  * The ignored files a new worktree got from the checkout, as `open_worktree` says it: which, by
- * what, and that nothing else ignored (installed dependencies, build output) is there.
+ * what, which weren't, and that it has no other ignored files (installed dependencies, build
+ * output).
  */
 export const includedSaid = (included: Included | undefined): string => {
   if (included === undefined) return ""
-  const rest =
-    " Other ignored files, such as installed dependencies and build output, aren't in it."
+  const { from, by, copied, failed } = included
+  const source = by === "file" ? "its .worktreeinclude" : ".env*"
+  const nothing =
+    ": the worktree has no ignored files, such as .env files, installed dependencies or build output."
   if (included.unread)
     return (
-      " Novadeck couldn't list the ignored files of " +
-      included.from +
-      ", so none were copied: ignored files, such as .env files, installed dependencies and " +
-      "build output, aren't in it."
+      " Novadeck couldn't list the ignored files of " + from + ", so none were copied" + nothing
     )
-  const { copied } = included
-  const named = copied.slice(0, namedFiles).join(", ")
-  const more = copied.length > namedFiles ? " and " + (copied.length - namedFiles) + " more" : ""
-  const by =
-    included.by === "file"
-      ? "the ignored files its .worktreeinclude names"
-      : "the ignored .env files (.env*, as the repository has no .worktreeinclude)"
-  const left =
-    included.left > 0
-      ? " " +
-        included.left +
-        (copied.length > 0 ? " more" : "") +
-        " it picks weren't copied: Novadeck copies up to " +
-        includeLimit.files.toLocaleString("en-US") +
-        " files and " +
-        Math.round(includeLimit.bytes / 1024 / 1024) +
-        " MB, and a copy can fail."
-      : ""
-  if (copied.length === 0)
+  if (included.over)
     return (
-      " None of the ignored files of " +
-      included.from +
-      " are in it, such as .env files, installed dependencies and build output" +
-      (included.left === 0 && included.by === "file" ? " (its .worktreeinclude names none)" : "") +
-      "." +
-      left
+      " The ignored files of " +
+      from +
+      " that " +
+      source +
+      " picks come to more than Novadeck copies (" +
+      includeLimit.files.toLocaleString("en-US") +
+      " files or " +
+      Math.round(includeLimit.bytes / 1024 / 1024) +
+      " MB), so none were copied" +
+      nothing
     )
-  return (
-    " It has " + by + ", copied from " + included.from + ": " + named + more + "." + left + rest
-  )
+  const pickedNone =
+    copied.length + failed.length === 0
+      ? by === "file"
+        ? " Its .worktreeinclude picks none of the ignored files of " + from + "."
+        : " " + from + " has no ignored .env files to copy."
+      : ""
+  const had =
+    copied.length === 0
+      ? ""
+      : " It has the ignored files " +
+        source +
+        " picks" +
+        (by === "default" ? " (the repository has no .worktreeinclude)" : "") +
+        ", copied from " +
+        from +
+        ": " +
+        filesSaid(copied) +
+        "."
+  const missed =
+    failed.length === 0
+      ? ""
+      : " Not copied, as the worktree has its own or the copy failed: " + filesSaid(failed) + "."
+  const others = copied.length + failed.length > 0 ? "other " : ""
+  const rest =
+    " The worktree has no " +
+    others +
+    "ignored files" +
+    (by === "default" ? ", such as installed dependencies or build output." : ".")
+  return pickedNone + had + missed + rest
 }
 
 /** Where a new branch came from when origin had one of its name, as `open_worktree` says it. */
