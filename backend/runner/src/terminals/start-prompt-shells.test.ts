@@ -3,10 +3,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { doorbellNonce, startLine } from "@novadeck/harness-core/prompts"
+import { commandLine, doorbellNonce, startLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "../test.js"
-import { commandLine, commandWords } from "./commands.js"
+import { commandWords } from "./commands.js"
 
 // A task's start prompt is the doorbell tag in the command that starts the agent, which the
 // person's own shell runs: it has to reach the agent as the one argument it is, in every shell

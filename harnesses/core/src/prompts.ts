@@ -301,6 +301,14 @@ export const quotedLine = (line: string): string => {
 }
 
 /**
+ * A command line for the words, as Novadeck starts an agent with: every word but a quoted
+ * line is a plain word, and a line holds nothing a shell expands. A line that holds such a
+ * character throws a `RangeError` (`quotedLine`).
+ */
+export const commandLine = (argv: readonly string[]): string =>
+  argv.map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word))).join(" ")
+
+/**
  * Whether a prompt is a delivery of agents' messages rather than the person's, in any
  * harness, by the one rule the chat and the Inbox read too (`isDelivery`): one that starts
  * with a delivery, never the person's words that quote one. A harness's own continuations

@@ -5,7 +5,7 @@ const startLine = "Start the Novadeck tour: follow AGENTS.md in this folder."
 
 // The launch lines of each harness's scripted agent, which the demo's other states still play
 // (a terminal that starts one); the tour's own run is Novadeck's pi's alone, as the runner's is
-// (backend/runner/src/tour/launch.ts).
+// (backend/tour/src/launch.ts).
 const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed" | "page">>> = {
   claude: {
     command: `claude --model haiku --effort low --permission-mode acceptEdits "${startLine}"`,

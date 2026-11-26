@@ -2,8 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { DomainError } from "../errors.js"
-import { describe, expect, it } from "../test.js"
+import { TourError } from "./errors.js"
 import {
   chooseTourFolder,
   inTourFolder,
@@ -14,6 +13,7 @@ import {
   tourMarker,
   withinFolder,
 } from "./folder.js"
+import { describe, expect, it } from "./test.js"
 
 const scratch = async (resources: { defer: (cleanup: () => Promise<void>) => void }) => {
   const root = await mkdtemp(join(tmpdir(), "novadeck-tour-"))
@@ -22,7 +22,7 @@ const scratch = async (resources: { defer: (cleanup: () => Promise<void>) => voi
 }
 
 const conflict = (error: unknown): boolean =>
-  error instanceof DomainError && error.code === "CONFLICT"
+  error instanceof TourError && error.code === "CONFLICT"
 
 describe("the tour's folder", () => {
   it("lives in .novadeck in the home folder, and is numbered after the first", () => {

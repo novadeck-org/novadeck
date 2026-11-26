@@ -1,6 +1,5 @@
 import { basename, win32 } from "node:path"
 
-import { quotedLine } from "@novadeck/harness-core/prompts"
 import { ownProgram } from "@novadeck/harness-pi/bundled"
 import type { AgentName } from "@novadeck/protocol"
 
@@ -9,14 +8,6 @@ import { agents, harnesses } from "../harnesses/registry.js"
 // Text on one line and in one case, as prompts and commands are compared.
 const oneLine = (text: string): string =>
   text.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim()
-
-/**
- * A command line for the words, as Novadeck starts an agent with: every word but a quoted
- * line is a plain word, and a line holds nothing a shell expands. A line that holds such a
- * character throws a `RangeError` (`quotedLine`).
- */
-export const commandLine = (argv: readonly string[]): string =>
-  argv.map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word))).join(" ")
 
 /**
  * A command line's words, as a POSIX shell splits and unquotes them: single quotes keep

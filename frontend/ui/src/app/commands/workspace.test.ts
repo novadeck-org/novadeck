@@ -232,12 +232,13 @@ describe("workspace commands", () => {
     })
   })
 
-  context("when opening the tour", () => {
+  context("when opening a project in place of others, as the tour does", () => {
     const folder = "/home/x/.novadeck/tour"
+    const opening = (replaces: readonly string[]) => ({ name: "Tour", directory: folder, replaces })
 
-    it("adds the tour's folder as a project named Tour, with a fresh session, on screen", () => {
+    it("adds the folder as a project by its name, with a fresh session, on screen", () => {
       const app = openCommands()
-      app.commands.openTour({ directory: folder, removed: [] })
+      app.commands.openProjectInPlace(opening([]))
       const snapshot = app.workspace.getSnapshot()
       const tour = snapshot.projects.at(-1)!
       expect(tour).toMatchObject({ name: "Tour", directory: folder })
@@ -249,9 +250,9 @@ describe("workspace commands", () => {
 
     it("takes the place of the projects the backend removed from its folder", () => {
       const app = openCommands()
-      app.commands.openTour({ directory: folder, removed: [] })
+      app.commands.openProjectInPlace(opening([]))
       const earlier = app.workspace.getSnapshot().activeProjectId
-      app.commands.openTour({ directory: folder, removed: [earlier, "gone-already"] })
+      app.commands.openProjectInPlace(opening([earlier, "gone-already"]))
       const snapshot = app.workspace.getSnapshot()
       expect(snapshot.projects.map((each) => each.id)).not.toContain(earlier)
       expect(snapshot.projects.filter((each) => each.name === "Tour")).toHaveLength(1)
@@ -260,7 +261,7 @@ describe("workspace commands", () => {
 
     it("takes the place of the only project there was", () => {
       const app = openCommands()
-      app.commands.openTour({ directory: folder, removed: ["project"] })
+      app.commands.openProjectInPlace(opening(["project"]))
       const snapshot = app.workspace.getSnapshot()
       expect(snapshot.projects.map((each) => each.name)).toEqual(["Tour"])
     })

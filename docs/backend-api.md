@@ -2501,7 +2501,7 @@ one from an earlier runner.
   (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
   them from device to device.
 
-- `tour.prepare()` readies a run of Novadeck's tour (`backend/runner/src/tour/`), always on
+- `tour.prepare()` readies a run of Novadeck's tour (`backend/tour/`, which the runner builds), always on
   Novadeck's own pi (the pinned pi `harnesses/bundled-pi.ts` downloads, agent `pi`) with GPT-6 Luna
   at medium effort, paid for by Novadeck through its website (revision 21; from 12 to 20 it ran
   opencode, and before 12 the input took the person's own `agent`, which is now optional and
@@ -2516,7 +2516,7 @@ one from an earlier runner.
   placeholder until it exists), three.js and Phaser to draw with, and every character, enemy and
   unit a glTF model in `models/` built of four ready shapes in `models/shapes.bin`
   (`models/README.md` says how; the page shows `models/placeholder.gltf` turning until the game
-  replaces it). Its files are the seed in `backend/runner/assets/tour/seed/`
+  replaces it). Its files are the seed in `backend/tour/assets/seed/`
   (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written; a
   `__pycache__/` folder, `*.pyc`, `.DS_Store` and `Thumbs.db` in it are skipped), and
   the two libraries are written beside them as files under `vendor/` (`phaser.min.js` with its

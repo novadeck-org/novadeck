@@ -346,6 +346,9 @@ importers:
       '@novadeck/terminal':
         specifier: workspace:*
         version: link:../../libraries/terminal
+      '@novadeck/tour-runner':
+        specifier: workspace:*
+        version: link:../tour
       '@novadeck/tui-input':
         specifier: workspace:*
         version: link:../../libraries/tui-input
@@ -364,12 +367,6 @@ importers:
       node-pty:
         specifier: 'catalog:'
         version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
-      phaser:
-        specifier: 3.90.0
-        version: 3.90.0
-      three:
-        specifier: 0.187.0
-        version: 0.187.0
       ws:
         specifier: 'catalog:'
         version: 8.22.2
@@ -395,6 +392,37 @@ importers:
       tsx:
         specifier: ^4.20.6
         version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  backend/tour:
+    dependencies:
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../../harnesses/core
+      '@novadeck/harness-pi':
+        specifier: workspace:*
+        version: link:../../harnesses/pi
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../contract/protocol
+      phaser:
+        specifier: 3.90.0
+        version: 3.90.0
+      three:
+        specifier: 0.187.0
+        version: 0.187.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

@@ -1,4 +1,4 @@
-import { DomainError } from "../errors.js"
+import { TourError } from "./errors.js"
 
 /** Where the tour's model service is: Novadeck's website, unless a test or a local run names another. */
 export const tourEndpoint = (env: NodeJS.ProcessEnv = process.env): string =>
@@ -35,7 +35,7 @@ export const fetchTicket = async (
       signal: AbortSignal.timeout(10_000),
     })
   } catch {
-    throw new DomainError("CONFLICT", unreachable)
+    throw new TourError(unreachable)
   }
   const body: unknown = await response.json().catch(() => undefined)
   const field = (name: string): unknown =>
@@ -45,11 +45,10 @@ export const fetchTicket = async (
     const expires = field("expiresAt")
     if (typeof ticket === "string" && shape.test(ticket))
       return { ticket, ...(typeof expires === "string" && { expiresAt: expires }) }
-    throw new DomainError("CONFLICT", unreachable)
+    throw new TourError(unreachable)
   }
   const said = field("error")
-  throw new DomainError(
-    "CONFLICT",
+  throw new TourError(
     typeof said === "string" && said.trim() !== "" && said.length <= 500
       ? said.trim()
       : unreachable,

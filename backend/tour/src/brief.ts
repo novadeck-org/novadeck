@@ -1,7 +1,7 @@
 import type { Effort } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
-import { tourBriefMark } from "../messaging/messages.js"
+import { tourBriefMark } from "./notices.js"
 
 /**
  * What the tour's agents are told. The tour folder's own instruction files, which every harness

@@ -3,13 +3,31 @@ import { appendFile, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import { git, type Run } from "../checkouts/git.js"
-import { DomainError } from "../errors.js"
+import { TourError } from "./errors.js"
 import { tourMarker } from "./folder.js"
 
 // The tour's folder as a tiny git repository, so its agents work in worktrees of it as they
 // do in the person's own code. Git is run as the person would, but with the identity given
 // per command, never written to their git config.
+
+/** How a git run ended, as the runner's checkouts report it: its output, or how it failed. */
+export type Run =
+  | { readonly ok: true; readonly out: string }
+  | {
+      readonly ok: false
+      readonly kind: "no-git" | "timeout" | "big" | "exit"
+      readonly said: string
+    }
+
+/**
+ * Runs git in `cwd` with `args`, keeping up to `cap` bytes of its output and giving up after
+ * `ms` (the runner's own git, with its environment and the person's PATH).
+ */
+export type Git = (
+  cwd: string,
+  args: readonly string[],
+  limit: { readonly cap: number; readonly ms: number },
+) => Promise<Run>
 
 const small = { cap: 64 * 1024, ms: 30_000 }
 
@@ -24,9 +42,9 @@ const said = (run: Run): string =>
  * Refuses, as `commitSandbox` would, where git isn't there or doesn't run (macOS' stub without
  * the Command Line Tools finds but fails), before the tour changes anything.
  */
-export const requireGit = async (): Promise<void> => {
+export const requireGit = async (git: Git): Promise<void> => {
   const run = await git(tmpdir(), ["--version"], small)
-  if (!run.ok) throw new DomainError("CONFLICT", run.kind === "timeout" ? brokenGit : needsGit)
+  if (!run.ok) throw new TourError(run.kind === "timeout" ? brokenGit : needsGit)
 }
 
 // What the repo's `.git/info/exclude` keeps out for the tour: its marker, and the Claude Code
@@ -41,11 +59,10 @@ const excluded = [tourMarker, ".claude/settings.json"]
  * own `.gitignore` alone: the person's global ignore file (`core.excludesFile`) doesn't leave a
  * file of the seed out.
  */
-export const commitSandbox = async (folder: string): Promise<void> => {
+export const commitSandbox = async (git: Git, folder: string): Promise<void> => {
   const step = async (args: readonly string[]): Promise<void> => {
     const run = await git(folder, args, small)
-    if (!run.ok)
-      throw new DomainError("CONFLICT", `The tour couldn't set up its repo: ${said(run)}`)
+    if (!run.ok) throw new TourError(`The tour couldn't set up its repo: ${said(run)}`)
   }
   // `init` then `symbolic-ref`: `init -b` needs git 2.28.
   await step(["init"])
@@ -92,7 +109,7 @@ const listing = { cap: 4 * 1024 * 1024, ms: 30_000 }
 const listed = (run: Run): string[] => (run.ok ? run.out.split("\0").filter(Boolean) : [])
 
 // The other worktrees of the folder's repository, by top folder, those still on the disk.
-const worktreesOf = async (folder: string): Promise<string[]> => {
+const worktreesOf = async (git: Git, folder: string): Promise<string[]> => {
   const run = await git(folder, ["worktree", "list", "--porcelain"], listing)
   if (!run.ok) return []
   const paths = run.out
@@ -105,7 +122,7 @@ const worktreesOf = async (folder: string): Promise<string[]> => {
 
 // The files `folder` changed since `base`, as the dev server (the seed's dev.mjs) counts them:
 // those that differ from that commit, and those git doesn't track and doesn't ignore.
-const changedSince = async (folder: string, base: string): Promise<Set<string>> =>
+const changedSince = async (git: Git, folder: string, base: string): Promise<Set<string>> =>
   new Set([
     ...listed(await git(folder, ["diff", "--name-only", "-z", base], listing)),
     ...listed(await git(folder, ["ls-files", "--others", "--exclude-standard", "-z"], listing)),
@@ -128,16 +145,15 @@ const changedAt = async (path: string): Promise<number | undefined> => {
  * agent runs git for any of it. Where the folder is no repo, nothing happens; where a step of
  * git fails, a `CONFLICT` says so.
  */
-export const bringHome = async (folder: string): Promise<void> => {
+export const bringHome = async (git: Git, folder: string): Promise<void> => {
   if (!existsSync(join(folder, ".git"))) return
   const step = async (args: readonly string[], at = folder): Promise<void> => {
     const run = await git(at, args, small)
-    if (!run.ok)
-      throw new DomainError("CONFLICT", `The tour couldn't keep the team's work: ${said(run)}`)
+    if (!run.ok) throw new TourError(`The tour couldn't keep the team's work: ${said(run)}`)
   }
   const head = await git(folder, ["rev-parse", "HEAD"], small)
   if (!head.ok) return
-  const others = await worktreesOf(folder)
+  const others = await worktreesOf(git, folder)
   // What each worktree changed, and what the folder changed since the same commit.
   const changes = await Promise.all(
     others.map(async (worktree) => {
@@ -145,8 +161,8 @@ export const bringHome = async (folder: string): Promise<void> => {
       const base = parted.ok ? parted.out.trim() : "HEAD"
       return {
         worktree,
-        theirs: await changedSince(worktree, base),
-        ours: await changedSince(folder, base),
+        theirs: await changedSince(git, worktree, base),
+        ours: await changedSince(git, folder, base),
       }
     }),
   )
@@ -179,7 +195,7 @@ export const bringHome = async (folder: string): Promise<void> => {
 }
 
 // The files of `names` that the folder's repo tracks.
-const tracked = async (folder: string, names: readonly string[]): Promise<string[]> => {
+const tracked = async (git: Git, folder: string, names: readonly string[]): Promise<string[]> => {
   const run = await git(folder, ["ls-files", "-z", "--", ...names], small)
   return run.ok ? run.out.split("\0").filter(Boolean) : []
 }
@@ -191,6 +207,7 @@ const tracked = async (folder: string, names: readonly string[]): Promise<string
  * project's own file. The others are kept out by `.git/info/exclude` (`excluded`).
  */
 export const laySandbox = async (
+  git: Git,
   folder: string,
   files: Readonly<Record<string, string>>,
 ): Promise<void> => {
@@ -200,10 +217,10 @@ export const laySandbox = async (
       await writeFile(join(folder, name), text)
     }),
   )
-  const held = await tracked(folder, Object.keys(files))
+  const held = await tracked(git, folder, Object.keys(files))
   if (held.length === 0) return
   const run = await git(folder, ["update-index", "--skip-worktree", "--", ...held], small)
-  if (!run.ok) throw new DomainError("CONFLICT", `The tour couldn't set up its repo: ${said(run)}`)
+  if (!run.ok) throw new TourError(`The tour couldn't set up its repo: ${said(run)}`)
 }
 
 /**
@@ -212,13 +229,13 @@ export const laySandbox = async (
  * `.git/info/exclude`, so a `.claude/settings.json` the person adds later isn't ignored. Where
  * the folder is no repo (it was removed) only the note is written. Safe to repeat.
  */
-export const releaseSandbox = async (folder: string, note: string): Promise<void> => {
+export const releaseSandbox = async (git: Git, folder: string, note: string): Promise<void> => {
   await writeFile(join(folder, "AGENTS.md"), note)
   if (!existsSync(join(folder, ".git"))) return
-  const held = await tracked(folder, ["AGENTS.md"])
+  const held = await tracked(git, folder, ["AGENTS.md"])
   if (held.length > 0) {
     const run = await git(folder, ["update-index", "--no-skip-worktree", "--", ...held], small)
-    if (!run.ok) throw new DomainError("CONFLICT", `The tour couldn't keep its repo: ${said(run)}`)
+    if (!run.ok) throw new TourError(`The tour couldn't keep its repo: ${said(run)}`)
   }
   const file = join(folder, ".git", "info", "exclude")
   const text = await readFile(file, "utf8").catch(() => undefined)

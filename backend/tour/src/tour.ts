@@ -1,12 +1,10 @@
 import { homedir } from "node:os"
 import { basename } from "node:path"
 
+import type { Effort } from "@novadeck/harness-core/harness"
 import { ownProgram } from "@novadeck/harness-pi/bundled"
-import type { Project, TourPrepared } from "@novadeck/protocol"
+import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 
-import { DomainError } from "../errors.js"
-import { mention } from "../terminals/handles.js"
-import type { OpenPolicy } from "../terminals/options.js"
 import {
   briefFiles,
   keptLine,
@@ -17,6 +15,7 @@ import {
   type Serving,
   type Teammate,
 } from "./brief.js"
+import { TourError } from "./errors.js"
 import {
   chooseTourFolder,
   folderOf,
@@ -38,13 +37,40 @@ import {
   type TourLaunch,
 } from "./launch.js"
 import { TourRecords } from "./records.js"
-import { bringHome, commitSandbox, laySandbox, releaseSandbox, requireGit } from "./repo.js"
+import {
+  bringHome,
+  commitSandbox,
+  laySandbox,
+  releaseSandbox,
+  requireGit,
+  type Git,
+} from "./repo.js"
 import { seedFiles, type TourAssets } from "./seed.js"
-import { findServing, freePort, versionOf } from "./serving.js"
+import { findServing, freePort, versionOf, type FindProgram } from "./serving.js"
 import { fetchTicket, tourEndpoint, type Ticket } from "./ticket.js"
+
+/**
+ * What the runner decides of an agent's `open_agent` in the tour's folder, before anything
+ * starts (the runner's `OpenPolicy`): a refusal, or the agent, flags, program and model the
+ * lead's teammates start with there, for that launch only.
+ */
+export type OpenPolicy = {
+  readonly refusal?: string
+  readonly refuseAgent?: (agent: AgentName, cwd: string) => string | undefined
+  readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
+  readonly pinned?: (
+    agent: AgentName,
+    cwd: string,
+  ) => { readonly model: string; readonly effort?: Effort } | undefined
+  readonly program?: (agent: AgentName, cwd: string) => string | undefined
+}
 
 /** What the tour needs of the runner. */
 export type TourHost = {
+  /** Git, run as the runner runs it for a checkout (its environment, deadline and cap). */
+  readonly git: Git
+  /** The program of that name on the PATH of `env`, by its absolute path, as terminals find it. */
+  readonly findProgram: FindProgram
   readonly home?: string
   readonly platform?: NodeJS.Platform
   /** Where the seed project's files are, where not in the repository (the packaged app). */
@@ -65,7 +91,7 @@ export type TourHost = {
   readonly ownPi?: () => Promise<string>
   /**
    * A ticket for one run, which the tour's agents' provider takes as its key (`fetchTicket`, from
-   * the service at `tourEndpoint()`); a refusal is a `DomainError` in words for the person.
+   * the service at `tourEndpoint()`); a refusal is a `TourError` in words for the person.
    */
   readonly ticket?: () => Promise<Ticket>
   /**
@@ -75,6 +101,7 @@ export type TourHost = {
   readonly records?: TourRecords
   readonly projects: {
     readonly list: () => readonly Project[]
+    /** Removes the project, closing its terminals; resolves where it is gone already. */
     readonly remove: (projectId: string) => Promise<void>
   }
   /** Rings `text` to the terminal's agent as Novadeck's notice; false where it has none yet. */
@@ -127,7 +154,7 @@ export class Tour {
    */
   fetch(): void {
     const { ownPi } = this.host
-    if (!ownPi) throw new DomainError("CONFLICT", noOwnPi)
+    if (!ownPi) throw new TourError(noOwnPi)
     void ownPi().catch(() => {})
   }
 
@@ -152,8 +179,7 @@ export class Tour {
    * can refuse.
    */
   prepare(): Promise<TourPrepared> {
-    if (this.preparing)
-      return Promise.reject(new DomainError("CONFLICT", "The tour is already starting."))
+    if (this.preparing) return Promise.reject(new TourError("The tour is already starting."))
     const preparing = this.ready().finally(() => {
       this.preparing = undefined
     })
@@ -163,12 +189,11 @@ export class Tour {
 
   private async ready(): Promise<TourPrepared> {
     const { ownPi } = this.host
-    if (!ownPi) throw new DomainError("CONFLICT", noOwnPi)
+    if (!ownPi) throw new TourError(noOwnPi)
     try {
       await ownPi()
     } catch (error) {
-      throw new DomainError(
-        "CONFLICT",
+      throw new TourError(
         `Novadeck couldn't download Pi, so the tour can't start. ${error instanceof Error ? error.message : String(error)}`.slice(
           0,
           600,
@@ -176,7 +201,7 @@ export class Tour {
       )
     }
     // Git first of all: the sandbox is a repo, and nothing is removed for a tour that can't be.
-    await requireGit()
+    await requireGit(this.host.git)
     // The files and the folder too, the last local checks that can refuse.
     const seed = await seedFiles(this.host.assets)
     const directory = await chooseTourFolder(this.host.home)
@@ -185,7 +210,8 @@ export class Tour {
     const endpoint = tourEndpoint()
     const given = await (this.host.ticket ?? (() => fetchTicket(endpoint)))()
     const serving = await (
-      this.host.serving ?? (() => findServing(versionOf, freePort, this.host.environment?.()))
+      this.host.serving ??
+      (() => findServing(versionOf(this.host.findProgram), freePort, this.host.environment?.()))
     )()
     // Those being removed too, as their shells may still be closing there: the removal
     // under way is waited for.
@@ -193,23 +219,14 @@ export class Tour {
       .list()
       .filter(({ cwd }) => insideFolder(cwd, directory, this.host.platform))
       .map(({ id }) => id)
-    await Promise.all(
-      removed.map((id) =>
-        Promise.resolve()
-          .then(() => this.host.projects.remove(id))
-          .catch((error: unknown) => {
-            // Removed meanwhile, as from another window.
-            if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error
-          }),
-      ),
-    )
+    await Promise.all(removed.map((id) => this.host.projects.remove(id)))
     const mate: Teammate = { agent: tourAgent, model: tourModel, effort: tourEffort }
     // What is committed is the project as the person keeps it: its own note, no tour settings.
     // The tour's rules are laid over it after, where git doesn't see them (`laySandbox`).
     const { "CLAUDE.md": claude = "", ...rules } = briefFiles(tourAgent)
     await resetTourFolder(directory, { ...seed, "AGENTS.md": projectNote, "CLAUDE.md": claude })
-    await commitSandbox(directory)
-    await laySandbox(directory, rules)
+    await commitSandbox(this.host.git, directory)
+    await laySandbox(this.host.git, directory, rules)
     // Before any agent starts: a process that began without the folder can't write in it.
     this.host.worktreesFolder()
     this.facts = { mate, serving }
@@ -296,11 +313,8 @@ export class Tour {
    * readied no run since it started.
    */
   brief(terminalId: string): void {
-    if (!this.facts || !this.run) throw new DomainError("CONFLICT", "The tour hasn't been readied.")
-    this.ring(
-      terminalId,
-      tourBrief({ ...this.facts, lead: mention(this.host.handleOf(terminalId)) }),
-    )
+    if (!this.facts || !this.run) throw new TourError("The tour hasn't been readied.")
+    this.ring(terminalId, tourBrief({ ...this.facts, lead: `@${this.host.handleOf(terminalId)}` }))
     this.run.lead = terminalId
     // Kept with the run's record, so the lead resumed in a runner started again still opens
     // its teammates (`openPolicy`).
@@ -326,7 +340,7 @@ export class Tour {
    * always a `CONFLICT`, for a client that still asks.
    */
   artist(_terminalId: string): void {
-    throw new DomainError("CONFLICT", "The tour has no artist.")
+    throw new TourError("The tour has no artist.")
   }
 
   /**
@@ -349,9 +363,9 @@ export class Tour {
       if (!hasMarker(folder)) continue
       // While the tour's files are still kept out of git, so the commit takes none of them.
       // eslint-disable-next-line no-await-in-loop -- One folder at a time, as one is ever open.
-      await bringHome(folder)
+      await bringHome(this.host.git, folder)
       // eslint-disable-next-line no-await-in-loop -- As above.
-      await releaseSandbox(folder, projectNote)
+      await releaseSandbox(this.host.git, folder, projectNote)
       // eslint-disable-next-line no-await-in-loop -- As above.
       await keepTourFolder(folder)
     }
@@ -445,9 +459,8 @@ export class Tour {
   // `CONFLICT`, as is one whose agent hasn't shown yet.
   private ring(terminalId: string, line: string): void {
     const cwd = this.host.cwdOf(terminalId)
-    if (!this.inTour(cwd))
-      throw new DomainError("CONFLICT", "The terminal isn't one of the tour's.")
+    if (!this.inTour(cwd)) throw new TourError("The terminal isn't one of the tour's.")
     if (!this.host.notice(terminalId, line))
-      throw new DomainError("CONFLICT", "The terminal's agent hasn't started yet.")
+      throw new TourError("The terminal's agent hasn't started yet.")
   }
 }

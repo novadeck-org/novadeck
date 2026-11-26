@@ -1,14 +1,13 @@
 import type { Effort } from "@novadeck/harness-core/harness"
+import { commandLine } from "@novadeck/harness-core/prompts"
 import { ownProgram } from "@novadeck/harness-pi/bundled"
+import { pi } from "@novadeck/harness-pi/index"
 import { ownModel, ownService } from "@novadeck/harness-pi/own-model"
 import type { AgentName } from "@novadeck/protocol"
 
-import { harnesses } from "../harnesses/registry.js"
-import { commandLine } from "../terminals/commands.js"
-
 /**
  * The agent the tour always runs: Novadeck's own pi (the owner's decision, 2026-11-25, after
- * opencode from 2026-11-23), which Novadeck downloads itself (harnesses/bundled-pi.ts), on GPT-6
+ * opencode from 2026-11-23), which Novadeck downloads itself (the runner's harnesses/bundled-pi.ts), on GPT-6
  * Luna at medium effort through Novadeck's model service, paid for by Novadeck. The person's own
  * agents, accounts and model lists play no part, so nothing of the tour is spent from them, and
  * nothing need be installed or connected.
@@ -52,7 +51,7 @@ export type TourLaunch = {
 }
 
 export const tourLaunch = (): TourLaunch => {
-  const { launch } = harnesses[tourAgent]
+  const { launch } = pi
   const [, ...rest] = launch.start
   // Its options right after the program, as `open_agent` puts them.
   const command = commandLine([

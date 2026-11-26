@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { DomainError } from "../errors.js"
-import { describe, expect, it } from "../test.js"
+import { TourError } from "./errors.js"
 import { repositoryAssets, seedFiles } from "./seed.js"
+import { describe, expect, it } from "./test.js"
 
 describe("the seed project's files", () => {
   it("are the seed's own, text and binary, and the libraries under vendor, from the repository", async () => {
@@ -125,7 +125,7 @@ describe("the seed project's files", () => {
   it("fail with a sentence for the person where a file can't be read", async () => {
     const real = await repositoryAssets()
     const refused = await seedFiles({ ...real, three: "/nowhere" }).catch((error: unknown) => error)
-    expect(refused).toBeInstanceOf(DomainError)
+    expect(refused).toBeInstanceOf(TourError)
     expect(refused).toMatchObject({ code: "CONFLICT" })
     expect((refused as Error).message).toMatch(/couldn't be read/)
   })

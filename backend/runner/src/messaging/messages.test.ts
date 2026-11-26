@@ -1,3 +1,5 @@
+import { tourArtistMark, tourBriefMark } from "@novadeck/tour-runner/notices"
+
 import { describe, expect, it } from "../test.js"
 import {
   allowSend,
@@ -9,12 +11,9 @@ import {
   freshId,
   holdOf,
   maxDeliveryBytes,
-  isArtistBrief,
-  isTourBrief,
+  briefOf,
   novadeckSender,
   threadBetween,
-  tourBriefMark,
-  tourArtistMark,
   threadMs,
   waiting,
   markLength,
@@ -473,9 +472,8 @@ describe("the tour's brief to its artist", () => {
     message({ from, text: `${tourArtistMark} Step 1.` })
 
   it("is only Novadeck's own notice, and no lead's brief", () => {
-    expect(isArtistBrief(artistBrief())).toBe(true)
-    expect(isArtistBrief(artistBrief(message().from))).toBe(false)
-    expect(isTourBrief(artistBrief())).toBe(false)
+    expect(briefOf(artistBrief())?.mark).toBe(tourArtistMark)
+    expect(briefOf(artistBrief(message().from))).toBeUndefined()
   })
 
   it("is framed as the agent's task, as the artist's", () => {
@@ -492,8 +490,8 @@ describe("the tour's brief to its lead", () => {
     message({ from, text: `${tourBriefMark} ${text}` })
 
   it("is only Novadeck's own notice, never an agent's text that starts alike", () => {
-    expect(isTourBrief(brief("Do it."))).toBe(true)
-    expect(isTourBrief(brief("Do it.", message().from))).toBe(false)
+    expect(briefOf(brief("Do it."))?.mark).toBe(tourBriefMark)
+    expect(briefOf(brief("Do it.", message().from))).toBeUndefined()
   })
 
   it("is framed as the agent's task, not as a notice that needs no reply", () => {

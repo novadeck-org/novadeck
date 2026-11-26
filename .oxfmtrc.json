@@ -12,6 +12,6 @@
     "coverage",
     "pnpm-lock.yaml",
     "contract/protocol/contract.json",
-    "backend/runner/assets/tour/seed"
+    "backend/tour/assets/seed"
   ]
 }
