@@ -291,36 +291,39 @@ describe("nova, in the shims' folder", () => {
       mode: file.mode ?? 0o644,
     })
     const theirs = join(other, windows ? "nova.cmd" : "nova")
+    // The system's own folders after the test's, as a real PATH has them: Windows' `where`
+    // gives up on a PATH that names a folder that isn't there.
+    const system = windows ? (process.env.PATH ?? "").split(delimiter) : ["/usr/bin", "/bin"]
     const novaRun = (args: readonly string[], path: string) =>
       windows
         ? promisify(execFile)(process.env.ComSpec ?? "cmd.exe", ["/d", "/c", nova, ...args], {
             env: { ...over(process.env, { PATH: path }) },
           })
         : promisify(execFile)(nova, args, { env: { PATH: path } })
-    return { bin, other, on, theirs, start: novaRun }
+    return { bin, other, on, theirs, system, start: novaRun }
   }
 
   it("starts Nova's launcher while Nova is on", async () => {
-    const { bin, on, start } = await setup()
+    const { bin, on, system, start } = await setup()
     await writeFile(on, "")
-    const { stdout } = await start(["open", "a.txt"], [bin, "/usr/bin", "/bin"].join(delimiter))
+    const { stdout } = await start(["open", "a.txt"], [bin, ...system].join(delimiter))
     expect(stdout.trim()).toBe("launcher open a.txt")
   })
 
   it("runs another nova on PATH while Nova is off, as it would run", async () => {
-    const { bin, other, theirs, start } = await setup()
+    const { bin, other, theirs, system, start } = await setup()
     await writeFile(
       theirs,
       windows ? "@echo off\r\necho theirs %*\r\n" : '#!/bin/sh\necho theirs "$@"\n',
       { mode: 0o755 },
     )
-    const { stdout } = await start(["list"], [bin, other, "/usr/bin", "/bin"].join(delimiter))
+    const { stdout } = await start(["list"], [bin, other, ...system].join(delimiter))
     expect(stdout.trim()).toBe("theirs list")
   })
 
   it("says how to turn Nova on where no other nova is there", async () => {
-    const { bin, start } = await setup()
-    const failed = await start([], [bin, "/usr/bin", "/bin"].join(delimiter)).then(
+    const { bin, system, start } = await setup()
+    const failed = await start([], [bin, ...system].join(delimiter)).then(
       () => undefined,
       (error: { code?: number; stderr?: string }) => error,
     )
