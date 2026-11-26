@@ -578,7 +578,7 @@ export const boxNotCleared = (): SettleInTerminal =>
 // goes on with it, or not, and its answer can't say which. A prompt sent with a `ref` is then
 // told by what the conversation shows next: its receipt (`Conversation.prompts`), or none.
 export class InDoubt extends Error {
-  constructor(message = "The link to the runner dropped as it went.") {
+  constructor(message = "The connection to the runner dropped.") {
     super(message)
     this.name = "InDoubt"
   }
