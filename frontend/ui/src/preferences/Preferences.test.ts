@@ -949,6 +949,51 @@ describe("searching Preferences", () => {
     expect(document.activeElement?.closest(".settings-row")?.textContent).toContain("Ring the bell")
   })
 
+  it("finds a switch only the Experimental page has there, and one that stands on its page once", async () => {
+    await show({
+      tab: "appearance",
+      experimental: experimental(true),
+      murmurSwitch: { enabled: false, onChange: () => {} },
+    })
+    await type("murmur")
+    expect(results()).toContain("Murmur")
+    await type("agent avatars")
+    expect(results()).toEqual(["Agent avatars"])
+    expect(document.querySelector(".preferences-result")?.textContent).toContain("Appearance")
+  })
+
+  it("reads the pages again as a setting changes under the results", async () => {
+    const props = (sound: boolean) => ({
+      open: true,
+      tab: "notifications" as const,
+      notices: true,
+      value: { ...readPreferences(), sound },
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: () => {},
+    })
+    const page = render(createElement(Preferences, props(true)))
+    mounted.push(page)
+    await nextFrame()
+    await type("volume")
+    expect(results()).toEqual(["Volume"])
+
+    await act(async () => page.rerender(createElement(Preferences, props(false))))
+    await eventually(() => expect(results()).toEqual([]))
+  })
+
+  it("is focused by / from a slider, as from any control that doesn't type", async () => {
+    await show({ tab: "terminal" })
+    const slider = document.querySelector<HTMLInputElement>('input[type="range"]')!
+    slider.focus()
+    await act(async () => {
+      slider.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true }),
+      )
+    })
+    expect(document.activeElement).toBe(field())
+  })
+
   it("opens a match's page, and shows the pages again", async () => {
     const opened: string[] = []
     await show({ tab: "appearance", notices: true, onTabChange: (tab) => opened.push(tab) })
@@ -990,6 +1035,29 @@ describe("an Experimental feature, while Experimental is on", () => {
     )
     goTo?.click()
     expect(opened).toEqual(["appearance"])
+  })
+
+  it("leaves focus on the switch on the page it opens", async () => {
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      experimental: experimental(true),
+      value: readPreferences(),
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("experimental")))
+    mounted.push(page)
+    await nextFrame()
+    const goTo = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (button) => button.textContent === "On Appearance",
+    )
+    await act(async () => goTo?.click())
+    await nextFrame()
+
+    expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("agent-avatars-label")
   })
 
   it("offers no way to a page Preferences doesn't show", async () => {

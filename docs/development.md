@@ -922,7 +922,7 @@ App:
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
 - **Screen reader:** boot as a desktop app that says a screen reader runs, or that none does, for
-  Preferences > Appearance's Screen reader support on Automatic: the terminal in focus keeps a
+  Preferences > Terminal's Screen reader support on Automatic: the terminal in focus keeps a
   reader's text only while one runs. "As in a browser" boots back to a page nothing tells, which
   offers On and Off alone.
 - **Window controls:** boot as the macOS desktop app, whose window sets its close, minimise and

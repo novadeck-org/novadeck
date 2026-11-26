@@ -61,8 +61,7 @@ const nameOf = (row: HTMLElement): string => {
   return ""
 }
 
-// The settings each page of `root` shows, read from its panels, but for the pages `skip` names:
-// a row (`.settings-row`) or a set of choices (`.settings-fieldset`), with its name, what
+// The settings each page of `root` shows, read from its panels: a row (`.settings-row`) or a set of choices (`.settings-fieldset`), with its name, what
 // describes it (its description and its state's note) and the title of its section. A row with
 // no name of its own, as an addon's Install, takes its section's; one marked data-search-skip,
 // as a picture beside a choice, is no setting. A panel's id ends in its page's id, as Ark names a
@@ -70,12 +69,11 @@ const nameOf = (row: HTMLElement): string => {
 export const rowsOf = (
   root: HTMLElement,
   pageOf: (id: string) => string | undefined,
-  skip: ReadonlySet<string> = new Set(),
 ): PreferenceRow<{ readonly page: string; readonly row: HTMLElement }>[] =>
   [...root.querySelectorAll<HTMLElement>('[role="tabpanel"]')].flatMap((panel) => {
     const id = panel.id.slice(panel.id.lastIndexOf("content-") + "content-".length)
     const page = pageOf(id)
-    if (page === undefined || skip.has(id)) return []
+    if (page === undefined) return []
     return [...panel.querySelectorAll<HTMLElement>(".settings-row, .settings-fieldset")].flatMap(
       (row) => {
         if (row.closest("[data-search-skip]")) return []

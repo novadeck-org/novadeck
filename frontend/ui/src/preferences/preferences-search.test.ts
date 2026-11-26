@@ -95,13 +95,10 @@ describe("the settings a page shows", () => {
     ).toEqual([["Voice input", "Voice input", "Downloads 140 MB once."]])
   })
 
-  it("skips the pages it is told to, and those without a name", () => {
+  it("skips the pages without a name", () => {
     const root = pageOf(`
-      <div role="tabpanel" id="tabs:r1:content-experimental"><div class="settings-row">Agent avatars</div></div>
       <div role="tabpanel" id="tabs:r1:content-gone"><div class="settings-row">Old</div></div>`)
 
-    expect(
-      rowsOf(root, (id) => (id === "gone" ? undefined : "Experimental"), new Set(["experimental"])),
-    ).toEqual([])
+    expect(rowsOf(root, () => undefined)).toEqual([])
   })
 })

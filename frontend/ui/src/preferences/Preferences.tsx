@@ -107,6 +107,9 @@ const pageLabel = (id: string): string | undefined =>
 type Found = PreferenceRow<{ readonly page: string; readonly row: HTMLElement }>
 // What takes focus in a row search jumps to: its control.
 const rowControls = '[role="switch"], [role="combobox"], [role="radio"], input, button'
+// Where a key types: `/` searches anywhere else.
+const typingFields =
+  'input:not([type="range"]):not([type="radio"]):not([type="checkbox"]):not([type="button"]), textarea, select, [contenteditable="true"]'
 // How long a row search jumped to stays tinted, in milliseconds (settings.css's animation).
 const foundFor = 1600
 
@@ -164,7 +167,8 @@ const ExperimentalBadge = (): React.JSX.Element => (
 
 // Experimental switches, a row each, in a card of their own or, `bare`, in the card a page
 // gives them. On their own page each is badged; on the Experimental page (`onGoTo`) each says
-// the page it is on, and goes there. `scope` keeps the two pages' ids apart.
+// the page it is on, and goes there. `scope` keeps the two pages' ids apart. Search finds a
+// switch on its own page where it stands there too, and on the Experimental page where not.
 const ExperimentalRows = ({
   toggles,
   scope = "",
@@ -176,7 +180,7 @@ const ExperimentalRows = ({
   readonly scope?: string
   readonly bare?: boolean
   // Goes to a toggle's page, where `shows` says Preferences has it.
-  readonly onGoTo?: ((page: PreferencesTab) => void) | undefined
+  readonly onGoTo?: ((page: PreferencesTab, id: string) => void) | undefined
   readonly shows?: (page: PreferencesTab) => boolean
 }): React.JSX.Element | null => {
   if (toggles.length === 0) return null
@@ -184,8 +188,13 @@ const ExperimentalRows = ({
     ({ id: name, page, onPage, label, description, checked, onToggle, disabled, note, retry }) => {
       // Only a switch that stands on two pages needs its ids kept apart.
       const id = onGoTo && !onPage ? name : `${scope}${name}`
+      const twice = onGoTo !== undefined && onPage && shows(page)
       return (
-        <div key={id} className={`preference-row ${settingRowClasses}`}>
+        <div
+          key={id}
+          className={`preference-row ${settingRowClasses}`}
+          {...(twice ? { "data-search-skip": "" } : {})}
+        >
           <span className="flex min-w-0 flex-col gap-1">
             <span className="flex flex-wrap items-center gap-2">
               <span id={`${id}-label`}>{label}</span>
@@ -218,7 +227,7 @@ const ExperimentalRows = ({
               <button
                 type="button"
                 className="button link addon-action w-fit text-control"
-                onClick={() => onGoTo(page)}
+                onClick={() => onGoTo(page, onPage ? name : "")}
               >
                 On {pageLabel(page)}
               </button>
@@ -584,11 +593,7 @@ export const Preferences = ({
   }
   const search = (text: string): void => {
     setQuery(text)
-    setFound(
-      panels.current
-        ? matchRows(text, rowsOf(panels.current, pageLabel, new Set(["experimental"])))
-        : [],
-    )
+    setFound(panels.current ? matchRows(text, rowsOf(panels.current, pageLabel)) : [])
   }
   // Opens the page a match is on and brings its row into view, tinted a moment, with its
   // control focused where it has one.
@@ -607,6 +612,28 @@ export const Preferences = ({
       tint(row)
     })
   }
+  // Goes from the Experimental page to a switch's own page, focused on the switch where it stands
+  // there (`id`), else on the page, so focus never stays on the page left behind.
+  const goTo = (page: PreferencesTab, id: string): void => {
+    // The page's tab holds focus while the pages turn.
+    panels.current
+      ?.closest('[role="dialog"]')
+      ?.querySelector<HTMLElement>(`[role="tab"][data-value="${page}"]`)
+      ?.focus({ preventScroll: true })
+    changeTab(page)
+    requestAnimationFrame(() => {
+      const panel = panels.current?.querySelector<HTMLElement>(
+        `[role="tabpanel"][id$="content-${page}"]`,
+      )
+      const row = id
+        ? document.getElementById(`${id}-label`)?.closest<HTMLElement>(".settings-row")
+        : null
+      row?.scrollIntoView?.({ block: "center" })
+      const control = row?.querySelector<HTMLElement>(rowControls) ?? panel
+      control?.focus({ preventScroll: true })
+      if (row) tint(row)
+    })
+  }
   // `/` searches, as in the app's lists, unless the person is typing. Escape takes a search away
   // first, before it closes Preferences (the dialog's onEscapeKeyDown).
   const searching = query.trim() !== ""
@@ -614,12 +641,23 @@ export const Preferences = ({
   useEffect(() => {
     searchingNow.current = searching
   }, [searching])
+  // A setting changed while the results show can add or take away rows (Ring the bell's off
+  // takes Volume away), so the results are read again as the pages change.
+  useEffect(() => {
+    const root = panels.current
+    if (!searching || !root) return undefined
+    const observer = new MutationObserver(() => {
+      setFound(matchRows(query, rowsOf(root, pageLabel)))
+    })
+    observer.observe(root, { childList: true, subtree: true, characterData: true })
+    return () => observer.disconnect()
+  }, [searching, query])
   useEffect(() => {
     if (!open) return undefined
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target instanceof HTMLElement ? event.target : null
-      if (target?.closest("input, textarea, select, [contenteditable=true]")) return
+      if (target?.closest(typingFields)) return
       event.preventDefault()
       searchField.current?.focus()
     }
@@ -1530,7 +1568,7 @@ export const Preferences = ({
                 <ExperimentalRows
                   toggles={toggles}
                   scope="index-"
-                  onGoTo={(page) => changeTab(page)}
+                  onGoTo={goTo}
                   shows={(page) => !hidden(page)}
                 />
               </TabPanel>
