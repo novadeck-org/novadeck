@@ -7,12 +7,45 @@ import { viewModes } from "@novadeck/core/state"
 import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog } from "@novadeck/toolkit/Dialog"
+import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Select } from "@novadeck/toolkit/Select"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
-import { MessagesSquare, Search, SquareTerminal, X } from "lucide-react"
+import {
+  Accessibility,
+  ALargeSmall,
+  BellRing,
+  CircleCheck,
+  Coffee,
+  FlaskConical,
+  GitBranch,
+  History,
+  Info,
+  Ligature,
+  Map,
+  Mic,
+  MessagesSquare,
+  Monitor,
+  Moon,
+  Network,
+  Palette,
+  PawPrint,
+  Scaling,
+  ScrollText,
+  Search,
+  ShieldCheck,
+  SquareTerminal,
+  Sun,
+  SunMoon,
+  Tag,
+  Timer,
+  Type,
+  Volume2,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 import {
   useEffect,
   useRef,
@@ -26,7 +59,6 @@ import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
 import { soundChoiceOf, soundInEffect, soundName, sounds } from "../sounds"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
-import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentModePicker } from "./AgentModePicker"
 import { AgentSwitches } from "./AgentSwitches"
@@ -48,23 +80,25 @@ import {
   preferencesTabs,
   settingRowClasses,
   settingsCardClasses,
+  settingsStackClasses,
   versionText,
   type PreferencesTab,
 } from "./settings"
+import { TerminalSample } from "./SettingsSamples"
 import { useThemeMonoFamily } from "./theme-font"
 import { UninstallApp, type UninstallValue } from "./UninstallApp"
 import { useInstalledFonts } from "./useInstalledFonts"
 import { VoiceInput, type VoiceAddon } from "./VoiceInput"
 
 const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
+// As the welcome dialog offers them.
 const schemeItems = [
-  { label: "System", value: "system" },
-  { label: "Light", value: "light" },
-  { label: "Dark", value: "dark" },
+  { label: "System", value: "system", icon: <Monitor size={13} aria-hidden="true" /> },
+  { label: "Light", value: "light", icon: <Sun size={13} aria-hidden="true" /> },
+  { label: "Dark", value: "dark", icon: <Moon size={13} aria-hidden="true" /> },
 ] as const
-// How long an idle agent runs before it is stopped, in minutes; null for never.
+// How long an idle agent runs before it is stopped, in minutes, while stopping is on.
 const idleChoices = [
-  { label: "Off", value: "off" },
   { label: "15 minutes", value: "15" },
   { label: "30 minutes", value: "30" },
   { label: "1 hour", value: "60" },
@@ -79,20 +113,20 @@ const agentPresentations = [
 
 const scaleItems = appScales.map((scale) => ({ label: `${scale}%`, value: String(scale) }))
 
-// Screen reader support's choices: Automatic only where the app can tell when one runs. Plain
-// words, as the menu is as wide as its button; the row's description says what they do.
-const screenReaderChoices = (known: boolean) => [
-  ...(known ? [{ label: "Automatic", value: "auto" }] : []),
+// Screen reader support's choices where the app can tell when one runs; elsewhere a switch.
+// Plain words: the card's description says what they do.
+const screenReaderChoices = [
+  { label: "Automatic", value: "auto" },
   { label: "On", value: "on" },
   { label: "Off", value: "off" },
 ]
 
 const screenReaderExplanation = (known: boolean): string =>
-  "Lets a screen reader read the terminal you're in, at some cost to speed." +
-  (known ? " Automatic turns it on while the system reports one." : "")
+  "Lets a screen reader read the terminal you're in. Terminals draw a little slower." +
+  (known ? " Automatic follows your system." : "")
 
 // Section titles match the sidebar's panel titles.
-const sectionTitleClasses = "section-label m-0 text-label font-medium"
+const sectionTitleClasses = "settings-section-title m-0"
 // A group inside a section, as Layout's two sets of choices.
 const groupTitleClasses = "text-body font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
@@ -105,8 +139,11 @@ const pageLabel = (id: string): string | undefined =>
 
 // A setting search found: its row, on its page.
 type Found = PreferenceRow<{ readonly page: string; readonly row: HTMLElement }>
-// What takes focus in a row search jumps to: its control.
+// What takes focus in a row search jumps to: its control, its switch first, as a card that shows
+// a choice beside its switch (Stop idle agents' wait) turns on and off by the switch.
 const rowControls = '[role="switch"], [role="combobox"], [role="radio"], input, button'
+const rowControl = (row: HTMLElement): HTMLElement | null =>
+  row.querySelector<HTMLElement>('[role="switch"]') ?? row.querySelector<HTMLElement>(rowControls)
 // Where a key types: `/` searches anywhere else.
 const typingFields =
   'input:not([type="range"]):not([type="radio"]):not([type="checkbox"]):not([type="button"]), textarea, select, [contenteditable="true"]'
@@ -117,6 +154,8 @@ const foundFor = 1600
 // page too (`onPage`), or only the feature it turns on does.
 type ExperimentalToggle = {
   readonly id: string
+  // Its mark on its card.
+  readonly icon: LucideIcon
   readonly page: PreferencesTab
   readonly onPage: boolean
   readonly label: string
@@ -185,7 +224,19 @@ const ExperimentalRows = ({
 }): React.JSX.Element | null => {
   if (toggles.length === 0) return null
   const rows = toggles.map(
-    ({ id: name, page, onPage, label, description, checked, onToggle, disabled, note, retry }) => {
+    ({
+      id: name,
+      icon,
+      page,
+      onPage,
+      label,
+      description,
+      checked,
+      onToggle,
+      disabled,
+      note,
+      retry,
+    }) => {
       // Only a switch that stands on two pages needs its ids kept apart.
       const id = onGoTo && !onPage ? name : `${scope}${name}`
       const twice = onGoTo !== undefined && onPage && shows(page)
@@ -195,43 +246,51 @@ const ExperimentalRows = ({
           className={`preference-row ${settingRowClasses}`}
           {...(twice ? { "data-search-skip": "" } : {})}
         >
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <span id={`${id}-label`}>{label}</span>
-              {!onGoTo && <ExperimentalBadge />}
-            </span>
-            <span id={`${id}-description`} className="settings-description text-control leading-5">
-              {description}
-            </span>
-            {note && (
-              <span
-                className="settings-note flex flex-wrap items-center gap-x-2 gap-y-1 text-control leading-5"
-                data-experimental-note={name}
-                // A failure is said at once; progress as the person pauses.
-                {...(note.error ? { "data-tone": "danger", role: "alert" } : { role: "status" })}
-              >
-                <span id={`${id}-note`}>{note.text}</span>
-                {note.error && (
-                  <button
-                    type="button"
-                    className="button min-h-7 px-2.5 text-control"
-                    aria-label={`Try again: ${label}`}
-                    onClick={retry}
-                  >
-                    Try again
-                  </button>
-                )}
+          <span className="flex min-w-0 items-center gap-3">
+            <SettingTile icon={icon} />
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="flex flex-wrap items-center gap-2">
+                <span id={`${id}-label`} className="settings-label">
+                  {label}
+                </span>
+                {!onGoTo && <ExperimentalBadge />}
               </span>
-            )}
-            {onGoTo && shows(page) && (
-              <button
-                type="button"
-                className="button link addon-action w-fit text-control"
-                onClick={() => onGoTo(page, onPage ? name : "")}
+              <span
+                id={`${id}-description`}
+                className="settings-description text-control leading-5"
               >
-                On {pageLabel(page)}
-              </button>
-            )}
+                {description}
+              </span>
+              {note && (
+                <span
+                  className="settings-note flex flex-wrap items-center gap-x-2 gap-y-1 text-control leading-5"
+                  data-experimental-note={name}
+                  // A failure is said at once; progress as the person pauses.
+                  {...(note.error ? { "data-tone": "danger", role: "alert" } : { role: "status" })}
+                >
+                  <span id={`${id}-note`}>{note.text}</span>
+                  {note.error && (
+                    <button
+                      type="button"
+                      className="button min-h-7 px-2.5 text-control"
+                      aria-label={`Try again: ${label}`}
+                      onClick={retry}
+                    >
+                      Try again
+                    </button>
+                  )}
+                </span>
+              )}
+              {onGoTo && shows(page) && (
+                <button
+                  type="button"
+                  className="button link addon-action w-fit text-control"
+                  onClick={() => onGoTo(page, onPage ? name : "")}
+                >
+                  On {pageLabel(page)}
+                </button>
+              )}
+            </span>
           </span>
           <Switch
             checked={checked}
@@ -244,7 +303,7 @@ const ExperimentalRows = ({
       )
     },
   )
-  return bare ? <>{rows}</> : <div className={settingsCardClasses}>{rows}</div>
+  return bare ? <>{rows}</> : <div className={settingsStackClasses}>{rows}</div>
 }
 
 // The switch of an agent in the Agents section, or its Install where it isn't installed, where
@@ -262,12 +321,15 @@ const Section = ({
   badge,
   description,
   label,
+  icon,
   children,
 }: {
   title?: string
   badge?: ReactNode
   description?: ReactNode
   label?: string
+  // A mark in a tile beside the title, as an addon's.
+  icon?: ReactNode
   children: ReactNode
 }): React.JSX.Element => {
   const id = title && `preferences-${title.toLowerCase().replaceAll(" ", "-")}`
@@ -277,17 +339,27 @@ const Section = ({
       {...(label || !id ? { "aria-label": label } : { "aria-labelledby": id })}
     >
       {(title || description) && (
-        <header className="px-0.5">
-          {title && (
-            // The badge stands beside the title, out of the name it gives the section.
-            <div className="flex items-center gap-2">
-              <h3 id={id} className={sectionTitleClasses}>
-                {title}
-              </h3>
-              {badge}
-            </div>
+        <header className="flex items-center gap-3 px-0.5">
+          {icon && (
+            <span
+              className="choice-card-tile flex size-9 flex-none items-center justify-center"
+              aria-hidden="true"
+            >
+              {icon}
+            </span>
           )}
-          {description && <p className={sectionDescriptionClasses}>{description}</p>}
+          <div className="min-w-0">
+            {title && (
+              // The badge stands beside the title, out of the name it gives the section.
+              <div className="flex items-center gap-2">
+                <h3 id={id} className={sectionTitleClasses}>
+                  {title}
+                </h3>
+                {badge}
+              </div>
+            )}
+            {description && <p className={sectionDescriptionClasses}>{description}</p>}
+          </div>
         </header>
       )}
       {children}
@@ -295,22 +367,44 @@ const Section = ({
   )
 }
 
-// A setting's name and what it does, beside its control.
+// A setting's description, under its name.
+const descriptionClasses = "settings-description text-control leading-5"
+
+// A setting's mark, in the welcome dialog's tile.
+const SettingTile = ({ icon: Icon }: { readonly icon: LucideIcon }): React.JSX.Element => (
+  <span
+    className="choice-card-tile flex size-[38px] flex-none items-center justify-center"
+    aria-hidden="true"
+  >
+    <Icon size={20} strokeWidth={1.4} />
+  </span>
+)
+
+// A setting's mark, name and what it does, beside its control.
 const SettingText = ({
   id,
+  icon,
   label,
   description,
   descriptionId,
 }: {
   id: string
+  icon?: LucideIcon
   label: string
-  description: string
-  descriptionId: string
+  description?: string
+  descriptionId?: string
 }): React.JSX.Element => (
-  <span className="flex min-w-0 flex-col gap-1">
-    <span id={id}>{label}</span>
-    <span id={descriptionId} className="settings-description text-control leading-5">
-      {description}
+  <span className="flex min-w-0 items-center gap-3">
+    {icon && <SettingTile icon={icon} />}
+    <span className="flex min-w-0 flex-col gap-1">
+      <span id={id} className="settings-label">
+        {label}
+      </span>
+      {description && (
+        <span id={descriptionId} className={descriptionClasses}>
+          {description}
+        </span>
+      )}
     </span>
   </span>
 )
@@ -340,10 +434,12 @@ const VersionRow = ({
     } else setTaps(taps + 1)
   }
   return (
-    <dl className={`${settingsCardClasses} m-0`}>
-      <div className={`preference-row ${settingRowClasses}`}>
-        <dt className="m-0 flex min-w-0 flex-col">
-          <span>Version</span>
+    // The row itself is the list, so it stands as a card of its own among the others.
+    <dl className={`preference-row ${settingRowClasses} m-0`}>
+      <dt className="m-0 flex min-w-0 items-center gap-3">
+        <SettingTile icon={Info} />
+        <span className="flex min-w-0 flex-col">
+          <span className="settings-label">Version</span>
           <span
             role="status"
             className="settings-description text-control leading-5 not-empty:mt-1"
@@ -352,13 +448,13 @@ const VersionRow = ({
               ? `Tap ${left === 1 ? "once more" : `${left} more times`} to show Experimental`
               : ""}
           </span>
-        </dt>
-        {/* A hidden gesture, as Android's: the switch it shows is no secret, only out of the
+        </span>
+      </dt>
+      {/* A hidden gesture, as Android's: the switch it shows is no secret, only out of the
             way, so the version stays plain, selectable text. */}
-        <dd className="m-0 select-text" onClick={tap}>
-          {versionText(version)}
-        </dd>
-      </div>
+      <dd className="m-0 select-text" onClick={tap}>
+        {versionText(version)}
+      </dd>
     </dl>
   )
 }
@@ -382,10 +478,13 @@ const TabInView = ({
 }
 
 // The list's value for a wait; none for one the list lacks.
-const idleChoice = (minutes: number | null): string => {
-  const value = minutes === null ? "off" : String(minutes)
+const idleChoice = (minutes: number): string => {
+  const value = String(minutes)
   return idleChoices.some((choice) => choice.value === value) ? value : ""
 }
+
+// The wait Stop idle agents turns on with: the last one set while open, else an hour.
+const defaultWait = 60
 
 export const Preferences = ({
   open,
@@ -583,6 +682,12 @@ export const Preferences = ({
   const panels = useRef<HTMLDivElement>(null)
   const narrow = useNarrow()
   const searchField = useRef<HTMLInputElement>(null)
+  // The wait Stop idle agents turns back on with: the last one it had.
+  const idleMinutes = hibernation?.minutes ?? null
+  const lastWait = useRef(idleMinutes ?? defaultWait)
+  useEffect(() => {
+    if (idleMinutes !== null) lastWait.current = idleMinutes
+  }, [idleMinutes])
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   // What the person searches for, and the rows that match it, read from the pages as typed.
   const [query, setQuery] = useState("")
@@ -609,8 +714,7 @@ export const Preferences = ({
       const { row } = target
       row.scrollIntoView?.({ block: "center" })
       // A row with no control, as a shortcut's, leaves focus on its page.
-      const control =
-        row.querySelector<HTMLElement>(rowControls) ?? row.closest<HTMLElement>('[role="tabpanel"]')
+      const control = rowControl(row) ?? row.closest<HTMLElement>('[role="tabpanel"]')
       control?.focus({ preventScroll: true })
       tint(row)
     })
@@ -632,7 +736,7 @@ export const Preferences = ({
         ? document.getElementById(`${id}-label`)?.closest<HTMLElement>(".settings-row")
         : null
       row?.scrollIntoView?.({ block: "center" })
-      const control = row?.querySelector<HTMLElement>(rowControls) ?? panel
+      const control = (row ? rowControl(row) : null) ?? panel
       control?.focus({ preventScroll: true })
       if (row) tint(row)
     })
@@ -708,15 +812,16 @@ export const Preferences = ({
   const terminalFonts = fontChoices(installed, value.fontFamily ?? "", themeFamily)
   // Terminals join ligatures only in the bundled font, which they draw where it is the default
   // (the standard themes) or the choice.
-  const terminalLigatures = isBundled(
-    terminalFonts.value === builtInFont ? themeFamily || "JetBrains Mono" : terminalFonts.value,
-  )
+  const terminalFamily =
+    terminalFonts.value === builtInFont ? themeFamily || "JetBrains Mono" : terminalFonts.value
+  const terminalLigatures = isBundled(terminalFamily)
   // Every Experimental switch, each with the page its feature is on. `onPage` rows also stand on
   // that page, badged; the others' page shows what they turn on (the mode picker, Murmur), and
   // the Experimental page lists them all.
   const experimentalToggles: readonly ExperimentalToggle[] = [
     {
       id: "agent-avatars",
+      icon: PawPrint,
       page: "appearance",
       onPage: true,
       label: "Agent avatars",
@@ -728,11 +833,12 @@ export const Preferences = ({
     },
     {
       id: "onboarding-tour",
+      icon: Map,
       page: "about",
       onPage: true,
       label: "Onboarding tour",
       description: tour
-        ? "Add a Help menu to the footer that offers a short tour: three Pi agents, on a model Novadeck pays for, in a sandbox repo."
+        ? "A Help menu in the footer that offers a short tour: three Pi agents in a sandbox repo, on a model Novadeck pays for."
         : "Not available here.",
       checked: tour && value.onboardingTour,
       onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
@@ -740,6 +846,7 @@ export const Preferences = ({
     },
     {
       id: "agent-modes",
+      icon: Network,
       page: "agents",
       onPage: false,
       label: "Agent modes",
@@ -752,11 +859,12 @@ export const Preferences = ({
     },
     {
       id: "shipping-gate",
+      icon: ShieldCheck,
       page: "agents",
       onPage: true,
       label: "Shipping gate",
       description: shippingGate
-        ? "Claude Code, Codex, Antigravity and OpenCode may push to a branch that isn't their own, land into another branch, open a PR or merge one only with a permit: your own words typed in that agent's terminal, or your Allow on a card in the chat and the Inbox. Without one the command is refused and the agent is told to ask. Applies to agents started after you turn it on. Antigravity and OpenCode are gated in every mode but one told to skip all permissions; where Windows' cmd prints before hooks, Antigravity isn't covered and asks you as it always did."
+        ? "Claude Code, Codex, Antigravity, OpenCode and Pi need your OK to push to a branch that isn't theirs, land into another branch, open a PR or merge: your own words in their terminal, or Allow on the card in the chat or the Inbox. Without it they're stopped and told to ask. Applies to agents started after you turn it on. Antigravity and OpenCode skip it when told to skip all permissions, and Antigravity in Windows' cmd asks you as before."
         : "Not available here.",
       checked: shippingGate?.enabled ?? false,
       onToggle: (enabled: boolean) => shippingGate?.onChange(enabled),
@@ -764,6 +872,7 @@ export const Preferences = ({
     },
     {
       id: "bundled-pi",
+      icon: PiIcon,
       page: "agents",
       onPage: true,
       label: bundledPiLabel,
@@ -779,6 +888,7 @@ export const Preferences = ({
     },
     {
       id: "keep-awake",
+      icon: Coffee,
       page: "agents",
       onPage: false,
       label: "Keep awake",
@@ -792,6 +902,7 @@ export const Preferences = ({
     },
     {
       id: "murmur",
+      icon: Tag,
       page: "addons",
       onPage: false,
       label: MURMUR_NAME,
@@ -823,12 +934,13 @@ export const Preferences = ({
     ...sounds.map(({ id, name }) => ({ label: name, value: id })),
   ]
   const { soundChoice } = value
-  const runningToggles = pageToggles("agents", ["shipping-gate"])
+  // The shipping gate goes with the worktrees and pull requests it guards.
+  const gitToggles = pageToggles("agents", ["shipping-gate"])
   // Keep awake is an Experimental feature: its switch on the Agents page shows only while its
   // Experimental row is on, and only where the app can keep the computer awake.
   const showKeepAwake = awake && hasExperimental && value.keepAwakeOffered
-  const agentsRunning =
-    hibernation || worktrees || showAgentMode || showKeepAwake || runningToggles.length > 0
+  const agentsRunning = hibernation !== undefined || showAgentMode || showKeepAwake
+  const agentsGit = worktrees !== undefined || showForges || gitToggles.length > 0
   const pageTitle = pageLabel(shown) ?? ""
   return (
     <Dialog
@@ -959,9 +1071,6 @@ export const Preferences = ({
           <div className="modal-header preferences-heading flex shrink-0 items-start justify-between gap-4 px-8 pt-5 pb-4 max-[640px]:px-4">
             <div className="min-w-0">
               <h2 className="m-0 text-title font-medium">{pageTitle}</h2>
-              {shown === "agents" && agents && (
-                <p className={sectionDescriptionClasses}>{agentsExplanation}</p>
-              )}
               {shown === "experimental" && (
                 <p className={sectionDescriptionClasses}>
                   Features still being built, each with the page where you'll find it.
@@ -979,7 +1088,10 @@ export const Preferences = ({
           <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
             <TabPanel value="agents" className={panelClasses}>
               {(agents || pageToggles("agents", ["bundled-pi"]).length > 0) && (
-                <Section label="Agents">
+                <Section
+                  title="Connected agents"
+                  {...(agents ? { description: agentsExplanation } : {})}
+                >
                   {agents && (
                     <AgentSwitches
                       agents={agents.list}
@@ -1000,59 +1112,65 @@ export const Preferences = ({
                       badge={<ExperimentalBadge />}
                     />
                   )}
-                  {(hibernation || worktrees || showKeepAwake || runningToggles.length > 0) && (
-                    <div className={settingsCardClasses}>
+                  {(hibernation || showKeepAwake) && (
+                    <div className={settingsStackClasses}>
                       {hibernation && (
-                        <Select
-                          className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                          label="Stop idle agents after"
-                          items={idleChoices}
-                          // A saved wait the list doesn't have shows as it is, without being chosen.
-                          value={idleChoice(hibernation.minutes)}
-                          placeholder={`${hibernation.minutes} minutes`}
-                          onValueChange={(choice) =>
-                            hibernation.onChange(choice === "off" ? null : Number(choice))
-                          }
-                          open={open && shown === "agents" && openSelect === "idle-agents"}
-                          onOpenChange={(expanded) =>
-                            setOpenSelect(expanded ? "idle-agents" : null)
-                          }
-                          portalContainer={dialog}
-                        />
-                      )}
-                      {/* On for everyone: a way out for whoever keeps worktrees with a tool of
-                          their own. */}
-                      {worktrees && (
+                        // A switch, and the wait beside it while it's on.
                         <div className={`preference-row ${settingRowClasses}`}>
                           <SettingText
-                            id="agent-worktrees-label"
-                            label="Agent worktrees"
-                            description="Agents make their own git worktrees, shown in the Worktrees panel and cleaned up once merged. Turn off only if you manage worktrees with another tool: agents then work in your checkout."
-                            descriptionId="agent-worktrees-description"
+                            id="idle-agents-label"
+                            icon={Timer}
+                            label="Stop idle agents"
+                            description={
+                              hibernation.minutes === null
+                                ? "Off: an agent with nothing to do keeps running until you close it."
+                                : "An agent with nothing to do stops after this long. A message wakes it again."
+                            }
+                            descriptionId="idle-agents-description"
                           />
-                          <Switch
-                            checked={worktrees.enabled}
-                            onChange={worktrees.onChange}
-                            labelledBy="agent-worktrees-label"
-                            describedBy="agent-worktrees-description"
-                          />
+                          <span className="flex shrink-0 items-center gap-3">
+                            {hibernation.minutes !== null && (
+                              <Select
+                                className="[&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-32"
+                                label="Stop idle agents after"
+                                items={idleChoices}
+                                // A saved wait the list doesn't have shows as it is, without being chosen.
+                                value={idleChoice(hibernation.minutes)}
+                                placeholder={`${hibernation.minutes} minutes`}
+                                onValueChange={(choice) => hibernation.onChange(Number(choice))}
+                                open={open && shown === "agents" && openSelect === "idle-agents"}
+                                onOpenChange={(expanded) =>
+                                  setOpenSelect(expanded ? "idle-agents" : null)
+                                }
+                                portalContainer={dialog}
+                              />
+                            )}
+                            <Switch
+                              checked={hibernation.minutes !== null}
+                              onChange={(on) => hibernation.onChange(on ? lastWait.current : null)}
+                              labelledBy="idle-agents-label"
+                              describedBy="idle-agents-description"
+                            />
+                          </span>
                         </div>
                       )}
                       {showKeepAwake && (
                         <div className={`preference-row ${settingRowClasses}`}>
-                          <span className="flex min-w-0 flex-col gap-1">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span id="awake-label">Keep awake while agents work</span>
-                              <ExperimentalBadge />
-                            </span>
-                            <span
-                              id="awake-description"
-                              className="settings-description text-control leading-5"
-                            >
-                              Agents' long tasks finish while you're away: this computer doesn't go
-                              to sleep on its own while an agent works, which uses more battery. The
-                              screen still turns off and locks, and closing a laptop's lid still
-                              puts it to sleep. On Linux, it works on GNOME.
+                          <span className="flex min-w-0 items-center gap-3">
+                            <SettingTile icon={Coffee} />
+                            <span className="flex min-w-0 flex-col gap-1">
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span id="awake-label" className="settings-label">
+                                  Keep awake while agents work
+                                </span>
+                                <ExperimentalBadge />
+                              </span>
+                              <span id="awake-description" className={descriptionClasses}>
+                                Agents' long tasks finish while you're away: this computer doesn't
+                                go to sleep on its own while an agent works, which uses more
+                                battery. The screen still turns off and locks, and closing a
+                                laptop's lid still puts it to sleep. On Linux, it works on GNOME.
+                              </span>
                             </span>
                           </span>
                           <Switch
@@ -1063,29 +1181,61 @@ export const Preferences = ({
                           />
                         </div>
                       )}
-                      <ExperimentalRows toggles={runningToggles} bare />
                     </div>
                   )}
                 </Section>
               )}
-              {showForges && (
-                <Section title="Pull requests" description={forgesExplanation}>
-                  <ForgeRows
-                    forges={forges.list}
-                    onInstall={forges.onInstall}
-                    installing={forges.installing}
-                    onSignIn={forges.onSignIn}
-                    signingIn={forges.signingIn}
-                  />
+              {agentsGit && (
+                // Where agents' work goes: their worktrees, what they may push, and the pull
+                // requests the Worktrees panel reads.
+                <Section title="Worktrees and pull requests">
+                  {(worktrees || gitToggles.length > 0) && (
+                    <div className={settingsStackClasses}>
+                      {/* On for everyone: a way out for whoever keeps worktrees with a tool of
+                          their own. */}
+                      {worktrees && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="agent-worktrees-label"
+                            icon={GitBranch}
+                            label="Agent worktrees"
+                            description="Each agent works in a git worktree of its own, shown in the Worktrees panel and cleaned up once merged. Turn off only if another tool manages your worktrees: agents then work in your checkout."
+                            descriptionId="agent-worktrees-description"
+                          />
+                          <Switch
+                            checked={worktrees.enabled}
+                            onChange={worktrees.onChange}
+                            labelledBy="agent-worktrees-label"
+                            describedBy="agent-worktrees-description"
+                          />
+                        </div>
+                      )}
+                      <ExperimentalRows toggles={gitToggles} bare />
+                    </div>
+                  )}
+                  {showForges && (
+                    <>
+                      <p className={`px-0.5 ${sectionDescriptionClasses}`}>{forgesExplanation}</p>
+                      <ForgeRows
+                        forges={forges.list}
+                        onInstall={forges.onInstall}
+                        installing={forges.installing}
+                        onSignIn={forges.onSignIn}
+                        signingIn={forges.signingIn}
+                      />
+                    </>
+                  )}
                 </Section>
               )}
             </TabPanel>
             <TabPanel value="appearance" className={panelClasses}>
               <Section title="Theme">
-                <div className={settingsCardClasses}>
+                <div className={settingsStackClasses}>
                   <Select
                     className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-52`}
                     label="Theme"
+                    icon={<SettingTile icon={Palette} />}
+                    labelClassName="settings-label"
                     items={themeItems}
                     // A saved theme the app doesn't have shows as the one drawn, Coolant,
                     // without being chosen, so picking Coolant saves it.
@@ -1109,6 +1259,7 @@ export const Preferences = ({
                   >
                     <SettingText
                       id="theme-scheme-label"
+                      icon={SunMoon}
                       label="Mode"
                       description={
                         onlyScheme
@@ -1129,25 +1280,10 @@ export const Preferences = ({
                         if (scheme) onChange({ ...value, appearance: { ...appearance, scheme } })
                       }}
                       className="flex shrink-0 gap-1"
-                      itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-control data-disabled:cursor-not-allowed"
+                      itemClassName="flex h-7 min-w-14 items-center justify-center gap-1.5 px-2.5 text-control data-disabled:cursor-not-allowed"
                       indicatorClassName="absolute"
                     />
                   </fieldset>
-                  {scalable && (
-                    <Select
-                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                      label="Scale"
-                      items={scaleItems}
-                      value={String(value.appScale)}
-                      onValueChange={(next) => {
-                        const appScale = appScales.find((scale) => String(scale) === next)
-                        if (appScale) onChange({ ...value, appScale })
-                      }}
-                      open={open && shown === "appearance" && openSelect === "scale"}
-                      onOpenChange={(expanded) => setOpenSelect(expanded ? "scale" : null)}
-                      portalContainer={dialog}
-                    />
-                  )}
                 </div>
               </Section>
               <Section title="Layout">
@@ -1162,8 +1298,8 @@ export const Preferences = ({
                     id="view-modes-description"
                     className={`mt-1.5 px-0.5 ${sectionDescriptionClasses}`}
                   >
-                    Layouts shown in the header. At least one stays on; with one, the header has no
-                    switch.
+                    The layouts you switch between in the header. Keep at least one; with one, the
+                    header has no switch.
                   </p>
                   <div className="view-preference-options mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
                     {viewModes.map((mode) => {
@@ -1254,16 +1390,51 @@ export const Preferences = ({
                     </div>
                   </fieldset>
                 )}
+                {pageToggles("appearance").length > 0 && (
+                  <div className="mt-2.5">
+                    <ExperimentalRows toggles={pageToggles("appearance")} />
+                  </div>
+                )}
               </Section>
-              {pageToggles("appearance").length > 0 && (
-                <ExperimentalRows toggles={pageToggles("appearance")} />
+              {scalable && (
+                <Section title="Size">
+                  <div className={settingsStackClasses}>
+                    <Select
+                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                      label="Scale"
+                      icon={<SettingTile icon={Scaling} />}
+                      labelClassName="settings-label"
+                      description="Makes all of Novadeck bigger or smaller. Terminal text has its own size, on the Terminal page."
+                      descriptionClassName={descriptionClasses}
+                      items={scaleItems}
+                      value={String(value.appScale)}
+                      onValueChange={(next) => {
+                        const appScale = appScales.find((scale) => String(scale) === next)
+                        if (appScale) onChange({ ...value, appScale })
+                      }}
+                      open={open && shown === "appearance" && openSelect === "scale"}
+                      onOpenChange={(expanded) => setOpenSelect(expanded ? "scale" : null)}
+                      portalContainer={dialog}
+                    />
+                  </div>
+                </Section>
               )}
             </TabPanel>
             <TabPanel value="terminal" className={panelClasses}>
               <Section title="Text">
-                <div className={settingsCardClasses}>
+                {/* What the cards under it change, as they change it. */}
+                <TerminalSample
+                  family={terminalFamily}
+                  font={
+                    terminalFonts.items.find((item) => item.value === terminalFonts.value)?.label ??
+                    terminalFamily
+                  }
+                  size={value.fontSize}
+                  ligatures={value.ligatures && terminalLigatures}
+                />
+                <div className={settingsStackClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
-                    <span id="font-size-label">Text size</span>
+                    <SettingText id="font-size-label" icon={ALargeSmall} label="Text size" />
                     <span className="flex shrink-0 items-center gap-3">
                       <input
                         type="range"
@@ -1286,6 +1457,8 @@ export const Preferences = ({
                   <Select
                     className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-52`}
                     label="Terminal font"
+                    icon={<SettingTile icon={Type} />}
+                    labelClassName="settings-label"
                     items={terminalFonts.items}
                     value={terminalFonts.value}
                     onValueChange={(choice) =>
@@ -1298,11 +1471,12 @@ export const Preferences = ({
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="ligatures-label"
+                      icon={Ligature}
                       label="Ligatures"
                       description={
                         terminalLigatures
-                          ? "Join pairs such as => and != into one symbol in terminals and code."
-                          : "Join pairs such as => and != into one symbol in code. Terminals draw them only in the built-in JetBrains Mono."
+                          ? "Draw pairs such as => and != as one symbol, in terminals and code."
+                          : "Draw pairs such as => and != as one symbol in code. Terminals join them only in the built-in JetBrains Mono."
                       }
                       descriptionId="ligatures-description"
                     />
@@ -1316,49 +1490,61 @@ export const Preferences = ({
                 </div>
               </Section>
               <Section title="Accessibility">
-                <div className={settingsCardClasses}>
-                  <div className={`preference-row ${settingRowClasses}`}>
+                <div className={settingsStackClasses}>
+                  {/* A group named and described by its words, so the choices are read with them. */}
+                  <fieldset
+                    className={`preference-row ${settingRowClasses} m-0 min-w-0`}
+                    aria-labelledby="screen-reader-label"
+                    aria-describedby="screen-reader-description"
+                  >
                     <SettingText
                       id="screen-reader-label"
+                      icon={Accessibility}
                       label="Screen reader support"
                       description={screenReaderExplanation(screenReaderKnown)}
                       descriptionId="screen-reader-description"
                     />
-                    <Select
-                      className="shrink-0 [&_[data-part=label]]:sr-only [&_[data-part=trigger]]:w-36"
-                      label="Screen reader support"
-                      items={screenReaderChoices(screenReaderKnown)}
-                      // Where nothing can tell, Automatic keeps the text, as On does.
-                      value={
-                        value.screenReader === "auto" && !screenReaderKnown
-                          ? "on"
-                          : value.screenReader
-                      }
-                      onValueChange={(choice) =>
-                        onChange({
-                          ...value,
-                          screenReader:
-                            screenReaderPreferences.find((each) => each === choice) ??
-                            value.screenReader,
-                        })
-                      }
-                      open={open && shown === "terminal" && openSelect === "screen-reader"}
-                      onOpenChange={(expanded) => setOpenSelect(expanded ? "screen-reader" : null)}
-                      portalContainer={dialog}
-                    />
-                  </div>
+                    {/* Three states where the app can tell when a screen reader runs; on or off
+                        where it can't, which keeps the text, as Automatic does there. */}
+                    {screenReaderKnown ? (
+                      <SegmentGroup
+                        label="Screen reader support"
+                        items={screenReaderChoices}
+                        value={value.screenReader}
+                        onValueChange={(choice) =>
+                          onChange({
+                            ...value,
+                            screenReader:
+                              screenReaderPreferences.find((each) => each === choice) ??
+                              value.screenReader,
+                          })
+                        }
+                        className="flex shrink-0 gap-1"
+                        itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-control"
+                        indicatorClassName="absolute"
+                      />
+                    ) : (
+                      <Switch
+                        checked={value.screenReader !== "off"}
+                        onChange={(on) => onChange({ ...value, screenReader: on ? "on" : "off" })}
+                        labelledBy="screen-reader-label"
+                        describedBy="screen-reader-description"
+                      />
+                    )}
+                  </fieldset>
                 </div>
               </Section>
               {transcripts && (
-                <Section title="Storage">
-                  <div className={settingsCardClasses}>
+                <Section title="After a restart">
+                  <div className={settingsStackClasses}>
                     <div className={`preference-row ${settingRowClasses}`}>
                       <SettingText
                         id="transcripts-label"
-                        label="Transcripts"
+                        icon={History}
+                        label="Keep recent output"
                         description={
                           transcripts.available
-                            ? "Show recent output again after a restart. Saved encrypted on this computer."
+                            ? "Shows each terminal's recent output again after Novadeck restarts. Saved encrypted on this computer."
                             : "Not available on this computer: recent output is saved only encrypted, and Novadeck can't keep a key safe here."
                         }
                         descriptionId="transcripts-description"
@@ -1376,16 +1562,17 @@ export const Preferences = ({
               )}
             </TabPanel>
             <TabPanel value="notifications" className={panelClasses}>
-              <Section label="Notifications">
-                <div className={settingsCardClasses}>
+              <Section title="Notify me">
+                <div className={settingsStackClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="notify-needs-label"
-                      label="Notify when an agent needs you"
+                      icon={BellRing}
+                      label="When an agent needs you"
                       description={
                         notices
-                          ? "A toast in the corner while you're in Novadeck, or a desktop notification while it's in the background, for a question, an approval or trouble that stopped an agent. Clicking either opens the Inbox."
-                          : "A toast in the corner for a question, an approval or trouble that stopped an agent. Clicking it opens the Inbox."
+                          ? "A question, an approval, or trouble that stopped it. A toast while you're in Novadeck, or a desktop notification while it's in the background. Either opens the Inbox."
+                          : "A question, an approval, or trouble that stopped it. A toast in the corner, which opens the Inbox."
                       }
                       descriptionId="notify-needs-description"
                     />
@@ -1399,10 +1586,11 @@ export const Preferences = ({
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="notify-finished-label"
-                      label="Notify when an agent finishes"
+                      icon={CircleCheck}
+                      label="When an agent is done"
                       description={
                         notices
-                          ? "A desktop notification when an agent reports its task done (its subject) or a turn fails, while Novadeck is in the background."
+                          ? "It reported its task done, or a turn failed. A desktop notification while Novadeck is in the background."
                           : "Only in the desktop app."
                       }
                       descriptionId="notify-finished-description"
@@ -1418,13 +1606,14 @@ export const Preferences = ({
                 </div>
               </Section>
               {notices && (
-                <Section title="Bell">
+                <Section title="Sound">
                   <div className={settingsCardClasses}>
                     <div className={`preference-row ${settingRowClasses}`}>
                       <SettingText
                         id="sound-label"
+                        icon={Volume2}
                         label="Ring the bell"
-                        description="Novadeck rings when an agent needs you or finishes. Holds off during Do Not Disturb where the system says so."
+                        description="When an agent needs you or is done. Quiet during Do Not Disturb, where the system tells Novadeck."
                         descriptionId="sound-description"
                       />
                       <Switch
@@ -1439,7 +1628,7 @@ export const Preferences = ({
                       <>
                         <Select
                           className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-52`}
-                          label="Sound"
+                          label="Bell"
                           items={soundItems}
                           value={soundChoice}
                           onValueChange={(next) => {
@@ -1499,7 +1688,8 @@ export const Preferences = ({
               <TabPanel value="addons" className={panelClasses}>
                 <Section
                   title="Voice input"
-                  description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."
+                  icon={<Mic size={16} strokeWidth={1.5} />}
+                  description="Speak prompts into a terminal. Speech is turned into text on this computer and never leaves it."
                 >
                   <VoiceInput
                     voice={voice}
@@ -1511,6 +1701,7 @@ export const Preferences = ({
                 {murmur && (
                   <Section
                     title={MURMUR_NAME}
+                    icon={<Tag size={16} strokeWidth={1.5} />}
                     {...(hasExperimental ? { badge: <ExperimentalBadge /> } : {})}
                     description={murmurDescription}
                   >
@@ -1552,46 +1743,50 @@ export const Preferences = ({
             </TabPanel>
             {hasAbout && (
               <TabPanel value="about" className={panelClasses}>
-                {version && (
-                  <VersionRow
-                    version={version}
-                    onReveal={showExperimentalSwitch ? undefined : experimental?.onReveal}
-                  />
-                )}
-                {experimental && showExperimentalSwitch && (
-                  <Section title="Updates">
-                    <div className={settingsCardClasses}>
-                      <div className={`preference-row ${settingRowClasses}`}>
-                        <SettingText
-                          id="experimental-label"
-                          label="Experimental"
-                          description="Get new releases as soon as they're published, before they're promoted to stable, and try features that are still being built on the Experimental page. Turning this off doesn't go back to an older version."
-                          descriptionId="experimental-description"
+                {(version || (experimental && showExperimentalSwitch)) && (
+                  // The app itself: its version, and the builds it follows.
+                  <Section title="Version and updates">
+                    <div className={settingsStackClasses}>
+                      {version && (
+                        <VersionRow
+                          version={version}
+                          onReveal={showExperimentalSwitch ? undefined : experimental?.onReveal}
                         />
-                        <Switch
-                          checked={experimental.on === true}
-                          onChange={experimental.onChange}
-                          labelledBy="experimental-label"
-                          describedBy="experimental-description"
-                          disabled={experimental.on === undefined}
-                        />
-                      </div>
+                      )}
+                      {experimental && showExperimentalSwitch && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="experimental-label"
+                            icon={FlaskConical}
+                            label="Experimental builds"
+                            description="Get each release as soon as it's out, before it's promoted to stable, and try features still being built on the Experimental page. Turning this off keeps the version you have until the next stable one."
+                            descriptionId="experimental-description"
+                          />
+                          <Switch
+                            checked={experimental.on === true}
+                            onChange={experimental.onChange}
+                            labelledBy="experimental-label"
+                            describedBy="experimental-description"
+                            disabled={experimental.on === undefined}
+                          />
+                        </div>
+                      )}
                     </div>
                   </Section>
                 )}
-                {(logs || uninstall || pageToggles("about").length > 0) && (
-                  <div className="flex flex-col gap-2.5">
-                    {pageToggles("about").length > 0 && (
-                      <ExperimentalRows toggles={pageToggles("about")} />
-                    )}
-                    {logs && (
-                      <div className={settingsCardClasses}>
-                        <AddonRow
-                          scope="about"
-                          id="logs"
-                          label="Logs"
-                          description="What Novadeck recorded of its recent runs, without anything your terminals showed. Attach them to a bug report."
-                        >
+                {(logs || pageToggles("about").length > 0) && (
+                  <Section title="Help">
+                    <div className={settingsStackClasses}>
+                      <ExperimentalRows toggles={pageToggles("about")} bare />
+                      {logs && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="about-logs"
+                            icon={ScrollText}
+                            label="Logs"
+                            description="What Novadeck recorded of its recent runs, never what your terminals showed. Attach them to a bug report."
+                            descriptionId="about-logs-description"
+                          />
                           <button
                             type="button"
                             className="button min-h-8 shrink-0 px-3 text-control"
@@ -1600,11 +1795,15 @@ export const Preferences = ({
                           >
                             Open logs folder
                           </button>
-                        </AddonRow>
-                      </div>
-                    )}
-                    {uninstall && <UninstallApp uninstall={uninstall} />}
-                  </div>
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+                )}
+                {uninstall && (
+                  <Section title="Remove">
+                    <UninstallApp uninstall={uninstall} />
+                  </Section>
                 )}
               </TabPanel>
             )}

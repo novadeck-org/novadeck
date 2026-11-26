@@ -66,7 +66,7 @@ describe("The chat view", () => {
     await openChat("Build")
     await openPreferencesOn("About")
     const dialog = preferencesDialog()
-    const experimental = dialog.getByRole("switch", { name: "Experimental" })
+    const experimental = dialog.getByRole("switch", { name: "Experimental builds" })
     await expect.element(experimental).toHaveAttribute("aria-checked", "true")
     await experimental.click()
     await expect.element(dialog.getByRole("tab", { name: "Experimental" })).not.toBeInTheDocument()

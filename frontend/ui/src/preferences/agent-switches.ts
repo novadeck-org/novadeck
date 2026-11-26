@@ -75,4 +75,4 @@ export const agentLimit = ({ agent, connected, busy, limited }: AgentSwitch): st
 
 // What connecting means, shown above the switches.
 export const agentsExplanation =
-  "Unlock Novadeck features inside your coding agents, like resuming sessions after a restart. Connecting adds a small plugin; switching it off removes it."
+  "Connecting lets Novadeck resume an agent's sessions after a restart, wake it for messages and show it in the chat. It adds a small plugin; turning it off removes it."

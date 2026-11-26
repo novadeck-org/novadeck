@@ -436,7 +436,7 @@ Agents:
   the done reports its agents wrote, and withdraws and clears the MCP asks the panel opened
   (those of "Every state at once"), so nothing the agents or the panel made waits. The rows
   of the variant's own, as the `inbox` variant's, stay for the Inbox group's actions. The notices for finishes need the Preferences switch
-  "Notify when an agent finishes" on.
+  "When an agent is done" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
   agent running (each with Open terminal), a request waiting (answer it first), or a
@@ -954,7 +954,7 @@ App:
   The page's hand-offs to a pretend window go nowhere a page can see, so the demo only notes them
   (`frontend/demo-debug/src/desktop/project-windows.ts`). Specs use `&windows=on` and
   `&windows=extra` and the `projectWindows` handle of `support/backend.ts`.
-- **Forges:** the App section's group for the forges (Preferences > Agents > Pull requests, and
+- **Forges:** the App section's group for the forges (Preferences > Agents > Worktrees and pull requests, and
   the pull request marks in Worktrees). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
   gitlab.com, and Azure DevOps not installed, offering an install; the storefront's worktrees carry
   a draft, an open, a merged and a closed pull request. "Offered" boots with the forges offered;

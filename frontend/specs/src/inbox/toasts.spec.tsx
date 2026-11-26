@@ -232,7 +232,7 @@ describe("The Inbox's toasts", () => {
       await page.getByRole("button", { name: "Workspace preferences" }).click()
       await preferencesDialog().getByRole("tab", { name: "Notifications" }).click()
       const toggle = preferencesDialog().getByRole("switch", {
-        name: "Notify when an agent needs you",
+        name: "When an agent needs you",
       })
       await toggle.click()
       await expect.element(toggle).toHaveAttribute("aria-checked", "false")

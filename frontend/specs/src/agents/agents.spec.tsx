@@ -285,7 +285,7 @@ describe("An agent that finishes", () => {
     await openWorkspace()
     await openPreferencesOn("Notifications")
     const toggle = preferencesDialog().getByRole("switch", {
-      name: "Notify when an agent finishes",
+      name: "When an agent is done",
     })
     await expect.element(toggle).toHaveAttribute("aria-checked", "true")
     await expect.element(toggle).toBeDisabled()
@@ -491,7 +491,7 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferencesOn("Terminal")
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
+        .element(preferencesDialog().getByRole("switch", { name: "Keep recent output" }))
         .toHaveAttribute("aria-checked", "false")
     })
 
@@ -548,7 +548,7 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferencesOn("Terminal")
       await expect
-        .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
+        .element(preferencesDialog().getByRole("switch", { name: "Keep recent output" }))
         .toHaveAttribute("aria-checked", "true")
     })
   })

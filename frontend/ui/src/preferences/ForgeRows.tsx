@@ -1,7 +1,7 @@
 import { forgeTitles, type ForgeName } from "@novadeck/core/forges"
 
 import { forgeNote, hostLine, type ForgeRow } from "./forge-rows"
-import { settingRowClasses, settingsCardClasses } from "./settings"
+import { settingRowClasses, settingsStackClasses } from "./settings"
 
 // One row per forge, each always on: Novadeck reads its pull requests with its command-line
 // tool's sign-in. A forge whose tool is not installed and has a known installer offers Install,
@@ -23,7 +23,7 @@ export const ForgeRows = ({
   // The hosts whose sign-in runs now, as `${forge}/${host}`.
   readonly signingIn?: ReadonlySet<string> | undefined
 }): React.JSX.Element => (
-  <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Forges">
+  <ul className={settingsStackClasses} aria-label="Forges">
     {forges.map((connection) => {
       const { forge, available, installer } = connection
       const label = forgeTitles[forge]
@@ -43,7 +43,9 @@ export const ForgeRows = ({
       return (
         <li key={forge} className={settingRowClasses}>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span id={`forge-${forge}`}>{label}</span>
+            <span id={`forge-${forge}`} className="settings-label">
+              {label}
+            </span>
             {note && (
               <span
                 id={`forge-${forge}-note`}
@@ -119,7 +121,9 @@ const InstallRow = ({
 }): React.JSX.Element => (
   <li className={settingRowClasses}>
     <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <span id={`forge-${forge}`}>{label}</span>
+      <span id={`forge-${forge}`} className="settings-label">
+        {label}
+      </span>
       <span id={`forge-${forge}-note`} className="settings-note text-control leading-5">
         {running ? "Installing in a terminal of its own." : "Not installed. Install runs"}
         {!running && (

@@ -153,7 +153,7 @@ export const VoiceInput = ({
           {/* Off until it is set up: an install turns it on. */}
           <div className={rowClasses}>
             <span className="flex min-w-0 flex-col gap-1">
-              <span id="voice-enabled">Enabled</span>
+              <span id="voice-enabled">Use voice input</span>
               <span id="voice-enabled-description" className={noteClasses}>
                 Turns on when you install it.
               </span>
@@ -192,9 +192,10 @@ export const VoiceInput = ({
       <div className={settingsCardClasses}>
         <div className={rowClasses}>
           <span className="flex min-w-0 flex-col gap-1">
-            <span id="voice-enabled">Enabled</span>
+            <span id="voice-enabled">Use voice input</span>
             <span id="voice-enabled-description" className={noteClasses}>
               Hold <Chord keys={keys} /> in a terminal, or click its microphone, to speak.
+              {state.check && ` ${checkText(state.check)}`}
             </span>
           </span>
           <Switch
@@ -216,13 +217,6 @@ export const VoiceInput = ({
           onOpenChange={setSelecting}
           portalContainer={portalContainer}
         />
-        {state.check && (
-          <div className={rowClasses}>
-            <span className="flex min-w-0 flex-col gap-1">
-              <span className={noteClasses}>{checkText(state.check)}</span>
-            </span>
-          </div>
-        )}
         {uninstallRow}
         {failure && (
           <div className="flex items-center justify-between gap-6">
