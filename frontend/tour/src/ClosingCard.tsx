@@ -1,4 +1,5 @@
 import "./print.css"
+import { closingLine } from "./steps"
 
 /**
  * Where the tour ends: the game it built is the person's now, and the project was kept as the
@@ -34,7 +35,7 @@ export const TourClosingCard = ({
     <div aria-hidden="true" className="tour-print tour-dim" />
     <section aria-label="Tour finished" className="tour-print tour-closing">
       <div className="tour-caption-panel">
-        <h3 className="tour-caption-line tour-closing-line">It's yours now.</h3>
+        <h3 className="tour-caption-line tour-closing-line">{closingLine}</h3>
       </div>
       <p className="tour-caption-note">
         The team's game is committed in this project, and the next tour starts a fresh one. The

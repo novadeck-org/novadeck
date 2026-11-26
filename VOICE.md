@@ -45,5 +45,24 @@ rules in docs/agent-messaging.md and stay out of this.
 | Speak prompts into a terminal. Speech is turned into text on this computer and never leaves it.                              | Speak your prompts. Speech becomes text on this computer and never leaves it.                                                 |
 | A second pair of eyes, right beside your work.                                                                               | Reading them now. Two things seem wrong.                                                                                      |
 
-In the tour, Nyx goes furthest ("It wants to run the game. Fine. Say yes."); everywhere else
-the same voice says a little less and explains a little more.
+## The tour
+
+In the tour, Nyx isn't only the voice: she's there, the Nyx of the owner's skits, showing you her
+deck. Everywhere else the same voice says a little less and explains a little more. Her lines
+are a script she'll speak: the tour gets her voice-over later, and the caption shows the words
+she says. The script, with how each line is said, is `frontend/tour/NARRATION.md`.
+
+- **Her, not the app.** Bratty and cocky. She takes things personally ("Without asking me."),
+  sighs at what bores her ("Fine. Say yes."), and is proud of what the agents make. She says
+  "I" and "me"; the person is "you", an agent "it".
+- **Fact first, still.** Every line says what's in front of you, then her aside. One joke a
+  line at most, and the plain rules above hold: no slang, no idioms, no hype words.
+- **Written to be heard.** Each line makes sense said aloud with nothing else: no "the eye" or
+  other things only the screen shows. What to press goes in the note under the box, which
+  stays text and isn't spoken.
+- **Said as it's written.** Words, not digits or symbols. Punctuation is where she pauses.
+- **The same words every time.** No names, counts or answers filled in as the tour runs, so
+  each line is one take.
+- **Short enough to say.** Ten words at most, about 3 s aloud.
+- **Cue, then line.** A step's cue and its line can play back to back, so the line never
+  repeats the cue.

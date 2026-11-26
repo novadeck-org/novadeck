@@ -851,8 +851,8 @@ App:
   makes the next `Tour.prepare` answer `page: false` (no server, no page, the steps for them left
   out); "Tour story: keeping fails" makes the next `Tour.keep` reject, for the closing card's
   error line and Try again; "Tour agent: exits to its shell" ends the lead's program with its
-  shell back (`agentRan`, an idle shell), for the coach "It didn't start."; "Tour agent: stop"
-  exits the lead's process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust"
+  shell back (`agentRan`, an idle shell), for the coach "It didn't start. Ugh."; "Tour agent: stop"
+  exits the lead's process (the UI's "Your agent stopped. Rude."). "Tour agent: hold at folder trust"
   / "sign-in" / "hooks" hold the next one at that startup screen until "Answer the startup
   screen"; "Tour agent: quiet until nudged" has the next one sit idle at its prompt, no turn
   begun, until `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has
@@ -884,27 +884,27 @@ App:
   (`holdMs`: 3 s, the first and the finish) from when its caption box is shown (`onCaption`, the
   reducer's `caption` event); a caption that hasn't shown `captionWaitMs` (8 s) after the step
   was done on screen is given up on, and the hold counts from then. Its
-  steps (`frontend/tour/src/steps.ts`), in Nyx's voice: "That's your agent. It runs this job."
-  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the Inbox's button,
+  steps (`frontend/tour/src/steps.ts`), in Nyx's voice, a script for her voice-over (`frontend/tour/NARRATION.md`): "That's your agent. It works. I talk."
+  (`start`, the lead describes itself); "Your call. What game? Make it a good one." (`ask`, the Inbox's button,
   then the lead's sheet in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
   approval's Run command is marked, and the step waits on the person: the lead hires no one
-  before they answer, so the approval has the screen to itself); "The game. Live. Empty, for
-  now." (`page`, the lead's page tab); "Look. It hired its own help." (`team`, both teammates
-  there and named); "A model. From scratch. Go on, spin it." (`shape`, the
-  Modeller's model tab); "Every blink? An agent. Writing." (`files`, the Files panel); "What it
-  wrote. Line by line." (`diff`, the Builder's changes tab); and "Three agents. Your game. Go
-  play." (`play`, the lead's page, a while, then the closing card: "It's yours now."). A
+  before they answer, so the approval has the screen to itself); "There. It's live. Empty, but
+  live." (`page`, the lead's page tab); "Look. It hired its own help. Without asking me." (`team`, both teammates
+  there and named); "A model, made from nothing. Go on. Spin it." (`shape`, the
+  Modeller's model tab); "See them blink? That's an agent, writing." (`files`, the Files panel); "Every line
+  it wrote. Nothing hidden." (`diff`, the Builder's changes tab); and "Three agents, one game. Yours. Go
+  play." (`play`, the lead's page, a while, then the closing card: "It's yours now. Don't break it."). A
   teammate's own question to the person is no step: while one waits in the Inbox the coach says
-  "A teammate has a question for you." and points at it (or the Inbox's button) until it is
+  "A teammate has a question. For you, not me." and points at it (or the Inbox's button) until it is
   answered or dismissed, and no step makes its moves meanwhile (the camera would take the person
   away from the Inbox). The
   UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
   to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
   Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run
-  and page steps and ends on the model ("Three agents. Your game. Yours."). While a startup
-  screen holds, the coach says "It wants an answer first." with that screen's words under it,
-  "It didn't start." (an agent's program ended, its shell back), or "It's asking your
-  permission." while an agent of the story has an Unblock row waiting in the Inbox. End tour
+  and page steps and ends on the model ("Three agents, one game. Yours."). While a startup
+  screen holds, the coach says "It wants an answer first. From you." with that screen's words under it,
+  "It didn't start. Ugh." (an agent's program ended, its shell back), or "It's asking your
+  permission. Read it first." while an agent of the story has an Unblock row waiting in the Inbox. End tour
   sits in the footer; while another project is on screen, a small bar stands in for it. A run
   kept in session storage by a version with other steps is dropped, not followed. The specs
   (`tour.spec.tsx`, `tour-driver.spec.tsx`, `tour-story.spec.tsx`, with `support/tour.tsx`) read

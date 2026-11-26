@@ -226,7 +226,9 @@ describe("The tour's driver", () => {
 
     it("says what its step says otherwise", () => {
       expect(coachNow(begin(), steps, agent())).toBe(startStep.coach)
-      expect(coachNow(begin(), steps, signals({ kind: "ended" }))?.line).toBe("Your agent stopped.")
+      expect(coachNow(begin(), steps, signals({ kind: "ended" }))?.line).toBe(
+        "Your agent stopped. Rude.",
+      )
     })
   })
 })
@@ -390,7 +392,12 @@ describe("The tour's story", () => {
     const read = stepRun(
       next.run!,
       stepsFor(next.run!),
-      { type: "caption", line: "Every blink? An agent. Writing.", signals: all, now: 5_500 },
+      {
+        type: "caption",
+        line: "See them blink? That's an agent, writing.",
+        signals: all,
+        now: 5_500,
+      },
       patience,
     )
     expect(read.run).toMatchObject({ step: 6, captionAt: 5_500 })
@@ -403,7 +410,7 @@ describe("The tour's story", () => {
     const all = world()
     const caption = (run: TourRun, line: string, now: number) =>
       stepRun(run, stepsFor(run), { type: "caption", line, signals: all, now }, patience)
-    const line = "That's your agent. It runs this job."
+    const line = "That's your agent. It works. I talk."
     // The start, done at 100 with no caption yet: it holds 3 s for its line.
     const done = () => feed(atStep("start"), all, 100).run!
     const unnamed = signals(
@@ -499,7 +506,7 @@ describe("The tour's story", () => {
     it("moves on once they touch what it shows, its own caption on screen", () => {
       expect(idAt(touch(done(), all, 5_000).run!)).toBe("team")
       // A touch under another caption (a teammate's question) isn't its.
-      const other = touch(done(), all, 5_000, "A teammate has a question for you.")
+      const other = touch(done(), all, 5_000, "A teammate has a question. For you, not me.")
       expect(other.run).toMatchObject({ touched: null })
       expect(idAt(other.run!)).toBe("page")
     })
@@ -546,7 +553,7 @@ describe("The tour's story", () => {
       // The files step, done at 100, opened at 4 000; its line shows a second later.
       const opened = touch(feed(atStep("files"), all, 100).run!, all, 4_000).run!
       expect(nextTick(opened, tourSteps, all, patience)).toBe(4_000 + captionWaitMs + 5_000)
-      const line = "Every blink? An agent. Writing."
+      const line = "See them blink? That's an agent, writing."
       const read = stepRun(
         opened,
         tourSteps,
@@ -558,7 +565,7 @@ describe("The tour's story", () => {
       const cue = stepRun(
         opened,
         tourSteps,
-        { type: "caption", line: "Open your Files.", signals: all, now: 5_000 },
+        { type: "caption", line: "Open your Files. I'll wait.", signals: all, now: 5_000 },
         patience,
       ).run!
       expect(cue.captionAt).toBeNull()
@@ -600,7 +607,7 @@ describe("The tour's story", () => {
       coachNow(atStep(id), tourSteps, world(story))
     expect(silent("page", {})).toBeNull()
     expect(silent("page", { shown: { ...world().shown, page: item("p1") } })?.line).toBe(
-      "The game. Live. Empty, for now.",
+      "There. It's live. Empty, but live.",
     )
     expect(silent("team", {})).toBeNull()
     expect(silent("shape", {})).toBeNull()
@@ -613,8 +620,8 @@ describe("The tour's story", () => {
     const cued = tourSteps.filter(({ coach }) => coach.cue).map(({ id }) => id)
     expect(cued).toEqual(["page", "team", "shape", "files", "diff", "play"])
     expect(tourSteps.find(({ id }) => id === "files")!.coach).toMatchObject({
-      cue: { line: "Open your Files." },
-      line: "Every blink? An agent. Writing.",
+      cue: { line: "Open your Files. I'll wait." },
+      line: "See them blink? That's an agent, writing.",
     })
   })
 
@@ -623,7 +630,7 @@ describe("The tour's story", () => {
       const begun = feed(atStep("ask"), world())
       expect(coachNow(begun.run!, tourSteps, world(sheet(true)))).toMatchObject({
         click: ["answers", "asking-row", "inbox-button"],
-        line: "Your call. What game?",
+        line: "Your call. What game? Make it a good one.",
       })
     })
 
@@ -756,7 +763,7 @@ describe("The tour's story", () => {
       for (const id of ["team", "shape", "files", "diff"])
         expect(coachNow(atStep(id), tourSteps, asking)).toMatchObject({
           click: ["answers", "asking-row", "inbox-button"],
-          line: "A teammate has a question for you.",
+          line: "A teammate has a question. For you, not me.",
         })
       expect(
         coachNow(
@@ -764,7 +771,7 @@ describe("The tour's story", () => {
           tourSteps,
           world({ shown: { ...world().shown, model: item("m") } }),
         )?.line,
-      ).toBe("A model. From scratch. Go on, spin it.")
+      ).toBe("A model, made from nothing. Go on. Spin it.")
     })
 
     it("nudges no one while it waits", () => {
@@ -775,20 +782,24 @@ describe("The tour's story", () => {
 
     it("lets a step that holds a while, done, show its own caption first", () => {
       const held = { ...atStep("finish"), doneAt: 100 }
-      expect(coachNow(held, tourSteps, asking)?.line).toBe("They're finishing it.")
+      expect(coachNow(held, tourSteps, asking)?.line).toBe("They're finishing it. Sit back.")
       expect(coachNow({ ...held, doneAt: null }, tourSteps, asking)?.line).toBe(
-        "A teammate has a question for you.",
+        "A teammate has a question. For you, not me.",
       )
     })
 
     it("comes before a step waiting on the person's touch, which may wait long", () => {
       const waiting = { ...atStep("shape"), doneAt: 100 }
-      expect(coachNow(waiting, tourSteps, asking)?.line).toBe("A teammate has a question for you.")
+      expect(coachNow(waiting, tourSteps, asking)?.line).toBe(
+        "A teammate has a question. For you, not me.",
+      )
     })
 
     it("lets a permission come first", () => {
       const both = world({ askingRow: "q1", permission: { terminalId: "t3" } })
-      expect(coachNow(atStep("shape"), tourSteps, both)?.line).toBe("It's asking your permission.")
+      expect(coachNow(atStep("shape"), tourSteps, both)?.line).toBe(
+        "It's asking your permission. Read it first.",
+      )
     })
   })
 
@@ -858,7 +869,7 @@ describe("The tour's story", () => {
       })
       expect(coachNow(held.run!, tourSteps, world(everything))).toMatchObject({
         click: ["lead-pane", "lead"],
-        line: "Three agents. Your game. Go play.",
+        line: "Three agents, one game. Yours. Go play.",
       })
       // Until they click into it, it waits.
       expect(nextTick(held.run!, tourSteps, world(), patience)).toBeNull()
@@ -877,7 +888,7 @@ describe("The tour's story", () => {
       })
       expect(coachNow(held.run!, stepsFor(noPage), world(everything))).toMatchObject({
         click: ["modeller-pane", "modeller"],
-        line: "Three agents. Your game. Yours.",
+        line: "Three agents, one game. Yours.",
       })
     })
   })
@@ -983,7 +994,7 @@ describe("The tour, with an agent asking the person's permission", () => {
 
   it("points at that agent's terminal, in a person's words", () => {
     expect(coachNow(run, steps, wanted)).toMatchObject({
-      line: "It's asking your permission.",
+      line: "It's asking your permission. Read it first.",
       terminalId: "t3",
       click: ["terminal"],
     })
@@ -993,7 +1004,7 @@ describe("The tour, with an agent asking the person's permission", () => {
     const screen = signals({ kind: "screen", screen: "startup" }, true, {
       permission: { terminalId: "t3" },
     })
-    expect(coachNow(run, steps, screen)?.line).toBe("It wants an answer first.")
+    expect(coachNow(run, steps, screen)?.line).toBe("It wants an answer first. From you.")
   })
 
   it("counts no wait while it asks: no nudge, and none right after", () => {
@@ -1020,7 +1031,7 @@ describe("The tour, with an agent whose program ended", () => {
     const run = startFor()
     const left = signals({ kind: "left" })
     expect(coachNow(run, tourSteps, left)).toMatchObject({
-      line: "It didn't start.",
+      line: "It didn't start. Ugh.",
       click: ["lead"],
     })
     expect(coachNow(run, tourSteps, left)?.note).toMatch(/End the tour and take it again/)
@@ -1049,7 +1060,7 @@ describe("The tour, with an agent whose program ended", () => {
   it("tells a teammate that left to take the tour again", () => {
     const left = signals(quiet, true, { roles, teamLeft: { terminalId: "t3" } })
     expect(coachNow(startFor(), tourSteps, left)).toMatchObject({
-      line: "It didn't start.",
+      line: "It didn't start. Ugh.",
       terminalId: "t3",
       note: "Its terminal says why. End the tour and take it again.",
     })
@@ -1125,7 +1136,7 @@ describe("The tour's parts that drop out", () => {
       })
       expect(coachNow(run, stepsOfRun(run), model)).toMatchObject({
         click: ["modeller-pane", "modeller"],
-        line: "Three agents. Your game. Yours.",
+        line: "Three agents, one game. Yours.",
       })
     })
 
