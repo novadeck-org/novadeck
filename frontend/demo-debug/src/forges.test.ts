@@ -49,7 +49,7 @@ describe("the debug panel's Forges group", () => {
     expect(group.actions.length).toBeGreaterThan(10)
     for (const action of group.actions) expect(action.hint.length).toBeGreaterThan(20)
     expect(group.actions.filter((action) => action.reboots).map((action) => action.label)).toEqual([
-      "Offered, experimental channel",
+      "Offered",
       "Not offered",
     ])
   })
@@ -67,7 +67,7 @@ describe("the debug panel's Forges group", () => {
   it("boots with forges offered or not", () => {
     const { run, booted } = setup()
     run("Not offered")
-    run("Offered, experimental channel")
+    run("Offered")
     expect(booted).toEqual([false, true])
   })
 
@@ -116,7 +116,7 @@ describe("the debug panel's Forges group", () => {
   it("is empty of forge states where the backend's are not the demo's", () => {
     const [group] = forgesGroups({} as DemoLaunch, {})
     expect(group!.actions.map((action) => action.label)).toEqual([
-      "Offered, experimental channel",
+      "Offered",
       "Not offered",
     ])
   })

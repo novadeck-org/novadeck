@@ -1318,7 +1318,7 @@ refuses with `CONFLICT` and the reason while its owner's agent is working in it 
 the service's queue), when git status can't be read, the worktree has submodules, or it holds an
 untracked git repository of its own with work no remote has (even with `force`), and answers `NOT_FOUND` for a root that is no work. A work that is `safe` (below) closes unforced
 without that question, as it was read afresh just before the removal (an uncommitted file made since
-still asks); the agent-facing `close_worktree` is unchanged. These work with the Experimental switch off.
+still asks); the agent-facing `close_worktree` is unchanged. These work with agent worktrees off.
 
 A work also carries `uncommitted` (paths changed and not committed: staged, unstaged or untracked, not
 ignored, plus untracked files the snapshot leaves out for their size or as secrets), `unpushed` (HEAD's
@@ -1326,7 +1326,7 @@ commits no remote-tracking branch holds, `git rev-list --count HEAD --not --remo
 it leaves nothing that lives only there, which is `(merged && uncommitted === 0)` or `(pull request closed &&
 uncommitted === 0 && unpushed === 0)`, never while its pull request is open or a draft. A merged work
 ignores `unpushed`, as a squash merge often deletes its remote branch. Each is absent where it couldn't be
-read. Its `pullRequest` (from the forges the person switched on) carries `ci` for an open one: `failing`,
+read. Its `pullRequest` (from the forges) carries `ci` for an open one: `failing`,
 `running`, `passed` or `none` (none ran), absent where the forge couldn't say or the pull request is
 merged or closed. Since revision 18 it also carries `base`, the branch it targets, whatever its state;
 for an open one `checks`, each check on its latest commit (`name`, and `state` of `passed`, `failed`,

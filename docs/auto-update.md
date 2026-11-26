@@ -38,9 +38,8 @@ across launches in `update.json` in the data folder. The switch sits in About, h
 off: tapping the version ten times shows it (the last five counted down under "Version"). Once
 tapped into view, or once IS_EXPERIMENTAL has been on in that run, it stays however the channel
 goes off; the window keeps that in memory only (`experimentalRevealed`), so a launch, a reload
-or a reconnect to the runner forgets it. Turning the switch off also turns the
-runner's `worktrees` setting off (the Experimental tab's "Agent worktrees", which also shows the Worktrees panel), as does a launch
-that finds the channel stable, so that setting never stays on without its toggle. The same file keeps what the card of what is
+or a reconnect to the runner forgets it. Agent worktrees aren't Experimental: the switch and the
+channel leave the runner's `worktrees` setting as it is (Preferences > Agents). The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
 `whatsNewSettled` and `whatsNewCheckedAt`. A file written by an older build may carry other keys
 (`whatsNewHeadsUpSeen`, from heads-ups the app no longer tells); they are ignored.

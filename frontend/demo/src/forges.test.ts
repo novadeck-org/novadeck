@@ -25,7 +25,7 @@ describe("the demo's forges", () => {
     ])
     expect(entry(forges, "azure")).toMatchObject({
       available: false,
-      enabled: false,
+      enabled: true,
       installer: demoForgeInstallers.azure,
     })
   })
@@ -43,7 +43,8 @@ describe("the demo's forges", () => {
       demoForgeInstallers.gitlab,
       demoForgeInstallers.azure,
     ])
-    expect(scenarioOf("busy")[0]!.busy).toBe(true)
+    // Every forge is on in each, as a runner has them.
+    expect(scenarioOf("missing").every((each) => each.enabled)).toBe(true)
     expect(scenarioOf("refused-unmendable").map((each) => each.hosts[0]?.fix)).toEqual([
       demoRefresh.github,
       undefined,
@@ -53,14 +54,13 @@ describe("the demo's forges", () => {
       "signed-in",
       "signed-out",
     ])
-    expect(
-      scenarioOf("on-but-missing").map((each) => [each.enabled, each.available, each.hosts]),
-    ).toEqual([
-      [true, false, []],
-      [true, false, []],
-      [true, false, []],
-    ])
-    expect(scenarioOf("error")[0]!.error).toBeDefined()
+    expect(scenarioOf("missing").map((each) => [each.enabled, each.available, each.hosts])).toEqual(
+      [
+        [true, false, []],
+        [true, false, []],
+        [true, false, []],
+      ],
+    )
     expect(scenarioOf("start").map((each) => each.forge)).toEqual([...forgeNames])
   })
 

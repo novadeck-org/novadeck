@@ -3,7 +3,6 @@ import type { ConnectFailure } from "@novadeck/core/port"
 import { bootFailures, failureKey } from "./boot-failures"
 import type { DemoLaunch, DemoShell } from "./debug-demo"
 import { sampleFix } from "./desktop/sandbox"
-import { pageUpdateChannel } from "./desktop/updates"
 import { iconGuidesGroup } from "./icon-guides"
 import { paneTurnsGroup } from "./pane-turns"
 import type { DemoActionGroup, DemoStates } from "./types"
@@ -194,23 +193,14 @@ export const shellGroups = ({
       title: "Agent worktrees",
       actions: [
         {
-          label: "On, with Worktrees",
-          hint: "Boots on the experimental channel with agent worktrees on: the rail has the Worktrees toggle, and Preferences > Experimental shows the Agent worktrees row on. On the page's default stable channel the setting is off and the rail has no Worktrees toggle, as in a stable build",
-          reboots: true,
-          run: () => {
-            pageUpdateChannel.channel = "experimental"
-            launch.setWorktrees(true)
-          },
-        },
-        {
           label: "Not offered",
-          hint: "Preferences > Experimental shows the Agent worktrees row disabled, reading Not available here, as on a runner without the setting; the rail has no Worktrees toggle",
+          hint: "Preferences > Agents has no Agent worktrees row, as on a runner without the setting; the rail has no Worktrees toggle",
           reboots: true,
           run: () => launch.setWorktrees(false),
         },
         {
           label: "Offered",
-          hint: "The Agent worktrees row switches again",
+          hint: "Preferences > Agents shows the Agent worktrees row on, and the rail has the Worktrees toggle",
           reboots: true,
           run: () => launch.setWorktrees(true),
         },

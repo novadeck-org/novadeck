@@ -263,7 +263,7 @@ export const babciaPlans: readonly WorkPlan[] = [
   },
 ]
 
-// The launch demo's worktrees (`?demo=launch`, with Experimental agent worktrees on): the deck's
+// The launch demo's worktrees (`?demo=launch`, with agent worktrees on): the deck's
 // agents each in theirs, most with a pull request in a different state, the lead's among them.
 // Its teammates' (`launchTeamPlans`) are planted when the lead opens them.
 export const launchPlans: readonly WorkPlan[] = [

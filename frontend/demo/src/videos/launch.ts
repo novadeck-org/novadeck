@@ -1000,7 +1000,7 @@ export type LaunchCues = {
   // The plan's agent shows its plan, the file it writes it in, in the pane beside its window,
   // after `goThere`, given, as the shows above.
   readonly showPlan: (goThere?: (key: TerminalKey) => void) => void
-  // With agent worktrees on (see the debug panel's App group), the Worktrees panel changes as it
+  // With agent worktrees on, as they start, the Worktrees panel changes as it
   // is open: Search index's running checks pass, and, once the lead opened its teammates (5a),
   // Cart endpoint's worktree opens its pull request, which starts its own checks.
   readonly checksPass: () => void
@@ -1232,8 +1232,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           select: false,
         })),
       )
-      // Their worktrees, which head to their lead's branch (with Experimental agent worktrees on,
-      // the Worktrees panel hangs them under the lead's).
+      // Their worktrees, which head to their lead's branch (the Worktrees panel hangs them under
+      // the lead's).
       teammates.forEach((job, index) =>
         worksOf()?.plant(
           {

@@ -265,7 +265,7 @@ type ExperimentalSetting = {
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
-// Turning it off turns agent worktrees, agent modes and forge integrations off with it, and
+// Turning it off turns agent modes, the shipping gate and Novadeck's own pi off with it, and
 // Murmur too, though only on the person's flip (`switchOffMurmur`).
 // The switch is hidden while off until the person taps the version ten times; once revealed, or
 // on at any time in this run, it stays until the next launch (`experimentalRevealed`).
@@ -293,7 +293,7 @@ const useExperimental = (
         if (value !== "experimental") switchOffExperimental(features)
         setKnown(true)
       },
-      // A channel that can't be read counts as not experimental for worktrees.
+      // A channel that can't be read counts as not experimental for these features.
       () => {
         if (current && flips.current === asked) switchOffExperimental(features)
       },
@@ -749,7 +749,6 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
             ? {
                 forges: {
                   list: forgeList,
-                  onChange: backend.forges.set,
                   onInstall: (forge: ForgeName, command: string) => {
                     afterClose(() => forgeRuns.install(forge, command))
                   },

@@ -3,7 +3,7 @@ import { readdirSync, unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import { compatibility, errors } from "@novadeck/protocol"
+import { compatibility, errors, forgeName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
 import { taggedScopes, terminalPriorities, userScopes, windowsJobs } from "@novadeck/terminal/pty"
@@ -441,6 +441,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
         hooksFolder: join(dirname(options.database), "no-hooks"),
       }),
   })
+  // On unless the person turned them off, carried on once for everyone as they left Experimental.
+  store.settings.carryWorktreesSwitch()
   // The person's setting, except that the tour's terminals have worktrees whatever it says.
   const worktreesOn = (terminalId?: string): boolean =>
     store.settings.runner().worktrees || (terminalId !== undefined && tour.isTours(terminalId))
@@ -567,11 +569,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     )
     // After it: the owners it found gone leave their merged worktrees to cleanup.
     .finally(() => worktrees.start())
-  // Pull requests of the works' branches, from the forges the person switched on, while the
-  // works are watched.
+  // Pull requests of the works' branches, from every forge whose tool is there, while the works
+  // are watched. There are no switches: a `forges.set` from a client before them changes nothing.
   const forges = new Forges({
-    enabled: () => store.settings.forges(),
-    save: (names) => store.settings.saveForges(names),
+    enabled: () => forgeName.options,
+    save: () => {},
     // The branches the works' checkouts are on now, not those they were opened on.
     repositories: () =>
       repositoriesOf(works.branches(), (commonDir) => worktrees.fetchedAt(commonDir)),

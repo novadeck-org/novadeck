@@ -66,8 +66,8 @@ export const workConflict = z.discriminatedUnion("with", [
 // top (a file path outside it is not in the project; the rest is stripped of it), `project` the
 // repository's top as a path from the project's folder (a file path is prefixed with it).
 // Absent where the repository's top is neither inside nor above the project's folder.
-// `pullRequest` is its branch's pull request on its repository's forge, where a forge the person
-// switched on found one (forges.ts); absent where none did, or none could be asked.
+// `pullRequest` is its branch's pull request on its repository's forge, where a forge found
+// one (forges.ts); absent where none did, or none could be asked.
 // `home` is the branch its work belongs on where it isn't the repository's main: the one it
 // was opened with as `home` or `from` (git config `branch.<branch>.novadeckHome`, see
 // architecture/worktree-home.md); absent where home is the repository's main, as for most work.

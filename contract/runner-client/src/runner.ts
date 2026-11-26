@@ -547,7 +547,7 @@ export type Runner = {
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
   }
-  /** The forges whose pull requests the Worktrees panel shows (Experimental). */
+  /** The forges whose pull requests the Worktrees panel shows. */
   readonly forges: {
     /**
      * Where each forge stands. With `fresh` the runner reads the person's login environment

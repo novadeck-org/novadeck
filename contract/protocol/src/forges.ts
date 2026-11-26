@@ -4,8 +4,9 @@ import { openEnum } from "./open.js"
 import { singleLine } from "./text.js"
 
 // Forges: where a repository's pull requests live (GitHub, GitLab, Azure DevOps), read with
-// the token of the forge's own command-line tool, signed in by the person. An Experimental
-// feature: each forge is off until the person switches it on.
+// the token of the forge's own command-line tool, signed in by the person. Every forge is on (they
+// were an Experimental feature, each off until switched on); `forges.set` is kept for clients
+// from before, and a runner leaves every forge on whatever it is told.
 
 /**
  * How long a pull request's title, address, target branch or a check's name runs, how many

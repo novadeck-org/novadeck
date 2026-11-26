@@ -18,7 +18,7 @@
  *   own.
  * - `open_worktree` makes a git worktree for the agent's work and `take_worktree`,
  *   `give_worktree` and `close_worktree` claim, hand on and remove one; they are listed only
- *   while the user has agent worktrees on (Preferences, Experimental).
+ *   while the user has agent worktrees on (Preferences, Agents).
  * - `lead` asks the person to let it lead an agent already running in another terminal,
  *   and `release` ends such a lead; `send` and `agents` message the agents in the
  *   project's other terminals and list them; `describe` names and says what the agent's own

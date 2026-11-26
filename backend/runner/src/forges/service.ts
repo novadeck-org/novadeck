@@ -101,7 +101,7 @@ type Look = {
 const order = forgeName.options
 
 /**
- * The forges the person switched on: each tracked repository's branches asked of its forge's
+ * The forges switched on (every one, as the runner has them): each tracked repository's branches asked of its forge's
  * API, with a token the forge's own signed-in tool gives, while the works are watched. What is
  * found is kept in memory (`pullRequest`); nothing of a token is stored or logged.
  */
