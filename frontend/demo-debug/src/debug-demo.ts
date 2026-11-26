@@ -31,6 +31,7 @@ import type { BootRehearsals } from "./boot-rehearsal"
 import { bundledPiGroups } from "./bundled-pi"
 import { chatOfferGroups } from "./chat-offer"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
+import { demoKeepAwake } from "./desktop/keep-awake"
 import { createDemoPortable, type DemoPortable } from "./desktop/portable"
 import { createDemoProjectWindows } from "./desktop/project-windows"
 import { createDemoSandbox } from "./desktop/sandbox"
@@ -332,6 +333,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     ...windowControlsOf(launch.windowControls),
     showScale: demoShowScale,
+    keepAwake: demoKeepAwake,
     pickDirectory: states.pickDirectory,
     ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),

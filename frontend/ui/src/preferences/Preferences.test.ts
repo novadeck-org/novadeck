@@ -400,6 +400,61 @@ describe("the Murmur row", () => {
   })
 })
 
+describe("Keep awake", () => {
+  it("has no Experimental row where the app can't keep the computer awake, as in a browser", async () => {
+    await show({ tab: "experimental", experimental: experimental(true) })
+    expect(document.getElementById("keep-awake-label")).toBeNull()
+  })
+
+  it("is offered in the Experimental tab, and turning it on adds its switch to the Agents page", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      awake: true,
+      onChange: (next) => changes.push(next.keepAwakeOffered),
+    })
+    expect(document.getElementById("keep-awake-label")?.textContent).toBe("Keep awake")
+    expect(document.getElementById("keep-awake-description")?.textContent).toContain("Agents page")
+    document
+      .querySelector<HTMLElement>('[role="switch"][aria-labelledby="keep-awake-label"]')
+      ?.click()
+    expect(changes).toEqual([true])
+  })
+
+  it("shows its switch on the Agents page, on by default and badged, only while the Experimental row is on", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "agents",
+      experimental: experimental(true),
+      awake: true,
+      value: { ...readPreferences(), keepAwakeOffered: true },
+      onChange: (next) => changes.push(next.keepAwake),
+    })
+    const general = document.querySelector<HTMLElement>(
+      '[role="switch"][aria-labelledby="awake-label"]',
+    )
+    expect(document.getElementById("awake-label")?.textContent).toBe("Keep awake while agents work")
+    expect(general?.getAttribute("aria-checked")).toBe("true")
+    expect(general?.closest(".preference-row")?.textContent).toContain("Experimental")
+    general?.click()
+    expect(changes).toEqual([false])
+  })
+
+  it("has no switch on the Agents page while the Experimental row is off, or Experimental itself is", async () => {
+    await show({ tab: "agents", experimental: experimental(true), awake: true })
+    expect(document.getElementById("awake-label")).toBeNull()
+    for (const page of mounted.splice(0)) page.unmount()
+    await show({
+      tab: "agents",
+      experimental: experimental(false),
+      awake: true,
+      value: { ...readPreferences(), keepAwakeOffered: true },
+    })
+    expect(document.getElementById("awake-label")).toBeNull()
+  })
+})
+
 describe("the tab Preferences opens on when none is named", () => {
   const agent = { agent: "claude" as const, available: true, connected: false, busy: false }
 

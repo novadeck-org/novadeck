@@ -108,6 +108,8 @@ const backgrounded = (notifyNeeds = true) => {
       chatView: false,
       agentAvatars: false,
       onboardingTour: false,
+      keepAwakeOffered: false,
+      keepAwake: true,
       appScale: 100,
     },
   })

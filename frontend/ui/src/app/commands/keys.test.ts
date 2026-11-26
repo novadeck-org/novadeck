@@ -364,6 +364,8 @@ describe("key commands", () => {
           chatView: false,
           agentAvatars: false,
           onboardingTour: false,
+          keepAwakeOffered: false,
+          keepAwake: true,
           appScale: 100,
         },
         workspace: workspaceFixture({ view: "canvas" }),
@@ -515,6 +517,8 @@ describe("key commands", () => {
           chatView: false,
           agentAvatars: false,
           onboardingTour: false,
+          keepAwakeOffered: false,
+          keepAwake: true,
           appScale: 100,
         },
       })
