@@ -19,7 +19,14 @@ import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
 import { resultBlock } from "../screen/agent"
 import type { Block } from "../screen/screen"
 import { span, wrap } from "../screen/vt"
-import { pdfContent, ready, svg, videoContent, type SampleArtifact } from "../showcase/artifacts"
+import {
+  fileLines,
+  pdfContent,
+  ready,
+  svg,
+  videoContent,
+  type SampleArtifact,
+} from "../showcase/artifacts"
 import { sample, text as fileText } from "../showcase/changes"
 import { clip, clipSize } from "../showcase/clip"
 import { createShowcase } from "../showcase/simulation"
@@ -831,6 +838,38 @@ const pdfArtifact = (): SampleArtifact => {
     file: { read: async () => bytes },
   }
 }
+// And the week's orders as a CSV export, which the pane reads as a table.
+const ordersCsvPath = `${home}/exports/orders-week.csv`
+const ordersCsvLines = [
+  "order,placed,customer,items,total,status",
+  "1031,Mon 08:05,Ana Ruiz,2,$54.00,Delivered",
+  "1032,Mon 09:48,Ben Okafor,1,$18.50,Delivered",
+  "1033,Mon 11:20,Chloé Martin,4,$112.00,Delivered",
+  "1034,Mon 13:02,Dev Patel,1,$38.00,Delivered",
+  "1035,Mon 14:37,Eva Novak,3,$76.40,Delivered",
+  "1036,Mon 16:15,Femi Adeyemi,2,$49.00,Shipped",
+  "1037,Mon 18:52,Grace Lin,5,$143.20,Shipped",
+  "1038,Mon 21:30,Hugo Silva,1,$22.00,Shipped",
+  "1039,Tue 07:14,Iris Berg,2,$61.00,Shipped",
+  "1040,Tue 08:03,Jonas Weber,3,$88.50,Shipped",
+  "1041,Tue 08:56,Kai Tanaka,1,$32.00,Shipped",
+  "1042,Tue 09:41,Lena Kowalska,3,$102.00,Shipped",
+  "1043,Tue 11:27,Mia Rossi,2,$45.00,Packed",
+  "1044,Tue 13:05,Noah Kim,1,$19.90,Placed",
+]
+const csvArtifact = (): SampleArtifact => ({
+  item: {
+    id: "northwind-orders-week",
+    kind: "file",
+    name: "orders-week.csv",
+    detail: "exports/orders-week.csv",
+    path: ordersCsvPath,
+    url: null,
+    lines: null,
+    secret: false,
+  },
+  content: ready(fileLines(ordersCsvPath, ordersCsvLines, { from: 1, to: ordersCsvLines.length })),
+})
 const modelArtifact = async (): Promise<SampleArtifact> => {
   const { modelSamples } = await import("../showcase/model-samples")
   const { arm } = modelSamples
@@ -1044,6 +1083,8 @@ export type LaunchCues = {
   readonly showPdf: (goThere?: (key: TerminalKey) => void) => void
   readonly showModel: (goThere?: (key: TerminalKey) => void) => void
   readonly showFolder: (goThere?: (key: TerminalKey) => void) => void
+  // And the week's orders as a CSV export, read as a table, the same way.
+  readonly showCsv: (goThere?: (key: TerminalKey) => void) => void
   // With the Files panel on (see `launchFiles`), the agents that work begin writing files, one at
   // once and the rest every few seconds: the tree changes as it is open.
   readonly writeFiles: () => void
@@ -1090,6 +1131,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const plan = planArtifact()
   const video = videoArtifact()
   const invoice = pdfArtifact()
+  const csv = csvArtifact()
   const agyPlan = agyPlanArtifact()
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
@@ -1100,7 +1142,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       {
         key: keyOf(launch.shows),
         handle: demoHandle(launch.shows),
-        artifacts: [preview, changes, variants, video, invoice],
+        artifacts: [preview, changes, variants, video, invoice, csv],
       },
       { key: keyOf(launch.plan), handle: demoHandle(launch.plan), artifacts: [plan] },
       {
@@ -1465,6 +1507,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     showPdf: (goThere) => upsert(invoice, launch.shows, goThere),
     showModel: (goThere) => later(modelArtifact, goThere),
     showFolder: (goThere) => later(folderArtifact, goThere),
+    showCsv: (goThere) => upsert(csv, launch.shows, goThere),
     writeFiles: () => {
       const files = filesBackend?.()
       if (isDemoFiles(files)) files.release()

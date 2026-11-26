@@ -108,6 +108,11 @@ export const launchGroups = (
               run: (context) => cues.showFolder(context.select),
             },
             {
+              label: "6h · Agent shows a CSV",
+              hint: "Order status page shows exports/orders-week.csv, the week's orders, as a file item on its pane's bar, read as a table",
+              run: (context) => cues.showCsv(context.select),
+            },
+            {
               label: "7 · Everyone finishes",
               hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while their exchange is on its way (they finish when it settles). Each teammate messages its lead its report as it finishes, and the lead finishes about 1 s after the ripple starts. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
