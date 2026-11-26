@@ -51,6 +51,7 @@ import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
 import { onTheWayLine, type OnTheWay } from "../terminals/closes.js"
 import { mention } from "../terminals/handles.js"
+import { includeLimit, type Included } from "../worktrees/include.js"
 import { object } from "./json.js"
 import type { CallType } from "./reports.js"
 
@@ -1759,6 +1760,58 @@ type Worktree = {
   readonly kept?: string
   readonly keptHead?: string
   readonly branchDeleted?: boolean
+  /** open_worktree: the ignored files it got from the checkout. */
+  readonly included?: Included
+}
+
+/** How many copied files `open_worktree` names before it counts the rest. */
+const namedFiles = 8
+
+/**
+ * The ignored files a new worktree got from the checkout, as `open_worktree` says it: which, by
+ * what, and that nothing else ignored (installed dependencies, build output) is there.
+ */
+export const includedSaid = (included: Included | undefined): string => {
+  if (included === undefined) return ""
+  const rest =
+    " Other ignored files, such as installed dependencies and build output, aren't in it."
+  if (included.unread)
+    return (
+      " Novadeck couldn't list the ignored files of " +
+      included.from +
+      ", so none were copied: ignored files, such as .env files, installed dependencies and " +
+      "build output, aren't in it."
+    )
+  const { copied } = included
+  const named = copied.slice(0, namedFiles).join(", ")
+  const more = copied.length > namedFiles ? " and " + (copied.length - namedFiles) + " more" : ""
+  const by =
+    included.by === "file"
+      ? "the ignored files its .worktreeinclude names"
+      : "the ignored .env files (.env*, as the repository has no .worktreeinclude)"
+  const left =
+    included.left > 0
+      ? " " +
+        included.left +
+        (copied.length > 0 ? " more" : "") +
+        " it picks weren't copied: Novadeck copies up to " +
+        includeLimit.files.toLocaleString("en-US") +
+        " files and " +
+        Math.round(includeLimit.bytes / 1024 / 1024) +
+        " MB, and a copy can fail."
+      : ""
+  if (copied.length === 0)
+    return (
+      " None of the ignored files of " +
+      included.from +
+      " are in it, such as .env files, installed dependencies and build output" +
+      (included.left === 0 && included.by === "file" ? " (its .worktreeinclude names none)" : "") +
+      "." +
+      left
+    )
+  return (
+    " It has " + by + ", copied from " + included.from + ": " + named + more + "." + left + rest
+  )
 }
 
 /** Where a new branch came from when origin had one of its name, as `open_worktree` says it. */
@@ -1858,7 +1911,9 @@ const openWorktree: Tool<Worktree> = {
     answer.branch +
     originSaid(answer) +
     (answer.home === undefined ? "" : ", home " + answer.home) +
-    ". You own it. Work there with absolute paths and git -C " +
+    ". You own it." +
+    includedSaid(answer.included) +
+    " Work there with absolute paths and git -C " +
     answer.path +
     ", never cd and then git. " +
     (answer.instructions?.length

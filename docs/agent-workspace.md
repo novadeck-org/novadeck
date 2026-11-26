@@ -1046,6 +1046,18 @@ with every safety check again at that time:
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
+  - **A new worktree gets the checkout's ignored files** (`worktrees/include.ts`), as Conductor,
+    Claude Code and the Codex app give theirs: the patterns of `.worktreeinclude` at the top of the
+    checkout the agent asked from (`.gitignore` syntax; an empty one copies nothing), else `.env*`,
+    pick among the files git ignores there (`ls-files --others --ignored`, once with
+    `--exclude-standard --directory`, once with the patterns), so tracked files and untracked ones
+    that aren't ignored are never copied. A match inside a folder ignored as a whole (`node_modules`,
+    `.venv`) counts only by a pattern with a `/` in it, or a negation, so `.env*` never leaves a
+    package's own `.env` as a `node_modules` that is no install. Files go shallowest first, up to
+    2,000 files and 512 MB, as copy-on-write clones where the file system makes them, symlinks as
+    symlinks, and never over a file the worktree has. The answer's `included` says what was copied,
+    by what, and how many weren't; the tool's text says that other ignored files (installed
+    dependencies, build output) aren't there. A copy never fails the open.
   - **A worktree's changes stay on its owner's bar** (`worktrees/changes-shown.ts`). While
     agent worktrees are on, each time `open_worktree` makes one or `take_worktree` adopts one
     (the service's `onMade`), the runner shows it there as a changes item, as the agent's own

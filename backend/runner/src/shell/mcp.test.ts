@@ -20,7 +20,7 @@ import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { hostless, ownHome } from "../testing/host.js"
 import { installShellFiles } from "./install.js"
-import { mcpAnswer, mcpVersions } from "./mcp.js"
+import { includedSaid, mcpAnswer, mcpVersions } from "./mcp.js"
 import { listenForReports, unheard, type Call, type Reports } from "./reports.js"
 import { shellFiles, shellPaths, staleShellFiles } from "./scripts.js"
 
@@ -734,6 +734,36 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         "on the new branch feat (origin no longer has a branch of that name; origin/feat was left by an earlier fetch, so it wasn't used).",
       )
     })
+  })
+
+  it("says which ignored files a new worktree got from the checkout, and that the rest aren't there", () => {
+    const base = { from: "/repo", copied: [], left: 0 } as const
+    expect(includedSaid({ ...base, by: "default", copied: [".env", "web/.env.local"] })).toBe(
+      " It has the ignored .env files (.env*, as the repository has no .worktreeinclude), copied " +
+        "from /repo: .env, web/.env.local. Other ignored files, such as installed dependencies " +
+        "and build output, aren't in it.",
+    )
+    const many = Array.from({ length: 10 }, (_, at) => `f${at}`)
+    expect(includedSaid({ ...base, by: "file", copied: many, left: 3 })).toBe(
+      " It has the ignored files its .worktreeinclude names, copied from /repo: " +
+        "f0, f1, f2, f3, f4, f5, f6, f7 and 2 more. 3 more it picks weren't copied: Novadeck " +
+        "copies up to 2,000 files and 512 MB, and a copy can fail. Other ignored files, such as " +
+        "installed dependencies and build output, aren't in it.",
+    )
+    expect(includedSaid({ ...base, by: "default" })).toBe(
+      " None of the ignored files of /repo are in it, such as .env files, installed dependencies " +
+        "and build output.",
+    )
+    expect(includedSaid({ ...base, by: "file" })).toContain("(its .worktreeinclude names none).")
+    expect(includedSaid({ ...base, by: "file", left: 2 })).toContain(
+      "build output. 2 it picks weren't copied",
+    )
+    expect(includedSaid({ ...base, by: "default", unread: true })).toContain(
+      "Novadeck couldn't list the ignored files of /repo, so none were copied",
+    )
+    expect(includedSaid(undefined)).toBe("")
+    for (const words of steering)
+      expect(includedSaid({ ...base, by: "default" })).not.toContain(words)
   })
 
   it("says an ask is an extra copy that may not show, which the reply and words before it ask in full", async () => {
