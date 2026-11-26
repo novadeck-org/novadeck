@@ -216,7 +216,7 @@ export const demoTour = (initialWorkspace: () => Workspace | undefined): DemoTou
         () =>
           pi.show(true, {
             state: "failed",
-            error: "Could not reach github.com. Check the connection.",
+            error: "Couldn't reach github.com. Check your connection.",
           }),
         400,
       )

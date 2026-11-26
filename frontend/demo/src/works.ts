@@ -957,9 +957,7 @@ export const createDemoWorks = (
       const work = find(root)
       if (!work) throw new Error("Novadeck no longer tracks that worktree.")
       if (work.working)
-        throw new Error(
-          "Its agent is working in that worktree right now: wait for its turn to end.",
-        )
+        throw new Error("Its agent is working in that worktree. Wait for its turn to end.")
       if (refuse) {
         refuse = false
         throw new Error(closeRefusal)

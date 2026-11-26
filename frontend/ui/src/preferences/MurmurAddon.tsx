@@ -120,7 +120,7 @@ export const MurmurAddon = ({
       description={(shown) =>
         asking === "uninstall"
           ? `The engine and the model are removed from this computer, freeing ${formatSize(murmurInstallSize(shown))}. You can install them again.`
-          : `The model is removed from this computer, freeing ${formatSize(shown.sizes.model)}. Checking again downloads it again.`
+          : `The model is removed from this computer, freeing ${formatSize(shown.sizes.model)}. A new check downloads it again.`
       }
       confirmLabel={asking === "uninstall" ? "Uninstall" : "Remove"}
       cancelLabel="Cancel"

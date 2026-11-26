@@ -151,7 +151,7 @@ export const unseenMs = 15_000
 // What a message whose answer the link lost says as it comes back to the box, its receipt not
 // having shown that it went (see `InDoubt`): all that is known is that it may have.
 export const inDoubtNote =
-  "The link to the runner dropped as this went, so it may have reached the agent. Look at the terminal before you send it again."
+  "The connection to the runner dropped, so the agent may have received this. Look at the terminal before you send it again."
 
 // How long a prompt waits in the queue behind rings before the person is told, in milliseconds:
 // a ring takes seconds, so one that outlasts this isn't ending by itself.
@@ -202,7 +202,7 @@ const backInBox = (
             state.imageNotes,
             context,
             terminalId,
-            `The box holds ${max} images at most, so ${over.length} went.`,
+            `The box holds ${max} images at most, so ${over.length} didn't fit.`,
           )
         : state.imageNotes,
   }

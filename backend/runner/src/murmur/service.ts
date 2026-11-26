@@ -113,7 +113,8 @@ class Unusable extends EngineError {}
 
 const switchedOff = "Turn on Murmur in Preferences > Experimental."
 
-const softwareOnly = "This computer reports only software rendering; no graphics hardware answered."
+const softwareOnly =
+  "This computer reports only software rendering. Murmur needs graphics hardware."
 
 const linuxHint =
   process.platform === "linux" ? " On Linux, check that a Vulkan driver is installed." : ""
@@ -928,11 +929,11 @@ export class Murmur implements Describer {
         // The first run loads the model and warms up the GPU, which later jobs do not pay for.
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
         if (!(await this.complete(config, server, chat, limit, "title", checkDigest, parseCheck)))
-          throw new Unusable("The model's reply was no usable title.")
+          throw new Unusable("The model's reply wasn't a usable title.")
         const started = performance.now()
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
         if (!(await this.complete(config, server, chat, limit, "title", checkDigest, parseCheck)))
-          throw new Unusable("The model's reply was no usable title.")
+          throw new Unusable("The model's reply wasn't a usable title.")
         return {
           device: device.name.slice(0, 256),
           integrated: device.kind === "igpu",
@@ -1195,7 +1196,7 @@ export class Murmur implements Describer {
       // The engine ran and lists no such GPU (a failure to list throws instead): that
       // check no longer stands.
       this.settings.saveMurmurCheck(null)
-      this.failure = "The graphics device murmur was checked on isn't there now."
+      this.failure = "The graphics device Murmur was checked on isn't there now."
       // The engine's failures before it are not why Murmur stopped: this is, and Addons says it.
       this.runtimeFailure = null
       log.warn("murmur.device-missing", this.failure)

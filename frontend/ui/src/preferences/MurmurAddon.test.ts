@@ -38,7 +38,7 @@ describe("murmur's card when it is installed but has not passed its check", () =
     expect(container.querySelector("[role=switch]")?.getAttribute("aria-checked")).toBe("false")
     // Not a failure: a quiet note that the check is owed.
     expect(container.querySelector("[role=alert]")).toBeNull()
-    expect(container.textContent).toMatch(/has not passed its check/)
+    expect(container.textContent).toMatch(/hasn.t passed its check/)
     expect(container.textContent).not.toMatch(/Runs on/)
     const retry = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Try again",

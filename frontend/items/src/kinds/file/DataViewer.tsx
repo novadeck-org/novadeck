@@ -32,7 +32,7 @@ const isPartial = (file: FileContent): boolean =>
 const partText = (file: FileContent): string => {
   const last = file.firstLine + file.lines.length - 1
   const of = file.total === null ? "" : ` of ${file.total}`
-  if (file.truncated) return "Only its start came, as it's longer than Novadeck reads at once"
+  if (file.truncated) return "Novadeck reads only the start of a file this long"
   if (file.firstLine > 1) return `Only lines ${file.firstLine}–${last}${of} were read`
   return `Only the first ${last} lines${of} were read`
 }

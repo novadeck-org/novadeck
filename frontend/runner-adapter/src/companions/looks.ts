@@ -67,7 +67,7 @@ export const answerLook = async (
     const seen = await fresh({ url: look.url, layout: sights.layout(itemId), before })
     if ("reason" in seen) return { lookId, reason: clip(seen.reason, lookLimits.reason) }
     if (seen.picture.length > maxLookPicture)
-      return { lookId, reason: "The page's picture came out too large." }
+      return { lookId, reason: "The picture of the page is too large." }
     return {
       lookId,
       picture: seen.picture,

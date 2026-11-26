@@ -1540,7 +1540,7 @@ describe("the runner's conversations", () => {
         new WireError("PROMPT_REFUSED", "An image of the prompt is gone."),
       )
       await expect(conversations.send(key, "", { images: ["/runner/a.png"] })).rejects.toThrow(
-        "An image couldn't go. Remove it and paste it again.",
+        "An image couldn't be sent. Remove it and paste it again.",
       )
       // Without images, a refusal is the text's own.
       streams.prompt.mockRejectedValueOnce(new WireError("PROMPT_REFUSED", "Nope."))
@@ -1553,7 +1553,7 @@ describe("the runner's conversations", () => {
       await expect(
         conversations.send(key, "hi", { images: ["/runner/a.png"] }),
       ).rejects.toMatchObject({
-        message: "The agent didn't take the image. It is back in the box.",
+        message: "The agent didn't accept the image. It is back in the box.",
         returned: "words",
       })
     })
@@ -1563,7 +1563,7 @@ describe("the runner's conversations", () => {
       streams.upload.mockRejectedValueOnce(new WireError("UPLOAD_TOO_LARGE"))
       await expect(
         conversations.uploadImage?.(key, { name: "a.png", data: new Uint8Array() }),
-      ).rejects.toThrow("over the size")
+      ).rejects.toThrow("larger than the runner accepts")
       streams.upload.mockRejectedValueOnce(new WireError("DISCONNECTED"))
       await expect(
         conversations.uploadImage?.(key, { name: "a.png", data: new Uint8Array() }),
@@ -1648,7 +1648,7 @@ describe("the runner's conversations", () => {
       ["CLOSED", "The runner is offline."],
       ["CONFLICT", "The agent can't take that right now. Check its terminal."],
       ["PROMPT_REFUSED", promptRefusal],
-      ["PROMPT_FAILED", "The prompt didn't land in the agent's box. It may be there as a draft."],
+      ["PROMPT_FAILED", "The prompt didn't reach the agent's box. It may be there as a draft."],
       ["INTERNAL_SERVER_ERROR", "Couldn't reach the agent."],
     ] as const)("tells the person why a %s failure didn't go", async (code, message) => {
       const { conversations, streams } = setup()
@@ -1830,7 +1830,7 @@ describe("the runner's conversations", () => {
       ["CONFLICT", "Couldn't answer that here. Answer it in the terminal."],
       ["DIALOG_CHANGED", "The dialog changed — check it and answer again."],
       ["PROMPT_REFUSED", promptRefusal],
-      ["ANSWER_FAILED", "That answer didn't take. Answer it in the terminal."],
+      ["ANSWER_FAILED", "That answer didn't go through. Answer it in the terminal."],
       ["NOT_FOUND", "That request is already answered."],
       ["INTERNAL_SERVER_ERROR", "Couldn't answer for the agent."],
     ] as const)("tells the person why a %s failure didn't take", async (code, message) => {

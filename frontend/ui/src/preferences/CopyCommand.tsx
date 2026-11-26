@@ -51,13 +51,13 @@ export const CopyCommand = ({
       </div>
       <span aria-live="polite" aria-atomic className="sr-only">
         {copy === "failed"
-          ? "Copy failed. Select the command to copy it."
+          ? "Copy failed. Select the command and copy it yourself."
           : copy === "copied"
             ? "Copied"
             : ""}
       </span>
       {copy === "failed" && (
-        <span className="settings-note text-caption">Select the command and copy it.</span>
+        <span className="settings-note text-caption">Select it and copy it yourself.</span>
       )}
     </div>
   )
