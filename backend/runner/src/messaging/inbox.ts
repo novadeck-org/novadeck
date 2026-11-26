@@ -835,7 +835,7 @@ export class Inbox {
       !owner ||
       !same(entry, owner)
     )
-      throw new DomainError("NOT_FOUND", "This entry isn't open anymore.")
+      throw new DomainError("NOT_FOUND", "This entry isn't open.")
     this.put({ ...entry, state: "withdrawn", cause: "dismissed" })
     const queued = this.dismissals.get(entry.terminalId)
     const note = { subject: entry.content.ask.subject, action: entry.content.ask.shape.type }
@@ -889,7 +889,7 @@ export class Inbox {
       entry.content.kind !== "ask" ||
       !same(entry, this.host.owner(entry.terminalId))
     )
-      throw new DomainError("CONFLICT", "This entry is no longer waiting on the agent.")
+      throw new DomainError("CONFLICT", "This entry is no longer waiting in that agent's session.")
     const parsed = askAnswer.safeParse(input)
     if (!parsed.success)
       throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this entry.")
