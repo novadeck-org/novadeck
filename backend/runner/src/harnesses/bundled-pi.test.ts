@@ -4,6 +4,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 
+import { turnOnLine } from "@novadeck/harness-nova/launcher"
 import {
   buildFolder,
   bundledPiFolder,
@@ -19,7 +20,7 @@ import { afterAll, afterEach, beforeAll } from "vitest"
 import { describe, expect, it } from "../test.js"
 import { folder, sha256 } from "../testing/engines.js"
 import type { Resources } from "../testing/resources.js"
-import { BundledPi, fetchBundledPi, progressLine, turnOnLine } from "./bundled-pi.js"
+import { BundledPi, fetchBundledPi, progressLine } from "./bundled-pi.js"
 
 const licenceText = "MIT License\n\nCopyright (c) pi's authors\n"
 
@@ -368,6 +369,35 @@ describe("Novadeck's pi behind its Experimental switch", () => {
       defaultProvider: "anthropic",
       defaultModel: "m",
     })
+  })
+
+  it("keeps the file nova reads while it is switched on, and removes it when off", async ({
+    resources,
+  }) => {
+    const data = await folder(resources)
+    const on = join(data, "shell", "bundled", "on")
+    const lever = { value: true }
+    const pi = new BundledPi({ data, enabled: () => lever.value, on, platform: "freebsd" })
+
+    pi.switched()
+    await expect
+      .poll(() =>
+        stat(on).then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(true)
+    lever.value = false
+    pi.switched()
+    await expect
+      .poll(() =>
+        stat(on).then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(false)
   })
 
   it("fetches only its own pi", async ({ resources }) => {

@@ -47,7 +47,7 @@ export type ShellPaths = ShellScriptPaths & {
    * Novadeck's own pi (harnesses/bundled-pi.ts): the launcher Novadeck types to start it, and Novadeck's
    * data folder, where it is fetched to and keeps its agent folder.
    */
-  readonly bundledPi: { readonly launcher: string; readonly data: string }
+  readonly bundledPi: { readonly launcher: string; readonly data: string; readonly on: string }
   /** The plugin sources each agent installs from when the person connects it. */
   readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
@@ -95,6 +95,8 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   bundledPi: {
     launcher: join(directory, "bundled", platform === "win32" ? "pi.cmd" : "pi"),
     data: dirname(directory),
+    // Kept while Nova is switched on (`BundledPi.switched`): `nova` starts it only then.
+    on: join(directory, "bundled", "on"),
   },
   plugins: Object.fromEntries(
     agents.map((agent) => [agent, join(directory, "plugins", harnesses[agent].plugin)]),
@@ -343,12 +345,13 @@ export const shellFiles = (
     relay: paths.relay,
     extension: join(paths.plugins.pi, extensionFile),
   }
-  // Its launcher, which Novadeck types the path of, and the same as `nova` in the shims' folder,
-  // first on PATH in Novadeck's terminals, so a person starts it by its name.
+  // Its launcher, which Novadeck types the path of, and `nova` in the shims' folder, first on
+  // PATH in Novadeck's terminals while Nova is on, so a person starts it by its name.
+  const shim = novaShim(platform, paths.bundledPi)
   const bundled = nova
     ? [
         [paths.bundledPi.launcher, bundledLauncher(platform, nova)] as const,
-        [join(paths.bin, novaShim(platform, nova).path), novaShim(platform, nova)] as const,
+        [join(paths.bin, shim.path), shim] as const,
       ].map(([path, each]) =>
         file(path, each.path.endsWith(".cmd") ? crlf(each.content) : each.content, each.mode),
       )

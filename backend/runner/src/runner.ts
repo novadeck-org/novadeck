@@ -478,10 +478,10 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   // The terminals below are made with the gate, which asks them only once it is answering.
   const shippingTerminals = (): Terminals => terminals
-  // Novadeck's own pi (Experimental), fetched into the data folder beside the shell files: its
-  // launcher asks for it, and its switch, read live, starts its fetch, here as the runner starts.
   // The ticket Novas started by hand share (`NovaTickets`), for the runner's life.
   const novaTickets = new NovaTickets()
+  // Novadeck's own pi (Experimental), fetched into the data folder beside the shell files: its
+  // launcher asks for it, and its switch, read live, starts its fetch, here as the runner starts.
   // Only with the shell files, which hold its launcher.
   const bundledPi =
     options.shell === undefined
@@ -491,6 +491,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           enabled: () => store.settings.runner().bundledPi === true,
           // The tour's terminals start it whatever its switch says: the person asked for the tour.
           allows: (terminalId) => tour.paysFor(terminalId),
+          // What `nova` in Novadeck's terminals reads to start it, kept while the switch is on.
+          on: join(options.shell, "bundled", "on"),
           // A Nova started by hand runs on Novadeck's model with a ticket of its own, which the
           // runner's Novas share; the tour's terminals have their run's already.
           service: async (terminalId, progress) => {

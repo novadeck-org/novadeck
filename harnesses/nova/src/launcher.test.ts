@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { delimiter, join } from "node:path"
 import { promisify } from "node:util"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -229,15 +229,6 @@ describe("Novadeck's pi launcher's text", () => {
     )
   })
 
-  it("is nova in the shims' folder too, the same launcher", () => {
-    expect(novaShim("linux", pi)).toEqual({
-      path: "nova",
-      content: posixLauncher(pi),
-      mode: 0o700,
-    })
-    expect(novaShim("win32", pi)).toEqual({ path: "nova.cmd", content: cmdLauncher(pi) })
-  })
-
   it("on Windows takes the service's two variables alone, through a file it removes", () => {
     const cmd = cmdLauncher(pi)
     expect(cmd).toContain('fetch pi >"%novadeck_service%"\nif errorlevel 1 goto failed\n')
@@ -269,5 +260,81 @@ describe("Novadeck's pi launcher's text", () => {
     expect(cmd).toContain(`set "novadeck_program=C:\\Users\\a%%b%%\\pi.exe"`)
     // `call` reads its line twice.
     expect(cmd).toContain(`call "C:\\Users\\a%%%%b%%%%\\relay.exe" fetch pi`)
+  })
+})
+
+describe("nova, in the shims' folder", () => {
+  const windows = process.platform === "win32"
+  let root: string
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "nova-shim-"))
+  })
+  afterEach(() => rm(root, { recursive: true, force: true }))
+
+  // `nova` in `bin`, a launcher that says it ran, and another program named nova in `other`.
+  const setup = async () => {
+    const bin = join(root, "bin")
+    const other = join(root, "other")
+    await mkdir(bin)
+    await mkdir(other)
+    const launcher = join(root, windows ? "launcher.cmd" : "launcher")
+    const on = join(root, "on")
+    await writeFile(
+      launcher,
+      windows ? "@echo off\r\necho launcher %*\r\n" : '#!/bin/sh\necho launcher "$@"\n',
+      { mode: 0o755 },
+    )
+    const file = novaShim(process.platform, { launcher, on })
+    const nova = join(bin, file.path)
+    await writeFile(nova, windows ? file.content.replaceAll("\n", "\r\n") : file.content, {
+      mode: file.mode ?? 0o644,
+    })
+    const theirs = join(other, windows ? "nova.cmd" : "nova")
+    const novaRun = (args: readonly string[], path: string) =>
+      windows
+        ? promisify(execFile)(process.env.ComSpec ?? "cmd.exe", ["/d", "/c", nova, ...args], {
+            env: { ...over(process.env, { PATH: path }) },
+          })
+        : promisify(execFile)(nova, args, { env: { PATH: path } })
+    return { bin, other, on, theirs, start: novaRun }
+  }
+
+  it("starts Nova's launcher while Nova is on", async () => {
+    const { bin, on, start } = await setup()
+    await writeFile(on, "")
+    const { stdout } = await start(["open", "a.txt"], [bin, "/usr/bin", "/bin"].join(delimiter))
+    expect(stdout.trim()).toBe("launcher open a.txt")
+  })
+
+  it("runs another nova on PATH while Nova is off, as it would run", async () => {
+    const { bin, other, theirs, start } = await setup()
+    await writeFile(
+      theirs,
+      windows ? "@echo off\r\necho theirs %*\r\n" : '#!/bin/sh\necho theirs "$@"\n',
+      { mode: 0o755 },
+    )
+    const { stdout } = await start(["list"], [bin, other, "/usr/bin", "/bin"].join(delimiter))
+    expect(stdout.trim()).toBe("theirs list")
+  })
+
+  it("says how to turn Nova on where no other nova is there", async () => {
+    const { bin, start } = await setup()
+    const failed = await start([], [bin, "/usr/bin", "/bin"].join(delimiter)).then(
+      () => undefined,
+      (error: { code?: number; stderr?: string }) => error,
+    )
+    expect(failed?.code).toBe(1)
+    expect(failed?.stderr?.trim()).toBe(turnOn)
+  })
+
+  it("is a script with its paths quoted, never another Novadeck's nova", () => {
+    const file = novaShim("linux", { launcher: "/a b/pi", on: "/a b/on" })
+    expect(file).toMatchObject({ path: "nova", mode: 0o700 })
+    expect(file.content).toContain(`[ -f '/a b/on' ] && exec '/a b/pi' "$@"`)
+    expect(file.content).toContain('grep -qi "novadeck shim for nova"')
+    expect(novaShim("win32", { launcher: "C:\\a\\pi.cmd", on: "C:\\a\\on" })).toMatchObject({
+      path: "nova.cmd",
+    })
   })
 })

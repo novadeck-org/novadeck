@@ -121,7 +121,7 @@ describe("the Windows shims", () => {
       cmdShimDir: "C:\\data\\agy-cmd",
     }).filter((file) => file.path.endsWith(".cmd") && file.path.startsWith(paths.bin))
     expect(shims.map((file) => file.path).toSorted()).toEqual(
-      ["agy.cmd", "claude.cmd", "codex.cmd", "opencode.cmd", "pi.cmd"].map((name) =>
+      ["agy.cmd", "claude.cmd", "codex.cmd", "nova.cmd", "opencode.cmd", "pi.cmd"].map((name) =>
         join(paths.bin, name),
       ),
     )
@@ -148,6 +148,7 @@ describe("Novadeck's own pi's launcher", () => {
     expect(paths.bundledPi).toEqual({
       launcher: join("/data", "shell", "bundled", "pi"),
       data: join("/data"),
+      on: join("/data", "shell", "bundled", "on"),
     })
     expect(launcher?.mode).toBe(0o700)
     expect(launcher?.content).toContain(`'${join("/data", "bundled", "pi", "agent")}'`)
@@ -160,16 +161,14 @@ describe("Novadeck's own pi's launcher", () => {
     expect(launcher?.content).toContain(`-e '${join(paths.plugins.pi, "novadeck.mjs")}'`)
   })
 
-  it("is nova in the shims' folder too, the same launcher, CRLF on Windows", () => {
+  it("is nova in the shims' folder too, while Nova is on", () => {
     const paths = shellPaths(join("/data", "shell"), "linux")
-    const files = shellFiles(paths, "linux")
-    const launcher = files.find((file) => file.path === paths.bundledPi.launcher)
-    const nova = files.find((file) => file.path === join(paths.bin, "nova"))
-    expect(nova).toEqual({ ...launcher, path: join(paths.bin, "nova") })
-    const windows = shellPaths("C:\\data\\shell", "win32")
-    const cmd = shellFiles(windows, "win32").find((file) => file.path.endsWith("nova.cmd"))
-    expect(cmd?.content).toContain("\r\n")
-    expect(cmd?.content).not.toMatch(/(?<!\r)\n/)
+    expect(paths.bundledPi.on).toBe(join("/data", "shell", "bundled", "on"))
+    const nova = shellFiles(paths, "linux").find((file) => file.path === join(paths.bin, "nova"))
+    expect(nova?.mode).toBe(0o700)
+    expect(nova?.content).toContain(
+      `[ -f '${paths.bundledPi.on}' ] && exec '${paths.bundledPi.launcher}'`,
+    )
   })
 
   it("is a cmd file with CRLF line endings on Windows", () => {

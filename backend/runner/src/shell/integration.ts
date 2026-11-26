@@ -1,6 +1,6 @@
+import { existsSync } from "node:fs"
 import { delimiter, join } from "node:path"
 
-import { buildFor } from "@novadeck/harness-nova/pin"
 import { shellLaunch as launch, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import type { InstalledShell } from "./install.js"
@@ -42,8 +42,9 @@ export const shellLaunch = (
   // runner's relay whichever build connected them; see `mcpStart`.
   // With shims, their folder goes first on PATH, and the integration puts it back
   // there after the person's startup files. NOVADECK_SHIMS names the harnesses whose shims
-  // apply; any other shim there runs its program unchanged. Where Nova has a build for this
-  // system its command (`nova`) is in that folder too, so it goes first with no shims as well.
+  // apply; any other shim there runs its program unchanged. While Nova is switched on (its
+  // `on` file is there) its command, `nova`, is in that folder too, so it goes first then with
+  // no shims as well.
   // In a scope of its own, as on Linux with the user's systemd, what `xdg-open`, `gio open` and
   // `BROWSER` open gets one of its own too (`openShims`): their folder goes first on PATH,
   // NOVADECK_OPEN names it, and BROWSER names its `xdg-open` where the person names no browser
@@ -60,8 +61,7 @@ export const shellLaunch = (
       ...(shims.length > 0 && { NOVADECK_SHIMS: shims.join(" ") }),
       ...(scoped === true && platform === "linux" && opening(paths.open, env)),
     },
-    pathFirst:
-      shims.length > 0 || buildFor(platform, process.arch) !== undefined ? paths.bin : undefined,
+    pathFirst: shims.length > 0 || existsSync(paths.bundledPi.on) ? paths.bin : undefined,
     startup,
     scoped,
     // On Windows cmd waits for its job through the relay, which waits for the scope's file.

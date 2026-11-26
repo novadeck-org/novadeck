@@ -1253,9 +1253,12 @@ relay prints them on stdout, one `NAME=value` a line, a value of plain character
 launcher takes those two names alone. The fetch also starts a new session in Nova's agent folder
 on Novadeck's model where its `settings.json` names no model of its own (`seededSettings`).
 
-The same launcher is `nova` (`nova.cmd` on Windows) in the shims' folder, which goes first on
-PATH in Novadeck's terminals wherever Nova has a build for the system, so a person starts it by
-that name; it hides any other `nova` there (Panic's Nova, OpenStack's client), never outside.
+`nova` (`nova.cmd` on Windows), in the shims' folder, starts that launcher while Nova is switched
+on, which the runner keeps the shell folder's `bundled/on` for (`BundledPi.switched`); the folder
+then goes first on PATH in Novadeck's terminals, connected harnesses or not, so a person starts
+Nova by its name, over any other `nova` (Panic's Nova, OpenStack's client), never outside
+Novadeck's terminals. While Nova is off, `nova` runs another `nova` on PATH as it would run, or,
+with none, says what turns Nova on; the folder goes first only for connected harnesses' shims.
 
 Commands start it by the word `novadeck-pi` (harnesses/nova's `novaProgram`), which the runner turns
 into the launcher's path as the shell starts the command (`novaStartup`). A pi session whose

@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto"
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { turnOnLine } from "@novadeck/harness-nova/launcher"
 import {
   buildFolder,
   buildFor,
@@ -57,9 +58,6 @@ export type FetchOptions = {
   readonly signal?: AbortSignal
   readonly stallMs?: number
 }
-
-/** What a fetch or a launch says while Novadeck's pi is switched off. */
-export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
 
 /** What a fetch stopped by its signal fails with. */
 export const stoppedLine = "The download was stopped."
@@ -293,6 +291,11 @@ export class BundledPi {
         terminalId: string,
         progress: FetchProgress,
       ) => Promise<Readonly<Record<string, string>> | undefined>
+      /**
+       * The file kept while the switch is on, which `nova` reads to start Nova (the shell
+       * folder's `bundled/on`); none kept where omitted.
+       */
+      readonly on?: string
       readonly env?: NodeJS.ProcessEnv
       readonly platform?: NodeJS.Platform
       readonly arch?: string
@@ -317,6 +320,7 @@ export class BundledPi {
    * a fetch under way stops and the state says off.
    */
   switched(): void {
+    this.mark()
     // The tour's download goes on, and its state stands, whatever the switch.
     if (this.wanted) return void this.ensure().catch(() => {})
     if (!this.host.enabled()) {
@@ -368,6 +372,17 @@ export class BundledPi {
     }
     await this.seed()
     return terminalId === undefined ? undefined : this.host.service?.(terminalId, progress)
+  }
+
+  // The file `nova` reads to start Nova, kept as the switch says (the tour's asks aside, as they
+  // start Nova by its launcher's path); left where it can't be written, as `nova` then says so.
+  private mark(): void {
+    const { on } = this.host
+    if (on === undefined) return
+    const kept = this.host.enabled()
+      ? mkdir(join(on, ".."), { recursive: true }).then(() => writeFile(on, ""))
+      : rm(on, { force: true })
+    void kept.catch(() => {})
   }
 
   // Nova's agent folder's settings, with Novadeck's model as the one a new session starts on
