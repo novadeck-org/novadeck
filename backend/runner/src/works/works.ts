@@ -616,7 +616,7 @@ export class Works {
     if (work.working)
       throw new DomainError(
         "CONFLICT",
-        "Its agent is working in that worktree right now: wait for its turn to end.",
+        "Its agent is working in that worktree. Wait for its turn to end.",
       )
     // Not what was told a moment ago: read again, as a worktree safe then may not be now.
     const safe = force ? false : await this.safeNow(work)

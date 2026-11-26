@@ -353,7 +353,10 @@ export class Answers {
   ): Promise<void> {
     // Keys the person's words can't carry: an escape sequence would be pressed, not typed.
     if (wordsOf(answer).some(hasControlCharacters))
-      throw new DomainError("CONFLICT", "The answer's words hold control characters.")
+      throw new DomainError(
+        "CONFLICT",
+        "The answer has control characters. Remove them and try again.",
+      )
     this.host.busy(terminalId, true)
     let rows: readonly string[] = []
     let hold: InputHold | undefined
@@ -444,7 +447,10 @@ export class Answers {
         // Only once no turn runs, as its hooks say, whatever the screen read as: a prompt
         // typed into a running turn waits for its end, a different answer from its dialog's.
         if (this.host.working(terminalId))
-          throw new DomainError("CONFLICT", "The agent's turn runs: its dialog takes keys.")
+          throw new DomainError(
+            "CONFLICT",
+            "The agent's turn is still running, so its dialog takes key presses, not a prompt.",
+          )
         words = read.prompt(given)
         if (words === undefined)
           throw new DomainError("CONFLICT", "The request's dialog can't take that answer.")
@@ -461,7 +467,7 @@ export class Answers {
           if (chat === null)
             throw new DomainError("CONFLICT", "The dialog can't be set aside to talk it over.")
           if (chat === "field" && given.text === undefined)
-            throw new DomainError("CONFLICT", "Talking it over there takes words.")
+            throw new DomainError("CONFLICT", "Add some words to talk it over there.")
           if (chat === "prompt") words = given.text
         }
         const steps = read.keys(given)
@@ -473,7 +479,7 @@ export class Answers {
           this.readMs * (held ? 2 : 1) + this.answeredMs + this.settleMs + 5_000,
         )
         if (needs > this.holdMs)
-          throw new DomainError("CONFLICT", "The answer takes longer than the keys can be held.")
+          throw new DomainError("CONFLICT", "That answer takes too long to enter.")
         if (given.type === "choice" && read.dialog.type === "choices") {
           const { option } = given
           words =
