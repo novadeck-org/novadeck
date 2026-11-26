@@ -3,7 +3,7 @@ import { descendantsOf } from "@novadeck/core/derivations"
 import type { ProjectWindowTarget } from "@novadeck/core/desktop/project-windows"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
-import type { RemovedElsewhere, TerminalRequest, TourRun } from "@novadeck/core/port"
+import type { RemovedElsewhere, TerminalRequest } from "@novadeck/core/port"
 import { hasTile } from "@novadeck/core/roster"
 import { activeProject, activeSession, type WorkspaceAction } from "@novadeck/core/state"
 import { closeReasons } from "@novadeck/core/terminals/closing"
@@ -92,9 +92,14 @@ export type WorkspaceCommands = ShellCommands &
     readonly openFolder: () => Promise<void>
     // Removes a project and closes its terminals; the last project stays.
     readonly removeProject: (id: string) => void
-    // Opens the tour's folder as a project of its own, "Tour", on screen, in place of the
-    // projects the backend removed from that folder as it readied the run.
-    readonly openTour: (run: Pick<TourRun, "directory" | "removed">) => void
+    // Opens a folder as a new project by that name, on screen, in place of the projects of
+    // `replaces` (the backend removed them, as the tour readies its folder); one already gone
+    // is skipped.
+    readonly openProjectInPlace: (opening: {
+      readonly name: string
+      readonly directory: string
+      readonly replaces: readonly string[]
+    }) => void
     // Moves a project to this place in the switcher's list, pinned ones first: pinned
     // when dropped among them, unpinned among the rest.
     readonly moveProject: (id: string, index: number) => void
@@ -559,16 +564,16 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         },
       ])
     },
-    openTour: ({ directory, removed }) => {
+    openProjectInPlace: ({ name, directory, replaces }) => {
       const snapshot = workspace.getSnapshot()
-      const project = { id: effects.newId(), name: "Tour", directory }
+      const project = { id: effects.newId(), name, directory }
       const initialSession = newWorkspaceSession(currentState(snapshot), {
         id: effects.newId(),
         now: effects.now(),
       })
       const { enabledViews } = preferences()
       // The removed ones go after the new one is on screen, so the workspace always has one.
-      const replaced = snapshot.projects.filter(({ id }) => removed.includes(id))
+      const replaced = snapshot.projects.filter(({ id }) => replaces.includes(id))
       navigateWorkspace([
         { type: "project/add", project, activate: true, initialSession, enabledViews },
         ...replaced.map(({ id }): WorkspaceAction => ({

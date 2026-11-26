@@ -444,11 +444,5 @@
       }
     }
   ],
-  "ignorePatterns": [
-    "out",
-    "release",
-    "storybook-static",
-    "coverage",
-    "backend/runner/assets/tour/seed"
-  ]
+  "ignorePatterns": ["out", "release", "storybook-static", "coverage", "backend/tour/assets/seed"]
 }

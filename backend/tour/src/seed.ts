@@ -3,9 +3,9 @@ import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { DomainError } from "../errors.js"
+import { TourError } from "./errors.js"
 
-// The seed project the tour writes: real files in `assets/tour/seed`, and the two libraries its
+// The seed project the tour writes: real files in `assets/seed`, and the two libraries its
 // page runs (Phaser, three.js) as files of their packages. Where they are differs by how the
 // runner runs: from the repository (development, tests, a standalone runner) or beside the
 // desktop app's resources, which the main process names (`TourAssets`).
@@ -60,11 +60,11 @@ const packageFolder = async (name: string): Promise<string> => {
 
 // A variable, not a literal in `new URL`, so a bundler doesn't take the folder for an asset to
 // copy (as `resolveScript` in thread.ts does).
-const seedFolder = "../../assets/tour/seed"
+const seedFolder = "../assets/seed"
 
 /**
- * Where the seed is when the runner runs from the repository or its build: `assets/tour/seed`
- * two folders above this file (in `src/tour` or `dist/tour`), and the libraries in
+ * Where the seed is when the runner runs from the repository or its build: `assets/seed`
+ * beside the folder of this file (`src` or `dist`), and the libraries in
  * `node_modules`. The names are looked up at run time, so a bundler takes none of it in.
  */
 export const repositoryAssets = async (): Promise<TourAssets> => ({
@@ -127,8 +127,7 @@ export const seedFiles = async (
     all[".gitattributes"] ??= Buffer.from("* text=auto eol=lf\n")
     return all
   } catch (error) {
-    throw new DomainError(
-      "CONFLICT",
+    throw new TourError(
       `Novadeck's tour project files couldn't be read here (${(error as Error).message}). Reinstall Novadeck, then take the tour.`,
     )
   }

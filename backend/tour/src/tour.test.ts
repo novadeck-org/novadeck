@@ -5,15 +5,6 @@ import { join } from "node:path"
 
 import type { Project } from "@novadeck/protocol"
 
-import { DomainError } from "../errors.js"
-import {
-  maxDeliveryBytes,
-  novadeckSender,
-  tourBriefMark,
-  type Message,
-} from "../messaging/messages.js"
-import { deliveredBytes } from "../messaging/sending.js"
-import { describe, expect, it } from "../test.js"
 import {
   branches,
   builderTask,
@@ -26,14 +17,17 @@ import {
   tourBrief,
   type Serving,
 } from "./brief.js"
+import { TourError } from "./errors.js"
 import { tourFolder, tourMarker } from "./folder.js"
+import { tourBriefMark } from "./notices.js"
 import { TourRecords } from "./records.js"
 import { repositoryAssets, type TourAssets } from "./seed.js"
+import { describe, expect, findProgram, git, it } from "./test.js"
 import type { Ticket } from "./ticket.js"
 import { Tour, type TourHost } from "./tour.js"
 
 const conflict = (error: unknown): boolean =>
-  error instanceof DomainError && error.code === "CONFLICT"
+  error instanceof TourError && error.code === "CONFLICT"
 
 // How the dev server runs, unless a test says otherwise: not what this computer has.
 const served: Serving = { command: "node dev.mjs 5173", url: "http://127.0.0.1:5173/" }
@@ -69,6 +63,8 @@ const tourIn = (
   const removed: string[] = []
   let folders = 0
   const host: TourHost = {
+    git,
+    findProgram,
     home,
     ...(options.assets !== undefined && { assets: options.assets }),
     serving: () => Promise.resolve(options.serving === undefined ? served : options.serving),
@@ -80,13 +76,14 @@ const tourIn = (
     projects: {
       list: () => projects.filter(({ id }) => !removed.includes(id)),
       remove: (id) => {
-        if (removed.includes(id)) return Promise.reject(new DomainError("NOT_FOUND"))
+        // Removed meanwhile, as from another window: the runner resolves.
+        if (removed.includes(id)) return Promise.resolve()
         removed.push(id)
         return options.removal?.() ?? Promise.resolve()
       },
     },
     notice: (terminalId, text) => {
-      if (options.gone?.includes(terminalId)) throw new DomainError("TERMINAL_NOT_FOUND")
+      if (options.gone?.includes(terminalId)) throw new Error("The terminal isn't there.")
       if (!(options.shown ?? ["lead"]).includes(terminalId)) return false
       rung.push([terminalId, text])
       return true
@@ -276,7 +273,7 @@ describe("readying the tour", () => {
     const home = await scratchHome(resources)
     const { tour, removed } = tourIn(home, {
       projects: [project("old-tour", tourFolder(home))],
-      ticket: () => Promise.reject(new DomainError("CONFLICT", "You've used today's free tours.")),
+      ticket: () => Promise.reject(new TourError("You've used today's free tours.")),
     })
     await expect(tour.prepare()).rejects.toThrow("You've used today's free tours.")
     expect(removed).toEqual([])
@@ -665,24 +662,6 @@ describe("the brief's facts", () => {
   })
 })
 
-// A notice as the doorbell delivers it, to count its bytes against one delivery.
-const noticeOf = (text: string): Message => ({
-  id: "m1",
-  projectId: "p1",
-  thread: "t-notice-m1",
-  hop: 1,
-  from: novadeckSender,
-  to: { terminalId: "t1", handle: "moth", agent: "claude", sessionId: null },
-  text,
-  sentAt: 0,
-  state: "queued",
-  deliveredAt: null,
-  notified: true,
-  stopped: false,
-  fromLead: false,
-  toLead: false,
-})
-
 describe("ringing the tour's brief", () => {
   it("rings the lead's whole script to the terminal's agent", async ({ resources }) => {
     const home = await scratchHome(resources)
@@ -695,23 +674,7 @@ describe("ringing the tour's brief", () => {
     expect(id).toBe("t1")
     expect(text.startsWith(tourBriefMark)).toBe(true)
     expect(text).toContain("## Steps")
-    // Delivered whole: wrapped as Novadeck's notice, in every harness, it fits one delivery,
-    // which a harness takes no more than (a brief past it is rung but never handed over).
-    expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
-    // And so it does on the longest harness and model names, as `agy`'s, with the serving steps.
-    const longest = tourBrief({
-      lead: "@a-twenty-char-name-x",
-      mate: { agent: "agy", model: "gemini-3-flash-lite-preview", effort: "medium" },
-      serving: { command: "python3 dev.py 65535", url: "http://127.0.0.1:65535/" },
-    })
-    expect(deliveredBytes(noticeOf(longest))).toBeLessThanOrEqual(maxDeliveryBytes)
-    // And with Codex's longer rule for the shell, which each of its three texts carries.
-    const codex = tourBrief({
-      lead: "@a-twenty-char-name-x",
-      mate: { agent: "codex", model: "gpt-9.9-codex-max-luna", effort: "medium" },
-      serving: { command: "python3 dev.py 65535", url: "http://127.0.0.1:65535/" },
-    })
-    expect(deliveredBytes(noticeOf(codex))).toBeLessThanOrEqual(maxDeliveryBytes)
+    // That it fits one delivery is the runner's to check (its messaging's tour-briefs test).
   })
 
   it("is refused before a run is readied", () => {
@@ -723,7 +686,7 @@ describe("ringing the tour's brief", () => {
     const home = await scratchHome(resources)
     const { tour } = tourIn(home, { shown: [] })
     await tour.prepare()
-    expect(() => tour.brief("t1")).toThrow(DomainError)
+    expect(() => tour.brief("t1")).toThrow(TourError)
   })
 
   it("rings only the tour's own terminals", async ({ resources }) => {
@@ -923,7 +886,7 @@ describe("nudging the tour's agent", () => {
     })
     tour.nudge("lead")
     expect(notices).toEqual([["lead", nudgeLine]])
-    expect(() => tour.nudge("elsewhere")).toThrow(DomainError)
+    expect(() => tour.nudge("elsewhere")).toThrow(TourError)
   })
 })
 

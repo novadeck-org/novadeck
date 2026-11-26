@@ -38,8 +38,8 @@ const copied = (): string[] =>
 const checkedIn = [
   "../../LICENSE",
   "../../frontend/ui/src/sounds",
-  // The tour's project, and the libraries' files it ships from the runner's own dependencies.
-  ...copied().filter((from) => /backend\/runner\/(assets|node_modules)\//.test(from)),
+  // The tour's project, and the libraries' files it ships from the tour package's dependencies.
+  ...copied().filter((from) => /backend\/tour\/(assets|node_modules)\//.test(from)),
 ]
 /** The `from:`s that are a package's build output. */
 const built = (): string[] => copied().filter((from) => !checkedIn.includes(from))

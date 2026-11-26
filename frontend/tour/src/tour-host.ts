@@ -16,7 +16,14 @@ export type TourHost = {
   readonly commands: TourCommands
 }
 
-export type TourCommands = Pick<TourEffects, "openTour" | "add"> & {
+export type TourCommands = Pick<TourEffects, "add"> & {
+  // Opens a folder as a new project by that name, on screen, in place of the projects of
+  // `replaces`, those the backend removed.
+  readonly openProjectInPlace: (opening: {
+    readonly name: string
+    readonly directory: string
+    readonly replaces: readonly string[]
+  }) => void
   readonly changeView: (next: ViewMode) => void
   // Brings a terminal of the session on screen into view for a look and selects it, leaving the
   // sidebar as it is: in Canvas the camera moves only where its window isn't on screen at a size

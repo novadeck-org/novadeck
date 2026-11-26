@@ -2501,7 +2501,7 @@ one from an earlier runner.
   (revision 7; see [Preferences](#preferences)) keep the person's own preferences, which follow
   them from device to device.
 
-- `tour.prepare()` readies a run of Novadeck's tour (`backend/runner/src/tour/`), always on
+- `tour.prepare()` readies a run of Novadeck's tour (`backend/tour/`, which the runner builds), always on
   Novadeck's own pi (the pinned pi `harnesses/bundled-pi.ts` downloads, agent `pi`) with GPT-6 Luna
   at medium effort, paid for by Novadeck through its website (revision 21; from 12 to 20 it ran
   opencode, and before 12 the input took the person's own `agent`, which is now optional and
@@ -2516,7 +2516,7 @@ one from an earlier runner.
   placeholder until it exists), three.js and Phaser to draw with, and every character, enemy and
   unit a glTF model in `models/` built of four ready shapes in `models/shapes.bin`
   (`models/README.md` says how; the page shows `models/placeholder.gltf` turning until the game
-  replaces it). Its files are the seed in `backend/runner/assets/tour/seed/`
+  replaces it). Its files are the seed in `backend/tour/assets/seed/`
   (real files; `make-shapes.mjs` beside it regenerates `shapes.bin` and is never written; a
   `__pycache__/` folder, `*.pyc`, `.DS_Store` and `Thumbs.db` in it are skipped), and
   the two libraries are written beside them as files under `vendor/` (`phaser.min.js` with its
@@ -2524,7 +2524,7 @@ one from an earlier runner.
   `BufferGeometryUtils.js`, `SkeletonUtils.js` with its license). The seed's `.gitignore` keeps
   `vendor/` out of the sandbox's git, so worktrees don't carry it and agents' searches skip it
   (the project's note tells agents never to read it). The runner reads the files in one place
-  (`seedFiles`, `tour/seed.ts`): from the repository (`assets/tour/seed` and the packages'
+  (`seedFiles`, `tour/seed.ts`): from the repository (`assets/seed` and the packages'
   folders in `node_modules`) in development, tests and a standalone runner, and from the folders
   `RunnerOptions.tour` names (`TourAssets`: `seed`, `phaser`, `three`) where given. The packaged
   desktop app ships them as `extraResources` (`tour/seed`, and each library's few files in its

@@ -1,6 +1,5 @@
-import { commandWords } from "../terminals/commands.js"
-import { describe, expect, it } from "../test.js"
-import { tourEnv, tourLaunch } from "./launch.js"
+import { tourEnv } from "./launch.js"
+import { describe, expect, it } from "./test.js"
 import { fetchTicket, tourEndpoint } from "./ticket.js"
 
 const answering = (status: number, body: unknown): typeof fetch =>
@@ -8,26 +7,6 @@ const answering = (status: number, body: unknown): typeof fetch =>
     Promise.resolve(
       new Response(typeof body === "string" ? body : JSON.stringify(body), { status }),
     )) as typeof fetch
-
-describe("the tour's launch line", () => {
-  it("starts Novadeck's own pi on GPT-6 Luna at medium, by its own word, with no prompt", () => {
-    const launch = tourLaunch()
-    expect(launch).toMatchObject({ brief: "doorbell", model: "novadeck/gpt-6-luna" })
-    expect(commandWords(launch.command, "linux")).toEqual([
-      "novadeck-pi",
-      "--model",
-      "novadeck/gpt-6-luna",
-      "--thinking",
-      "medium",
-    ])
-  })
-
-  it("reads the same in Windows' shells", () => {
-    expect(commandWords(tourLaunch().command, "win32")).toEqual(
-      commandWords(tourLaunch().command, "linux"),
-    )
-  })
-})
 
 describe("the tour's terminals' environment", () => {
   it("names the service's address and the ticket, in the variables Novadeck's pi reads", () => {

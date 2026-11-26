@@ -1146,7 +1146,7 @@ holds the desk at its first frames: nothing moves on its own and the plan never 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `apps/` holds what
 ships or deploys: the desktop app, the visitor build and the content preview; `frontend/`
 the UI, split into packages (the model, the two backend adapters, the terminal views, the
-specs and the test kit); `backend/` the runner and the relay; `contract/` the protocol and
+specs and the test kit); `backend/` the runner, the relay and the tour's runner side; `contract/` the protocol and
 the runner client; `engines/` holds the native inference engines Novadeck downloads once
 installed, and the build they share; `harnesses/` holds the agent harness adapters and the
 contract they share; `libraries/` holds the mechanics that never import app code (see
@@ -1174,6 +1174,7 @@ atlas.
 | `apps/previews`           | The content preview: the demo with its debug panel.                                        |
 | `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                            |
 | `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                      |
+| `backend/tour`            | The tour on the runner's side: its folder and repo, seed project, agents' launch, briefs.  |
 | `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                                  |
 | `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                        |
 | `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                             |

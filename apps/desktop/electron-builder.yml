@@ -61,24 +61,24 @@ extraResources:
   # The tour's project and the two libraries its page runs on (Phaser, three.js), which the
   # runner writes into the tour's folder: the seed's files, and each library's files as they sit
   # in its package. The runner is bundled in app.asar and reads none of them from there; see
-  # backend/runner/src/tour/seed.ts, and `tourAssets` in src/main/resources.ts.
-  - from: ../../backend/runner/assets/tour/seed
+  # backend/tour/src/seed.ts, and `tourAssets` in src/main/resources.ts.
+  - from: ../../backend/tour/assets/seed
     to: tour/seed
-  - from: ../../backend/runner/node_modules/phaser/dist/phaser.min.js
+  - from: ../../backend/tour/node_modules/phaser/dist/phaser.min.js
     to: tour/phaser/dist/phaser.min.js
-  - from: ../../backend/runner/node_modules/phaser/LICENSE.md
+  - from: ../../backend/tour/node_modules/phaser/LICENSE.md
     to: tour/phaser/LICENSE.md
-  - from: ../../backend/runner/node_modules/three/build/three.module.js
+  - from: ../../backend/tour/node_modules/three/build/three.module.js
     to: tour/three/build/three.module.js
-  - from: ../../backend/runner/node_modules/three/build/three.core.js
+  - from: ../../backend/tour/node_modules/three/build/three.core.js
     to: tour/three/build/three.core.js
-  - from: ../../backend/runner/node_modules/three/examples/jsm/loaders/GLTFLoader.js
+  - from: ../../backend/tour/node_modules/three/examples/jsm/loaders/GLTFLoader.js
     to: tour/three/examples/jsm/loaders/GLTFLoader.js
-  - from: ../../backend/runner/node_modules/three/examples/jsm/utils/BufferGeometryUtils.js
+  - from: ../../backend/tour/node_modules/three/examples/jsm/utils/BufferGeometryUtils.js
     to: tour/three/examples/jsm/utils/BufferGeometryUtils.js
-  - from: ../../backend/runner/node_modules/three/examples/jsm/utils/SkeletonUtils.js
+  - from: ../../backend/tour/node_modules/three/examples/jsm/utils/SkeletonUtils.js
     to: tour/three/examples/jsm/utils/SkeletonUtils.js
-  - from: ../../backend/runner/node_modules/three/LICENSE
+  - from: ../../backend/tour/node_modules/three/LICENSE
     to: tour/three/LICENSE
   # The manifest of the voice engine, which voice input downloads on install from this
   # release; the archive it names is a release asset, not part of the app. See

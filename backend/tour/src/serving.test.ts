@@ -3,8 +3,8 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { describe, expect, it } from "../test.js"
 import { findServing, freePort, versionOf, type Probe } from "./serving.js"
+import { describe, expect, findProgram, it } from "./test.js"
 
 // What each program answers, by name; one not listed isn't there.
 const answering =
@@ -46,11 +46,11 @@ describe("how the dev server is run", () => {
   })
 
   it("asks a program that isn't there, and gets no answer", async () => {
-    await expect(versionOf("novadeck-no-such-program")).resolves.toBeUndefined()
+    await expect(versionOf(findProgram)("novadeck-no-such-program")).resolves.toBeUndefined()
   })
 
   it("asks node for its version", async () => {
-    await expect(versionOf("node")).resolves.toMatch(/^v\d+\./)
+    await expect(versionOf(findProgram)("node")).resolves.toMatch(/^v\d+\./)
   })
 })
 
@@ -71,8 +71,8 @@ describe("where the interpreter is looked for", () => {
     resources.defer(() => rm(bin, { recursive: true, force: true }))
     const program = join(bin, process.platform === "win32" ? "node.exe" : "node")
     await symlink(process.execPath, program)
-    await expect(versionOf("node", { PATH: bin })).resolves.toMatch(/^v\d+\./)
-    await expect(versionOf("node", { PATH: "/nonexistent" })).resolves.toBeUndefined()
+    await expect(versionOf(findProgram)("node", { PATH: bin })).resolves.toMatch(/^v\d+\./)
+    await expect(versionOf(findProgram)("node", { PATH: "/nonexistent" })).resolves.toBeUndefined()
   })
 })
 

@@ -1,6 +1,6 @@
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
-import { isTourFolder } from "@novadeck/core/tour-folder"
+import { isTourFolder } from "@novadeck/tour/tour-folder"
 import { useLayoutEffect } from "react"
 
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"

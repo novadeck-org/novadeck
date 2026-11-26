@@ -4,17 +4,28 @@ import type { Anchors } from "./anchors.ts"
 export const routerFile = "backend/runner/src/router.ts"
 export const runnerDir = "backend/runner/src"
 
+// The workspace packages a service of the router may come from, by name, with their source
+// folder: `@novadeck/tour-runner/tour` is `backend/tour/src/tour.ts`.
+export const servicePackages: Readonly<Record<string, string>> = {
+  "@novadeck/tour-runner": "backend/tour/src",
+}
+
 // A service the router hands its calls to: `terminals: Terminals` in the options of
 // `createRouter`, with the file its type is imported from.
 export type Service = { field: string; type: string; file: string }
 
 export const servicesOf = (anchors: Anchors, router: string): Service[] => {
-  const imports = new Map(
-    [...router.matchAll(/import type \{ (\w+) \} from "\.\/([^"]+)\.(?:js|ts)"/g)].map((match) => [
-      match[1]!,
-      `${runnerDir}/${match[2]}.ts`,
-    ]),
-  )
+  const imports = new Map([
+    ...[...router.matchAll(/import type \{ (\w+) \} from "\.\/([^"]+)\.(?:js|ts)"/g)].map(
+      (match) => [match[1]!, `${runnerDir}/${match[2]}.ts`] as const,
+    ),
+    ...[
+      ...router.matchAll(/import type \{ (\w+) \} from "(@novadeck\/[\w-]+)\/([\w/-]+)"/g),
+    ].flatMap((match) => {
+      const dir = servicePackages[match[2]!]
+      return dir === undefined ? [] : [[match[1]!, `${dir}/${match[3]}.ts`] as const]
+    }),
+  ])
   const at = router.indexOf("createRouter")
   if (at === -1) {
     anchors.report("router services", routerFile, 'expected "createRouter"')

@@ -3,10 +3,23 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "no
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { DomainError } from "../errors.js"
-import { describe, expect, it } from "../test.js"
+import { TourError } from "./errors.js"
 import { keepTourFolder, resetTourFolder } from "./folder.js"
-import { bringHome, commitSandbox, laySandbox, releaseSandbox, requireGit } from "./repo.js"
+import {
+  bringHome as bringHomeWith,
+  commitSandbox as commitSandboxWith,
+  laySandbox as laySandboxWith,
+  releaseSandbox as releaseSandboxWith,
+  requireGit as requireGitWith,
+} from "./repo.js"
+import { describe, expect, git as runGit, it } from "./test.js"
+
+const requireGit = () => requireGitWith(runGit)
+const commitSandbox = (folder: string) => commitSandboxWith(runGit, folder)
+const laySandbox = (folder: string, files: Readonly<Record<string, string>>) =>
+  laySandboxWith(runGit, folder, files)
+const releaseSandbox = (folder: string, note: string) => releaseSandboxWith(runGit, folder, note)
+const bringHome = (folder: string) => bringHomeWith(runGit, folder)
 
 type Resources = { defer: (cleanup: () => Promise<void>) => void }
 
@@ -16,7 +29,7 @@ const scratch = async (resources: Resources) => {
   return root
 }
 
-// Runs `body` with these variables set in the process's environment, which the runner's git reads.
+// Runs `body` with these variables set in the process's environment, which git reads.
 const withEnv = async (env: Record<string, string>, body: () => Promise<void>): Promise<void> => {
   const was = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]))
   Object.assign(process.env, env)
@@ -40,7 +53,7 @@ describe("the tour's repo", () => {
       await chmod(join(bin, "git"), 0o755)
       await withEnv({ PATH: bin }, async () => {
         await expect(requireGit()).rejects.toThrow(/The tour needs git/)
-        await expect(requireGit()).rejects.toBeInstanceOf(DomainError)
+        await expect(requireGit()).rejects.toBeInstanceOf(TourError)
       })
     },
   )

@@ -4,12 +4,7 @@
     "agent-avatars": { "scopes": [], "paths": [] },
     "onboarding-tour": {
       "scopes": ["tour"],
-      "paths": [
-        "frontend/tour/",
-        "frontend/demo/src/tour/",
-        "backend/runner/src/tour/",
-        "backend/runner/assets/tour/"
-      ]
+      "paths": ["frontend/tour/", "frontend/demo/src/tour/", "backend/tour/"]
     },
     "agent-modes": {
       "scopes": [],

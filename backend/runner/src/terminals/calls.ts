@@ -1,7 +1,7 @@
 import { resolve as resolvePath } from "node:path"
 
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
-import { startLine } from "@novadeck/harness-core/prompts"
+import { commandLine, startLine } from "@novadeck/harness-core/prompts"
 import { isAgentName, type AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
@@ -31,7 +31,7 @@ import {
   waitingRefusal,
   type CloseAnswer,
 } from "./closes.js"
-import { commandLine, sessionLaunch } from "./commands.js"
+import { sessionLaunch } from "./commands.js"
 import type { Companion } from "./companion.js"
 import { readDescribeRequest, waitingForOf, type DescribeAnswer } from "./describe-request.js"
 import { mention } from "./handles.js"

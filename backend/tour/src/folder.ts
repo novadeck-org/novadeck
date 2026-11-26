@@ -3,7 +3,7 @@ import { lstat, mkdir, readdir, rm, rmdir, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join, posix, win32 } from "node:path"
 
-import { DomainError } from "../errors.js"
+import { TourError } from "./errors.js"
 
 /** How many folders the tour may use: `tour`, then `tour-2` up to `tour-99`. */
 export const tourFolderCount = 99
@@ -41,11 +41,10 @@ const tourEntries = async (folder: string): Promise<string[]> => {
     throw error
   })
   if (found && !found.isDirectory())
-    throw new DomainError("CONFLICT", `${folder} isn't a folder Novadeck made for the tour.`)
+    throw new TourError(`${folder} isn't a folder Novadeck made for the tour.`)
   const entries = found ? await readdir(folder) : []
   if (entries.length > 0 && !entries.includes(tourMarker))
-    throw new DomainError(
-      "CONFLICT",
+    throw new TourError(
       `${folder} holds files Novadeck didn't put there, so the tour leaves it as it is. Move or remove that folder to take the tour.`,
     )
   return entries
@@ -68,16 +67,14 @@ export const chooseTourFolder = async (home: string = homedir()): Promise<string
     })
     if (!found) return folder
     if (!found.isDirectory()) {
-      if (nth === 1)
-        throw new DomainError("CONFLICT", `${folder} isn't a folder Novadeck made for the tour.`)
+      if (nth === 1) throw new TourError(`${folder} isn't a folder Novadeck made for the tour.`)
       continue
     }
     // eslint-disable-next-line no-await-in-loop -- As above.
     const entries = await readdir(folder)
     if (entries.length === 0 || entries.includes(tourMarker)) return folder
   }
-  throw new DomainError(
-    "CONFLICT",
+  throw new TourError(
     `Every folder ${join(home, ".novadeck")} keeps for the tour (tour to tour-${tourFolderCount}) holds files Novadeck didn't put there. Move or remove one of them to take the tour.`,
   )
 }

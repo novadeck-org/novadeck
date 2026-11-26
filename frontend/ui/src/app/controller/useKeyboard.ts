@@ -1,5 +1,5 @@
 import { activeProject } from "@novadeck/core/state"
-import { isTourFolder } from "@novadeck/core/tour-folder"
+import { isTourFolder } from "@novadeck/tour/tour-folder"
 import { useEffect } from "react"
 
 import {

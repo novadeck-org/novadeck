@@ -6,11 +6,18 @@ import { join } from "node:path"
 import { samePath } from "@novadeck/harness-core/paths"
 import { ownModel } from "@novadeck/harness-pi/own-model"
 import type { AgentName, Approval } from "@novadeck/protocol"
+import {
+  branches,
+  gameEntry,
+  keptLine,
+  kinds,
+  projectNote,
+  worlds,
+} from "@novadeck/tour-runner/brief"
+import { tourMarker } from "@novadeck/tour-runner/folder"
+import { tourEffort } from "@novadeck/tour-runner/launch"
+import { tourBriefMark } from "@novadeck/tour-runner/notices"
 
-import { tourBriefMark } from "../messaging/messages.js"
-import { branches, gameEntry, keptLine, kinds, projectNote, worlds } from "../tour/brief.js"
-import { tourMarker } from "../tour/folder.js"
-import { tourEffort } from "../tour/launch.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { arrivals, poll, type DeckTerminal } from "./deck.js"
@@ -27,7 +34,7 @@ import {
   through,
 } from "./scenarios.js"
 
-// Novadeck's tour story (backend/runner/src/tour/brief.ts): the lead asks the person which game
+// Novadeck's tour story (backend/tour/src/brief.ts): the lead asks the person which game
 // to make (a world and a kind, one sheet of two questions), then asks to run the game's dev
 // server; once the person approves it shows its page and opens a modeller and a builder with
 // `open_agent`, their tasks with the picks and three models' names written in. The modeller makes the first

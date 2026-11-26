@@ -3,11 +3,9 @@ import { copyFile, mkdir, mkdtemp, realpath, rm, utimes, writeFile } from "node:
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { findProgram } from "../programs.js"
-import { describe, expect, it } from "../test.js"
-import type { Resources } from "../testing/resources.js"
 import { repositoryAssets } from "./seed.js"
 import { freePort, versionOf } from "./serving.js"
+import { describe, expect, findProgram, it, type Resources } from "./test.js"
 
 // The seed's own dev servers, run for real against a small repository with worktrees: which
 // copy of a file the page gets. Both servers answer the same, so each case runs on both.
@@ -23,7 +21,7 @@ const git = (folder: string, ...args: string[]) =>
 const python = async (): Promise<string | undefined> => {
   for (const program of ["python3", "python"]) {
     // eslint-disable-next-line no-await-in-loop -- Tried in turn: the first that runs wins.
-    if ((await versionOf(program))?.startsWith("Python 3."))
+    if ((await versionOf(findProgram)(program))?.startsWith("Python 3."))
       return findProgram(program, { env: process.env, extensions: [".exe"] })
   }
   return undefined

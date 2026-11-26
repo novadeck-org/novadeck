@@ -45,14 +45,15 @@ export const relayPath = (): string => {
   return join(dirname(relay), "dist", name)
 }
 
-/** The folders the tour's seed project and libraries are read from (`TourAssets`, the runner's). */
+/** The folders the tour's seed project and libraries are read from (`TourAssets`, the tour's). */
 export type TourFolders = { readonly seed: string; readonly phaser: string; readonly three: string }
 
 /**
  * Where the runner finds the tour's seed project and the libraries its page runs on: shipped in
  * the resources folder, each library as the files it takes of its package, or, in development,
- * the repository's seed and the packages' own folders, found from the runner package. The
- * runner is bundled, so it can't find them from its own place.
+ * the repository's seed and the packages' own folders, found from the tour's package, which
+ * the runner package depends on. The runner is bundled, so it can't find them from its own
+ * place.
  */
 export const tourAssets = (): TourFolders => {
   if (app.isPackaged) {
@@ -63,13 +64,14 @@ export const tourAssets = (): TourFolders => {
       three: join(folder, "three"),
     }
   }
-  const entry = createRequire(join(app.getAppPath(), "package.json")).resolve("@novadeck/runner")
-  const runner = createRequire(entry)
+  const runner = createRequire(join(app.getAppPath(), "package.json")).resolve("@novadeck/runner")
+  const manifest = createRequire(runner).resolve("@novadeck/tour-runner/package.json")
+  const tour = createRequire(manifest)
   // A package's folder is two up from its entry (`src/phaser.js`, `build/three.cjs`):
   // neither lists its manifest among its exports.
-  const packageFolder = (name: string): string => join(dirname(runner.resolve(name)), "..")
+  const packageFolder = (name: string): string => join(dirname(tour.resolve(name)), "..")
   return {
-    seed: join(dirname(entry), "..", "assets", "tour", "seed"),
+    seed: join(dirname(manifest), "assets", "seed"),
     phaser: packageFolder("phaser"),
     three: packageFolder("three"),
   }

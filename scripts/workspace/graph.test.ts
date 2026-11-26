@@ -93,6 +93,7 @@ const backends = new Set([
   "contract/runner-client",
   "backend/runner",
   "backend/relay",
+  "backend/tour",
 ])
 
 describe("the package graph", () => {
@@ -110,9 +111,14 @@ describe("the package graph", () => {
       "frontend/demo-debug",
       "frontend/runner-adapter",
       "contract/runner-client",
+      "backend/tour",
       "harnesses/core",
     ])
       expect(packages.has(folder), folder).toBe(true)
+  })
+
+  it("keeps the tour's runner side off the runner, which builds it with what it needs (its host)", () => {
+    expect(reaches("backend/tour").has("backend/runner")).toBe(false)
   })
 
   it("names no workspace package by a path, which pnpm installs whatever its name", () => {
