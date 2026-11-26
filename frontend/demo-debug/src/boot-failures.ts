@@ -34,7 +34,7 @@ export const bootFailures: readonly ConnectFailure[] = [
   {
     kind: "outdated",
     message:
-      "A newer version of Novadeck has used this workspace. Open the newer Novadeck instead; this copy is out of date.",
+      "A newer version of Novadeck has used this workspace, so this copy is out of date. Open the newer one.",
     code: "WORKSPACE_TOO_NEW",
     detail: "The workspace database schema is newer than this runner supports",
   },
