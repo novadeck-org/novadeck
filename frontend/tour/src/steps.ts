@@ -136,7 +136,7 @@ export const startStep: TourStep = {
   // A lead that names itself at once is done before its caption shows: it holds, so the first
   // beat is read.
   holdMs: lineMs,
-  coach: { look: "lead", line: "That's your agent. It works. I talk." },
+  coach: { look: "lead", line: "That's your agent. It does the work. I talk." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.
   done: ({ lead }) => lead.kind === "agent" && (lead.named || lead.answered),
@@ -192,8 +192,8 @@ export const pageStep: TourStep = {
   coach: {
     click: ["lead-pane", "lead"],
     tab: "page",
-    cue: { line: "The game's up. Go look.", note: "Open it: the eye, or its window." },
-    line: "There. It's live. Empty, but live.",
+    cue: { line: "Your game's running. Go look.", note: "Open it: the eye, or its window." },
+    line: "There. Nothing in it yet. Give it time.",
     note: "Click into it.",
   },
   done: ({ shown }) => shown.page !== null,
@@ -212,7 +212,7 @@ export const teamStep: TourStep = {
   coach: {
     click: ["team"],
     cue: {
-      line: "Somebody's hiring. Go find them.",
+      line: "New agents. Go find them.",
       note: "They're off screen: the eye shows them.",
     },
     line: "Look. It hired its own help. Without asking me.",
@@ -257,7 +257,7 @@ export const filesStep: TourStep = {
     click: ["files", "files-button"],
     opened: true,
     cue: { line: "Open your Files. I'll wait.", note: "On the left. See what they're writing." },
-    line: "See them blink? That's an agent, writing.",
+    line: "See the files blink? That's an agent, writing.",
   },
   done: ({ changed }) => changed.models && changed.game,
   wait: "nudge",
@@ -296,7 +296,7 @@ export const finishStep: TourStep = {
   show: [{ kind: "fit-all" }],
   holdMs: lineMs,
   capMs: 5 * 60_000,
-  coach: { look: "team", line: "They're finishing it. Sit back." },
+  coach: { look: "team", line: "They're finishing it. Relax." },
   done: ({ team, askingRow, permission }) =>
     team.count > 0 &&
     team.reported >= team.count &&
@@ -320,8 +320,8 @@ export const playStep: TourStep = {
   coach: {
     click: ["lead-pane", "lead"],
     tab: "page",
-    cue: { line: "It's done. Go open it.", note: "Open it: the eye, or its window." },
-    line: "Three agents, one game. Yours. Go play.",
+    cue: { line: "Your game's done. Go open it.", note: "Open it: the eye, or its window." },
+    line: "Three agents, one game. Go play.",
     note: "It's live in the pane: click it.",
   },
   // Never while a teammate's question waits: the closing card waits for the person's answer.
@@ -340,8 +340,11 @@ const modelPlayStep: TourStep = {
   coach: {
     click: ["modeller-pane", "modeller"],
     tab: "model",
-    cue: { line: "It's done. Go open it.", note: "Open its model: the eye, or its window." },
-    line: "Three agents, one game. Yours.",
+    cue: {
+      line: "Your model's done. Go open it.",
+      note: "Open its model: the eye, or its window.",
+    },
+    line: "Three agents, one model. Yours.",
     note: "Give it one more spin.",
   },
 }
@@ -385,6 +388,10 @@ export const screenCoach = (screen: Extract<LeadState, { kind: "screen" }>["scre
       : "Answer it here, in its terminal: it's its own question. The tour goes on once you have.",
 })
 
+// What the tour says over `screenCoach`'s words while a teammate, not the lead, holds at a screen
+// of its own.
+export const teamScreenLine = "A teammate wants an answer first. From you."
+
 // What the tour says while a teammate's own question to the person waits in the Inbox: it isn't
 // part of the story, and the tour points at it until they answer or dismiss it.
 export const questionCoach: Coach = {
@@ -416,7 +423,8 @@ export const endedCoach: Coach = {
 export const leftCoach = (terminalId?: string): Coach => ({
   click: terminalId === undefined ? ["lead"] : ["terminal"],
   ...(terminalId !== undefined && { terminalId }),
-  line: "It didn't start. Ugh.",
+  // The lead's never got going; a teammate's may have worked a while first.
+  line: terminalId === undefined ? "It didn't even start." : "A teammate quit.",
   // The same for any of them: the shell's history doesn't hold the command the tour started it
   // with, so there is nothing the person could run again by a key.
   note: "Its terminal says why. End the tour and take it again.",
