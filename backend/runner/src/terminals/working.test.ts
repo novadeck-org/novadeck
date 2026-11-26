@@ -18,14 +18,18 @@ const changed = (id: string, activity: AgentActivity | null): WorkingChange => (
   terminal: { id, activity },
 })
 
-// What the watcher tells for a run of changes.
-const told = async (changes: readonly WorkingChange[]): Promise<boolean[]> => {
+// What the watcher tells for a run of changes, with the terminals whose agents hold a cron.
+const told = async (
+  changes: readonly WorkingChange[],
+  crons: ReadonlySet<string> = new Set(),
+): Promise<boolean[]> => {
   const said: boolean[] = []
   await watchWorking(
     (async function* () {
       yield* changes
     })(),
     (working) => said.push(working),
+    (id) => crons.has(id),
   )
   return said
 }
@@ -47,6 +51,10 @@ describe("agentAtWork", () => {
     ).toBe(true)
   })
 
+  it("counts subagents still running, as Codex's do once its turn has ended", () => {
+    expect(agentAtWork({ activity: { ...idle, subagents: [{ id: "s1", type: null }] } })).toBe(true)
+  })
+
   it("leaves out a turn held on the person's answer, but not on a question that doesn't wait", () => {
     const asking = { ...idle, state: "working" as const }
     expect(
@@ -55,6 +63,16 @@ describe("agentAtWork", () => {
     expect(
       agentAtWork({
         activity: { ...asking, attention: { pending: 1, kind: "question", detached: 1 } },
+      }),
+    ).toBe(true)
+    // Its other subagents work on while one waits.
+    expect(
+      agentAtWork({
+        activity: {
+          ...asking,
+          attention: { pending: 1, kind: "permission" },
+          subagents: [{ id: "s1", type: null }],
+        },
       }),
     ).toBe(true)
   })
@@ -97,6 +115,13 @@ describe("watchWorking", () => {
         changed("b", idle),
       ]),
     ).toEqual([true, false])
+  })
+
+  it("counts an idle agent with a cron of its own, as /loop sets, until its turn ends one", async () => {
+    const crons = new Set(["a"])
+    const changes: WorkingChange[] = [{ type: "synced" }, changed("a", idle), changed("b", idle)]
+    expect(await told(changes, crons)).toEqual([true, false])
+    expect(await told([{ type: "synced" }, changed("b", idle)], crons)).toEqual([])
   })
 
   it("tells nothing when no agent ever works, even as the changes end", async () => {

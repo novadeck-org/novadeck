@@ -101,6 +101,7 @@ import {
 import { alive, busyReader, markBusy, Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
+import { scheduled } from "./schedules.js"
 import { ShellCommands } from "./shell-commands.js"
 import { Sleepers } from "./sleepers.js"
 import { slicingOf } from "./slices.js"
@@ -1605,6 +1606,12 @@ export class Terminals {
   async *slice(id: string, signal?: AbortSignal, screen?: boolean): AsyncGenerator<SliceChange> {
     if (this.stopping) throw new DomainError("CLOSING")
     yield* this.streams.watchSlice(this.record(id).summary.id, signal, screen)
+  }
+
+  /** Whether a terminal's agent has a cron only its process holds (`scheduled` in schedules.ts). */
+  scheduled(id: string): boolean {
+    const record = this.records.get(id)
+    return !!record && scheduled(record, record.bound?.binding.sessionId, Date.now())
   }
 
   /** The terminals whose shell holds work a restart would end, read now (see `busyTerminals`). */

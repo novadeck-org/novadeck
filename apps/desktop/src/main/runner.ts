@@ -55,7 +55,7 @@ export type RunnerEvents = {
   readonly ready?: (run: number, ms: number) => void
   /**
    * Whether any of its agents is at work, each time that changes; false once its process
-   * exits, however it ends.
+   * exits, however it ends, where it last said true.
    */
   readonly working?: (working: boolean) => void
   /**
@@ -197,15 +197,19 @@ export const startRunner = (options: {
     // Electron emits it when V8 ends the process; with no listener, the emitter would throw
     // it in the main process, which shows Electron's error dialog over the app.
     worker.on("error", (type, location) => events.fatal?.(run, type, location))
+    // Whether its agents work, as it last said.
+    let working = false
     worker.on("message", (report: RunnerReport) => {
       if (report?.type === "ready") events.ready?.(run, Math.round(performance.now() - forkedAt))
-      if (report?.type === "working" && typeof report.working === "boolean")
-        events.working?.(report.working)
+      if (report?.type === "working" && typeof report.working === "boolean") {
+        working = report.working
+        events.working?.(working)
+      }
     })
     worker.once("exit", (code) => {
       if (child === worker) child = undefined
       // A runner that crashed mid-turn told no end of it.
-      events.working?.(false)
+      if (working) events.working?.(false)
       // The next connection request starts a new runner.
       events.exited?.(run, code, closing !== undefined && !killed && code === 0)
     })

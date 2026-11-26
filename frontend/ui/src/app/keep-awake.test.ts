@@ -6,6 +6,8 @@ import { watchKeepAwake } from "./keep-awake"
 
 type Setting = Partial<Pick<PreferencesValue, "keepAwakeOffered" | "keepAwake">> & {
   readonly experimental?: boolean
+  // Whether the page has heard whether Experimental is on; it has, unless a case says not.
+  readonly known?: boolean
 }
 
 // A store with Experimental and the two switches, and what the app was told.
@@ -16,6 +18,7 @@ const watched = (start: Setting, keepAwake?: (on: boolean) => void) => {
     getSnapshot: () => ({
       preferences: preferencesFrom(setting),
       flags: { IS_EXPERIMENTAL: setting.experimental ?? true },
+      experimentalKnown: setting.known ?? true,
     }),
     subscribe: (listener: () => void) => {
       listeners.add(listener)
@@ -57,6 +60,16 @@ describe("telling the app to keep the computer awake", () => {
     const { set } = watched({ keepAwakeOffered: true }, (on) => told.push(on))
     set({ experimental: false })
     expect(told).toEqual([true, false])
+  })
+
+  it("tells it nothing until the page knows whether Experimental is on, then what it is", () => {
+    const told: boolean[] = []
+    const { set } = watched({ keepAwakeOffered: true, experimental: false, known: false }, (on) =>
+      told.push(on),
+    )
+    expect(told).toEqual([])
+    set({ experimental: true, known: true })
+    expect(told).toEqual([true])
   })
 
   it("tells it nothing again when something else changes", () => {
