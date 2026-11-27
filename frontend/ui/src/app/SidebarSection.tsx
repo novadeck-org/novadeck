@@ -10,6 +10,7 @@ import { memo, useCallback, useContext, useMemo, useSyncExternalStore } from "re
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
+import { syncFeedOf } from "../sidebar/files-sync"
 import { filesOfWorks } from "../sidebar/files-works"
 import type { WorktreesWire } from "../sidebar/WorktreesPanel"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -76,16 +77,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (folder: string) => filesFeed!.list(projectId, folder),
     [filesFeed, projectId],
   )
-  const checkout = useMemo(
-    () =>
-      filesFeed?.checkout && filesFeed.update
-        ? {
-            read: () => filesFeed.checkout!(projectId),
-            update: () => filesFeed.update!(projectId),
-          }
-        : undefined,
-    [filesFeed, projectId],
-  )
+  // How the project's repositories stand against their origins, as the rail and the notices follow them too.
+  const sync = useMemo(() => syncFeedOf(filesFeed, projectId), [filesFeed, projectId])
   const selectedHandle = useWorkspaceState((workspace) => {
     const { roster, selected } = currentState(workspace)
     return roster.terminals.find((terminal) => terminal.id === selected)?.handle
@@ -319,7 +312,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
             key={projectId}
             project={filesProject ?? worksOverlay}
             list={list}
-            checkout={checkout}
+            sync={sync}
             watch={watchWorks}
             onOpenFile={onOpenFile}
             onOpenFolder={onOpenFolder}

@@ -45,12 +45,14 @@ import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { dropWords } from "./history-drops"
 import { InboxHost } from "./InboxHost"
+import { MainSyncNotices } from "./MainSyncNotices"
 import { MoveSessionsProvider } from "./move-to"
 import { historyShown, filesShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
 import { TourRoot } from "./TourRoot"
+import { useFilesNews } from "./use-files-news"
 import { useWorktreesShown, useLeaveHiddenWorktrees } from "./use-worktrees-shown"
 import { useInboxBadge } from "./useInboxBadge"
 import { useSessionMarks } from "./useSessionMarks"
@@ -278,7 +280,7 @@ const noneMade = createStore<WorksMade>(new Map())
 const RailWithBadge = (
   props: Omit<
     ComponentProps<typeof SidebarRail>,
-    "badge" | "bellRings" | "historyDrops" | "lastDrop" | "sessionsAsk" | "worksMade"
+    "badge" | "bellRings" | "historyDrops" | "lastDrop" | "sessionsAsk" | "worksMade" | "filesNews"
   >,
 ): React.JSX.Element => {
   const { backend } = useWorkspaceServices()
@@ -289,6 +291,11 @@ const RailWithBadge = (
   const madeIn = useCallback((counts: WorksMade) => counts.get(projectId) ?? 0, [projectId])
   const made = useStoreSelector(backend.works?.made ?? noneMade, madeIn)
   const worksMade = useMemo(() => ({ count: made, projectId }), [made, projectId])
+  const filesNews = useFilesNews(
+    backend,
+    projectId,
+    props.sidebarVisible && props.sidebarPanel === "files",
+  )
   return (
     <SidebarRail
       {...props}
@@ -298,6 +305,7 @@ const RailWithBadge = (
       lastDrop={lastDrop ? dropWords(lastDrop) : undefined}
       sessionsAsk={elsewhereSessionsText(marks, openId)}
       worksMade={worksMade}
+      filesNews={filesNews}
     />
   )
 }
@@ -474,6 +482,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
             <FooterSection />
             <WorkspaceOverlays />
             <HistoryDropSection />
+            <MainSyncNotices />
             {voice && <DictationOverlay controller={voice} keys={dictationKeys()} />}
             <PanelSection panel={panel} />
           </main>

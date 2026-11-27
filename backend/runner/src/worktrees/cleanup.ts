@@ -31,6 +31,10 @@ export type CleanupHost = {
   readonly fetcher?: MainFetcher
   /** Repositories beyond the tracked worktrees' that are kept fetched (compares of remote refs). */
   readonly repositories?: () => Promise<readonly string[]>
+  /** Every repository of an open project, whose checkout follows its origin's main as a worktree's does. */
+  readonly followed?: () => Promise<readonly string[]>
+  /** Told when the runner moved a repository's checkout to its main: see `FetcherOptions.landed`. */
+  readonly landed?: (commonDir: string, from: string, to: string) => void
   /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
   readonly hooksFolder?: string
 }
@@ -72,6 +76,7 @@ export class Cleanup {
       new MainFetcher({
         ...(host.now && { now: host.now }),
         ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
+        ...(host.landed && { landed: host.landed }),
       })
   }
 
@@ -116,8 +121,19 @@ export class Cleanup {
   }
 
   /** Fetches the repositories' origins now: see `MainFetcher.fetchNow`. */
-  fetchNow(commonDirs: Iterable<string>): Promise<void> {
-    return this.fetcher.fetchNow(commonDirs)
+  fetchNow(commonDirs: Iterable<string>, follow = true): Promise<void> {
+    return this.fetcher.fetchNow(commonDirs, follow)
+  }
+
+  /**
+   * Fetches a repository now where a pull request of it merged, and moves its checkout only where the
+   * sweep would: it has a tracked worktree, or is in an open project.
+   */
+  async fetchMerged(commonDir: string): Promise<void> {
+    const owned = this.service.all().some((row) => row.commonDir === commonDir)
+    const followed =
+      owned || ((await this.host.followed?.().catch(() => [])) ?? []).includes(commonDir)
+    await this.fetcher.fetchNow([commonDir], followed)
   }
 
   /** Starts the periodic look, and takes the first now. */
@@ -203,9 +219,11 @@ export class Cleanup {
     if (fetch) {
       const more = (await this.host.repositories?.().catch(() => [])) ?? []
       const owned = new Set(this.service.all().map(({ commonDir }) => commonDir))
-      // The checkout follows a fetch only for a repository with a tracked worktree: one that is on
-      // the schedule for a compare's sake alone is left as the person has it.
-      await this.fetcher.fetchDue([...owned, ...more], (commonDir) => owned.has(commonDir))
+      const followed = (await this.host.followed?.().catch(() => [])) ?? []
+      const follows = new Set([...owned, ...followed])
+      // The checkout follows a fetch for a repository with a tracked worktree, or one in an open
+      // project: one that is on the schedule for a compare's sake alone is left as the person has it.
+      await this.fetcher.fetchDue([...follows, ...more], (commonDir) => follows.has(commonDir))
     }
     const rows = this.service.all()
     const tracked = new Set(rows.map(({ path }) => path))

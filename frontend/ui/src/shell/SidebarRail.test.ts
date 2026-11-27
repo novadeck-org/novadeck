@@ -60,6 +60,33 @@ describe("the rail's Sessions dot", () => {
   })
 })
 
+describe("the rail's Files dot", () => {
+  const filesRail = (open: boolean, filesNews?: string) =>
+    createElement(SidebarRail, {
+      sidebarVisible: open,
+      sidebarPanel: open ? "files" : "terminals",
+      zen: false,
+      badge: undefined,
+      bellRings: 0,
+      hasFiles: true,
+      filesNews,
+      toggleSidebar: () => {},
+    })
+
+  it("shows while a repository has news and the Files panel isn't showing, and says what", () => {
+    const { container, rerender, unmount } = render(filesRail(false))
+    unmounts.push(unmount)
+    const toggle = () => container.querySelector("#files-toggle")!
+    expect(toggle().querySelector(".bell-dot")).toBeNull()
+    rerender(filesRail(false, "main moved"))
+    expect(toggle().querySelector(".bell-dot")).not.toBeNull()
+    expect(toggle().getAttribute("aria-label")).toBe("Files")
+    expect(toggle().getAttribute("aria-description")).toBe("main moved")
+    rerender(filesRail(true, "main moved"))
+    expect(toggle().querySelector(".bell-dot")).toBeNull()
+  })
+})
+
 describe("the rail's tooltips", () => {
   it("say where a click on the open panel's toggle takes the sidebar, and each panel's key", () => {
     const keys = (letter: string) =>

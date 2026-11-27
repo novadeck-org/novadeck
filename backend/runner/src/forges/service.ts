@@ -76,6 +76,8 @@ export type ForgesOptions = {
   readonly remote?: (commonDir: string) => Promise<string | undefined>
   readonly platform?: NodeJS.Platform
   readonly now?: () => number
+  /** Told when a watched pull request of a repository turned merged since the last look. */
+  readonly merged?: (commonDir: string) => void
   /** How often a repository is looked up at most. */
   readonly every?: number
   /** How often the repositories are checked for being due, while the service runs. */
@@ -154,6 +156,16 @@ export class Forges {
     this.find = options.find ?? ((program) => findProgram(program, { env: options.environment() }))
     this.now = options.now ?? Date.now
     this.every = options.every ?? lookEveryMs
+  }
+
+  private merged(commonDir: string): void {
+    try {
+      this.options.merged?.(commonDir)
+    } catch (error) {
+      log.warn("forges.merged-failed", "Novadeck could not follow a merged pull request", {
+        err: error,
+      })
+    }
   }
 
   /** Starts looking at the repositories every `tickMs` (5 s by default). */
@@ -386,6 +398,7 @@ export class Forges {
     look.fetchedAt = repository.fetchedAt
     look.branches = signature
     if (!isProblem(found)) {
+      const was = look.requests
       look.requests = found
       look.failures = 0
       look.blockedUntil = 0
@@ -398,6 +411,16 @@ export class Forges {
       else if (look.quick?.standing !== standing) look.quick = { since: at, standing }
       const quick = running && at - (look.quick?.since ?? at) < quickLookForMs
       look.nextAt = at + (quick ? Math.min(this.every, lookWhileRunningMs) : this.every)
+      // A pull request seen open (or draft) that is merged now: main has moved on its origin.
+      if (
+        [...found].some(
+          ([branch, pull]) =>
+            pull.state === "merged" &&
+            was.get(branch)?.state !== undefined &&
+            was.get(branch)?.state !== "merged",
+        )
+      )
+        this.merged(repository.commonDir)
       return
     }
     // What was found before stands: it is never told "no pull request" for a failed lookup.

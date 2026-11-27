@@ -67,6 +67,11 @@ export type FetcherOptions = {
   readonly hooksFolder?: string
   /** Whether a fetch is followed by moving the repository's checkout; always, when omitted. */
   readonly follow?: () => boolean
+  /**
+   * Told each time the runner itself (not the person's Update) moved a checkout to its main,
+   * with the commits it moved between; what it throws is logged, never raised.
+   */
+  readonly landed?: (commonDir: string, from: string, to: string) => void
 }
 
 /**
@@ -83,6 +88,7 @@ export class MainFetcher {
   private readonly every: number
   private readonly environment: NodeJS.ProcessEnv
   private readonly follow: () => boolean
+  private readonly landed: FetcherOptions["landed"]
   private readonly hooksFolder: string | undefined
   private readonly ending = new AbortController()
   /** How many times each repository's checkout was moved, by common dir. */
@@ -100,6 +106,7 @@ export class MainFetcher {
     this.every = options.every ?? fetchEveryMs
     this.environment = options.environment ?? process.env
     this.follow = options.follow ?? (() => true)
+    this.landed = options.landed
     this.hooksFolder = options.hooksFolder
   }
 
@@ -190,7 +197,10 @@ export class MainFetcher {
         env: fetchEnv(this.environment, true),
         allowChanges,
       })
-      if (done.ok && done.moved) this.moves.set(commonDir, this.moved(commonDir) + 1)
+      if (done.ok && done.moved) {
+        this.moves.set(commonDir, this.moved(commonDir) + 1)
+        if (!allowChanges) this.tellLanded(commonDir, done.from, done.to)
+      }
       if (!done.ok)
         log.debug("worktrees.checkout-kept", "Novadeck left a repository's own checkout as it is", {
           data: { commonDir, said: done.said },
@@ -201,6 +211,16 @@ export class MainFetcher {
         err: error,
       })
       return { ok: false, said: "Novadeck couldn't update it." }
+    }
+  }
+
+  private tellLanded(commonDir: string, from: string, to: string): void {
+    try {
+      this.landed?.(commonDir, from, to)
+    } catch (error) {
+      log.warn("worktrees.landed-failed", "Novadeck could not record where main moved", {
+        err: error,
+      })
     }
   }
 
@@ -232,10 +252,10 @@ export class MainFetcher {
    * or not. A repository already being fetched is not fetched twice: its fetch is waited for.
    * A failure leaves the repository's own schedule as it was.
    */
-  async fetchNow(commonDirs: Iterable<string>): Promise<void> {
+  async fetchNow(commonDirs: Iterable<string>, follow = true): Promise<void> {
     await Promise.all(
       [...new Set(commonDirs)].map((commonDir) =>
-        this.fetching(commonDir, this.stateOf(commonDir), true, true),
+        this.fetching(commonDir, this.stateOf(commonDir), true, follow),
       ),
     )
   }

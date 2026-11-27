@@ -1,11 +1,17 @@
-import type { FolderListing, FilesProject } from "@novadeck/core/files"
+import type {
+  FolderListing,
+  FilesProject,
+  ProjectFiles,
+  RepoSync,
+  SyncLanding,
+} from "@novadeck/core/files"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement, StrictMode } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { folderListings } from "../test/files"
-import { checkoutPollMs, type Checkout } from "./FilesCheckout"
+import { createSyncFeed, syncPollMs, type SyncFeed } from "./files-sync"
 import { FilesPanel } from "./FilesPanel"
 import { readTimeoutMs } from "./useFolderReader"
 import { pulseMs } from "./usePulses"
@@ -115,7 +121,7 @@ const mount = async (
   reads: Reads = backend(),
   onOpenFile: (path: string) => Promise<void> = () => Promise.resolve(),
   watch?: () => () => void,
-  checkout?: Checkout,
+  sync?: SyncFeed,
 ) => {
   let visible = true
   let turn = 0
@@ -123,7 +129,7 @@ const mount = async (
     project: next,
     list: reads.list,
     turn,
-    checkout,
+    sync,
     watch,
     onOpenFile,
     selectedHandle: handle,
@@ -1594,126 +1600,286 @@ describe("The Files panel", () => {
     })
   })
 
-  context("when the checkout is behind its remote's main", () => {
-    const behind = { branch: "main", remote: "origin/main", count: 3 }
-    const stand = (state: Awaited<ReturnType<Checkout["read"]>>) => {
-      let current = state
-      const update = vi.fn<Checkout["update"]>(async () => ({ ok: true }))
-      return {
-        update,
-        set: (next: typeof current) => (current = next),
-        checkout: { read: async () => current, update } satisfies Checkout,
-      }
+  context("when repositories stand against their origins' main", () => {
+    const landing = (parts: Partial<SyncLanding> = {}): SyncLanding => ({
+      from: "a1",
+      to: "b2",
+      at: Date.now() - 120_000,
+      commits: 3,
+      merges: [
+        { subject: "Add the cart", pr: 12, commit: "c1c1c1c1", own: true, latest: true },
+        { subject: "Fix prices", pr: null, commit: "d2d2d2d2", own: false, latest: true },
+      ],
+      files: ["packages/api/src/index.ts"],
+      filesTotal: 14,
+      dependencies: { file: "packages/api/pnpm-lock.yaml", command: "pnpm install" },
+      dependenciesLatest: true,
+      ...parts,
+    })
+    const repo = (parts: Partial<RepoSync> = {}): RepoSync => ({
+      path: "packages/api",
+      name: "api",
+      branch: "main",
+      behind: null,
+      ahead: 0,
+      landing: null,
+      moved: 0,
+      head: "h1",
+      ...parts,
+    })
+    const behind = {
+      remote: "origin/main",
+      count: 2,
+      why: "You have edits in src/a.ts",
+      merges: [{ subject: "Waiting merge", pr: 7, commit: "e3e3e3e3", own: false, latest: true }],
     }
-    const mountWith = (checkout: Checkout) =>
-      mount(undefined, undefined, undefined, undefined, undefined, undefined, checkout)
+    // A backend that tells `current`, and records what was asked of it.
+    const stand = (first: readonly RepoSync[]) => {
+      let current = first
+      const asked: string[] = []
+      const update = vi.fn<NonNullable<ProjectFiles["update"]>>(async () => ({ ok: true }))
+      const feed = createSyncFeed(
+        {
+          sync: async () => ({ repos: current }),
+          seen: async (_project, path, to) => {
+            asked.push(`seen ${path} ${to}`)
+            current = current.map((each) =>
+              each.path === path ? { ...each, landing: null } : each,
+            )
+          },
+          update,
+        },
+        "p",
+      )!
+      return { feed, asked, update, set: (next: readonly RepoSync[]) => (current = next) }
+    }
+    const tree = ["packages/api/src/index.ts", "packages/web/index.ts", "README.md"]
+    const mountWith = (feed: SyncFeed, entries: readonly string[] = tree) =>
+      mount(
+        undefined,
+        undefined,
+        undefined,
+        backend(undefined, entries),
+        undefined,
+        undefined,
+        feed,
+      )
+    const marks = (panel: Awaited<ReturnType<typeof mountWith>>, name: string): string[] =>
+      Array.from(panel.row(name).querySelectorAll(".files-mark")).map((el) => el.textContent ?? "")
 
-    it("says how far, and updates on request", async () => {
-      const held = stand({ behind, moved: 0, head: "a" })
-      const panel = await mountWith(held.checkout)
-      const line = panel.view.container.querySelector(".files-behind")!
-      expect(line.textContent).toContain("main is 3 behind origin")
-      act(() => line.querySelector<HTMLButtonElement>(".files-update")!.click())
+    it("marks a repository's folder with what landed, what is behind and what is ahead", async () => {
+      const held = stand([
+        repo({ landing: landing(), behind, ahead: 1 }),
+        repo({ path: "packages/web", name: "web", ahead: 2 }),
+      ])
+      const panel = await mountWith(held.feed)
+      await panel.click("packages")
+      expect(marks(panel, "api")).toEqual(["2 new", "↓2", "↑1"])
+      expect(marks(panel, "web")).toEqual(["↑2"])
+      expect(panel.row("api").querySelector("[data-kind=new]")?.getAttribute("aria-label")).toBe(
+        "2 merges from origin",
+      )
+      expect(panel.row("api").querySelector("[data-kind=behind]")?.getAttribute("aria-label")).toBe(
+        "2 behind origin: you have edits in src/a.ts",
+      )
+      expect(panel.row("web").querySelector(".files-mark")?.getAttribute("aria-hidden")).toBe(
+        "true",
+      )
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("shows nothing for repositories that are up to date", async () => {
+      const panel = await mountWith(stand([repo()]).feed)
+      expect(
+        panel.view.container.querySelector(".files-mark, .files-dot, .files-sync-line"),
+      ).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("puts a dot on a closed folder that hides news, and not on an open one or for what is ahead", async () => {
+      const held = stand([repo({ landing: landing() })])
+      const panel = await mountWith(held.feed)
+      expect(panel.row("packages").querySelector(".files-dot")).not.toBeNull()
+      await panel.click("packages")
+      expect(panel.row("packages").querySelector(".files-dot")).toBeNull()
+      act(() => held.set([repo({ ahead: 3 })]))
+      held.feed.refresh()
       await panel.settle()
-      expect(held.update).toHaveBeenCalledTimes(1)
+      await panel.click("packages")
+      expect(panel.row("packages").querySelector(".files-dot")).toBeNull()
       await nextFrame()
       panel.view.unmount()
     })
 
-    it("says nothing where the checkout is up to date", async () => {
-      const panel = await mountWith(stand({ behind: null, moved: 0, head: "a" }).checkout)
-      expect(panel.view.container.querySelector(".files-behind")).toBeNull()
+    it("opens what landed as a card, which marks it seen once it closes, and pulses the files that came in", async () => {
+      const held = stand([repo({ landing: landing() })])
+      const panel = await mountWith(held.feed, [...tree, "packages/api/pnpm-lock.yaml"])
+      await panel.click("packages")
+      await panel.click("api")
+      act(() => panel.row("api").querySelector<HTMLElement>("[data-kind=new]")!.click())
+      await panel.settle()
+      const card = document.querySelector(".files-card")!
+      expect(card.textContent).toContain("api caught up with origin")
+      expect(card.textContent).toContain("main moved 3 commits · 2 min ago · 14 files")
+      expect(card.textContent).toContain("Add the cart#12")
+      expect(card.textContent).toContain("Fix prices")
+      expect(card.textContent).toContain(
+        "pnpm-lock.yaml changed. Run pnpm install before you start the app.",
+      )
+      // Open, the mark stays (pressed) and nothing is seen yet; the files pulse.
+      expect(held.asked).toEqual([])
+      expect(marks(panel, "api")).toEqual(["2 new"])
+      expect(panel.row("api").querySelector("[data-kind=new]")?.getAttribute("data-open")).toBe(
+        "true",
+      )
+      expect(panel.view.container.querySelector("[data-pulse]")).not.toBeNull()
+      // Closing it is seeing it: the mark goes.
+      act(() => {
+        document
+          .querySelector(".files-card")!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      })
+      await panel.settle()
+      await vi.waitFor(() => expect(document.querySelector(".files-card")).toBeNull())
+      expect(held.asked).toEqual(["seen packages/api b2"])
+      expect(marks(panel, "api")).toEqual([])
       await nextFrame()
       panel.view.unmount()
     })
 
-    it("gives git's reason when the update is refused, and lets it be tried again", async () => {
-      const held = stand({ behind, moved: 0, head: "a" })
-      held.update.mockResolvedValueOnce({ ok: false, said: "Your local changes would be lost." })
-      const panel = await mountWith(held.checkout)
+    it("opens what is behind with the reason and the waiting merges, and updates on request", async () => {
+      const held = stand([repo({ behind })])
+      const panel = await mountWith(held.feed)
+      await panel.click("packages")
+      act(() => panel.row("api").querySelector<HTMLElement>("[data-kind=behind]")!.click())
+      await panel.settle()
+      const card = document.querySelector(".files-card")!
+      expect(card.textContent).toContain("api is 2 behind origin")
+      expect(card.textContent).toContain("Left as it is: you have edits in src/a.ts.")
+      expect(card.textContent).toContain("Waiting merge#7")
+      held.update.mockResolvedValueOnce({
+        ok: false,
+        said: "Your changes to src/a.ts would be overwritten.",
+      })
+      act(() => card.querySelector<HTMLButtonElement>(".files-update")!.click())
+      await panel.settle()
+      expect(held.update).toHaveBeenCalledWith("p", "packages/api")
+      expect(document.querySelector(".files-card")?.textContent).toContain(
+        "Can't update: Your changes to src/a.ts would be overwritten.",
+      )
+      expect(document.querySelector(".files-card .files-update")?.textContent).toBe("Retry")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says what a single-repository project's own repository holds on a line over the tree", async () => {
+      const held = stand([repo({ path: "", name: "storefront", landing: landing() })])
+      const panel = await mountWith(held.feed)
+      const line = panel.view.container.querySelector(".files-sync-line")!
+      expect(line.textContent).toContain("main")
+      expect(line.textContent).toContain("just caught up")
+      expect(line.textContent).toContain("2 new")
+      expect(line.querySelector(".files-update")).toBeNull()
+      act(() => held.set([repo({ path: "", name: "storefront", behind })]))
+      held.feed.refresh()
+      await panel.settle()
+      const behindLine = panel.view.container.querySelector(".files-sync-line")!
+      expect(behindLine.textContent).toContain("is behind")
+      expect(behindLine.textContent).toContain("↓2")
+      act(() => behindLine.querySelector<HTMLButtonElement>(".files-update")!.click())
+      await panel.settle()
+      expect(held.update).toHaveBeenCalledWith("p", "")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says on the line why an update was refused, keeps it when the card opens, and offers Retry", async () => {
+      const held = stand([repo({ path: "", name: "storefront", behind })])
+      held.update.mockResolvedValueOnce({ ok: false, said: "Your changes to a.ts would be lost." })
+      const panel = await mountWith(held.feed)
       act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
       await panel.settle()
-      const line = panel.view.container.querySelector(".files-behind")!
-      expect(line.textContent).toContain("Can't update: Your local changes would be lost.")
-      expect(line.querySelector(".files-update")?.textContent).toBe("Retry")
+      const line = () => panel.view.container.querySelector(".files-sync-line")!
+      expect(line().textContent).toContain("Can't update: Your changes to a.ts would be lost.")
+      expect(line().querySelector(".files-update")?.textContent).toBe("Retry")
+      act(() => line().querySelector<HTMLElement>("[data-kind=behind]")!.click())
+      await panel.settle()
+      expect(line().textContent).toContain("Can't update: Your changes to a.ts would be lost.")
+      expect(document.querySelector(".files-card")?.textContent).toContain("Can't update:")
       await nextFrame()
       panel.view.unmount()
     })
 
-    it("reads the folders again when the backend moved the checkout", async () => {
-      vi.useFakeTimers()
-      const held = stand({ behind: null, moved: 0, head: "a" })
-      const panel = await mountWith(held.checkout)
-      const before = panel.reads.folders.length
-      held.set({ behind: null, moved: 1, head: "a" })
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs)
-      })
-      await panel.settle()
-      expect(panel.reads.folders.length).toBeGreaterThan(before)
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs)
-      })
-      const unchanged = panel.reads.folders.length
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs)
-      })
-      expect(panel.reads.folders.length).toBe(unchanged)
+    it("keeps a mark on the line in the tab order and a mark in a row out of it and out of what is read", async () => {
+      const held = stand([
+        repo({ path: "", name: "storefront", landing: landing() }),
+        repo({ path: "packages/web", name: "web", landing: landing({ to: "c3" }) }),
+      ])
+      const panel = await mountWith(held.feed)
+      const onLine = panel.view.container.querySelector<HTMLElement>(
+        ".files-sync-line .files-mark",
+      )!
+      expect(onLine.getAttribute("tabindex")).toBe("0")
+      expect(onLine.getAttribute("aria-hidden")).toBeNull()
+      await panel.click("packages")
+      const inRow = panel.row("web").querySelector<HTMLElement>(".files-mark")!
+      expect(inRow.getAttribute("tabindex")).toBe("-1")
+      expect(inRow.getAttribute("aria-hidden")).toBe("true")
+      await nextFrame()
       panel.view.unmount()
     })
 
-    it("reads the folders again when the commit it is at changes, as with the person's own pull", async () => {
+    it("has no line for a repository that is only ahead", async () => {
+      const panel = await mountWith(stand([repo({ path: "", name: "storefront", ahead: 2 })]).feed)
+      expect(panel.view.container.querySelector(".files-sync-line")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("reads the folders again when the backend moved a checkout, or the commit it is at changed", async () => {
       vi.useFakeTimers()
-      const held = stand({ behind: null, moved: 0, head: "a" })
-      const panel = await mountWith(held.checkout)
+      const held = stand([repo({ path: "", name: "storefront" })])
+      const panel = await mountWith(held.feed)
       const before = panel.reads.folders.length
-      held.set({ behind: null, moved: 0, head: "b" })
+      held.set([repo({ path: "", name: "storefront", moved: 1 })])
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs)
+        await vi.advanceTimersByTimeAsync(syncPollMs)
       })
       await panel.settle()
       expect(panel.reads.folders.length).toBeGreaterThan(before)
+      const moved = panel.reads.folders.length
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(syncPollMs * 2)
+      })
+      expect(panel.reads.folders.length).toBe(moved)
+      held.set([repo({ path: "", name: "storefront", moved: 1, head: "h2" })])
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(syncPollMs)
+      })
+      await panel.settle()
+      expect(panel.reads.folders.length).toBeGreaterThan(moved)
       panel.view.unmount()
     })
 
     it("asks again only once the last answer is in", async () => {
       vi.useFakeTimers()
       let asked = 0
-      const slow: Checkout = {
-        read: () => {
-          asked += 1
-          return new Promise(() => {})
+      const feed = createSyncFeed(
+        {
+          sync: () => {
+            asked += 1
+            return new Promise(() => {})
+          },
         },
-        update: async () => ({ ok: true }),
-      }
-      const panel = await mountWith(slow)
+        "p",
+      )!
+      const panel = await mountWith(feed)
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs * 3)
+        await vi.advanceTimersByTimeAsync(syncPollMs * 3)
       })
       expect(asked).toBe(1)
-      panel.view.unmount()
-    })
-
-    it("forgets a refusal once there is nothing to update", async () => {
-      vi.useFakeTimers()
-      const held = stand({ behind, moved: 0, head: "a" })
-      held.update.mockResolvedValueOnce({ ok: false, said: "Nope." })
-      const panel = await mountWith(held.checkout)
-      act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
-      await panel.settle()
-      expect(panel.view.container.querySelector(".files-behind")?.textContent).toContain("Nope.")
-      held.set({ behind: null, moved: 0, head: "b" })
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs)
-      })
-      held.set({ behind, moved: 0, head: "c" })
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(checkoutPollMs)
-      })
-      await panel.settle()
-      expect(panel.view.container.querySelector(".files-behind")?.textContent).not.toContain(
-        "Nope.",
-      )
       panel.view.unmount()
     })
   })

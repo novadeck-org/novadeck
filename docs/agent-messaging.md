@@ -2346,6 +2346,7 @@ under `Show`) instead of adding a kind.
 | `Show`          | What the agent shows the person: the standing notice of the bar beside the terminal (`nudges.ts`); a shown page that had problems (`terminals/troubles.ts`).                                                |
 | `Inbox`         | The standing notice of the Inbox; the asks withdrawn or dismissed (`messaging/inbox.ts`).                                                                                                                   |
 | `Worktrees`     | The setting on, off and early (`nudges.ts`); a worktree changing owner (`worktrees/calls.ts`).                                                                                                              |
+| `Main`          | The runner moved main in the repository the agent's terminal works in, not in a worktree: the commits and the files (`worktrees/main-notice.ts`).                                                           |
 | `Restart`       | A turn or a wait cut short by a restart (`terminals/interrupted.ts`).                                                                                                                                       |
 | `Resources`     | Something agents share running short, and who holds it: CPU strain (`terminals/host-load.ts`); a queued check and who holds the runners (`terminals/queue-notices.ts`).                                     |
 | `Messages`      | A message held long (`messaging/holds.ts`); the hook's lines on a doorbell or a reply line whose messages wait or came already (`messaging/hook-answers.ts`); the heading of a delivery's rules.            |
@@ -2366,7 +2367,7 @@ never "your" or "you" again), so the person reading it never takes it as about t
 Novadeck: its mark is beside every one. An event notice (one the runner delivered as a message from
 `novadeck`, with a ring, a prompt or tool call's hook, or a Stop's continuation) says its family's
 line: `Restart` "You notice a restart.", `Terminals` "You notice terminals open and close.", `Team`
-"You notice news about the team.", `Worktrees` "You notice news about a worktree.", `Inbox` "You
+"You notice news about the team.", `Worktrees` "You notice news about a worktree.", `Main` "You notice main moved on.", `Inbox` "You
 notice an ask leave the Inbox.", `Inbox answers` "You notice answers from the Inbox.", `Resources`
 "You notice shared resources are busy.", `Show` "You notice problems in a shown page.", `Shipping`
 "You notice news about a permit.", `Messages` "You notice a message still on its way.", `Notices`

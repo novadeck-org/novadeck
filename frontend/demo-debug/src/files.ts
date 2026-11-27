@@ -102,13 +102,27 @@ export const filesGroups = (files: DemoFiles | undefined): readonly DemoActionGr
                 }),
             },
             {
+              label: "Checkout is ahead of origin",
+              hint: 'Open Files: "↑2" sits on the folder\'s row or the line over the tree (a repository nested at src/api shows it on its row); hovering it says "2 commits not on origin yet"',
+              run: () => files.ahead(2),
+            },
+            {
+              label: "A nested repository has news",
+              hint: 'Open Files with src/ shown: the src/api row wears "1 new" and "↓1"; closing src shows a dot on it; clicking either opens its card',
+              run: () => files.nest({ behind: true, landed: true }),
+            },
+            {
               label: "Checkout is up to date",
               hint: "Open Files: the behind line goes within a few seconds (the panel asks again every 20 s while shown, or when it is shown again)",
-              run: () => files.stand(undefined),
+              run: () => {
+                files.stand(undefined)
+                files.ahead(0)
+                files.nest(undefined)
+              },
             },
             {
               label: "Main moves the checkout",
-              hint: "Open Files with src/checkout and src/components open: within a few seconds src/checkout/Receipt.tsx is added and src/components/Price.tsx removed, as when a fetch fast-forwarded the checkout",
+              hint: 'Open Files: the line over the tree says main just caught up with "3 new", whose card lists the merges and the lockfile hint, and the rail\'s Files toggle wears a dot while the panel is hidden. With src/checkout and src/components open, within a few seconds src/checkout/Receipt.tsx is added and src/components/Price.tsx removed, as when a fetch fast-forwarded the checkout',
               run: () => files.move(),
             },
             {

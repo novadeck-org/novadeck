@@ -86,6 +86,7 @@ const seen: Readonly<Record<string, string>> = {
   Terminals: "You notice terminals open and close.",
   Team: "You notice news about the team.",
   Worktrees: "You notice news about a worktree.",
+  Main: "You notice main moved on.",
   Inbox: "You notice an ask leave the Inbox.",
   "Inbox answers": "You notice answers from the Inbox.",
   Resources: "You notice shared resources are busy.",

@@ -21,6 +21,7 @@ import {
 import { runNotice } from "../terminals/runs.js"
 import { teamNotice } from "../terminals/teams.js"
 import { worktreeNotice } from "../worktrees/calls.js"
+import { mainNotice } from "../worktrees/main-notice.js"
 import { holdFact, holdNotice } from "./holds.js"
 import { dismissedNotice, withdrawnNotice } from "./inbox.js"
 import { noticeKinds, noticeLines, noticePrefix, noticeText } from "./notice-format.js"
@@ -84,6 +85,18 @@ describe("every notice Novadeck words", () => {
     moveNotice.alone(),
     worktreeNotice.given("newtz", "/w/x", "fix/x"),
     worktreeNotice.lost("hushz", "/w/x", "fix/x"),
+    mainNotice("api", {
+      from: "a",
+      to: "b",
+      at: 0,
+      commits: 1,
+      merges: [],
+      files: ["src/a.ts"],
+      filesTotal: 1,
+      dependencies: null,
+      latest: [],
+      dependenciesLatest: false,
+    }),
   ]
 
   it("opens with `Novadeck · <Kind>` of a listed kind, and says nothing of where it comes from", () => {

@@ -56,7 +56,9 @@ export const compatibility: Compatibility = {
   // the tour only to a runner at 21, as one before it runs the tour on opencode.
   // 22: a terminal and a closed terminal say when their agent is Nova, Novadeck's own pi (`nova`),
   // which a UI before it shows as Pi.
-  revision: 22,
+  // 23: each git repository in a project says how it stands against origin's main (`projects.sync`,
+  // `projects.syncSeen`), and `projects.updateCheckout` takes a repository's `path`.
+  revision: 23,
   oldestClient: 11,
   oldestRunner: 12,
 }

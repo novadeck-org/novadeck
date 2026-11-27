@@ -49,6 +49,65 @@ export const checkoutUpdate = z.discriminatedUnion("ok", [
 ])
 export type CheckoutUpdate = z.infer<typeof checkoutUpdate>
 
+// What `projects.sync` says of each git repository in a project: the project's own folder when it
+// is in one, and the repositories nested under it. `path` is the repository's folder from the
+// project's root with `/` between names ("" where the project's root is in the repository
+// itself). `behind` is set where main is strictly ahead of the checkout and the runner left it
+// (`why` says in words what held it back, null where nothing did: it was not fetched into main
+// yet; `merges` are those waiting); `ahead` counts the commits main has that origin lacks. `landing` is the last time the
+// runner moved main that the person has not seen (`projects.syncSeen` clears it): the commits it
+// brought, the merges among them (`own` where one is of a pull request from one of the
+// person's agents' worktrees), the files that changed and the command for the dependencies a
+// lockfile in them asks for. `moved` and `head` are as in `checkoutState`.
+export const syncMerge = z.strictObject({
+  subject: z.string().max(300),
+  pr: z.number().int().min(1).nullable(),
+  commit: z.string().max(128),
+  own: z.boolean(),
+  // It came in the last move of main, which a notice is about; the earlier ones the person was told of.
+  latest: z.boolean(),
+})
+export type SyncMerge = z.infer<typeof syncMerge>
+
+export const syncLanding = z.strictObject({
+  from: z.string().max(128),
+  to: z.string().max(128),
+  at: z.number(),
+  commits: z.number().int().min(1),
+  merges: z.array(syncMerge).max(50),
+  files: z.array(z.string().max(4096)).max(200),
+  filesTotal: z.number().int().min(0),
+  dependencies: z
+    .strictObject({ file: z.string().max(4096), command: z.string().max(200) })
+    .nullable(),
+  // The last move of main changed a lockfile.
+  dependenciesLatest: z.boolean(),
+})
+export type SyncLanding = z.infer<typeof syncLanding>
+
+export const repoSync = z.strictObject({
+  path: z.string().max(4096),
+  name: z.string().min(1).max(4096),
+  branch: name,
+  behind: z
+    .strictObject({
+      remote: name,
+      count: z.number().int().min(1),
+      why: z.string().max(300).nullable(),
+      // The merges waiting on origin, newest first (up to 10).
+      merges: z.array(syncMerge).max(10),
+    })
+    .nullable(),
+  ahead: z.number().int().min(0),
+  landing: syncLanding.nullable(),
+  moved: z.number().int().min(0),
+  head: z.string().max(128).nullable(),
+})
+export type RepoSync = z.infer<typeof repoSync>
+
+export const projectSync = z.strictObject({ repos: z.array(repoSync).max(200) })
+export type ProjectSync = z.infer<typeof projectSync>
+
 export const workspaceSession = z.strictObject({
   id,
   projectId: id,

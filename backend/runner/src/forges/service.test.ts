@@ -115,6 +115,7 @@ const setup = (
     ],
     refreshed: 0,
     remoteReads: 0,
+    merged: [] as string[],
     installed: options.installed ?? ["github", "gitlab", "azure", "brew"],
   }
   const forges = new Forges({
@@ -125,6 +126,7 @@ const setup = (
     },
     repositories: () => state.repositories,
     watching: () => state.watching,
+    merged: (commonDir) => state.merged.push(commonDir),
     environment: () => ({}),
     refreshEnvironment: async () => {
       state.refreshed += 1
@@ -226,6 +228,20 @@ describe("the forges service", () => {
     await forges.tick()
     expect(fakes.github.lookups).toHaveLength(4)
     expect(fakes.github.lookups[3]?.branches).toEqual(["feature", "next"])
+  })
+
+  it("tells when a watched pull request seen open has turned merged, and only then", async () => {
+    const { forges, fakes, state } = setup({ enabled: ["github"] })
+    await forges.tick()
+    expect(state.merged).toEqual([])
+    fakes.github.answer = () => new Map([["feature", { ...open, state: "merged" as const }]])
+    state.now += every
+    await forges.tick()
+    expect(state.merged).toEqual([dirs.a])
+    // Merged already when first seen, or still merged at the next look: nothing is news.
+    state.now += every
+    await forges.tick()
+    expect(state.merged).toEqual([dirs.a])
   })
 
   it("looks again every minute while an open pull request's checks run, and every five once they end", async () => {

@@ -149,6 +149,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       folder: (input) => runner.projects.folder(input),
       checkout: (input) => runner.projects.checkout(input),
       updateCheckout: (input) => runner.projects.updateCheckout(input),
+      sync: (input) => runner.projects.sync(input),
+      syncSeen: (input) => runner.projects.syncSeen(input),
     },
     sessions: {
       list: (input) => runner.sessions.list(input),
