@@ -215,6 +215,31 @@ describe("fetching origins", () => {
     expect(git.fetches().filter(({ cwd }) => cwd === "/off")).toHaveLength(3)
   })
 
+  it("retries a stale origin on the regular schedule so the failure clears soon after recovery", async () => {
+    let failing = true
+    const git = fake({ failing: () => failing })
+    let now = 0
+    const fetcher = new MainFetcher({ now: () => now, run: git.run, follow: () => false })
+    const common = "/r/api/.git"
+    await fetcher.fetchDue([common])
+    now = 10 * minute
+    await fetcher.fetchDue([common])
+    now = 30 * minute
+    await fetcher.fetchDue([common])
+    now = 59 * minute
+    await fetcher.fetchDue([common])
+    expect(git.fetches()).toHaveLength(3)
+    now = 60 * minute
+    await fetcher.fetchDue([common])
+    expect(git.fetches()).toHaveLength(4)
+    expect(fetcher.failingSince(common)).toBe(0)
+    failing = false
+    now += fetchEveryMs
+    await fetcher.fetchDue([common])
+    expect(fetcher.fetchedAt(common)).toBe(now)
+    expect(fetcher.failure(common)).toBeUndefined()
+  })
+
   it("can never ask for a credential", async () => {
     const git = fake()
     const fetcher = new MainFetcher({ run: git.run, environment: {} })

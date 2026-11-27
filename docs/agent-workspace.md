@@ -775,8 +775,9 @@ with every safety check again at that time:
   target no worktree has open stays a plain `target ‹ branch`; worktrees heading to each other's
   branches are cut at the newest. The header holds Trash N, which closes every
   safe row, unforced, after one confirm that lists them, saying above the list why any that
-  stopped being safe stays. The panel says nothing of how old origin is: the runner fetches every
-  five minutes by itself, and once the open project's fetches have kept failing for an hour the
+  stopped being safe stays. The runner fetches every five minutes and backs off during the first
+  hour of a failure. After that it retries every five minutes so the warning can clear soon after
+  a connection returns. Once the open project's fetches have kept failing for an hour the
   footer's middle shows "Can't fetch" (`FooterOrigin.tsx`), the one place the app says so: its
   tooltip names the repository, how long and git's reason, and a click fetches again
   (`works.fetch`). The footer asks `works.origins` every 20 s, which the runner answers from what its
