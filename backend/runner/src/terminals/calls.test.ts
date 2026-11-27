@@ -185,7 +185,12 @@ describe("the open call", () => {
     } as unknown as CallsHost
     const claims = new Claims({
       boundElsewhere: (_id, agent, session) => bound.includes(`${agent}:${session}`),
-      ownPi: (agent, transcript) => agent === "pi" && own !== undefined && transcript === own,
+      nova: {
+        owns: (agent: AgentName, transcript: string | undefined) =>
+          agent === "pi" && own !== undefined && transcript === own,
+        starts: () => true,
+        follow: () => () => {},
+      },
     })
     const run = new Calls(1000, host)
     // The person's client: what it is asked, and its answer to the next request.

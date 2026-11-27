@@ -6,6 +6,7 @@ import { novaProgram } from "@novadeck/harness-nova/launcher"
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
+import type { BundledPi } from "../harnesses/bundled-pi.js"
 import { resumeAvailability, type UnavailableReason } from "../harnesses/eligibility.js"
 import { harnesses } from "../harnesses/registry.js"
 import { agentLabel } from "../messaging/messages.js"
@@ -106,6 +107,10 @@ export const wakeRefusal = (agent: AgentName, reason: UnavailableReason): string
   }[reason]
   return `${label} was asleep there and could not be woken: ${why}.`
 }
+
+/** Why a sleeping Nova can't be woken now, as `stuckReason` says it of a harness. */
+export const novaOffReason =
+  "Nova is switched off (the user turns it on in Novadeck's Preferences > Experimental)"
 
 /**
  * Why a sleeping agent can't be woken now, its harness not being connected, in words for its
@@ -257,11 +262,12 @@ export type ClaimsHost = {
     session: string | undefined,
   ) => boolean
   /**
-   * Whether the agent's session, by its transcript, is Novadeck's own pi's (`ownPiSession`): it
-   * resumes on Nova (`novaProgram`), which needs no connection of the person's. None
-   * is where omitted.
+   * Nova, Novadeck's own pi (`BundledPi`): whether a session, by its transcript, is its
+   * (`owns`), which resumes on Nova (`novaProgram`) with no connection of the person's; whether
+   * it may start in a terminal now (`starts`); and its switch's changes (`follow`). No session is
+   * its where omitted.
    */
-  readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
+  readonly nova?: Pick<BundledPi, "owns" | "starts" | "follow">
 }
 
 /**
@@ -354,7 +360,20 @@ export class Claims {
 
   /** Whether the agent's session, by its transcript, resumes on Novadeck's own pi. */
   own(agent: AgentName, transcript: string | undefined): boolean {
-    return this.host.ownPi?.(agent, transcript) === true
+    return this.host.nova?.owns(agent, transcript) === true
+  }
+
+  /**
+   * Whether the session is Nova's and Nova can't start in `terminalId` now, as it is switched
+   * off: its launcher would refuse the resume.
+   */
+  novaOff(terminalId: string, agent: AgentName, transcript: string | undefined): boolean {
+    return this.own(agent, transcript) && this.host.nova?.starts(terminalId) === false
+  }
+
+  /** Calls `listener` as Nova is switched on or off; the returned function stops it. */
+  followNova(listener: () => void): () => void {
+    return this.host.nova?.follow(listener) ?? (() => {})
   }
 
   /**

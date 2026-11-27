@@ -84,7 +84,7 @@ export type TerminalOptions = {
    */
   shellFiles?: Promise<InstalledShell | undefined>
   /** Novadeck's own pi, which its launcher has fetch it and its sessions resume on; none is fetched when omitted. */
-  bundledPi?: Pick<BundledPi, "fetch" | "owns">
+  bundledPi?: Pick<BundledPi, "fetch" | "owns" | "starts" | "follow">
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
   /** The git worktrees agents open and own, and whether they are on; agents get none when omitted. */

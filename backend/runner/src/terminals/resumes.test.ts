@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import type { AgentName } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { harnesses } from "../harnesses/registry.js"
@@ -157,7 +158,12 @@ describe("the session an agent asks to resume in a new terminal", () => {
     const own = "/data/bundled/pi/agent/sessions/--tour--/2026_s-1.jsonl"
     const mine = new Claims({
       boundElsewhere: () => false,
-      ownPi: (agent, transcript) => agent === "pi" && transcript === own,
+      nova: {
+        owns: (agent: AgentName, transcript: string | undefined) =>
+          agent === "pi" && transcript === own,
+        starts: () => true,
+        follow: () => () => {},
+      },
     })
     expect(
       mine.check("t1", "pi", "s-1", false, undefined, ["--model", "novadeck/gpt-6-luna"], own),

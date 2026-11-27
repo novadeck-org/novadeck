@@ -16,7 +16,7 @@ import type { Messaging } from "../messaging/messaging.js"
 import { standingDone } from "../messaging/peers.js"
 import type { PeerRecord } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { stuckReason, wakeRefusal, type Claims } from "./resumes.js"
+import { novaOffReason, stuckReason, wakeRefusal, type Claims } from "./resumes.js"
 import type { ListedTerminal } from "./saved-terminals.js"
 import type { Saves } from "./saving.js"
 import { StoreTurns } from "./store-turns.js"
@@ -140,6 +140,8 @@ export class Sleepers {
   private gate: Promise<void> = Promise.resolve()
   /** The end of following the harnesses' connections. */
   private unfollow: (() => void) | undefined
+  /** The end of following Nova's switch. */
+  private unfollowNova: (() => void) | undefined
 
   constructor(private readonly host: SleepersHost) {}
 
@@ -156,6 +158,10 @@ export class Sleepers {
       if (this.stopped) return
       if (change.connected) this.connected(change.agent)
       else if (change.lost) this.lost(change.agent)
+    })
+    // Nova switched on wakes its sleepers that waited for it, as a harness connected again does.
+    this.unfollowNova = this.host.claims().followNova(() => {
+      if (!this.stopped) this.novaSwitched()
     })
     const turns: string[] = []
     const agents = new Set<AgentName>()
@@ -237,10 +243,13 @@ export class Sleepers {
     if (!this.host.resumes() || this.host.closed(id) || !harnesses[agent].launch.resume)
       return false
     // Asleep, it couldn't be woken until its harness is connected again; Novadeck's own pi
-    // needs no connection of the person's.
+    // needs no connection of the person's, but its switch on.
+    const transcript = record.agents[agent]?.transcript
+    const claims = this.host.claims()
     if (
-      this.host.connections?.disconnected(agent) === true &&
-      !this.host.claims().own(agent, record.agents[agent]?.transcript)
+      claims.own(agent, transcript)
+        ? claims.novaOff(id, agent, transcript)
+        : this.host.connections?.disconnected(agent) === true
     )
       return false
     const session = record.agents[agent]?.sessionId
@@ -344,9 +353,21 @@ export class Sleepers {
     if (this.host.stopping() || now?.agent !== agent || now.sessionId !== sessionId) return
     // Judged with the flags its session was launched with, as the create that follows is.
     const report = this.row(terminalId, this.sessions.get(terminalId))?.agents[agent]
-    const check = this.host
-      .claims()
-      .check(terminalId, agent, sessionId, connected, undefined, report?.launch, report?.transcript)
+    const claims = this.host.claims()
+    // Nova switched off: its launcher would refuse, so its messages wait for it switched on.
+    if (claims.novaOff(terminalId, agent, report?.transcript)) {
+      this.stick(terminalId, agent, novaOffReason)
+      return novaOffReason
+    }
+    const check = claims.check(
+      terminalId,
+      agent,
+      sessionId,
+      connected,
+      undefined,
+      report?.launch,
+      report?.transcript,
+    )
     if (check.ok) {
       this.unstick(terminalId)
       return void this.wake(terminalId)
@@ -380,13 +401,16 @@ export class Sleepers {
     if (any) this.host.connections?.strand(agent)
   }
 
-  /** The sleeper can't be woken until `agent` is connected: told once. */
-  private stick(terminalId: string, agent: AgentName): void {
+  /**
+   * The sleeper can't be woken until `agent` is connected, or Nova switched on (`why` says
+   * which): told once.
+   */
+  private stick(terminalId: string, agent: AgentName, why = stuckReason(agent)): void {
     if (this.stuck.get(terminalId) === agent) return
     this.stuck.set(terminalId, agent)
-    this.host.messaging().stuck(terminalId, stuckReason(agent))
-    log.info("sleepers.stuck", "A sleeping agent can't be woken: its harness isn't connected.", {
-      data: { terminal: terminalId, agent },
+    this.host.messaging().stuck(terminalId, why)
+    log.info("sleepers.stuck", "A sleeping agent can't be woken now.", {
+      data: { terminal: terminalId, agent, why },
     })
     this.publish(terminalId)
   }
@@ -406,6 +430,22 @@ export class Sleepers {
       if (stuck !== agent) continue
       const turn = this.row(id, this.sessions.get(id))?.agents[agent]?.turn
       if (turn !== undefined || this.host.messaging().wakeWanted(id)) this.ask(id)
+      else this.unstick(id)
+    }
+  }
+
+  /**
+   * Nova was switched on or off: each of its sleepers that couldn't be woken while it was off
+   * is woken now where it can start, for the messages that waited or the turn a stop cut
+   * short, as `connected` does.
+   */
+  private novaSwitched(): void {
+    const claims = this.host.claims()
+    for (const [id, agent] of this.stuck) {
+      const report = this.row(id, this.sessions.get(id))?.agents[agent]
+      if (!claims.own(agent, report?.transcript) || claims.novaOff(id, agent, report?.transcript))
+        continue
+      if (report?.turn !== undefined || this.host.messaging().wakeWanted(id)) this.ask(id)
       else this.unstick(id)
     }
   }
@@ -495,6 +535,7 @@ export class Sleepers {
   stop(): void {
     this.stopped = true
     this.unfollow?.()
+    this.unfollowNova?.()
     for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
     for (const { timer, end } of this.gaps) {
