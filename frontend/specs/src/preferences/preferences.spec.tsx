@@ -1138,7 +1138,9 @@ describe("Terminal's text sample", () => {
       await openTerminal()
 
       await preferencesDialog().getByRole("slider", { name: "Text size" }).fill("32")
-      const panels = preferencesDialog().element().querySelector<HTMLElement>(".preferences-panels")!
+      const panels = preferencesDialog()
+        .element()
+        .querySelector<HTMLElement>(".preferences-panels")!
       await expect.poll(() => panels.scrollWidth).toBeLessThanOrEqual(panels.clientWidth)
       const box = panels.getBoundingClientRect()
       const ligatures = preferencesDialog().getByRole("switch", { name: "Ligatures" })

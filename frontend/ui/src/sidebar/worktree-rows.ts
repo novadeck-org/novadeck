@@ -372,9 +372,9 @@ export const worktreeRows = (
 
 // ---- Teams: worktrees heading to another open worktree's branch ----
 
-// A worktree whose target is the branch another open worktree has is that worktree's member, as a
-// teammate is its lead's in the Terminals list: it hangs under it on the team wire, and folds
-// into it. A member may lead its own. `order` is the list's: newest first, each lead's members
+// A worktree whose target is the branch another open worktree of its repository has is that
+// worktree's member, as a teammate is its lead's in the Terminals list: it hangs under it on the
+// team wire, and folds into it. A member may lead its own. `order` is the list's: newest first, each lead's members
 // right under it, newest first; `leadOf` each member's lead, by root; `teams` each lead's
 // members, in the list's order.
 export type WorktreeTeams = {
@@ -383,14 +383,21 @@ export type WorktreeTeams = {
   readonly teams: readonly Team[]
 }
 
+// A branch of the repository a work is in: a project may hold several repositories, each with its
+// own `develop`, and the runner gives every worktree of one repository the same `folder`.
+const branchIn = (work: Work, branch: string): string =>
+  `${work.folder?.repo ?? ""}\n${work.folder?.project ?? ""}\n${branch}`
+
 export const worktreeTeams = (works: readonly Work[]): WorktreeTeams => {
   const newest = orderedWorks(works)
   const byBranch = new Map(
-    works.flatMap((work) => (work.branch === null ? [] : [[work.branch, work.root] as const])),
+    works.flatMap((work) =>
+      work.branch === null ? [] : [[branchIn(work, work.branch), work.root] as const],
+    ),
   )
   const leadOf = new Map<string, string>()
   for (const work of works) {
-    const lead = byBranch.get(targetOf(work))
+    const lead = byBranch.get(branchIn(work, targetOf(work)))
     if (lead !== undefined && lead !== work.root) leadOf.set(work.root, lead)
   }
   // Worktrees heading to each other's branches go round: the newest of each ring heads nowhere.
