@@ -142,12 +142,14 @@ describe("watchWorking", () => {
         await ending
       })(),
       (working) => said.push(working),
-      () => (Date.now() < until ? until : undefined),
+      () => until,
     )
     try {
       await vi.advanceTimersByTimeAsync(0)
       expect(said).toEqual([true])
       await vi.advanceTimersByTimeAsync(1_000)
+      expect(said).toEqual([true])
+      await vi.advanceTimersByTimeAsync(120_000)
       expect(said).toEqual([true, false])
     } finally {
       finish()

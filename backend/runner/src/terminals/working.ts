@@ -65,7 +65,10 @@ export const watchWorking = async (
     const now = Date.now()
     const activity = activityUntil(terminal, now)
     const schedule = activity === null ? null : scheduledUntil(id)
-    const until = schedule === null ? null : Math.max(activity ?? -Infinity, schedule ?? -Infinity)
+    const until =
+      schedule === null
+        ? null
+        : Math.max(activity ?? -Infinity, (schedule ?? -Infinity) + wakeGraceMs)
     if (until === null || until > now) atWork.add(id)
     else atWork.delete(id)
     if (until !== null && until > now) {

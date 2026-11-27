@@ -1598,7 +1598,7 @@ export class Terminals {
   /** When the last schedule held by a terminal's agent expires, or null while one repeats. */
   scheduledUntil(id: string): number | null | undefined {
     const record = this.records.get(id)
-    if (record) return scheduledUntil(record, record.bound?.binding.sessionId, Date.now())
+    if (record) return scheduledUntil(record, record.bound?.binding.sessionId)
   }
 
   /** The terminals whose shell holds work a restart would end, read now (see `busyTerminals`). */
