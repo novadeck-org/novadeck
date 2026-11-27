@@ -48,10 +48,10 @@ export type TourAgentPlan = {
   // Its lead asks the person's permission, as its harness's own dialog, before it goes on:
   // it waits until the person answers.
   readonly permission?: boolean | undefined
-  // The modeller, once its lead opened it, does nothing until nudged.
-  readonly quietModeller?: boolean | undefined
-  // The modeller asks the person a question of its own after showing its model, and waits for
-  // the answer before it reports.
+  // The first teammate, once its lead opened it, does nothing until nudged.
+  readonly quietMate?: boolean | undefined
+  // World asks the person a question of its own while it works, and waits for the answer before
+  // it polishes its work.
   readonly mateAsks?: boolean | undefined
   // The lead's program ends once it has bound, its shell back at the prompt (as Claude Code
   // does where the person doesn't trust the folder).
@@ -77,12 +77,8 @@ export type TourShow = {
   readonly diffs?: Readonly<Record<string, ChangeFileDiff>> | undefined
 }
 
-// The person's answer to the lead's sheet: for each question the option's index, or their own
-// words. A question left out takes the first option.
-export type TourSheetAnswer = {
-  readonly world: number | string
-  readonly kind: number | string
-}
+// The person's answer to the lead's pitch: the option's index, or their own words.
+export type TourPick = number | string
 
 // What the story needs of the backend (see `tour/story.ts`): the workspace as it is now, a new
 // terminal of the demo's numbering, the agents' messages and the Inbox where the demo has them,
@@ -154,9 +150,9 @@ export type DemoTour = Tour & {
   readonly askPermission: (ask?: boolean) => void
   // The next run's lead opens its team only once nudged again after it described itself.
   readonly goQuietTeam: (quiet?: boolean) => void
-  // The next run's modeller does nothing until nudged.
-  readonly goQuietModeller: (quiet?: boolean) => void
-  // The next run's modeller asks the person a question of its own, and waits for it.
+  // The next run's first teammate does nothing until nudged.
+  readonly goQuietMate: (quiet?: boolean) => void
+  // The next run's World asks the person a question of its own, and waits for it.
   readonly goMateAsks: (asks?: boolean) => void
   // The next run's lead's program ends once it has bound, its shell back.
   readonly goShell: (shell?: boolean) => void
@@ -165,11 +161,11 @@ export type DemoTour = Tour & {
   readonly shelled: (listener: () => void) => () => void
   // The next run has no page, as on a computer with neither Node nor Python.
   readonly goNoPage: (none?: boolean) => void
-  // Answers the lead's sheet as the person would: the first options where none is given.
+  // Answers the lead's pitch as the person would: the first game where none is given.
   // Nothing while none waits.
-  readonly answerSheet: (answer?: Partial<TourSheetAnswer>) => void
-  readonly sheet: (listener: (answer: TourSheetAnswer) => void) => () => void
-  // Answers the modeller's own question as the person would, by its option or in their own
+  readonly answerSheet: (pick?: TourPick) => void
+  readonly sheet: (listener: (pick: TourPick) => void) => () => void
+  // Answers World's own question as the person would, by its option or in their own
   // words: nothing while none waits.
   readonly answerMate: (answer?: number | string) => void
   readonly mate: (listener: (answer: number | string) => void) => () => void
@@ -245,9 +241,9 @@ export const demoTour = (initialWorkspace: () => Workspace | undefined): DemoTou
   let story = true
   let approver: TourApprover = declined
   // The story's events, which its lead hears: the stop, or an answer to a held screen; and the
-  // person's answers to the lead's sheet and the modeller's question.
+  // person's answers to the lead's pitch and World's question.
   const events = new Set<(event: "stop" | "answer" | "shell") => void>()
-  const sheets = new Set<(answer: TourSheetAnswer) => void>()
+  const sheets = new Set<(pick: TourPick) => void>()
   const mates = new Set<(answer: number | string) => void>()
   const hear = (listener: (event: "stop" | "answer" | "shell") => void) => {
     events.add(listener)
@@ -285,8 +281,8 @@ export const demoTour = (initialWorkspace: () => Workspace | undefined): DemoTou
     goQuietTeam: (quiet = true) => {
       plan = { ...plan, quietTeam: quiet }
     },
-    goQuietModeller: (quiet = true) => {
-      plan = { ...plan, quietModeller: quiet }
+    goQuietMate: (quiet = true) => {
+      plan = { ...plan, quietMate: quiet }
     },
     goMateAsks: (asks = true) => {
       plan = { ...plan, mateAsks: asks }
@@ -299,8 +295,7 @@ export const demoTour = (initialWorkspace: () => Workspace | undefined): DemoTou
     },
     exitToShell: () => events.forEach((each) => each("shell")),
     shelled: (listener) => hear((event) => event === "shell" && listener()),
-    answerSheet: (answer = {}) =>
-      sheets.forEach((each) => each({ world: answer.world ?? 0, kind: answer.kind ?? 0 })),
+    answerSheet: (pick = 0) => sheets.forEach((each) => each(pick)),
     sheet: (listener) => {
       sheets.add(listener)
       return () => void sheets.delete(listener)

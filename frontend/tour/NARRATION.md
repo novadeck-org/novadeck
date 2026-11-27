@@ -40,22 +40,27 @@ the box (what to press, and where) stays text.
 - [x] `start`: `[smug, offhand] That's your agent. It does the work. [smug] I talk.` ★
 - [x] `ask`: `[curious] Your call. What game? [teasing] Make it a good one.`
 - [x] `run`: `[flat] It wants to run the game. [sighs] Fine. Say yes.` ★
-- [x] `page.cue`: `[impatient] Your game's running. Go look.`
-- [x] `page`: `[deadpan] There. Nothing in it yet. [dismissive] Give it time.`
 - [x] `team.cue`: `[suspicious] New agents? Go find them.`
 - [x] `team`: `[impressed] Look. It hired its own help. [offended] Without asking me?` ★
+- [x] `page.cue`: `[impatient] Your game's running. Go look.`
+- [ ] `page`: `[deadpan] There. Just a showcase. [dismissive] Wait for yours.`
+- [ ] `talk.cue`: `[suspicious] They're talking. Go listen.`
+- [ ] `talk`: `[smug] Agent to agent. [pointed] Not through me.` ★
+- [ ] `mate-ask`: `[curious] One of them waits on you. [smug] The rest keep working.`
 - [x] `shape.cue`: `[casual] Its first model's done. Have a look.`
 - [x] `shape`: `[proud] A model, made from nothing. [bossy] Go on. Spin it.`
-- [x] `files.cue`: `[bored, bratty] Open your Files. I'll wait.` ★
-- [x] `files`: `[quietly impressed] See the files blink? That's an agent, writing.`
-- [x] `diff.cue`: `[teasing] The code's in. Want to read it?`
-- [x] `diff`: `[smug] Every line it wrote. Nothing hidden.`
+- [ ] `first`: `[proud] First versions are in. [smug] Watch your page change.`
+- [ ] `polish`: `[smug] Polishing now. [proud] See it change again.`
 - [x] `finish`: `[relaxed] They're finishing it. [smug] Relax.`
 - [x] `play.cue`: `[excited, hiding it] Your game's done. Go open it.`
 - [x] `play`: `[proud] Three agents, one game. [warm] Go play.`
 - [x] `play-model.cue`: `[excited, hiding it] Your model's done. Go open it.`
 - [x] `play-model`: `[proud] Three agents, one model. [warm] Yours.`
 - [x] `closing`: `[warm] It's yours now. [teasing] Don't break it.` ★
+
+Lines marked `[ ]` have no take yet and show as text until one is recorded: `page` has new
+words, `talk.cue`, `talk`, `mate-ask`, `first` and `polish` are new. Once a take is in
+`src/voice/`, tick the box and take its key out of `awaiting` in `src/voice.test.ts`.
 
 ## Off the story
 
@@ -70,6 +75,18 @@ What she says while something outside the story holds the tour up.
 - [x] `left.team`: `[flat, unimpressed] A teammate quit.`
 
 The act wipes ("Act 2, Your call") aren't spoken.
+
+## Retired takes
+
+Recorded for beats the tour no longer plays, removed from `src/voice/` with the team redesign
+(git history keeps their files). Bring one back from there, under its key, if its beat returns.
+
+- `files.cue`: `[bored, bratty] Open your Files. I'll wait.` ★
+- `files`: `[quietly impressed] See the files blink? That's an agent, writing.`
+- `diff.cue`: `[teasing] The code's in. Want to read it?`
+- `diff`: `[smug] Every line it wrote. Nothing hidden.`
+- `page`, as it was: `[deadpan] There. Nothing in it yet. [dismissive] Give it time.` (the seed page
+  now opens on a showcase)
 
 ## How the tour plays them
 

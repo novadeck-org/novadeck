@@ -9,7 +9,7 @@ import type { PreviewHunk } from "@novadeck/core/works"
 
 // What the tour's agents show and change, as the runner's tour would have them: the seed
 // project's files by name, the game's page, the hero's 3D model (a start shape and one sculpted
-// for each world), and the builder's changes. Small and made here, not kept as files: the demo
+// for each pitch), and the teammates' changes. Small and made here, not kept as files: the demo
 // ships in the website's bundle, and this is loaded only as a story plays.
 
 // The tour repo's files, as its Files panel lists them (the runner's seed, and the libraries it
@@ -21,6 +21,8 @@ export const tourEntries: readonly string[] = [
   "dev.mjs",
   "dev.py",
   "index.html",
+  "kit/README.md",
+  "kit/stage.js",
   "models/README.md",
   "models/placeholder.gltf",
   "models/shapes.bin",
@@ -34,12 +36,16 @@ export const tourIgnored: readonly string[] = ["vendor/"]
 
 export const modelFile = "models/hero.gltf"
 export const gameFile = "src/main.js"
+export const worldFile = "src/world.js"
+export const feelFile = "src/feel.js"
 
-// The branches the agents' worktrees are on.
-export const branches = {
-  modeller: "models",
-  builder: "game",
-} as const
+// The game's parts as the lead's plan starts them: a teammate each, with the branch its
+// worktree is on and the files it writes (the runner's brief names the same).
+export const teamParts = [
+  { role: "Core", branch: "core", summary: "Writes the rules and the loop" },
+  { role: "World", branch: "world", summary: "Builds the scene and its models" },
+  { role: "Feel", branch: "feel", summary: "Adds the HUD, sound and juice" },
+] as const
 
 // The address the game's page is at.
 export const pageUrl = "http://127.0.0.1:5173/"
@@ -48,12 +54,10 @@ export const serverCommand = "node dev.mjs 5173"
 // ---- The hero ----
 
 export type Hero = {
-  // What the person picked on the sheet: "Sci-fi" and "Strategy", or their own words.
-  readonly world: string
-  readonly kind: string
+  // The game's title: the pitch the person picked, or their own words.
+  readonly title: string
   // Which of the models it is sculpted as.
   readonly shape: "rocket" | "robot" | "cat"
-  readonly title: string
   readonly pickup: string
   readonly background: string
   readonly accent: string
@@ -65,15 +69,38 @@ const looks: Readonly<Record<Hero["shape"], Pick<Hero, "pickup" | "background" |
   cat: { pickup: "🐟", background: "#120a24", accent: "#c6f432" },
 }
 
-// The game a sheet's answers name: the world picks the hero's shape (Sci-fi a rocket, Modern a
-// robot, anything else, Fantasy among it, a cat), and both name the game.
-export const heroOf = (world: string, kind: string): Hero => {
-  const shape = /sci|space|rocket/i.test(world)
+// The three games the lead pitches, as it invents them from its sparks: a title and a line each,
+// and the hero each is modelled as.
+export const pitches = [
+  {
+    title: "Glass Desert Drift",
+    line: "Drift a skiff over a desert of glass while the floor falls away behind you.",
+    shape: "rocket",
+  },
+  {
+    title: "Neon Magnet Rush",
+    line: "Push and pull with a magnet through a neon megacity, and beat the clock.",
+    shape: "robot",
+  },
+  {
+    title: "Carnival Beat Cat",
+    line: "Act on the beat to guide a cat through a haunted carnival.",
+    shape: "cat",
+  },
+] as const
+
+// The game a pick names: a pitch (its title and hero), or the person's own words, which take the
+// hero their words suggest (space a rocket, city or robot a robot, anything else a cat).
+export const heroOf = (pick: number | string): Hero => {
+  const pitch = typeof pick === "number" ? (pitches[pick] ?? pitches[0]) : undefined
+  if (pitch) return { title: pitch.title, shape: pitch.shape, ...looks[pitch.shape] }
+  const words = String(pick).trim() || pitches[0].title
+  const shape = /sci|space|rocket|desert|moon/i.test(words)
     ? "rocket"
-    : /modern|city|robot/i.test(world)
+    : /modern|city|robot|neon|magnet/i.test(words)
       ? "robot"
       : "cat"
-  return { world, kind, shape, title: `${world} ${kind}`, ...looks[shape] }
+  return { title: words, shape, ...looks[shape] }
 }
 
 // ---- The model ----
@@ -345,21 +372,62 @@ const diffOf = (before: readonly string[], after: readonly string[], at: number)
   }
 }
 
-const changed = (path: string, added: number, removed: number): ChangedFile => ({
-  path,
+// A file a teammate writes, as its work and its changes item list it.
+export type Written = {
+  readonly path: string
+  readonly added: number
+  readonly removed: number
+  readonly status?: "added"
+}
+
+// The game's main file as Core changes it, and the files World and Feel add.
+export const written = {
+  core: { path: gameFile, added: 3, removed: 3 },
+  world: [
+    { path: worldFile, added: 24, removed: 0, status: "added" },
+    { path: modelFile, added: 38, removed: 0, status: "added" },
+  ],
+  feel: { path: feelFile, added: 18, removed: 0, status: "added" },
+} as const satisfies Record<string, Written | readonly Written[]>
+
+const addedLines = (path: string, hero: Hero): string[] =>
+  path === worldFile
+    ? [
+        "// The scene: stage, sky and ground from the kit, and the hero's model.",
+        'import { stage, sky, ground } from "../kit/stage.js"',
+        "",
+        "export const buildWorld = (scene) => {",
+        `  sky(scene, "${hero.background}")`,
+        `  ground(scene, "${hero.accent}")`,
+        '  return stage(scene, { model: "models/hero.gltf" })',
+        "}",
+      ]
+    : [
+        "// The feel: the title, the HUD and the juice.",
+        'import { ui, juice, sound } from "../kit/stage.js"',
+        "",
+        "export const hud = (state) => {",
+        `  ui.title("${hero.title}")`,
+        '  ui.score(state, "SCORE")',
+        '  juice.shake(state, "hit")',
+        '  sound.music("loop")',
+        "}",
+      ]
+
+const changedFile = (file: Written): ChangedFile => ({
+  path: file.path,
   oldPath: null,
-  status: "modified",
-  added,
-  removed,
+  status: file.status ?? "modified",
+  added: file.added,
+  removed: file.removed,
   reindented: 0,
   binary: false,
   secret: false,
 })
 
-// The builder's change against main: src/main.js, its work not committed yet, as its `changes`
-// item shows it.
-export const builderChanges = (root: string): ChangesContent => {
-  const files = [changed(gameFile, 3, 3)]
+// A teammate's changes against main, its work not committed yet, as its `changes` item shows it.
+export const changesOf = (root: string, list: readonly Written[]): ChangesContent => {
+  const files = list.map(changedFile)
   const added = files.reduce((sum, file) => sum + file.added, 0)
   const removed = files.reduce((sum, file) => sum + file.removed, 0)
   return {
@@ -384,19 +452,41 @@ export const builderChanges = (root: string): ChangesContent => {
   }
 }
 
-export const builderDiffs = (hero: Hero): Readonly<Record<string, ChangeFileDiff>> => {
-  const after = gameBuilt(hero)
-  return {
-    [gameFile]: {
-      run: {
-        layers: ["uncommitted"],
-        file: changed(gameFile, 3, 3),
-        big: false,
-        badName: false,
-        hunks: [diffOf(gameMain, after, 3)],
-        before: gameMain.join("\n") + "\n",
-        after: after.join("\n") + "\n",
-      },
-    },
-  }
-}
+// The diffs of the code files a teammate wrote: Core's lines replaced in the main file, World's
+// and Feel's files added whole.
+export const diffsOf = (
+  list: readonly Written[],
+  hero: Hero,
+): Readonly<Record<string, ChangeFileDiff>> =>
+  Object.fromEntries(
+    list
+      .filter(({ path }) => path.endsWith(".js"))
+      .map((file) => {
+        const before = file.path === gameFile ? gameMain : []
+        const after = file.path === gameFile ? gameBuilt(hero) : addedLines(file.path, hero)
+        const hunk =
+          before.length > 0
+            ? diffOf(before, after, 3)
+            : {
+                oldStart: 0,
+                oldCount: 0,
+                newStart: 1,
+                newCount: after.length,
+                lines: after.map((text) => ({ kind: "add" as const, text })),
+              }
+        return [
+          file.path,
+          {
+            run: {
+              layers: ["uncommitted"],
+              file: changedFile(file),
+              big: false,
+              badName: false,
+              hunks: [hunk],
+              before: before.length > 0 ? before.join("\n") + "\n" : "",
+              after: after.join("\n") + "\n",
+            },
+          },
+        ]
+      }),
+  )

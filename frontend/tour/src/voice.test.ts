@@ -116,9 +116,13 @@ describe("Nyx's voice-over", () => {
     await Promise.resolve()
   })
 
-  it("has a take for every line the tour says, so a changed line gets a new one", () => {
+  // Lines that are new or changed and wait for Nyx's take (NARRATION.md, "The story"): lettered
+  // meanwhile. Recording one takes its key out of this list, and every other line must have one.
+  const awaiting = ["page", "talk", "talk.cue", "mate-ask", "first", "polish"]
+
+  it("has a take for every line the tour says, bar the new ones still to be recorded", () => {
     const unsaid = [...narration()].filter(([, line]) => takeOf(line) === undefined)
-    expect(unsaid.map(([key]) => key)).toEqual([])
+    expect(unsaid.map(([key]) => key)).toEqual(awaiting)
   })
 
   it("finds no take for words the tour never says", () => {

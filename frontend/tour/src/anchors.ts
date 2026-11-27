@@ -81,7 +81,7 @@ const paneOf = (
 
 /**
  * The elements a target names now, as drawn: none where the view hides them. A role names its
- * terminal's window (`lead`, `modeller`, `builder`) or, with `-pane`, its companion pane;
+ * terminal's window (`lead`, `mate`, `talker`, `maker`) or, with `-pane`, its companion pane;
  * `terminal` the one the coach names (the lead's where it names none); `team` the windows of the
  * lead's teammates, not the terminals it opened for the game's server; `approve` the approval
  * dialog's button to allow; `asking-row` the Inbox row of the question waiting (a teammate's,
@@ -96,12 +96,14 @@ export const targetElements = (
   const { roles, terminalId, team, askingRow, open, tab } = where
   switch (target) {
     case "lead":
-    case "modeller":
-    case "builder":
+    case "mate":
+    case "talker":
+    case "maker":
       return windowOf(roles[target], seen)
     case "lead-pane":
-    case "modeller-pane":
-    case "builder-pane":
+    case "mate-pane":
+    case "talker-pane":
+    case "maker-pane":
       return paneOf(
         roles[target.slice(0, -"-pane".length) as TourRole],
         open[target.slice(0, -"-pane".length) as TourRole],

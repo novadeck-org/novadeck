@@ -192,11 +192,11 @@ const holding = (run: TourRun, step: TourStep, now: number): boolean => {
   return holds(step) && (end === null || now < end)
 }
 
-// The agent a step waits on, as the signals show it: a teammate's for one on the modeller or the
-// builder (the lead's while it isn't found or up), the lead's otherwise.
+// The agent a step waits on, as the signals show it: a teammate's for one on a teammate's role
+// (the lead's while it isn't found or up), the lead's otherwise.
 const waitedOn = (step: TourStep, signals: TourSignals): LeadState | null => {
   const role = nudgeOf(step, signals)
-  if (role === "modeller" || role === "builder") {
+  if (role !== "lead") {
     const mate = signals.mates[role]
     if (mate?.kind === "agent") return mate
   }
@@ -355,8 +355,15 @@ const reshape = (
   const played = stepsFor(next)
   const index = played.findIndex(({ id }) => id === here)
   if (index >= 0) return { run: { ...next, step: index }, steps: played }
-  // Its step dropped: on to the first the story still plays after it, the team.
-  const after = here === "run" || here === "page" ? "team" : "play"
+  // Its step dropped: on to the first the story still plays after it.
+  const after =
+    here === "run"
+      ? "team"
+      : here === "page"
+        ? "talk"
+        : here === "first" || here === "polish"
+          ? "finish"
+          : "play"
   return {
     run: {
       ...next,
@@ -388,8 +395,12 @@ const follow = (
   // backend refused is tried again first.
   if (!step)
     return brief || !run.briefed ? { ...still(briefed), brief } : { ...still(null), end: "done" }
-  // Waited its longest: on to the next step, done or not, held or not.
-  if (step.capMs !== undefined && now - run.stepAt >= step.capMs) {
+  // Waited its longest, or its subject will never come: on to the next step, done or not, held
+  // or not.
+  if (
+    (step.capMs !== undefined && now - run.stepAt >= step.capMs) ||
+    (!(typeof run.doneAt === "number") && step.skip?.(signals) === true)
+  ) {
     const next = nextStep(brief ? seen : briefed, steps, now)
     const following = next.run && { ...next.run, briefed: briefed.briefed }
     if (!following || following.step >= steps.length) return { ...next, run: following, brief }
@@ -495,8 +506,9 @@ export const coachNow = (
   const step = steps[run.step]
   // A step whose subject isn't there yet says nothing: no beat before what it's about.
   if (step && !readyNow(step, signals)) return signals.askingRow !== null ? questionCoach : null
-  // A step waiting on the person's touch gives way to the question, as it may wait a long time.
+  // A step waiting on the person's touch gives way to the question, as it may wait a long time;
+  // one that is about the question says it in its own words.
   const showing = typeof run.doneAt === "number" && step?.holdMs !== undefined && !step.person
-  if (signals.askingRow !== null && !showing) return questionCoach
+  if (signals.askingRow !== null && !showing && !step?.asks) return questionCoach
   return step?.coach ?? null
 }

@@ -1,3 +1,5 @@
+import { messagesKey } from "@novadeck/core/items/companion-bar"
+
 import {
   beginRun,
   coachNow,
@@ -235,12 +237,23 @@ describe("The tour's driver", () => {
 
 describe("The tour's story", () => {
   const quiet: LeadState = { kind: "agent", working: false, named: true, answered: true }
-  const cast = { lead: "t1", modeller: "t2", builder: "t3" }
+  const cast = { lead: "t1", mate: "t2", talker: "t2", maker: "t3" }
+  // The team as the lead opened it: three teammates, named, nothing yet told to the lead.
+  const crew = (part: Partial<TourSignals["team"]> = {}): TourSignals["team"] => ({
+    count: 3,
+    named: 3,
+    ids: ["t2", "t3", "t4"],
+    firstIn: 0,
+    polished: 0,
+    working: false,
+    asked: false,
+    ...part,
+  })
   // Signals with the whole cast found and nothing yet done, changed by `story`.
   const world = (story: Partial<TourSignals> = {}): TourSignals =>
     signals(quiet, true, {
-      roles: cast,
-      team: { count: 0, named: 0, ids: [], reported: 0, working: false },
+      roles: { lead: "t1", mate: "t2", maker: "t3" },
+      team: crew({ count: 0, named: 0, ids: [] }),
       ...story,
     })
   const bare = (story: Partial<TourSignals> = {}): TourSignals =>
@@ -252,8 +265,9 @@ describe("The tour's story", () => {
   const everything: Partial<TourSignals> = {
     served: true,
     ...sheet(false, true),
-    changed: { models: true, game: true },
-    shown: { page: item("page"), model: item("model"), changes: item("diff") },
+    roles: cast,
+    team: crew({ firstIn: 3, polished: 3, asked: true }),
+    shown: { page: item("page"), model: item("model") },
   }
   const at = (page = true): TourRun =>
     beginRun(
@@ -284,11 +298,13 @@ describe("The tour's story", () => {
       ["start", 1],
       ["ask", 2],
       ["run", 2],
-      ["page", 3],
       ["team", 3],
+      ["page", 3],
+      ["talk", 3],
+      ["mate-ask", 3],
       ["shape", 3],
-      ["files", 3],
-      ["diff", 3],
+      ["first", 3],
+      ["polish", 3],
       ["finish", 3],
       ["play", 4],
     ])
@@ -300,9 +316,9 @@ describe("The tour's story", () => {
       "start",
       "ask",
       "team",
+      "talk",
+      "mate-ask",
       "shape",
-      "files",
-      "diff",
       "finish",
       "play",
     ])
@@ -338,8 +354,12 @@ describe("The tour's story", () => {
     }
     return { after, end }
   }
-  const named = { team: { count: 2, named: 2, ids: ["t2", "t3"], reported: 0, working: false } }
-  const reported = { team: { count: 2, named: 2, ids: ["t2", "t3"], reported: 2, working: false } }
+  const named = { team: crew() }
+  const talking = { roles: cast, team: crew() }
+  const questioned = { askingRow: "q1", team: crew({ asked: true }) }
+  const answered = { askingRow: null, team: crew({ asked: true }) }
+  const firstIn = { team: crew({ asked: true, firstIn: 3 }) }
+  const polished = { team: crew({ asked: true, firstIn: 3, polished: 3 }) }
   const showing = (part: Partial<TourSignals["shown"]>): Partial<TourSignals> => ({
     shown: { ...world().shown, ...part },
   })
@@ -352,13 +372,14 @@ describe("The tour's story", () => {
       sheet(false, true),
       { approving: true },
       { approving: false, served: true },
-      showing({ page: item("page") }),
       named,
+      showing({ page: item("page") }),
+      talking,
+      questioned,
+      answered,
       showing({ page: item("page"), model: item("model") }),
-      { changed: { models: true, game: false } },
-      { changed: { models: true, game: true } },
-      showing({ page: item("page"), model: item("model"), changes: item("diff") }),
-      reported,
+      firstIn,
+      polished,
       {},
     ])
     expect(after).toEqual([
@@ -366,43 +387,39 @@ describe("The tour's story", () => {
       "ask",
       "run",
       "run",
-      "page",
       "team",
+      "page",
+      "talk",
+      "mate-ask",
+      "mate-ask",
       "shape",
-      "files",
-      "files",
-      "diff",
-      "finish",
+      "first",
+      "polish",
+      "play",
       // The person plays, touching it: the story ends in the same stage.
       "end",
     ])
     expect(end).toBe("done")
   })
 
+  it("goes on without the model where every first version is in and none was shown", () => {
+    const team = crew({ count: 3, named: 3, firstIn: 2 })
+    const noModel = { shown: { page: item("page"), model: null } }
+    // Not yet: a teammate's first version is still to come, and with it maybe a model.
+    expect(feed(atStep("shape"), world({ team, ...noModel }), 100).run?.step).toBe(7)
+    const moved = feed(atStep("shape"), world({ team: { ...team, firstIn: 3 }, ...noModel }), 100)
+    expect(idAt(moved.run!)).not.toBe("shape")
+  })
+
   it("lets agents finish steps out of order: each step stays done, held until the person has seen it", () => {
-    // The models, the game and the changes are all done before the tour reaches their steps.
+    // The page, the talk, the model and the rest are all done before the tour reaches the model.
     const all = world(everything)
-    const held = feed(atStep("files"), all, 100)
-    expect(held.run).toMatchObject({ step: 6, doneAt: 100 })
+    const held = feed(atStep("shape"), all, 100)
+    expect(held.run).toMatchObject({ step: 7, doneAt: 100 })
     // However long it waits: the person hasn't touched it.
-    expect(tick(held.run!, all, 1e9).run?.step).toBe(6)
+    expect(tick(held.run!, all, 1e9).run?.step).toBe(7)
     const next = touch(held.run!, all, 5_000)
-    expect(idAt(next.run!)).toBe("files")
-    // Its line's caption showed with the panel open: it holds from then, then the next begins.
-    const read = stepRun(
-      next.run!,
-      stepsFor(next.run!),
-      {
-        type: "caption",
-        line: "See the files blink? That's an agent, writing.",
-        signals: all,
-        now: 5_500,
-      },
-      patience,
-    )
-    expect(read.run).toMatchObject({ step: 6, captionAt: 5_500 })
-    expect(idAt(tick(read.run!, all, 10_499).run!)).toBe("files")
-    expect(idAt(tick(read.run!, all, 10_500).run!)).toBe("diff")
+    expect(idAt(tick(next.run!, all, 5_000).run!)).toBe("first")
   })
 
   context("a held step's caption", () => {
@@ -507,7 +524,7 @@ describe("The tour's story", () => {
     })
 
     it("moves on once they touch what it shows, its own caption on screen", () => {
-      expect(idAt(touch(done(), all, 5_000).run!)).toBe("team")
+      expect(idAt(touch(done(), all, 5_000).run!)).toBe("talk")
       // A touch under another caption (a teammate's question) isn't its.
       const other = touch(done(), all, 5_000, "A teammate has a question. Huh? For you, not me.")
       expect(other.run).toMatchObject({ touched: null })
@@ -519,7 +536,7 @@ describe("The tour's story", () => {
       expect(early).toMatchObject({ touched: 50, doneAt: null })
       const held = feed(early, all, 100).run!
       expect(nextTick(held, tourSteps, all, patience)).toBe(100)
-      expect(idAt(tick(held, all, 100).run!)).toBe("team")
+      expect(idAt(tick(held, all, 100).run!)).toBe("talk")
     })
 
     it("is touched again after a reload", () => {
@@ -529,45 +546,54 @@ describe("The tour's story", () => {
     })
 
     it("brings what it is about back only when the person asks, the calm way", () => {
-      // The Builder's changes: its terminal again, and its tab.
-      expect(showAgain(atStep("diff"), tourSteps, all)).toEqual({
+      // The model's maker: its terminal again, and its tab.
+      expect(showAgain(atStep("shape"), tourSteps, all)).toEqual({
         moves: [{ kind: "travel", terminalId: "t3" }],
-        tab: { terminalId: "t3", key: "diff" },
+        tab: { terminalId: "t3", key: "model" },
+      })
+      // The teammate that wrote to another: its terminal, and its Messages.
+      expect(showAgain(atStep("talk"), tourSteps, all)).toEqual({
+        moves: [{ kind: "travel", terminalId: "t2" }],
+        tab: { terminalId: "t2", key: messagesKey },
       })
       // The team, once there: every window framed.
-      const hired = world({
-        ...everything,
-        team: { count: 1, named: 1, ids: ["t2"], reported: 0, working: false },
-      })
+      const hired = world({ ...everything, team: crew({ count: 1, named: 1, ids: ["t2"] }) })
       expect(showAgain(atStep("team"), tourSteps, hired)).toEqual({
         moves: [{ kind: "fit-all" }],
         tab: null,
       })
-      // The Files panel: nothing to move, its button is in the rail.
-      expect(showAgain(atStep("files"), tourSteps, all)).toEqual({ moves: [], tab: null })
     })
 
-    it("counts the Files panel on screen as the person's touch", () => {
-      const files = tourSteps.find(({ id }) => id === "files")!
-      expect(files.coach).toMatchObject({ click: ["files", "files-button"], opened: true })
-    })
+    // A step whose subject on screen counts as the touch, its line coming a moment after.
+    const opening: TourStep = {
+      ...startStep,
+      id: "opening",
+      person: true,
+      holdMs: 5_000,
+      coach: {
+        click: ["files", "files-button"],
+        opened: true,
+        cue: { line: "Open your Files. I'll wait.", note: "On the left." },
+        line: "See the files blink? That's an agent, writing.",
+      },
+    }
 
     it("holds a while from its line's caption where that comes after the touch", () => {
-      // The files step, done at 100, opened at 4 000; its line shows a second later.
-      const opened = touch(feed(atStep("files"), all, 100).run!, all, 4_000).run!
-      expect(nextTick(opened, tourSteps, all, patience)).toBe(4_000 + captionWaitMs + 5_000)
-      const line = "See the files blink? That's an agent, writing."
+      // Done at 100, opened at 4 000; its line shows a second later.
+      const here = { ...at(), step: 0, doneAt: 100, touched: 4_000 }
+      expect(nextTick(here, [opening], all, patience)).toBe(4_000 + captionWaitMs + 5_000)
+      const line = opening.coach.line
       const read = stepRun(
-        opened,
-        tourSteps,
+        here,
+        [opening],
         { type: "caption", line, signals: all, now: 5_000 },
         patience,
       ).run!
-      expect(nextTick(read, tourSteps, all, patience)).toBe(10_000)
+      expect(nextTick(read, [opening], all, patience)).toBe(10_000)
       // Its cue's box is no caption of its own.
       const cue = stepRun(
-        opened,
-        tourSteps,
+        here,
+        [opening],
         { type: "caption", line: "Open your Files. I'll wait.", signals: all, now: 5_000 },
         patience,
       ).run!
@@ -581,15 +607,20 @@ describe("The tour's story", () => {
 
   it("waits on the person's touch at each step that shows them something, and holds only the agents' steps a while", () => {
     expect(tourSteps.filter(({ person }) => person).map(({ id }) => id)).toEqual([
-      "page",
       "team",
+      "page",
+      "talk",
       "shape",
-      "files",
-      "diff",
       "play",
     ])
     const holds = Object.fromEntries(tourSteps.map(({ id, holdMs }) => [id, holdMs]))
-    expect(holds).toMatchObject({ start: 4_000, finish: 4_000, play: 20_000 })
+    expect(holds).toMatchObject({
+      start: 4_000,
+      first: 5_000,
+      polish: 5_000,
+      finish: 4_000,
+      play: 20_000,
+    })
     expect(holds.ask).toBeUndefined()
     expect(holds.page).toBeUndefined()
   })
@@ -601,7 +632,6 @@ describe("The tour's story", () => {
       "start",
       "ask",
       "run",
-      "files",
     ])
   })
 
@@ -610,21 +640,24 @@ describe("The tour's story", () => {
       coachNow(atStep(id), tourSteps, world(story))
     expect(silent("page", {})).toBeNull()
     expect(silent("page", { shown: { ...world().shown, page: item("p1") } })?.line).toBe(
-      "There. Nothing in it yet. Give it time.",
+      "There. Just a showcase. Wait for yours.",
     )
     expect(silent("team", {})).toBeNull()
+    expect(silent("talk", { roles: { lead: "t1" } })).toBeNull()
+    expect(silent("mate-ask", {})).toBeNull()
     expect(silent("shape", {})).toBeNull()
-    expect(silent("diff", {})).toBeNull()
+    expect(silent("first", {})).toBeNull()
+    expect(silent("polish", {})).toBeNull()
     // Its button brings nothing yet either.
     expect(showAgain(atStep("shape"), tourSteps, world())).toEqual({ moves: [], tab: null })
   })
 
   it("has a cue for the person's part wherever its line would come before its subject", () => {
     const cued = tourSteps.filter(({ coach }) => coach.cue).map(({ id }) => id)
-    expect(cued).toEqual(["page", "team", "shape", "files", "diff", "play"])
-    expect(tourSteps.find(({ id }) => id === "files")!.coach).toMatchObject({
-      cue: { line: "Open your Files. I'll wait." },
-      line: "See the files blink? That's an agent, writing.",
+    expect(cued).toEqual(["team", "page", "talk", "shape", "play"])
+    expect(tourSteps.find(({ id }) => id === "talk")!.coach).toMatchObject({
+      cue: { line: "They're talking. Go listen." },
+      line: "Agent to agent. Not through me.",
     })
   })
 
@@ -660,18 +693,16 @@ describe("The tour's story", () => {
   })
 
   context("at the team", () => {
-    it("waits for both teammates to be there and named", () => {
-      const one = bare({ team: { count: 1, named: 1, ids: ["t2"], reported: 0, working: false } })
+    it("waits for every teammate that is there to be named, whatever their number", () => {
+      const one = bare({ team: crew({ count: 1, named: 0, ids: ["t2"] }) })
       expect(feed(atStep("team"), one).run?.doneAt).toBeNull()
-      const unnamed = bare({
-        team: { count: 2, named: 1, ids: ["t2", "t3"], reported: 0, working: false },
-      })
+      const unnamed = bare({ team: crew({ named: 2 }) })
       expect(feed(atStep("team"), unnamed).run?.doneAt).toBeNull()
+      expect(feed(atStep("team"), bare({ team: crew() })).run?.doneAt).toBe(1)
+      // A team of two, the lead quiet: nothing more is coming.
       expect(
-        feed(
-          atStep("team"),
-          bare({ team: { count: 2, named: 2, ids: [], reported: 0, working: false } }),
-        ).run?.doneAt,
+        feed(atStep("team"), bare({ team: crew({ count: 2, named: 2, ids: ["t2", "t3"] }) })).run
+          ?.doneAt,
       ).toBe(1)
     })
   })
@@ -696,6 +727,47 @@ describe("The tour's story", () => {
     })
   })
 
+  context("at the talk", () => {
+    it("is silent until a teammate has written to another, then marks the sender's Messages", () => {
+      const lone = world({ roles: { lead: "t1" } })
+      expect(feed(atStep("talk"), lone).run?.doneAt).toBeNull()
+      expect(coachNow(atStep("talk"), tourSteps, lone)).toBeNull()
+      const said = world({ roles: cast, open: { talker: "messages" } })
+      expect(feed(atStep("talk"), said).run?.doneAt).toBe(1)
+      expect(coachNow(atStep("talk"), tourSteps, said)).toMatchObject({
+        click: ["talker-pane", "talker"],
+        tab: "messages",
+      })
+    })
+
+    it("waits on a teammate, and nudges it", () => {
+      const waiting = { ...atStep("talk"), waitingSince: 0 }
+      expect(tick(waiting, world({ roles: { lead: "t1", mate: "t4" } }), patience).nudge).toBe("t4")
+    })
+  })
+
+  context("at a teammate's question", () => {
+    const row = world({ askingRow: "q1", team: crew({ asked: true }) })
+
+    it("says its own words while a question waits, pointing at the team and the Inbox", () => {
+      expect(coachNow(atStep("mate-ask"), tourSteps, row)).toMatchObject({
+        look: "team",
+        click: ["answers", "asking-row", "inbox-button"],
+        line: "One of them waits on you. The rest keep working.",
+      })
+    })
+
+    it("is done once the question is answered, or once every teammate finished without one", () => {
+      // It holds no time: done, it is over, and the run is at the next step.
+      const over = (story: Partial<TourSignals>) =>
+        idAt(feed(atStep("mate-ask"), world(story)).run!) !== "mate-ask"
+      expect(over({ askingRow: "q1", team: crew({ asked: true }) })).toBe(false)
+      expect(over({ team: crew() })).toBe(false)
+      expect(over({ team: crew({ asked: true }) })).toBe(true)
+      expect(over({ team: crew({ polished: 3 }) })).toBe(true)
+    })
+  })
+
   context("at the page", () => {
     it("brings the lead and the page's tab only by its button, once the page is shown", () => {
       const begun = feed(atStep("page"), world({ served: true }))
@@ -714,47 +786,29 @@ describe("The tour's story", () => {
   })
 
   context("at the shape", () => {
-    it("is done once the modeller's first model is up, and waits on the modeller", () => {
+    it("is done once the maker's first model is up, and waits on a teammate", () => {
       const entered = feed(atStep("shape"), world())
       expect(entered.run?.doneAt).toBeNull()
       const shown = world({ shown: { ...world().shown, model: item("m1") } })
       expect(feed(entered.run!, shown, 2)).toMatchObject({ run: { doneAt: 2 } })
       expect(showAgain(atStep("shape"), tourSteps, shown)).toEqual({
-        moves: [{ kind: "travel", terminalId: "t2" }],
-        tab: { terminalId: "t2", key: "m1" },
+        moves: [{ kind: "travel", terminalId: "t3" }],
+        tab: { terminalId: "t3", key: "m1" },
       })
       const waiting = { ...atStep("shape"), waitingSince: 0 }
       expect(tick(waiting, world(), patience).nudge).toBe("t2")
     })
   })
 
-  context("at the files", () => {
-    it("waits for both the models and the game to be changed", () => {
-      expect(
-        feed(atStep("files"), world({ changed: { models: true, game: false } })).run?.doneAt,
-      ).toBeNull()
-      expect(
-        feed(atStep("files"), world({ changed: { models: true, game: true } })).run?.doneAt,
-      ).toBe(1)
-    })
-
-    it("points at the Files panel, else the rail's button that opens it", () => {
-      const entered = feed(atStep("files"), world())
-      expect(coachNow(entered.run!, tourSteps, world())).toMatchObject({
-        click: ["files", "files-button"],
-      })
-    })
-  })
-
-  context("at the diff", () => {
-    it("is done once the builder's changes are shown, which its button brings", () => {
-      const begun = feed(atStep("diff"), world())
-      const changes = world({ shown: { ...world().shown, changes: item("c1") } })
-      const shown = feed(begun.run!, changes, 2)
-      expect(shown.run?.doneAt).toBe(2)
-      expect(showAgain(shown.run!, tourSteps, changes)).toEqual({
-        moves: [{ kind: "travel", terminalId: "t3" }],
-        tab: { terminalId: "t3", key: "c1" },
+  context("at the first versions and the polish", () => {
+    it("say nothing until a teammate has told the lead, then mark the lead's page", () => {
+      expect(feed(atStep("first"), world(everything)).run?.doneAt).toBe(1)
+      expect(feed(atStep("first"), world({ team: crew() })).run?.doneAt).toBeNull()
+      expect(feed(atStep("polish"), world({ team: crew({ firstIn: 3 }) })).run?.doneAt).toBeNull()
+      expect(coachNow(atStep("polish"), tourSteps, world(everything))).toMatchObject({
+        click: ["lead-pane", "lead"],
+        tab: "page",
+        line: "Polishing now. See it change again.",
       })
     })
   })
@@ -763,7 +817,7 @@ describe("The tour's story", () => {
     const asking = world({ askingRow: "q1" })
 
     it("points at it in the Inbox, whatever the step, until it is answered", () => {
-      for (const id of ["team", "shape", "files", "diff"])
+      for (const id of ["team", "talk", "shape", "first"])
         expect(coachNow(atStep(id), tourSteps, asking)).toMatchObject({
           click: ["answers", "asking-row", "inbox-button"],
           line: "A teammate has a question. Huh? For you, not me.",
@@ -780,7 +834,7 @@ describe("The tour's story", () => {
     it("nudges no one while it waits", () => {
       const run = { ...atStep("shape"), waitingSince: 0 }
       expect(nextTick(run, stepsFor(run), asking, patience)).toBeNull()
-      expect(tick(run, asking, patience * 3)).toMatchObject({ nudge: null, run: { step: 5 } })
+      expect(tick(run, asking, patience * 3)).toMatchObject({ nudge: null, run: { step: 7 } })
     })
 
     it("lets a step that holds a while, done, show its own caption first", () => {
@@ -808,12 +862,12 @@ describe("The tour's story", () => {
 
   context("at the finish", () => {
     const team = (part: Partial<TourSignals["team"]>): Partial<TourSignals> => ({
-      team: { count: 2, named: 2, ids: ["t2", "t3"], reported: 2, working: false, ...part },
+      team: crew({ firstIn: 3, polished: 3, ...part }),
     })
 
-    it("waits for every teammate to report, quiet, with nothing asked of the person", () => {
+    it("waits for every teammate to say it is polished, quiet, with nothing asked of the person", () => {
       const done = (story: Partial<TourSignals>) => feed(atStep("finish"), world(story)).run?.doneAt
-      expect(done(team({ reported: 1 }))).toBeNull()
+      expect(done(team({ polished: 2 }))).toBeNull()
       expect(done(team({ working: true }))).toBeNull()
       expect(done({ ...team({}), askingRow: "q1" })).toBeNull()
       expect(done({ ...team({}), permission: { terminalId: "t2" } })).toBeNull()
@@ -823,9 +877,9 @@ describe("The tour's story", () => {
     it("moves on after its cap, whatever the team is doing", () => {
       const busy = world(team({ working: true }))
       const run = { ...atStep("finish"), stepAt: 0, waitingSince: 0 }
-      expect(nextTick(run, stepsFor(run), busy, patience)).toBe(5 * 60_000)
-      expect(idAt(tick(run, busy, 5 * 60_000 - 1).run!)).toBe("finish")
-      expect(idAt(tick(run, busy, 5 * 60_000).run!)).toBe("play")
+      expect(nextTick(run, stepsFor(run), busy, patience)).toBe(8 * 60_000)
+      expect(idAt(tick(run, busy, 8 * 60_000 - 1).run!)).toBe("finish")
+      expect(idAt(tick(run, busy, 8 * 60_000).run!)).toBe("play")
     })
 
     it("keeps the closing card back while a teammate's question waits", () => {
@@ -843,22 +897,19 @@ describe("The tour's story", () => {
 
     it("go to the lead by default", () => {
       expect(
-        patient(
-          "team",
-          world({ team: { count: 1, named: 1, ids: ["t2"], reported: 0, working: false } }),
-        ).nudge,
+        patient("team", world({ team: crew({ count: 1, named: 0, ids: ["t2"] }) })).nudge,
       ).toBe("t1")
     })
 
-    it("go to the lead in a teammate's place while it isn't found", () => {
+    it("go to the lead in a teammate's place while none is found", () => {
       expect(patient("shape", bare()).nudge).toBe("t1")
     })
 
     it("move a step on after the nudge and as long again", () => {
-      const run = { ...atStep("diff"), waitingSince: 0 }
+      const run = { ...atStep("first"), waitingSince: 0 }
       const nudged = tick(run, world(), patience)
-      expect(nudged).toMatchObject({ nudge: "t3", run: { nudged: true } })
-      expect(idAt(tick(nudged.run!, world(), 2 * patience).run!)).toBe("finish")
+      expect(nudged).toMatchObject({ nudge: "t2", run: { nudged: true } })
+      expect(idAt(tick(nudged.run!, world(), 2 * patience).run!)).toBe("polish")
     })
   })
 
@@ -882,15 +933,15 @@ describe("The tour's story", () => {
       expect(tick(playing, world(), 22_000)).toMatchObject({ run: null, end: "done" })
     })
 
-    it("looks at the modeller's model instead where there is no page", () => {
+    it("looks at the maker's model instead where there is no page", () => {
       const noPage = atStep("play", false)
       const held = feed(noPage, world(everything), 100)
       expect(showAgain(held.run!, stepsFor(noPage), world(everything))).toEqual({
-        moves: [{ kind: "travel", terminalId: "t2" }],
-        tab: { terminalId: "t2", key: "model" },
+        moves: [{ kind: "travel", terminalId: "t3" }],
+        tab: { terminalId: "t3", key: "model" },
       })
       expect(coachNow(held.run!, stepsFor(noPage), world(everything))).toMatchObject({
-        click: ["modeller-pane", "modeller"],
+        click: ["maker-pane", "maker"],
         line: "Three agents, one model. Yours.",
       })
     })
@@ -903,13 +954,24 @@ describe("The tour's story", () => {
         sheet(true),
         sheet(false, true),
         named,
+        talking,
+        questioned,
+        answered,
         showing({ model: item("model") }),
-        { changed: { models: true, game: true } },
-        showing({ model: item("model"), changes: item("diff") }),
-        reported,
+        polished,
         {},
       ])
-      expect(after).toEqual(["ask", "ask", "team", "shape", "files", "diff", "finish", "end"])
+      expect(after).toEqual([
+        "ask",
+        "ask",
+        "team",
+        "talk",
+        "mate-ask",
+        "mate-ask",
+        "shape",
+        "finish",
+        "end",
+      ])
       expect(end).toBe("done")
     })
   })
@@ -937,12 +999,12 @@ describe("The tour, with a run kept through a reload", () => {
         { terminalId: "t1", agent: "claude", brief: "doorbell", command: "claude", page: true },
         0,
       ),
-      step: 5,
+      step: 7,
     }
     sessionStorage.setItem("novadeck.tour", JSON.stringify({ ...run, stepId: "shape" }))
-    expect(readTourRun()).toMatchObject({ step: 5 })
+    expect(readTourRun()).toMatchObject({ step: 7 })
     // At another index, the same id isn't there: dropped.
-    sessionStorage.setItem("novadeck.tour", JSON.stringify({ ...run, stepId: "diff" }))
+    sessionStorage.setItem("novadeck.tour", JSON.stringify({ ...run, stepId: "first" }))
     expect(readTourRun()).toBeNull()
     // Without a page, the story is shorter: the index names another step.
     sessionStorage.setItem(
@@ -1085,11 +1147,11 @@ describe("The tour, with an agent whose program ended", () => {
 describe("The tour's parts that drop out", () => {
   const quiet: LeadState = { kind: "agent", working: false, named: true, answered: true }
   const working: LeadState = { kind: "agent", working: true, named: true, answered: true }
-  const cast = { lead: "t1", modeller: "t2", builder: "t3" }
+  const cast = { lead: "t1", mate: "t2", talker: "t2", maker: "t3" }
   const world = (story: Partial<TourSignals> = {}): TourSignals =>
     signals(quiet, true, {
       roles: cast,
-      mates: { modeller: quiet, builder: quiet },
+      mates: { mate: quiet, talker: quiet, maker: quiet },
       ...story,
     })
   const run0 = (): TourRun =>
@@ -1112,7 +1174,7 @@ describe("The tour's parts that drop out", () => {
       run = feed(run, world({ served: true }), 2).run!
       expect(run).toMatchObject({ declined: false })
       expect(ids(run)).toContain("page")
-      expect(stepsOfRun(run)[run.step]?.id).toBe("page")
+      expect(stepsOfRun(run)[run.step]?.id).toBe("team")
       // Nothing is taken as declined later, however long it takes.
       expect(feed(run, world({ served: true }), 2 + 10 * declineMs).run?.declined).toBe(false)
     })
@@ -1129,16 +1191,17 @@ describe("The tour's parts that drop out", () => {
       // The lead opens its team whether or not the person let it run the server.
       expect(stepsOfRun(after.run!)[after.run!.step]?.id).toBe("team")
       expect(ids(after.run!)).not.toContain("page")
+      expect(ids(after.run!)).not.toContain("first")
       expect(ids(after.run!)).not.toContain("run")
     })
 
-    it("ends on the modeller's model with the no-page line", () => {
+    it("ends on the maker's model with the no-page line", () => {
       const run = at("play", { declined: true })
       const model = world({
-        shown: { page: null, model: "m" as TourSignals["shown"]["model"], changes: null },
+        shown: { page: null, model: "m" as TourSignals["shown"]["model"] },
       })
       expect(coachNow(run, stepsOfRun(run), model)).toMatchObject({
-        click: ["modeller-pane", "modeller"],
+        click: ["maker-pane", "maker"],
         line: "Three agents, one model. Yours.",
       })
     })
@@ -1165,18 +1228,14 @@ describe("The tour's parts that drop out", () => {
         patience,
       )
 
-    it("nudges the modeller at the files until the models changed, then the builder", () => {
-      expect(tickAt("files", world()).nudge).toBe("t2")
-      expect(tickAt("files", world({ changed: { models: true, game: false } })).nudge).toBe("t3")
-    })
-
-    it("nudges the modeller at the shape and the builder at the diff", () => {
+    it("nudges the teammate the story waits on at the model, the first versions and the finish", () => {
       expect(tickAt("shape", world()).nudge).toBe("t2")
-      expect(tickAt("diff", world()).nudge).toBe("t3")
+      expect(tickAt("first", world()).nudge).toBe("t2")
+      expect(tickAt("finish", world()).nudge).toBe("t2")
     })
 
     it("counts no silence while that teammate works on its turn, though the lead is quiet", () => {
-      const busy = world({ mates: { modeller: working, builder: quiet } })
+      const busy = world({ mates: { mate: working, maker: quiet } })
       expect(tickAt("shape", busy).nudge).toBeNull()
       const run = { ...at("shape"), waitingSince: 0 }
       expect(nextTick(run, stepsOfRun(run), busy, patience)).toBeNull()

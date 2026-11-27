@@ -827,34 +827,35 @@ App:
   (`frontend/demo/src/tour/story.ts`, as a runner would report it; its files, model and page
   are made in `tour/content.ts`, loaded only as a story plays, so the website's bundle doesn't
   carry them): the tour's folder is a blank start for a browser game, as the runner's seed has
-  it. The lead asks its sheet in the Inbox, "Which game shall we build?", one ask of two questions,
-  "The world" (Fantasy / Sci-fi / Modern) and "The kind" (RPG / Shooter / Strategy), own words
-  allowed. Once answered it opens two teammates (terminals with `ledBy` = the lead, on the lead's
-  own harness), "Modeller" and "Builder"; a few seconds later it asks to run the game's server
+  it. The lead pitches three games in the Inbox, "Which game shall we build?", one options ask
+  (a title and a line each), own words allowed. Once answered it asks to run the game's server
   (`backend.approvals.pending` holds a `run` approval from the lead: the app's approval dialog,
   "Run command"; the plain demo has an approvals store of its own for it, and the debug demo
   routes it to the panel's, so `Tour.prepare`'s `page` can be true on both); once allowed, the
-  lead opens a "Game server" terminal (`openedBy` = the lead, no lead of its own) and shows the
-  game's `page` item on its own bar. The Modeller opens its worktree `models`, writes
-  `models/hero.gltf` and shows it as a `model` item (a tiny glTF whose buffer is a data address,
-  drawn by the 3D pane: a rocket for a Sci-fi world, a robot for Modern, a cat for anything
-  else), and tells the lead "Hero modelled.". The Builder opens its worktree, changes
-  `src/main.js`, shows a `changes` item (with its diffs, read by `companions.changeFile`) and
-  tells the lead "Game built."; the lead's page item loads afresh. Each agent's writes are works
-  (the Worktrees panel) and a feed in the Files panel (cursors, pulses, chips), by the writer's
-  handle. `Tour.keep` resolves. The Files panel lists the game's files (`vendor/` ignored; the
+  lead opens a "Game server" terminal (`openedBy` = the lead, no lead of its own), then three
+  teammates (terminals with `ledBy` = the lead, on the lead's own harness), "Core", "World" and
+  "Feel", and shows the game's `page` item on its own bar, which opens on the kit's showcase. The
+  teammates write to each other (World to Core, Feel to World: messages between two teammates,
+  never through the lead); each opens its worktree (`core`, `world`, `feel`), writes its files
+  (`src/main.js`; `src/world.js` and `models/hero.gltf`; `src/feel.js`), shows its work (World a
+  `model` item, a tiny glTF whose buffer is a data address, drawn by the 3D pane: a rocket, a
+  robot or a cat by the game picked; the others a `changes` item with its diffs, read by
+  `companions.changeFile`), tells the lead "<Role>: first version in", makes one more change and
+  tells it "<Role>: polished". The lead's page item loads afresh as each lands. Each agent's
+  writes are works (the Worktrees panel) and a feed in the Files panel (cursors, pulses, chips),
+  by the writer's handle. `Tour.keep` resolves. The Files panel lists the game's files (`vendor/` ignored; the
   tour's feed is added only where the tour is offered, so no other demo shows a Files button:
   `?channel=experimental`, and the debug panel's demo, which has a Files panel in its plain and
   welcome variants too). The Worktrees panel and the Files overlay show in the tour's project
   even with Agent worktrees off (`useWorktreesShown`, `isTourFolder`: `tour`, `tour-2`, ...), and
   only there.
-  The panel's actions: "Tour story: answer the sheet (Fantasy, RPG)" / "(Sci-fi, Shooter)" /
-  "(own words)" answer the lead's sheet as the person would; "Tour story: the lead's sheet waits
-  until nudged" has the next lead name itself, then wait for `Tour.nudge` before it asks its sheet
-  and opens its team; "Tour story: the modeller stays quiet until nudged" leaves the next
-  Modeller idle at its prompt (no model) until a nudge; "Tour story: the modeller asks about the
-  hero's colour" has the next Modeller, once it showed its model, ask "What colour should the
-  hero be?" and wait for the answer before it reports, and "Tour story: answer the modeller's
+  The panel's actions: "Tour story: answer the pitch (first game)" / "(second game)" /
+  "(own words)" answer the lead's pitch as the person would; "Tour story: the lead's pitch waits
+  until nudged" has the next lead name itself, then wait for `Tour.nudge` before it pitches
+  and opens its team; "Tour story: Core stays quiet until nudged" leaves the next Core
+  idle at its prompt until a nudge; "Tour story: World asks about the hero's colour"
+  has the next World ask "What colour should the hero be?" while Core and Feel work on, and wait
+  for the answer before it polishes, and "Tour story: answer World's
   question (Red)" answers it; "Tour story: no page (as on a computer without Node or Python)"
   makes the next `Tour.prepare` answer `page: false` (no server, no page, the steps for them left
   out); "Tour story: keeping fails" makes the next `Tour.keep` reject, for the closing card's
@@ -868,7 +869,7 @@ App:
   answer before it goes on, and the tour's coach points at its terminal meanwhile. Addresses:
   `&tourScreen=startup|sign-in|hooks` (`&tourScreenMs=<n>` answers the screen after n ms),
   `&tourAgent=quiet|permission`, `&tourStory=off` (stop after the lead names itself),
-  `&tourTeam=quiet`, `&tourModeller=quiet`, `&tourMate=asks` (the Modeller's question),
+  `&tourTeam=quiet`, `&tourMate=quiet` (Core idle), `&tourMate=asks` (World's question),
   `&tourAgent=shell`, `&tourPage=none`, `&tourKeep=fails`, `&tourPatienceMs=<n>` (the UI's wait
   before nudging).
   As the agents go, the tour's driver (`frontend/tour/src/driver.ts`, `useTourDriver.ts`)
@@ -894,15 +895,21 @@ App:
   was done on screen is given up on, and the hold counts from then. Its
   steps (`frontend/tour/src/steps.ts`), spoken by Nyx as each box shows (her takes in `frontend/tour/src/voice/`, the script in `frontend/tour/NARRATION.md`, Narration beside End tour turns her off): "That's your agent. It does the work. I talk."
   (`start`, the lead describes itself); "Your call. What game? Make it a good one." (`ask`, the Inbox's button,
-  then the lead's sheet in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
+  then the lead's pitch in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
   approval's Run command is marked, and the step waits on the person: the lead hires no one
-  before they answer, so the approval has the screen to itself); "There. Nothing in it yet. Give
-  it time." (`page`, the lead's page tab); "Look. It hired its own help. Without asking me?" (`team`, both teammates
-  there and named); "A model, made from nothing. Go on. Spin it." (`shape`, the
-  Modeller's model tab); "See the files blink? That's an agent, writing." (`files`, the Files panel); "Every line
-  it wrote. Nothing hidden." (`diff`, the Builder's changes tab); and "Three agents, one game. Go
-  play." (`play`, the lead's page, a while, then the closing card: "It's yours now. Don't break it."). A
-  teammate's own question to the person is no step: while one waits in the Inbox the coach says
+  before they answer, so the approval has the screen to itself); "Look. It hired its own help.
+  Without asking me?" (`team`, every teammate there and named); a page step ("There. Just a
+  showcase. Wait for yours.", `page`, the lead's page tab); "Agent to agent. Not through me."
+  (`talk`, once a teammate has written to another teammate, not the lead: the sender's Messages
+  tab); "One of them waits on you. The rest keep working." (`mate-ask`, while a teammate's
+  question is in the Inbox: the team's windows to look at, the Inbox to press); "A model, made
+  from nothing. Go on. Spin it." (`shape`, the model's tab, in the pane of the teammate that
+  showed it); "First versions are in. Watch your page change." (`first`) and "Polishing now.
+  See it change again." (`polish`), as the teammates tell the lead so; "They're finishing it.
+  Relax." (`finish`, every teammate polished, at most 8 min); and "Three agents, one game. Go
+  play." (`play`, the lead's page, a while, then the closing card: "It's yours now. Don't
+  break it."). A teammate's own question outside the `mate-ask` step is no step: while one
+  waits in the Inbox the coach says
   "A teammate has a question. Huh? For you, not me." and points at it (or the Inbox's button) until it is
   answered or dismissed, and no step makes its moves meanwhile (the camera would take the person
   away from the Inbox). The

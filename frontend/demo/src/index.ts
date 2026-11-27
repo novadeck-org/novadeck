@@ -891,10 +891,10 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
   // itself until nudged, `&tourAgent=permission` has it ask the person's permission first, and
-  // `&tourPatienceMs=<n>` is how long the UI waits before nudging. The lead then asks the sheet and opens its team
-  // and plays the story on: `&tourStory=off` stops it after it names itself, `&tourTeam=quiet`
-  // has it ask and open its team only once nudged again, `&tourModeller=quiet` keeps the
-  // modeller idle until nudged, `&tourMate=asks` has it ask a question of its own,
+  // `&tourPatienceMs=<n>` is how long the UI waits before nudging. The lead then pitches three games
+  // and opens its team and plays the story on: `&tourStory=off` stops it after it names itself,
+  // `&tourTeam=quiet` has it ask and open its team only once nudged again, `&tourMate=quiet`
+  // keeps the first teammate idle until nudged, `&tourMate=asks` has World ask a question of its own,
   // `&tourAgent=shell` has the lead's program end, its shell back, `&tourPage=none` is a computer with neither Node nor
   // Python (no server, no page), and `&tourKeep=fails` makes the first Keep building fail.
   if (isDemoTour(backend.tour)) {
@@ -910,7 +910,7 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ...(positive("tourScreenMs") !== undefined && { screenMs: positive("tourScreenMs")! }),
     })
     if (params.get("tourTeam") === "quiet") backend.tour.goQuietTeam()
-    if (params.get("tourModeller") === "quiet") backend.tour.goQuietModeller()
+    if (params.get("tourMate") === "quiet") backend.tour.goQuietMate()
     if (params.get("tourMate") === "asks") backend.tour.goMateAsks()
     if (params.get("tourAgent") === "shell") backend.tour.goShell()
     if (params.get("tourPage") === "none") backend.tour.goNoPage()

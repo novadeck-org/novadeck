@@ -30,17 +30,22 @@ export type LeadState =
       readonly answered: boolean
     }
 
-// The parts the story casts by what they do, never by title: the lead and the two teammates it
-// opens, the modeller and the builder.
-export type TourRole = "lead" | "modeller" | "builder"
+// The parts the story casts by what they do, never by title: the lead, and among the teammates it
+// opens (any number, in the order they came up) the one to ring when the story waits on them
+// (`mate`: a quiet one that hasn't said it is polished), the first to write to another teammate
+// (`talker`) and the one with a model (`maker`: it showed one, or its work changes the models).
+export type TourRole = "lead" | "mate" | "talker" | "maker"
 
-// The folders the story's teammates write in, as the run's briefs name them: the modeller's
-// models, and the builder's game.
+// The folder a teammate's models are written in, as the lead's plan names it.
 export const modelsFolder = "models/"
-export const gameFolder = "src/"
+
+// What a teammate writes the lead as its work comes along, as its task words it ("<Role>: first
+// version in", "<Role>: polished").
+const firstVersionNote = /first version/i
+const polishedNote = /polished/i
 
 // The tabs a step looks at in a pane.
-export type PaneTab = "messages" | "page" | "model" | "changes"
+export type PaneTab = "messages" | "page" | "model"
 
 // What the tour waits on, read from the workspace, the agents' messages and the Inbox: the
 // signals its steps go by. Every one that says something happened stays true once it has, as the
@@ -50,8 +55,8 @@ export type TourSignals = {
   // Whether the lead's project and session are the ones on screen: the tour shows only there.
   readonly onScreen: boolean
   // The terminals of the roles found so far, which the stage marks and the nudges go to. The
-  // lead's is the run's; a teammate is the modeller or the builder by what it did, never by its
-  // title (it has none until it describes itself).
+  // lead's is the run's; a teammate is cast by what it did, never by its title (it has none
+  // until it describes itself).
   readonly roles: Readonly<Partial<Record<TourRole, string>>>
   // The teammates the lead opened (terminals it leads), how many have named themselves, and their
   // terminals. A shell the lead opened for the game's server is none of them.
@@ -59,10 +64,14 @@ export type TourSignals = {
     readonly count: number
     readonly named: number
     readonly ids: readonly string[]
-    // How many have written to the lead, as each reports once its part is done (all of them
-    // where the backend has no messages to read), and whether any is at work on a turn now.
-    readonly reported: number
+    // How many have told the lead their first version is in, and how many that it is polished
+    // (all of them where the backend has no messages to read), and whether any is at work on a
+    // turn now.
+    readonly firstIn: number
+    readonly polished: number
     readonly working: boolean
+    // Whether any has asked the person a question of its own, answered or not.
+    readonly asked: boolean
   }
   // Whether the lead's request to run a command in a new terminal waits for the person's yes.
   readonly approving: boolean
@@ -97,25 +106,18 @@ export type TourSignals = {
   // something, as its harness's own permission dialog, or a message held for them: an unsettled
   // Inbox entry of type Unblock, whichever harness raised it. Null while none does.
   readonly permission: { readonly terminalId: string } | null
-  // Whether a teammate's work changes a file of the models, and whether one's changes the game.
-  readonly changed: { readonly models: boolean; readonly game: boolean }
-  // The items agents showed, by role: the id of the lead's page, the modeller's model and the
-  // builder's changes, each null until it is on that agent's bar (the builder's once its work
-  // changes the game, as it is cast).
+  // The items agents showed, by role: the id of the lead's page and the maker's model, each
+  // null until it is on that agent's bar.
   readonly shown: {
     readonly page: ItemId | null
     readonly model: ItemId | null
-    readonly changes: ItemId | null
   }
   // What each role's companion pane shows now: the tab at the top of its open pane, named by what
   // it is (Messages, or the item a step is about); null while the pane is shut or shows another.
   readonly open: Readonly<Partial<Record<TourRole, PaneTab | null>>>
-  // Where the modeller and the builder stand, once found: a step waiting on one counts it only
-  // while it is there and quiet.
-  readonly mates: {
-    readonly modeller: LeadState | null
-    readonly builder: LeadState | null
-  }
+  // Where each teammate role stands, once found: a step waiting on one counts it only while it
+  // is there and quiet.
+  readonly mates: Readonly<Partial<Record<Exclude<TourRole, "lead">, LeadState>>>
 }
 
 // What else the signals are read from, where the backend has it.
@@ -139,13 +141,12 @@ export const noTeam: Pick<
   | "teamScreen"
   | "teamLeft"
   | "permission"
-  | "changed"
   | "shown"
   | "open"
   | "mates"
 > = {
   roles: {},
-  team: { count: 0, named: 0, ids: [], reported: 0, working: false },
+  team: { count: 0, named: 0, ids: [], firstIn: 0, polished: 0, working: false, asked: false },
   approving: false,
   served: false,
   sheet: { asking: false, row: null, answered: false },
@@ -153,10 +154,9 @@ export const noTeam: Pick<
   teamScreen: null,
   teamLeft: null,
   permission: null,
-  changed: { models: false, game: false },
-  shown: { page: null, model: null, changes: null },
+  shown: { page: null, model: null },
   open: {},
-  mates: { modeller: null, builder: null },
+  mates: {},
 }
 
 // A process that ended; `finished` is a command that ran its course, its shell still there.
@@ -192,15 +192,41 @@ const everyMessage = (messages: MessagesState | undefined) => {
   return [...seen.values()]
 }
 
-// Whether `from` wrote to `to`, in the agents' threads.
-const wrote = (messages: MessagesState | undefined, from: string, to: string): boolean =>
+// Whether `from` wrote to `to` words that match `note`, in the agents' threads.
+const wrote = (
+  messages: MessagesState | undefined,
+  from: string,
+  to: string,
+  note: RegExp,
+): boolean =>
   everyMessage(messages).some(
     (message) =>
       message.from.kind === "agent" &&
       message.from.terminalId === from &&
       message.to.kind === "agent" &&
-      message.to.terminalId === to,
+      message.to.terminalId === to &&
+      note.test(message.text),
   )
+
+// The teammate that first wrote to another teammate, not to the lead: the one the story shows
+// talking to the rest. Null while none has.
+const talkerOf = (
+  messages: MessagesState | undefined,
+  mates: ReadonlySet<string>,
+): string | null => {
+  let first: { readonly id: string; readonly at: number } | null = null
+  for (const { from, to, sentAt } of everyMessage(messages))
+    if (
+      from.kind === "agent" &&
+      to.kind === "agent" &&
+      from.terminalId !== to.terminalId &&
+      mates.has(from.terminalId) &&
+      mates.has(to.terminalId) &&
+      (first === null || sentAt < first.at)
+    )
+      first = { id: from.terminalId, at: sentAt }
+  return first?.id ?? null
+}
 
 // A path with forward slashes, as Windows' are written with the other.
 const slashed = (path: string): string => path.replaceAll("\\", "/")
@@ -287,8 +313,7 @@ const openTab = (
     if (!bar?.open) continue
     const key = topOf(bar)
     if (key === messagesKey) return "messages"
-    for (const tab of ["page", "model", "changes"] as const)
-      if (key !== null && key === shown[tab]) return tab
+    for (const tab of ["page", "model"] as const) if (key !== null && key === shown[tab]) return tab
   }
   return null
 }
@@ -325,28 +350,46 @@ export const tourSignals = (
       const teammates = everyTerminal.filter(({ ledBy }) => ledBy === terminalId)
       const mates = new Set(teammates.map(({ id }) => id))
       const items = project.history.flatMap(({ state }) => state.items)
-      // The modeller is the teammate that showed a model or whose work changes the models; the
-      // builder another, whose work changes the game. Not by a `changes` item: every teammate has
-      // one on its bar as soon as its worktree opens, long before it has written anything.
-      const modeller = teammates.find(
+      // The maker is the teammate that showed a model or whose work changes the models.
+      const maker = teammates.find(
         ({ id }) =>
           shownOn(items, id, "model") !== null || changesIn(sources.works, id, modelsFolder),
       )?.id
-      const builder = teammates.find(
-        ({ id }) => id !== modeller && changesIn(sources.works, id, gameFolder),
-      )?.id
+      const talker = talkerOf(sources.messages, mates) ?? undefined
       const lead = terminalId
       const leads = new Set([lead])
+      // The teammate the story waits on and rings: one that hasn't said it is polished, quiet
+      // before at work (a quiet one is the one to nudge), else any (every one that is polished
+      // has ended its turn, with nothing left to do).
+      const quiet = teammates.filter((each) => {
+        const state = leadState(each)
+        return state.kind === "agent" && !state.working
+      })
+      const unpolished = teammates.filter(
+        ({ id }) => !wrote(sources.messages, id, lead, polishedNote),
+      )
+      const mate = (
+        unpolished.find((each) => quiet.includes(each)) ??
+        unpolished[0] ??
+        quiet[0] ??
+        teammates[0]
+      )?.id
       const shown = {
         page: shownOn(items, lead, "page"),
-        model: shownOn(items, modeller, "model"),
-        changes: shownOn(items, builder, "changes"),
+        model: shownOn(items, maker, "model"),
       }
       const roles = {
         lead,
-        ...(modeller && { modeller }),
-        ...(builder && { builder }),
+        ...(mate && { mate }),
+        ...(talker && { talker }),
+        ...(maker && { maker }),
       }
+      const stateOf = (id: string | undefined): LeadState | undefined =>
+        id === undefined ? undefined : leadState(teammates.find((each) => each.id === id))
+      const told = (note: RegExp): number =>
+        sources.messages
+          ? teammates.filter(({ id }) => wrote(sources.messages, id, lead, note)).length
+          : teammates.length
       const sheetRow = askingRowOf(sources.inbox, leads)
       return {
         lead: leadState(terminal),
@@ -357,13 +400,13 @@ export const tourSignals = (
           count: teammates.length,
           named: teammates.filter(({ titleSource }) => titleSource?.kind === "agent").length,
           ids: teammates.map(({ id }) => id),
-          reported: sources.messages
-            ? teammates.filter(({ id }) => wrote(sources.messages, id, lead)).length
-            : teammates.length,
+          firstIn: told(firstVersionNote),
+          polished: told(polishedNote),
           working: teammates.some((each) => {
             const state = leadState(each)
             return state.kind === "agent" && state.working
           }),
+          asked: questionsOf(sources.inbox, mates).length > 0,
         },
         approving: (sources.approvals ?? []).some(
           ({ from, action }) => action.type === "run" && from === lead,
@@ -380,18 +423,17 @@ export const tourSignals = (
         teamScreen: heldOf(teammates),
         teamLeft: leftOf(teammates),
         permission: permissionOf(sources.inbox, new Set([lead, ...mates])),
-        changed: {
-          models: teammates.some(({ id }) => changesIn(sources.works, id, modelsFolder)),
-          game: teammates.some(({ id }) => changesIn(sources.works, id, gameFolder)),
-        },
         shown,
         open: Object.fromEntries(
           Object.entries(roles).map(([role, id]) => [role, openTab(project, id, shown)]),
         ),
-        mates: {
-          modeller: modeller ? leadState(teammates.find(({ id }) => id === modeller)) : null,
-          builder: builder ? leadState(teammates.find(({ id }) => id === builder)) : null,
-        },
+        mates: Object.fromEntries(
+          [
+            ["mate", mate],
+            ["talker", talker],
+            ["maker", maker],
+          ].flatMap(([role, id]) => (id === undefined ? [] : [[role, stateOf(id)]])),
+        ),
       }
     }
   return { lead: { kind: "gone" }, onScreen: false, ...noTeam }

@@ -1,28 +1,32 @@
 # Your game
 
-A blank start for a browser game. Nothing is built yet: the page shows a placeholder model
-turning.
+A start for a browser game. Nothing of the game is built yet: the page shows the kit's showcase,
+which the game replaces.
 
 ## The stack
 
 Plain JavaScript modules, no build step and nothing to install: save a file and the page shows
 it.
 
-- [three.js](https://threejs.org) r187 for 3D: `import * as THREE from "three"`, and its addons
-  from `"three/addons/..."` (`controls/PointerLockControls.js`, `controls/OrbitControls.js`,
-  `loaders/GLTFLoader.js` and the rest of `examples/jsm`).
-- [Phaser](https://phaser.io) 3.90 for 2D: the global `Phaser`, already loaded by `index.html`.
-
-Use whichever suits the game, or both.
+- **The kit** (`kit/`, read `kit/README.md`): ready parts that make a game look and sound
+  finished from its first minute: a stage with bloom and post-processing, cameras, skies and
+  grounds, particles, juice (shake, hit-stop, tweens), shapes, shader materials, sound effects
+  and music made in code, title, HUD and end screens, and input. Build on it.
+- [three.js](https://threejs.org) r187, which the kit runs on: `import * as THREE from "three"`.
+  Of its addons only these are here: `three/addons/loaders/GLTFLoader.js`,
+  `three/addons/utils/BufferGeometryUtils.js` and `three/addons/utils/SkeletonUtils.js`. The
+  kit has its own cameras, controls and post-processing in their place.
+- [Phaser](https://phaser.io) 3.90 for a 2D game: the global `Phaser`, already loaded by
+  `index.html`.
 
 ## What is where
 
 - `index.html`: the page. It loads `src/main.js` into `<div id="game">`.
-- `src/main.js`: the placeholder. Replace it with the game, and add more files beside it.
-- `src/models.js`: loads the game's models, for a 3D scene or as pictures for a 2D game.
-- `models/`: every character, unit, enemy and prop is a glTF model here, a short text file built
-  of ready shapes. `models/README.md` says how to make one. `placeholder.gltf` is the one on the
-  page now.
+- `src/main.js`: the kit's showcase. Replace it with the game, and add more files beside it.
+- `kit/`: the kit. `kit/README.md` lists every part and how to call it.
+- `src/models.js`: loads a model from `models/`, for a 3D scene or as a picture for a 2D game.
+- `models/`: glTF models, short text files built of ready shapes. `models/README.md` says how to
+  make one. `placeholder.gltf` is one.
 - `src/style.css`: the page's own style (a full-window game).
 - `vendor/`: three.js and Phaser as files, kept out of git.
 

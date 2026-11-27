@@ -184,7 +184,7 @@ export const useTourDriver = ({ backend, workspace, commands }: TourHost): TourD
   const inbox = useSyncExternalStore(backend.inbox?.state.subscribe ?? noState, () =>
     backend.inbox?.state.getSnapshot(),
   )
-  // The works the backend tracks, which say when the modeller and the builder have changed their
+  // The works the backend tracks, which say when a teammate has changed the models'
   // files: followed while a run is (below), as the Worktrees panel would.
   const worksState = backend.works?.state
   const works = useSyncExternalStore(
