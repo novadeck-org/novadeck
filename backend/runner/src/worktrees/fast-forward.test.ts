@@ -24,12 +24,15 @@ describe("fast-forwarding a checkout", () => {
     origin,
     hooks,
   }) => {
+    const first = head(origin.repo)
     const landed = origin.land("b.txt")
     origin.fetch()
     writeFileSync(join(origin.repo, "scratch.txt"), "mine\n")
     expect(await fastForward(origin.repo, { hooks: () => Promise.resolve(hooks) })).toEqual({
       ok: true,
       moved: true,
+      from: first,
+      to: landed,
     })
     expect(head(origin.repo)).toBe(landed)
     expect(existsSync(join(origin.repo, "b.txt"))).toBe(true)
@@ -90,6 +93,8 @@ describe("fast-forwarding a checkout", () => {
     expect(await fastForward(origin.repo, { ...options, allowChanges: true })).toEqual({
       ok: true,
       moved: true,
+      from: before,
+      to: landed,
     })
     expect(head(origin.repo)).toBe(landed)
   })

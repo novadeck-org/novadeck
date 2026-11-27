@@ -1,5 +1,5 @@
 import type { FilesProject } from "@novadeck/core/files"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { rowShowing, writtenPaths, type FilesRow } from "./files-tree"
 
@@ -16,7 +16,12 @@ export const usePulses = (
   rows: readonly FilesRow[],
   open: ReadonlySet<string>,
   showing: boolean,
-): { readonly pulses: Readonly<Record<string, number>>; readonly end: () => void } => {
+): {
+  readonly pulses: Readonly<Record<string, number>>
+  readonly end: () => void
+  // Pulses the rows showing these files once, as a write would (what landed from origin).
+  readonly add: (paths: readonly string[]) => void
+} => {
   const [pulses, setPulses] = useState<Readonly<Record<string, number>>>({})
   const [seen, setSeen] = useState(changes)
   if (seen !== changes) {
@@ -64,5 +69,22 @@ export const usePulses = (
   const end = (): void => {
     if (Object.keys(pulses).length > 0) setPulses({})
   }
-  return { pulses, end }
+  const latest = useRef({ rows, open, showing })
+  useLayoutEffect(() => {
+    latest.current = { rows, open, showing }
+  })
+  const add = (paths: readonly string[]): void => {
+    const { rows: shown, open: opened, showing: visible } = latest.current
+    if (!visible) return
+    const onScreen = new Set(shown.map((row) => row.node.path))
+    const landed = new Set(
+      paths.map((path) => rowShowing(path, opened)).filter((path) => onScreen.has(path)),
+    )
+    if (landed.size > 0)
+      setPulses((current) => ({
+        ...current,
+        ...Object.fromEntries([...landed].map((path) => [path, (current[path] ?? 0) + 1])),
+      }))
+  }
+  return { pulses, end, add }
 }

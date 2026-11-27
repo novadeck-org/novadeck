@@ -18,8 +18,9 @@ export type PopoverProps = {
   // What its trigger's tooltip says, while the popover is closed. The trigger's Ark data
   // attributes are then the tooltip's: style its open state by aria-expanded.
   readonly tooltip?: string
-  // Where it opens from its trigger: below by default, or above for one at the bottom.
-  readonly placement?: "bottom-start" | "bottom-end" | "top-end"
+  // Where it opens from its trigger: below by default, above for one at the bottom, or beside it
+  // for one that hangs off the side of a narrow panel.
+  readonly placement?: "bottom-start" | "bottom-end" | "top-end" | "right-start"
   // Where focus lands when it opens, where the first control is not the one to press by reflex;
   // false leaves focus where it is, for one that opens by itself.
   readonly initialFocus?: () => HTMLElement | null | false

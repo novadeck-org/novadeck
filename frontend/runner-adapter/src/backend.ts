@@ -2409,7 +2409,11 @@ export const runnerBackend = (
           await untilAnswered(() => runner.projects.arrange(arrangement))
         }),
       ),
-    files: createRunnerFiles(runner.projects),
+    files: createRunnerFiles(
+      runner.projects,
+      (path) =>
+        typeof (runner as Partial<typeof runner>).supports !== "function" || runner.supports(path),
+    ),
     history: history.history,
     // Once the session it goes to exists on the runner, as one the person just made does
     // after a moment; the runner's `changed` then moves it here (`moveEntry`).

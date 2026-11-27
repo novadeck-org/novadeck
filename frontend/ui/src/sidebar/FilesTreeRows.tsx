@@ -1,4 +1,4 @@
-import type { FileChange } from "@novadeck/core/files"
+import type { FileChange, RepoSync } from "@novadeck/core/files"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -13,12 +13,14 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  GitMerge,
   PanelRight,
   type LucideIcon,
 } from "lucide-react"
 import { useCallback } from "react"
 
 import { dimmedBy } from "./files-agents"
+import { marksOf } from "./files-sync"
 import {
   expandable,
   fileIconOf,
@@ -34,6 +36,7 @@ import {
   type FilesRow,
 } from "./files-tree"
 import type { Place } from "./files-window"
+import { SyncDot, SyncMarks, type SyncCardKind } from "./FilesSync"
 
 const plainIcons: Readonly<Record<FileIcon, LucideIcon>> = {
   code: FileCode,
@@ -105,7 +108,7 @@ const Chips = ({
   return (
     // The row's own label names everyone who changed it, so the chips stay out of what a
     // screen reader reads, and out of the tree, which holds only treeitems and groups.
-    <span className="files-chips text-caption" aria-hidden="true">
+    <span className="files-agent-chips" aria-hidden="true">
       {shown.map((handle) => (
         <span
           key={handle}
@@ -173,8 +176,13 @@ const Marks = ({
   return latest === 0 ? null : <Trail key={`${latest}/${shownTimes}`} latest={latest} />
 }
 
-const rowLabel = (row: FilesRow, everyone: readonly string[]): string =>
-  [row.node.name, row.node.kind, everyone.map((handle) => `@${handle}`).join(" ")]
+const rowLabel = (row: FilesRow, everyone: readonly string[], sync: RepoSync | undefined): string =>
+  [
+    row.node.name,
+    row.node.kind,
+    everyone.map((handle) => `@${handle}`).join(" "),
+    ...(sync ? marksOf(sync).map(({ tip }) => tip) : []),
+  ]
     .filter(Boolean)
     .join(", ")
 
@@ -193,6 +201,10 @@ export const TreeRow = ({
   onOpenFolder,
   onFocus,
   onLight,
+  sync,
+  syncOpen,
+  hidesNews,
+  onSync,
 }: {
   row: FilesRow
   // Where the row stands among its siblings: the tree draws only some of its rows, and a screen
@@ -212,6 +224,14 @@ export const TreeRow = ({
   onOpenFolder: ((row: FilesRow) => void) | undefined
   onFocus: (path: string) => void
   onLight: (pointed: Pointed | undefined) => void
+  // The git repository this folder is, with how it stands against its origin's main.
+  sync?: RepoSync | undefined
+  // The card that hangs off this row's marks now.
+  syncOpen?: SyncCardKind | undefined
+  // The folder is closed and hides a repository with news.
+  hidesNews?: boolean
+  // A mark was pressed: its card opens.
+  onSync?: ((repo: RepoSync, kind: SyncCardKind, anchor: HTMLElement) => void) | undefined
 }): React.JSX.Element => {
   const { node, depth, open } = row
   const fileIcon = node.kind ? changedIcons[node.kind] : plainIcons[fileIconOf(node.name)]
@@ -252,7 +272,7 @@ export const TreeRow = ({
         tabIndex={tabStop ? 0 : -1}
         aria-expanded={branch ? open : undefined}
         aria-selected={node.folder ? undefined : selected}
-        aria-label={rowLabel(row, everyone)}
+        aria-label={rowLabel(row, everyone, sync)}
         // A double click's second click doesn't open the file again.
         onClick={(event) => (node.folder || event.detail <= 1) && onActivate(row)}
       >
@@ -265,15 +285,24 @@ export const TreeRow = ({
         <span className="files-name text-body">{node.name}</span>
         <Marks row={row} shownTimes={shownTimes} />
       </button>
-      {chips && (
-        <Chips
-          row={row}
-          chips={chips}
-          lit={lit}
-          onLight={(handle) =>
-            onLight(handle === undefined ? undefined : { path: node.path, handle })
-          }
-        />
+      {(chips?.shown.length || sync || hidesNews) && (
+        <span
+          className="files-chips text-caption"
+          aria-hidden={sync || hidesNews ? undefined : true}
+        >
+          {sync && onSync && <SyncMarks repo={sync} open={syncOpen} onOpen={onSync} />}
+          {hidesNews && !open && <SyncDot />}
+          {chips && (
+            <Chips
+              row={row}
+              chips={chips}
+              lit={lit}
+              onLight={(handle) =>
+                onLight(handle === undefined ? undefined : { path: node.path, handle })
+              }
+            />
+          )}
+        </span>
       )}
       {openable && (
         <Tooltip content="Open in the pane">
@@ -291,19 +320,42 @@ export const TreeRow = ({
       )}
     </div>
   )
-  return openable ? (
-    <ContextMenu
-      label={`${node.name} actions`}
-      trigger={line}
-      items={[
-        {
-          value: "open-in-pane",
-          label: "Open in the pane",
-          icon: <PanelRight size={14} strokeWidth={1.75} aria-hidden />,
-          onSelect: () => onOpenFolder(row),
-        },
-      ]}
-    />
+  // What the row's menu offers, which keyboards reach it by: the pane, and the cards of its marks.
+  const items = [
+    ...(openable
+      ? [
+          {
+            value: "open-in-pane",
+            label: "Open in the pane",
+            icon: <PanelRight size={14} strokeWidth={1.75} aria-hidden />,
+            onSelect: () => onOpenFolder(row),
+          },
+        ]
+      : []),
+    ...(sync && onSync
+      ? marksOf(sync).flatMap((mark) =>
+          mark.kind === "ahead"
+            ? []
+            : [
+                {
+                  value: `sync-${mark.kind}`,
+                  label: mark.kind === "new" ? "See what came in" : "See what is behind",
+                  icon: <GitMerge size={14} strokeWidth={1.75} aria-hidden />,
+                  onSelect: () =>
+                    onSync(
+                      sync,
+                      mark.kind,
+                      document.querySelector<HTMLElement>(
+                        `[data-sync-mark="${CSS.escape(`${mark.kind}:${sync.path}`)}"]`,
+                      ) ?? document.body,
+                    ),
+                },
+              ],
+        )
+      : []),
+  ]
+  return items.length > 0 ? (
+    <ContextMenu label={`${node.name} actions`} trigger={line} items={items} />
   ) : (
     line
   )

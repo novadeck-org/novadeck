@@ -101,6 +101,23 @@ picks files by their own name, outside ignored folders like `node_modules`; to c
 something inside one, write its path (`.venv/`, `certs/local/**`). Dependencies and build output
 aren't copied unless you name them, and the agent is told what it got.
 
+## Main stays current
+
+Novadeck keeps `main` current in every git repository of an open project: the project's own folder,
+if it's in one, and the repositories nested under it (down four folders, not in `node_modules` and
+the like). It fetches each one every five minutes, and right away when a pull request of one of your
+agents is merged, and moves `main` forward when that's safe: you're on `main`, have no changes to
+tracked files, and no merge or rebase is half done.
+
+The **Files** panel says where each repository stands, on its folder row (or on a line over the tree,
+where the project is one repository): **3 new** when `main` just caught up, with a card listing the
+merges, the files that changed (they pulse once in the tree) and the command to run if a lockfile
+changed; **↓2** when `main` is behind and Novadeck left it alone (the card says why and has
+**Update**); **↑1** for commits `main` has that origin doesn't. A closed folder that hides news
+shows a dot, and so does the Files icon while the panel is hidden. You get a notification, per
+Preferences > Notifications, only when a pull request of one of your agents lands in `main`, or when
+new dependencies come in. Agents working in a repository's own folder are told when `main` moved.
+
 ## Agents show you their work
 
 ![An order status page shown in a pane next to the agent's terminal.](assets/guide/show-page.webp)

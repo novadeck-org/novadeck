@@ -1,7 +1,8 @@
 import type {
-  CheckoutState,
   CheckoutUpdate,
   ProjectFiles,
+  ProjectSync,
+  RepoSync,
   FolderEntry,
   TouchedFile,
   FolderListing,
@@ -424,6 +425,14 @@ const between = (range: { min: number; max: number }, roll: number): number =>
 // behind where Novadeck left it alone, and `refusal`, git's reason, where an update is refused.
 export type DemoCheckout = { readonly count: number; readonly refusal?: string }
 
+// What main's move brought, as the demo tells it: three merges (one of them an agent's), the files
+// of `movedFiles` among 14, and a lockfile that changed.
+const demoMerges = [
+  { subject: "Add the receipt step", pr: 41, commit: "a1b2c3d4e5f6", own: true },
+  { subject: "Price rounds to cents", pr: 40, commit: "b2c3d4e5f6a1", own: false },
+  { subject: "Bump the payment SDK", pr: 39, commit: "c3d4e5f6a1b2", own: false },
+]
+
 // The file main brings to the checkout when it moves, and the one it takes away.
 export const movedFiles = { added: "src/checkout/Receipt.tsx", removed: "src/components/Price.tsx" }
 
@@ -433,6 +442,12 @@ export type DemoFiles = ProjectFiles & {
   // Has main move the checkout, as a fetch does where nothing holds it back: the files on disk
   // change (`movedFiles`), which the panel, shown, reads again within a few seconds.
   readonly move: () => void
+  // Has the storefront's main have `count` commits origin lacks (0: none).
+  readonly ahead: (count: number) => void
+  // Has a repository nested at `src/api` have news (`behind`, `landed`), or none.
+  readonly nest: (
+    news: { readonly behind?: boolean; readonly landed?: boolean } | undefined,
+  ) => void
   // Has the next reads of `folder` go as `fault` says, or normally for none. The panel reads
   // a folder again when it is shown again or an agent's turn ends.
   readonly degrade: (folder: string, fault: FilesFault | undefined) => void
@@ -506,28 +521,86 @@ export const createDemoFiles = (
   const stand = (checkout: DemoCheckout | undefined): void => {
     standing = checkout
   }
+  let landed = false
+  let aheadBy = 0
+  let nested: { readonly behind?: boolean; readonly landed?: boolean } | undefined
+  let nestedLanded = false
   const move = (): void => {
     movedOnDisk = true
     moved += 1
+    landed = true
   }
-  const checkout = async (id: string): Promise<CheckoutState> =>
-    id === projectId && standing
-      ? {
-          behind: { branch: "main", remote: "origin/main", count: standing.count },
-          moved,
-          head: `demo-${moved}`,
-        }
-      : {
-          behind: null,
-          moved: id === projectId ? moved : 0,
-          head: id === projectId ? `demo-${moved}` : null,
-        }
-  const update = async (id: string): Promise<CheckoutUpdate> => {
-    if (id === projectId && standing?.refusal !== undefined)
-      return { ok: false, said: standing.refusal }
-    if (id === projectId && standing) {
+  const ahead = (count: number): void => {
+    aheadBy = count
+  }
+  const nest = (news: typeof nested): void => {
+    nested = news
+    nestedLanded = news?.landed === true
+  }
+  const landingOf = (to: string, paths: readonly string[]): NonNullable<RepoSync["landing"]> => ({
+    from: "0000000",
+    to,
+    at: clock.now() - 120_000,
+    commits: 3,
+    merges: demoMerges,
+    files: paths,
+    filesTotal: 14,
+    dependencies: { file: "package-lock.json", command: "npm install" },
+  })
+  const sync = async (id: string): Promise<ProjectSync> => {
+    if (id !== projectId) return { repos: [] }
+    const repos: RepoSync[] = [
+      {
+        path: "",
+        name: "storefront",
+        branch: "main",
+        behind: standing
+          ? {
+              remote: "origin/main",
+              count: standing.count,
+              why: standing.refusal === undefined ? null : "You have edits in src/cart/useCart.ts",
+              merges: demoMerges.slice(0, standing.count),
+            }
+          : null,
+        ahead: aheadBy,
+        landing: landed
+          ? landingOf(`demo-${moved}`, [movedFiles.added, movedFiles.removed, "package-lock.json"])
+          : null,
+        moved,
+        head: `demo-${moved}`,
+      },
+    ]
+    if (nested)
+      repos.push({
+        path: "src/api",
+        name: "api",
+        branch: "main",
+        behind: nested.behind
+          ? { remote: "origin/main", count: 1, why: null, merges: demoMerges.slice(1, 2) }
+          : null,
+        ahead: 0,
+        landing: nestedLanded ? landingOf("demo-api", ["src/api/index.ts"]) : null,
+        moved: 0,
+        head: "demo-api",
+      })
+    return { repos }
+  }
+  const seen = async (id: string, path: string): Promise<void> => {
+    if (id !== projectId) return
+    if (path === "") landed = false
+    else nestedLanded = false
+  }
+  const update = async (id: string, path = ""): Promise<CheckoutUpdate> => {
+    if (id !== projectId) return { ok: true }
+    if (path !== "") {
+      if (nested) nested = { ...nested, behind: false }
+      return { ok: true }
+    }
+    if (standing?.refusal !== undefined) return { ok: false, said: standing.refusal }
+    if (standing) {
       standing = undefined
-      move()
+      movedOnDisk = true
+      moved += 1
     }
     return { ok: true }
   }
@@ -649,10 +722,13 @@ export const createDemoFiles = (
   return {
     state,
     list,
-    checkout,
+    sync,
+    seen,
     update,
     stand,
     move,
+    ahead,
+    nest,
     degrade,
     write,
     mark,

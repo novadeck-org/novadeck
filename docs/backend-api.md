@@ -259,7 +259,14 @@ counts the times the runner moved the checkout since it began, and `head` is the
 (`null` where there is none); a change in either says files on disk may have changed. A project outside a
 repository, or with no remote main, is `{ behind: null, moved: 0, head: null }`. `projects.updateCheckout({ projectId })` fast-forwards it on the
 person's say, tracked changes allowed, answering `{ ok: true }` (also where there was nothing to move) or
-`{ ok: false, said }` with git's reason or the operation in progress.
+`{ ok: false, said }` with git's reason or the operation in progress; with `path` (revision 23) it updates the repository
+nested at that path. `projects.sync({ projectId })` (revision 23) says how each git repository of the project
+stands: `{ repos: [{ path, name, branch, behind: { remote, count, why, merges } | null, ahead, landing, moved,
+head }] }`, `path` being the repository's folder from the project's root ("" for the one the root is in) and
+`landing` what the runner's last move of main brought that nobody has seen (`from`, `to`, `at`, `commits`,
+`merges` with `pr` and `own`, `files`, `filesTotal`, `dependencies: { file, command } | null`).
+`projects.syncSeen({ projectId, path, to? })` clears the landing of the repository at `path` (a newer one than `to`
+stays), for every client.
 `sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the
 runner stores with the session without reading it, such as a UI layout, and `visitedAt`,
 when the person last visited it (null: never). Sessions list both; the latest visit picks a

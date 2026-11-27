@@ -167,6 +167,8 @@ export const scriptedRunner = ({
       folder: api.projects.folder.handler(unplayed("projects.folder")),
       checkout: api.projects.checkout.handler(() => ({ behind: null, moved: 0, head: null })),
       updateCheckout: api.projects.updateCheckout.handler(unplayed("projects.updateCheckout")),
+      sync: api.projects.sync.handler(() => ({ repos: [] })),
+      syncSeen: api.projects.syncSeen.handler(() => {}),
     },
     sessions: {
       list: api.sessions.list.handler(() => [session]),

@@ -48,22 +48,57 @@ export type FolderListing = {
   readonly truncated: boolean
 }
 
-// How a project's own checkout stands against its remote's main. `behind` is set where the
-// checkout is on main and main is ahead of it, which the backend moves by itself where nothing is
-// in the way: the branch, the remote's name for it, and how many commits it lacks. `moved` counts
-// the times the backend moved the checkout to main, and `head` is the commit it is at (null
-// where there is none): when either changes, the files on disk may have.
-export type CheckoutState = {
+// What main's last move in a repository brought, as the Files panel tells of it until the person
+// opens it: the merges (a pull request's number, or none for a plain commit; `own` where the
+// pull request is one of the person's agents'), the files that changed by path from the project's
+// root, and the command for the dependencies a changed lockfile asks for.
+export type SyncMerge = {
+  readonly subject: string
+  readonly pr: number | null
+  readonly commit: string
+  readonly own: boolean
+}
+
+export type SyncLanding = {
+  readonly from: string
+  readonly to: string
+  // When it landed, in milliseconds since the epoch.
+  readonly at: number
+  readonly commits: number
+  readonly merges: readonly SyncMerge[]
+  readonly files: readonly string[]
+  // How many files changed, which may be more than `files` lists.
+  readonly filesTotal: number
+  readonly dependencies: { readonly file: string; readonly command: string } | null
+}
+
+// How one git repository of a project stands against its origin's main. `path` is its folder from
+// the project's root with `/` between names, "" where the project's root is in the repository
+// itself. `behind` is set where main is ahead of the checkout and the backend left it: how many
+// commits, the remote's name for main, and in words why (null where nothing held it back).
+// `ahead` counts the commits main has that origin lacks. `landing` is the last move of main the
+// person has not seen. `moved` counts the times the backend moved the checkout to main and `head` is
+// the commit it is at (null where there is none): when either changes, the files on disk may have.
+export type RepoSync = {
+  readonly path: string
+  readonly name: string
+  readonly branch: string
   readonly behind: {
-    readonly branch: string
     readonly remote: string
     readonly count: number
+    readonly why: string | null
+    // The merges waiting on origin, newest first.
+    readonly merges: readonly SyncMerge[]
   } | null
+  readonly ahead: number
+  readonly landing: SyncLanding | null
   readonly moved: number
   readonly head: string | null
 }
 
-// What an update of the checkout did: it moved (or had nothing to move), or git's reason.
+export type ProjectSync = { readonly repos: readonly RepoSync[] }
+
+// What an update of a checkout did: it moved (or had nothing to move), or git's reason.
 export type CheckoutUpdate = { readonly ok: true } | { readonly ok: false; readonly said: string }
 
 export type ProjectFiles = {
@@ -73,12 +108,16 @@ export type ProjectFiles = {
   // never listed. Rejects when the project or the folder has gone, or the path leads out
   // of the project's directory.
   readonly list: (projectId: string, folder: string) => Promise<FolderListing>
-  // How the project's own checkout stands as it is now. Rejects when the project has gone.
-  // Absent where a backend has no checkout to move.
-  readonly checkout?: (projectId: string) => Promise<CheckoutState>
-  // Fast-forwards the checkout to the remote's main on the person's say, tracked changes
-  // allowed; `ok: false` says why not. Absent where `checkout` is.
-  readonly update?: (projectId: string) => Promise<CheckoutUpdate>
+  // How each git repository of the project stands against its origin's main as it is now.
+  // Rejects when the project has gone. Absent where a backend has none to tell of.
+  readonly sync?: (projectId: string) => Promise<ProjectSync>
+  // The person saw what main's last move in the repository at `path` brought (up to the commit
+  // `to`, where given): it is gone for every window. Absent where `sync` is.
+  readonly seen?: (projectId: string, path: string, to?: string) => Promise<void>
+  // Fast-forwards the repository's checkout (at `path`, the project's own when omitted) to the
+  // remote's main on the person's say, tracked changes allowed; `ok: false` says why not. Absent
+  // where `sync` is.
+  readonly update?: (projectId: string, path?: string) => Promise<CheckoutUpdate>
 }
 
 // How an agent's trail fades once it stops writing a file: from this opacity, by this much every

@@ -52,6 +52,10 @@ export type WorktreesHost = {
   readonly busy?: CleanupHost["busy"]
   /** Cleanup's own timing and fetcher, which tests replace. */
   readonly cleanup?: Pick<CleanupHost, "sweepMs" | "fetcher">
+  /** The repositories of every open project, which are fetched and followed (`CleanupHost.followed`). */
+  readonly followed?: CleanupHost["followed"]
+  /** Told when a checkout was moved to main by the runner (`CleanupHost.landed`). */
+  readonly landed?: CleanupHost["landed"]
   /** Repositories beyond the tracked worktrees' that are kept fetched (compares of remote refs). */
   readonly repositories?: () => Promise<readonly string[]>
   /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
@@ -216,6 +220,8 @@ export class Worktrees {
       ...(host.now && { now: host.now }),
       ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
       ...(host.repositories && { repositories: host.repositories }),
+      ...(host.followed && { followed: host.followed }),
+      ...(host.landed && { landed: host.landed }),
       ...host.cleanup,
     })
   }

@@ -26,6 +26,7 @@ export const noticeKinds = [
   "Inbox",
   "Inbox answers",
   "Worktrees",
+  "Main",
   "Restart",
   "Resources",
   "Messages",

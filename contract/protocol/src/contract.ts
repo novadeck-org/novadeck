@@ -58,6 +58,7 @@ import { preferenceChange, preferenceKey, preferenceValue } from "./preferences.
 import {
   checkoutState,
   checkoutUpdate,
+  projectSync,
   clientState,
   folderListing,
   project,
@@ -195,7 +196,32 @@ export const contract = {
     // (git still refuses where one of them is in the way). Refused, with git's reason, while an
     // operation is half done; answers ok where there is nothing to move. A project the runner
     // doesn't have is NOT_FOUND.
-    updateCheckout: procedure.input(z.strictObject({ projectId: id })).output(checkoutUpdate),
+    // With `path`, the repository nested at that path from the project's root (one `sync` named)
+    // rather than the project's own.
+    updateCheckout: procedure
+      .input(z.strictObject({ projectId: id, path: z.string().max(4096).optional() }))
+      .output(checkoutUpdate),
+    // How each git repository in the project stands against its origin's main (see `repoSync`):
+    // the project's own folder's and those nested under it. Empty for a project with none. A
+    // project the runner doesn't have is NOT_FOUND.
+    sync: procedure
+      .meta({ since: 23 })
+      .input(z.strictObject({ projectId: id }))
+      .output(projectSync),
+    // The person saw what main's last move in the repository at `path` (as `sync` names it) brought:
+    // its `landing` goes, for every client. Nothing where there is none; NOT_FOUND for a project
+    // the runner doesn't have.
+    syncSeen: procedure
+      .meta({ since: 23 })
+      .input(
+        z.strictObject({
+          projectId: id,
+          path: z.string().max(4096),
+          // The commit the landing it saw ended at: a newer landing stays.
+          to: z.string().max(128).optional(),
+        }),
+      )
+      .output(z.void()),
   },
   sessions: {
     // In the order the person arranged them; a session created since comes first.

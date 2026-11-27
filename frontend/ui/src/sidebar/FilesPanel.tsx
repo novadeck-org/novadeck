@@ -1,4 +1,5 @@
-import type { FolderListing, FilesProject } from "@novadeck/core/files"
+import type { FolderListing, FilesProject, RepoSync } from "@novadeck/core/files"
+import { Popover } from "@novadeck/toolkit/Popover"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ChevronsDownUp } from "lucide-react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from "react"
@@ -13,6 +14,7 @@ import {
   type Squad,
 } from "./files-agents"
 import { textWidth } from "./files-fonts"
+import { hidesNews, rootRepo, type SyncFeed } from "./files-sync"
 import {
   buildTree,
   chipsOf,
@@ -32,14 +34,15 @@ import {
   type FilesRow,
 } from "./files-tree"
 import { placesOf, rowHeight, scrollToLine, windowOf } from "./files-window"
-import { CheckoutLine, useCheckout, type Checkout } from "./FilesCheckout"
 import { FilesStrip } from "./FilesStrip"
+import { SyncCard, SyncLine, cardLabel, type SyncCardKind } from "./FilesSync"
 import { NoteRow, TreeRow, type Pointed } from "./FilesTreeRows"
 import { panelLabels } from "./panel-labels"
 import { SidebarPanel } from "./SidebarPanel"
 import { useFilterMotion } from "./useFilterMotion"
 import { useFolderReader } from "./useFolderReader"
 import { usePulses } from "./usePulses"
+import { useRepoSync } from "./useRepoSync"
 import { useTreeMeasure } from "./useTreeMeasure"
 import { useTreeScroll } from "./useTreeScroll"
 
@@ -67,7 +70,7 @@ const FilesPanelView = ({
   project,
   list,
   turn,
-  checkout,
+  sync,
   watch,
   onOpenFile,
   onOpenFolder,
@@ -85,8 +88,8 @@ const FilesPanelView = ({
   list: (folder: string) => Promise<FolderListing>
   // When an agent's turn last ended in the project, which has the folders read again.
   turn: number
-  // The project's own checkout against its remote's main, where the backend has one to move.
-  checkout?: Checkout | undefined
+  // How the project's git repositories stand against their origins' main, where the backend tells.
+  sync?: SyncFeed | undefined
   // Follows the works `project` comes from until the returned release is called, where it
   // comes from them.
   watch?: (() => () => void) | undefined
@@ -179,9 +182,45 @@ const FilesPanelView = ({
     if (!showing) return
     for (const folder of wanted) if (!listings.has(folder) && !isReading(folder)) read(folder)
   }, [showing, wanted, listings, read, isReading])
-  // The backend moved the checkout to main: the files on disk changed, so what is on screen is
-  // read again, added and removed files with it.
-  const checkoutState = useCheckout(checkout, showing, turn, () => wantedNow.current.forEach(read))
+  // The repositories against their origins. Shown, or shown again, or an agent's turn ended: asked
+  // again now. The backend moved a checkout to main, or the person's own pull or commit moved it:
+  // the files on disk changed, so what is on screen is read again, added and removed files with it.
+  const repos = useRepoSync(sync)
+  useEffect(() => {
+    if (showing) sync?.refresh()
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A turn's end asks again.
+  }, [showing, turn, sync])
+  const standing = repos.map(({ path, moved, head }) => `${path}\0${moved}\0${head}`).join("\n")
+  const lastStanding = useRef(standing)
+  useEffect(() => {
+    const before = lastStanding.current
+    lastStanding.current = standing
+    if (showing && before !== "" && before !== standing) wantedNow.current.forEach(read)
+  }, [standing, showing, read])
+  const repoAt = useMemo(
+    () => new Map(repos.flatMap((repo) => (repo.path === "" ? [] : [[repo.path, repo] as const]))),
+    [repos],
+  )
+  // The card a mark opened: what landed as it was when the person opened it, or what is behind as
+  // it stands. `rect` is where the mark was.
+  const [card, setCard] = useState<
+    { readonly kind: SyncCardKind; readonly repo: RepoSync; readonly rect: DOMRect } | undefined
+  >()
+  const [updating, setUpdating] = useState(false)
+  const [refusal, setRefusal] = useState<string | undefined>()
+  const live = card && repos.find((repo) => repo.path === card.repo.path)
+  const cardRepo = card?.kind === "behind" ? live : card?.repo
+  const cardOpen =
+    card !== undefined && cardRepo !== undefined && (card.kind === "new" || !!live?.behind)
+  const update = (repo: RepoSync): void => {
+    if (!sync || updating) return
+    setUpdating(true)
+    setRefusal(undefined)
+    void sync.update(repo.path).then((done) => {
+      setUpdating(false)
+      if (!done.ok) setRefusal(done.said)
+    })
+  }
   const [selected, setSelected] = useState<string | null>(null)
   // A chip can leave from under the pointer, folded into `+N` by another agent's write or a
   // narrower tree, with no pointerleave to say so: the agent stays lit only while that row still
@@ -285,7 +324,22 @@ const FilesPanelView = ({
     return stopLine < view.start ? [stopLine, ...indices] : [...indices, stopLine]
   }, [view, stopLine])
 
-  const { pulses, end: endPulses } = usePulses(project?.changes, viewRows, open, showing)
+  const {
+    pulses,
+    end: endPulses,
+    add: pulse,
+  } = usePulses(project?.changes, viewRows, open, showing)
+  // A mark opens its card; opening what landed is seeing it: the mark goes, and the files that
+  // came in pulse once in the tree.
+  const openCard = (repo: RepoSync, kind: SyncCardKind, anchor: HTMLElement): void => {
+    const rect = anchor.getBoundingClientRect()
+    setRefusal(undefined)
+    if (kind === "new" && repo.landing) {
+      sync?.seen(repo.path, repo.landing.to)
+      pulse(repo.landing.files)
+    }
+    setCard({ kind, repo, rect })
+  }
   // Hiding the panel ends the pulses, and showing it again starts the trails over so each reads
   // its true age: a hidden panel's animations restart at full brightness when it shows.
   const [wasShowing, setWasShowing] = useState(showing)
@@ -437,13 +491,35 @@ const FilesPanelView = ({
         </Tooltip>
       }
     >
-      {checkoutState.state && (
-        <CheckoutLine
-          state={checkoutState.state}
-          updating={checkoutState.updating}
-          refused={checkoutState.refused}
-          onUpdate={checkoutState.update}
-        />
+      <SyncLine
+        repo={rootRepo(repos)}
+        open={card?.repo.path === "" ? card.kind : undefined}
+        updating={updating}
+        onOpen={openCard}
+        onUpdate={update}
+      />
+      {card && (
+        <Popover
+          label={cardLabel(card.kind, card.repo)}
+          open={cardOpen}
+          onOpenChange={(next) => {
+            if (!next) setCard(undefined)
+          }}
+          anchorRect={() => card.rect}
+          placement="right-start"
+          className="files-card"
+          restoreFocus={false}
+        >
+          {cardRepo && (
+            <SyncCard
+              kind={card.kind}
+              repo={cardRepo}
+              updating={updating}
+              refused={refusal}
+              onUpdate={() => update(cardRepo)}
+            />
+          )}
+        </Popover>
       )}
       {slots.length > 0 && (
         <FilesStrip
@@ -514,6 +590,10 @@ const FilesPanelView = ({
                       onOpenFolder={onOpenFolder && openFolder}
                       onFocus={setStop}
                       onLight={setHovered}
+                      sync={line.node.folder ? repoAt.get(line.node.path) : undefined}
+                      syncOpen={card?.repo.path === line.node.path ? card.kind : undefined}
+                      hidesNews={line.node.folder && !line.open && hidesNews(line.node.path, repos)}
+                      onSync={openCard}
                     />
                   )}
                 </div>

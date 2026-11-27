@@ -19,6 +19,7 @@ import {
   type FeedbackDraft,
   type CheckoutState,
   type CheckoutUpdate,
+  type ProjectSync,
   type FolderListing,
   type ForgeIntegration,
   type ForgeName,
@@ -211,7 +212,28 @@ export type Runner = {
      * changes allowed; `ok: false` says git's reason. Rejects with `NOT_FOUND` for a project the
      * runner doesn't have.
      */
-    updateCheckout(input: { readonly projectId: string }): Promise<CheckoutUpdate>
+    updateCheckout(input: {
+      readonly projectId: string
+      /** A repository nested in the project, by its `sync` path; the project's own when omitted. */
+      readonly path?: string
+    }): Promise<CheckoutUpdate>
+    /**
+     * How each git repository in the project stands against its origin's main, and what the
+     * last move of main brought that the person has not seen (revision 23; ask
+     * `supports("projects.sync")` first). Rejects with `NOT_FOUND` for a project the runner
+     * doesn't have.
+     */
+    sync(input: { readonly projectId: string }): Promise<ProjectSync>
+    /**
+     * The person saw what main's last move in the repository at `path` brought: it is gone for
+     * every client (revision 23, as `sync`).
+     */
+    syncSeen(input: {
+      readonly projectId: string
+      readonly path: string
+      /** The commit the landing it saw ended at: a newer landing stays. */
+      readonly to?: string
+    }): Promise<void>
   }
   readonly sessions: {
     list(input: { readonly projectId: string }): Promise<WorkspaceSession[]>
@@ -1065,6 +1087,8 @@ export const connectRunner = async (
       folder: (input) => call((client) => client.projects.folder(input)),
       checkout: (input) => call((client) => client.projects.checkout(input)),
       updateCheckout: (input) => call((client) => client.projects.updateCheckout(input)),
+      sync: (input) => call((client) => client.projects.sync(input)),
+      syncSeen: (input) => call((client) => client.projects.syncSeen(input)),
     },
     sessions: {
       list: (input) => call((client) => client.sessions.list(input)),

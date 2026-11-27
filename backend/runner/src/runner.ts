@@ -50,6 +50,8 @@ import {
 } from "./workspaces/store.js"
 import { keepWorktreeChanges } from "./worktrees/changes-shown.js"
 import { MainCheckouts } from "./worktrees/main-checkout.js"
+import { mainNotice } from "./worktrees/main-notice.js"
+import { MainSync } from "./worktrees/main-sync.js"
 import { repositoryKnown } from "./worktrees/repo.js"
 import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
@@ -450,6 +452,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
     ...(options.worktreesRoot !== undefined && { root: options.worktreesRoot }),
     repositories: () => items.remoteRepositories(),
+    // Every repository of an open project follows its origin's main, as a worktree's does.
+    followed: () => mainSync.followed(),
+    landed: (commonDir, from, to) => void mainSync.landed(commonDir, from, to),
     // Beside the database, owner-only: where a repository's hooks are pointed away to.
     ...(options.database !== undefined &&
       options.database !== ":memory:" && {
@@ -610,6 +615,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // are watched. There are no switches: a `forges.set` from a client before them saves nothing
   // and leaves the forge on.
   const forges = new Forges({
+    // A pull request of a watched branch merged: its origin's main is fetched and followed now.
+    merged: (commonDir) => void worktrees.fetchNow([commonDir]),
     enabled: () => forgeName.options,
     save: () => {},
     // The branches the works' checkouts are on now, not those they were opened on.
@@ -687,6 +694,34 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     moved: (commonDir) => worktrees.moved(commonDir),
     update: (commonDir) => worktrees.update(commonDir),
   })
+  // Every repository of every project against its origin's main: what a move of main brought, and
+  // who is told of it (agents working in the repository's own checkout).
+  const mainSync = new MainSync({
+    projects: () => store.projects().map(({ id, cwd }) => ({ id, cwd })),
+    moved: (commonDir) => worktrees.moved(commonDir),
+    update: (commonDir) => worktrees.update(commonDir),
+    // The pull requests of the worktrees agents hold in a repository, as the forge knows them.
+    own: (commonDir) =>
+      worktrees.all().flatMap((row) => {
+        const pull =
+          row.commonDir === commonDir ? forges.pullRequest(commonDir, row.branch) : undefined
+        return pull ? [{ number: pull.number, title: pull.title }] : []
+      }),
+    landed: ({ home, name, landing }) => {
+      const text = mainNotice(name, landing)
+      void terminals
+        .checkouts()
+        .then((all) => {
+          for (const { terminalId, root } of all)
+            if (root === home) terminals.messaging.notice(terminalId, text, { always: true })
+        })
+        .catch((error: unknown) =>
+          log.warn("worktrees.main-notice-failed", "Novadeck could not tell agents main moved", {
+            err: error,
+          }),
+        )
+    },
+  })
   const uploads = new Uploads(options.uploads)
   void uploads.sweepOld()
   return {
@@ -701,6 +736,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     projects,
     works,
     checkouts,
+    mainSync,
     forges,
     worktrees,
     snapshots,
@@ -796,6 +832,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     projects,
     works,
     checkouts,
+    mainSync,
     forges,
     worktrees,
     snapshots,
@@ -830,6 +867,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       history: terminals.history,
       works,
       checkouts,
+      mainSync,
       forges,
       projects,
       items,

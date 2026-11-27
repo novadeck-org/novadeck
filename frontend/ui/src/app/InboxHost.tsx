@@ -16,6 +16,7 @@ import { PlanTextProvider } from "../inbox/plan-text"
 import { focusTerminalInput } from "../interaction/dom"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
+import { landingNoticePrefix } from "../sidebar/files-sync"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { dingOf } from "./ding"
 import { clickNotice, noticeBoard, entryOfNotice } from "./inbox-pings"
@@ -33,10 +34,12 @@ import { watchToldToasts } from "./told-toasts"
 const NoticeClicks = (): null => {
   const { backend, commands, ui } = useWorkspaceServices()
   const opener = useInboxOpener()
-  const { peekInbox, reveal, handOffTerminal } = commands
+  const { peekInbox, reveal, handOffTerminal, showPanel } = commands
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) => {
+        // A notice about main moving is no terminal's: the Files panel shows what came in.
+        if (terminalId.startsWith(landingNoticePrefix)) return showPanel("files")
         // The backend's entries, as the Inbox may hold the entry back.
         const entries = backend.inbox?.state.getSnapshot().items ?? []
         const entryId = noticeBoard(backend.notices, dingOf(backend, ui))?.entryIdOf(terminalId)
@@ -55,7 +58,7 @@ const NoticeClicks = (): null => {
           entryId,
         )
       }),
-    [backend, ui, opener, peekInbox, reveal, handOffTerminal],
+    [backend, ui, opener, peekInbox, reveal, handOffTerminal, showPanel],
   )
   return null
 }

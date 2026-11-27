@@ -43,6 +43,7 @@ import type { Projects } from "./workspaces/projects.js"
 import { LatestFeed, SettingsFeed } from "./workspaces/settings-feed.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 import type { MainCheckouts } from "./worktrees/main-checkout.js"
+import type { MainSync } from "./worktrees/main-sync.js"
 
 const log = logs.for("router")
 
@@ -129,6 +130,13 @@ const noCheckouts = {
   update: () => Promise.resolve({ ok: false as const, said: "There is nothing to update." }),
 }
 
+// What the Files panel's repositories are without a worktrees service: none to tell of or move.
+const noSync = {
+  sync: () => Promise.resolve({ repos: [] }),
+  seen: () => Promise.resolve(),
+  update: () => Promise.resolve({ ok: false as const, said: "There is nothing to update." }),
+}
+
 const noTour: Pick<Tour, "prepare" | "fetch" | "brief" | "nudge" | "artist" | "keep"> = {
   prepare: () => Promise.reject(new DomainError("CONFLICT", "No tour is offered.")),
   fetch: () => {
@@ -173,6 +181,8 @@ export const createRouter = (options: {
   works?: Works
   /** The projects' own checkouts against their remote's main. */
   checkouts?: Pick<MainCheckouts, "read" | "update">
+  /** Every repository of the projects against its origin's main; without it none is told of. */
+  mainSync?: Pick<MainSync, "sync" | "seen" | "update">
   agents: Harnesses
   /** The forges pull requests come from; without it none is offered. */
   forges?: Forges
@@ -208,6 +218,7 @@ export const createRouter = (options: {
   const history = options.history ?? noHistory
   const works = options.works ?? noWorks
   const checkouts = options.checkouts ?? noCheckouts
+  const mainSync = options.mainSync ?? noSync
   const forges = options.forges ?? noForges
   const tour: Pick<Tour, "prepare" | "fetch" | "brief" | "nudge" | "artist" | "keep"> =
     options.tour ?? noTour
@@ -284,7 +295,15 @@ export const createRouter = (options: {
         checkouts.read(store.project(input.projectId).cwd),
       ),
       updateCheckout: api.projects.updateCheckout.handler(({ input }) =>
-        checkouts.update(store.project(input.projectId).cwd),
+        options.mainSync || input.path !== undefined
+          ? mainSync.update(store.project(input.projectId).cwd, input.path)
+          : checkouts.update(store.project(input.projectId).cwd),
+      ),
+      sync: api.projects.sync.handler(({ input }) =>
+        mainSync.sync(store.project(input.projectId).cwd),
+      ),
+      syncSeen: api.projects.syncSeen.handler(({ input }) =>
+        mainSync.seen(store.project(input.projectId).cwd, input.path, input.to),
       ),
     },
     sessions: {

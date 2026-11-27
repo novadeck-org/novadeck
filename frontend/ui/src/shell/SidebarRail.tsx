@@ -115,6 +115,7 @@ export const SidebarRail = ({
   lastDrop,
   worksMade,
   sessionsAsk,
+  filesNews,
   hasFiles = false,
   hasHistory = false,
   hasWorktrees = false,
@@ -141,6 +142,9 @@ export const SidebarRail = ({
   // What the sessions other than the open one ask of the person, in words, while any does: the
   // Sessions toggle's dot, name and tooltip.
   sessionsAsk?: string | undefined
+  // What the project's repositories hold that the person has yet to look at (main moved on, or is
+  // behind), in words, while any does: the Files toggle's dot and tooltip.
+  filesNews?: string | undefined
   // Whether the backend has a Files panel to toggle.
   hasFiles?: boolean
   // Whether the backend keeps closed terminals, which the History panel lists.
@@ -208,6 +212,7 @@ export const SidebarRail = ({
             drops={id === "history" ? { count: historyDrops, last: lastDrop } : undefined}
             flares={id === "worktrees" ? (worksMade ?? noneMadeIn) : undefined}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
+            filesNews={id === "files" ? filesNews : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
             onFocused={focused}
@@ -235,6 +240,7 @@ const RailToggle = ({
   drops,
   flares,
   sessionsAsk,
+  filesNews,
   dragging,
   focusRequest,
   onFocused,
@@ -258,6 +264,8 @@ const RailToggle = ({
   flares: WorksMadeIn | undefined
   // What the other sessions ask of the person, on the Sessions toggle.
   sessionsAsk: string | undefined
+  // What the repositories hold that is news, on the Files toggle.
+  filesNews: string | undefined
   // Some toggle is being dragged, which leaves no tooltip open.
   dragging: boolean
   // Asks the toggle with this id to take the focus, once it has settled in its place.
@@ -297,7 +305,7 @@ const RailToggle = ({
           ? `${badge.count} waiting`
           : recentDrop && drops?.last
             ? drops.last
-            : sessionsAsk,
+            : (sessionsAsk ?? (open ? undefined : filesNews)),
         open,
         back,
       })}
@@ -308,7 +316,7 @@ const RailToggle = ({
       aria-label={badge?.label ?? label}
       // The Sessions toggle keeps its name, so it is found by it; what the other sessions ask
       // is its description.
-      aria-description={sessionsAsk}
+      aria-description={sessionsAsk ?? filesNews}
       aria-keyshortcuts={[
         ...(index > 0 ? ["Alt+ArrowUp"] : []),
         ...(index < count - 1 ? ["Alt+ArrowDown"] : []),
@@ -329,6 +337,7 @@ const RailToggle = ({
       <Icon size={16} />
       {badge && <BellDot rings={bellRings} />}
       {sessionsAsk && <BellDot rings={0} />}
+      {filesNews && !open && <BellDot rings={0} />}
       {drops && !open && <FlareDot drops={drops.count} />}
       {/* A dot of its own for each project, so the count it finds at a switch is old news. */}
       {flares !== undefined && !open && <FlareDot key={flares.projectId} drops={flares.count} />}

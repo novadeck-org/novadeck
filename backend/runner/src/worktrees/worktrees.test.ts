@@ -416,6 +416,27 @@ describe("opening a worktree", () => {
     expect(fetcher.fetchedAt(common)).toBeUndefined()
   })
 
+  it("fetches and moves the checkout of a repository of an open project that has no worktree", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    const common = join(origin.repo, ".git")
+    const { fetches, fetcher } = recordingFetcher(resources, 0)
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      cleanup: { fetcher },
+      followed: () => Promise.resolve([common]),
+    })
+    resources.defer(() => void worktrees.stop())
+    const landed = origin.land("b.txt")
+    await worktrees.tidy(true)
+    expect(fetches).toHaveLength(1)
+    await fetcher.idle()
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(landed)
+  })
+
   it("moves the checkout of a repository that also has a tracked worktree, on the schedule", async ({
     resources,
     fx: f,

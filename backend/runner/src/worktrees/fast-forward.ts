@@ -59,7 +59,9 @@ export const refusal = (run: Extract<Run, { ok: false }>): string => {
 }
 
 export type Forwarded =
-  | { readonly ok: true; readonly moved: boolean }
+  | { readonly ok: true; readonly moved: false }
+  /** Moved from the commit HEAD was at to the one main is at. */
+  | { readonly ok: true; readonly moved: true; readonly from: string; readonly to: string }
   | { readonly ok: false; readonly said: string }
 
 /** Why the checkout can't move now: an operation in progress or a lock, else undefined. */
@@ -163,5 +165,7 @@ export const fastForward = async (home: string, options: FastForward): Promise<F
         data: { home, was: behind.branch, now: after.ok ? after.out.trim() : "detached" },
       },
     )
-  return merged.ok ? { ok: true, moved: true } : { ok: false, said: refusal(merged) }
+  return merged.ok
+    ? { ok: true, moved: true, from: behind.head, to: behind.commit }
+    : { ok: false, said: refusal(merged) }
 }

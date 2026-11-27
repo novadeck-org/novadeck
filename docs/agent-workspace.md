@@ -1167,15 +1167,32 @@ with every safety check again at that time:
     --no-overwrite-ignore --quiet <the commit checked>`, with no time limit and outside the shutdown
     scope, since a checkout stopped halfway leaves a half-updated tree. The fetch doesn't wait for the
     move, so a merge that hangs stalls nothing else. Moves of one repository run one at a time. Any failure, a lock held by the person's git, a shallow clone or a missing ref is debug-logged
-    and ignored, and the next fetch tries again. It only happens for repositories with a tracked
-    worktree, as only those are fetched. The one switch is `MainFetcher`'s `follow` option.
-    Where the checkout is on main and behind and was not moved, whatever held it (tracked changes, an
-    operation, a file in the way, a repository not fetched since), `projects.checkout` reports `behind`, and the Files panel says "main is N behind origin" with
-    Update (`projects.updateCheckout`): the same move with tracked changes allowed, where git itself
-    refuses if a changed file is in the way, and its reason is shown in plain words ("Your changes to
-    src/a.ts would be overwritten."). The panel asks every 20 s while shown, one read at a time, and when
-    `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
-    folders again, so added and removed files show.
+    and ignored, and the next fetch tries again. It happens for every repository with a tracked
+    worktree and every git repository of an open project (`worktrees/main-sync.ts`, `repositories-in.ts`: the
+    folder's own repository, and repositories with a `.git` folder under it, four levels down, not in hidden,
+    dependency or build folders or in another repository; kept for a minute per project), which `Cleanup`'s sweep
+    fetches on the same five-minute schedule and follows; a repository kept on the schedule for a compare's sake alone
+    is not followed. A watched pull request turning merged (`Forges`' `merged`) fetches and follows its repository at
+    once (`Worktrees.fetchNow`). The one switch is `MainFetcher`'s `follow` option.
+    **What the person is told.** Where the checkout is on main and behind and was not moved, whatever held it (tracked
+    changes, an operation, a file in the way, a repository not fetched since), `projects.sync` reports `behind` for
+    each repository (its count, why in words, and the merges waiting), and `ahead`, the commits main has that origin
+    lacks. When the runner itself (not the person's Update) moves a checkout, `MainFetcher`'s `landed` hands the
+    commits to `MainSync`, which records a landing in memory: the first-parent commits as merges (a pull request's
+    number from a trailing `(#123)` or `Merge pull request #123`), the changed files (up to 200) and the command for a
+    changed lockfile (`landing.ts`). A landing the person has not seen stays, joined by the next one, until
+    `projects.syncSeen` (the card opening) clears it for every client; a restart forgets it. The Files panel shows
+    them as marks on the repository's row, or a line over the tree where the project's own folder is the repository;
+    it asks every 20 s, one read at a time, for as long as the app runs (the rail's dot and the notices read it too),
+    and when `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
+    folders again, so added and removed files show. Update (`projects.updateCheckout`, with the repository's `path`) is
+    the same move with tracked changes allowed, where git itself refuses if a changed file is in the way, and its
+    reason is shown in plain words ("Your changes to src/a.ts would be overwritten."); a main that has commits of its
+    own as well is refused first. The person is notified (Preferences > Notifications, as a finish is) only for a landing with a merge of
+    one of their agents' pull requests (the forge's branch to pull request, kept as seen) or new dependencies; an
+    agent whose terminal works in the repository's own checkout (not a worktree) gets a `Novadeck · Main` notice
+    (`worktrees/main-notice.ts`: the commits, the files, the lockfile; facts only) through `Messaging.notice`, which
+    every harness takes.
   - **Restore and looking again.** A restore from History makes a new terminal id; when the restore
     is confirmed (or a newer row of the same conversation replaces the row) `ClosedTerminals` tells
     the service, which moves the old id's worktrees to the new one in its queue before the row goes.
