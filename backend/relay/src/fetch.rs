@@ -98,14 +98,10 @@ impl Shown {
     }
 }
 
-/// The agent's name as Novadeck's app shows it (`harnesses.ts`): `pi` → `Pi`.
+/// The agent as Novadeck's app calls it: Novadeck's own `pi` is Nova (GLOSSARY.md).
 fn titled(name: &str) -> &str {
     match name {
-        "claude" => "Claude Code",
-        "codex" => "Codex",
-        "agy" => "Antigravity",
-        "opencode" => "OpenCode",
-        "pi" => "Pi",
+        "pi" => "Nova",
         other => other,
     }
 }
@@ -119,7 +115,7 @@ pub fn run(name: &str) -> bool {
     };
     let Some(terminal) = Terminal::from_env() else {
         shown.end(Some(&format!(
-            "Novadeck's {titled} starts only in a Novadeck terminal."
+            "{titled} starts only in a Novadeck terminal."
         )));
         return false;
     };

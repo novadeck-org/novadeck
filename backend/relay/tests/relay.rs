@@ -601,14 +601,14 @@ fn fails_with_the_runners_reason_or_its_own() {
     assert!(!ok);
     assert_eq!(
         stderr,
-        "Novadeck couldn't get Pi: Could not reach github.com. Check the connection.\n"
+        "Novadeck couldn't get Nova: Could not reach github.com. Check the connection.\n"
     );
     // The runner went away before it said either.
     let (_, stderr, ok, _) = fetched("fetch-gone", &[r#"{"progress":"Unpacking pi 1.6.0"}"#]);
     assert!(!ok);
     assert!(
         stderr.ends_with(
-            "Novadeck couldn't get Pi: Novadeck stopped answering while it fetched it.\n"
+            "Novadeck couldn't get Nova: Novadeck stopped answering while it fetched it.\n"
         ),
         "{stderr}"
     );
@@ -620,6 +620,6 @@ fn fetches_nothing_outside_a_novadeck_terminal() {
     assert!(!output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stderr),
-        "Novadeck's Pi starts only in a Novadeck terminal.\n"
+        "Nova starts only in a Novadeck terminal.\n"
     );
 }
