@@ -586,7 +586,7 @@ describe("Preferences Addons", () => {
   })
 
   context("when the person turns Experimental off", () => {
-    it("turns Murmur off with it, and leaves it out of Addons", async () => {
+    it("keeps an installed Murmur in Addons until it is uninstalled, then offers no install", async () => {
       await openWorkspace("/?channel=experimental&murmur=installed")
       await showAddons()
       await expect.element(murmurCard()).toBeVisible()
@@ -598,8 +598,15 @@ describe("Preferences Addons", () => {
       await expect.element(tab("Experimental")).not.toBeInTheDocument()
 
       await tab("Addons").click()
-      await expect.element(voiceCard()).toBeVisible()
+      await expect
+        .element(murmurCard().getByRole("switch", { name: "Name terminals" }))
+        .toHaveAttribute("aria-checked", "true")
+      await murmurCard().getByRole("button", { name: "Uninstall" }).click()
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall this add-on?" })
+      await confirm.getByRole("button", { name: "Uninstall" }).click()
+
       await expect.element(murmurCard()).not.toBeInTheDocument()
+      await expect.element(voiceCard()).toBeVisible()
     })
   })
 

@@ -374,3 +374,56 @@ describe("murmur's card under the app's verdict", () => {
     unmount()
   })
 })
+
+describe("murmur's card with a model kept and no verdict", () => {
+  // An uninstall whose engine went and whose model stayed.
+  const kept: MurmurState = { ...unchecked, installed: false, kept: true }
+
+  it("offers Install and Remove while it is installable", () => {
+    const { container, unmount } = render(
+      createElement(MurmurAddon, { murmur: { state: kept, actions: actions() } }),
+    )
+    expect(button("Install", container)).toBeDefined()
+    expect(button("Remove", container)).toBeDefined()
+    unmount()
+  })
+
+  it("offers only Remove while Murmur's Experimental switch is off", async () => {
+    const calls = actions()
+    const { container, unmount } = render(
+      createElement(MurmurAddon, {
+        murmur: { state: kept, actions: calls },
+        installable: false,
+      }),
+    )
+    expect(button("Install", container)).toBeUndefined()
+    expect(container.querySelector("[role=switch]")).toBeNull()
+    await act(async () => {
+      button("Remove", container)?.click()
+      await Promise.resolve()
+    })
+    const dialog = document.querySelector("[role=alertdialog]")
+    act(() => button("Remove", dialog ?? document)?.click())
+    await eventually(() => expect(calls.uninstall).toHaveBeenCalledOnce())
+    expect(calls.install).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it("offers no Check again beside a verdict while Murmur's Experimental switch is off", () => {
+    const { container, unmount } = render(
+      createElement(MurmurAddon, {
+        murmur: {
+          state: {
+            ...kept,
+            unsupported: { reason: "No device answered.", source: "check" },
+          },
+          actions: actions(),
+        },
+        installable: false,
+      }),
+    )
+    expect(button("Check again", container)).toBeUndefined()
+    expect(button("Remove", container)).toBeDefined()
+    unmount()
+  })
+})

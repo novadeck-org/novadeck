@@ -124,7 +124,8 @@ export const demoBackend = (
   // and an install held at its first step where it asks for that (`&install=held`).
   const held = installHeld()
   const voice = createDemoVoice(held ? heldVoiceTiming : undefined, requestedVoice())
-  // Installed unless the address asks otherwise (`&murmur=uninstalled`), as the try demo shows it.
+  // Not installed, as for a new person, unless the address names a Murmur state (`&murmur=…`):
+  // then installed unless it asks otherwise (`&murmur=uninstalled`).
   const murmur = createDemoMurmur(held ? heldMurmurTiming : undefined, requestedMurmur())
   // Murmur is Experimental: off, as in the app, unless the address asks for it.
   const murmurSwitch = createStore(requestedMurmurSwitch())
@@ -263,8 +264,11 @@ const leadOf = (terminals: readonly { readonly id: string }[]): string | null =>
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
 export const withMessages = (backend: Backend, now: number): Backend => {
-  // Murmur names a terminal only while its Experimental switch is on, as with the runner.
-  const murmurOn = backend.murmurSwitch?.enabled.getSnapshot() ?? true
+  // Murmur names a terminal while its Experimental switch is on, or while it is installed, as
+  // with the runner.
+  const murmurOn =
+    (backend.murmurSwitch?.enabled.getSnapshot() ?? true) ||
+    backend.murmur?.state.getSnapshot().installed === true
   const namingOf = (slot: string) => {
     const naming = namings[slot]
     return naming && (naming.source.kind !== "murmur" || murmurOn) ? naming : undefined

@@ -428,6 +428,13 @@ describe("the IS_EXPERIMENTAL flag", () => {
     await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
   })
 
+  it("turns Murmur's switch off where the channel is stable", async () => {
+    const enabled = createStore(true)
+    const murmurSwitch = { enabled, set: (on: boolean) => enabled.update(() => on) }
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, { murmurSwitch })
+    await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
+  })
+
   it("is not set once the watch is stopped", async () => {
     const ui = createUiStore(initial())
     watchExperimental(updates(Promise.resolve("experimental")), into(ui))()

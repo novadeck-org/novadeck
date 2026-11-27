@@ -3,10 +3,10 @@ import { createStore, type MutableStore } from "@novadeck/core/store"
 
 import { addressParams } from "../address"
 
-// A pretend murmur addon for the browser demo and the specs. It starts installed and on,
-// as the try demo shows it and never offers it; started uninstalled, nothing is installed
-// until the person installs it, and the install walks through downloading the engine, then
-// the model, then a check, ending with murmur on. `device: null` is a computer that can't
+// A pretend murmur addon for the browser demo and the specs. Started installed, it is on and
+// never offered. Started uninstalled (the demo's start, as Murmur is Experimental), nothing is
+// installed until the person installs it, and the install walks through downloading the engine,
+// then the model, then a check, ending with murmur on. `device: null` is a computer that can't
 // run it: the check ends in Not available, with the downloads removed.
 
 const megabyte = 1024 * 1024
@@ -49,7 +49,7 @@ const unsupportedSample = {
   source: "check",
 } as const
 
-// Where the demo starts: installed (the try demo's), not installed (the offer and the
+// Where the demo starts: installed, not installed (the demo's start, the offer and the
 // Addons card's Install), on a computer known not to run it, or not installed on a
 // computer whose check will end in Not available.
 export type DemoMurmurStart =
@@ -63,8 +63,10 @@ export type DemoMurmurStart =
 // What a spec asks for in its address's hash: `&murmur=uninstalled`, `unsupported`,
 // `no-device`, `network-down` (the first install fails on the network, the second works) or
 // `offered-out` (not installed, the offer already shown in three sessions).
+// No `murmur` in the address: not installed, as Murmur is Experimental and a new person has none.
 export const requestedMurmur = (): DemoMurmurStart => {
   const asked = typeof window === "undefined" ? null : addressParams().get("murmur")
+  if (asked === null) return "uninstalled"
   return asked === "uninstalled" ||
     asked === "unsupported" ||
     asked === "no-device" ||

@@ -516,30 +516,35 @@ export const switchOffBundledPi = (bundledPi: Backend["bundledPi"]): void => {
   if (bundledPi?.enabled.getSnapshot()) bundledPi.set(false)
 }
 
-// Turns Murmur off where its Experimental switch is on, as the person turning Experimental off
-// does. Only then: unlike the others it is not switched off where the channel reads stable, as
-// the runner carries it on for those who had Murmur on or its files on disk.
+// Turns Murmur's Experimental switch off where it is on, as the Experimental switch going off
+// does: the runner then installs none from nothing, and one on disk keeps working, with its
+// Uninstall.
 export const switchOffMurmur = (murmurSwitch: Backend["murmurSwitch"]): void => {
   if (murmurSwitch?.enabled.getSnapshot()) murmurSwitch.set(false)
 }
 
 // The Experimental features a backend keeps as settings, which all go off with the switch.
-export type ExperimentalFeatures = Pick<Backend, "agentModes" | "shippingGate" | "bundledPi">
+export type ExperimentalFeatures = Pick<
+  Backend,
+  "agentModes" | "shippingGate" | "bundledPi" | "murmurSwitch"
+>
 
 export const switchOffExperimental = ({
   agentModes,
   shippingGate,
   bundledPi,
+  murmurSwitch,
 }: ExperimentalFeatures): void => {
   switchOffAgentModes(agentModes)
   switchOffShippingGate(shippingGate)
   switchOffBundledPi(bundledPi)
+  switchOffMurmur(murmurSwitch)
 }
 
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
-// leaves it off. A channel found stable, or unreadable, also turns agent modes, the shipping gate
-// and Novadeck's own pi off.
+// leaves it off. A channel found stable, or unreadable, also turns agent modes, the shipping gate,
+// Novadeck's own pi and Murmur's switch off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,

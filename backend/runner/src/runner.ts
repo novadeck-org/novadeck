@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { readdirSync, unwatchFile, watchFile } from "node:fs"
+import { unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -61,15 +61,6 @@ const log = logs.for("runner")
 // The owner `RunnerOptions.working`'s watch of the terminals is under: no client's session,
 // so none releases it; it ends as the runner closes.
 const workingWatcher = "runner:working"
-
-// Whether a folder holds anything: no folder, or one that can't be read, holds nothing.
-const hasContents = (folder: string): boolean => {
-  try {
-    return readdirSync(folder).length > 0
-  } catch {
-    return false
-  }
-}
 
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
@@ -389,9 +380,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     (options.database === undefined
       ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
       : join(dirname(options.database), "murmur"))
-  // Murmur is Experimental: it runs only while its switch is on, saved once as Murmur was, and
-  // on where its files are, so Addons keeps their Uninstall.
-  store.settings.carryMurmurSwitch(hasContents(murmurDirectory))
+  // Murmur is Experimental: it installs only while its switch is on. One already on disk keeps
+  // working, and keeps its Uninstall, with the switch off.
   const murmur = new Murmur(store.settings, {
     switchedOn: () => store.settings.runner().murmur === true,
     engine: options.murmur?.engine,

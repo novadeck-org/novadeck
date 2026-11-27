@@ -7,8 +7,8 @@ import type { DemoActionGroup } from "./types"
 // title, with its popover), of its install in the footer (a ring and "Murmur 42%", with a
 // sheet), and of Preferences' Addons card. The chip also comes up on its own at the next agent
 // finish (Agent › Completes) while Murmur is not installed, once per page load.
-// Each state switches Murmur's Experimental switch on first, which the app needs to show any of
-// it; "Switched off" turns it off again.
+// Each state switches Murmur's Experimental switch on first, which the app needs to offer it;
+// "Switched off" turns it off again, where an installed Murmur still shows and names terminals.
 export const murmurGroups = (
   demoMurmur: DemoMurmur | undefined,
   murmurSwitch?: Backend["murmurSwitch"],
@@ -27,7 +27,7 @@ export const murmurGroups = (
       actions: [
         {
           label: "Switched off",
-          hint: "Murmur's Experimental switch off: no chip, nothing in the footer, no Murmur in Addons",
+          hint: "Murmur's Experimental switch off: no chip and no Install; an installed Murmur stays in Addons with Uninstall, and goes once uninstalled",
           run: () => murmurSwitch?.set(false),
         },
         {

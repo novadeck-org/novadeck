@@ -175,17 +175,6 @@ export class Settings {
   }
 
   /**
-   * Murmur's Experimental switch, first saved as Murmur was: on where the person had turned
-   * Murmur on before it became Experimental, or where its files are on disk (`hasFiles`), so
-   * Addons keeps their Uninstall; off for everyone else. Saved once, so turning Murmur itself
-   * off later leaves the switch as it is.
-   */
-  carryMurmurSwitch(hasFiles: boolean): void {
-    if (this.setting("murmur") !== undefined) return
-    this.saveSetting("murmur", JSON.stringify(this.murmurEnabledChoice() === true || hasFiles))
-  }
-
-  /**
    * Agent worktrees' switch as they left Experimental: on for everyone, once. While Experimental,
    * a stable build saved it off at every launch, so an off saved then says nothing of what the
    * person wants. Done once (`worktreesCarried`), so an off they choose later stays.

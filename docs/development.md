@@ -730,10 +730,12 @@ App:
   story shows there, as no real agent shows two; answering an added request for an
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.
-- **Murmur:** Experimental, so its switch starts off and none of it shows, unless the address
-  names a Murmur state (`&murmur=…`) or a debug action shows one (each switches it on first;
-  "Switched off" turns it off). Switched on, the demo has it installed and on, as the try demo
-  shows it, and never offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
+- **Murmur:** Experimental, so its switch starts off and the demo has it not installed, so none of
+  it shows, unless the address names a Murmur state (`&murmur=…`, which also starts the debug
+  demo's update channel on experimental, so the boot leaves the switch on) or a debug action shows one
+  (each switches it on first; "Switched off" turns it off, where an installed Murmur stays in
+  Addons until it is uninstalled). Named in the address, the demo has it installed and on, and
+  never offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
   on the network, the second works) or `offered-out` (the offer already shown in three sessions)
   in the address starts it otherwise. The offer is a chip,
   "Name it for me", beside the title of the first terminal whose agent finishes a turn (or the
