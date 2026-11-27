@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-import { withLaunch } from "@novadeck/harness-core/decode"
+import { versionName, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import {
   forgottenUnits,
@@ -39,7 +39,7 @@ import { transcripts, typedEntry } from "./transcripts.js"
 
 // A Stop continued with a reason gets it as a lasting system step. A message injected at
 // a model call lasts only for that call, so a turn's delivery is injected again on each
-// of its later calls. Every other answer is an empty object.
+// of its later calls (before 1.5.18, `lastingFrom`). Every other answer is an empty object.
 const messaging: MessagingProfile = {
   // `/exit` as docs/harness-coverage.md has it leave, and `/quit`, the alias its binary
   // names; a wrong one costs only the grace.
@@ -73,6 +73,33 @@ const messaging: MessagingProfile = {
   // 1.5.18, SYSTEM_SDK SYSTEM_MESSAGE ones).
   typedEntry,
 }
+
+// From 1.5.18 a message injected at a model call stays in the conversation, a system step of
+// the session's (`step:SYSTEM_SDK/SYSTEM_MESSAGE`): a later call of the turn, a later turn and
+// a resumed session all hold it, so giving it again on each call gave the model every copy
+// (probed 2026-11-27, 1.5.18 against 1.5.16 on the e2e rig, a ring's delivery in a later
+// ring's call). Its hook still asks before every call, so a lead's message still reaches it
+// at the next one. No hook tells of a compaction, so each delivery still carries its note.
+const lastingFrom = [1, 5, 18]
+const lastingMessaging: MessagingProfile = {
+  ...messaging,
+  reinjectPerCall: false,
+  asksEveryCall: true,
+}
+
+/** Whether a release's version is `least` or later, by its numbers in turn. */
+const atLeast = (version: string, least: readonly number[]): boolean => {
+  const parts = version.split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0)
+  for (const [at, want] of least.entries()) {
+    const have = parts[at] ?? 0
+    if (have !== want) return have > want
+  }
+  return true
+}
+
+/** How a release takes part in agents' messaging: its injections last from 1.5.18. */
+export const messagingAt = (version: string): MessagingProfile =>
+  atLeast(version, lastingFrom) ? lastingMessaging : messaging
 
 /** How long a prompt with no id yet may wait for one before the resume counts as failed. */
 const resumeGraceMs = 3_000
@@ -246,6 +273,11 @@ export const agy = {
   hooksTrusted,
   launch,
   messaging,
+  messagingAt,
+  // Its status line names its release in every snapshot, before a conversation starts too,
+  // where it names no session (`statusLine`): a session's first turn asks before then.
+  processVersion: ({ event, payload }) =>
+    event === "StatusLine" ? versionName(payload.version) : undefined,
   box,
   slice,
 } satisfies Harness

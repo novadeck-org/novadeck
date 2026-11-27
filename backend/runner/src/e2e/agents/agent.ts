@@ -303,11 +303,12 @@ export type AgentSetup = {
    */
   readonly bindsAtReady: boolean
   /**
-   * Whether what its hooks print stays in its later model calls, so a delivery's rules note
-   * is given in full once and pointed to after: Claude Code's and Codex's do; Antigravity's
-   * prompt-time injection lasts one call, so each of its deliveries carries the note.
+   * Whether what its hooks print stays in its later model calls, by the release that runs:
+   * Claude Code's and Codex's do, and their deliveries' rules note is given in full once and
+   * pointed to after (`MessagingProfile.lasting`); Antigravity's prompt-time injection lasts one
+   * call before 1.5.18 and stays from it, each of its deliveries carrying the note either way.
    */
-  readonly keepsHookText: boolean
+  readonly keepsHookText: boolean | ((version: string) => boolean)
   /**
    * Whether a prompt given as its turn starts may join that turn, as Codex steers a running
    * turn with what is queued: one model call then holds both prompts.
@@ -488,3 +489,7 @@ export type AgentSetup = {
 
 /** A generic password in the macOS Keychain, by the attributes that name it. */
 export type KeychainItem = { readonly service: string; readonly account: string }
+
+/** Whether what its hooks print stays in its later model calls in the release `version`. */
+export const keepsHookTextIn = (setup: AgentSetup, version: string): boolean =>
+  typeof setup.keepsHookText === "function" ? setup.keepsHookText(version) : setup.keepsHookText

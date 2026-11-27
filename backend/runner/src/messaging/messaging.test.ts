@@ -194,6 +194,7 @@ const create = (
       events,
       deadline,
       ...(person && { person }),
+      version: bound.version ?? null,
     })
   }
   // What the hook prints of it, without the notices `adding` takes, the terminals side's.
@@ -5235,6 +5236,28 @@ describe("an Antigravity delivery joined mid-turn", () => {
     expect(text(second.stdout).startsWith(text(given.stdout))).toBe(true)
     messaging.acknowledge("G", second.leaseId!)
     expect(call(2)).toEqual({ leaseId: null, stdout: second.stdout })
+  })
+
+  // From 1.5.18 Antigravity keeps the step it injected in the conversation (probed 2026-11-27).
+  it("gives a turn's delivery once where Antigravity keeps what it injected, and the lead's later one at the next call", () => {
+    const { messaging, send, ask } = agyWorker()
+    const root = { ...binding("agy", "c-root", "7"), version: "1.5.18" }
+    const call = (number: number) =>
+      ask("G", root, "PreInvocation", [
+        observed(root),
+        started(root, number === 0 ? "prompt" : "call"),
+      ])
+    sent(send("B", "owl", "From a peer."))
+    const given = call(0)
+    expect(given.stdout).toContain("From a peer.")
+    messaging.acknowledge("G", given.leaseId!)
+    expect(call(1)).toEqual({ leaseId: null, stdout: "{}\n" })
+    sent(send("A", "owl", "Lead: change course."))
+    const second = call(2)
+    expect(second.stdout).toContain("Lead: change course.")
+    expect(second.stdout).not.toContain("From a peer.")
+    messaging.acknowledge("G", second.leaseId!)
+    expect(call(3)).toEqual({ leaseId: null, stdout: "{}\n" })
   })
 
   it("keeps each lead block's note and mark consistent, each delivery with a mark of its own", () => {

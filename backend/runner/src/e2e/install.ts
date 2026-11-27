@@ -160,6 +160,16 @@ const run = (args: readonly string[], cache: string) => {
  * the network and then tests without it, as under `scripts/e2e/isolated`, to test what it
  * installed; short enough that the next day's run looks again.
  */
+/** Whether a release's version is `least` or later, by its first three numbers. */
+export const atLeast = (version: string, least: readonly number[]): boolean => {
+  const parts = version.split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0)
+  for (const [at, want] of least.entries()) {
+    const have = parts[at] ?? 0
+    if (have !== want) return have > want
+  }
+  return true
+}
+
 export const latestMs = 60 * 60 * 1000
 
 /**

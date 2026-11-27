@@ -163,6 +163,26 @@ const questionTools: ReadonlySet<string> = new Set([
  * session each binds, the facts it applies, the root session it follows and what that root
  * worked on, and, for an ask, what its hook prints.
  */
+
+/**
+ * The release of each terminal's harness process as its reports named it (`processVersion`),
+ * whether or not a session was bound: what a hook's answer reads while the binding names none,
+ * as on a new session's first turn.
+ */
+const processVersions = new WeakMap<
+  Record,
+  { readonly agent: AgentName; readonly instance: string | null; readonly version: string }
+>()
+
+/** The release `report`'s own process named, if it has. */
+export const processVersionOf = (
+  record: Record,
+  report: Pick<Report, "agent" | "instance">,
+): string | null => {
+  const known = processVersions.get(record)
+  return known?.agent === report.agent && known.instance === report.instance ? known.version : null
+}
+
 export class Reports {
   /** Each terminal's agent reports and asks waiting their turn, in the order they came. */
   readonly queues = new Map<string, Promise<void>>()
@@ -254,6 +274,13 @@ export class Reports {
     if (this.ignored(report)) return silent
     const record = this.host.records().get(report.terminalId)
     if (!record || record.terminal.exiting || !sameToken(record.token, report.token)) return silent
+    const release = harnesses[report.agent].processVersion?.(report)
+    if (release)
+      processVersions.set(record, {
+        agent: report.agent,
+        instance: report.instance,
+        version: release,
+      })
     // Antigravity's mode, as its status line says it, so the shipping gate stays silent where it
     // runs every command unasked (and follows a Shift+Tab switch). Only the bound process's own:
     // a nested `agy -p` in the terminal names a mode of its own. Silence only ever leaves a
@@ -528,6 +555,9 @@ export class Reports {
       deadline,
       person,
       payload: report.payload,
+      version:
+        (record.bound?.binding.agent === report.agent ? record.bound.binding.version : undefined) ??
+        processVersionOf(record, report),
     })
     this.quoted(record, told, submission)
     if (stopAsk) {

@@ -2,6 +2,7 @@ import { readdirSync, statSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { atLeast } from "../install.js"
 import { gemini } from "../model/gemini.js"
 import { asked } from "../model/script.js"
 import { nestedRuns, own } from "../scenarios.js"
@@ -28,7 +29,9 @@ export const agy: AgentSetup = {
   dialect: gemini,
   banner: "Antigravity CLI",
   bindsAtReady: false,
-  keepsHookText: false,
+  // From 1.5.18 the step its prompt hook injected stays in the conversation (probed
+  // 2026-11-27, a ring's delivery in a later ring's call).
+  keepsHookText: (version) => atLeast(version, [1, 5, 18]),
   // Its own status screen (probed 2026-10-04, 1.2.14).
   idleCommand: "/help",
   // Its feature flags and its telemetry, and from 1.5.1 its plugin marketplaces' catalogs
