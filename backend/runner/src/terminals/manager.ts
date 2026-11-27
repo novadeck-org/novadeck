@@ -291,6 +291,7 @@ export class Terminals {
   readonly history: ClosedTerminals
   /** Terminals closed in this runner's lifetime, which no create brings back. */
   private readonly closedIds = new Set<string>()
+  private readonly closingRecords = new WeakMap<Record, Promise<void>>()
   /** Sessions going or gone, in which no terminal starts again; History keeps a lone one's. */
   private readonly closingSessions = new Map<string, "project" | "session">()
   private stopping = false
@@ -761,11 +762,6 @@ export class Terminals {
       models: (agent) => this.options.models(agent),
       openPolicy: (terminalId) => this.options.openPolicy(terminalId),
       closingNow: (terminalId) => this.host.closing(terminalId),
-      closeForGood: (record, closedBy) => this.closeForGood(record, closedBy),
-      terminate: (record) => this.terminate(record),
-      stopTurn: (record) => stopBeforeClose(record, this.typing),
-      remove: (record) => this.remove(record),
-      forget: (terminalId) => this.forget(terminalId),
       save: (record) => this.saves.save(record, false),
       retitle: (record) => this.names.retitle(record),
       summarized: (terminalId) => this.murmur?.summarized(terminalId),
@@ -1377,30 +1373,29 @@ export class Terminals {
       this.streams.end(input.terminalId)
       return
     }
-    // A terminal already closing had its turn stopped by that close.
-    const wasClosed = record.closed
-    this.closeForGood(record, closedBy)
-    if (!wasClosed) await stopBeforeClose(record, this.typing)
-    await this.terminate(record)
-    this.remove(record)
-    // What its programs left on their way out, as an agent registering again, goes too.
-    this.forget(input.terminalId)
+    await this.closeRunning(record, closedBy)
   }
 
   /**
-   * Starts closing a running terminal for good: watchers hear it is gone, nothing
-   * announces or saves it again, and what restores it is forgotten before its shell ends.
+   * Closes a running terminal once, so overlapping closes wait for the same Stop and hangup.
+   * What restores it is forgotten at once, but its session claims last until its shell ends.
    */
-  private closeForGood(record: Record, closedBy: string | null = null): void {
-    if (record.closed) return
-    // Kept in History first: its screen is taken while the terminal still shows it.
+  private closeRunning(record: Record, closedBy: string | null = null): Promise<void> {
+    const closing = this.closingRecords.get(record)
+    if (closing) return closing
+    const id = record.summary.id
     this.history.closing(record, closedBy)
     record.closed = true
-    this.closedIds.add(record.summary.id)
+    this.closedIds.add(id)
     this.streams.removed(record.summary)
-    // The agent sessions it claimed stay its own until its shell has ended, so none
-    // resumes elsewhere while it still runs there.
-    this.forget(record.summary.id, { claims: false })
+    this.forget(id, { claims: false })
+    const done = stopBeforeClose(record, this.typing).then(async () => {
+      await this.terminate(record)
+      this.remove(record)
+      this.forget(id)
+    })
+    this.closingRecords.set(record, done)
+    return done
   }
 
   /**
@@ -1446,15 +1441,7 @@ export class Terminals {
     const running = [...this.records.values()].filter(({ summary }) =>
       sessions.has(summary.sessionId),
     )
-    for (const record of running) this.closeForGood(record)
-    await Promise.all(
-      running.map(async (record) => {
-        await stopBeforeClose(record, this.typing)
-        await this.terminate(record)
-        this.remove(record)
-        this.forget(record.summary.id)
-      }),
-    )
+    await Promise.all(running.map((record) => this.closeRunning(record)))
     for (const sessionId of sessions) {
       for (const terminal of this.saves.terminals(sessionId)) {
         this.closedIds.add(terminal.id)

@@ -88,29 +88,24 @@ const setup = (
       resting: (id: string) => (sleeping.has(id) ? { agent: "claude" } : undefined),
     }),
     close: async (id: string) => {
-      sleeping.delete(id)
-      steps.push(`closed the row of ${id}`)
+      const record = records.get(id)
+      if (!record) {
+        sleeping.delete(id)
+        steps.push(`closed the row of ${id}`)
+        return
+      }
+      record.closed = true
+      steps.push(
+        `closing ${record.summary.handle}`,
+        `stopped ${record.summary.handle}`,
+        `ended ${record.summary.handle}`,
+      )
+      records.delete(id)
+      steps.push(`removed ${record.summary.handle}`, `forgot ${id}`)
+      calls.forgetOpener(id)
     },
     trees: () => ({ read: async () => undefined }),
     closingNow: () => false,
-    closeForGood: (record: Record) => {
-      record.closed = true
-      steps.push(`closing ${record.summary.handle}`)
-    },
-    stopTurn: async (record: Record) => {
-      steps.push(`stopped ${record.summary.handle}`)
-    },
-    terminate: async (record: Record) => {
-      steps.push(`ended ${record.summary.handle}`)
-    },
-    remove: (record: Record) => {
-      records.delete(record.summary.id)
-      steps.push(`removed ${record.summary.handle}`)
-    },
-    forget: (id: string) => {
-      steps.push(`forgot ${id}`)
-      calls.forgetOpener(id)
-    },
   } as unknown as CallsHost
   const calls = new Calls(1_000, host)
   const close = (from: string, to: string) =>
