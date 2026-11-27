@@ -535,8 +535,8 @@ with every safety check again at that time:
   size in millimetres where its format has units. Rewritten, as a CAD loop writes it again, it's
   drawn from where the person was looking; one over 256 MB with its files loads as too large to
   preview. Its peek is a still of it.
-  A folder (`show {"file": {"path": "<dir>/"}}`, or the person's "Open in the pane" on a
-  Files panel row, kind `folder`) is listed, read-only, in a well under its path, as a grid of thumbnails or a list
+  A folder (`show {"file": {"path": "<dir>/"}}`, or "Open in the pane" in a Files panel
+  folder's menu, kind `folder`) is listed, read-only, in a well under its path, as a grid of thumbnails or a list
   (newest first, or by name or size): the runner reads its entries (name, kind by extension
   (an `.obj` by its first bytes too, so a compiled object file is a plain file, not a model),
   size, modified time, and what a folder inside holds), watches it with the file system's own

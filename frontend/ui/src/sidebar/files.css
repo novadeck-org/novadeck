@@ -190,27 +190,6 @@
   opacity: 0.6;
 }
 
-/* A folder row's own action, "Open in the pane", where the pointer is: over the chips, at the row's
-   end. Pointer only; the same entry is in the row's context menu. */
-.files-row-action {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  transform: translateY(-50%);
-  opacity: 0;
-}
-.files-row:hover .files-row-action,
-.files-row-action:focus-visible {
-  opacity: 1;
-}
-/* A repository's marks are in the action's place, and must stay where the pointer found them: the
-   row's menu has "Open in the pane" for it. */
-.files-row:has(.files-mark) .files-row-action {
-  display: none;
-}
-
 /* An agent writing a file shows as a terminal's cursor after its name. */
 .files-cursor {
   width: 6px;
