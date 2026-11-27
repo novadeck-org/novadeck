@@ -49,7 +49,15 @@ const distinct = macOS ? 1_100 : 50
 /** Detaches a command into a session of its own: macOS has no `setsid` program. */
 const setsid = macOS ? `perl -MPOSIX -e 'fork and exit; POSIX::setsid(); exec @ARGV'` : "setsid"
 const noTrees = { read: () => Promise.resolve(undefined), end: () => Promise.resolve() }
-const listing = processListing(process.platform, 0, 10_000)
+const listMs = 10_000
+const listing = processListing(process.platform, 0, listMs)
+/**
+ * How long a closed terminal's programs may take to be seen gone: 3 s to end, and a listing to
+ * see it by, which on a loaded Mac takes seconds (a poll there read nothing in 3 s).
+ */
+const goneMs = 3_000 + listMs
+/** A test that waits `goneMs`, with the package's 20 s besides for its terminal and agent. */
+const goneTest = { timeout: 20_000 + goneMs }
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const eventually = async (check: () => boolean | Promise<boolean>, what: string, ms = 10_000) => {
@@ -230,14 +238,14 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
 
   context("as its terminal closes", () => {
     for (const name of Object.keys(variants))
-      it(`ends a program the agent started by ${name}`, async () => {
+      it(`ends a program the agent started by ${name}`, goneTest, async () => {
         const { startAgent, end } = await terminal()
         const { pid, servers } = await startAgent([name])
         await end(pid)
-        await expect.poll(() => stillRunning(servers), { timeout: 3_000 }).toEqual([])
+        await expect.poll(() => stillRunning(servers), { timeout: goneMs }).toEqual([])
       })
 
-    it("ends them once the agent has left, the shell still at its prompt", async () => {
+    it("ends them once the agent has left, the shell still at its prompt", goneTest, async () => {
       const { pty, startAgent, run, said, end } = await terminal()
       const { pid, servers } = await startAgent()
       process.kill(pid, "SIGKILL")
@@ -245,10 +253,10 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
       run("echo BACK=$((40+2))=")
       await said(/BACK=42=/)
       await end()
-      await expect.poll(() => stillRunning(servers), { timeout: 3_000 }).toEqual([])
+      await expect.poll(() => stillRunning(servers), { timeout: goneMs }).toEqual([])
     })
 
-    it("ends them in a terminal whose shell has exited by itself", async () => {
+    it("ends them in a terminal whose shell has exited by itself", goneTest, async () => {
       const { pty, startAgent, run, said } = await terminal()
       const { pid, servers } = await startAgent()
       process.kill(pid, "SIGKILL")
@@ -259,7 +267,7 @@ describe.skipIf(!scoped)("what an agent left in its terminal's scope", () => {
       await eventually(() => pty.exited, "the shell to exit")
       expect(await Promise.all([...servers.values()].map(running))).not.toContain(false)
       await pty.endLeft({ listing })
-      await expect.poll(() => stillRunning(servers), { timeout: 3_000 }).toEqual([])
+      await expect.poll(() => stillRunning(servers), { timeout: goneMs }).toEqual([])
     })
 
     it("spares what the person started before the agent, and after it left", async () => {

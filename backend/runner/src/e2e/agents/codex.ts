@@ -118,6 +118,9 @@ export const codex: AgentSetup = {
   name: "Codex",
   dialect: responses,
   banner: "OpenAI Codex",
+  // Its composer is drawn under "Resuming session…" and drops what is typed there: seen on a
+  // loaded Windows runner after a restart (CI run 45623992951).
+  loading: /Resuming session/,
   bindsAtReady: false,
   keepsHookText: true,
   steers: true,

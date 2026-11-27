@@ -10,20 +10,24 @@ import { pluginSource } from "./plugin-source.js"
 import { events, files } from "./plugin.js"
 import { minimum, unknownFrom } from "./version.js"
 
-// A stand-in for Novadeck's hook launcher, run by each hook command: it records the report
-// and prints the answer a test queued for its event, once.
+// A stand-in for Novadeck's hook launcher, run by each hook command: it prints the answer a test
+// queued for its event, once, and records the report as its last step, so a report that shows in
+// reports.jsonl has taken its answer and touches the folder no more (a test that goes on, or
+// ends, at once would else queue an answer this report takes, or remove the folder under it).
 const launcher = `
 const fs = require("node:fs"), path = require("node:path")
 const [dir, event] = process.argv.slice(2)
 let input = ""
 process.stdin.on("data", (chunk) => (input += chunk))
 process.stdin.on("end", () => {
-  fs.appendFileSync(path.join(dir, "reports.jsonl"), JSON.stringify({ event, payload: JSON.parse(input) }) + "\\n")
   const queued = path.join(dir, "answers", event)
+  let answer = ""
   if (fs.existsSync(queued)) {
-    process.stdout.write(fs.readFileSync(queued, "utf8"))
+    answer = fs.readFileSync(queued, "utf8")
     fs.rmSync(queued)
   }
+  fs.appendFileSync(path.join(dir, "reports.jsonl"), JSON.stringify({ event, payload: JSON.parse(input) }) + "\\n")
+  process.stdout.write(answer)
 })
 `
 
@@ -40,6 +44,8 @@ let interfaceCalls: string[]
 // Each reply the plugin sent to a permission's request, and what opencode answers one with.
 let permissionReplies: { path: { id: string; permissionID: string }; body: { response: string } }[]
 let replyAnswer: () => Promise<unknown>
+// What opencode answers a read of a session's messages with.
+let messagesAnswer: () => Promise<unknown>
 
 const client = () => ({
   postSessionIdPermissionsPermissionId: async (options: (typeof permissionReplies)[number]) => {
@@ -53,7 +59,7 @@ const client = () => ({
       data: sessions[path.id] ? { id: path.id, ...sessions[path.id] } : undefined,
     }),
     list: async () => ({ data: [] }),
-    messages: async () => ({ data: [] }),
+    messages: async () => await messagesAnswer(),
     promptAsync: async ({ path, body }: { path: { id: string }; body: { parts: unknown[] } }) => {
       prompted.push({ id: path.id, ...body })
       return { data: undefined }
@@ -137,6 +143,7 @@ beforeEach(async () => {
   interfaceCalls = []
   permissionReplies = []
   replyAnswer = async () => ({ data: true })
+  messagesAnswer = async () => ({ data: [] })
 })
 afterEach(async () => {
   process.env = { ...saved }
@@ -227,6 +234,89 @@ describe("Novadeck's opencode plugin", () => {
       openrouter: { options: { baseURL: "b", apiKey: "k" } },
       theirs: {},
     })
+  })
+
+  // Its server can be slow to answer a read of a session's messages (a loaded Windows runner's was
+  // seen to outlast the first turn): the session a prompt just made has none to write, so its
+  // binding never waits for that read, or the prompt's own report would reach the runner first.
+  it("reports a session made just now before its prompt, though opencode never answers a read of its messages", async () => {
+    messagesAnswer = () => new Promise(() => {})
+    const hooks = await start()
+    await emit(hooks, "session.created", {
+      info: { id: "ses_a", title: "New session - 2026-11-26T10:00:00.000Z" },
+    })
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "msg_1", sessionID: "ses_a" },
+        parts: [{ id: "p1", type: "text", text: "go" }],
+      },
+    )
+    const made = await settled(2)
+    expect(made.map((one) => one.event)).toEqual(["SessionStart", "UserPromptSubmit"])
+    expect(made[0]!.payload).toEqual(
+      expect.objectContaining({ session_id: "ses_a", source: "startup" }),
+    )
+  })
+
+  it("reports a session it didn't just make before its prompt too, waiting only so long for opencode's read of its messages", async () => {
+    messagesAnswer = () => new Promise(() => {})
+    const hooks = await start()
+    void emit(hooks, "session.created", {
+      info: { id: "ses_a", title: "Fixing the build (fork #1)" },
+    })
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "msg_1", sessionID: "ses_a" },
+        parts: [{ id: "p1", type: "text", text: "go" }],
+      },
+    )
+    const made = await settled(2)
+    expect(made.map((one) => one.event)).toEqual(["SessionStart", "UserPromptSubmit"])
+  })
+
+  it("reports no bind of a session another was bound over while its messages were read", async () => {
+    messagesAnswer = () => new Promise(() => {})
+    const hooks = await start()
+    void emit(hooks, "session.created", {
+      info: { id: "ses_a", title: "Fixing the build (fork #1)" },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await emit(hooks, "session.created", {
+      info: { id: "ses_b", title: "New session - 2026-11-26T10:00:00.000Z" },
+    })
+    // Past the wait for the first one's read.
+    await new Promise((resolve) => setTimeout(resolve, 2600))
+    const made = await settled(1)
+    expect(made.map((one) => `${one.event}:${one.payload.session_id}`)).toEqual([
+      "SessionStart:ses_b",
+    ])
+  })
+
+  it("writes no record from a read of messages that outlasted the bind's wait after the prompt's", async () => {
+    let answerRead!: (found: unknown) => void
+    messagesAnswer = () => new Promise((resolve) => (answerRead = resolve))
+    sessions.ses_a = {}
+    const hooks = await start()
+    await hooks["chat.message"]!(
+      { sessionID: "ses_a", agent: "build" },
+      {
+        message: { id: "msg_new", sessionID: "ses_a" },
+        parts: [{ id: "p_new", type: "text", text: "new" }],
+      },
+    )
+    answerRead({
+      data: [
+        {
+          info: { id: "msg_old", sessionID: "ses_a", role: "user" },
+          parts: [{ id: "p_old", type: "text", text: "old" }],
+        },
+      ],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const lines = (await readFile(join(dir, "sessions", "ses_a.jsonl"), "utf8")).trim().split("\n")
+    expect(lines.map((line) => JSON.parse(line).info?.id)).toEqual(["msg_new"])
   })
 
   it("binds the session a prompt makes and adds the prompt's delivery to it", async () => {
@@ -723,6 +813,7 @@ describe("the plugin with the shipping gate on", () => {
 
   it("replies to nothing but a shell command's permission of a named call", async () => {
     const hooks = await start({}, true)
+    let made = 0
     for (const each of [
       { ...asked, permission: "edit" },
       { ...asked, permission: "external_directory" },
@@ -733,12 +824,17 @@ describe("the plugin with the shipping gate on", () => {
       await answered("PermissionRequest", { reply: "once" })
       // eslint-disable-next-line no-await-in-loop -- As above.
       await emit(hooks, "permission.asked", each)
+      // Its report is not awaited by the plugin: it has taken its answer once it shows.
+      made += 1
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await settled(made)
     }
     expect(permissionReplies).toEqual([])
     // While the gate is off the answer says nothing to it, whatever it prints.
     const off = await start()
     await answered("PermissionRequest", { reply: "once" })
     await emit(off, "permission.asked", asked)
+    await settled(made + 1)
     expect(permissionReplies).toEqual([])
   })
 
@@ -789,8 +885,10 @@ describe("the plugin's files", () => {
 
 describe("the interface's plugin", () => {
   // The interface's plugin rendered with a hook command that records its input, given a route
-  // that a test moves, as opencode's `api.route.current` is.
-  const run = async (routes: unknown[]): Promise<Record<string, unknown>[]> => {
+  // that a test moves, as opencode's `api.route.current` is. It waits for the `expected` reports,
+  // each a process of its own that a loaded runner can start late (2 at once missed 700 ms on
+  // macOS), then a while more for any report too many.
+  const run = async (routes: unknown[], expected = 0): Promise<Record<string, unknown>[]> => {
     const log = join(dir, "left.jsonl")
     const script = join(dir, "left.cjs")
     await writeFile(
@@ -826,18 +924,26 @@ describe("the interface's plugin", () => {
       await new Promise((resolve) => setTimeout(resolve, 400))
     }
     dispose?.()
+    const told = (): Record<string, unknown>[] =>
+      existsSync(log)
+        ? readFileSync(log, "utf8")
+            .split("\n")
+            .slice(0, -1)
+            .map((line) => JSON.parse(line) as Record<string, unknown>)
+        : []
+    for (let tries = 0; tries < 400 && told().length < expected; tries++)
+      // eslint-disable-next-line no-await-in-loop -- It polls until the reports are in.
+      await new Promise((resolve) => setTimeout(resolve, 25))
     await new Promise((resolve) => setTimeout(resolve, 300))
-    return existsSync(log)
-      ? readFileSync(log, "utf8")
-          .trim()
-          .split("\n")
-          .map((line) => JSON.parse(line) as Record<string, unknown>)
-      : []
+    return told()
   }
   const session = (id: string) => ({ name: "session", params: { sessionID: id } })
 
   it("reports the session a route left for home, once, and nothing at its start", async () => {
-    const told = await run([{ name: "home" }, session("ses_a"), { name: "home" }, session("ses_b")])
+    const told = await run(
+      [{ name: "home" }, session("ses_a"), { name: "home" }, session("ses_b")],
+      1,
+    )
     expect(told).toHaveLength(1)
     expect(told[0]).toMatchObject({ hook_event_name: "SessionLeft", session_id: "ses_a" })
   })
@@ -847,7 +953,7 @@ describe("the interface's plugin", () => {
   })
 
   it("leaves the root too where the person goes home from a subagent's view, and marks each", async () => {
-    const told = await run([session("ses_a"), session("ses_child"), { name: "home" }])
+    const told = await run([session("ses_a"), session("ses_child"), { name: "home" }], 2)
     expect(told.map(({ session_id }) => session_id).toSorted()).toEqual(["ses_a", "ses_child"])
     expect(existsSync(join(dir, "left", "ses_a"))).toBe(true)
   })

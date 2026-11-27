@@ -203,8 +203,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/run"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
             | jq --arg name "$WORKFLOW_NAME" '. + {workflow_name: $name}' > "$RUNNER_TEMP/run/run.json"
+          # Through the retry, as Tally's downloads are (a 503 from GitHub's storage ended it).
           while read -r name; do
-            gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/run/$name"
+            # shellcheck disable=SC2016 # Its own bash expands them, from its arguments and env.
+            node scripts/ci/setup/retry.ts "The retry record $name couldn't be downloaded" \
+              -- bash -c 'got=$(mktemp -d) && gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$1" --dir "$got" && mv "$got" "$2"' \
+              _ "$name" "$RUNNER_TEMP/run/$name"
           done < "$RUNNER_TEMP/names.txt"
 
       # One comment a pull request, found by its marker among the bot's own, edited in place.
@@ -276,13 +280,19 @@ jobs:
             oldest=$(jq -r '.artifacts[-1].created_at // ""' "$RUNNER_TEMP/page.json")
             if [ "$count" -lt 100 ] || [[ "$oldest" < "$cutoff" ]]; then break; fi
           done
+          # Each download through the retry (scripts/ci/setup/retry.ts), each try into a folder of its own:
+          # on 11-26 one record's download got GitHub's 503 ("Egress is over the account limit")
+          # and ended the whole Tally, so the budget issue went a day without its count.
           while IFS=$'\t' read -r run name; do
             folder="$RUNNER_TEMP/runs/$run"
             if [ ! -e "$folder/run.json" ]; then
               mkdir -p "$folder"
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "$folder/run.json"
             fi
-            gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$folder/$name"
+            # shellcheck disable=SC2016 # Its own bash expands them, from its arguments and env.
+            node scripts/ci/setup/retry.ts "The retry record $name of run $run couldn't be downloaded" \
+              -- bash -c 'got=$(mktemp -d) && gh run download "$1" --repo "$GITHUB_REPOSITORY" --name "$2" --dir "$got" && mv "$got" "$3"' \
+              _ "$run" "$name" "$folder/$name"
           done < "$RUNNER_TEMP/records.tsv"
 
       - name: Find Budget Issue

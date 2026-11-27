@@ -352,8 +352,15 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       const finishing = gate()
-      run.model.use(asksAndWorksOn(run, finishing))
+      run.model.use(replies("Warm up", "Warmed up."), asksAndWorksOn(run, finishing))
       const terminal = await start(run, setup)
+      // opencode alone: on a loaded Windows runner its first prompt's hook fired 3.8 s after the
+      // Enter, past the window a person's Enter and its hook must fall in (`submitWindowMs`;
+      // CI run 45640041853, while the runner was blocked for 3 s), and Novadeck then doesn't know the
+      // box is empty: the turn's Stop goes on with the reply as context, not the line this test is
+      // for. Its session was bound by then, so it isn't the bind race. A second prompt falls in the
+      // window. The other harnesses keep the first-turn case.
+      if (setup.agent === "opencode") await turn(terminal, "Warm up", "Warmed up.")
       const calls = run.model.mark()
       await terminal.submit("Ask and work on")
       await run.model.waitFor(

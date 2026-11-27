@@ -193,6 +193,10 @@ const probes = [
 let refusals: ReadonlyMap<string, readonly string[]> = new Map()
 let workspace = ""
 
+// One oxlint run over every probe, which takes about a second here and ran 11 s on a loaded
+// Windows runner (a process start there costs ~17x), past the hook's 10 s default.
+const lintTimeout = 60_000
+
 beforeAll(() => {
   workspace = mkdtempSync(join(tmpdir(), "novadeck-fence-"))
   writeFileSync(join(workspace, ".oxlintrc.json"), probeConfig())
@@ -208,7 +212,7 @@ beforeAll(() => {
     found.set(file, [...(found.get(file) ?? []), name])
   }
   refusals = found
-})
+}, lintTimeout)
 
 afterAll(() => rmSync(workspace, { recursive: true, force: true }))
 

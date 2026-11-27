@@ -35,7 +35,21 @@ describe.skipIf(!supported)("Antigravity", () => {
 
     await second.submit("Say two")
     await second.until("Second done.")
-    expect(first.summary().activity?.lastTurn?.reply).toBe("First done.")
-    expect(second.summary().activity?.lastTurn?.reply).toBe("Second done.")
+    // The screen shows a reply before the runner's summary names it: its turn ends by the Stop
+    // hook and its words by a transcript read, each told to the deck after the screen is drawn.
+    await Promise.all(
+      (
+        [
+          [first, "First done."],
+          [second, "Second done."],
+        ] as const
+      ).map(async ([terminal, reply]) => {
+        await terminal.poll(
+          () => terminal.summary().activity?.lastTurn?.reply ?? undefined,
+          `the last turn's reply, ${reply}`,
+        )
+        expect(terminal.summary().activity?.lastTurn?.reply).toBe(reply)
+      }),
+    )
   })
 })

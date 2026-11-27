@@ -72,11 +72,22 @@ export const prompted = async (
   const questions = [setup.trust?.folder?.shows, setup.trust?.hooks?.shows].filter(
     (question) => question !== undefined,
   )
+  // A loading line seen once stays seen: a resumed session's replayed conversation can scroll
+  // its banner away before that line goes, so once it has gone the prompt is drawn, banner or
+  // not. Otherwise the banner itself is on screen (a startup question can name the harness, so
+  // a banner seen once with it says nothing of the screen after).
+  let loaded = false
   await poll(
     async () => {
       const shown = await terminal.screen()
+      const loading = setup.loading?.test(shown) === true
+      loaded ||= loading
       const at = typeof banner === "string" ? shown.includes(banner) : banner.test(shown)
-      return at && !questions.some((question) => question.test(shown)) ? true : undefined
+      return (at || (loaded && shown.trim() !== "")) &&
+        !loading &&
+        !questions.some((question) => question.test(shown))
+        ? true
+        : undefined
     },
     `${terminal.handle} to show its prompt (${String(banner)}), past any startup question`,
     timeoutMs,

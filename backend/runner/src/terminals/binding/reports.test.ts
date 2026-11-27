@@ -123,6 +123,24 @@ describe("a conversation another terminal's agent holds", () => {
     expect(held(resting, "second", "held")).toBe(false)
   })
 
+  // A `/clear` leaves the conversation looking interrupted to the next process to start.
+  it("is held by the terminal whose running process left it for another, as at /clear", () => {
+    const cleared = new Map(records)
+    cleared.set("first", {
+      ...holding("first", "new"),
+      passed: { instance: "1", sessions: new Set(["agy:held"]) },
+    } as Record)
+    expect(held(cleared, "second", "held")).toBe(true)
+    expect(held(cleared, "first", "held")).toBe(false)
+    expect(held(cleared, "second", "held", dead)).toBe(false)
+    // Another process of that terminal's is no holder of it.
+    cleared.set("first", {
+      ...holding("first", "new"),
+      passed: { instance: "0", sessions: new Set(["agy:held"]) },
+    } as Record)
+    expect(held(cleared, "second", "held")).toBe(false)
+  })
+
   // After a runner restart every terminal resumes at once: another's process may name a
   // conversation before the terminal resuming it binds it.
   it("is the terminal's whose own resume claims it, bound or not yet", () => {

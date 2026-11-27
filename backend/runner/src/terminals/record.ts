@@ -132,6 +132,12 @@ export type Record = {
    * for, followed as its harness's profile says (see `followRoot`); null without one.
    */
   root: Root | null
+  /**
+   * The sessions its running agent process left for another, as a `/clear` does, by their ids
+   * and the process's own (`instance`); in memory only. Antigravity's next process resumes
+   * such a conversation as one interrupted, which it still holds (`namesHeldConversation`).
+   */
+  passed?: { readonly instance: string; readonly sessions: ReadonlySet<string> } | undefined
   /** What the root session worked on, kept with the terminal; null before any did. */
   work: Work | null
   /** The id of the terminal whose agent opened this one, closed since or not; null otherwise. */

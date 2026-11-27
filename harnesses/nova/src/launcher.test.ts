@@ -162,48 +162,65 @@ describe("Novadeck's pi launcher", () => {
     expect(lines(failed?.stdout ?? "")).toEqual([])
   })
 
-  it.runIf(windows)("gives pi its powershell tools only where it finds no bash", async () => {
-    const empty = join(root, "nowhere")
-    await mkdir(empty)
+  // Each launch of the .cmd launcher takes Windows CI 2-5 s (cmd, the relay's .cmd, `where`), so
+  // one case launches once or twice: seven in a single test ran past the 20 s limit.
+  describe.runIf(windows)("on Windows, with no bash of its own", () => {
     // Nowhere pi looks holds a bash: Program Files, then (x86), then PATH, which here holds
     // `where` alone (System32 may hold WSL's bash.exe, which pi would take, as the launcher does).
-    const tools = join(root, "tools")
-    await mkdir(tools)
-    await copyFile(`${process.env.SystemRoot}\\System32\\where.exe`, join(tools, "where.exe"))
-    const none = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: tools }
+    let tools: string
+    let none: NodeJS.ProcessEnv
+    beforeEach(async () => {
+      const empty = join(root, "nowhere")
+      await mkdir(empty)
+      tools = join(root, "tools")
+      await mkdir(tools)
+      await copyFile(`${process.env.SystemRoot}\\System32\\where.exe`, join(tools, "where.exe"))
+      none = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: tools }
+    })
+
     // Its command line as cmd gives it: a .cmd file splits its words at a comma too, pi.exe
-    // doesn't.
-    // Its blanks run together: an empty %novadeck_tools% leaves two.
+    // doesn't. Its blanks run together: an empty %novadeck_tools% leaves two.
     const raw = (out: string) =>
       lines(out)
         .find((line) => line.startsWith("raw="))
         ?.replaceAll(/\s+/g, " ")
-    const without = raw((await launch(["go"], none)).stdout)
-    expect(without?.endsWith(`novadeck.mjs" ${powershellTools.join(" ")} go`)).toBe(true)
-    // Git Bash where Git for Windows puts it.
-    const git = join(root, "git")
-    await mkdir(join(git, "Git", "bin"), { recursive: true })
-    await writeFile(join(git, "Git", "bin", "bash.exe"), "")
-    const withGit = raw((await launch(["go"], { ...none, ProgramFiles: git })).stdout)
-    expect(withGit?.endsWith(`novadeck.mjs" go`)).toBe(true)
+    const given = `novadeck.mjs" ${powershellTools.join(" ")} go`
+    const plain = `novadeck.mjs" go`
+
     // WSL's launchers, in System32 and WindowsApps, which run commands in Linux: none of them.
-    const system = join(root, "windows")
-    const apps = join(root, "local")
-    await mkdir(join(system, "System32"), { recursive: true })
-    await mkdir(join(apps, "Microsoft", "WindowsApps"), { recursive: true })
-    await writeFile(join(system, "System32", "bash.exe"), "")
-    await writeFile(join(apps, "Microsoft", "WindowsApps", "bash.exe"), "")
-    const wsl = {
-      ...none,
-      PATH: [tools, join(system, "System32"), join(apps, "Microsoft", "WindowsApps")].join(";"),
+    const wslPath = async () => {
+      const system = join(root, "windows")
+      const apps = join(root, "local")
+      await mkdir(join(system, "System32"), { recursive: true })
+      await mkdir(join(apps, "Microsoft", "WindowsApps"), { recursive: true })
+      await writeFile(join(system, "System32", "bash.exe"), "")
+      await writeFile(join(apps, "Microsoft", "WindowsApps", "bash.exe"), "")
+      return [tools, join(system, "System32"), join(apps, "Microsoft", "WindowsApps")].join(";")
     }
-    const onlyWsl = raw((await launch(["go"], wsl)).stdout)
-    expect(onlyWsl?.endsWith(`novadeck.mjs" ${powershellTools.join(" ")} go`)).toBe(true)
-    // Any other bash.exe on PATH, as pi takes one.
-    await writeFile(join(tools, "bash.exe"), "")
-    const onPath = raw((await launch(["go"], none)).stdout)
-    expect(onPath?.endsWith(`novadeck.mjs" go`)).toBe(true)
-    expect(raw((await launch(["go"], wsl)).stdout)?.endsWith(`novadeck.mjs" go`)).toBe(true)
+
+    it("gives pi its powershell tools where nothing holds a bash", async () => {
+      expect(raw((await launch(["go"], none)).stdout)?.endsWith(given)).toBe(true)
+    })
+
+    it("leaves them off where Git for Windows puts its bash", async () => {
+      const git = join(root, "git")
+      await mkdir(join(git, "Git", "bin"), { recursive: true })
+      await writeFile(join(git, "Git", "bin", "bash.exe"), "")
+      const out = raw((await launch(["go"], { ...none, ProgramFiles: git })).stdout)
+      expect(out?.endsWith(plain)).toBe(true)
+    })
+
+    it("gives them where only WSL's launchers hold a bash", async () => {
+      const out = raw((await launch(["go"], { ...none, PATH: await wslPath() })).stdout)
+      expect(out?.endsWith(given)).toBe(true)
+    })
+
+    it("leaves them off where any other bash.exe is on PATH, WSL's launchers or not", async () => {
+      await writeFile(join(tools, "bash.exe"), "")
+      expect(raw((await launch(["go"], none)).stdout)?.endsWith(plain)).toBe(true)
+      const wsl = { ...none, PATH: await wslPath() }
+      expect(raw((await launch(["go"], wsl)).stdout)?.endsWith(plain)).toBe(true)
+    })
   })
 })
 

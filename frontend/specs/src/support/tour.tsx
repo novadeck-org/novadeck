@@ -232,21 +232,44 @@ const pressWindow = async (marked: HTMLElement): Promise<string | null> => {
 const captionNow = (): string =>
   document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
 
+/** How long ago an epoch-ms time was, or "not yet". */
+const ago = (at: unknown): string =>
+  typeof at === "number" ? `${Math.round((Date.now() - at) / 1000)} s ago` : "not yet"
+
+/**
+ * Where the tour's run is, as it keeps it in session storage (frontend/tour's `storageKey`), for a
+ * failure to say: its step, and whether and when that step was touched and done.
+ */
+const runNow = (): string => {
+  try {
+    const run = JSON.parse(sessionStorage.getItem("novadeck.tour") ?? "null") as {
+      readonly stepId?: unknown
+      readonly touched?: unknown
+      readonly doneAt?: unknown
+    } | null
+    if (!run) return "none kept"
+    return `step ${String(run.stepId)}, touched ${ago(run.touched)}, done ${ago(run.doneAt)}`
+  } catch {
+    return "unreadable"
+  }
+}
+
 /**
  * Plays a step that waits on the person, as they would: once its caption says `line` (or its
  * `cue`, said while its subject isn't on screen yet), presses what opens its subject where the
  * tour marks that first (the rail's button for a panel, a window whose pane isn't showing yet),
  * each once, then touches the subject itself, one of what `subject` finds, and waits for the
- * caption to move on (unless the step `stays` a while after, as the game's last does).
+ * caption to move on: at once, or once the step's hold (`holdMs`) after the touch is over, as the
+ * game's last step holds before its closing card comes.
  */
 export const touchStep = async (
   line: string,
   subject: () => readonly (HTMLElement | undefined)[],
   {
     timeout = 40_000,
-    stays = false,
+    holdMs = 0,
     cue,
-  }: { readonly timeout?: number; readonly stays?: boolean; readonly cue?: string } = {},
+  }: { readonly timeout?: number; readonly holdMs?: number; readonly cue?: string } = {},
 ): Promise<void> => {
   await coachSaysAny(cue === undefined ? [line] : [line, cue], timeout)
   const opened = new Set<HTMLElement>()
@@ -338,25 +361,22 @@ export const touchStep = async (
     if (missed === null) landedAt = Date.now()
   }
   await press()
-  if (stays) {
-    if (landedAt === null) await press()
-    if (landedAt === null) throw new Error(`Pressing "${line}"'s subject: ${presses.join("; ")}`)
-    return
-  }
   // The caption moves on once the step is done, which may wait on more than the press (the
-  // teammates naming themselves), so as long as it took to say.
-  const deadline = Date.now() + 40_000
+  // teammates naming themselves), so as long as it took to say, and its hold after the touch.
+  // A step that holds was pressed once alone before: a press the tour didn't hear left the game's
+  // last step waiting, its closing card never coming (a loaded Windows runner, 2026-11-26).
+  const deadline = Date.now() + 40_000 + holdMs
   for (;;) {
     if (!captionNow().includes(line)) return
     if (Date.now() > deadline)
       throw new Error(
-        `The tour never moved on from "${line}": it says "${captionNow()}". Presses: ${presses.join("; ")}. Windows: ${[
+        `The tour never moved on from "${line}": it says "${captionNow()}". Presses: ${presses.join("; ")}. Its run: ${runNow()}. Windows: ${[
           ...document.querySelectorAll<HTMLElement>(windowSelector),
         ]
           .map((each) => each.getAttribute("aria-label"))
           .join(", ")}`,
       )
-    if (landedAt === null || Date.now() - landedAt > 10_000) {
+    if (landedAt === null || Date.now() - landedAt > holdMs + 10_000) {
       // eslint-disable-next-line no-await-in-loop -- Each press waits for the one before.
       await press()
     }

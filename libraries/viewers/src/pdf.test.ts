@@ -1,5 +1,5 @@
 import "./pdf.css"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 
 import frameHtml from "./frame/frame.html?raw"
@@ -219,10 +219,18 @@ const viewerOf = (pane: HTMLElement): HTMLElement => docOf(pane)!.querySelector(
 const pagesOf = (pane: HTMLElement): HTMLElement[] =>
   [...(docOf(pane)?.querySelectorAll(".pdf-page") ?? [])] as HTMLElement[]
 const chipOf = (pane: HTMLElement): HTMLButtonElement => docOf(pane)!.querySelector(".pdf-chip")!
+// An open loads the frame, starts pdf.js's worker and parses the PDF, none of it paced by a
+// frame, so a wait on what an open brings (its pages, its trouble, the frame no longer busy)
+// gets longer than the 5 s a check on frames does: the file's first, on a loaded macOS runner,
+// had no page after 5 s, and opens took up to 15 s here under CPU load.
+const openMs = 20_000
+vi.setConfig({ testTimeout: 30_000 })
 const opened = async (pane: HTMLElement, count: number): Promise<void> => {
-  await expect.poll(() => pagesOf(pane).length).toBe(count)
+  await expect.poll(() => pagesOf(pane).length, { timeout: openMs }).toBe(count)
   await expect
-    .poll(() => docOf(pane)?.querySelector(".pdf-viewer")?.getAttribute("aria-busy"))
+    .poll(() => docOf(pane)?.querySelector(".pdf-viewer")?.getAttribute("aria-busy"), {
+      timeout: openMs,
+    })
     .toBe("false")
 }
 
@@ -476,7 +484,7 @@ describe("a PDF's place", () => {
     const hidden = paneIn()
     hidden.style.display = "none"
     const viewer = mount(hidden, pdfOf(5), { saved: state })
-    await expect.poll(() => pagesOf(hidden).length).toBe(5)
+    await expect.poll(() => pagesOf(hidden).length, { timeout: openMs }).toBe(5)
     await expect.poll(() => viewer.state()).toMatchObject({ pdf: { page: 3 } })
     hidden.style.display = "flex"
     await expect.poll(() => chipOf(hidden).textContent).toMatch(/^4 \/ 5/)
@@ -507,7 +515,7 @@ describe("a PDF it can't draw", () => {
     const pane = paneIn()
     const troubles: (PdfTrouble | null)[] = []
     mount(pane, new Blob(["not a PDF at all"]), { onTrouble: (trouble) => troubles.push(trouble) })
-    await expect.poll(() => troubles).toEqual(["unreadable"])
+    await expect.poll(() => troubles, { timeout: openMs }).toEqual(["unreadable"])
     expect(docOf(pane)!.querySelector('[role="alert"]')!.textContent).toBe(
       "This file couldn't be read as a PDF.",
     )
@@ -521,7 +529,7 @@ describe("a PDF it can't draw", () => {
     const troubles: (PdfTrouble | null)[] = []
     const locked = Uint8Array.from(atob(lockedPdfData), (char) => char.charCodeAt(0))
     mount(pane, new Blob([locked]), { onTrouble: (trouble) => troubles.push(trouble) })
-    await expect.poll(() => troubles).toEqual(["password"])
+    await expect.poll(() => troubles, { timeout: openMs }).toEqual(["password"])
     expect(docOf(pane)!.querySelector('[role="alert"]')!.textContent).toBe(
       "This PDF is locked with a password, which Novadeck doesn't open.",
     )
@@ -533,10 +541,11 @@ describe("a PDF it can't draw", () => {
     const viewer = mount(pane, new Blob(["half written"]), {
       onTrouble: (trouble) => troubles.push(trouble),
     })
-    await expect.poll(() => troubles).toEqual(["unreadable"])
+    await expect.poll(() => troubles, { timeout: openMs }).toEqual(["unreadable"])
     viewer.update({ bytes: pdfOf(2) })
     await opened(pane, 2)
-    expect(troubles).toEqual(["unreadable", null])
+    // The frame's word reaches the pane as a message, after the DOM it drew shows.
+    await expect.poll(() => troubles, { timeout: openMs }).toEqual(["unreadable", null])
     expect(docOf(pane)!.querySelector<HTMLElement>('[role="alert"]')!.hidden).toBe(true)
   })
 })
@@ -620,7 +629,7 @@ describe("a PDF in its frame", () => {
     expect(frame.title).toBe("report.pdf")
     // Opened and laid out in the frame, which says only that.
     await expect
-      .poll(() => pane.querySelector(".pdf-host")!.getAttribute("aria-busy"))
+      .poll(() => pane.querySelector(".pdf-host")!.getAttribute("aria-busy"), { timeout: openMs })
       .toBe("false")
     expect(frame.contentDocument).toBeNull()
   })
@@ -629,7 +638,7 @@ describe("a PDF in its frame", () => {
     const pane = paneIn()
     const troubles: (PdfTrouble | null)[] = []
     mountIsolated(pane, new Blob(["not a PDF"]), { onTrouble: (found) => troubles.push(found) })
-    await expect.poll(() => troubles).toEqual(["unreadable"])
+    await expect.poll(() => troubles, { timeout: openMs }).toEqual(["unreadable"])
   })
 })
 
@@ -804,7 +813,7 @@ describe("the frame's walls", () => {
     const pane = paneIn()
     const troubles: (PdfTrouble | null)[] = []
     mountIsolated(pane, pdfOf(1), { viewer: leave, onTrouble: (found) => troubles.push(found) })
-    await expect.poll(() => troubles).toEqual(["unreadable"])
+    await expect.poll(() => troubles, { timeout: openMs }).toEqual(["unreadable"])
     expect(pane.querySelector("iframe")).toBeNull()
     expect(pane.querySelector('[role="alert"]')!.textContent).toBe("The PDF viewer stopped.")
   })
@@ -878,7 +887,7 @@ describe("the frame's hold on the focus", () => {
     mountIsolated(pane, pdfOf(1), { viewer: steal })
     await new Promise((settled) => setTimeout(settled, 1500))
     const host = pane.querySelector(".pdf-host")!
-    await expect.poll(() => host.getAttribute("aria-busy")).toBe("false")
+    await expect.poll(() => host.getAttribute("aria-busy"), { timeout: openMs }).toBe("false")
     await userEvent.click(pane.querySelector<HTMLElement>(".pdf-glass")!)
     await userEvent.click(pane.querySelector("iframe")!)
     // Empty space: nothing here takes the focus.

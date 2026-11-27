@@ -283,10 +283,11 @@ const playToClosing = async (address?: string): Promise<void> => {
   await expectClickAt(() => paneOf("Game lead"))
   await new Promise((resolve) => setTimeout(resolve, 3_000))
   expect(closing().query()).toBeNull()
+  // The step holds 20 s after the touch (frontend/tour's playStep), then the card comes.
   await touchStep("Three agents, one game. Go play.", () => [paneOf("Game lead")], {
-    stays: true,
+    holdMs: 20_000,
   })
-  await expect.element(closing(), { timeout: 60_000 }).toBeVisible()
+  await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
   await expect.element(coach()).not.toBeInTheDocument()
   await expect
     .poll(() => closing().query()?.textContent ?? "")
@@ -297,28 +298,33 @@ const playToClosing = async (address?: string): Promise<void> => {
 beforeEach(switchTourOn)
 
 describe("The tour's story", () => {
-  it("shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there", async () => {
-    await openWorkspace("/?channel=experimental")
-    await openPreferencesOn("Agents")
-    const worktrees = preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
-    if ((await worktrees.element().getAttribute("aria-checked")) === "true") await worktrees.click()
-    await expect.element(worktrees).toHaveAttribute("aria-checked", "false")
-    await closePreferences()
-    expect(sidebarPanel("Worktrees").query()).toBeNull()
-    await beginTour()
-    await answerSheet("Fantasy", "RPG")
-    await allowRun()
-    await seePage()
-    // The teammates open their worktrees: the panel is there to show them.
-    await coachSays("Look. It hired its own help. Without asking me?", 20_000)
-    await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
-    await sidebarPanel("Worktrees").click()
-    await expect.element(page.getByText("models", { exact: true }).first()).toBeVisible()
-    await expect.element(page.getByText("game", { exact: true }).first()).toBeVisible()
-    // Another project has none, as the setting says.
-    await switchProject("storefront")
-    await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
-  })
+  it(
+    "shows the Worktrees panel in the tour's project even with Agent worktrees off, and only there",
+    walks,
+    async () => {
+      await openWorkspace("/?channel=experimental")
+      await openPreferencesOn("Agents")
+      const worktrees = preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
+      if ((await worktrees.element().getAttribute("aria-checked")) === "true")
+        await worktrees.click()
+      await expect.element(worktrees).toHaveAttribute("aria-checked", "false")
+      await closePreferences()
+      expect(sidebarPanel("Worktrees").query()).toBeNull()
+      await beginTour()
+      await answerSheet("Fantasy", "RPG")
+      await allowRun()
+      await seePage()
+      // The teammates open their worktrees: the panel is there to show them.
+      await coachSays("Look. It hired its own help. Without asking me?", 20_000)
+      await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
+      await sidebarPanel("Worktrees").click()
+      await expect.element(page.getByText("models", { exact: true }).first()).toBeVisible()
+      await expect.element(page.getByText("game", { exact: true }).first()).toBeVisible()
+      // Another project has none, as the setting says.
+      await switchProject("storefront")
+      await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
+    },
+  )
 
   it(
     "plays from the agent's start to its closing card, the person's answer and yes included",
@@ -417,9 +423,9 @@ describe("The tour's story", () => {
       // Nothing to play: the model is what is left to look at.
       await expectClickAt(() => paneOf("Modeller"))
       await touchStep("Three agents, one model. Yours.", () => [paneOf("Modeller")], {
-        stays: true,
+        holdMs: 8_000,
       })
-      await expect.element(closing(), { timeout: 30_000 }).toBeVisible()
+      await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
     },
   )
 

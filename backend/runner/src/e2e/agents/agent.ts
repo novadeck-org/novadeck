@@ -293,6 +293,11 @@ export type AgentSetup = {
   /** What its first screen shows once it is at its prompt. */
   readonly banner: string | RegExp
   /**
+   * What its screen shows while its prompt is drawn but a resumed session still loads, when keys
+   * typed are dropped: a scenario types only once it has gone.
+   */
+  readonly loading?: RegExp
+  /**
    * Whether a session binds as soon as it is at its prompt, before any prompt: Claude Code
    * reports its session as it starts; Codex and Antigravity only with their first prompt.
    */
