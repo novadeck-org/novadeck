@@ -139,6 +139,24 @@ describe("fetching origins", () => {
     expect(fetcher.failingSince("/r/local/.git")).toBeUndefined()
   })
 
+  it("retries a checkout that had no origin on the regular schedule once an origin is added", async () => {
+    const git = fake({ failing: () => true, noOrigin: true })
+    let now = 1_000_000
+    let hasOrigin = false
+    const run: typeof realGit = async (cwd, args, limit) => {
+      if (hasOrigin && args.includes("fetch")) return { ok: true, out: "", cut: false }
+      return git.run(cwd, args, limit)
+    }
+    const fetcher = new MainFetcher({ now: () => now, run, follow: () => false })
+    const repo = "/r/local/.git"
+    await fetcher.fetchDue([repo])
+    expect(fetcher.fetchedAt(repo)).toBeUndefined()
+    hasOrigin = true
+    now += fetchEveryMs
+    await fetcher.fetchDue([repo])
+    expect(fetcher.fetchedAt(repo)).toBe(now)
+  })
+
   it("runs in the repository's folder, changing nothing but origin's refs, with a long timeout and a grace", async () => {
     const git = fake()
     const fetcher = new MainFetcher({ run: git.run, environment: {} })

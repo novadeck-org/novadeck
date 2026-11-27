@@ -293,20 +293,19 @@ export class MainFetcher {
         state.failingSince = undefined
         state.failures = 0
         state.nextAt = at + this.every
+      } else if (done.kind === "exit" && !(await this.hasOrigin(commonDir))) {
+        // There was nothing to fetch. Check again on the regular schedule in case an origin is added.
+        state.failed = undefined
+        state.failingSince = undefined
+        state.failures = 0
+        if (!asked) state.nextAt = at + this.every
       } else {
         if (!asked) {
           state.failures += 1
           state.nextAt = at + Math.min(longestWaitMs, this.every * 2 ** state.failures)
         }
-        // A repository with no origin (one made by `git init`, as the tour's, or with its remote
-        // named otherwise) has nothing to fetch: that is no failure to tell.
-        if (done.kind === "exit" && !(await this.hasOrigin(commonDir))) {
-          state.failed = undefined
-          state.failingSince = undefined
-        } else {
-          state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
-          state.failingSince ??= at
-        }
+        state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
+        state.failingSince ??= at
         log.debug("worktrees.fetch-failed", "Novadeck could not fetch a repository's origin", {
           data: { commonDir, kind: done.kind, said: done.said },
         })
