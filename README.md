@@ -33,13 +33,36 @@
   <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
 </p>
 
+One coding agent is easy to keep up with. Run three or four and the job changes: you flip between
+tabs to find the one that's waiting, carry answers from one agent to another, and lose track of
+which branch holds what. Novadeck is a terminal for running several at once.
+
+## Keep the agents you have
+
+<p align="center">
+  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, opencode and pi, each named as it lands." width="100%" />
+</p>
+
+Novadeck runs the CLIs you already use, with your config and your own accounts. Nothing is wrapped
+or rebuilt, so there's nothing to set up again.
+
+## See who needs you
+
+<p align="center">
+  <img src="docs/assets/highlights/glance.webp" alt="The terminal list marks each agent working, asking, failed or done. Then the same terminals in Focus, one big; on the Canvas, all at once; and tiled in the Grid." width="100%" />
+</p>
+
+Start a few. The list marks each one working, asking, failed or done, so you stop clicking through
+tabs to check. Look at one in Focus, at all of them on the Canvas, or side by side in the Grid.
+
 ## Answer them where you are
 
 <p align="center">
   <img src="docs/assets/highlights/inbox.webp" alt="Three asks land on the Canvas: a command to run, a plan to approve and a question. Each shows in the Inbox. Opened from there, the command gets Yes, the plan Yes, manually approve edits, and the question its recommended answer, the customer's account. Each agent goes back to work." width="100%" />
 </p>
 
-Every agent's permission prompts, plans and questions land in one Inbox. Most you answer with a click.
+When an agent stops to ask, its permission prompt, plan or question lands in one Inbox. Most you
+answer with a click, and the agent goes back to work.
 
 ## Stop being the meat proxy
 
@@ -47,39 +70,37 @@ Every agent's permission prompts, plans and questions land in one Inbox. Most yo
   <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, opens three teammates, wired to it on the Canvas. Cart endpoint asks which API version to call, in the Inbox and to its lead. The lead answers first, and the ask leaves the Inbox on its own. Pricing endpoint reports done, to its lead and to the Inbox." width="100%" />
 </p>
 
-Agents message each other by handle and start their own teammates. Claude Code, Codex, Antigravity, opencode and pi can share a team.
+Often an agent's question is really for another agent. Here they message each other by handle and
+start their own teammates, so you stop copying answers between them. Claude Code, Codex,
+Antigravity, opencode and pi can share a team.
 
-## Run one, a few, or the whole crew
-
-<p align="center">
-  <img src="docs/assets/highlights/glance.webp" alt="The terminal list marks each agent working, asking, failed or done. Then the same terminals in Focus, one big; on the Canvas, all at once; and tiled in the Grid." width="100%" />
-</p>
-
-Every agent's state shows in the list. Focus, Grid and Canvas: the same terminals, three ways to look at them.
-
-## Read them as a chat
+## Read along as a chat
 
 <p align="center">
   <img src="docs/assets/highlights/chat.webp" alt="In Preferences, Show agents as is switched from Terminal to Chat. The Grid's terminals turn into chats: Cart drawer's steps, and Search index's review of its change as a message." width="100%" />
 </p>
 
-Agent Chat shows the same agents as a chat, with their messages to each other. Pick it in Preferences.
+Once they talk to each other, you'll want to follow. Agent Chat shows the same agents as a chat,
+their messages to each other included. Pick it in Preferences.
 
-## Every agent in its own worktree
+## Keep their work apart
 
 <p align="center">
   <img src="docs/assets/highlights/worktrees.webp" alt="The Worktrees panel lists every agent's worktree with its pull request, checks and handle. Orders API's three teammates hang under it. A check turns green, and Cart endpoint's pull request opens." width="100%" />
 </p>
 
-Each agent works on its own branch. Pull requests, checks and who's on what, in one list.
+Several agents in one repository trip over each other's changes. Here each one works in its own
+worktree, out of your checkout. The Worktrees panel lists them with their pull requests, checks and
+who's on what.
 
-## Watch every file they touch
+## See what they're changing
 
 <p align="center">
   <img src="docs/assets/highlights/files.webp" alt="The Files panel shows the project's tree while the agents write: each file marked with the agent writing it, new files arriving as they're made." width="100%" />
 </p>
 
-The Files panel marks each file with the agent changing it, as it happens.
+With several agents writing at once, it's hard to tell who touched what. The Files panel marks
+each file with the agent changing it, as it happens.
 
 ## Where'd it save that?
 
@@ -87,19 +108,13 @@ The Files panel marks each file with the agent changing it, as it happens.
   <img src="docs/assets/highlights/show.webp" alt="Order status page, an agent, shows its page in the pane beside its terminal, then its changes as diffs, then an image, a video, a PDF invoice, a 3D model, a CSV as a table and a folder of screenshots." width="100%" />
 </p>
 
-Pages, diffs, images, videos, PDFs, 3D models, CSVs and folders an agent shows you open right next to its terminal.
-
-## Bring your own harness
-
-<p align="center">
-  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, opencode and pi, each named as it lands." width="100%" />
-</p>
-
-Novadeck runs the CLIs you already have, with your config and your own accounts. Nothing is wrapped or rebuilt.
+When an agent makes something, it shows it to you. Pages, diffs, images, videos, PDFs, 3D models,
+CSVs and folders open right next to its terminal, so you don't go looking for them.
 
 ## Back where you left off
 
-After a restart, terminals reopen where they were and agents pick up their sessions.
+Close Novadeck at the end of the day. Next time, terminals reopen where they were and agents pick
+up their sessions.
 
 ## Install
 
