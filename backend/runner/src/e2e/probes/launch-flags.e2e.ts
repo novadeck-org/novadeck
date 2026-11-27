@@ -234,7 +234,7 @@ for (const setup of setups) {
         // What the code relies on: a bare resume keeps the mode unless `forgets` lists it.
         expect(
           probe.shows.test(String(probe.recorded ? found.bareRecorded : found.resumedBare)),
-        ).toBe(!forgets(agent, probe.typed.split(" ")))
+        ).toBe(!forgets(agent, probe.kept))
         if (!probe.recorded) await turn(restored, "Carry on", "Carried on.")
         await restored
           .poll(

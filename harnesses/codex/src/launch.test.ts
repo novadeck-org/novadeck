@@ -123,7 +123,8 @@ describe("the flags a resumed Codex keeps", () => {
     expect(resumed(["-s", "read-only", "-a", "never"])).toEqual(["--sandbox", "read-only"])
     expect(resumed(["--sandbox=workspace-write"])).toEqual(["--sandbox", "workspace-write"])
     expect(resumed(["-c", "sandbox_mode=read-only"])).toEqual(["-c", "sandbox_mode=read-only"])
-    expect(resumed(["--full-auto"])).toEqual(["--full-auto"])
+    // Refused by Codex from 0.171.0: a session saved with it resumes without it.
+    expect(resumed(["--full-auto"])).toEqual([])
     expect(resumed(["--dangerously-bypass-approvals-and-sandbox"])).toEqual([
       "--dangerously-bypass-approvals-and-sandbox",
     ])
