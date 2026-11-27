@@ -1,6 +1,7 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import type { PeerLooks } from "@novadeck/chat/Transcript"
 import type { MessagePeer } from "@novadeck/core/messages"
+import { programWord } from "@novadeck/core/terminals/agent-look"
 import { Avatar } from "@novadeck/items/Avatar"
 import { hueOf } from "@novadeck/items/critters"
 import { usePeers, type MessageLinks } from "@novadeck/items/messages"
@@ -30,8 +31,19 @@ export const peerLooksOf = (peers: Readonly<Record<string, MessagePeer>>): PeerL
     const peer = named.get(handle)
     if (!peer || writtenBefore(peer, at)) return null
     return {
-      face: <Avatar handle={handle} size={24} live={peer.live} program={peer.program} />,
-      where: [peer.program, peer.name].filter(Boolean).join(" · ") || null,
+      face: (
+        <Avatar
+          handle={handle}
+          size={24}
+          live={peer.live}
+          program={peer.program}
+          nova={peer.nova}
+        />
+      ),
+      where:
+        [peer.program && programWord(peer.program, peer.nova), peer.name]
+          .filter(Boolean)
+          .join(" · ") || null,
       hue: hueOf(handle),
     }
   }

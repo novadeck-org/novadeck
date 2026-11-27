@@ -1,7 +1,8 @@
 import type { ChatDialog, ChatRequest } from "@novadeck/core/conversation"
-import { harnesses, type AgentName } from "@novadeck/core/harnesses"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxEntry, InboxSource, SettledHow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
+import { agentNamed } from "@novadeck/core/terminals/agent-look"
 
 // What the Inbox says about an entry, in words: pure, so the entries and the sheet read the
 // same sentences, and so their rules read apart from the markup.
@@ -10,10 +11,9 @@ const minute = 60_000
 const hour = 60 * minute
 
 // The harness as a short word in a sentence; one a newer Novadeck integrates, as what it is.
-export const agentName = (agent: AgentName | "newer"): string =>
-  agent === "newer"
-    ? "the agent"
-    : (harnesses.find((each) => each.id === agent)?.shortName ?? agent)
+// Nova's name where the runner says it is (`nova`).
+export const agentName = (agent: AgentName | "newer", nova?: boolean): string =>
+  agent === "newer" ? "the agent" : (agentNamed(agent, nova) ?? agent)
 
 // How long ago, as a row's right edge says it: "now", "7m", "1h 12m", "2d".
 export const waitLabel = (at: number, now: number): string => {
@@ -105,7 +105,7 @@ const troubleSubject = (trouble: Trouble, source: InboxSource): string => {
   if (trouble.type === "waits")
     return `${trouble.count === 1 ? "1 message" : `${trouble.count} messages`} for @${source.handle} ${trouble.count === 1 ? "waits" : "wait"} behind ${trouble.waits ? waitsBehind[trouble.waits] : unsaidWaits.behind}`
   if (trouble.type === "limit") {
-    return `Hit ${agentName(source.agent)}'s ${limitWindow(trouble.minutes, trouble.scope)} limit`
+    return `Hit ${agentName(source.agent, source.nova)}'s ${limitWindow(trouble.minutes, trouble.scope)} limit`
   }
   const times = Math.max(...trouble.evidence.map((line) => line.times), 0)
   return times > 1

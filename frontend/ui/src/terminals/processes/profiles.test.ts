@@ -3,12 +3,33 @@ import type { TerminalMetadata } from "@novadeck/core/types"
 import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
+import { NovaIcon } from "@novadeck/toolkit/icons/NovaIcon"
 import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
 import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { BookText, FileCode2, FileText, Globe, Image, Terminal } from "lucide-react"
 
 import { context, describe, expect, it } from "../../test"
-import { terminalProfile, windowProfile } from "./profiles"
+import { programIcon, terminalProfile, windowProfile } from "./profiles"
+
+describe("a terminal's agent", () => {
+  const piOf = (change: Partial<TerminalMetadata> = {}): TerminalMetadata =>
+    ({ ...terminalFixture(1, "~"), process: "pi", state: "running", ...change }) as TerminalMetadata
+
+  it("shows Pi's mark for the person's pi and Novadeck's mark for Nova, running or asleep", () => {
+    expect(terminalProfile(piOf()).icon).toBe(PiIcon)
+    expect(terminalProfile(piOf({ nova: true })).icon).toBe(NovaIcon)
+    const asleep = { ...piOf({ nova: true }), state: "sleeping", agent: "pi" } as TerminalMetadata
+    expect(terminalProfile(asleep).icon).toBe(NovaIcon)
+    expect(programIcon("pi")).toBe(PiIcon)
+    expect(programIcon("pi", true)).toBe(NovaIcon)
+  })
+
+  it("keeps every other program's mark, whatever nova says", () => {
+    expect(programIcon("claude", true)).not.toBe(NovaIcon)
+    expect(terminalProfile({ ...piOf({ nova: true }), process: "claude" }).icon).toBe(ClaudeIcon)
+    expect(programIcon("vim", true)).toBe(Terminal)
+  })
+})
 
 describe("a window undocked from a terminal's companion", () => {
   context("presents as what it shows", () => {

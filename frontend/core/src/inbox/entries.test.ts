@@ -200,6 +200,25 @@ describe("The Inbox's entries", () => {
     expect(inboxEntries(inputs(held, { now: 60 * 60_000 }))).toEqual([])
   })
 
+  it("names Nova's pi as Nova in an entry's source, and the person's pi as pi", () => {
+    const permit: ChatPermit = {
+      id: "p1",
+      title: "Merge PR #1190 into main",
+      quote: "go ahead",
+      givenAt: 3000,
+      until: 9_000_000,
+      usedAt: null,
+    }
+    const entryOf = (terminal: TerminalMetadata) =>
+      inboxEntries(inputs(workspaceOf(terminal), { permits: { "01": [permit] } }))[0]!
+    expect(entryOf({ ...agentTerminal(1, undefined, "pi"), nova: true }).source).toMatchObject({
+      agent: "pi",
+      nova: true,
+    })
+    expect(entryOf(agentTerminal(1, undefined, "pi")).source).not.toHaveProperty("nova")
+    expect(entryOf({ ...agentTerminal(1), nova: true }).source).not.toHaveProperty("nova")
+  })
+
   describe("a standing permit of the shipping gate", () => {
     const permit = (change: Partial<ChatPermit> = {}): ChatPermit => ({
       id: "p1",

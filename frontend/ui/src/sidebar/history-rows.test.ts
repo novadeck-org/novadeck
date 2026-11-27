@@ -96,6 +96,21 @@ describe("History's rows", () => {
       })
     })
 
+    it("names Nova's row as Nova, and the person's pi's as Pi", () => {
+      const gone = (nova: boolean) =>
+        rowView(
+          row({
+            agent: "pi",
+            ...(nova && { nova }),
+            availability: { state: "gone", reason: "conversation" },
+          }),
+          now,
+          undefined,
+        ).reason
+      expect(gone(true)).toBe("Nova no longer has this conversation")
+      expect(gone(false)).toBe("Pi no longer has this conversation")
+    })
+
     it("says which of the conversation and the folder is gone", () => {
       const gone = (reason: "conversation" | "folder") =>
         rowView(row({ availability: { state: "gone", reason } }), now, undefined)

@@ -69,7 +69,8 @@ export const runningSeats = (workspace: Workspace): readonly AgentSeat[] =>
   workspace.projects.flatMap((project) =>
     project.history.flatMap((session) =>
       session.state.roster.terminals.flatMap((terminal) =>
-        terminal.state === "running"
+        // Nova runs on Novadeck's model: nothing of it is the person's pi account.
+        terminal.state === "running" && !terminal.nova
           ? [{ context: `${project.id}/${session.id}`, id: terminal.id, program: terminal.process }]
           : [],
       ),

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { bundledPiNote } from "./bundled-pi"
 
-describe("the Novadeck Agent row's note", () => {
+describe("the Nova row's note", () => {
   it("says nothing while off", () => {
     expect(bundledPiNote(false, { state: "ready" })).toBeUndefined()
     expect(bundledPiNote(false, { state: "off" })).toBeUndefined()

@@ -1,13 +1,14 @@
-import { harnesses, type AgentName } from "@novadeck/core/harnesses"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
+import { agentNamed } from "@novadeck/core/terminals/agent-look"
 import { findQuery, matchesQuery } from "@novadeck/core/terminals/find"
 
 // What History's rows say, apart from how they draw it: when a terminal closed, why it
 // can't come back, and which rows a search finds.
 
-export const agentName = (agent: AgentName | null): string =>
-  harnesses.find(({ id }) => id === agent)?.name ?? "The agent"
+export const agentName = (agent: AgentName | null, nova?: boolean): string =>
+  agentNamed(agent, nova, "name") ?? "The agent"
 
 // The last folder of a path, as a row names where a plain terminal ran.
 export const folderOf = (cwd: string): string => {
@@ -127,7 +128,7 @@ export const rowView = (
         end: { kind: "word", text: "Unavailable" },
         reason:
           availability.reason === "conversation"
-            ? `${agentName(row.agent)} no longer has this conversation`
+            ? `${agentName(row.agent, row.nova)} no longer has this conversation`
             : "The folder it ran in is gone",
         connect: undefined,
       }

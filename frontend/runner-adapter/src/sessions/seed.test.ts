@@ -276,6 +276,30 @@ describe("runner seed", () => {
     })
   })
 
+  context("with a terminal whose agent is Nova", () => {
+    const listing: RunnerListing = [
+      {
+        project: project(1),
+        sessions: [
+          {
+            session: fresh(10),
+            terminals: [
+              summary(40, 10, { nova: true, ...foreground("pi") }),
+              kept(41, 10, { nova: true, sleeping: true, restingAgent: "pi" }),
+              summary(42, 10, foreground("pi")),
+            ],
+          },
+        ],
+      },
+    ]
+    const { terminals } = workspaceFromSeed(runnerSeed(listing), defaults).projects[0]!.history[0]!
+      .state.roster
+
+    it("keeps it, running or asleep, and nothing where it is not", () => {
+      expect(terminals.map((terminal) => terminal.nova)).toEqual([true, true, undefined])
+    })
+  })
+
   context("with terminals agents name by handle", () => {
     const listing: RunnerListing = [
       {

@@ -7,6 +7,7 @@
   "type": "module",
   "exports": {
     "./actions": "./src/actions.ts",
+    "./agent-icon": "./src/agent-icon.ts",
     "./Avatar": "./src/homes/terminal/messages/avatars/Avatar.tsx",
     "./artifact.css": "./src/artifact.css",
     "./audio.css": "./src/audio.css",

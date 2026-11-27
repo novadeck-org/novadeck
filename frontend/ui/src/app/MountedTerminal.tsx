@@ -6,6 +6,7 @@ import type {
   TerminalMount,
   ViewState,
 } from "@novadeck/core/port"
+import { programWord } from "@novadeck/core/terminals/agent-look"
 import { endingText, terminalEnding, terminalPhase } from "@novadeck/core/terminals/ending"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
 import { useFileDrop } from "@novadeck/toolkit/file-drops"
@@ -46,13 +47,16 @@ const lockNotices: Record<Lock, string> = {
 const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
 const ignore = (): (() => void) => () => {}
 
-// The agent a sleeping or waking terminal resumes.
-const agentOf = (terminal: TerminalMetadata): string | undefined =>
-  terminal.state === "sleeping"
-    ? terminal.agent === "newer"
-      ? undefined
-      : terminal.agent
-    : terminal.restoredProcess
+// The agent a sleeping or waking terminal resumes, by its program's word (Nova's is `nova`).
+const agentOf = (terminal: TerminalMetadata): string | undefined => {
+  const agent =
+    terminal.state === "sleeping"
+      ? terminal.agent === "newer"
+        ? undefined
+        : terminal.agent
+      : terminal.restoredProcess
+  return agent && programWord(agent, terminal.nova)
+}
 
 // What stands where the agent will draw: while it sleeps a bare `z`, nothing of its last screen
 // (replaying that would write into the emulator the resuming agent draws in); while it wakes,

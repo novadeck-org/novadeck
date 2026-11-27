@@ -90,7 +90,7 @@ describe("The tour", () => {
         "You answer a question or two, approve one command, and play the game at the end.",
       )
       await consentSays(
-        "Runs three Pi agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
+        "Runs three Nova agents on GPT-6 Luna, free and paid by Novadeck, for about 5 minutes.",
       )
       await consentSays(
         "What the agents read and write goes through novadeck.dev to OpenRouter and Microsoft Azure, which runs OpenAI's model.",
@@ -111,7 +111,7 @@ describe("The tour", () => {
       await expect.element(codex).toHaveAttribute("aria-checked", "true")
       await closePreferences()
       await offerFromHelp()
-      await consentSays("Runs three Pi agents")
+      await consentSays("Runs three Nova agents")
       expect(consent().getByRole("radiogroup").query()).toBeNull()
       expect(consent().getByRole("radio").query()).toBeNull()
     })

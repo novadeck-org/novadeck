@@ -356,7 +356,10 @@ and `argv`, the process group leader's command line, on Linux (`null` elsewhere 
 before the first sample). It is `null` once the terminal exits and on Windows, where
 no foreground process is known. `agent` names the agent (`claude`, `codex` or `agy`) that
 reported a session in the shell since its last prompt, so a client can name the
-program where `process` cannot; it is `null` otherwise. `cwd` is the directory the
+program where `process` cannot; it is `null` otherwise. `nova` is `true` when that agent
+(or, for a sleeping terminal, `restingAgent`) is Nova, Novadeck's own pi, which the runner tells
+from the person's own pi by where its session's transcript lives. The agent is still `pi`; a
+client shows Nova's name and mark. It is absent otherwise, and from a runner before revision 22. `cwd` is the directory the
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
 title })`; the one the agent that opened it gave through `open_terminal`'s or
@@ -1241,7 +1244,7 @@ harnesses/nova's `launcher.ts`) as `novadeck-relay fetch pi` before each start: 
 at once where the program is in place, and otherwise downloads the pinned build for its system
 (`harnesses/bundled-pi.ts`), the relay showing its progress in the terminal. While Novadeck
 Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner refuses with
-`Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started; but
+`Turn on Nova in Preferences > Experimental.`, so nothing is fetched or started; but
 for a terminal in a folder of the tour's whose run it remembers, with its project open
 (`Tour.paysFor`): the person asked for the tour, and the tour's sessions resume there after a
 restart or once the project is kept. Once it is in place the runner says so with the variables
@@ -2205,7 +2208,7 @@ one from an earlier runner.
 - `history.*` lists the terminals closed in the last 7 days, per project, which
   `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
   title, summary, handle (null if none), `agent` (the program's icon; null for a plain
-  terminal, whose last `program` stands in), `cwd`, `closedAt`, `closedBy` (the handle of
+  terminal, whose last `program` stands in), `nova` (`true` when that agent is Nova, Novadeck's own pi; absent otherwise), `cwd`, `closedAt`, `closedBy` (the handle of
   the agent that closed it; null when the person did, or an agent closed its own terminal) and its `availability`: `ready`,
   `restoring`, `gone` (`conversation` or `folder`), `disconnected` (the agent) or `open` (the
   handle of the terminal the conversation is bound in). The runner keeps rows in

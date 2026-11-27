@@ -3,7 +3,7 @@ import { createDemoBundledPi } from "@novadeck/demo/bundled-pi"
 import { bundledPiGroups } from "./bundled-pi"
 import { describe, expect, it } from "./test"
 
-describe("the Novadeck Agent group", () => {
+describe("the Nova group", () => {
   it("puts the row in each of its states", () => {
     const pi = createDemoBundledPi()
     const [group] = bundledPiGroups({ bundledPi: pi })

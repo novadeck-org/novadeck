@@ -626,6 +626,22 @@ describe("what a row can do now", () => {
     })
   })
 
+  it("says a row is Nova's where Novadeck's own pi's session is, and not the person's pi's", async () => {
+    const own = join(folder, "own-session.jsonl")
+    const ownRow = (transcript: string, agent: AgentName = "pi") =>
+      agentRow(agent, { agents: { [agent]: { sessionId: "p1", seq: 1, cwd: folder, transcript } } })
+    const ownPi = (agent: AgentName, transcript: string | undefined) =>
+      agent === "pi" && transcript === own
+    const nova = async (closed: ClosedRecord) => {
+      const { history, store } = setup({ ownPi })
+      store.rows.set(closed.id, closed)
+      return (await history.list("p1"))[0]!.nova
+    }
+    expect(await nova(ownRow(own))).toBe(true)
+    expect(await nova(ownRow("/home/p/.pi/agent/sessions/x/1_p1.jsonl"))).toBeUndefined()
+    expect(await nova(ownRow(own, "claude"))).toBeUndefined()
+  })
+
   it("reads each agent's files once for a whole list", async () => {
     const scan = vi.fn<() => { conversation: () => Promise<"found"> }>(() => ({
       conversation: () => Promise.resolve("found" as const),

@@ -25,6 +25,7 @@
     "./icons/AntigravityIcon": "./src/icons/AntigravityIcon.ts",
     "./icons/ClaudeIcon": "./src/icons/ClaudeIcon.ts",
     "./icons/CodexIcon": "./src/icons/CodexIcon.ts",
+    "./icons/NovaIcon": "./src/icons/NovaIcon.tsx",
     "./icons/OpencodeIcon": "./src/icons/OpencodeIcon.ts",
     "./icons/PiIcon": "./src/icons/PiIcon.ts",
     "./item.css": "./src/item.css",

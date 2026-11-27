@@ -44,6 +44,8 @@ import {
   otherTerminals,
   rename,
   runAgent,
+  runNova,
+  sleepingNova,
   runProgram,
   sleeping,
   starting,
@@ -413,6 +415,7 @@ const gallery: readonly {
   { name: "Asks (MCP)", state: (key, harness) => runAgent(key, harness), asks: "text" },
   { name: "Needs a sign-in", state: (key, harness) => runAgent(key, harness), asks: "action" },
   { name: "Unheard agent", state: (key, harness) => unheardAgent(key, harness) },
+  { name: "Nova", state: (key) => runNova(key) },
   { name: "Agent starting", state: (key, harness) => agentStarting(key, harness) },
   { name: "At its startup screen", state: (key, harness) => atStartupScreen(key, harness) },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
@@ -731,6 +734,16 @@ export const createDemoStates = (
         ),
         setting("Antigravity", "Window switches to Antigravity", (key, { dispatch }) =>
           dispatch(runAgent(key, "agy")),
+        ),
+        setting(
+          "Nova",
+          "A pi the runner says is Nova's: its tab, window header, chat and Messages avatar say Nova with Novadeck's mark, and the footer's pi account leaves it out",
+          (key, { dispatch }) => dispatch(runNova(key)),
+        ),
+        setting(
+          "Nova, asleep",
+          "Nova with its session saved and no process: its tab says nova, its screen waits to wake nova, and closing it says nova is asleep in it",
+          (key, { dispatch }) => dispatch(sleepingNova(key)),
         ),
         leading(
           "Leads the others",

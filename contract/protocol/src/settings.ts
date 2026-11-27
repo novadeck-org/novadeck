@@ -61,7 +61,7 @@ export const runnerSettings = z.strictObject({
   // on: Claude Code's and Codex's shell commands that ship work (push to another branch, land,
   // open or merge a PR) then need a permit, and while it is off nothing changes.
   shippingGate: z.boolean(),
-  // Whether Novadeck's own pi (Novadeck Agent) may be fetched and started, an Experimental
+  // Whether Novadeck's own pi (Nova) may be fetched and started, an Experimental
   // feature, off until the person turns it on: on, the runner downloads its pinned pi at once;
   // off, it fetches and starts none, and keeps a copy it has. From revision 16: a runner before
   // it drops the key, and a UI offers the switch only where the runner's settings report it.

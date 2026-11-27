@@ -485,6 +485,8 @@ export class ClosedTerminals {
       summary: clip(row.naming.summary, historyLimits.summary),
       handle: row.handle,
       agent: row.agent,
+      ...(row.agent !== null &&
+        this.host.ownPi?.(row.agent, row.agents[row.agent]?.transcript) === true && { nova: true }),
       program: row.agent === null ? clip(row.lastProgram, historyLimits.program) : null,
       cwd: row.cwd,
       closedAt: row.closedAt,

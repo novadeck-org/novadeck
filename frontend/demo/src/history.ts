@@ -58,7 +58,7 @@ const plainRow = (title: string, folder: string, ago: number, program = "pnpm"):
 })
 
 // The storefront's rows, newest first: what closed today, on earlier days, and each state a
-// row can be in. The conversation and the folder it ran in are gone for two; Codex and
+// row can be in, with one of Nova's. The conversation and the folder it ran in are gone for two; Codex and
 // Antigravity are not connected here, which the demo's Preferences can change for Codex;
 // @fox's conversation is open in a terminal of the session.
 const storefront: readonly Sample[] = [
@@ -120,6 +120,19 @@ const storefront: readonly Sample[] = [
     { state: "disconnected", agent: "agy" },
   ),
   agentRow("codex", "Search index", "yew", "Product search index rebuild", 3 * day),
+  // Nova, Novadeck's own pi: the agent is `pi`, and the row says it is Nova's.
+  {
+    ...agentRow(
+      "codex",
+      "Image resizing",
+      "sol",
+      "Thumbnails cut to the sizes the pages use",
+      3 * day + 2 * 60 * minute,
+    ),
+    agent: "pi",
+    program: "pi",
+    nova: true,
+  },
   plainRow("pnpm db:migrate", "api", 3 * day + 5 * 60 * minute),
   agentRow(
     "claude",

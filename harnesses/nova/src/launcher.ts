@@ -145,7 +145,7 @@ exit /b 0
 export const novaCommand = "nova"
 
 /** What a launch of Nova while it is switched off says (the runner's refusal, too). */
-export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
+export const turnOnLine = "Turn on Nova in Preferences > Experimental."
 
 /** Where `nova` finds Nova's launcher, and the file that says Nova is switched on. */
 export type NovaShimPaths = {

@@ -1,5 +1,5 @@
-import { harnesses } from "@novadeck/core/harnesses"
 import type { Approval, ApprovalAction } from "@novadeck/core/port"
+import { agentNamed } from "@novadeck/core/terminals/agent-look"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -54,9 +54,7 @@ export const sameApprovalView = (a: ApprovalView | null, b: ApprovalView | null)
 
 // The agent a terminal runs, as people call it: the harness's name; none for a plain program.
 const agentOf = (terminal: Party): string | undefined =>
-  isAgentProgram(terminal.process)
-    ? harnesses.find(({ id }) => id === terminal.process)?.name
-    : undefined
+  isAgentProgram(terminal.process) ? agentNamed(terminal.process, terminal.nova, "name") : undefined
 
 // A terminal by its handle where it has one, as the title of a short question reads. A name is
 // the terminal's own text: shown whole in one clipped line, with nothing invisible, so it

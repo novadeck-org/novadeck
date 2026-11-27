@@ -513,6 +513,18 @@ describe("demo states", () => {
       expect(calls).toEqual([])
     })
 
+    it("makes the selected terminal Nova, and the next agent there the person's again", () => {
+      const { run, terminal } = panel("04")
+      run("Nova")
+      expect(terminal("04")).toMatchObject({ process: "pi", nova: true, state: "running" })
+      run("Claude Code")
+      expect(terminal("04")).toMatchObject({ process: "claude" })
+      expect(terminal("04")?.nova).toBeFalsy()
+      run("Nova")
+      run("Unheard agent")
+      expect(terminal("04")?.nova).toBeFalsy()
+    })
+
     it("lets an unheard agent say nothing", () => {
       const { run, terminal, calls } = panel("04")
       run("Unheard agent")
@@ -560,6 +572,7 @@ describe("demo states", () => {
       "Killed (SIGKILL)",
       "Failed to start",
       "Unheard agent",
+      "Nova",
     ])("lets the selected terminal's agent go first on %s", (label) => {
       const { run, released } = panel("04")
       run(label)
@@ -582,13 +595,13 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The eighteen that set no agent verb: four that ask through MCP (their Inbox entries are the
-      // demo's own), unheard, an agent starting, at its startup screen, program, a shell an agent
+      // The nineteen that set no agent verb: four that ask through MCP (their Inbox entries are the
+      // demo's own), unheard, Nova, an agent starting, at its startup screen, program, a shell an agent
       // opened, one an agent exited from, starting, asleep (three times more with a done report, a
       // newer agent and an ask), waking (twice, one with an ask), and the three ways to end.
-      expect(released).toHaveLength(18)
+      expect(released).toHaveLength(19)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(18)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(19)
     })
 
     it("calls its verbs without letting go", () => {
@@ -999,7 +1012,9 @@ describe("demo states over the real agents", () => {
         const terminal = terminalOf(workspace.getSnapshot(), { ...viewed, terminalId: entry.id })
         return terminal ? [terminal] : []
       })
-      const agents = shown.filter(({ process }) => isAgentProgram(process))
+      // Nova's tile is a pi whatever the chosen harness is.
+      expect(shown.filter(({ nova }) => nova)).toMatchObject([{ process: "pi" }])
+      const agents = shown.filter(({ process, nova }) => isAgentProgram(process) && !nova)
       expect(agents.length).toBeGreaterThan(15)
       expect(new Set(agents.map(({ process }) => process))).toEqual(new Set([harness]))
       const asks = entries().filter((entry) => entry.kind === "ask")
