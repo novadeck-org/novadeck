@@ -1,7 +1,10 @@
 import type { AgentActivity } from "@novadeck/protocol"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { agentAtWork, watchWorking, type WorkingChange } from "./working.js"
+import { activityUntil, watchWorking, type WorkingChange } from "./working.js"
+
+const agentAtWork = (terminal: Parameters<typeof activityUntil>[0]) =>
+  activityUntil(terminal, 0) !== undefined
 
 const idle: AgentActivity = {
   state: "idle",
@@ -29,7 +32,7 @@ const told = async (
       yield* changes
     })(),
     (working) => said.push(working),
-    (id) => crons.has(id),
+    (id) => (crons.has(id) ? null : undefined),
   )
   return said
 }
@@ -86,6 +89,75 @@ describe("agentAtWork", () => {
 })
 
 describe("watchWorking", () => {
+  it.each(["wake-up", "job timeout"])(
+    "releases an idle agent after a %s goes quiet",
+    async (kind) => {
+      vi.useFakeTimers()
+      const at = Date.now() + 1_000
+      const waiting =
+        kind === "wake-up"
+          ? { jobs: [], wake: { at, reason: null } }
+          : {
+              jobs: [{ id: "b1", description: null, command: "watch logs", since: 1, until: at }],
+              wake: null,
+            }
+      let finish!: () => void
+      const ending = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      const said: boolean[] = []
+      const watching = watchWorking(
+        (async function* () {
+          yield changed("a", { ...idle, waiting })
+          yield { type: "synced" } as const
+          await ending
+        })(),
+        (working) => said.push(working),
+      )
+      try {
+        await vi.advanceTimersByTimeAsync(120_999)
+        expect(said).toEqual([true])
+        await vi.advanceTimersByTimeAsync(1)
+        expect(said).toEqual([true, false])
+      } finally {
+        finish()
+        await watching
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  it("releases a one-shot schedule that expires without another terminal change", async () => {
+    vi.useFakeTimers()
+    const until = Date.now() + 1_000
+    let finish!: () => void
+    const ending = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const said: boolean[] = []
+    const watching = watchWorking(
+      (async function* () {
+        yield changed("a", idle)
+        yield { type: "synced" } as const
+        await ending
+      })(),
+      (working) => said.push(working),
+      () => until,
+    )
+    try {
+      await vi.advanceTimersByTimeAsync(0)
+      expect(said).toEqual([true])
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(said).toEqual([true])
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(said).toEqual([true, false])
+    } finally {
+      finish()
+      await watching
+      vi.useRealTimers()
+    }
+  })
+
   it("tells once an agent starts and once the last one stops", async () => {
     expect(
       await told([

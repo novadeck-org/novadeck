@@ -140,6 +140,43 @@ describe("copying ignored files into a new worktree", () => {
     expect(has(fx, ".env")).toBe(false)
   })
 
+  it("reports an unreadable .worktreeinclude without using the default patterns", async ({
+    fx,
+  }) => {
+    mkdirSync(join(fx.repo, ".worktreeinclude"))
+    write(join(fx.repo, ".env"))
+    expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({
+      by: "file",
+      copied: [],
+      unread: true,
+    })
+    expect(has(fx, ".env")).toBe(false)
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "reports a dangling .worktreeinclude symlink without using the default patterns",
+    async ({ fx }) => {
+      symlinkSync("missing-patterns", join(fx.repo, ".worktreeinclude"))
+      write(join(fx.repo, ".env"))
+      expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({
+        by: "file",
+        copied: [],
+        unread: true,
+      })
+      expect(has(fx, ".env")).toBe(false)
+    },
+  )
+
+  it("counts only ignored files against the file limit", async ({ fx }) => {
+    write(join(fx.repo, ".worktreeinclude"), "*.local\n")
+    write(join(fx.repo, ".env.local"))
+    write(join(fx.repo, "notes.local"))
+    expect(await copyIncluded(fx.repo, fx.worktree, { files: 1, bytes: 1024 })).toMatchObject({
+      copied: [".env.local"],
+      failed: [],
+    })
+  })
+
   it("never writes over a file the worktree has", async ({ fx }) => {
     write(join(fx.repo, ".env"), "checkout\n")
     write(join(fx.worktree, ".env"), "worktree\n")
@@ -148,6 +185,23 @@ describe("copying ignored files into a new worktree", () => {
       failed: [".env"],
     })
     expect(readFileSync(join(fx.worktree, ".env"), "utf8")).toBe("worktree\n")
+  })
+
+  it("skips a nested file when the destination branch has a symlink in its place", async ({
+    fx,
+  }) => {
+    write(join(fx.repo, "config/site/.env"))
+    write(join(fx.repo, "apps/web/.env"), "PORT=3000\n")
+    mkdirSync(join(fx.worktree, "apps", "web"), { recursive: true })
+    const shared = join(dirname(fx.worktree), "shared")
+    mkdirSync(shared)
+    symlinkSync(shared, join(fx.worktree, "config"), "junction")
+    expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({
+      copied: ["apps/web/.env"],
+      failed: ["config/site/.env"],
+    })
+    expect(readFileSync(join(fx.worktree, "apps", "web", ".env"), "utf8")).toBe("PORT=3000\n")
+    expect(existsSync(join(shared, "site"))).toBe(false)
   })
 
   it.skipIf(process.platform === "win32")(

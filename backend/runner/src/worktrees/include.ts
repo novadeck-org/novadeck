@@ -53,7 +53,7 @@ export type Included = {
   readonly failed: readonly string[]
   /** The patterns picked more than `includeLimit`, so nothing was copied. */
   readonly over?: true
-  /** Git couldn't list the checkout's files, so nothing was copied. */
+  /** The patterns or the checkout's matching files couldn't be read, so nothing was copied. */
   readonly unread?: true
 }
 
@@ -200,7 +200,6 @@ export const pickedFiles = async (
     const inWhole = (path: string) => foldersAbove(path).some((folder) => whole.has(folder))
     const chosen = [...new Set([...named.filter((path) => !inWhole(path)), ...pathed])]
     if (chosen.length === 0) return { ok: true, paths: [] }
-    if (chosen.length > limit.files) return { ok: false, why: "over" }
     // Only what git ignores: a pattern may also match an untracked file it doesn't. Git lists
     // every ignored file, folders' too, and only the chosen ones are kept as it goes.
     const wanted = new Set(chosen)
@@ -210,22 +209,32 @@ export const pickedFiles = async (
       { ...listing, entries: (path) => wanted.has(path) },
     )
     if (!checked.ok || checked.cut) return { ok: false, why: "unread" }
-    const kept = new Set(filesOf(checked.out))
-    return { ok: true, paths: chosen.filter((path) => kept.has(path)).toSorted(byDepth) }
+    const kept = filesOf(checked.out)
+    if (kept.length > limit.files) return { ok: false, why: "over" }
+    return { ok: true, paths: kept.toSorted(byDepth) }
   } finally {
     await rm(scratch, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
-/** The patterns that pick what is copied from `top`, and where they came from. */
+/** The patterns to copy, or no lines if an existing .worktreeinclude can't be read. */
 const patternsAt = async (
   top: string,
-): Promise<{ readonly by: Included["by"]; readonly lines: readonly string[] }> => {
-  const text = await readFile(join(top, includeFile), "utf8").catch(() => undefined)
-  // An empty `.worktreeinclude` is one that copies nothing.
-  return text === undefined
-    ? { by: "default", lines: defaultPatterns }
-    : { by: "file", lines: patternLines(text) }
+): Promise<{ readonly by: Included["by"]; readonly lines?: readonly string[] }> => {
+  const file = join(top, includeFile)
+  try {
+    return { by: "file", lines: patternLines(await readFile(file, "utf8")) }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      // A symlink can be present while what it points at is missing.
+      const missing = await lstat(file).then(
+        () => false,
+        (cause: NodeJS.ErrnoException) => cause.code === "ENOENT",
+      )
+      if (missing) return { by: "default", lines: defaultPatterns }
+    }
+    return { by: "file" }
+  }
 }
 
 /** What a path reaches, followed through links; undefined where it reaches nothing. */
@@ -235,16 +244,30 @@ const reaches = (path: string) =>
     () => undefined,
   )
 
+/** Makes missing folders in the worktree without following a symlink in a parent path. */
+const makeParents = async (folder: string, worktree: string): Promise<void> => {
+  if (folder === worktree) return
+  const parent = dirname(folder)
+  if (parent === folder) throw new Error("Destination is outside the worktree.")
+  await makeParents(parent, worktree)
+  try {
+    await mkdir(folder)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !(await lstat(folder)).isDirectory())
+      throw error
+  }
+}
+
 /**
  * Copies one file as it is: a symlink as a symlink (a relative one that reaches nothing from the
  * worktree points absolutely at what it reached from the checkout), a file as a copy-on-write clone where the
  * file system makes one (APFS, btrfs, XFS, ReFS) and a copy elsewhere. Never over a file the
  * worktree has. False where it wasn't copied.
  */
-const copyOne = async (from: string, to: string): Promise<boolean> => {
+const copyOne = async (from: string, to: string, worktree: string): Promise<boolean> => {
   try {
     const info = await lstat(from)
-    await mkdir(dirname(to), { recursive: true })
+    await makeParents(dirname(to), worktree)
     if (info.isSymbolicLink()) {
       const target = await readlink(from)
       const reached = isAbsolute(target) ? target : resolve(dirname(from), target)
@@ -293,18 +316,22 @@ export const copyIncluded = async (
 ): Promise<Included> => {
   const { by, lines } = await patternsAt(top)
   const none = { from: top, by, copied: [], failed: [] } as const
+  if (lines === undefined) return { ...none, unread: true }
   try {
     const picked = await pickedFiles(top, lines, limit)
     if (!picked.ok)
       return picked.why === "over" ? { ...none, over: true } : { ...none, unread: true }
     if (!(await fits(top, picked.paths, limit))) return { ...none, over: true }
+    const destination = resolve(worktree)
     const copied: string[] = []
     const failed: string[] = []
     for (let at = 0; at < picked.paths.length; at += together) {
       const batch = picked.paths.slice(at, at + together)
       // eslint-disable-next-line no-await-in-loop -- A few at a time, so a long list doesn't open every file at once.
       const done = await Promise.all(
-        batch.map((path) => copyOne(join(top, path), join(worktree, ...path.split("/")))),
+        batch.map((path) =>
+          copyOne(join(top, path), join(destination, ...path.split("/")), destination),
+        ),
       )
       for (const [index, path] of batch.entries()) (done[index] ? copied : failed).push(path)
     }

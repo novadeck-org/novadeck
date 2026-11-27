@@ -17,8 +17,8 @@ export const fetchTimeoutMs = 300 * 1000
 export const fetchGraceMs = 10 * 1000
 /** A repository fetched this recently is not fetched again for a new worktree's base. */
 export const recentFetchMs = 60 * 1000
-/** A repository that keeps failing is tried this seldom at the most. */
-const longestWaitMs = 60 * 60 * 1000
+/** When the Worktrees footer starts showing a failure (see frontend/core/src/fetch-age.ts). */
+const staleFetchMs = 60 * 60 * 1000
 
 /**
  * The variables a fetch runs with so it can never ask the person for anything: no terminal
@@ -73,8 +73,8 @@ export type FetcherOptions = {
  * Brings each tracked repository's `origin` up to date, so a branch merged on the remote reads
  * as merged here, and then moves the repository's own checkout up to its main where that is
  * safe (`fastForward`). One fetch at a time, each repository at most every five minutes; a
- * failure (offline, no origin, no access) is ignored and the repository waits longer before the
- * next.
+ * failure backs off until the footer reports it. Once visible, retry on the usual schedule
+ * so the warning clears soon after the origin recovers.
  */
 export class MainFetcher {
   private readonly states = new Map<string, State>()
@@ -293,19 +293,21 @@ export class MainFetcher {
         state.failingSince = undefined
         state.failures = 0
         state.nextAt = at + this.every
+      } else if (done.kind === "exit" && !(await this.hasOrigin(commonDir))) {
+        // There was nothing to fetch. Check again on the regular schedule in case an origin is added.
+        state.failed = undefined
+        state.failingSince = undefined
+        state.failures = 0
+        if (!asked) state.nextAt = at + this.every
       } else {
+        state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
+        state.failingSince ??= at
         if (!asked) {
           state.failures += 1
-          state.nextAt = at + Math.min(longestWaitMs, this.every * 2 ** state.failures)
-        }
-        // A repository with no origin (one made by `git init`, as the tour's, or with its remote
-        // named otherwise) has nothing to fetch: that is no failure to tell.
-        if (done.kind === "exit" && !(await this.hasOrigin(commonDir))) {
-          state.failed = undefined
-          state.failingSince = undefined
-        } else {
-          state.failed = done.kind === "timeout" ? "git took too long" : done.said || "git failed"
-          state.failingSince ??= at
+          const untilStale = state.failingSince + staleFetchMs - at
+          const wait =
+            untilStale <= 0 ? this.every : Math.min(untilStale, this.every * 2 ** state.failures)
+          state.nextAt = at + wait
         }
         log.debug("worktrees.fetch-failed", "Novadeck could not fetch a repository's origin", {
           data: { commonDir, kind: done.kind, said: done.said },

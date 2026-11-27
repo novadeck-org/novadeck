@@ -143,7 +143,7 @@ export type RunnerOptions = {
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
   /**
-   * Told whether any agent is at work (`agentAtWork`), each time that changes: nothing until
+   * Told whether any agent is at work (`watchWorking`), each time that changes: nothing until
    * one is, and false once the runner closes. The desktop app keeps the computer awake while
    * one is.
    */
@@ -608,7 +608,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     .finally(() => worktrees.start())
   // Pull requests of the works' branches, from every forge whose tool is there, while the works
   // are watched. There are no switches: a `forges.set` from a client before them saves nothing
-  // and leaves the forge on, though one to off drops what it found until its next look.
+  // and leaves the forge on.
   const forges = new Forges({
     enabled: () => forgeName.options,
     save: () => {},
@@ -813,7 +813,7 @@ const startRunner = (options: RunnerOptions): Runner => {
   let closing: Promise<void> | undefined
   if (options.working)
     watchWorking(terminals.watch(workingWatcher), options.working, (id) =>
-      terminals.scheduled(id),
+      terminals.scheduledUntil(id),
     ).catch((error: unknown) =>
       log.error("working.failed", "Novadeck stopped following whether agents work", {
         err: error,

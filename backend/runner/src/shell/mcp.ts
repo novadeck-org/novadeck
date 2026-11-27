@@ -1785,7 +1785,10 @@ export const includedSaid = (included: Included | undefined): string => {
     ": the worktree has no ignored files, such as .env files, installed dependencies or build output."
   if (included.unread)
     return (
-      " Novadeck couldn't list the ignored files of " + from + ", so none were copied" + nothing
+      " Novadeck couldn't tell which ignored files to copy from " +
+      from +
+      ", so none were copied" +
+      nothing
     )
   if (included.over)
     return (

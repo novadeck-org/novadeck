@@ -102,14 +102,27 @@ export const trackSchedules = (record: Pick<Record, "schedules">, change: Schedu
   record.schedules = { sessionId: change.sessionId, items }
 }
 
-/** Whether the bound session has a schedule standing at `now`: one that would die with it. */
+/** The bound session's latest schedule deadline, even if it passed, or null while one repeats. */
+export const scheduledUntil = (
+  record: Pick<Record, "schedules">,
+  sessionId: string | undefined,
+): number | null | undefined => {
+  const { schedules } = record
+  if (!schedules || schedules.sessionId !== sessionId) return undefined
+  let latest: number | undefined
+  for (const { until } of schedules.items.values()) {
+    if (until === null) return null
+    if (latest === undefined || until > latest) latest = until
+  }
+  return latest
+}
+
+/** Whether the bound session has a schedule that would die with it. */
 export const scheduled = (
   record: Pick<Record, "schedules">,
   sessionId: string | undefined,
   now: number,
 ): boolean => {
-  const { schedules } = record
-  if (!schedules || schedules.sessionId !== sessionId) return false
-  for (const { until } of schedules.items.values()) if (until === null || until > now) return true
-  return false
+  const until = scheduledUntil(record, sessionId)
+  return until === null || (until !== undefined && until > now)
 }

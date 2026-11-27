@@ -2951,7 +2951,11 @@ describe("the harness version a screen shows", () => {
 })
 
 describe("closing a terminal whose agent works", () => {
-  const closed = async (terminals: ReturnType<typeof fixture>, agent: "agy" | "claude") => {
+  const closed = async (
+    terminals: ReturnType<typeof fixture>,
+    agent: "agy" | "claude",
+    concurrent = false,
+  ) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
       { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
@@ -2969,7 +2973,12 @@ describe("closing a terminal whose agent works", () => {
       telemetry: null,
     }
     const steps: string[] = []
+    let letStopFinish!: () => void
+    const stop = new Promise<void>((resolve) => {
+      letStopFinish = resolve
+    })
     inside.typing.stopForClose = async () => {
+      if (concurrent) await stop
       steps.push("stopped")
       ;(record.bound!.activity as { state: string }).state = "idle"
     }
@@ -2978,7 +2987,10 @@ describe("closing a terminal whose agent works", () => {
       steps.push("ended")
       return terminate(one)
     }
-    await manager.close({ terminalId: terminal.id })
+    const first = manager.close({ terminalId: terminal.id })
+    const second = concurrent ? manager.close({ terminalId: terminal.id }) : undefined
+    if (concurrent) letStopFinish()
+    await Promise.all([first, second])
     return steps
   }
 
@@ -2987,5 +2999,11 @@ describe("closing a terminal whose agent works", () => {
   }) => {
     expect(await closed(terminals, "agy")).toEqual(["stopped", "ended"])
     expect(await closed(terminals, "claude")).toEqual(["ended"])
+  })
+
+  it("waits for Antigravity to stop when two clients close the same terminal", async ({
+    terminals,
+  }) => {
+    expect(await closed(terminals, "agy", true)).toEqual(["stopped", "ended"])
   })
 })
