@@ -5,6 +5,7 @@ import type { AgentActivity, AgentName, CompanionItem, StartupScreen } from "@no
 import { redact } from "@novadeck/secrets"
 
 import { isLoopback } from "../config.js"
+import { wakeGraceMs } from "../harnesses/waits.js"
 import type { GitState } from "../terminals/git-state.js"
 import { mention } from "../terminals/handles.js"
 import { cut, shorten } from "../text.js"
@@ -418,9 +419,6 @@ const waitingNote = (
   const long = since === null ? "" : ` ${lasted(since, now)}`
   return `waiting on the user${long}: ${what}${more > 0 ? ` (and ${more} more)` : ""}`
 }
-
-// How long past its time a wake-up still counts as coming, as the app allows it.
-const wakeGraceMs = 120_000
 
 /**
  * What an idle agent waits on, shortly, at `now`: a job still within its timeout, or a

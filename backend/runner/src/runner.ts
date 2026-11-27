@@ -143,7 +143,7 @@ export type RunnerOptions = {
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
   /**
-   * Told whether any agent is at work (`agentAtWork`), each time that changes: nothing until
+   * Told whether any agent is at work (`watchWorking`), each time that changes: nothing until
    * one is, and false once the runner closes. The desktop app keeps the computer awake while
    * one is.
    */

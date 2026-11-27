@@ -1,6 +1,9 @@
 // A command means the same whichever agent ran it, so what tells a wait from a server
 // left running is judged here, not in a harness.
 
+/** How long a wake-up or job may take to start a turn after its time has passed. */
+export const wakeGraceMs = 120_000
+
 // A script name a package manager runs that serves or watches until stopped: `dev`,
 // `start:web`, `test:watch`, `watch:css`; not `dev:build` or `start:test`.
 const serving =

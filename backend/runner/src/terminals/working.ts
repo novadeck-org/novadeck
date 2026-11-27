@@ -1,36 +1,43 @@
 import type { TerminalChange, TerminalSummary } from "@novadeck/protocol"
 
+import { wakeGraceMs } from "../harnesses/waits.js"
+
 /** What `watchWorking` reads of a terminal change: `terminals.watch`'s, or as little as that. */
 export type WorkingChange =
   | { readonly type: "changed"; readonly terminal: Pick<TerminalSummary, "id" | "activity"> }
   | Exclude<TerminalChange, { readonly type: "changed" }>
 
 /**
- * Whether the agent in a terminal is at work, which a sleeping computer would stall: on a
+ * How long an agent is at work, or null if it has no known end: on a
  * turn, with subagents it started running (during its turn or after it, as Codex's outlive
  * one), or waiting on jobs or a wake-up of its own that bring it back with no word from
  * anyone. A turn held on the person's answer with no subagent running doesn't count, as
  * nothing goes on until they're back, nor do commands it left running that may run for ever,
  * as a dev server. Its crons are told apart (`watchWorking`'s `scheduledUntil`): no summary has them.
  */
-export const agentAtWork = ({ activity }: Pick<TerminalSummary, "activity">): boolean => {
-  if (activity === null) return false
+export const activityUntil = (
+  { activity }: Pick<TerminalSummary, "activity">,
+  now: number,
+): number | null | undefined => {
+  if (activity === null) return undefined
   const { state, background, waiting, attention, subagents } = activity
   const held = attention.pending > (attention.detached ?? 0)
-  return (
-    (state === "working" && !held) ||
-    subagents.length > 0 ||
-    (background?.agents ?? 0) > 0 ||
-    (waiting?.jobs.length ?? 0) > 0 ||
-    (waiting?.wake ?? null) !== null
-  )
+  if ((state === "working" && !held) || subagents.length > 0 || (background?.agents ?? 0) > 0)
+    return null
+  let latest = waiting?.wake?.at ?? -Infinity
+  for (const { until } of waiting?.jobs ?? []) {
+    if (until === null) return null
+    latest = Math.max(latest, until)
+  }
+  const expiry = latest + wakeGraceMs
+  return expiry > now ? expiry : undefined
 }
 
 /**
  * Follows every terminal's changes and tells whether any agent is at work, each time that
  * changes once the listing has synced; nothing until one is. An agent with a cron of its own
  * (`scheduledUntil`, see schedules.ts), as `/loop` sets, counts too. Check again at the last
- * one-shot schedule's expiry even when the terminal reports no change.
+ * timed wait's expiry even when the terminal reports no change.
  */
 export const watchWorking = async (
   changes: AsyncIterable<WorkingChange>,
@@ -55,12 +62,14 @@ export const watchWorking = async (
   const update = (terminal: Pick<TerminalSummary, "id" | "activity">) => {
     const { id } = terminal
     clearExpiry(id)
-    const busy = agentAtWork(terminal)
-    const until = busy ? undefined : scheduledUntil(id)
-    if (busy || until !== undefined) atWork.add(id)
+    const now = Date.now()
+    const activity = activityUntil(terminal, now)
+    const schedule = activity === null ? null : scheduledUntil(id)
+    const until = schedule === null ? null : Math.max(activity ?? -Infinity, schedule ?? -Infinity)
+    if (until === null || until > now) atWork.add(id)
     else atWork.delete(id)
-    if (typeof until === "number") {
-      const delay = Math.max(1, Math.min(until - Date.now(), 2 ** 31 - 1))
+    if (until !== null && until > now) {
+      const delay = Math.min(until - now, 2 ** 31 - 1)
       expiries.set(
         id,
         setTimeout(() => {
