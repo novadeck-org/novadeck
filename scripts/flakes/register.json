@@ -910,6 +910,15 @@
       "seen": ["fix/ci-flakes-1126 run 45914826966 (macOS 1/3), failed the job"]
     },
     {
+      "id": "harness-opencode-interface-left-late",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/plugin.test.ts > the interface's plugin > ",
+      "signature": "AssertionError: expected \\[.*\\] to (?:deeply equal|have a length of)",
+      "status": "fixed",
+      "cause": "Going home reports each session shown, each by a hook process of its own (a shell and node), and the test read the log a fixed 700 ms after the route moved: on a loaded macOS runner one of two hadn't written yet. It waits for the reports it expects now, then 300 ms more for one too many. Reproduced under CPU load (1 of 6 before, 0 of 6 after).",
+      "seen": ["fix/ci-flakes-1126 run 45942590305 (macOS 1/3)"]
+    },
+    {
       "id": "ui-inbox-sheet-press-held-back",
       "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/inbox/inbox.spec.tsx > An Inbox entry's sheet > ",

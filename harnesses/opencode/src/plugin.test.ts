@@ -885,8 +885,10 @@ describe("the plugin's files", () => {
 
 describe("the interface's plugin", () => {
   // The interface's plugin rendered with a hook command that records its input, given a route
-  // that a test moves, as opencode's `api.route.current` is.
-  const run = async (routes: unknown[]): Promise<Record<string, unknown>[]> => {
+  // that a test moves, as opencode's `api.route.current` is. It waits for the `expected` reports,
+  // each a process of its own that a loaded runner can start late (2 at once missed 700 ms on
+  // macOS), then a while more for any report too many.
+  const run = async (routes: unknown[], expected = 0): Promise<Record<string, unknown>[]> => {
     const log = join(dir, "left.jsonl")
     const script = join(dir, "left.cjs")
     await writeFile(
@@ -922,18 +924,26 @@ describe("the interface's plugin", () => {
       await new Promise((resolve) => setTimeout(resolve, 400))
     }
     dispose?.()
+    const told = (): Record<string, unknown>[] =>
+      existsSync(log)
+        ? readFileSync(log, "utf8")
+            .split("\n")
+            .slice(0, -1)
+            .map((line) => JSON.parse(line) as Record<string, unknown>)
+        : []
+    for (let tries = 0; tries < 400 && told().length < expected; tries++)
+      // eslint-disable-next-line no-await-in-loop -- It polls until the reports are in.
+      await new Promise((resolve) => setTimeout(resolve, 25))
     await new Promise((resolve) => setTimeout(resolve, 300))
-    return existsSync(log)
-      ? readFileSync(log, "utf8")
-          .trim()
-          .split("\n")
-          .map((line) => JSON.parse(line) as Record<string, unknown>)
-      : []
+    return told()
   }
   const session = (id: string) => ({ name: "session", params: { sessionID: id } })
 
   it("reports the session a route left for home, once, and nothing at its start", async () => {
-    const told = await run([{ name: "home" }, session("ses_a"), { name: "home" }, session("ses_b")])
+    const told = await run(
+      [{ name: "home" }, session("ses_a"), { name: "home" }, session("ses_b")],
+      1,
+    )
     expect(told).toHaveLength(1)
     expect(told[0]).toMatchObject({ hook_event_name: "SessionLeft", session_id: "ses_a" })
   })
@@ -943,7 +953,7 @@ describe("the interface's plugin", () => {
   })
 
   it("leaves the root too where the person goes home from a subagent's view, and marks each", async () => {
-    const told = await run([session("ses_a"), session("ses_child"), { name: "home" }])
+    const told = await run([session("ses_a"), session("ses_child"), { name: "home" }], 2)
     expect(told.map(({ session_id }) => session_id).toSorted()).toEqual(["ses_a", "ses_child"])
     expect(existsSync(join(dir, "left", "ses_a"))).toBe(true)
   })
