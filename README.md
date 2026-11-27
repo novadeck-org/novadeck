@@ -39,8 +39,7 @@ branch had what. So now I use Novadeck.
 
 It runs the agent CLIs you already have, on your own accounts. And it's not tmux with extra
 steps: Novadeck knows what each agent is doing, so it can tell you who's waiting and pass their
-messages around. All it adds is a small plugin to each agent. Your settings stay yours, and
-outside Novadeck the plugin does nothing.
+messages around.
 
 On macOS and x86_64 Linux:
 
