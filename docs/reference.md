@@ -47,6 +47,35 @@ tour, see the [guide](guide.md).
   curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/install.sh | sh -s -- --sandbox
   ```
 
+### Checking a download
+
+Linux checks no signature when an AppImage starts, so check a Linux download by hand. These
+commands work for the macOS and Windows packages too.
+
+Each release attests every asset it publishes. The attestation records which workflow
+run, commit and repository built a file, and is logged in Sigstore's public
+transparency log:
+
+```sh
+gh attestation verify novadeck-linux-x86_64.AppImage --repo novadeck-org/novadeck
+```
+
+Releases up to v0.0.95 were built before the repository moved from `mzpkdev/novadeck`, so
+their attestations live under that owner; verify those with
+`--owner mzpkdev --signer-repo mzpkdev/novadeck`.
+
+Each release also signs `SHA256SUMS` with the Novadeck release key, as
+`SHA256SUMS.asc`, which needs only `gpg` and `sha256sum` to check:
+
+```sh
+gpg --import novadeck-release-key.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+`gpg --verify` accepts a good signature from any key in your keyring, so check that the
+`Primary key fingerprint` it prints is the one Novadeck publishes.
+
 To remove Novadeck, press **Uninstall…** under About in Preferences. It disconnects the
 agents you connected, ends your terminals, and removes the app: on Linux the AppImage, its
 `novadeck` command, menu entry and icon, and, through a password prompt, the sandbox profile

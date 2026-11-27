@@ -575,7 +575,7 @@ step's `content`, with or without calls). Antigravity's are dated by when its fo
 backlog keeps its latest). It is the `words-written` fact; the reducer takes it only while the
 turn runs and from its start on, and a later one moves it on, never back. It is absent until
 the turn writes words, and once it ends. The Inbox uses it to hold an ask of the terminal the
-person looks at until its agent has written the question out (see "The Inbox" in reference.md).
+person looks at until its agent has written the question out (see "The Inbox" in docs/reference.md).
 
 | Harness     | How the turn ended                                                                                                               | Its last reply                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
