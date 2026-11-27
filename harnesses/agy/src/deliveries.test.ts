@@ -38,6 +38,13 @@ describe("how long what its prompt hook injects lasts, by release", () => {
     expect(agy.messaging.reinjectPerCall).toBe(true)
   })
 
+  it("is told by the release its status line names, before any conversation too", () => {
+    const payload = { agent_state: "initializing", conversation_id: "", version: "1.5.18" }
+    expect(agy.processVersion!({ event: "StatusLine", payload })).toBe("1.5.18")
+    expect(agy.processVersion!({ event: "PreInvocation", payload })).toBeUndefined()
+    expect(agy.processVersion!({ event: "StatusLine", payload: {} })).toBeUndefined()
+  })
+
   it("stays in the conversation from 1.5.18, its hook still asking before every call", () => {
     for (const version of ["1.5.18", "1.5.20", "1.6.0", "2.0.0"])
       expect(agy.messagingAt!(version)).toMatchObject({

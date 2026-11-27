@@ -335,6 +335,11 @@ export type Harness = {
    */
   readonly transcriptOf?: (report: Report) => { sessionId: string; transcript: string } | undefined
   /**
+   * The release of the process a report came from, where the report names it whether or not
+   * a session is bound: what `messagingAt` reads while the session's binding names none yet.
+   */
+  readonly processVersion?: (report: Pick<Report, "event" | "payload">) => string | undefined
+  /**
    * How its TUI's dialogs for requests waiting on the person read on screen and take an
    * answer, so the chat can answer them (see `dialogs.ts`); absent where none can be.
    */

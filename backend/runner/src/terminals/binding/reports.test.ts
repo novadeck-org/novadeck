@@ -18,7 +18,13 @@ import {
   worktreesOnNotice,
 } from "../nudges.js"
 import type { Record } from "../record.js"
-import { namesHeldConversation, Reports, withoutAside, type ReportsHost } from "./reports.js"
+import {
+  namesHeldConversation,
+  processVersionOf,
+  Reports,
+  withoutAside,
+  type ReportsHost,
+} from "./reports.js"
 
 describe("a root turn's prompt told from the transcript", () => {
   // Their hooks name the prompt (UserPromptSubmit), so a session bound at its prompt, as a
@@ -235,6 +241,40 @@ describe("Antigravity's mode, as its status line says it, for the shipping gate"
     expect(statusLine).toHaveBeenCalledTimes(1)
     await say("9", "plan").catch(() => {})
     expect(statusLine).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("the release of a terminal's harness process, before any session binds", () => {
+  // Antigravity's status line names its release before a conversation starts, which a new
+  // session's first turn asks with (from 1.5.18 what its hook injects lasts).
+  it("is taken from the process's status line, for that process and agent alone", async () => {
+    const record = {
+      token: "tok",
+      expecting: "agy",
+      startupScreen: undefined,
+      terminal: { exiting: false },
+      bound: null,
+    } as unknown as Record
+    const reports = new Reports({
+      records: () => new Map([["T", record]]),
+      bindings: () => ({}),
+      shipping: () => undefined,
+    } as unknown as ReportsHost)
+    expect(processVersionOf(record, { agent: "agy", instance: "9" })).toBeNull()
+    await reports.report({
+      terminalId: "T",
+      token: "tok",
+      agent: "agy",
+      event: "StatusLine",
+      seq: 1,
+      instance: "9",
+      env: { cursor: false },
+      payload: { agent_state: "initializing", conversation_id: "", version: "1.5.18" },
+    })
+    expect(processVersionOf(record, { agent: "agy", instance: "9" })).toBe("1.5.18")
+    // Another process in the terminal, as a nested `agy -p`, or another agent, names its own.
+    expect(processVersionOf(record, { agent: "agy", instance: "8" })).toBeNull()
+    expect(processVersionOf(record, { agent: "claude", instance: "9" })).toBeNull()
   })
 })
 

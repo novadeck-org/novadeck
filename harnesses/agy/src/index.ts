@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-import { withLaunch } from "@novadeck/harness-core/decode"
+import { versionName, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import {
   forgottenUnits,
@@ -274,6 +274,10 @@ export const agy = {
   launch,
   messaging,
   messagingAt,
+  // Its status line names its release in every snapshot, before a conversation starts too,
+  // where it names no session (`statusLine`): a session's first turn asks before then.
+  processVersion: ({ event, payload }) =>
+    event === "StatusLine" ? versionName(payload.version) : undefined,
   box,
   slice,
 } satisfies Harness
