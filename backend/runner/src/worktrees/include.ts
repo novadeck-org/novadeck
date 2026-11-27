@@ -229,7 +229,7 @@ const patternsAt = async (
       // A symlink can be present while what it points at is missing.
       const missing = await lstat(file).then(
         () => false,
-        (error: NodeJS.ErrnoException) => error.code === "ENOENT",
+        (cause: NodeJS.ErrnoException) => cause.code === "ENOENT",
       )
       if (missing) return { by: "default", lines: defaultPatterns }
     }
