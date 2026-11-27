@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <strong>An agentic development environment for Claude Code, Codex, Antigravity, OpenCode and Pi.</strong><br />
-  Run a bunch of agents at once, in real terminals, and actually keep up with them.<br />
-  Free and open source, no account.
+  <strong>Run a bunch of coding agents at once, and actually keep up with them.</strong><br />
+  Claude Code, Codex, Antigravity, OpenCode and Pi, in real terminals.<br />
+  Free and open source, no sign-up.
 </p>
 
 <p align="center">
