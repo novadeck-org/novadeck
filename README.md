@@ -123,10 +123,14 @@ going for the same file.
 Whatever an agent makes opens right next to its terminal. A page, a diff, an image, a video, a PDF,
 a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff.
 
-## Leave a ⭐
+## Stay nova ⭐
 
-One person builds this. Free, no account, no tracking, zero ad budget. Most people find it on
-GitHub, and stars are how. If it helps you, star it.
+> [!IMPORTANT]
+> A nova is a star that suddenly gets way brighter. This one's built by one person: free, no
+> account, no tracking, zero ad budget. People find it through GitHub stars, so if it saved you
+> some tab, tab, tab, star it.
+>
+> Stay nova ✦
 
 ## License
 
