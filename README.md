@@ -29,6 +29,18 @@
   <a href="LICENSE"><img src="https://novadeck.dev/badge/license.svg" alt="License: GPL-3.0-or-later" /></a>
 </p>
 
+<p align="center">
+  <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
+</p>
+
+I run like four or five coding agents a day. The agents are fine. Keeping up with them was NOT.
+Tab, tab, tab to find the one that's waiting, copy-pasting answers between them, no idea which
+branch had what. So now I use Novadeck.
+
+It's not tmux with extra steps. Novadeck knows what each agent is doing, so it can tell you who's
+waiting and pass their messages around. All it adds is a small plugin to each agent. Your settings
+stay yours, and outside Novadeck the plugin does nothing.
+
 On macOS and x86_64 Linux:
 
 ```sh
@@ -37,14 +49,6 @@ curl -fsSL https://novadeck.dev/install.sh | sh
 
 For Windows and portable builds, see
 [novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
-
-<p align="center">
-  <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
-</p>
-
-I run like four or five coding agents a day. The agents are fine. Keeping up with them was NOT.
-Tab, tab, tab to find the one that's waiting, copy-pasting answers between them, no idea which
-branch had what. So now I use Novadeck.
 
 ## Keep the agents you have
 
@@ -78,7 +82,7 @@ one click, and the agent's back at it.
   <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, opens three teammates, wired to it on the Canvas. Cart endpoint asks which API version to call, in the Inbox and to its lead. The lead answers first, and the ask leaves the Inbox on its own. Pricing endpoint reports done, to its lead and to the Inbox." width="100%" />
 </p>
 
-Half the stuff they ask me is really for another agent lol. Here they message each other by handle,
+Half the stuff they ask me is really for another agent. Here they message each other by handle,
 and one can start its own teammates and lead them. The lead gets their questions too and usually
 answers before I even look. Claude Code, Codex, Antigravity, OpenCode and Pi, all on one team.
 
@@ -126,4 +130,4 @@ a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff
 ## Leave a ⭐
 
 One person builds this. Free, no account, no tracking, zero ad budget. Most people find it on
-GitHub, and stars are how. If it helps you, star it. It really does help.
+GitHub, and stars are how. If it helps you, star it.
