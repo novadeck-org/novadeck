@@ -28,6 +28,11 @@ export type DescribeAnswer =
       readonly ok: true
       /** The worktree it titled too: its branch and title. */
       readonly worktree?: { readonly branch: string; readonly title: string }
+      /**
+       * That its work starts here, in a swarm, with no team around it yet: the moment to look
+       * for parts that can go on side by side (`planning` in shell/mcp.ts).
+       */
+      readonly plan?: true
     }
   | { readonly ok: false; readonly reason: string }
 

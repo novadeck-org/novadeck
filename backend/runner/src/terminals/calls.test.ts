@@ -798,6 +798,63 @@ describe("the mode call", () => {
   })
 })
 
+describe("the describe call", () => {
+  // A caller `moth` (t1), and `fox` (t2), each led by whomever `ledBy` names, in the mode given.
+  const setup = (mode: AgentMode, ledBy: { t1?: string; t2?: string } = {}) => {
+    const naming = { own: null as { title: string } | null, summary: "", murmur: null }
+    const records = new Map<string, unknown>([
+      ["t1", { terminal: { exiting: false }, token, summary: { id: "t1" }, naming, nudges: {} }],
+      [
+        "t2",
+        {
+          terminal: { exiting: false },
+          token,
+          summary: { id: "t2" },
+          naming: { ...naming },
+          nudges: {},
+        },
+      ],
+    ])
+    const host = {
+      agentMode: () => mode,
+      records: () => records,
+      stopping: () => false,
+      peers: () => ({ facts: () => Promise.resolve({}) }),
+      retitle: () => undefined,
+      save: () => undefined,
+      summarized: () => undefined,
+      messaging: () => ({
+        leadOf: (id: "t1" | "t2") =>
+          ledBy[id] === undefined ? undefined : { terminalId: ledBy[id], handle: "lead" },
+      }),
+    } as unknown as CallsHost
+    const describing = new Calls(1000, host)
+    const describes = (title: string, summary = "Builds the game.") =>
+      describing.call({ type: "describe", terminalId: "t1", token, request: { title, summary } })
+    return { describes }
+  }
+
+  it("asks, in a swarm, for parts that can go side by side as work starts with no team around it", async () => {
+    const { describes } = setup("swarm")
+    expect(await describes("Neon game")).toEqual({ ok: true, plan: true })
+    // The same work, said again or summed up anew, starts nothing.
+    expect(await describes("Neon game", "Builds the game's server.")).toEqual({ ok: true })
+    expect(await describes("neon GAME")).toEqual({ ok: true })
+    // Work on another subject starts again.
+    expect(await describes("Release notes")).toEqual({ ok: true, plan: true })
+  })
+
+  it("asks nothing in Herd or Solo", async () => {
+    expect(await setup("herd").describes("Neon game")).toEqual({ ok: true })
+    expect(await setup("solo").describes("Neon game")).toEqual({ ok: true })
+  })
+
+  it("asks nothing of a teammate, whose lead split the work, nor of a lead, which has", async () => {
+    expect(await setup("swarm", { t1: "t9" }).describes("Neon game")).toEqual({ ok: true })
+    expect(await setup("swarm", { t2: "t1" }).describes("Neon game")).toEqual({ ok: true })
+  })
+})
+
 describe("the permit call", () => {
   const permit = {
     type: "permit",
