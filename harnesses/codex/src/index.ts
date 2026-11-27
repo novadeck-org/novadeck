@@ -136,11 +136,26 @@ const kept: KeptFlags = {
   config: { options: ["-c", "--config"], keys: configKeys },
   // Probed 2026-11-07 (0.167.0, launch-flags.e2e.ts): a bare `codex resume` brings back the
   // model, the effort, the sandbox, the approval policy and the full bypass (`/status` matched
-  // the launch's), so none of those is given back; all are still read and saved with the
+  // the launch's), so those were given back none; all are still read and saved with the
   // session. Hook trust is not the session's: launched with `--dangerously-bypass-hook-trust`
   // and untrusted hooks, its hooks ran, and a bare `codex resume` of that session showed
   // "Hooks need review" and ran none (same probe, `codex.hook-trust.probe.json`).
-  forgets: ["--dangerously-bypass-hook-trust"],
+  // The sandbox it brings back no longer holds once the shim gives a session the folder of
+  // agents' worktrees to write (`rootsSetting`, there in every home since worktrees are on for
+  // everyone): with `-c sandbox_workspace_write.writable_roots=[…]` a bare resume of a session
+  // launched `--sandbox read-only` ran workspace-write, its approval policy kept; with no roots
+  // given it stayed read-only (probed 2026-11-27, 0.172.0, launch-flags.e2e.ts reading the
+  // rollout's `turn_context`). So the sandbox, however it was asked for, is given back; but
+  // not `--full-auto`, which Codex refuses from 0.171.0 (a session saved with it would fail its
+  // resume), and whose workspace-write the roots give anyway.
+  forgets: [
+    "--dangerously-bypass-hook-trust",
+    "--sandbox",
+    "--dangerously-bypass-approvals-and-sandbox",
+    ...["read-only", "workspace-write", "danger-full-access"].map(
+      (mode) => `-c=sandbox_mode=${mode}`,
+    ),
+  ],
   takesValue: nonSession.takesValue,
   takesMany: nonSession.takesMany,
   print: nonSession.print,

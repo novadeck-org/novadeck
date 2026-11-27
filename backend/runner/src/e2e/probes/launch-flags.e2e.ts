@@ -6,7 +6,7 @@
 // restarts (its launch flags carried over). Runs only with NOVADECK_E2E_PROBES=1, by path;
 // with PROBE_OUT set it writes $PROBE_OUT/<agent>.launch-flags.probe.json, the screens
 // and launch words each step showed.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
@@ -31,8 +31,42 @@ type Case = {
   readonly kept: readonly string[]
   /** A command that shows its permissions, typed once its prompt is up; none where the screen does. */
   readonly status?: string
-  /** What its screen shows while the mode holds. */
+  /** What its screen shows while the mode holds, or what `recorded` reads where it has one. */
   readonly shows: RegExp
+  /**
+   * What the harness's own record of the session says of the mode after its last turn, read
+   * in place of the screen where the screen can't tell the modes apart; each resumed session
+   * then takes a turn before it's read.
+   */
+  readonly recorded?: (home: string, session: string) => string | undefined
+}
+
+/**
+ * The sandbox and approval policy of a Codex session's last turn, as its rollout's
+ * `turn_context` records them (`read-only (never)`). Its `/status` can't tell them apart once
+ * the shim gives the session Novadeck's worktrees folder to write: from 0.172.0 it names a
+ * read-only and a workspace-write session alike, `Custom (workspace [<worktrees>], never)`
+ * (probed 2026-11-27, 0.172.0).
+ */
+const codexPolicy = (home: string, session: string): string | undefined => {
+  const sessions = join(home, ".codex", "sessions")
+  const file = readdirSync(sessions, { recursive: true, encoding: "utf8" }).find((one) =>
+    one.endsWith(`-${session}.jsonl`),
+  )
+  if (file === undefined) return undefined
+  const contexts = readFileSync(join(sessions, file), "utf8")
+    .split("\n")
+    .filter((line) => line.includes('"turn_context"'))
+    .map(
+      (line) =>
+        (
+          JSON.parse(line) as {
+            payload?: { approval_policy?: string; sandbox_policy?: { type?: string } }
+          }
+        ).payload,
+    )
+  const last = contexts.at(-1)
+  return last && `${last.sandbox_policy?.type} (${last.approval_policy})`
 }
 
 const base: { readonly [agent in AgentName]: Case } = {
@@ -45,7 +79,8 @@ const base: { readonly [agent in AgentName]: Case } = {
     typed: "--ask-for-approval never --sandbox read-only",
     kept: ["--ask-for-approval", "never", "--sandbox", "read-only"],
     status: "/status",
-    shows: /read only \(never\)/i,
+    shows: /^read-only \(never\)$/,
+    recorded: codexPolicy,
   },
   agy: {
     typed: "--mode plan",
@@ -120,7 +155,7 @@ for (const setup of setups) {
           }
           const since = Date.now()
           let text = await terminal.screen()
-          while (!probe.shows.test(text) && Date.now() - since < 5_000) {
+          while (!probe.recorded && !probe.shows.test(text) && Date.now() - since < 5_000) {
             // eslint-disable-next-line no-await-in-loop -- Each read waits for the screen to change.
             await new Promise((resolve) => setTimeout(resolve, 250))
             // eslint-disable-next-line no-await-in-loop -- As above.
@@ -162,6 +197,13 @@ for (const setup of setups) {
         await prompted(control, setup)
         await turn(control, "Remember the word heron", "Remembered.")
         const controlSession = run.deck.terminals.reportedSession(control.id, agent)!
+        if (probe.recorded) {
+          found.launchedRecorded = probe.recorded(
+            run.sandbox.home,
+            run.deck.terminals.reportedSession(flagged.id, agent)!,
+          )
+          found.controlRecorded = probe.recorded(run.sandbox.home, controlSession)
+        }
 
         await run.deck.restart()
 
@@ -172,19 +214,28 @@ for (const setup of setups) {
         await prompted(bare, setup)
         found.resumedBare = await shown("resumedBare", bare)
         found.bareCommand = harnesses[agent].launch.resume!(controlSession)
+        if (probe.recorded) {
+          await turn(bare, "Carry on", "Carried on.")
+          found.bareRecorded = probe.recorded(run.sandbox.home, controlSession)
+        }
 
         // The first one restored by Novadeck: its launch flags come with the resume.
         const restored = await run.deck.restore(flagged, { resume: agent })
         await restored.reached("ready", { timeoutMs: 60_000 })
         await prompted(restored, setup)
         found.restored = await shown("restored", restored)
+        const flaggedSession = run.deck.terminals.reportedSession(flagged.id, agent)!
+        if (probe.recorded) {
+          await turn(restored, "Carry on", "Carried on.")
+          found.restoredRecorded = probe.recorded(run.sandbox.home, flaggedSession)
+        }
         writeOut()
-        expect(found.restored).toMatch(probe.shows)
+        expect(probe.recorded ? found.restoredRecorded : found.restored).toMatch(probe.shows)
         // What the code relies on: a bare resume keeps the mode unless `forgets` lists it.
-        expect(probe.shows.test(String(found.resumedBare))).toBe(
-          !forgets(agent, probe.typed.split(" ")),
-        )
-        await turn(restored, "Carry on", "Carried on.")
+        expect(
+          probe.shows.test(String(probe.recorded ? found.bareRecorded : found.resumedBare)),
+        ).toBe(!forgets(agent, probe.kept))
+        if (!probe.recorded) await turn(restored, "Carry on", "Carried on.")
         await restored
           .poll(
             () => (launchOf(restored.id)?.length ? true : undefined),
@@ -198,9 +249,7 @@ for (const setup of setups) {
             throw error
           })
         expect(launchOf(restored.id)).toEqual(probe.kept)
-        expect(run.deck.terminals.reportedSession(restored.id, agent)).toBe(
-          run.deck.terminals.reportedSession(flagged.id, agent),
-        )
+        expect(run.deck.terminals.reportedSession(restored.id, agent)).toBe(flaggedSession)
 
         writeOut()
       })

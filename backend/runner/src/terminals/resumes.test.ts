@@ -125,6 +125,8 @@ describe("the session an agent asks to resume in a new terminal", () => {
       argv: [
         "codex",
         "resume",
+        "--sandbox",
+        "read-only",
         "--dangerously-bypass-hook-trust",
         "-c",
         "tui.resume_cwd=session",

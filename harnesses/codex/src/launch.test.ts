@@ -112,8 +112,22 @@ describe("the flags a resumed Codex keeps", () => {
       "s-1",
     ])
     const bare = ["codex", "resume", "-c", "tui.resume_cwd=session", "s-1"]
-    expect(resume!("s-1", {}, kept!(["-s", "read-only"]))).toEqual(bare)
+    expect(resume!("s-1", {}, kept!(["-m", "gpt-5", "-a", "never"]))).toEqual(bare)
     expect(resume!("s-1")).toEqual(bare)
+  })
+
+  // A resume through the shim, which gives the session the folder of agents' worktrees to
+  // write, runs workspace-write unless it's told the sandbox again (probed 2026-11-27, 0.172.0).
+  it("gives the sandbox back, however it was asked for, so a read-only session stays read-only", () => {
+    const resumed = (launch: readonly string[]) => resume!("s-1", {}, kept!(launch)).slice(2, -3)
+    expect(resumed(["-s", "read-only", "-a", "never"])).toEqual(["--sandbox", "read-only"])
+    expect(resumed(["--sandbox=workspace-write"])).toEqual(["--sandbox", "workspace-write"])
+    expect(resumed(["-c", "sandbox_mode=read-only"])).toEqual(["-c", "sandbox_mode=read-only"])
+    // Refused by Codex from 0.171.0: a session saved with it resumes without it.
+    expect(resumed(["--full-auto"])).toEqual([])
+    expect(resumed(["--dangerously-bypass-approvals-and-sandbox"])).toEqual([
+      "--dangerously-bypass-approvals-and-sandbox",
+    ])
   })
 })
 
