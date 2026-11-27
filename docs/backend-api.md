@@ -1281,7 +1281,7 @@ Windows' own: no Git Bash in either Program Files, and no `bash.exe` on PATH but
    nothing for 30 s. Launches fetching at once share one download.
 3. The relay writes each progress line to stderr, over the last on a terminal, one under
    the other elsewhere; it exits 0 once ready, and otherwise 1 with
-   `Novadeck couldn't get Pi: <reason>`. Outside Novadeck's terminals it fails at once.
+   `Novadeck couldn't get Nova: <reason>`. Outside Novadeck's terminals it fails at once.
 
 The runner doesn't check the terminal's token for a fetch: its endpoint is the person's
 alone, and all a fetch can ask is the pinned, checksummed download.

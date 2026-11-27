@@ -215,7 +215,7 @@ describe("readying the tour", () => {
   })
 
   it.for([
-    ["can't start Novadeck's own pi", false, "can't start its own Pi"],
+    ["can't start Novadeck's own pi", false, "can't start Nova here"],
     [
       "can't download it",
       () => Promise.reject(new Error("Pi's download failed: no answer from github.com.")),
@@ -266,7 +266,7 @@ describe("readying the tour", () => {
     })
     expect(asked).toEqual(["pi", "pi", "ticket"])
     // A runner that can't start it refuses the ask too.
-    expect(() => tourIn(home, { ownPi: false }).tour.fetch()).toThrow("can't start its own Pi")
+    expect(() => tourIn(home, { ownPi: false }).tour.fetch()).toThrow("can't start Nova here")
   })
 
   it("shows the service's refusal as it words it, changing nothing", async ({ resources }) => {
