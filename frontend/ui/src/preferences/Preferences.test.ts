@@ -1101,6 +1101,30 @@ describe("searching Preferences", () => {
     expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("idle-agents-label")
   })
 
+  it("focuses the chosen option of a set it opens, not the first", async () => {
+    const props = (tab: ComponentProps<typeof Preferences>["tab"]) => ({
+      open: true,
+      tab,
+      chat: true,
+      value: { ...readPreferences(), chatView: false },
+      onChange: () => {},
+      onClose: () => {},
+      onTabChange: (next: ComponentProps<typeof Preferences>["tab"]) =>
+        page.rerender(createElement(Preferences, props(next))),
+    })
+    const page = render(createElement(Preferences, props("terminal")))
+    mounted.push(page)
+    await nextFrame()
+    await type("show agents as")
+    await act(async () => (document.querySelector(".preferences-result") as HTMLElement).click())
+    await nextFrame()
+
+    const focused = document.activeElement as HTMLInputElement | null
+    expect(focused?.type).toBe("radio")
+    expect(focused?.checked).toBe(true)
+    expect(focused?.closest("label")?.textContent).toContain("Terminal")
+  })
+
   it("finds a switch only the Experimental page has there, and one that stands on its page once", async () => {
     await show({
       tab: "appearance",

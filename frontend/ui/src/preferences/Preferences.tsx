@@ -131,7 +131,7 @@ const sectionTitleClasses = "settings-section-title m-0"
 const groupTitleClasses = "text-body font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
 const panelClasses =
-  "preferences-panel col-start-1 row-start-1 flex flex-col gap-7 px-8 py-6 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[640px]:px-4 max-[640px]:py-5"
+  "preferences-panel col-start-1 row-start-1 flex min-w-0 flex-col gap-7 px-8 py-6 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[640px]:px-4 max-[640px]:py-5"
 
 // A page's name in the menu, by its id.
 const pageLabel = (id: string): string | undefined =>
@@ -140,10 +140,15 @@ const pageLabel = (id: string): string | undefined =>
 // A setting search found: its row, on its page.
 type Found = PreferenceRow<{ readonly page: string; readonly row: HTMLElement }>
 // What takes focus in a row search jumps to: its control, its switch first, as a card that shows
-// a choice beside its switch (Stop idle agents' wait) turns on and off by the switch.
+// a choice beside its switch (Stop idle agents' wait) turns on and off by the switch; in a set of
+// options, the chosen one, where the arrow keys move on from it.
 const rowControls = '[role="switch"], [role="combobox"], [role="radio"], input, button'
 const rowControl = (row: HTMLElement): HTMLElement | null =>
-  row.querySelector<HTMLElement>('[role="switch"]') ?? row.querySelector<HTMLElement>(rowControls)
+  row.querySelector<HTMLElement>('[role="switch"]') ??
+  row.querySelector<HTMLElement>(
+    'input[type="radio"]:checked, [role="radio"][aria-checked="true"]',
+  ) ??
+  row.querySelector<HTMLElement>(rowControls)
 // Where a key types: `/` searches anywhere else.
 const typingFields =
   'input:not([type="range"]):not([type="radio"]):not([type="checkbox"]):not([type="button"]), textarea, select, [contenteditable="true"]'
@@ -169,8 +174,8 @@ type ExperimentalToggle = {
 }
 
 // The window width at which the menu turns from a column into a row above the page (the
-// `max-[640px]` classes below), where its arrow keys turn with it.
-const narrowQuery = "(max-width: 640px)"
+// `max-[640px]` classes below, narrower than 640px), where its arrow keys turn with it.
+const narrowQuery = "(width < 640px)"
 const subscribeNarrow = (changed: () => void): (() => void) => {
   if (typeof matchMedia !== "function") return () => {}
   const query = matchMedia(narrowQuery)

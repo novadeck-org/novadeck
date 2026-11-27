@@ -1129,6 +1129,60 @@ describe("Preferences' tabs in a narrow window", () => {
   })
 })
 
+describe("Terminal's text sample", () => {
+  context("when the largest text size is chosen in the smallest desktop window", () => {
+    it("clips inside the page, which keeps every control in view", async () => {
+      onTestFinished(() => page.viewport(1440, 900))
+      await page.viewport(760, 800)
+      await openWorkspace()
+      await openTerminal()
+
+      await preferencesDialog().getByRole("slider", { name: "Text size" }).fill("32")
+      const panels = preferencesDialog()
+        .element()
+        .querySelector<HTMLElement>(".preferences-panels")!
+      await expect.poll(() => panels.scrollWidth).toBeLessThanOrEqual(panels.clientWidth)
+      const box = panels.getBoundingClientRect()
+      const ligatures = preferencesDialog().getByRole("switch", { name: "Ligatures" })
+      expect(ligatures.element().getBoundingClientRect().right).toBeLessThanOrEqual(box.right)
+    })
+  })
+})
+
+describe("Preferences' menu at the narrow layout's edge", () => {
+  context("when the window is exactly as wide as the menu still stands down the side", () => {
+    it("moves between pages with the arrow keys that run along it", async () => {
+      onTestFinished(() => page.viewport(1440, 900))
+      await page.viewport(640, 800)
+      await openWorkspace()
+      await openAppearance()
+      const list = preferencesDialog().element().querySelector<HTMLElement>(".preferences-tabs")!
+      // The menu still stands down the side here, the page beside it.
+      expect(getComputedStyle(list).flexDirection).toBe("column")
+      const main = preferencesDialog().element().querySelector<HTMLElement>(".preferences-main")!
+      expect(getComputedStyle(main).borderTopWidth).toBe("0px")
+      expect(getComputedStyle(main).borderLeftWidth).not.toBe("0px")
+
+      tab("Appearance").element().focus()
+      await userEvent.keyboard("{ArrowDown}")
+      await expect.element(tab("Terminal")).toHaveAttribute("aria-selected", "true")
+    })
+
+    it("runs the menu along the top one pixel narrower, its keys with it", async () => {
+      onTestFinished(() => page.viewport(1440, 900))
+      await page.viewport(639, 800)
+      await openWorkspace()
+      await openAppearance()
+      const list = preferencesDialog().element().querySelector<HTMLElement>(".preferences-tabs")!
+      expect(getComputedStyle(list).flexDirection).toBe("row")
+
+      tab("Appearance").element().focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.element(tab("Terminal")).toHaveAttribute("aria-selected", "true")
+    })
+  })
+})
+
 describe("Scale preference", () => {
   const scaleSelect = () => preferencesDialog().getByRole("combobox", { name: "Scale" })
 

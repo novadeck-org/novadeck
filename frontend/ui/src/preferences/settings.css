@@ -70,7 +70,7 @@
 .preferences-main {
   border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
 }
-@media (max-width: 640px) {
+@media (width < 640px) {
   .preferences-main {
     border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
     border-left: 0;
