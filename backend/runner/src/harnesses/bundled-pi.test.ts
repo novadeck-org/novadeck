@@ -400,6 +400,47 @@ describe("Novadeck's pi behind its Experimental switch", () => {
       .toBe(false)
   })
 
+  it("leaves the file nova reads as the last switch says, switched on and off at once", async ({
+    resources,
+  }) => {
+    const data = await folder(resources)
+    const on = join(data, "shell", "bundled", "on")
+    const lever = { value: true }
+    const pi = new BundledPi({ data, enabled: () => lever.value, on, platform: "freebsd" })
+
+    pi.switched()
+    lever.value = false
+    pi.switched()
+    await pi.marked()
+    await expect(stat(on)).rejects.toThrow()
+    lever.value = true
+    pi.switched()
+    lever.value = false
+    pi.switched()
+    lever.value = true
+    pi.switched()
+    await pi.marked()
+    await expect(stat(on)).resolves.toBeDefined()
+  })
+
+  it("says whether a terminal's launcher may start it: the switch's, or the tour's", async ({
+    resources,
+  }) => {
+    const data = await folder(resources)
+    const lever = { value: false }
+    const pi = new BundledPi({
+      data,
+      enabled: () => lever.value,
+      allows: (terminalId) => terminalId === "tour",
+      platform: "freebsd",
+    })
+
+    expect(pi.starts("t1")).toBe(false)
+    expect(pi.starts("tour")).toBe(true)
+    lever.value = true
+    expect(pi.starts("t1")).toBe(true)
+  })
+
   it("fetches only its own pi", async ({ resources }) => {
     const { pi } = await service(resources, { value: true })
     await expect(pi.fetch("claude", () => {})).rejects.toThrow("Novadeck has no claude of its own.")

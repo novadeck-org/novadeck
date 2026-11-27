@@ -270,6 +270,8 @@ export class BundledPi {
   private settling: Promise<void> = Promise.resolve()
   // Whether the tour asked for it (`want`), which the switch going off doesn't undo.
   private wanted = false
+  // The changes of the file `nova` reads, one after another (`mark`).
+  private marking: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly host: {
@@ -374,15 +376,33 @@ export class BundledPi {
     return terminalId === undefined ? undefined : this.host.service?.(terminalId, progress)
   }
 
+  /**
+   * Whether the launcher in `terminalId` may start it now: while switched on, or in a terminal
+   * the host allows it in (the tour's), as `fetch` judges.
+   */
+  starts(terminalId: string): boolean {
+    return this.host.enabled() || this.host.allows?.(terminalId) === true
+  }
+
+  /** Settles once the file `nova` reads says what the switch said last (`mark`). */
+  marked(): Promise<void> {
+    return this.marking
+  }
+
   // The file `nova` reads to start Nova, kept as the switch says (the tour's asks aside, as they
   // start Nova by its launcher's path); left where it can't be written, as `nova` then says so.
+  // One change after another, so a write and a removal switched at once never land out of order.
   private mark(): void {
     const { on } = this.host
     if (on === undefined) return
-    const kept = this.host.enabled()
-      ? mkdir(join(on, ".."), { recursive: true }).then(() => writeFile(on, ""))
-      : rm(on, { force: true })
-    void kept.catch(() => {})
+    const keep = this.host.enabled()
+    this.marking = this.marking
+      .then(() =>
+        keep
+          ? mkdir(join(on, ".."), { recursive: true }).then(() => writeFile(on, ""))
+          : rm(on, { force: true }),
+      )
+      .catch(() => {})
   }
 
   // Nova's agent folder's settings, with Novadeck's model as the one a new session starts on
