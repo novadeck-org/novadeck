@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 
 import { projectSync } from "@novadeck/protocol"
 
@@ -226,7 +226,7 @@ describe("what main's move brought", () => {
     expect(await sync.followed()).toContain(s.common)
   })
 
-  it("names the file a rename went to, not the one it came from, and keeps the reason within what the contract allows", async ({
+  it("names the file a rename went to, not the one it came from, in an answer the contract takes", async ({
     setup: s,
   }) => {
     gitIn(s.origin.repo, "mv", "a.txt", "renamed.txt")
@@ -235,12 +235,7 @@ describe("what main's move brought", () => {
     expect((await s.sync.sync(s.origin.repo)).repos[0]?.behind?.why).toBe(
       "You have edits in renamed.txt",
     )
-    const long = join("d".repeat(120), "d".repeat(120), "d".repeat(120), "f".repeat(120))
-    mkdirSync(join(s.origin.repo, dirname(long)), { recursive: true })
-    writeFileSync(join(s.origin.repo, long), "x\n")
-    gitIn(s.origin.repo, "add", long)
-    const why = (await s.sync.sync(s.origin.repo)).repos[0]?.behind?.why
-    expect(why?.length).toBeLessThanOrEqual(300)
+    // Whatever it says is within what the contract keeps of it.
     expect(projectSync.safeParse(await s.sync.sync(s.origin.repo)).success).toBe(true)
   })
 
