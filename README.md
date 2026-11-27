@@ -84,7 +84,7 @@ The Files panel marks each file with the agent changing it, as it happens.
 ## Where'd it save that?
 
 <p align="center">
-  <img src="docs/assets/highlights/show.webp" alt="Order status page, an agent, shows its page in the pane beside its terminal, then its changes as diffs, then a video, a PDF invoice, a 3D model, a CSV as a table and a folder of screenshots." width="100%" />
+  <img src="docs/assets/highlights/show.webp" alt="Order status page, an agent, shows its page in the pane beside its terminal, then its changes as diffs, then an image, a video, a PDF invoice, a 3D model, a CSV as a table and a folder of screenshots." width="100%" />
 </p>
 
 Pages, diffs, images, videos, PDFs, 3D models, CSVs and folders an agent shows you open right next to its terminal.
