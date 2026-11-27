@@ -1,4 +1,5 @@
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
+import { requestedMurmurSwitch } from "@novadeck/demo/addons/murmur"
 
 import type { DemoLaunch } from "../debug-demo"
 import type { DemoActionGroup, DemoStates } from "../types"
@@ -184,8 +185,12 @@ export const downloadStep = 10
 // How long a download held for failing stays at 40% first.
 export const failAfterMs = 1500
 
-// The page's update channel, which every boot's updates share until it reloads.
-export const pageUpdateChannel: { channel: UpdateChannel } = { channel: "stable" }
+// The page's update channel, which every boot's updates share until it reloads: stable, or
+// experimental where the address names a Murmur state (`&murmur=…`), whose Experimental switch a
+// stable channel would turn off at boot.
+export const pageUpdateChannel: { channel: UpdateChannel } = {
+  channel: requestedMurmurSwitch() ? "experimental" : "stable",
+}
 
 // What the Updates group plays an installed copy's updates with.
 export type DemoUpdates = ReturnType<typeof createDemoUpdates>

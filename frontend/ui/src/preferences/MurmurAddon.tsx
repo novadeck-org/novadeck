@@ -54,11 +54,15 @@ const Note = ({ children }: { readonly children: string }): React.JSX.Element =>
 )
 
 // Murmur's card in Preferences' Addons tab: install it, turn it on, take it away. There is
-// no model or language to choose. `murmur` is absent where the backend has none.
+// no model or language to choose. `murmur` is absent where the backend has none. Not
+// `installable` while Murmur's Experimental switch is off: what is on disk keeps its switch,
+// its check and its removal, but nothing installs it from what is left.
 export const MurmurAddon = ({
   murmur,
+  installable = true,
 }: {
   readonly murmur: MurmurAddonValue | undefined
+  readonly installable?: boolean
 }): React.JSX.Element => {
   const [confirming, setConfirming] = useState(false)
   // What the dialog asks, kept after it closes so its words don't change while it fades: the
@@ -133,6 +137,27 @@ export const MurmurAddon = ({
       widthClassName="w-[min(380px,calc(100vw-32px))]"
     />
   )
+  // A model downloaded earlier stays beside an engine that went, so it can be removed.
+  const keptModel = state.kept && (
+    <AddonRow
+      scope="murmur"
+      id="remove-model"
+      label="Model"
+      description={`Downloaded earlier, ${formatSize(state.sizes.model)}.`}
+    >
+      <button
+        type="button"
+        className="button min-h-8 shrink-0 px-3 text-control"
+        disabled={removing !== null}
+        onClick={() => {
+          setAsking("remove")
+          setConfirming(true)
+        }}
+      >
+        {removing !== null ? "Removing…" : "Remove"}
+      </button>
+    </AddonRow>
+  )
   if (unsupported !== null && !installed)
     return (
       <>
@@ -141,71 +166,60 @@ export const MurmurAddon = ({
             <span className={addonNoteClasses}>Not available on this computer</span>
           </div>
           <AddonDetails
-            {...(recheck && {
-              action: {
-                label: "Check again",
-                onClick: actions.install,
-                disabled: removing !== null,
-              },
-            })}
+            {...(recheck &&
+              installable && {
+                action: {
+                  label: "Check again",
+                  onClick: actions.install,
+                  disabled: removing !== null,
+                },
+              })}
           >
             {unsupported.reason}
           </AddonDetails>
-          {state.kept && (
-            // A model downloaded earlier stays through a verdict, so it can be removed.
-            <AddonRow
-              scope="murmur"
-              id="remove-model"
-              label="Model"
-              description={`Downloaded earlier, ${formatSize(state.sizes.model)}.`}
-            >
-              <button
-                type="button"
-                className="button min-h-8 shrink-0 px-3 text-control"
-                disabled={removing !== null}
-                onClick={() => {
-                  setAsking("remove")
-                  setConfirming(true)
-                }}
-              >
-                {removing !== null ? "Removing…" : "Remove"}
-              </button>
-            </AddonRow>
-          )}
+          {keptModel}
         </div>
         {dialog}
       </>
     )
   if (!installed)
     return (
-      <div className={settingsCardClasses}>
-        {/* Off until it is on the computer: an install turns it on. */}
-        <AddonRow
-          scope="murmur"
-          id="enabled"
-          label="Name terminals"
-          description="Turns on when you install it."
-        >
-          <Switch
-            checked={false}
-            onChange={() => {}}
-            disabled
-            labelledBy="murmur-enabled"
-            describedBy="murmur-enabled-description"
-          />
-        </AddonRow>
-        <div className={addonRowClasses}>
-          <span className={addonNoteClasses}>{murmurDownloadNote(state)}</span>
-          <button
-            type="button"
-            className="button primary min-h-8 shrink-0 px-3 text-control"
-            onClick={actions.install}
-          >
-            Install
-          </button>
+      <>
+        <div className={settingsCardClasses}>
+          {installable && (
+            <>
+              {/* Off until it is on the computer: an install turns it on. */}
+              <AddonRow
+                scope="murmur"
+                id="enabled"
+                label="Name terminals"
+                description="Turns on when you install it."
+              >
+                <Switch
+                  checked={false}
+                  onChange={() => {}}
+                  disabled
+                  labelledBy="murmur-enabled"
+                  describedBy="murmur-enabled-description"
+                />
+              </AddonRow>
+              <div className={addonRowClasses}>
+                <span className={addonNoteClasses}>{murmurDownloadNote(state)}</span>
+                <button
+                  type="button"
+                  className="button primary min-h-8 shrink-0 px-3 text-control"
+                  onClick={actions.install}
+                >
+                  Install
+                </button>
+              </div>
+            </>
+          )}
+          {keptModel}
+          {failure && <AddonFailure>{failure}</AddonFailure>}
         </div>
-        {failure && <AddonFailure>{failure}</AddonFailure>}
-      </div>
+        {dialog}
+      </>
     )
   const busy = removing !== null
   // Files beside a verdict and no passed check: it can't run, so no switch that looks as if it did.

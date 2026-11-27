@@ -1710,7 +1710,7 @@ export const Preferences = ({
                     {...(hasExperimental ? { badge: <ExperimentalBadge /> } : {})}
                     description={murmurDescription}
                   >
-                    <MurmurAddon murmur={murmur} />
+                    <MurmurAddon murmur={murmur} installable={murmurSwitch?.enabled ?? true} />
                   </Section>
                 )}
               </TabPanel>

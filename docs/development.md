@@ -731,7 +731,8 @@ App:
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.
 - **Murmur:** Experimental, so its switch starts off and the demo has it not installed, so none of
-  it shows, unless the address names a Murmur state (`&murmur=…`) or a debug action shows one
+  it shows, unless the address names a Murmur state (`&murmur=…`, which also starts the debug
+  demo's update channel on experimental, so the boot leaves the switch on) or a debug action shows one
   (each switches it on first; "Switched off" turns it off, where an installed Murmur stays in
   Addons until it is uninstalled). Named in the address, the demo has it installed and on, and
   never offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
