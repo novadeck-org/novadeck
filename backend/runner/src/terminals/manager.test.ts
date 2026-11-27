@@ -2973,9 +2973,12 @@ describe("closing a terminal whose agent works", () => {
       telemetry: null,
     }
     const steps: string[] = []
-    const stop = Promise.withResolvers<void>()
+    let letStopFinish!: () => void
+    const stop = new Promise<void>((resolve) => {
+      letStopFinish = resolve
+    })
     inside.typing.stopForClose = async () => {
-      if (concurrent) await stop.promise
+      if (concurrent) await stop
       steps.push("stopped")
       ;(record.bound!.activity as { state: string }).state = "idle"
     }
@@ -2986,7 +2989,7 @@ describe("closing a terminal whose agent works", () => {
     }
     const first = manager.close({ terminalId: terminal.id })
     const second = concurrent ? manager.close({ terminalId: terminal.id }) : undefined
-    if (concurrent) stop.resolve()
+    if (concurrent) letStopFinish()
     await Promise.all([first, second])
     return steps
   }
