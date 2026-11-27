@@ -713,7 +713,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
         .checkouts()
         .then((all) => {
           for (const { terminalId, root } of all)
-            if (root === home) terminals.messaging.notice(terminalId, text, { always: true })
+            if (root === home) terminals.messaging.notice(terminalId, text)
         })
         .catch((error: unknown) =>
           log.warn("worktrees.main-notice-failed", "Novadeck could not tell agents main moved", {

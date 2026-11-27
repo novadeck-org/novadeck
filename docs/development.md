@@ -630,12 +630,16 @@ Agents:
   folder is empty.") or two entries and a "More not shown" row; "Files read normally again"
   ends them all. Every sample project has a small tree of its own. `node_modules` is the demo's
   empty folder: it opens onto a muted "Empty" row.
-  The checkout's line over the tree ("main is 3 behind origin" with Update) shows where the runner
-  left the checkout behind main: "Checkout is behind main" shows it, "Checkout can't update" makes Update
-  refuse with git's reason (and Retry), "Checkout is up to date" takes it away (the panel asks
-  every 20 s while shown), and "Main moves the checkout" adds `src/checkout/Receipt.tsx` and
-  removes `src/components/Price.tsx`, which the shown panel reads in within those seconds; Update
-  does the same.
+  Where each repository stands against its origin shows on the line over the tree (the sample
+  project is one repository): "Checkout is behind main" shows "main is behind", "↓3" and Update (its
+  card says why, lists the waiting merges, and Update moves it), "Checkout can't update" makes Update
+  refuse with git's reason (and Retry), "Checkout is ahead of origin" adds "↑2" to the row of a repository
+  nested at `src/api`, "A nested repository has news" gives `src/api` a "1 new" and a "↓1" (a dot
+  on `src` while it is closed), and "Checkout is up to date" takes all of it away (the panel asks
+  every 20 s while shown). "Main moves the checkout" adds `src/checkout/Receipt.tsx` and
+  removes `src/components/Price.tsx`, which the shown panel reads in within those seconds, and
+  leaves a "3 new" whose card lists three merges and a lockfile hint, and a dot on the Files toggle while
+  the panel is hidden; opening the card clears it and pulses the files that came in.
   A strip of agent chips above the tree lists the agents with work in the project, in the
   session's roster order, each light-able by a click (any number, Escape lets them go; with
   none kept the selected terminal's agent is lit). The `messages` variant has a squad, as

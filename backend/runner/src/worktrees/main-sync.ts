@@ -62,6 +62,8 @@ const editsIn = async (home: string): Promise<string | undefined> => {
     home,
     [
       "--no-optional-locks",
+      "-c",
+      "core.fsmonitor=false",
       "status",
       "--porcelain=v1",
       "-z",
