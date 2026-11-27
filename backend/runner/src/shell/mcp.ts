@@ -554,7 +554,8 @@ const effortProperty = {
     "How hard the agent thinks. It goes with a model: give model too, and an effort that " +
     "model takes (the model description lists the agent's models; the runner refuses an " +
     "effort its model doesn't take). Set it only when the user asked for an effort or the " +
-    "brief needs one; otherwise leave it out and the agent keeps the user's own default.",
+    "brief needs one; otherwise leave it out and an agent of your own kind starts on your own model " +
+    "and effort, and any other starts on the user's own default.",
 }
 
 // The model property when the runner offers no model.
@@ -581,7 +582,8 @@ const modelProperty = (models: Models): object => {
   const ids = [...new Set(Object.values(models).flatMap((list) => list.map(({ id }) => id)))]
   const guidance =
     "Set it only when the user asked for a model or the brief needs one; otherwise leave " +
-    "it out and the agent keeps the user's own default."
+    "it out and an agent of your own kind starts on your own model and effort, and any other " +
+    "starts on the user's own default."
   if (ids.length === 0) return noModel
   const offered = harnesses.map(({ id, name }) => ({ id, name, list: models[id] ?? [] }))
   const per = offered

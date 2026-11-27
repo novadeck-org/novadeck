@@ -140,3 +140,11 @@ describe("what the shim adds to let Novadeck's tools run", () => {
     ])
   })
 })
+
+describe("the choice a Claude Code agent opens its own kind on", () => {
+  it("is its model and effort, and no permission mode", () => {
+    const words = kept!(["--permission-mode", "plan", "--model", "sonnet", "--effort", "medium"])
+    expect(claude.launch.chosen!(words)).toEqual({ model: "sonnet", effort: "medium" })
+    expect(claude.launch.chosen!(kept!(["--dangerously-skip-permissions"]))).toEqual({})
+  })
+})

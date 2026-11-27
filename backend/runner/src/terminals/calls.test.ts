@@ -220,6 +220,12 @@ describe("the open call", () => {
       bar: (reason: string) => (barred = reason),
       barAgent: (agent: AgentName) => (unwanted = agent),
       flag: (flags: readonly string[]) => (flagged = flags),
+      // The agent the caller runs, and the words it was launched with.
+      caller: (agent: AgentName, launch: readonly string[]) =>
+        Object.assign(records.get("t1") as object, {
+          summary: { id: "t1", handle: "moth", cwd: "/work", sessionId: "s", agent },
+          agents: { [agent]: { sessionId: "s", seq: 1, launch } },
+        }),
       give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
       word: (next: string) => (word = next),
       offline: () => (online = false),
@@ -354,6 +360,44 @@ describe("the open call", () => {
     run.give({ model: "opus", effort: "low" })
     await run.open({ agent: "claude" })
     expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
+  })
+
+  it("starts an agent of the caller's own harness on the caller's model and effort", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low", "--permission-mode", "plan"])
+    await run.open({ agent: "claude" })
+    // Only the model and effort come along, never the permission mode.
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
+  })
+
+  it("starts the agent on the model the call names, with nothing inherited", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low"])
+    await run.open({ agent: "claude", model: "opus", effort: "max" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
+    expect(await run.open({ agent: "claude", effort: "max" })).toMatchObject({ ok: false })
+  })
+
+  it("starts an agent of another harness on the user's defaults", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low"])
+    await run.open({ agent: "codex" })
+    expect(run.asked[0]!.command).toBe("codex")
+  })
+
+  it("starts an agent on the pinned choice, not the caller's", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low"])
+    run.give({ model: "opus", effort: "max" })
+    await run.open({ agent: "claude" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
+  })
+
+  it("starts on the user's defaults when the caller's model isn't one its harness offers", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "retired", "--effort", "low"])
+    expect(await run.open({ agent: "claude" })).toMatchObject({ ok: true })
+    expect(run.asked[0]!.command).toBe("claude")
   })
 
   it("starts an opencode agent on the policy's model, though the person's models don't list it", async () => {

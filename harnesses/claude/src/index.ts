@@ -3,6 +3,7 @@ import { join } from "node:path"
 import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import {
+  chosenFlags,
   forgottenUnits,
   keptFlags,
   resumeFlags,
@@ -120,6 +121,7 @@ const launch: LaunchProfile = {
   ],
   kept: (argv) => keptFlags(argv, kept),
   forgets: (words) => forgottenUnits(words, kept),
+  chosen: (words) => chosenFlags(words, kept),
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),

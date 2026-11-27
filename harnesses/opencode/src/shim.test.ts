@@ -5,6 +5,7 @@ import { join } from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { opencode } from "./index.js"
 import { commands, configFile, hooksTrusted, kept, makeCmdShim, posixShim, valued } from "./shim.js"
 
 const posixOnly = process.platform === "win32" ? describe.skip : describe
@@ -364,5 +365,19 @@ describe("the flags a resume carries", () => {
       "--variant",
     ])
     expect(kept.forgets).toEqual(["--auto"])
+  })
+})
+
+describe("the choice an opencode agent opens its own kind on", () => {
+  it("is its model and variant, and no agent", () => {
+    const words = opencode.launch.kept!([
+      "-m",
+      "openai/gpt-6",
+      "--variant",
+      "high",
+      "--agent",
+      "plan",
+    ])
+    expect(opencode.launch.chosen!(words)).toEqual({ model: "openai/gpt-6", effort: "high" })
   })
 })

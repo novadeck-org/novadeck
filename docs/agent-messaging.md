@@ -949,7 +949,12 @@ refuses an effort without a model or one its model doesn't take. The ids differ 
 Code's aliases and Antigravity's ids are fixed in their adapters, and Codex's are the
 listed ones in its `models_cache.json`. So `tools/list` asks the runner for
 them (`models` call) and builds `open_agent`'s `model` enum from the union, naming which
-ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. The choice
+ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. When a call names neither
+`model` nor `effort` and no open policy pins one, an agent of the caller's own harness starts
+on the caller's model and effort, read from the words the caller was launched with
+(`LaunchProfile.chosen`, over the kept flags its report holds) and nothing else of its
+launch, so no permission mode or sandbox comes along; one of another harness starts on the
+person's defaults, and a model its harness no longer lists falls back to them too. The choice
 holds for the agent's first session only: a resume after Novadeck restarts starts it
 again with its harness's own resume command, on whatever model that restores.
 
