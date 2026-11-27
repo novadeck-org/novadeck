@@ -222,9 +222,10 @@ export class Forges {
     const now = this.options.enabled()
     const next = order.filter((each) => (each === name ? enabled : now.includes(each)))
     this.options.save(next)
-    // Switched as it already was, what it found stands.
-    if (now.includes(name) !== enabled) this.forget(name)
-    if (enabled) void this.tick()
+    // An older client can ask to turn an always-on forge off; what it found stands.
+    const on = this.options.enabled().includes(name)
+    if (now.includes(name) !== on) this.forget(name)
+    if (on && enabled) void this.tick()
     return (await this.list()).find((each) => each.forge === name)!
   }
 

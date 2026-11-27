@@ -608,7 +608,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     .finally(() => worktrees.start())
   // Pull requests of the works' branches, from every forge whose tool is there, while the works
   // are watched. There are no switches: a `forges.set` from a client before them saves nothing
-  // and leaves the forge on, though one to off drops what it found until its next look.
+  // and leaves the forge on.
   const forges = new Forges({
     enabled: () => forgeName.options,
     save: () => {},

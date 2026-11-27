@@ -96,6 +96,7 @@ const setup = (
     installed?: readonly string[]
     platform?: NodeJS.Platform
     remote?: ForgesOptions["remote"]
+    fixed?: boolean
   } = {},
 ) => {
   const fakes = {
@@ -120,7 +121,7 @@ const setup = (
     enabled: () => state.enabled,
     save: (names) => {
       state.saved.push([...names])
-      state.enabled = [...names]
+      if (!options.fixed) state.enabled = [...names]
     },
     repositories: () => state.repositories,
     watching: () => state.watching,
@@ -198,6 +199,15 @@ describe("the forges service", () => {
     expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
     await forges.set("github", false)
     expect(forges.pullRequest(dirs.a, "feature")).toBeUndefined()
+  })
+
+  it("keeps the pull request when an old client asks to turn an always-on forge off", async () => {
+    const { forges, fakes } = setup({ enabled: ["github"], fixed: true })
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+    await expect(forges.set("github", false)).resolves.toMatchObject({ enabled: true })
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+    expect(fakes.github.tokens).toEqual(["github.com"])
   })
 
   it("looks again every five minutes, when the fetch moves, or when a branch comes", async () => {
