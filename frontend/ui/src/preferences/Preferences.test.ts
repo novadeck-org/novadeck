@@ -184,6 +184,34 @@ describe("the Agents tab", () => {
     expect(changes).toEqual([false])
   })
 
+  const keepMainSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="keep-main-label"]')
+
+  it("holds the Keep main current switch beside the worktrees one, each apart from the other", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "agents",
+      worktrees: { enabled: false, onChange: () => {} },
+      keepMain: { enabled: true, onChange: (enabled) => changes.push(enabled) },
+    })
+    expect(keepMainSwitch()?.closest('[role="tabpanel"]')).toBe(panel())
+    expect(keepMainSwitch()?.getAttribute("aria-checked")).toBe("true")
+    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
+    keepMainSwitch()?.click()
+    expect(changes).toEqual([false])
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    // With no worktrees switch at all, it still stands on its own.
+    await show({ tab: "agents", keepMain: { enabled: false, onChange: () => {} } })
+    expect(worktreesSwitch()).toBeNull()
+    expect(keepMainSwitch()?.getAttribute("aria-checked")).toBe("false")
+  })
+
+  it("leaves Keep main current out where the backend has no such switch", async () => {
+    await show({ tab: "agents", worktrees: { enabled: true, onChange: () => {} } })
+    expect(keepMainSwitch()).toBeNull()
+  })
+
   it("leaves agent worktrees out where the backend has none, and out of Experimental", async () => {
     await show({ tab: "agents", hibernation: { minutes: 60, onChange: () => {} } })
     expect(worktreesSwitch()).toBeNull()

@@ -93,6 +93,11 @@ export const filesGroups = (files: DemoFiles | undefined): readonly DemoActionGr
               run: () => files.stand({ count: 3 }),
             },
             {
+              label: "Checkout is behind, Keep main current off",
+              hint: 'Open Files: "↓3" says why in words, "keeping main current is off", and its card has Update (the checkout may be on any branch: Update moves main)',
+              run: () => files.stand({ count: 3, why: "Keeping main current is off." }),
+            },
+            {
               label: "Checkout can't update",
               hint: 'Open Files: the same line; Update gives way to "Can\'t update: Your changes to src/cart/useCart.ts would be overwritten." with Retry',
               run: () =>

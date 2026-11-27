@@ -109,7 +109,12 @@ Novadeck keeps `main` current in every git repository of an open project: the pr
 if it's in one, and the repositories nested under it (down four folders, not in `node_modules` and
 the like). It fetches each one every five minutes, and right away when a pull request of one of your
 agents is merged, and moves `main` forward when that's safe: you're on `main`, have no changes to
-tracked files, and no merge or rebase is half done.
+tracked files, and no merge or rebase is half done. If you're on another branch, it moves the `main`
+branch alone (nothing in your folder changes) unless `main` has commits origin doesn't, or another
+worktree has it checked out.
+
+To move `main` yourself, turn off **Keep main current** in Preferences > Agents. Novadeck still
+fetches, and the Files panel shows **↓2** with **Update**. It's separate from **Agent worktrees**.
 
 The **Files** panel says where each repository stands, on its folder row (or on a line over the tree,
 where the project is one repository): **3 new** when `main` just caught up, with a card listing the
@@ -118,7 +123,7 @@ changed; **↓2** when `main` is behind and Novadeck left it alone (the card say
 **Update**); **↑1** for commits `main` has that origin doesn't. A closed folder that hides news
 shows a dot, and so does the Files icon while the panel is hidden. You get a notification, per
 Preferences > Notifications, only when a pull request of one of your agents lands in `main`, or when
-new dependencies come in. Agents in the middle of a turn in a repository's own folder are told when `main` moved; idle ones aren't woken for it.
+new dependencies come in. Agents in the middle of a turn in a repository's own folder on `main` are told when it moved; idle ones aren't woken for it.
 
 ## Agents show you their work
 

@@ -423,7 +423,12 @@ const between = (range: { min: number; max: number }, roll: number): number =>
 
 // How the debug panel has the storefront's own checkout stand against main: `count` commits
 // behind where Novadeck left it alone, and `refusal`, git's reason, where an update is refused.
-export type DemoCheckout = { readonly count: number; readonly refusal?: string }
+export type DemoCheckout = {
+  readonly count: number
+  readonly refusal?: string
+  // Why the runner left it, where that isn't the edits a `refusal` stands for.
+  readonly why?: string
+}
 
 // What main's move brought, as the demo tells it: three merges (one of them an agent's), the files
 // of `movedFiles` among 14, and a lockfile that changed.
@@ -559,7 +564,9 @@ export const createDemoFiles = (
           ? {
               remote: "origin/main",
               count: standing.count,
-              why: standing.refusal === undefined ? null : "You have edits in src/cart/useCart.ts",
+              why:
+                standing.why ??
+                (standing.refusal === undefined ? null : "You have edits in src/cart/useCart.ts"),
               merges: demoMerges.slice(0, standing.count),
             }
           : null,

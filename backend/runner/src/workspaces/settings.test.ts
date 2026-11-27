@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { describe, expect, it } from "../test.js"
 import { WorkspaceStore } from "./store.js"
 
@@ -35,5 +39,28 @@ describe("the agent worktrees switch", () => {
     store.settings.saveRunner({ worktrees: false })
     store.settings.carryWorktreesSwitch()
     expect(store.settings.runner().worktrees).toBe(false)
+  })
+})
+
+describe("the keep main current switch", () => {
+  it("reads on until the person turns it off, apart from the worktrees switch, and is kept across launches", ({
+    resources,
+  }) => {
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-keep-"))
+    resources.defer(() => rmSync(directory, { recursive: true, force: true, maxRetries: 5 }))
+    const path = join(directory, "keep.db")
+    const store = new WorkspaceStore(path)
+    resources.defer(() => store.close())
+    expect(store.settings.runner()).toMatchObject({ keepMain: true, worktrees: true })
+    store.settings.saveRunner({ keepMain: false })
+    expect(store.settings.runner()).toMatchObject({ keepMain: false, worktrees: true })
+    store.settings.saveRunner({ worktrees: false })
+    store.settings.saveRunner({ keepMain: true })
+    expect(store.settings.runner()).toMatchObject({ keepMain: true, worktrees: false })
+    store.settings.saveRunner({ keepMain: false })
+    store.close()
+    const reopened = new WorkspaceStore(path)
+    resources.defer(() => reopened.close())
+    expect(reopened.settings.runner().keepMain).toBe(false)
   })
 })

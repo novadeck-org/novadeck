@@ -38,7 +38,7 @@ const knownFetch = (fetch: RunnerSettingsState["bundledPiFetch"]): BundledPiFetc
 }
 
 // The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
-// idle agents run, how agents work with each other, whether agents get worktrees, whether Murmur may run, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
+// idle agents run, how agents work with each other, whether agents get worktrees, whether Murmur may run, whether main is kept current, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
 // one the runner doesn't take goes back to what it still does.
 
 type RunnerSwitchCalls = {
@@ -68,6 +68,7 @@ export const runnerSwitches = (
     bundledPi: piOn,
     bundledPiFetch: piFetch,
     murmur: murmurOn,
+    keepMain: keepOn,
   }: Pick<
     RunnerBackendOptions,
     | "transcripts"
@@ -83,6 +84,7 @@ export const runnerSwitches = (
     | "bundledPi"
     | "bundledPiFetch"
     | "murmur"
+    | "keepMain"
   >,
   track: <T>(work: Promise<T>) => Promise<T>,
 ): Pick<
@@ -95,6 +97,7 @@ export const runnerSwitches = (
   | "worktrees"
   | "bundledPi"
   | "murmurSwitch"
+  | "keepMain"
   | "agents"
   | "forges"
 > & {
@@ -125,6 +128,7 @@ export const runnerSwitches = (
   const bundledPi = createStore(piOn ?? false)
   const bundledPiFetch = createStore(knownFetch(piFetch))
   const murmurSwitch = createStore(murmurOn ?? false)
+  const keepMain = createStore(keepOn ?? true)
   const agents = createStore<readonly AgentConnection[]>(
     knownAgents(integrations ?? []).map((agent) => ({ ...knownLimit(agent), busy: false })),
   )
@@ -259,6 +263,7 @@ export const runnerSwitches = (
     // Where its download stands is the runner's alone to tell, whatever this client switched.
     bundledPiFetch.update(() => knownFetch(settings.bundledPiFetch))
     takes("murmur", murmurOn, murmurSwitch, settings.murmur === true)
+    takes("keepMain", keepOn, keepMain, settings.keepMain !== false)
     // Welcomed on another device: the first-run choice is made.
     if (welcomed !== undefined && settings.welcomed) welcome.update(() => false)
   }
@@ -373,6 +378,21 @@ export const runnerSwitches = (
               void track(
                 pendingWhile("bundledPi", runner.settings.set({ bundledPi: enabled })),
               ).catch(() => bundledPi.update(() => before))
+            },
+          },
+        }
+      : {}),
+    ...(keepOn !== undefined
+      ? {
+          keepMain: {
+            enabled: keepMain,
+            set: (enabled) => {
+              const before = keepMain.getSnapshot()
+              keepMain.update(() => enabled)
+              // Unsaved, the switch shows what the runner still does.
+              void track(
+                pendingWhile("keepMain", runner.settings.set({ keepMain: enabled })),
+              ).catch(() => keepMain.update(() => before))
             },
           },
         }

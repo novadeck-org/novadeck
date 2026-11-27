@@ -225,6 +225,9 @@ export type RunnerBackendOptions = {
   // Whether Murmur may run (an Experimental switch), as the runner said at startup; absent from
   // a runner before revision 20, whose Murmur has no switch.
   readonly murmur?: boolean
+  // Whether the runner keeps main current in the repositories of open projects, as it said at
+  // startup; absent from a runner before revision 24, which does so always.
+  readonly keepMain?: boolean
   // Whether the runner lets agents open worktrees, as it said at startup; not offered when
   // absent.
   readonly worktrees?: boolean

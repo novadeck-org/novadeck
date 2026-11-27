@@ -436,6 +436,15 @@ export type BackendFields = {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
+  // Optional. Whether the backend keeps main current in every git repository of an open project
+  // (moves a checkout, or the local main branch where the checkout is on another branch, to
+  // origin's main where that is safe), on until the person turns it off; off, it still fetches
+  // and the person's Update still works. Independent of `worktrees`. Absent where the backend has
+  // no such setting, as a runner before revision 24.
+  readonly keepMain?: {
+    readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
   // Optional. The forges whose pull requests the Worktrees panel shows on works, every one on
   // (a runner from before them reports each as it was switched). Absent where the backend has none.
   readonly forges?: Forges

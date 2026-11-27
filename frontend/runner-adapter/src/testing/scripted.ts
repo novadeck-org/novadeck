@@ -163,6 +163,7 @@ export const scripted = ({
   bundledPi,
   tourRevision,
   murmur,
+  keepMain,
 }: {
   // Where the runner has a tour, the contract revision it is at (it serves `tour.fetch` from
   // 21); absent, as a runner without one.
@@ -172,6 +173,8 @@ export const scripted = ({
   bundledPi?: boolean
   // Whether Murmur's Experimental switch is on, as a runner from revision 20 says; absent, as one before it.
   murmur?: boolean
+  // Whether Keep main current is on, as a runner from revision 24 says; absent, as one before it.
+  keepMain?: boolean
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
@@ -409,6 +412,7 @@ export const scripted = ({
       bundledPiFetch: { state: bundledPi ? ("ready" as const) : ("off" as const) },
     }),
     ...(murmur !== undefined && { murmur }),
+    ...(keepMain !== undefined && { keepMain }),
     ...(forges ? { forges } : {}),
     agents: [
       { agent: "claude", available: true, connected: false },

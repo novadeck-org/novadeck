@@ -34,7 +34,9 @@ export type CleanupHost = {
   /** Every repository of an open project, whose checkout follows its origin's main as a worktree's does. */
   readonly followed?: () => Promise<readonly string[]>
   /** Told when the runner moved a repository's checkout to its main: see `FetcherOptions.landed`. */
-  readonly landed?: (commonDir: string, from: string, to: string) => void
+  readonly landed?: (commonDir: string, from: string, to: string, ref: boolean) => void
+  /** Whether a fetch is followed by moving main (the person's "Keep main current"); always when omitted. */
+  readonly keepMain?: () => boolean
   /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
   readonly hooksFolder?: string
 }
@@ -77,6 +79,7 @@ export class Cleanup {
         ...(host.now && { now: host.now }),
         ...(host.hooksFolder !== undefined && { hooksFolder: host.hooksFolder }),
         ...(host.landed && { landed: host.landed }),
+        ...(host.keepMain && { follow: host.keepMain }),
       })
   }
 

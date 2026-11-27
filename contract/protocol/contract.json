@@ -1,5 +1,5 @@
 {
-  "revision": 23,
+  "revision": 24,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -9023,6 +9023,7 @@
             "anyOf": [{"type":"integer","minimum":1,"maximum":10080},{"type":"null"}]
           },
           "worktrees": {"type":"boolean"},
+          "keepMain": {"type":"boolean"},
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
@@ -9086,6 +9087,7 @@
             "anyOf": [{"type":"integer","minimum":1,"maximum":10080},{"type":"null"}]
           },
           "worktrees": {"type":"boolean"},
+          "keepMain": {"type":"boolean"},
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
@@ -9123,6 +9125,7 @@
             "anyOf": [{"type":"integer","minimum":1,"maximum":10080},{"type":"null"}]
           },
           "worktrees": {"type":"boolean"},
+          "keepMain": {"type":"boolean"},
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
