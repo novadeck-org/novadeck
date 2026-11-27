@@ -41,6 +41,7 @@ export const roots: Root[] = [
   { token: "harnesses/agy", dir: "harnesses/agy", node: "runner" },
   { token: "harnesses/opencode", dir: "harnesses/opencode", node: "runner" },
   { token: "harnesses/pi", dir: "harnesses/pi", node: "runner" },
+  { token: "harnesses/nova", dir: "harnesses/nova", node: "runner" },
   {
     token: "apps/desktop",
     dir: "apps/desktop",
@@ -257,6 +258,12 @@ export const notes: Record<string, Note> = {
   "harnesses/pi": {
     purpose: "The pi harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/pi/src/index.ts", text: "export const pi" }],
+    docs: ["docs/harness-coverage.md"],
+  },
+  "harnesses/nova": {
+    purpose:
+      "Nova, Novadeck's own pi. It is agent pi, on the pi adapter: the pinned pi Novadeck downloads (its builds, checksums and folders), the launcher Novadeck starts it with by the word `nova`, the model Novadeck pays for, which it adds to pi's extension (`withNova`), and the startup word's swap for the launcher's path. The runner's harnesses/bundled-pi.ts fetches it.",
+    entries: [{ file: "harnesses/nova/src/extension.ts", text: "export const withNova" }],
     docs: ["docs/harness-coverage.md"],
   },
   "apps/desktop": {

@@ -39,6 +39,7 @@ const runner = [
   "@novadeck/harness-codex",
   "@novadeck/harness-opencode",
   "@novadeck/harness-agy",
+  "@novadeck/harness-nova",
   "@novadeck/protocol",
   "@novadeck/relay",
   "@novadeck/terminal",
@@ -83,6 +84,12 @@ describe("E2E selection", () => {
       expect(select(pullRequest(affected, ["harnesses/codex/src/index.ts"]), ids)).toEqual([
         "codex",
       ])
+    })
+
+    it("runs pi's rows for a change to Nova, which is agent pi on pi's adapter", () => {
+      const affected = ["@novadeck/harness-nova", "@novadeck/runner", "@novadeck/desktop"]
+      const all = [...ids, "pi"]
+      expect(select(pullRequest(affected, ["harnesses/nova/src/pin.ts"]), all)).toEqual(["pi"])
     })
 
     it("runs each harness of two adapters, in the order of the pins", () => {

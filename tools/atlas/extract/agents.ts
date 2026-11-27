@@ -207,14 +207,18 @@ const titles: Record<string, string> = {
   pi: "pi",
 }
 
-// Every `harnesses/*` package but the shared core is a harness.
+// The `harnesses/*` packages that are no harness of their own: the shared core, and Nova, which
+// is agent pi on pi's adapter (harnesses/nova adds its pin, launcher and model to it).
+const notHarnesses = new Set(["core", "nova"])
+
+// Every `harnesses/*` package but those is a harness.
 const findHarnessPackages = (repo: string, anchors: Anchors): HarnessPackage[] => {
   // Packages in the working tree: a folder left behind with just an ignored node_modules
   // is none.
   const ids = [
     ...new Set(workingFiles(repo, ["harnesses/*/package.json"]).map((file) => file.split("/")[1])),
   ]
-    .filter((id): id is string => id !== undefined && id !== "core")
+    .filter((id): id is string => id !== undefined && !notHarnesses.has(id))
     .toSorted()
   if (ids.length === 0) anchors.report("harnesses", "harnesses", "found 0 harness packages")
   return ids.map((id) => {

@@ -30,6 +30,7 @@
     "@novadeck/harness-claude": "workspace:*",
     "@novadeck/harness-codex": "workspace:*",
     "@novadeck/harness-core": "workspace:*",
+    "@novadeck/harness-nova": "workspace:*",
     "@novadeck/harness-opencode": "workspace:*",
     "@novadeck/harness-pi": "workspace:*",
     "@novadeck/log": "workspace:*",

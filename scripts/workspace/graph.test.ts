@@ -367,12 +367,18 @@ describe("the package graph", () => {
 
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {
     const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
+    // Nova is agent pi: harnesses/nova adds its pin, launcher and model to pi's adapter, which
+    // never reaches back.
+    const builtOn = (folder: string, dependency: string) =>
+      folder === "harnesses/nova" && dependency === "harnesses/pi"
     const offending = harnesses.flatMap((folder) =>
       [...reaches(folder)]
         .filter(
           (dependency) =>
             dependency.startsWith("backend/") ||
-            (dependency.startsWith("harnesses/") && dependency !== "harnesses/core"),
+            (dependency.startsWith("harnesses/") &&
+              dependency !== "harnesses/core" &&
+              !builtOn(folder, dependency)),
         )
         .map((dependency) => `${folder} -> ${dependency}`),
     )

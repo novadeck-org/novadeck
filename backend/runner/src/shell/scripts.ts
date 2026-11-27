@@ -4,7 +4,8 @@ import { launchHooks } from "@novadeck/harness-agy/plugin"
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 import { manifest } from "@novadeck/harness-core/plugin"
-import { bundledLauncher } from "@novadeck/harness-pi/bundled"
+import { bundledLauncher } from "@novadeck/harness-nova/launcher"
+import { buildFor, bundledPiHome, bundledPiProgram } from "@novadeck/harness-nova/pin"
 import { extensionFile } from "@novadeck/harness-pi/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import {
@@ -16,7 +17,6 @@ import {
   type ShellScriptPaths,
 } from "@novadeck/terminal/shell"
 
-import { buildFor, bundledPiHome, bundledPiProgram } from "../harnesses/bundled-pi.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { worktreesRoot } from "../worktrees/root.js"
 import {

@@ -2,7 +2,7 @@ import { homedir } from "node:os"
 import { basename } from "node:path"
 
 import type { Effort } from "@novadeck/harness-core/harness"
-import { ownProgram } from "@novadeck/harness-pi/bundled"
+import { novaProgram } from "@novadeck/harness-nova/launcher"
 import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 
 import {
@@ -426,7 +426,8 @@ export class Tour {
               ? 'The tour runs Novadeck\'s own Pi only: open your teammates with agent "pi".'
               : undefined,
           flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
-          program: (agent, at) => (agent === tourAgent && this.inTour(at) ? ownProgram : undefined),
+          program: (agent, at) =>
+            agent === tourAgent && this.inTour(at) ? novaProgram : undefined,
           pinned: (agent, at) =>
             agent === tourAgent && this.inTour(at)
               ? { model: tourModel, effort: tourEffort }

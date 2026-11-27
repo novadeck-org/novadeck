@@ -76,7 +76,12 @@
       }
     },
     {
-      "files": ["harnesses/agy/**", "harnesses/opencode/**", "harnesses/pi/**"],
+      "files": [
+        "harnesses/agy/**",
+        "harnesses/opencode/**",
+        "harnesses/pi/**",
+        "harnesses/nova/**"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",

@@ -322,6 +322,9 @@ importers:
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../../harnesses/core
+      '@novadeck/harness-nova':
+        specifier: workspace:*
+        version: link:../../harnesses/nova
       '@novadeck/harness-opencode':
         specifier: workspace:*
         version: link:../../harnesses/opencode
@@ -404,6 +407,9 @@ importers:
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../../harnesses/core
+      '@novadeck/harness-nova':
+        specifier: workspace:*
+        version: link:../../harnesses/nova
       '@novadeck/harness-pi':
         specifier: workspace:*
         version: link:../../harnesses/pi
@@ -1325,6 +1331,28 @@ importers:
       '@novadeck/tui-input':
         specifier: workspace:*
         version: link:../../libraries/tui-input
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(msw@3.0.4(@types/node@26.6.6)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  harnesses/nova:
+    dependencies:
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../core
+      '@novadeck/harness-pi':
+        specifier: workspace:*
+        version: link:../pi
+      '@novadeck/terminal':
+        specifier: workspace:*
+        version: link:../../libraries/terminal
     devDependencies:
       '@types/node':
         specifier: ^26.6.6

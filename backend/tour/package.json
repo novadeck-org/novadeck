@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@novadeck/harness-core": "workspace:*",
+    "@novadeck/harness-nova": "workspace:*",
     "@novadeck/harness-pi": "workspace:*",
     "@novadeck/protocol": "workspace:*",
     "phaser": "3.90.0",
