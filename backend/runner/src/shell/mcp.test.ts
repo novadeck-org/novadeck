@@ -1330,6 +1330,28 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     })
   })
 
+  it("asks, where the runner says work starts in a swarm, for parts that can go side by side", async () => {
+    const said = async () => {
+      const [, answered] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "describe", arguments: { title: "Neon game", summary: "Builds it." } },
+        },
+      ])
+      return (answered!.result as { content: { text: string }[] }).content[0]?.text
+    }
+    answer = { ok: true, plan: true }
+    const text = await said()
+    expect(text).toMatch(/^Described this terminal\. Before you go on: this is a swarm/)
+    expect(text).toContain("look once at the task for parts that can go on side by side")
+    expect(text).toContain("Open an agent in its own Novadeck terminal for each such part")
+    expect(text).toContain("If no part is, carry on alone.")
+    answer = { ok: true }
+    expect(await said()).toBe("Described this terminal.")
+  })
+
   it("describes only its own terminal, with a title and a summary, and says it did", async () => {
     calls.length = 0
     answer = { ok: true }

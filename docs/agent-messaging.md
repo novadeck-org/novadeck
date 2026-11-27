@@ -202,7 +202,10 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
   something others use, or that the person may want to watch or talk to) goes to a Novadeck
   agent rather than a subagent, which stays the agent's own pick for what serves its own
   context, such as a search or a check it needs the answer to before it goes on (`ownAgents`
-  in `shell/mcp.ts`; see "Agent" and "team" below). Teams are how a swarm gets the person's work done: an agent joins a team whose
+  in `shell/mcp.ts`; see "Agent" and "team" below). As its work starts with no team around it
+  (neither a lead of its own nor terminals it leads), `describe`'s answer asks it to look once
+  for such parts, each worth a brief of its own, and to open and lead an agent for each, or
+  carry on alone (`Calls.plans`, `planning` in `shell/mcp.ts`; see "Terminal titles"). Teams are how a swarm gets the person's work done: an agent joins a team whose
   work its task sits inside, leaves once its part is done and the lead has nothing more for it,
   and hands the lead to a member better placed to lead the rest. Once its own task is finished
   and reported, it looks once for the person's work still under way that it could help with,
@@ -3343,6 +3346,12 @@ in `terminals/describe-request.ts` and `Calls.describe` (`terminals/calls.ts`), 
   an agent's terminal from the summary alone. Both are updated when the work moves to
   another subject, not as it progresses; the later nudge shows the current summary and
   asks for an update only then, or when it holds what a summary leaves out.
+  In Swarm, a title the agent hasn't given before (its first, or another subject's) is where
+  its work starts: when no team is around it, neither a lead of its own nor terminals it
+  leads, the answer goes on to ask it to look once for parts that can go on side by side,
+  each worth a brief, and to open and lead an agent for each, or carry on alone
+  (`DescribeAnswer.plan`, `Calls.plans`, `planning` in `shell/mcp.ts`). A teammate gets no
+  such line, as its lead's brief already split the work; nor does Herd or Solo.
   Its optional `waitingFor`, one line of up to 200 characters, is the exception to "no
   status": what the work waits on, for other agents' listings; an empty string clears it,
   and leaving it out keeps what was said.
