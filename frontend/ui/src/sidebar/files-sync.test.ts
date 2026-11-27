@@ -11,7 +11,7 @@ import {
   hasNews,
   hidesNews,
   landingNotice,
-  landingSub,
+  landingFoot,
   marksOf,
   syncFeedOf,
   syncPollMs,
@@ -103,9 +103,11 @@ describe("the words a repository's marks say", () => {
     expect(agoOf(0, 5 * 60_000)).toBe("5 min ago")
     expect(agoOf(0, 3 * 3_600_000)).toBe("3 h ago")
     expect(agoOf(0, 50 * 3_600_000)).toBe("2 d ago")
-    expect(landingSub(repo(), landing({ filesTotal: 1, commits: 1 }), 120_000)).toBe(
-      "main moved 1 commit · 2 min ago · 1 file",
+    expect(landingFoot(landing({ merges: [], filesTotal: 1, commits: 1, at: 0 }), 120_000)).toBe(
+      "1 commit · 2 min ago · changed files pulse in the tree",
     )
+    expect(landingFoot(landing({ filesTotal: 0, at: 0 }), 120_000)).toContain("no files changed")
+    expect(landingFoot(landing({ ref: true, at: 0 }), 120_000)).toContain("your files didn't")
   })
 
   it("marks a closed folder that hides a repository with news, not one with none", () => {

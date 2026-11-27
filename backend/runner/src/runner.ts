@@ -688,6 +688,14 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     moved: (commonDir) => worktrees.moved(commonDir),
     update: (commonDir) => worktrees.update(commonDir),
   })
+  // The handle of an agent's terminal, none where it has gone.
+  const handleOfOrNone = (terminalId: string): string | undefined => {
+    try {
+      return terminals.get(terminalId).handle ?? undefined
+    } catch {
+      return undefined
+    }
+  }
   // Every repository of every project against its origin's main: what a move of main brought, and
   // who is told of it (agents working in the repository's own checkout).
   const mainSync = new MainSync({
@@ -700,7 +708,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       worktrees.all().flatMap((row) => {
         const pull =
           row.commonDir === commonDir ? forges.pullRequest(commonDir, row.branch) : undefined
-        return pull ? [{ number: pull.number, title: pull.title }] : []
+        if (!pull) return []
+        const handle = row.terminalId === null ? undefined : handleOfOrNone(row.terminalId)
+        return [{ number: pull.number, title: pull.title, handle }]
       }),
     landed: ({ home, name, landing, ref }) => {
       // Agents on another branch see no file change when only the local main branch moved: no notice.

@@ -57,8 +57,16 @@ import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
 
 // `title` and `command` open the terminal named so, running the command at its first prompt,
-// as an installer is (see `preferences/installs.ts`).
-type AddTerminalOptions = { fromKeyboard?: boolean; title?: string; command?: string }
+// as an installer is (see `preferences/installs.ts`). `directory` opens it there instead of in the
+// project's folder, and `quiet` adds it to the session without selecting it or moving the view,
+// for a terminal something else follows (the Files card's dependency install).
+type AddTerminalOptions = {
+  fromKeyboard?: boolean
+  title?: string
+  command?: string
+  directory?: string
+  quiet?: boolean
+}
 
 // Workspace operations shared by the pointer UI and keyboard shortcuts. Each reads the
 // latest stores when it runs, so several in one event keep one another's changes.
@@ -674,7 +682,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         shell.setKeyboardFocus({ id, view: currentState(workspace.getSnapshot()).view })
       select(id)
     },
-    add: ({ fromKeyboard = false, title, command } = {}) => {
+    add: ({ fromKeyboard = false, title, command, directory, quiet = false } = {}) => {
       recent.setSwitcher(null)
       const snapshot = workspace.getSnapshot()
       const project = activeProject(snapshot)!
@@ -682,10 +690,14 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const target = currentTarget(snapshot)
       const terminal = newTerminal({
         target,
-        directory: project.directory,
+        directory: directory ?? project.directory,
         ...(title !== undefined && { title }),
         ...(command !== undefined && { launch: { command } }),
       })
+      if (quiet) {
+        workspace.transact([{ type: "terminal/add", target, terminal, select: false }])
+        return terminal.id
+      }
       const active = rename.activeRename()
       if (active) rename.finishRename(active, true)
       markCreated({ context: currentContext(snapshot), id: terminal.id })
