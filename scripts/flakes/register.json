@@ -747,6 +747,15 @@
       "seen": ["feat/worktree-include run 45833035936 (Linux 1/3), retried and passed"]
     },
     {
+      "id": "viewers-pdf-open-slow",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/pdf.test.ts > ",
+      "signature": "expected \\+0 to be \\d|expected \\[\\] to deeply equal \\[ '(?:unreadable|password)' \\]",
+      "status": "fixed",
+      "cause": "An open loads the frame, starts pdf.js's worker and parses the PDF, none of it paced by a frame, but its waits had the 5 s that a check on frames gets: the file's first test had no page after 5 s on a loaded macOS runner. Opens took up to 15 s locally under CPU load. Every wait on what an open brings (pages, trouble, the frame no longer busy) now gets 20 s.",
+      "seen": ["fix/ci-flakes-1126 run 45950651061 (macOS 1/3), retried and passed"]
+    },
+    {
       "id": "scripts-libraries-fence-lint-windows",
       "jobs": ["^Test \\(Windows(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "scripts/libraries/fence.test.ts",
@@ -908,6 +917,15 @@
       "status": "fixed",
       "cause": "Each builds the whole contract's snapshot (snapshotContract), about 0.1 s locally and 1 to 2 s a file on a macOS runner, but 8.2 and 8.4 s at the start of one loaded job, against the 5 s default; the package is neutral, so its tests aren't retried and the job failed. Both have a 30 s budget now.",
       "seen": ["fix/ci-flakes-1126 run 45914826966 (macOS 1/3), failed the job"]
+    },
+    {
+      "id": "terminal-pty-left-listing-slow",
+      "jobs": ["^Test \\(macOS(?:, [1-3][/-]3)?\\)$"],
+      "test": "src/pty/left.test.ts > what an agent left in its terminal's scope > ",
+      "signature": "expect\\.poll\\(\\) function didn't resolve in time",
+      "status": "fixed",
+      "cause": "Vitest says this only when the poll's first call hasn't returned by its timeout: the check that a closed terminal's programs are gone reads a ps listing, which takes seconds on a loaded Mac, and its 3 s ran out before one came back. It gets 3 s and a listing's own 10 s cap now, and its tests 40 s. Not reproduced: Linux reads /proc.",
+      "seen": ["fix/ci-flakes-1126 run 45950651061 (macOS 1/3), retried and passed"]
     },
     {
       "id": "harness-opencode-interface-left-late",
