@@ -51,7 +51,8 @@ export const lookSettleMs = 800
 export const lookPictureMs = 1_500
 
 /** Why a look has no picture where no frame of the page was drawn in time. */
-export const notDrawn = `The page hadn't drawn a frame ${lookPictureMs / 1000} seconds after loading, so there's no picture: a heavy page on a slow or software GPU draws late. It isn't a sign the page is blank, and it may look fine on screen; the errors listed are all it reported.`
+export const notDrawn =
+  "The page drew no frame in time for a picture, so there is none. That isn't a blank page, which pictures white: a page on a slow or software GPU draws late, and so does one whose script is still busy."
 
 /** The longest a look can take: its load, its settle and its picture, all at their limits. */
 export const lookWorstMs = lookLoadMs + lookSettleMs + lookPictureMs
@@ -297,8 +298,8 @@ const loadAndPicture = async (
     await wait(lookSettleMs)
     if (window.isDestroyed()) return { reason: "The page could not be pictured." }
     // No picture is no frame drawn in time, not a blank page (a blank page pictures white): a
-    // heavy page on a slow or software GPU (a VM, a remote desktop) draws its first frame late,
-    // so the reason says so, and an agent doesn't take its page for broken.
+    // heavy page on a slow or software GPU (a VM, a remote desktop) draws its first frame late, as
+    // does one whose script is still busy, so the reason names both, not a blank page.
     const image = await within(contents.capturePage(), lookPictureMs)
     const picture = image && lookPicture(image)
     if (!picture) return { reason: notDrawn }
