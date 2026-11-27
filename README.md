@@ -8,8 +8,8 @@
 </p>
 
 <p align="center">
-  <strong>A desktop terminal for Claude Code, Codex, Antigravity, OpenCode and Pi.</strong><br />
-  When an agent needs you, its question comes to one Inbox, and you answer it right there.<br />
+  <strong>An agentic development environment for Claude Code, Codex, Antigravity, OpenCode and Pi.</strong><br />
+  Run a bunch of agents at once, in real terminals, and actually keep up with them.<br />
   Free and open source, no account.
 </p>
 
