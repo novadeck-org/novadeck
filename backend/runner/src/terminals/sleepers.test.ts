@@ -56,7 +56,7 @@ const setup = (
     done?: boolean
     turnAt?: number
     restorable?: () => Promise<boolean>
-    /** The transcript of a session that is Nova's (`Claims.own`). */
+    /** The transcript of a session that is Nova's (`Claims.isNova`). */
     own?: string
     create?: (row: ListedTerminal) => Promise<unknown>
   } = {},

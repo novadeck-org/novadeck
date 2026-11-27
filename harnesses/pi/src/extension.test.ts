@@ -130,7 +130,7 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       stoppedFolder: "stopped",
       pidVariable: "NOVADECK_PI_PID",
       continueCap: 20,
-      own: {
+      nova: {
         provider: novaProvider,
         variables: novaService,
         config: novaProviderConfig,

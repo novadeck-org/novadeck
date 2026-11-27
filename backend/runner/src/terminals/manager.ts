@@ -486,7 +486,7 @@ export class Terminals {
       detailed: (record) => this.streams.detailed(record),
       cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
       permits: (id) => this.options.shipping?.held(id).permits.length ?? 0,
-      isNova: (agent, transcript) => this.claims.own(agent, transcript),
+      isNova: (agent, transcript) => this.claims.isNova(agent, transcript),
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),

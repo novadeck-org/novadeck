@@ -8,7 +8,7 @@ import { novaService } from "./model.js"
  * downloads into its own data folder (the runner's harnesses/nova.ts), apart from the
  * person's pi on PATH, which pi's shim starts and these files leave as it is.
  */
-export type Nova = {
+export type NovaFiles = {
   /** Its program, once in place. */
   readonly program: string
   /** Its agent folder, pi's `PI_CODING_AGENT_DIR`: Novadeck's, never the person's `~/.pi/agent`. */
@@ -60,14 +60,13 @@ const quoted = (path: string): string => `'${path.replaceAll("'", `'\\''`)}'`
  * The launcher for Linux and macOS: asks the runner for the program each time
  * (`novadeck-relay fetch nova`), which refuses while Nova is switched off in Preferences >
  * Experimental, answers at once when it is in place, and otherwise fetches it, the relay showing
- * the progress. The relay prints the variables of Novadeck's model service the runner gives a
- * Nova started by hand (a ticket of its own; a tour's terminal has its run's already), one
- * `NAME=value` a line, and only the service's two are taken (`novaService`). Then it starts the
+ * the progress. The relay prints the variables of Nova's model service the runner gives every
+ * Nova (the ticket the runner's Novas share), one `NAME=value` a line, and only the service's two are taken (`novaService`). Then it starts the
  * program with Novadeck's extension and its own agent folder, with pi's check for a newer version
  * off, as Novadeck pins the version. Novadeck types its path, and `nova` on the PATH of Novadeck's
  * terminals starts it while Nova is on (`novaShim`).
  */
-export const posixLauncher = (pi: Nova): string => `#!/bin/sh
+export const posixLauncher = (pi: NovaFiles): string => `#!/bin/sh
 ${header("#", "launcher for Nova")}
 # Starts Nova once the runner says it is on and in place, fetching it first.
 novadeck_program=${quoted(pi.program)}
@@ -104,7 +103,7 @@ exec "$novadeck_program" -e ${quoted(pi.extension)} "$@"
 const cmdPath = (path: string, called = false): string =>
   path.replaceAll("%", called ? "%%%%" : "%%")
 
-export const cmdLauncher = (pi: Nova): string => `@echo off
+export const cmdLauncher = (pi: NovaFiles): string => `@echo off
 ${header("rem", "launcher for Nova")}
 rem Starts Nova once the runner says it is on and in place, fetching it first.
 setlocal
@@ -149,7 +148,7 @@ export const turnOnLine = "Turn on Nova in Preferences > Experimental."
 
 /** Where `nova` finds Nova's launcher, and the file that says Nova is switched on. */
 export type NovaShimPaths = {
-  /** Nova's launcher (`novaLauncher`), under the shell folder's `bundled` folder. */
+  /** Nova's launcher (`novaLauncher`), under the shell folder's `nova` folder. */
   readonly launcher: string
   /** The file the runner keeps while Nova is switched on, and removes when it is switched off. */
   readonly on: string
@@ -219,10 +218,10 @@ export const novaShim = (
     ? { path: `${novaCommand}.cmd`, content: cmdNovaShim(paths) }
     : { path: novaCommand, content: posixNovaShim(paths), mode: 0o700 }
 
-/** The launcher's file for `platform`, under the shell folder's `bundled` folder. */
+/** The launcher's file for `platform`, under the shell folder's `nova` folder. */
 export const novaLauncher = (
   platform: NodeJS.Platform,
-  pi: Nova,
+  pi: NovaFiles,
 ): { readonly path: string; readonly content: string; readonly mode?: number } =>
   platform === "win32"
     ? { path: "nova.cmd", content: cmdLauncher(pi) }

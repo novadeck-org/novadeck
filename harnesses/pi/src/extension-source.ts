@@ -1,5 +1,5 @@
 /**
- * The JavaScript of Nova extension, as the shim has pi load it per launch (`-e <file>`):
+ * The JavaScript of Novadeck's pi extension, as the shim has pi load it per launch (`-e <file>`):
  * pi keeps no hook commands of its own, only extensions, which run in its process and hear its
  * events. This one runs Novadeck's hook command for each event Novadeck reads, as the other
  * harnesses run theirs, so the relay and the runner see the same reports; and gives pi
@@ -54,7 +54,7 @@ export type ExtensionConfig = {
    * (@novadeck/harness-nova's model.ts): the provider's name, the variables its base URL and key
    * come in, and the rest of its configuration. Absent, Nova gets no model of Novadeck's.
    */
-  readonly own?: {
+  readonly nova?: {
     readonly provider: string
     readonly variables: { readonly baseUrl: string; readonly key: string }
     readonly config: object
@@ -118,14 +118,14 @@ const nova = globalThis.novadeckNova
 // process and taken out of the environment, so no command the agent runs, nor a pi started from
 // one, has its key. Kept on the process, as novadeckNova is.
 globalThis.novadeckService ??= (() => {
-  if (!config.own) return null
-  const baseUrl = process.env[config.own.variables.baseUrl]
-  const key = process.env[config.own.variables.key]
+  if (!config.nova) return null
+  const baseUrl = process.env[config.nova.variables.baseUrl]
+  const key = process.env[config.nova.variables.key]
   return baseUrl && key ? { baseUrl, key } : null
 })()
-if (config.own) {
-  delete process.env[config.own.variables.baseUrl]
-  delete process.env[config.own.variables.key]
+if (config.nova) {
+  delete process.env[config.nova.variables.baseUrl]
+  delete process.env[config.nova.variables.key]
 }
 const service = globalThis.novadeckService
 
@@ -390,12 +390,12 @@ export default function novadeck(pi) {
   // address that refuses, so a session of Novadeck's model resumed where the service isn't
   // given fails there rather than going on with another model on the person's own keys, which
   // pi does with a session's model it can't find (probed 2026-11-25, 1.6.0).
-  if (nova && config.own) {
+  if (nova && config.nova) {
     const given = service && /^[A-Za-z0-9_-]+$/.test(service.key)
     try {
-      pi.registerProvider(config.own.provider, {
-        ...config.own.config,
-        baseUrl: given ? service.baseUrl : config.own.unavailable,
+      pi.registerProvider(config.nova.provider, {
+        ...config.nova.config,
+        baseUrl: given ? service.baseUrl : config.nova.unavailable,
         apiKey: given ? service.key : "unavailable",
       })
     } catch {}

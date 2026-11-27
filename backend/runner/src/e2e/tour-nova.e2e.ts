@@ -25,9 +25,9 @@ beforeAll(async () => {
 })
 afterAll(() => restorePi?.())
 
-// The two variables Novadeck's extension registers the tour's model from, and takes out of pi's
+// The two variables Novadeck's extension registers Nova's models from, and takes out of pi's
 // environment before anything runs.
-const variables = "NOVADECK_PI_(KEY|BASE_URL)"
+const variables = "NOVADECK_NOVA_(KEY|BASE_URL)"
 
 // What the agent prints of them in the shell tool it has: bash where it has one (Linux, macOS,
 // and Windows with Git Bash), else PowerShell's own. The `left` count is of every variable of

@@ -5,7 +5,7 @@ export const settingsFile = "settings.json"
 
 /**
  * The settings Nova starts with, which pi reads as the model and thinking level a new session
- * starts on (`defaultProvider`, `defaultModel`, `defaultThinkingLevel`): Nova.s default model, so a
+ * starts on (`defaultProvider`, `defaultModel`, `defaultThinkingLevel`): Nova's default model, so a
  * plain `nova` starts on it with no flag. pi writes this file itself as the person picks another
  * model, and what is there is kept.
  */

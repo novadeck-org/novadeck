@@ -571,8 +571,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     environment: () => agents.environment(),
     // Nova, which the tour's agents run, once in place; refused while switched off.
     ...(nova && { nova: () => nova.ready() }),
-    // Nova's model service, as the runner's Novas share it, which the tour's agents run on.
-    service: () => novaTickets.service(),
+    // A fresh ticket of Nova's model service for each run, which the runner's Novas then share:
+    // the runner never learns that a kept one is spent.
+    service: () => novaTickets.service({ fresh: true }),
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),

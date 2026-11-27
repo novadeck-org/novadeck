@@ -36,7 +36,7 @@ export const tourAgentNote = (fetch: NovaFetchState): TourAgentNote => {
             : "Downloading Pi…",
       }
     default:
-      // Asked for, and the runner hasn't said yet.
+      // Nova switched on, and the runner hasn't said yet.
       return { step: "waiting", text: "Downloading Pi…" }
   }
 }

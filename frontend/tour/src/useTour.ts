@@ -49,6 +49,13 @@ export const useTour = (
     () => tour?.agent.getSnapshot() ?? off,
   )
   const agent = useMemo((): TourAgentNote => tourAgentNote(fetched), [fetched])
+  // Nova switched off (here, in another window or on another device) takes the tour away: an
+  // offer still open closes, as nothing would download for it; a run already starting goes on.
+  const novaOn = useSyncExternalStore(
+    nova?.enabled.subscribe ?? never,
+    () => nova?.enabled.getSnapshot() ?? false,
+  )
+  if (!novaOn && consent && !consent.starting) setConsent(null)
   // As Pi's state changes, an error about starting it is dropped (see `agentChanged`).
   const [seen, setSeen] = useState(agent.step)
   if (seen !== agent.step) {

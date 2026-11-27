@@ -338,7 +338,7 @@ export type ReportHandlers = {
     listed: boolean,
   ) => void
   /**
-   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`pi`, Nova), in the terminal
+   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`nova`), in the terminal
    * its relay named: settles once it is in place, with the variables the agent is given where
    * there are any (its model service's), telling its `progress` in lines a person reads, or fails
    * with a reason a person reads. Absent, every fetch fails.

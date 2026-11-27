@@ -65,7 +65,7 @@ export type BindingsHost = {
   readonly cards?: (terminalId: string) => number
   /** How many of the shipping gate's permits stand in a terminal; none without the gate. */
   readonly permits?: (terminalId: string) => number
-  /** Whether the agent's session, by its transcript, is Nova's (Nova). */
+  /** Whether the agent's session, by its transcript, is Nova's. */
   readonly isNova?: (agent: AgentName, transcript: string | undefined) => boolean
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (

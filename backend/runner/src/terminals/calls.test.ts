@@ -54,7 +54,7 @@ describe("the open call", () => {
     bound: string[] = [],
     resting: string[] = [],
     rows: { agents: object }[] = [],
-    // The transcript of a session that is Nova's (`Claims.own`).
+    // The transcript of a session that is Nova's (`Claims.isNova`).
     own?: string,
   ) => {
     const records = new Map<string, unknown>([

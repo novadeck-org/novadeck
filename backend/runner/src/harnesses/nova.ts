@@ -373,8 +373,8 @@ export class Nova {
     return this.marking
   }
 
-  // The file `nova` reads to start Nova, kept as the switch says (the tour's asks aside, as they
-  // start Nova by its launcher's path); left where it can't be written, as `nova` then says so.
+  // The file `nova` reads to start Nova, kept as the switch says; left where it can't be
+  // written, as `nova` then says so.
   // One change after another, so a write and a removal switched at once never land out of order.
   private mark(): void {
     const { on } = this.host

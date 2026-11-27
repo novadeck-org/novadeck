@@ -89,10 +89,11 @@ export type TourHost = {
    */
   readonly nova?: () => Promise<string>
   /**
-   * Nova's model service as the runner's Novas share it (`NovaTickets.service`), which the tour's
-   * agents run on as every Nova does, through its launcher: asked ahead, so a refusal (the day's
-   * tickets used, the free model off) stops the tour before anything changes, in the service's
-   * own words. None asked where omitted.
+   * A fresh ticket of Nova's model service (`NovaTickets.service`), which the runner's Novas then
+   * share and the tour's agents run on as every Nova does, through its launcher: asked for each
+   * run, as a kept one may be spent, and ahead, so a refusal (the day's tickets used, the free
+   * model off) stops the tour before anything changes, in the service's own words. None asked
+   * where omitted.
    */
   readonly service?: () => Promise<NovaService>
   /**
@@ -159,7 +160,7 @@ export class Tour {
    * then builds the agent's launch line. The brief never names the person; it names the one
    * teammate the lead opens, on the same agent and model. It also says how the game's
    * dev server is run here (`findServing`), if it can be. The folder is a git repo of its own
-   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). Nova that
+   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). Nova, where it
    * can't be had (a runner without shell files, a download that failed, in its own words) is a
    * `CONFLICT`; so are a ticket refused (a person's tickets for the day used, or the free model
    * off), seed files that can't be read, no folder to use, and a run asked for while another is

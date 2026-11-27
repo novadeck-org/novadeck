@@ -1275,7 +1275,7 @@ Commands start it by the word `novadeck-nova` (harnesses/nova's `novaProgram`), 
 into the launcher's path as the shell starts the command (`novaStartup`). A pi session whose
 transcript lies in Nova's own agent folder (`novaSession`) is Nova's: its
 resume, a sleeper's wake and a History restore start `novadeck-nova --session <file>`
-(`Claims.own`), needing no connection of the person's pi; a sleeper of it is never stuck on
+(`Claims.isNova`), needing no connection of the person's pi; a sleeper of it is never stuck on
 their pi, and History finds its conversation by that file. Disconnecting the person's own pi in
 Preferences still forgets every pi session the runner kept, Nova's among them. On Windows
 the launcher gives pi `--tools -bash,+powershell` for that launch where it finds no bash of
@@ -2652,7 +2652,7 @@ one from an earlier runner.
   lead's terminal is kept with the run's record (`tour.brief` writes it), so the lead resumed in a
   runner started again still opens its teammates.
   `removed` names the projects it removed. A second run while one is being readied is a
-  `CONFLICT`, as are Nova that can't be had and a ticket the service refuses
+  `CONFLICT`, as are Nova where it can't be had and a ticket the service refuses
   (`MODELS_UNLISTED` is no longer raised). None changes anything. The client then opens the folder as a project and
   starts `command` in a terminal of it (`terminals.create`).
   Agent worktrees work for every terminal in the tour's folder whatever the person's "Agent

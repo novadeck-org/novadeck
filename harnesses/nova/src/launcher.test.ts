@@ -12,7 +12,7 @@ import {
   novaShim,
   posixLauncher,
   powershellTools,
-  type Nova,
+  type NovaFiles,
 } from "./launcher.js"
 
 const run = promisify(execFile)
@@ -38,7 +38,7 @@ const over = (base: NodeJS.ProcessEnv, env: NodeJS.ProcessEnv): NodeJS.ProcessEn
 
 describe("Nova launcher", () => {
   let root: string
-  let pi: Nova
+  let pi: NovaFiles
   let launcher: string
   const windows = process.platform === "win32"
 
@@ -225,7 +225,7 @@ describe("Nova launcher", () => {
 })
 
 describe("Nova launcher's text", () => {
-  const pi: Nova = {
+  const pi: NovaFiles = {
     program: "/data/nova/1.6.0-abc/pi/pi",
     home: "/data/nova/agent",
     relay: "/data/shell/novadeck-relay",

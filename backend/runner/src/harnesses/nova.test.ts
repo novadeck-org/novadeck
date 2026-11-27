@@ -372,7 +372,7 @@ describe("Nova behind its Experimental switch", () => {
     expect(pi.starts()).toBe(true)
   })
 
-  it("fetches only its own pi", async ({ resources }) => {
+  it("fetches Nova alone", async ({ resources }) => {
     const { pi } = await service(resources, { value: true })
     await expect(pi.fetch("claude", () => {})).rejects.toThrow("Novadeck has no claude of its own.")
   })

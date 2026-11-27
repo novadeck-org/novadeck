@@ -110,7 +110,7 @@ export type HistoryHost = {
   /** The transcript path the running terminal's session reported at bind. */
   readonly transcriptOf: (agent: AgentName, sessionId: string) => string | undefined
   /**
-   * Whether the agent's session, by its transcript, is Nova's (`Claims.own`): it
+   * Whether the agent's session, by its transcript, is Nova's (`Claims.isNova`): it
    * needs no connection of the person's, and its conversation is the file it named. None is
    * where omitted.
    */
@@ -572,7 +572,7 @@ export class ClosedTerminals {
     }
     const report = row.agents[agent]
     if (!report) return { state: "gone", reason: "conversation" }
-    if (this.host.isNova?.(agent, report.transcript) === true) return this.ownFiles(report, row)
+    if (this.host.isNova?.(agent, report.transcript) === true) return this.novaFiles(report, row)
     let asked = pass?.connected.get(agent)
     if (!asked) {
       asked = this.host.connected(agent).catch(() => true)
@@ -616,7 +616,7 @@ export class ClosedTerminals {
 
   // Nova's session: its folder, and the file it named in its own agent folder,
   // which the person's pi never reads; held in another terminal as any session is.
-  private async ownFiles(
+  private async novaFiles(
     report: AgentReport,
     row: Pick<ListedClosed, "cwd">,
   ): Promise<ClosedTerminalState> {

@@ -68,11 +68,11 @@ export const connected: Harness["connected"] = (install) =>
  * own), the folder of agents' worktrees (whose project trust it answers for one process), and,
  * while the shipping gate is on (`machine.shippingGate`), its refusal of a shell command. pi takes
  * no hook command, so nothing here is pi's own configuration: the shim names it for one launch.
- * With `own`, the model Nova runs on (@novadeck/harness-nova's `withNova`), which the extension
+ * With `nova`, the models Nova runs on (@novadeck/harness-nova's `withNova`), which the extension
  * registers in Nova alone; without it, Nova's terminals get no model of Novadeck's.
  */
 export const filesWith =
-  (own?: ExtensionConfig["own"]): Harness["files"] =>
+  (nova?: ExtensionConfig["nova"]): Harness["files"] =>
   (platform, launchers, machine = {}) => [
     {
       path: extensionFile,
@@ -88,7 +88,7 @@ export const filesWith =
         stoppedFolder,
         pidVariable,
         continueCap,
-        ...(own !== undefined && { own }),
+        ...(nova !== undefined && { nova }),
         // Only while the Experimental shipping gate is on: off, the extension is as it always was.
         ...(machine.shippingGate === true && { gate: true }),
       }),

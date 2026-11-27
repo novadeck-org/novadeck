@@ -407,10 +407,14 @@ describe("the Nova row", () => {
     expect(changes).toEqual([true])
   })
 
-  it("offers the tour too, where the backend has one", async () => {
+  it("says nothing of the tour where the backend has none", async () => {
     const nova = { enabled: false, fetch: { state: "off" } as const, onChange: () => {} }
     await show({ tab: "experimental", experimental: experimental(true), nova })
     expect(document.getElementById("nova-description")?.textContent).not.toContain("tour")
+  })
+
+  it("offers the tour too, where the backend has one", async () => {
+    const nova = { enabled: false, fetch: { state: "off" } as const, onChange: () => {} }
     await show({ tab: "experimental", experimental: experimental(true), nova, tour: true })
     expect(document.getElementById("nova-description")?.textContent).toContain(
       "It also adds a Help menu to the footer, with a short tour",

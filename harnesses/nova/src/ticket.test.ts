@@ -36,7 +36,7 @@ describe("a ticket for Novadeck's model service", () => {
   })
 })
 
-describe("the ticket Novas started by hand share", () => {
+describe("the ticket the runner's Novas share", () => {
   const ends = "2026-11-26T12:00:00.000Z"
   const before = (minutes: number) => Date.parse(ends) - minutes * 60_000
 
@@ -57,6 +57,22 @@ describe("the ticket Novas started by hand share", () => {
     now = before(10)
     await tickets.service()
     expect(asked).toHaveLength(2)
+  })
+
+  it("is replaced by a fresh one where asked, which the Novas after it share", async () => {
+    let nth = 0
+    const request = (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ticket: `T${(nth += 1)}`, expiresAt: ends })),
+      )) as unknown as typeof fetch
+    const tickets = new NovaTickets({ endpoint: "http://x", request, now: () => before(120) })
+    const key = async (fresh?: boolean) => {
+      const given = await tickets.service(fresh === undefined ? {} : { fresh })
+      return given.ok ? given.env.NOVADECK_NOVA_KEY : undefined
+    }
+    expect(await key()).toBe("T1")
+    expect(await key(true)).toBe("T2")
+    expect(await key()).toBe("T2")
   })
 
   it("shares one request between Novas starting at once", async () => {

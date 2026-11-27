@@ -75,7 +75,7 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   stopping: parts.stopping,
   install: parts.install,
   connected: parts.connected,
-  isNova: (agent, transcript) => parts.claims.own(agent, transcript),
+  isNova: (agent, transcript) => parts.claims.isNova(agent, transcript),
   holder: (agent, sessionId) => holder(parts, agent, sessionId),
   claimHandle: (sessionId, handle, terminalId) => parts.names.claim(sessionId, handle, terminalId),
   drawHandle: (sessionId) => parts.names.next(sessionId),

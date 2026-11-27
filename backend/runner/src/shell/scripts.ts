@@ -348,7 +348,7 @@ export const shellFiles = (
   // Its launcher, which Novadeck types the path of, and `nova` in the shims' folder, first on
   // PATH in Novadeck's terminals while Nova is on, so a person starts it by its name.
   const shim = novaShim(platform, paths.nova)
-  const bundled = nova
+  const novaFiles = nova
     ? [
         [paths.nova.launcher, novaLauncher(platform, nova)] as const,
         [join(paths.bin, shim.path), shim] as const,
@@ -371,7 +371,7 @@ export const shellFiles = (
         // plugin's copy, which starts the MCP server through cmd and this launcher.
         file(paths.mcp, cmdLauncher(paths, "mcp", "MCP server launcher")),
         ...bin,
-        ...bundled,
+        ...novaFiles,
         // Antigravity's PreToolUse, where only its shim can give it, in Novadeck's terminals.
         ...(machine.cmdShimDir !== undefined && machine.hooksFolder !== undefined
           ? [file(join(paths.agyHooks, launchHooks.path), launchHooks.content(platform))]
@@ -385,7 +385,7 @@ export const shellFiles = (
         file(paths.hook, posixLauncher(paths, "hook", "agent hook launcher"), 0o700),
         file(paths.mcp, posixLauncher(paths, "mcp", "MCP server launcher"), 0o700),
         ...bin,
-        ...bundled,
+        ...novaFiles,
         ...opening,
       ]
 }
