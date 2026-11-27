@@ -240,8 +240,8 @@ export {
   maxInboxResolved,
   maxInboxEntryIdLength,
   runnerSettings,
-  bundledPiFetch,
-  type BundledPiFetch,
+  novaFetch,
+  type NovaFetch,
   type RunnerSettings,
   type RunnerSettingsState,
 } from "./settings.js"

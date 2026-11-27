@@ -54,7 +54,7 @@ describe("the open call", () => {
     bound: string[] = [],
     resting: string[] = [],
     rows: { agents: object }[] = [],
-    // The transcript of a session that is Novadeck's own pi's (`Claims.own`).
+    // The transcript of a session that is Nova's (`Claims.own`).
     own?: string,
   ) => {
     const records = new Map<string, unknown>([
@@ -284,21 +284,21 @@ describe("the open call", () => {
     run.offline()
     // Without its own program, the person's harness must be connected.
     expect(await run.open({ agent: "pi" })).toMatchObject({ ok: false })
-    run.word("novadeck-pi")
-    run.give({ model: "novadeck/gpt-6-luna" })
+    run.word("novadeck-nova")
+    run.give({ model: "nova/gpt-6-luna" })
     expect(await run.open({ agent: "pi", lead: true })).toMatchObject({ ok: true })
     expect(run.asked.map(({ command }) => command)).toEqual([
-      "novadeck-pi --model novadeck/gpt-6-luna",
+      "novadeck-nova --model nova/gpt-6-luna",
     ])
   })
 
-  it("resumes a session of Novadeck's own pi with no connection of the person's", async () => {
-    const own = "/data/bundled/pi/agent/sessions/--t--/1_s-9.jsonl"
+  it("resumes a session of Nova with no connection of the person's", async () => {
+    const own = "/data/nova/agent/sessions/--t--/1_s-9.jsonl"
     const rows = [{ agents: { pi: { sessionId: "s-9", seq: 1, transcript: own } } }]
     const run = setup([], [], rows, own)
     run.offline()
     expect(await run.open({ agent: "pi", resume: "s-9" })).toMatchObject({ ok: true })
-    expect(run.asked.map(({ command }) => command)).toEqual([`novadeck-pi --session ${own}`])
+    expect(run.asked.map(({ command }) => command)).toEqual([`novadeck-nova --session ${own}`])
     // The person's own pi's session still needs their pi.
     const theirs = setup([], [], [{ agents: { pi: { sessionId: "s-8", seq: 1 } } }], own)
     theirs.offline()

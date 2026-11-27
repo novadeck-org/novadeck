@@ -3567,7 +3567,7 @@ describe("saved terminals", () => {
       agentModes: false,
       agentMode: "herd",
       shippingGate: false,
-      bundledPi: false,
+      nova: false,
       murmur: false,
     })
     workspace.settings.saveRunner({ transcripts: false })
@@ -3584,7 +3584,7 @@ describe("saved terminals", () => {
       agentModes: false,
       agentMode: "herd",
       shippingGate: false,
-      bundledPi: false,
+      nova: false,
       murmur: false,
     })
   })
@@ -3643,13 +3643,13 @@ describe("saved terminals", () => {
     expect(workspace.settings.runner().shippingGate).toBe(false)
   })
 
-  it("keep whether Novadeck's own pi is on, off until turned on", ({ kept }) => {
+  it("keep whether Nova is on, off until turned on", ({ kept }) => {
     const workspace = kept()
-    expect(workspace.settings.runner().bundledPi).toBe(false)
-    workspace.settings.saveRunner({ bundledPi: true })
-    expect(workspace.settings.runner().bundledPi).toBe(true)
-    workspace.settings.saveRunner({ bundledPi: false })
-    expect(workspace.settings.runner().bundledPi).toBe(false)
+    expect(workspace.settings.runner().nova).toBe(false)
+    workspace.settings.saveRunner({ nova: true })
+    expect(workspace.settings.runner().nova).toBe(true)
+    workspace.settings.saveRunner({ nova: false })
+    expect(workspace.settings.runner().nova).toBe(false)
   })
 
   it("keep whether agents get worktrees, on until turned off", ({ kept }) => {
@@ -3794,7 +3794,7 @@ describe("the messages", () => {
       agentModes: false,
       agentMode: "herd",
       shippingGate: false,
-      bundledPi: false,
+      nova: false,
       murmur: false,
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })

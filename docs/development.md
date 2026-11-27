@@ -807,20 +807,19 @@ App:
   leaves the agent not installed (nothing starts). The address does the same for a spec:
   `&agentInstall=held` holds the first install, `&agentInstall=fails` fails it.
 - **Tour:** the footer's Help button (the question mark by Feedback, which opens Take the tour)
-  shows only with Experimental on and the tour's own switch on: choose the panel's "Experimental
-  on" (App > Updates), open Preferences once for the flag to follow, and turn on Onboarding tour
-  in its Experimental tab, as a spec does with `?channel=experimental` and `switchTourOn()`
-  (`support/help.tsx`). With the switch off there is no Help button, as its menu holds the tour
-  alone. Take the tour opens its consent, which runs Novadeck's own Pi alone (no choice of agent)
-  and starts downloading it right away: the consent says where that stands (Downloading Pi with its
-  MB, or why it failed with Try again), and Start the tour waits for it. The demo has Pi in place
-  unless asked: the group's "Tour Pi: ..." actions put it in each state (Not asked, Downloading
-  (size unknown), Downloading, Ready, Failed; the consent shows it live), and the address does it for
-  a spec: `&tourPi=download` plays a download once the tour is asked for, `&tourPi=fails` fails the
-  first one (Try again plays it). Start the tour opens a "Tour"
-  project with one terminal starting `novadeck-pi` on GPT-6 Luna at medium effort. "Fail next start" makes the next Start the tour fail as a folder of the
+  shows only with Experimental on and Nova's switch on, the one switch of Nova and the tour:
+  choose the panel's "Experimental on" (App > Updates), as a spec does with
+  `?channel=experimental`; the demo's tour starts with Nova on and in place, and turning Nova off
+  in Preferences' Experimental tab takes the Help button away, as its menu holds the tour alone.
+  Take the tour opens its consent, which runs Nova alone (no choice of agent): the consent says
+  where Nova's download stands (Downloading Pi with its MB, or why it failed with Try again, which
+  switches Nova on again), and Start the tour waits for it. The group's "Tour Pi: ..." actions put
+  it in each state (Not asked, Downloading (size unknown), Downloading, Ready, Failed; the consent
+  shows it live), and the address does it for a spec: `&tourPi=download` plays a download as the
+  demo opens, as Nova switched on does, `&tourPi=fails` fails it (Try again plays it). Start the tour opens a "Tour"
+  project with one terminal starting `novadeck-nova` on GPT-6 Luna at medium effort. "Fail next start" makes the next Start the tour fail as a folder of the
   person's own at `~/.novadeck/tour` does, the consent staying open with why; "Next start:
-  no free run left" fails it as the tour's service with no ticket to give does, with its sentence. A spec asks with the address: `&tourStart=fails` and `&tourStart=tickets` (the tour's service with no free run left, its sentence shown) fail the first start.
+  no free ticket left" fails it as Nova's model service with no ticket to give does, with its sentence. A spec asks with the address: `&tourStart=fails` and `&tourStart=tickets` (Nova's model service with no free ticket left, its sentence shown) fail the first start.
   The tour's terminal runs a scripted agent (`frontend/demo/src/tour/player.ts`): after a few
   hundred ms it binds, works and names its terminal "Game lead" (as its own describe);
   Antigravity starts working only once the UI rang `brief`. Then the story
@@ -983,12 +982,12 @@ App:
   name line ends in "#812" tinted by its state (its page opens from the row's actions under the
   pointer), and the work's changes item (in the showcase, select its row) has
   a "#812" chip in its row, which opens the page in the browser.
-- **Nova:** the App section's group for Novadeck's own pi (Preferences > Experimental >
+- **Nova:** the App section's group for Nova (Preferences > Experimental >
   Nova, which needs the experimental channel). "Off", "Starting",
   "Downloading, size unknown", "Downloading", "Ready" and "Failed" put the row in that state
   without a reboot: the note under its description reads "Starting the download…", "Downloading
   pi…", the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in
-  the demo plays a download of pi's size over a few seconds (`frontend/demo/src/bundled-pi.ts`).
+  the demo plays a download of pi's size over a few seconds (`frontend/demo/src/nova.ts`).
   A runner from before revision 16 offers no row at all.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
@@ -1194,7 +1193,7 @@ atlas.
 | `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
 | `harnesses/opencode`      | The opencode adapter: the plugin its shim loads per launch, transcripts, dialogs, box.     |
 | `harnesses/pi`            | The pi adapter: the extension its shim loads per launch, session files, dialogs, box.      |
-| `harnesses/nova`          | Nova, Novadeck's own pi on the pi adapter: its pin, launcher, `nova` word and free model.  |
+| `harnesses/nova`          | Nova on the pi adapter: its pin, launcher, `nova` word and free model.                     |
 | `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
 | `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
 | `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |

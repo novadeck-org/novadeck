@@ -6,8 +6,8 @@ import { novaProgram } from "@novadeck/harness-nova/launcher"
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import type { BundledPi } from "../harnesses/bundled-pi.js"
 import { resumeAvailability, type UnavailableReason } from "../harnesses/eligibility.js"
+import type { Nova } from "../harnesses/nova.js"
 import { harnesses } from "../harnesses/registry.js"
 import { agentLabel, agentLabelOf } from "../messaging/messages.js"
 import { sessionFolder } from "../worktrees/root.js"
@@ -64,7 +64,7 @@ export const endExpecting = (
   murmur?.released(record.summary.id)
 }
 
-/** The agent as its sentences call it: Nova for Novadeck's own pi's sessions (`nova`). */
+/** The agent as its sentences call it: Nova for Nova's sessions (`nova`). */
 export const labelOf = (agent: AgentName, nova = false): string => agentLabelOf(agent, nova)
 
 /**
@@ -273,12 +273,12 @@ export type ClaimsHost = {
     session: string | undefined,
   ) => boolean
   /**
-   * Nova, Novadeck's own pi (`BundledPi`): whether a session, by its transcript, is its
+   * Nova (`Nova`): whether a session, by its transcript, is its
    * (`owns`), which resumes on Nova (`novaProgram`) with no connection of the person's; whether
    * it may start in a terminal now (`starts`); and its switch's changes (`followSwitch`). No session is
    * its where omitted.
    */
-  readonly nova?: Pick<BundledPi, "owns" | "starts" | "followSwitch">
+  readonly nova?: Pick<Nova, "owns" | "starts" | "followSwitch">
 }
 
 /**
@@ -370,7 +370,7 @@ export class Claims {
     return { ok: true, argv: [own ? novaProgram : program, ...rest], key }
   }
 
-  /** Whether the agent's session, by its transcript, resumes on Novadeck's own pi. */
+  /** Whether the agent's session, by its transcript, resumes on Nova. */
   own(agent: AgentName, transcript: string | undefined): boolean {
     return this.host.nova?.owns(agent, transcript) === true
   }
@@ -380,7 +380,7 @@ export class Claims {
    * off: its launcher would refuse the resume.
    */
   novaOff(terminalId: string, agent: AgentName, transcript: string | undefined): boolean {
-    return this.own(agent, transcript) && this.host.nova?.starts(terminalId) === false
+    return this.own(agent, transcript) && this.host.nova?.starts() === false
   }
 
   /** Calls `listener` as Nova is switched on or off; the returned function stops it. */

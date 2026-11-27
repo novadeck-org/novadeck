@@ -341,7 +341,7 @@ const labels = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) a
 export const agentLabel = (agent: AgentName): string => labels[agent]
 
 /**
- * The agent's name as people know it, Nova for Novadeck's own pi where its terminal's summary
+ * The agent's name as people know it, Nova for Nova where its terminal's summary
  * says so (`nova`): the person's own pi stays Pi.
  */
 export const agentLabelOf = (agent: AgentName, nova?: boolean): string =>

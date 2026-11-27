@@ -185,7 +185,7 @@ const json = (status: number, body: unknown): Response => ({
 
 /**
  * OpenAI's chat completions API, as opencode's `openrouter` provider speaks it: the tour points it
- * at `<endpoint>/chat/completions`, the endpoint being the fake tour service's (`/tour/v1`).
+ * at `<endpoint>/chat/completions`, the endpoint being the fake tour service's (`/nova/v1`).
  */
 export const chat: Dialect = {
   api: "chat",

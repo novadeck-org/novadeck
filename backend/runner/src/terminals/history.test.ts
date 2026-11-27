@@ -604,16 +604,16 @@ describe("what a row can do now", () => {
     })
   })
 
-  it("is ready for Novadeck's own pi's session while its file is there, whatever the person's pi", async () => {
+  it("is ready for Nova's session while its file is there, whatever the person's pi", async () => {
     const own = join(folder, "own-session.jsonl")
     await writeFile(own, "{}\n")
     const scan = vi.spyOn(harnesses.pi, "conversations")
-    const ownPi = (_agent: AgentName, transcript: string | undefined) => transcript === own
+    const isNova = (_agent: AgentName, transcript: string | undefined) => transcript === own
     const ownRow = (transcript: string) =>
       agentRow("pi", {
         agents: { pi: { sessionId: "p1", seq: 1, cwd: folder, transcript } },
       })
-    const offline = { connected: () => Promise.resolve(false), ownPi }
+    const offline = { connected: () => Promise.resolve(false), isNova }
     expect(await state(ownRow(own), offline)).toEqual({ state: "ready" })
     // Its file gone, it is gone; the person's pi's own sessions are never read for it.
     await rm(own)
@@ -626,14 +626,14 @@ describe("what a row can do now", () => {
     })
   })
 
-  it("says a row is Nova's where Novadeck's own pi's session is, and not the person's pi's", async () => {
+  it("says a row is Nova's where Nova's session is, and not the person's pi's", async () => {
     const own = join(folder, "own-session.jsonl")
     const ownRow = (transcript: string, agent: AgentName = "pi") =>
       agentRow(agent, { agents: { [agent]: { sessionId: "p1", seq: 1, cwd: folder, transcript } } })
-    const ownPi = (agent: AgentName, transcript: string | undefined) =>
+    const isNova = (agent: AgentName, transcript: string | undefined) =>
       agent === "pi" && transcript === own
     const nova = async (closed: ClosedRecord) => {
-      const { history, store } = setup({ ownPi })
+      const { history, store } = setup({ isNova })
       store.rows.set(closed.id, closed)
       return (await history.list("p1"))[0]!.nova
     }

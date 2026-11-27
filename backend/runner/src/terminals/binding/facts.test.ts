@@ -882,8 +882,8 @@ describe("the agent a terminal starts, in its summary", () => {
   })
 })
 
-describe("Nova, Novadeck's own pi, in the summary", () => {
-  const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+describe("Nova in the summary", () => {
+  const own = "/data/nova/agent/sessions/--t--/1_one.jsonl"
   const theirs = "/home/p/.pi/agent/sessions/--t--/1_two.jsonl"
 
   /** A terminal with a pi session bound, as `transcript` names it, and bindings that tell Nova's. */
@@ -898,7 +898,7 @@ describe("Nova, Novadeck's own pi, in the summary", () => {
       looked: () => {},
       announce,
       detailed: () => {},
-      ownPi: (agent: AgentName, path: string | undefined) => agent === "pi" && path === own,
+      isNova: (agent: AgentName, path: string | undefined) => agent === "pi" && path === own,
     } as unknown as BindingsHost
     const bound = record({ agentRan: true })
     bound.bound = {

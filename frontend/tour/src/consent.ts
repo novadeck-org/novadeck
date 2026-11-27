@@ -1,12 +1,12 @@
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { BundledPiFetchState } from "@novadeck/core/port"
+import type { NovaFetchState } from "@novadeck/core/port"
 
-// The one agent the tour runs: Novadeck's own pi, on a model Novadeck pays for, so none of the
+// The one agent the tour runs: Nova, on a model Novadeck pays for, so none of the
 // person's own agents is picked, and the consent never offers a choice.
 export const tourAgent: AgentName = "pi"
 
 // The tour's consent, while it is offered: whether it is starting, and why it couldn't, in the
-// backend's words (its service refusing a free run, say).
+// backend's words (Nova's model service refusing a free ticket, say).
 export type TourConsent = {
   readonly starting: boolean
   readonly error?: string
@@ -21,7 +21,7 @@ export type TourAgentNote = {
 
 const megabytes = (bytes: number): string => (bytes / 1_000_000).toFixed(1)
 
-export const tourAgentNote = (fetch: BundledPiFetchState): TourAgentNote => {
+export const tourAgentNote = (fetch: NovaFetchState): TourAgentNote => {
   switch (fetch.state) {
     case "ready":
       return { step: "ready" }

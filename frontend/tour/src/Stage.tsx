@@ -405,7 +405,7 @@ const useFooterSlot = (looking: boolean): HTMLElement | null => {
   return looking ? slot : null
 }
 
-// The tour's agents are Nova, Novadeck's own pi, whatever their harness says.
+// The tour's agents are Nova, whatever their harness says.
 const nameOf = (agent: AgentName): string => agentNamed(agent, true, "name") ?? agent
 
 // The small line under an act's name on its wipe.

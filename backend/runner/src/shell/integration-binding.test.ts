@@ -68,13 +68,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(disconnected, off.id, /codex args: resume abc\r?\n/)
     })
 
-    it("binds Novadeck's own pi though the person's pi isn't connected, and only it", async ({
-      shell,
-    }) => {
+    it("binds Nova though the person's pi isn't connected, and only it", async ({ shell }) => {
       const own = randomUUID()
       const persons = randomUUID()
       const owned = reporter(join(shell.home, "own"), [
-        { agent: "pi", sessionId: own, seq: 1, source: "startup", fields: { novadeck_own: true } },
+        { agent: "pi", sessionId: own, seq: 1, source: "startup", fields: { novadeck_nova: true } },
       ])
       const plain = reporter(join(shell.home, "plain"), [
         { agent: "pi", sessionId: persons, seq: 1, source: "startup" },

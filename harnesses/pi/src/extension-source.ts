@@ -1,5 +1,5 @@
 /**
- * The JavaScript of Novadeck's pi extension, as the shim has pi load it per launch (`-e <file>`):
+ * The JavaScript of Nova extension, as the shim has pi load it per launch (`-e <file>`):
  * pi keeps no hook commands of its own, only extensions, which run in its process and hear its
  * events. This one runs Novadeck's hook command for each event Novadeck reads, as the other
  * harnesses run theirs, so the relay and the runner see the same reports; and gives pi
@@ -50,7 +50,7 @@ export type ExtensionConfig = {
    */
   readonly gate?: boolean
   /**
-   * The model Novadeck pays for, which the extension registers in Nova, Novadeck's own pi, alone
+   * The model Novadeck pays for, which the extension registers in Nova alone
    * (@novadeck/harness-nova's model.ts): the provider's name, the variables its base URL and key
    * come in, and the rest of its configuration. Absent, Nova gets no model of Novadeck's.
    */
@@ -107,16 +107,16 @@ const textOf = (content) =>
           .join("\n")
       : ""
 
-// Whether this is Novadeck's own pi, as its launcher's NOVADECK_PI says, read once per process and
+// Whether this is Nova, as its launcher's NOVADECK_NOVA says, read once per process and
 // taken out of the environment: a pi the agent starts from its tools is the person's, not
 // Novadeck's. Kept on the process, as pi loads the extension again on /reload, /new and /resume.
-globalThis.novadeckOwnPi ??= process.env.NOVADECK_PI === "bundled"
-delete process.env.NOVADECK_PI
-const ownPi = globalThis.novadeckOwnPi
+globalThis.novadeckNova ??= process.env.NOVADECK_NOVA === "1"
+delete process.env.NOVADECK_NOVA
+const nova = globalThis.novadeckNova
 
 // The model service Novadeck pays for, as the terminal gives it (Nova's model.ts), read once per
 // process and taken out of the environment, so no command the agent runs, nor a pi started from
-// one, has its key. Kept on the process, as novadeckOwnPi is.
+// one, has its key. Kept on the process, as novadeckNova is.
 globalThis.novadeckService ??= (() => {
   if (!config.own) return null
   const baseUrl = process.env[config.own.variables.baseUrl]
@@ -168,9 +168,9 @@ const hook = (event, payload) =>
     child.on("error", settle)
     child.on("close", settle)
     child.stdin.on("error", () => {})
-    // From Novadeck's own pi, which Novadeck counts as connected whether or not the person
+    // From Nova, which Novadeck counts as connected whether or not the person
     // connected their pi.
-    const own = ownPi ? { novadeck_own: true } : {}
+    const own = nova ? { novadeck_nova: true } : {}
     child.stdin.end(JSON.stringify({ hook_event_name: event, ...payload, ...own }))
   })
 
@@ -295,7 +295,7 @@ const mcpClient = () => {
     (ready ??= request("initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},
-      clientInfo: { name: "novadeck-pi", version: "1" },
+      clientInfo: { name: "novadeck-nova", version: "1" },
     }).then(() => send({ method: "notifications/initialized" })))
   return {
     list: async () => {
@@ -384,13 +384,13 @@ const trusts = (store, folder) => {
 }
 
 export default function novadeck(pi) {
-  // Novadeck's model, in its own pi alone: before anything else, as pi picks the model it starts
+  // Nova's models, in Nova alone: before anything else, as pi picks the model it starts
   // on once its extensions are loaded. With the service its terminal was given, a key being a
   // plain word (no "$" or "!" that pi would read as a variable or a command); without it, at an
   // address that refuses, so a session of Novadeck's model resumed where the service isn't
   // given fails there rather than going on with another model on the person's own keys, which
   // pi does with a session's model it can't find (probed 2026-11-25, 1.6.0).
-  if (ownPi && config.own) {
+  if (nova && config.own) {
     const given = service && /^[A-Za-z0-9_-]+$/.test(service.key)
     try {
       pi.registerProvider(config.own.provider, {
@@ -488,9 +488,9 @@ export default function novadeck(pi) {
   })
 
   // The models pi can run here, with the efforts each takes, for Novadeck's model picker: the
-  // person's pi's, never Novadeck's own pi's (its launcher's NOVADECK_PI), whose models are its own.
+  // person's pi's, never Nova's (its launcher's NOVADECK_NOVA), whose models are its own.
   const writeModels = (ctx) => {
-    if (ownPi) return
+    if (nova) return
     try {
       const levels = piAi.getSupportedThinkingLevels
       const models = ctx.modelRegistry.getAvailable().map((model) => ({

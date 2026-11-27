@@ -1,8 +1,8 @@
-import { beforeEach, onTestFinished } from "vitest"
+import { onTestFinished } from "vitest"
 import { cleanup } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { helpButton, switchTourOn, takeTourFromHelp } from "../support/help"
+import { helpButton, takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
 import { consent } from "../support/tour"
@@ -29,44 +29,40 @@ const expectTourOpen = async (): Promise<void> => {
 // otherwise (`&tourPi=`).
 const offerFromHelp = (): Promise<void> => takeTourFromHelp()
 
-// The footer offers the tour only with its own switch on, in Preferences → Experimental.
-beforeEach(switchTourOn)
-
 describe("The tour", () => {
   it("is offered only with Experimental on, from the footer's Help menu", async () => {
     await openWorkspace("/?tourStory=off")
     await expect.element(helpButton()).not.toBeInTheDocument()
   })
 
-  it("is offered only with its own switch on, which Preferences → Experimental turns on", async () => {
-    localStorage.removeItem("novadeck.preferences")
+  it("is offered only with Nova on, which Preferences → Experimental turns off and on", async () => {
     await openWorkspace(offered)
-    // Its Experimental tab shows: the flag is on, and the switch, off, holds Help back. The
-    // Help menu holds the tour alone, so with its switch off there is no Help at all.
+    // The demo's tour starts with Nova on and in place; its one switch holds the tour too. The
+    // Help menu holds the tour alone, so with Nova off there is no Help at all.
+    await expect.element(helpButton()).toBeVisible()
     await openPreferencesOn("Experimental")
-    const tourSwitch = preferencesDialog().getByRole("switch", { name: "Onboarding tour" })
-    await expect.element(tourSwitch).toHaveAttribute("aria-checked", "false")
+    const novaSwitch = preferencesDialog().getByRole("switch", { name: "Nova" })
+    await expect.element(novaSwitch).toHaveAttribute("aria-checked", "true")
+    expect(preferencesDialog().getByRole("switch", { name: "Onboarding tour" }).query()).toBeNull()
+    await novaSwitch.click()
+    await expect.element(novaSwitch).toHaveAttribute("aria-checked", "false")
     expect(helpButton().query()).toBeNull()
-    await tourSwitch.click()
-    await expect.element(tourSwitch).toHaveAttribute("aria-checked", "true")
+    await novaSwitch.click()
+    await expect.element(novaSwitch).toHaveAttribute("aria-checked", "true")
     await closePreferences()
     await expect.element(helpButton()).toBeVisible()
   })
 
-  it("is offered nowhere where the backend has no tour, its switch not available", async () => {
+  it("is offered nowhere where the backend has no tour, whatever Nova says", async () => {
     // The showcase demo follows the experimental channel and has no tour.
     await openWorkspace("/?demo=showcase&channel=experimental")
     await openPreferencesOn("Experimental")
-    const tourSwitch = preferencesDialog().getByRole("switch", { name: "Onboarding tour" })
-    await expect.element(tourSwitch).toBeDisabled()
-    await expect
-      .element(
-        preferencesDialog()
-          .getByRole("tabpanel", { name: "Experimental" })
-          .getByText("Not available here.")
-          .first(),
-      )
-      .toBeVisible()
+    const novaSwitch = preferencesDialog().getByRole("switch", { name: "Nova" })
+    await novaSwitch.click()
+    await expect.element(novaSwitch).toHaveAttribute("aria-checked", "true")
+    expect(
+      preferencesDialog().getByRole("tabpanel", { name: "Experimental" }).element().textContent,
+    ).not.toContain("short tour")
     await closePreferences()
     await expect.element(page.getByRole("button", { name: "Feedback", exact: true })).toBeVisible()
     expect(helpButton().query()).toBeNull()
@@ -135,7 +131,7 @@ describe("The tour", () => {
       expect(terminalTabNames()).toEqual(before)
     })
 
-    it("downloads Pi as it is offered, says how far it is, and starts once it is in place", async () => {
+    it("says how far Pi's download is, as Nova switched on plays it, and starts once it is in place", async () => {
       await openWorkspace(`${offered}&tourPi=download`)
       await offerFromHelp()
       await consentSays("Downloading Pi")
@@ -185,11 +181,11 @@ describe("The tour", () => {
     })
   })
 
-  it("shows the tour's service's own sentence where it has no free run to give, staying open", async () => {
+  it("shows Nova's model service's own sentence where it has no free ticket to give, staying open", async () => {
     await openWorkspace(`${offered}&tourStart=tickets`)
     await offerFromHelp()
     await start().click()
-    await consentSays("You've taken today's free tours.")
+    await consentSays("You've used today's free Nova tickets. Try again tomorrow.")
     await start().click()
     await expectTourOpen()
   })

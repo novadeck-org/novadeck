@@ -1,4 +1,4 @@
-import type { BundledPiFetchState, TourRun } from "@novadeck/core/port"
+import type { NovaFetchState, TourRun } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import type { Runner } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
@@ -21,14 +21,12 @@ const tourAnswering = (prepare: () => Promise<TourRun>): Runner["tour"] =>
     brief: () => Promise.resolve(),
     artist: (terminalId: string) => (rung.push(terminalId), Promise.resolve()),
     keep: () => (kept.push(true), Promise.resolve()),
-    fetch: () => (fetched.push(true), Promise.resolve()),
   }) as unknown as Runner["tour"]
 
 // The terminals the runner was asked to ring the artist's brief to, and the keeps it was asked.
 const rung: string[] = []
 const kept: boolean[] = []
-const fetched: boolean[] = []
-const agent = createStore<BundledPiFetchState>({ state: "off" })
+const agent = createStore<NovaFetchState>({ state: "off" })
 
 const track = <T>(work: Promise<T>): Promise<T> => work
 
@@ -62,14 +60,12 @@ describe("The runner's tour", () => {
     expect(kept).toEqual([true])
   })
 
-  it("starts the download of Novadeck's pi as the runner's call, and shows where it stands", async () => {
+  it("shows where Nova's download stands", () => {
     const tour = runnerTour(
       tourAnswering(() => Promise.resolve(run)),
       track,
       agent,
     )
-    await expect(tour.fetch()).resolves.toBeUndefined()
-    expect(fetched).toEqual([true])
     expect(tour.agent).toBe(agent)
   })
 

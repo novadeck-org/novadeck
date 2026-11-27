@@ -204,10 +204,7 @@ describe("Agent Chat's offer", () => {
 
   context("while the tour runs", () => {
     it("waits, as the tour's agent is not for the offer to change", async () => {
-      localStorage.setItem(
-        "novadeck.preferences",
-        JSON.stringify({ chatView: false, onboardingTour: true }),
-      )
+      localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: false }))
       await openWorkspace("/?demo=agents&tourStory=off&channel=experimental")
       await takeTourFromHelp()
       await page

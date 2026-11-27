@@ -380,14 +380,13 @@ describe("the Agents work as choice", () => {
 })
 
 describe("the Nova row", () => {
-  const piSwitch = (): HTMLElement | null =>
-    document.querySelector('[role="switch"][aria-labelledby="bundled-pi-label"]')
-  const note = (): HTMLElement | null =>
-    document.querySelector('[data-experimental-note="bundled-pi"]')
+  const novaSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="nova-label"]')
+  const note = (): HTMLElement | null => document.querySelector('[data-experimental-note="nova"]')
 
   it("isn't there where the runner has no such switch, as one from before revision 16", async () => {
     await show({ tab: "experimental", experimental: experimental(true) })
-    expect(document.getElementById("bundled-pi-label")).toBeNull()
+    expect(document.getElementById("nova-label")).toBeNull()
   })
 
   it("writes the backend's setting, and says what it costs", async () => {
@@ -395,17 +394,30 @@ describe("the Nova row", () => {
     await show({
       tab: "experimental",
       experimental: experimental(true),
-      bundledPi: {
+      nova: {
         enabled: false,
         fetch: { state: "off" },
         onChange: (enabled) => changes.push(enabled),
       },
     })
-    expect(document.getElementById("bundled-pi-label")?.textContent).toBe("Nova")
-    expect(document.getElementById("bundled-pi-description")?.textContent).toContain("50–60 MB")
+    expect(document.getElementById("nova-label")?.textContent).toBe("Nova")
+    expect(document.getElementById("nova-description")?.textContent).toContain("50–60 MB")
     expect(note()).toBeNull()
-    piSwitch()?.click()
+    novaSwitch()?.click()
     expect(changes).toEqual([true])
+  })
+
+  it("offers the tour too, where the backend has one", async () => {
+    const nova = { enabled: false, fetch: { state: "off" } as const, onChange: () => {} }
+    await show({ tab: "experimental", experimental: experimental(true), nova })
+    expect(document.getElementById("nova-description")?.textContent).not.toContain("tour")
+    await show({ tab: "experimental", experimental: experimental(true), nova, tour: true })
+    expect(document.getElementById("nova-description")?.textContent).toContain(
+      "It also adds a Help menu to the footer, with a short tour",
+    )
+    expect(document.getElementById("nova-description")?.textContent).toContain(
+      "nova doesn't start, nor the tour.",
+    )
   })
 
   it("says where the download stands, and offers to try a failed one again", async () => {
@@ -413,7 +425,7 @@ describe("the Nova row", () => {
     await show({
       tab: "experimental",
       experimental: experimental(true),
-      bundledPi: {
+      nova: {
         enabled: true,
         fetch: { state: "failed", error: "Couldn't reach github.com. Check your connection." },
         onChange: (enabled) => changes.push(enabled),
@@ -422,9 +434,7 @@ describe("the Nova row", () => {
     expect(note()?.getAttribute("role")).toBe("alert")
     expect(note()?.textContent).toContain("Couldn't reach github.com.")
     // The switch is described by its note too.
-    expect(piSwitch()?.getAttribute("aria-describedby")).toBe(
-      "bundled-pi-description bundled-pi-note",
-    )
+    expect(novaSwitch()?.getAttribute("aria-describedby")).toBe("nova-description nova-note")
     const retry = [...(note()?.querySelectorAll("button") ?? [])].find(
       (button) => button.textContent === "Try again",
     )
@@ -710,36 +720,6 @@ describe("the Experimental tab", () => {
     expect(
       panel?.querySelector('[role="switch"][aria-labelledby$="agent-avatars-label"]'),
     ).not.toBeNull()
-  })
-
-  it("holds the onboarding tour switch, off until switched on, which writes the preference", async () => {
-    const written: boolean[] = []
-    await show({
-      tab: "experimental",
-      experimental: experimental(true),
-      tour: true,
-      onChange: (value) => written.push(value.onboardingTour),
-    })
-    const tourSwitch = document.querySelector<HTMLElement>(
-      '[role="switch"][aria-labelledby="onboarding-tour-label"]',
-    )
-
-    expect(tourSwitch?.getAttribute("aria-checked")).toBe("false")
-    tourSwitch?.click()
-    expect(written).toEqual([true])
-  })
-
-  it("holds the onboarding tour switch disabled, not available, where the backend has no tour", async () => {
-    await show({ tab: "experimental", experimental: experimental(true) })
-    const tourSwitch = document.querySelector(
-      '[role="switch"][aria-labelledby="onboarding-tour-label"]',
-    )
-
-    expect(tourSwitch?.getAttribute("aria-checked")).toBe("false")
-    expect(tourSwitch?.hasAttribute("disabled")).toBe(true)
-    expect(document.getElementById("onboarding-tour-description")?.textContent).toBe(
-      "Not available here.",
-    )
   })
 
   it("holds the shipping gate switch, which writes the backend's setting", async () => {

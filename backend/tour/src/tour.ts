@@ -3,6 +3,7 @@ import { basename } from "node:path"
 
 import type { Effort } from "@novadeck/harness-core/harness"
 import { novaProgram } from "@novadeck/harness-nova/launcher"
+import type { NovaService } from "@novadeck/harness-nova/ticket"
 import type { AgentName, Project, TourPrepared } from "@novadeck/protocol"
 
 import {
@@ -30,7 +31,6 @@ import {
 import {
   tourAgent,
   tourEffort,
-  tourEnv,
   tourLaunch,
   tourModel,
   tourWrites,
@@ -47,7 +47,6 @@ import {
 } from "./repo.js"
 import { seedFiles, type TourAssets } from "./seed.js"
 import { findServing, freePort, versionOf, type FindProgram } from "./serving.js"
-import { fetchTicket, tourEndpoint, type Ticket } from "./ticket.js"
 
 /**
  * What the runner decides of an agent's `open_agent` in the tour's folder, before anything
@@ -84,19 +83,21 @@ export type TourHost = {
    */
   readonly environment?: () => NodeJS.ProcessEnv
   /**
-   * Novadeck's own pi, which the tour's agents run (`BundledPi.want`): its download asked for,
-   * whatever its Experimental switch says, resolving once it is in place, rejecting with the
-   * download's own words. Absent where the runner can't start it (no shell files).
+   * Nova, which the tour's agents run (`Nova.ready`): resolves once it is in place, and rejects
+   * while it is switched off or with the download's own words. Absent where the runner can't
+   * start it (no shell files).
    */
-  readonly ownPi?: () => Promise<string>
+  readonly nova?: () => Promise<string>
   /**
-   * A ticket for one run, which the tour's agents' provider takes as its key (`fetchTicket`, from
-   * the service at `tourEndpoint()`); a refusal is a `TourError` in words for the person.
+   * Nova's model service as the runner's Novas share it (`NovaTickets.service`), which the tour's
+   * agents run on as every Nova does, through its launcher: asked ahead, so a refusal (the day's
+   * tickets used, the free model off) stops the tour before anything changes, in the service's
+   * own words. None asked where omitted.
    */
-  readonly ticket?: () => Promise<Ticket>
+  readonly service?: () => Promise<NovaService>
   /**
-   * What the runs were given, by folder (`TourRecords`): kept in a file of the runner's own, so a
-   * runner started again still gives the tour's agents their provider. In memory where omitted.
+   * The runs' leads, by folder (`TourRecords`): kept in a file of the runner's own, so a lead
+   * resumed in a runner started again still opens its teammates. In memory where omitted.
    */
   readonly records?: TourRecords
   readonly projects: {
@@ -116,8 +117,8 @@ export type TourHost = {
   readonly worktreesFolder: () => void
 }
 
-// Where the runner can't start Novadeck's own pi.
-const noOwnPi = "Novadeck can't start Nova here, so the tour can't start."
+// Where the runner can't start Nova.
+const noNova = "Novadeck can't start Nova here, so the tour can't start."
 
 // What the run last readied is, once it starts: its folder, its agent's launch, and its terminals.
 type Run = {
@@ -139,7 +140,7 @@ export class Tour {
   private facts: BriefFacts | undefined
   private run: Run | undefined
 
-  // What each folder's run was given, which outlives the run in memory (see `launchEnv`).
+  // Each folder's run and its lead, which outlive the run in memory (see `leads`).
   private readonly records: TourRecords
 
   constructor(private readonly host: TourHost) {
@@ -147,36 +148,23 @@ export class Tour {
   }
 
   /**
-   * Starts downloading Novadeck's own pi for the tour (`host.ownPi`), whatever its switch in
-   * Preferences says, as the person asking for the tour is their consent, or tries a failed
-   * download again: in the background, its state told in the runner's settings. A runner that
-   * can't start it is a `CONFLICT`.
-   */
-  fetch(): void {
-    const { ownPi } = this.host
-    if (!ownPi) throw new TourError(noOwnPi)
-    void ownPi().catch(() => {})
-  }
-
-  /**
-   * Readies a run of the tour, always on Novadeck's own pi, GPT-6 Luna at medium effort, paid for
-   * by Novadeck (`launch.ts`): waits for Novadeck's pi to be in place (`host.ownPi`, which the
-   * consent asked for ahead, `fetch`), then picks its folder (`chooseTourFolder`: the first of
+   * Readies a run of the tour, always on Nova, GPT-6 Luna at medium effort, paid for
+   * by Novadeck (`launch.ts`): waits for Nova to be in place (`host.nova`, refused while it is
+   * switched off), then picks its folder (`chooseTourFolder`: the first of
    * `tour`, `tour-2`, ... that is missing, empty or the tour's own, passing over any the person
-   * kept), gets a ticket from the tour's service (`host.ticket`: the agents' provider key, and
-   * the one thing that can refuse for a reason of Novadeck's, in the service's own words),
+   * kept), asks Nova's model service for its ticket (`host.service`: the one thing that can
+   * refuse for a reason of Novadeck's, in the service's own words),
    * removes any project open there, closing its terminals, so nothing runs there; then
    * empties the folder and writes the seed project there (`seedFiles`) with the brief's files;
    * then builds the agent's launch line. The brief never names the person; it names the one
    * teammate the lead opens, on the same agent and model. It also says how the game's
    * dev server is run here (`findServing`), if it can be. The folder is a git repo of its own
-   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). Novadeck's pi that
+   * (`commitSandbox`), so git is needed (`requireGit`, asked first of all). Nova that
    * can't be had (a runner without shell files, a download that failed, in its own words) is a
-   * `CONFLICT`; so are a ticket
-   * refused (a person's tickets for the day used, or the free runs off), seed files that
-   * can't be read, no folder to use, and a run asked for while another is being readied.
-   * Nothing changes for any of them, and a ticket is asked for only once none of the others
-   * can refuse.
+   * `CONFLICT`; so are a ticket refused (a person's tickets for the day used, or the free model
+   * off), seed files that can't be read, no folder to use, and a run asked for while another is
+   * being readied. Nothing changes for any of them, and a ticket is asked for only once none of
+   * the others can refuse.
    */
   prepare(): Promise<TourPrepared> {
     if (this.preparing) return Promise.reject(new TourError("The tour is already starting."))
@@ -188,13 +176,13 @@ export class Tour {
   }
 
   private async ready(): Promise<TourPrepared> {
-    const { ownPi } = this.host
-    if (!ownPi) throw new TourError(noOwnPi)
+    const { nova } = this.host
+    if (!nova) throw new TourError(noNova)
     try {
-      await ownPi()
+      await nova()
     } catch (error) {
       throw new TourError(
-        `Novadeck couldn't download Pi, so the tour can't start. ${error instanceof Error ? error.message : String(error)}`.slice(
+        `Novadeck couldn't get Nova, so the tour can't start. ${error instanceof Error ? error.message : String(error)}`.slice(
           0,
           600,
         ),
@@ -205,10 +193,10 @@ export class Tour {
     // The files and the folder too, the last local checks that can refuse.
     const seed = await seedFiles(this.host.assets)
     const directory = await chooseTourFolder(this.host.home)
-    // The ticket, before anything is removed or started: a refusal leaves the person's tour
+    // Nova's ticket, before anything is removed or started: a refusal leaves the person's tour
     // project as it was.
-    const endpoint = tourEndpoint()
-    const given = await (this.host.ticket ?? (() => fetchTicket(endpoint)))()
+    const given = await this.host.service?.()
+    if (given?.ok === false) throw new TourError(given.reason)
     const serving = await (
       this.host.serving ??
       (() => findServing(versionOf(this.host.findProgram), freePort, this.host.environment?.()))
@@ -232,77 +220,9 @@ export class Tour {
     this.facts = { mate, serving }
     const launch = tourLaunch()
     // This folder's earlier run, if any, is replaced: its agents are gone with its project.
-    this.records.set(basename(directory), {
-      endpoint,
-      ticket: given.ticket,
-      ...(given.expiresAt !== undefined && { expiresAt: given.expiresAt }),
-    })
+    this.records.set(basename(directory), {})
     this.run = { launch, directory }
     return { ...launch, directory, removed, page: serving !== null }
-  }
-
-  /**
-   * What a terminal starting in `cwd` gets in its environment on top of the person's: for one in a
-   * folder of the tour (`tour`, `tour-2`, ...) that has a record of its run, the model service of
-   * the tour's agents and the run's ticket as its key (`tourEnv`), which Novadeck's own pi takes
-   * as its model's, so the lead and every teammate it opens run on the run's ticket, and the
-   * ticket is in no line of any screen or history. While the run is live, any shell there gets
-   * it. Once the person keeps the project, or in a runner started again, only a terminal `resumed`
-   * there does (a restart, a restore, a session resumed): its session resumes on Novadeck's own pi
-   * with the model it kept (pi restores it from the session, not the command line), which without
-   * the ticket has no service to reach, and a dead ticket is the service's own refusal. A fresh agent the person opens in their project
-   * gets none of it. The record is what a restart left
-   * (`TourRecords`); it goes with the folder's project: where none is open there any more, it is
-   * dropped. None elsewhere.
-   */
-  launchEnv(cwd: string, resumed = false): NodeJS.ProcessEnv | undefined {
-    const folder = folderOf(
-      cwd,
-      this.host.home ?? homedir(),
-      this.host.platform ?? process.platform,
-    )
-    if (folder === undefined) return undefined
-    const name = basename(folder)
-    const run = this.records.get(name)
-    if (!run) return undefined
-    if (
-      !this.host.projects
-        .list()
-        .some((project) => insideFolder(project.cwd, folder, this.host.platform))
-    ) {
-      this.records.delete(name)
-      return undefined
-    }
-    const live = this.run !== undefined && basename(this.run.directory) === name
-    if (!live && !resumed) return undefined
-    return tourEnv(run.endpoint, run.ticket)
-  }
-
-  /**
-   * Whether the terminal is in a folder of the tour's whose run is remembered (`TourRecords`),
-   * with its project open: Novadeck's own pi starts there whatever its Experimental switch says,
-   * as the person asked for the tour, and so do its sessions resumed there once the person kept
-   * the project. False for a terminal the runner doesn't have.
-   */
-  paysFor(terminalId: string): boolean {
-    let cwd: string
-    try {
-      cwd = this.host.cwdOf(terminalId)
-    } catch {
-      return false
-    }
-    const folder = folderOf(
-      cwd,
-      this.host.home ?? homedir(),
-      this.host.platform ?? process.platform,
-    )
-    return (
-      folder !== undefined &&
-      this.records.get(basename(folder)) !== undefined &&
-      this.host.projects
-        .list()
-        .some((project) => insideFolder(project.cwd, folder, this.host.platform))
-    )
   }
 
   /**
@@ -403,10 +323,10 @@ export class Tour {
   /**
    * What an `open_agent` of `terminalId` is subject to: only the run's lead opens agents in the
    * tour's folder, with the tour's write flags; every other terminal there, its teammates, is
-   * refused. A teammate the lead opens in the folder is Novadeck's own pi (`program`), on the
+   * refused. A teammate the lead opens in the folder is Nova (`program`), on the
    * run's own model and effort whatever the call names, never judged against the person's models,
-   * as the service the tour pays for isn't theirs (`pinned`); its service comes with its shell
-   * (`launchEnv`).
+   * as the service the tour pays for isn't theirs (`pinned`); its ticket comes through Nova's
+   * launcher, as every Nova's does.
    * A terminal elsewhere, and one the runner doesn't have, are left to the call's own checks.
    */
   openPolicy(terminalId: string): OpenPolicy {
@@ -423,7 +343,7 @@ export class Tour {
       ? {
           refuseAgent: (agent, at) =>
             agent !== tourAgent && this.inTour(at)
-              ? 'The tour runs Novadeck\'s own Pi only: open your teammates with agent "pi".'
+              ? 'The tour runs Nova only: open your teammates with agent "pi".'
               : undefined,
           flags: (agent, at) => (agent === tourAgent && this.inTour(at) ? tourWrites : []),
           program: (agent, at) =>

@@ -61,7 +61,7 @@ export const shellLaunch = (
       ...(shims.length > 0 && { NOVADECK_SHIMS: shims.join(" ") }),
       ...(scoped === true && platform === "linux" && opening(paths.open, env)),
     },
-    pathFirst: shims.length > 0 || existsSync(paths.bundledPi.on) ? paths.bin : undefined,
+    pathFirst: shims.length > 0 || existsSync(paths.nova.on) ? paths.bin : undefined,
     startup,
     scoped,
     // On Windows cmd waits for its job through the relay, which waits for the scope's file.

@@ -216,7 +216,7 @@ export class Terminals {
       | "baseEnv"
       | "shellArgs"
       | "shellFiles"
-      | "bundledPi"
+      | "nova"
       | "records"
       | "closed"
       | "projects"
@@ -337,7 +337,6 @@ export class Terminals {
       install: options.install ?? (() => Promise.resolve(undefined)),
       models: options.models ?? (() => Promise.resolve([])),
       openPolicy: options.openPolicy ?? (() => ({})),
-      launchEnv: options.launchEnv ?? (() => undefined),
       hooksTrusted: options.hooksTrusted,
       items: options.items,
       platform: options.platform ?? process.platform,
@@ -382,7 +381,7 @@ export class Terminals {
     this.claims = new Claims({
       boundElsewhere: (terminalId, agent, session) =>
         sessionHeldElsewhere(this.records.values(), terminalId, agent, session),
-      ...(options.bundledPi && { nova: options.bundledPi }),
+      ...(options.nova && { nova: options.nova }),
     })
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
@@ -487,7 +486,7 @@ export class Terminals {
       detailed: (record) => this.streams.detailed(record),
       cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
       permits: (id) => this.options.shipping?.held(id).permits.length ?? 0,
-      ownPi: (agent, transcript) => this.claims.own(agent, transcript),
+      isNova: (agent, transcript) => this.claims.own(agent, transcript),
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
@@ -789,7 +788,7 @@ export class Terminals {
       savedChanged: (row) => this.streams.savedChanged(row),
       names: () => this.names,
     })
-    this.launcher.integrate(options.shellFiles, options.bundledPi)
+    this.launcher.integrate(options.shellFiles, options.nova)
     this.sleepers.start()
     this.hibernation.start()
     this.queueNotices.start()
@@ -902,8 +901,6 @@ export class Terminals {
         integration,
         env,
         startup || undefined,
-        // Its agent resumed (or restarted with its task), not started by a command typed anew.
-        input.command === undefined && Boolean(startup),
       )
       // A shell that can't take the resume leaves an unseen wake asleep, not a plain shell.
       if (asleep && !input.seen && !started.resumes)
@@ -1284,7 +1281,6 @@ export class Terminals {
               integration,
               env,
               resume ? { command: resume.argv.join(" ") } : undefined,
-              true,
             )
             const earlier =
               this.saves.transcripts && !started.resumes

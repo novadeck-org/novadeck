@@ -42,7 +42,7 @@ type Failure = OpenFailure
 type Party = {
   readonly summary: {
     readonly id: string
-    /** Whether its agent is Nova, Novadeck's own pi. */
+    /** Whether its agent is Nova. */
     readonly nova?: boolean | undefined
     readonly handle: string
     readonly title: string

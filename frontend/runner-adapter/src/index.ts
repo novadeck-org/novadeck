@@ -197,8 +197,8 @@ export const connectRunnerBackend = async (
         agentMode,
         shippingGate,
         worktrees,
-        bundledPi,
-        bundledPiFetch,
+        nova,
+        novaFetch,
         murmur,
         keepMain,
       },
@@ -242,8 +242,8 @@ export const connectRunnerBackend = async (
           shippingGate,
           worktrees,
           // Only from a runner that reports the switch (revision 16 on).
-          ...(bundledPi !== undefined && { bundledPi }),
-          ...(bundledPiFetch !== undefined && { bundledPiFetch }),
+          ...(nova !== undefined && { nova }),
+          ...(novaFetch !== undefined && { novaFetch }),
           // Only from a runner that reports the switch (revision 20 on).
           ...(murmur !== undefined && { murmur }),
           // Only from a runner that reports the switch (revision 24 on).

@@ -1,14 +1,14 @@
 import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 
-import { ownService } from "./model.js"
+import { novaService } from "./model.js"
 
 /**
- * Nova, Novadeck's own pi, which its launcher starts: the pinned pi (`pin.ts`) that Novadeck
- * downloads into its own data folder (the runner's harnesses/bundled-pi.ts), apart from the
+ * Nova, which its launcher starts: the pinned pi (`pin.ts`) that Novadeck
+ * downloads into its own data folder (the runner's harnesses/nova.ts), apart from the
  * person's pi on PATH, which pi's shim starts and these files leave as it is.
  */
-export type BundledPi = {
+export type Nova = {
   /** Its program, once in place. */
   readonly program: string
   /** Its agent folder, pi's `PI_CODING_AGENT_DIR`: Novadeck's, never the person's `~/.pi/agent`. */
@@ -26,27 +26,27 @@ export type BundledPi = {
  * Novadeck's own and on no PATH, so no program a person runs (another `nova`, say) is ever
  * taken for it; agent `pi` is its agent.
  */
-export const novaProgram = "novadeck-pi"
+export const novaProgram = "novadeck-nova"
 
 /**
- * Says to Novadeck's extension that it runs in Novadeck's own pi: what it writes for the
+ * Says to Novadeck's extension that it runs in Nova: what it writes for the
  * person's pi (the models their picker offers) it leaves alone.
  */
-export const bundledMark = "NOVADECK_PI"
+export const novaMark = "NOVADECK_NOVA"
 
 /**
- * The field the extension adds to each hook's payload in Novadeck's own pi: the runner counts
+ * The field the extension adds to each hook's payload in Nova: the runner counts
  * such a report's agent as connected, as Novadeck launched it with its extension, whether or not
  * the person connected their own pi.
  */
-export const ownField = "novadeck_own"
+export const novaField = "novadeck_nova"
 
-/** Whether a hook's payload comes from Novadeck's own pi (`ownField`). */
-export const fromOwnPi = (payload: { readonly [key: string]: unknown }): boolean =>
-  payload[ownField] === true
+/** Whether a hook's payload comes from Nova (`novaField`). */
+export const fromNova = (payload: { readonly [key: string]: unknown }): boolean =>
+  payload[novaField] === true
 
 /**
- * The tools Novadeck's pi starts with on Windows where it finds no bash: pi's `powershell` in
+ * The tools Nova starts with on Windows where it finds no bash: pi's `powershell` in
  * place of its `bash`, which there runs only through Git Bash or another bash on PATH, and fails
  * without one (docs/windows.md, 1.6.0: it doesn't fall back by itself). For that launch alone,
  * on its command line; its `!` commands still need a bash.
@@ -58,31 +58,31 @@ const quoted = (path: string): string => `'${path.replaceAll("'", `'\\''`)}'`
 
 /**
  * The launcher for Linux and macOS: asks the runner for the program each time
- * (`novadeck-relay fetch pi`), which refuses while Nova is switched off in Preferences >
+ * (`novadeck-relay fetch nova`), which refuses while Nova is switched off in Preferences >
  * Experimental, answers at once when it is in place, and otherwise fetches it, the relay showing
  * the progress. The relay prints the variables of Novadeck's model service the runner gives a
  * Nova started by hand (a ticket of its own; a tour's terminal has its run's already), one
- * `NAME=value` a line, and only the service's two are taken (`ownService`). Then it starts the
+ * `NAME=value` a line, and only the service's two are taken (`novaService`). Then it starts the
  * program with Novadeck's extension and its own agent folder, with pi's check for a newer version
  * off, as Novadeck pins the version. Novadeck types its path, and `nova` on the PATH of Novadeck's
  * terminals starts it while Nova is on (`novaShim`).
  */
-export const posixLauncher = (pi: BundledPi): string => `#!/bin/sh
-${header("#", "launcher for its own pi")}
-# Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
+export const posixLauncher = (pi: Nova): string => `#!/bin/sh
+${header("#", "launcher for Nova")}
+# Starts Nova once the runner says it is on and in place, fetching it first.
 novadeck_program=${quoted(pi.program)}
-novadeck_service=$(${quoted(pi.relay)} fetch pi) || exit 1
+novadeck_service=$(${quoted(pi.relay)} fetch nova) || exit 1
 while IFS= read -r novadeck_line; do
   case "$novadeck_line" in
-    ${ownService.baseUrl}=*|${ownService.key}=*) export "$novadeck_line" ;;
+    ${novaService.baseUrl}=*|${novaService.key}=*) export "$novadeck_line" ;;
   esac
 done <<novadeck_end
 $novadeck_service
 novadeck_end
 PI_CODING_AGENT_DIR=${quoted(pi.home)}
 PI_SKIP_VERSION_CHECK=1
-${bundledMark}=bundled
-export PI_CODING_AGENT_DIR PI_SKIP_VERSION_CHECK ${bundledMark}
+${novaMark}=1
+export PI_CODING_AGENT_DIR PI_SKIP_VERSION_CHECK ${novaMark}
 [ -f ${quoted(pi.extension)} ] || exec "$novadeck_program" "$@"
 ${posixLaunch("pi")}
 exec "$novadeck_program" -e ${quoted(pi.extension)} "$@"
@@ -104,20 +104,20 @@ exec "$novadeck_program" -e ${quoted(pi.extension)} "$@"
 const cmdPath = (path: string, called = false): string =>
   path.replaceAll("%", called ? "%%%%" : "%%")
 
-export const cmdLauncher = (pi: BundledPi): string => `@echo off
-${header("rem", "launcher for its own pi")}
-rem Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
+export const cmdLauncher = (pi: Nova): string => `@echo off
+${header("rem", "launcher for Nova")}
+rem Starts Nova once the runner says it is on and in place, fetching it first.
 setlocal
 set "novadeck_program=${cmdPath(pi.program)}"
 set "novadeck_service=%TEMP%\\novadeck-nova-%NOVADECK_TERMINAL_ID%-%RANDOM%%RANDOM%.env"
-call "${cmdPath(pi.relay, true)}" fetch pi >"%novadeck_service%"
+call "${cmdPath(pi.relay, true)}" fetch nova >"%novadeck_service%"
 if errorlevel 1 goto failed
 for /f "usebackq tokens=1* delims==" %%a in ("%novadeck_service%") do call :service "%%a" "%%b"
 del "%novadeck_service%" 2>nul
 set "novadeck_service="
 set "PI_CODING_AGENT_DIR=${cmdPath(pi.home)}"
 set "PI_SKIP_VERSION_CHECK=1"
-set "${bundledMark}=bundled"
+set "${novaMark}=1"
 set "novadeck_tools="
 if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools
 if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools
@@ -136,8 +136,8 @@ del "%novadeck_service%" 2>nul
 exit /b 1
 rem Takes the model service's two variables alone of what the runner gave.
 :service
-if "%~1"=="${ownService.baseUrl}" set "${ownService.baseUrl}=%~2"
-if "%~1"=="${ownService.key}" set "${ownService.key}=%~2"
+if "%~1"=="${novaService.baseUrl}" set "${novaService.baseUrl}=%~2"
+if "%~1"=="${novaService.key}" set "${novaService.key}=%~2"
 exit /b 0
 `
 
@@ -149,7 +149,7 @@ export const turnOnLine = "Turn on Nova in Preferences > Experimental."
 
 /** Where `nova` finds Nova's launcher, and the file that says Nova is switched on. */
 export type NovaShimPaths = {
-  /** Nova's launcher (`bundledLauncher`), under the shell folder's `bundled` folder. */
+  /** Nova's launcher (`novaLauncher`), under the shell folder's `bundled` folder. */
   readonly launcher: string
   /** The file the runner keeps while Nova is switched on, and removes when it is switched off. */
   readonly on: string
@@ -220,10 +220,10 @@ export const novaShim = (
     : { path: novaCommand, content: posixNovaShim(paths), mode: 0o700 }
 
 /** The launcher's file for `platform`, under the shell folder's `bundled` folder. */
-export const bundledLauncher = (
+export const novaLauncher = (
   platform: NodeJS.Platform,
-  pi: BundledPi,
+  pi: Nova,
 ): { readonly path: string; readonly content: string; readonly mode?: number } =>
   platform === "win32"
-    ? { path: "pi.cmd", content: cmdLauncher(pi) }
-    : { path: "pi", content: posixLauncher(pi), mode: 0o700 }
+    ? { path: "nova.cmd", content: cmdLauncher(pi) }
+    : { path: "nova", content: posixLauncher(pi), mode: 0o700 }

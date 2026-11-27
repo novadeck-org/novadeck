@@ -20,7 +20,6 @@ const preferences: PreferencesValue = {
   screenReader: "auto",
   chatView: false,
   agentAvatars: false,
-  onboardingTour: false,
   keepAwakeOffered: false,
   keepAwake: true,
   appScale: 100,

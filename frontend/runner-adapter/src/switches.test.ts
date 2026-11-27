@@ -128,30 +128,30 @@ describe("the shipping gate setting", () => {
 describe("the Nova setting", () => {
   it("isn't offered by a runner from before it (revision 15), which reports no switch", () => {
     const app = scripted({ shown: [] })
-    expect(app.backend.bundledPi).toBeUndefined()
+    expect(app.backend.nova).toBeUndefined()
     app.stop()
   })
 
   it("shows what the runner said, and changes it there, a retry as on again", async () => {
-    const app = scripted({ shown: [], bundledPi: false })
-    const { enabled, fetch, set } = app.backend.bundledPi!
+    const app = scripted({ shown: [], nova: false })
+    const { enabled, fetch, set } = app.backend.nova!
     expect(enabled.getSnapshot()).toBe(false)
     expect(fetch.getSnapshot()).toEqual({ state: "off" })
     set(true)
     expect(enabled.getSnapshot()).toBe(true)
     set(true)
     await app.idle()
-    expect(app.of("settings")).toEqual([{ bundledPi: true }, { bundledPi: true }])
+    expect(app.of("settings")).toEqual([{ nova: true }, { nova: true }])
     app.stop()
   })
 
   it("goes back when the runner could not change it", async () => {
     const app = scripted({
       shown: [],
-      bundledPi: false,
+      nova: false,
       saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
     })
-    const { enabled, set } = app.backend.bundledPi!
+    const { enabled, set } = app.backend.nova!
     set(true)
     await app.idle()
     expect(enabled.getSnapshot()).toBe(false)
@@ -160,24 +160,22 @@ describe("the Nova setting", () => {
 })
 
 describe("the tour", () => {
-  it("isn't offered by a runner at revision 20, which runs the tour on opencode", () => {
-    const app = scripted({ shown: [], tourRevision: 20 })
+  it("isn't offered by a runner without Nova's switch (before revision 26)", () => {
+    const app = scripted({ shown: [], tour: true })
     expect(app.backend.tour).toBeUndefined()
     app.stop()
   })
 
   it("isn't offered by a runner without a tour", () => {
-    const app = scripted({ shown: [] })
+    const app = scripted({ shown: [], nova: true })
     expect(app.backend.tour).toBeUndefined()
     app.stop()
   })
 
-  it("asks the runner to download Novadeck's pi from revision 21", async () => {
-    const app = scripted({ shown: [], bundledPi: false, tourRevision: 21 })
-    const { agent, fetch } = app.backend.tour!
-    expect(agent.getSnapshot()).toEqual({ state: "off" })
-    await fetch()
-    expect(app.of("tour fetch")).toEqual([[]])
+  it("is offered with Nova's switch, and follows Nova's download", () => {
+    const app = scripted({ shown: [], nova: false, tour: true })
+    expect(app.backend.tour!.agent).toBe(app.backend.nova!.fetch)
+    expect(app.backend.tour!.agent.getSnapshot()).toEqual({ state: "off" })
     app.stop()
   })
 })

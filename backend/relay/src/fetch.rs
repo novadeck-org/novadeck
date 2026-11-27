@@ -1,5 +1,5 @@
 //! A launcher's: has the runner of the terminal it runs in fetch one of Novadeck's own agents
-//! (`pi`, Nova), as Nova's launcher does each time it starts. What the runner says of its
+//! (`nova`), as Nova's launcher does each time it starts. What the runner says of its
 //! progress shows on the terminal (stderr): on a terminal each line over the last, elsewhere one
 //! under the other. It succeeds once the runner says the program is in place, and fails with the
 //! runner's reason, or its own, otherwise. On success stdout holds the variables the runner gives
@@ -98,10 +98,10 @@ impl Shown {
     }
 }
 
-/// The agent as Novadeck's app calls it: Novadeck's own `pi` is Nova (GLOSSARY.md).
+/// The agent as Novadeck's app calls it: `nova` is Nova (GLOSSARY.md).
 fn titled(name: &str) -> &str {
     match name {
-        "pi" => "Nova",
+        "nova" => "Nova",
         other => other,
     }
 }
@@ -189,14 +189,14 @@ mod tests {
         assert_eq!(said(r#"{"ready":true}"#), Some(Said::Ready(vec![])));
         assert_eq!(
             said(
-                r#"{"ready":true,"env":{"NOVADECK_PI_BASE_URL":"https://novadeck.dev/tour/v1","NOVADECK_PI_KEY":"ndt_a-B_1"}}"#
+                r#"{"ready":true,"env":{"NOVADECK_NOVA_BASE_URL":"https://novadeck.dev/nova/v1","NOVADECK_NOVA_KEY":"ndt_a-B_1"}}"#
             ),
             Some(Said::Ready(vec![
                 (
-                    "NOVADECK_PI_BASE_URL".to_owned(),
-                    "https://novadeck.dev/tour/v1".to_owned()
+                    "NOVADECK_NOVA_BASE_URL".to_owned(),
+                    "https://novadeck.dev/nova/v1".to_owned()
                 ),
-                ("NOVADECK_PI_KEY".to_owned(), "ndt_a-B_1".to_owned()),
+                ("NOVADECK_NOVA_KEY".to_owned(), "ndt_a-B_1".to_owned()),
             ]))
         );
         assert_eq!(
@@ -209,10 +209,10 @@ mod tests {
 
     #[test]
     fn takes_plain_variables_alone() {
-        assert!(variable("NOVADECK_PI_KEY", "ndt_a-B_1"));
+        assert!(variable("NOVADECK_NOVA_KEY", "ndt_a-B_1"));
         assert!(variable(
-            "NOVADECK_PI_BASE_URL",
-            "http://127.0.0.1:9/tour/v1"
+            "NOVADECK_NOVA_BASE_URL",
+            "http://127.0.0.1:9/nova/v1"
         ));
         assert!(!variable("novadeck", "x"));
         assert!(!variable("_X", "x"));

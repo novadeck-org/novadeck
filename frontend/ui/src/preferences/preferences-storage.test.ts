@@ -120,15 +120,6 @@ describe("readPreferences", () => {
     expect(readPreferences().agentAvatars).toBe(true)
   })
 
-  it("keeps the onboarding tour off unless it was switched on, as preferences saved before it read", () => {
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
-    expect(readPreferences().onboardingTour).toBe(false)
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ onboardingTour: "yes" }))
-    expect(readPreferences().onboardingTour).toBe(false)
-    localStorage.setItem(preferencesStorageKey, JSON.stringify({ onboardingTour: true }))
-    expect(readPreferences().onboardingTour).toBe(true)
-  })
-
   it("offers Keep awake only once switched on, and keeps General's switch on unless turned off", () => {
     localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
     expect(readPreferences()).toMatchObject({ keepAwakeOffered: false, keepAwake: true })

@@ -56,7 +56,7 @@ const setup = (
     done?: boolean
     turnAt?: number
     restorable?: () => Promise<boolean>
-    /** The transcript of a session that is Novadeck's own pi's (`Claims.own`). */
+    /** The transcript of a session that is Nova's (`Claims.own`). */
     own?: string
     create?: (row: ListedTerminal) => Promise<unknown>
   } = {},
@@ -343,8 +343,8 @@ describe("sleepers", () => {
     expect(sleepers.restable(running, "claude")).toBe(false)
   })
 
-  it("keeps Novadeck's own pi's sleepers wakeable and restable without the person's pi", async () => {
-    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+  it("keeps Nova's sleepers wakeable and restable without the person's pi", async () => {
+    const own = "/data/nova/agent/sessions/--t--/1_one.jsonl"
     const theirs = "/home/p/.pi/agent/sessions/--t--/1_two.jsonl"
     const { sleepers, calls } = setup(
       [
@@ -370,7 +370,7 @@ describe("sleepers", () => {
   })
 
   it("keeps the messages of a sleeping Nova while Nova is off, and wakes it once it is on", async () => {
-    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const own = "/data/nova/agent/sessions/--t--/1_one.jsonl"
     const { sleepers, calls, switchNova, nova } = setup(
       [row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } })],
       { connected: false, connections: true, own, wanted: new Set(["a"]) },
@@ -393,7 +393,7 @@ describe("sleepers", () => {
   })
 
   it("puts no Nova to sleep while Nova is off, as it couldn't be woken", () => {
-    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const own = "/data/nova/agent/sessions/--t--/1_one.jsonl"
     const { sleepers, nova } = setup(
       [row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } })],
       { connected: false, connections: true, own },
@@ -638,9 +638,9 @@ describe("sleepers", () => {
   })
 })
 
-describe("Nova, Novadeck's own pi, in a sleeper's summary", () => {
+describe("Nova in a sleeper's summary", () => {
   it("is set for a pi sleeper under Nova's folder, and not for the person's pi or another agent", () => {
-    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const own = "/data/nova/agent/sessions/--t--/1_one.jsonl"
     const theirs = "/home/p/.pi/agent/sessions/--t--/1_two.jsonl"
     const rows = [
       row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } }),

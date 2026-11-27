@@ -181,6 +181,9 @@ describe("notes over a range with Experimental work", () => {
     })
     const seen: number[][] = []
     await generatePromote("v0.0.152", sources, asked(seen), "o/r")
-    expect(seen).toEqual(checkoutExperimental().has("onboarding-tour") ? [[181]] : [[181, 900]])
+    const tourHeld = [...checkoutExperimental().values()].some(({ scopes }) =>
+      scopes.includes("tour"),
+    )
+    expect(seen).toEqual(tourHeld ? [[181]] : [[181, 900]])
   })
 })

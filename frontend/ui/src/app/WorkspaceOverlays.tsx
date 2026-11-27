@@ -2,7 +2,7 @@ import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
 import { isOnBar } from "@novadeck/core/items"
-import type { AgentMode, Backend, BundledPiFetchState } from "@novadeck/core/port"
+import type { AgentMode, Backend, NovaFetchState } from "@novadeck/core/port"
 import { orderedTiles, tileOf } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { SchemePreference, Tile } from "@novadeck/core/types"
@@ -163,28 +163,28 @@ const useShippingGate = (
   return shippingGate && { enabled, onChange: shippingGate.set }
 }
 
-// Whether Novadeck's own pi is on, and where its download stands, for Preferences; undefined
+// Whether Nova is on, and where its download stands, for Preferences; undefined
 // where the backend has none, as a runner from before it.
-const useBundledPi = (
-  bundledPi: Backend["bundledPi"],
+const useNova = (
+  nova: Backend["nova"],
 ):
   | {
       readonly enabled: boolean
-      readonly fetch: BundledPiFetchState
+      readonly fetch: NovaFetchState
       readonly onChange: (enabled: boolean) => void
     }
   | undefined => {
   const enabled = useSyncExternalStore(
-    bundledPi?.enabled.subscribe ?? always,
-    () => bundledPi?.enabled.getSnapshot() ?? false,
+    nova?.enabled.subscribe ?? always,
+    () => nova?.enabled.getSnapshot() ?? false,
   )
   const fetch = useSyncExternalStore(
-    bundledPi?.fetch.subscribe ?? always,
-    () => bundledPi?.fetch.getSnapshot() ?? offFetch,
+    nova?.fetch.subscribe ?? always,
+    () => nova?.fetch.getSnapshot() ?? offFetch,
   )
-  return bundledPi && { enabled, fetch, onChange: bundledPi.set }
+  return nova && { enabled, fetch, onChange: nova.set }
 }
-const offFetch: BundledPiFetchState = { state: "off" }
+const offFetch: NovaFetchState = { state: "off" }
 
 // Whether main is kept current, for Preferences; undefined where the backend has no such switch.
 const useKeepMain = (
@@ -275,7 +275,7 @@ type ExperimentalSetting = {
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
-// Turning it off turns agent modes, the shipping gate, Novadeck's own pi and Murmur's switch off
+// Turning it off turns agent modes, the shipping gate, Nova and Murmur's switch off
 // with it; a Murmur already installed keeps working (`switchOffExperimental`).
 // The switch is hidden while off until the person taps the version ten times; once revealed, or
 // on at any time in this run, it stays until the next launch (`experimentalRevealed`).
@@ -437,7 +437,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const agentModes = useAgentModes(backend.agentModes)
   const agentMode = useAgentMode(backend.agentMode)
   const shippingGate = useShippingGate(backend.shippingGate)
-  const bundledPi = useBundledPi(backend.bundledPi)
+  const nova = useNova(backend.nova)
   const murmurSwitch = useMurmurSwitch(backend)
   const worktrees = useWorktrees(backend.worktrees)
   const keepMain = useKeepMain(backend.keepMain)
@@ -737,7 +737,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(agentModes ? { agentModes } : {})}
           {...(agentMode ? { agentMode } : {})}
           {...(shippingGate ? { shippingGate } : {})}
-          {...(bundledPi ? { bundledPi } : {})}
+          {...(nova ? { nova } : {})}
           {...(murmurSwitch ? { murmurSwitch } : {})}
           {...(worktrees ? { worktrees } : {})}
           {...(keepMain ? { keepMain } : {})}

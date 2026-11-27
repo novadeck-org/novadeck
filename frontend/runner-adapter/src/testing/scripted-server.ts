@@ -394,8 +394,8 @@ export const scriptedRunner = ({
       revoke: api.devices.revoke.handler(unplayed("devices.revoke")),
     },
     tour: {
-      fetch: api.tour.fetch.handler(unplayed("tour.fetch")),
       prepare: api.tour.prepare.handler(unplayed("tour.prepare")),
+      fetch: api.tour.fetch.handler(unplayed("tour.fetch")),
       brief: api.tour.brief.handler(unplayed("tour.brief")),
       nudge: api.tour.nudge.handler(unplayed("tour.nudge")),
       artist: api.tour.artist.handler(unplayed("tour.artist")),

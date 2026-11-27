@@ -366,7 +366,7 @@ before the first sample). It is `null` once the terminal exits and on Windows, w
 no foreground process is known. `agent` names the agent (`claude`, `codex` or `agy`) that
 reported a session in the shell since its last prompt, so a client can name the
 program where `process` cannot; it is `null` otherwise. `nova` is `true` when that agent
-(or, for a sleeping terminal, `restingAgent`) is Nova, Novadeck's own pi, which the runner tells
+(or, for a sleeping terminal, `restingAgent`) is Nova, which the runner tells
 from the person's own pi by where its session's transcript lives. The agent is still `pi`; a
 client shows Nova's name and mark. It is absent otherwise, and from a runner before revision 22. `cwd` is the directory the
 shell last reported at a prompt, or where it started. `title` is, in this order: the
@@ -669,7 +669,7 @@ runner keeps the person's (`preferences.*`); each device keeps its own in its lo
 before, and that copy is also where the app reads the person's first, so a start paints at once.
 
 - **The person's:** the theme and its light or dark choice (`system` follows each screen as it
-  always did), which views are on, Agent Chat, agents' avatars, the onboarding tour switch, the
+  always did), which views are on, Agent Chat, agents' avatars, the
   order of the rail's panels and of the footer's subscriptions, and what they've seen once: the
   Help and feedback chips' words, the phone page's zoom hint, the Agent Chat offer.
 - **The device's:** text size, font and ligatures, the app's scale, notifications, sounds and
@@ -1248,37 +1248,36 @@ everything it started at the deadline. Without
 the relay, the hook launcher prints what `relay.json` would, as it is written from the
 same tables.
 
-**Fetch**, run by the launcher of Novadeck's own pi (`shell/bundled/pi`, from
-harnesses/nova's `launcher.ts`) as `novadeck-relay fetch pi` before each start: the runner answers
+**Fetch**, run by the launcher of Nova (`shell/nova/nova`, from
+harnesses/nova's `launcher.ts`) as `novadeck-relay fetch nova` before each start: the runner answers
 at once where the program is in place, and otherwise downloads the pinned build for its system
-(`harnesses/bundled-pi.ts`), the relay showing its progress in the terminal. While Novadeck
-Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner refuses with
-`Turn on Nova in Preferences > Experimental.`, so nothing is fetched or started; but
-for a terminal in a folder of the tour's whose run it remembers, with its project open
-(`Tour.paysFor`): the person asked for the tour, and the tour's sessions resume there after a
-restart or once the project is kept. Once it is in place the runner says so with the variables
-its Nova is given, `{"ready": true, "env": {...}}`: for a terminal outside the tour's folder, the
-model service's (`NOVADECK_PI_BASE_URL`, `NOVADECK_PI_KEY`), with a ticket the runner's Novas share
-until it nears its end (harnesses/nova's `NovaTickets`); none for the tour's, whose shells have
-their run's. Where the service refuses, a progress line says why and Nova starts without it. The
-relay prints them on stdout, one `NAME=value` a line, a value of plain characters alone, and the
-launcher takes those two names alone. The fetch also starts a new session in Nova's agent folder
-on Novadeck's model where its `settings.json` names no model of its own (`seededSettings`).
+(`harnesses/nova.ts`), the relay showing its progress in the terminal. While Nova is off
+(Preferences > Experimental, settings' `nova`, the one switch of Nova and the tour), the runner
+refuses with `Turn on Nova in Preferences > Experimental.`, so nothing is fetched or started, the
+tour's agents included. Once it is in place the runner says so with the variables its Nova is
+given, `{"ready": true, "env": {...}}`: Nova's model service's (`NOVADECK_NOVA_BASE_URL`,
+`NOVADECK_NOVA_KEY`), with a ticket the runner's Novas share, the tour's too, until it nears its end
+(harnesses/nova's `NovaTickets`, from
+`${NOVADECK_NOVA_ENDPOINT ?? "https://novadeck.dev/nova/v1"}/tickets`). Where the service refuses,
+a progress line says why and Nova starts without it. The relay prints them on stdout, one
+`NAME=value` a line, a value of plain characters alone, and the launcher takes those two names
+alone. The fetch also starts a new session in Nova's agent folder on Nova's default model, Luna,
+where its `settings.json` names no model of its own (`seededSettings`).
 
 `nova` (`nova.cmd` on Windows), in the shims' folder, starts that launcher while Nova is switched
-on, which the runner keeps the shell folder's `bundled/on` for (`BundledPi.switched`); the folder
+on, which the runner keeps the shell folder's `nova/on` for (`Nova.switched`); the folder
 then goes first on PATH in Novadeck's terminals, connected harnesses or not, so a person starts
 Nova by its name, over any other `nova` (Panic's Nova, OpenStack's client), never outside
 Novadeck's terminals. While Nova is off, `nova` runs another `nova` on PATH as it would run, or,
 with none, says what turns Nova on; the folder goes first only for connected harnesses' shims.
 
-Commands start it by the word `novadeck-pi` (harnesses/nova's `novaProgram`), which the runner turns
+Commands start it by the word `novadeck-nova` (harnesses/nova's `novaProgram`), which the runner turns
 into the launcher's path as the shell starts the command (`novaStartup`). A pi session whose
-transcript lies in Novadeck's pi's own agent folder (`ownPiSession`) is Novadeck's pi's: its
-resume, a sleeper's wake and a History restore start `novadeck-pi --session <file>`
+transcript lies in Nova's own agent folder (`novaSession`) is Nova's: its
+resume, a sleeper's wake and a History restore start `novadeck-nova --session <file>`
 (`Claims.own`), needing no connection of the person's pi; a sleeper of it is never stuck on
 their pi, and History finds its conversation by that file. Disconnecting the person's own pi in
-Preferences still forgets every pi session the runner kept, Novadeck's pi's among them. On Windows
+Preferences still forgets every pi session the runner kept, Nova's among them. On Windows
 the launcher gives pi `--tools -bash,+powershell` for that launch where it finds no bash of
 Windows' own: no Git Bash in either Program Files, and no `bash.exe` on PATH but WSL's launchers
 (System32's, WindowsApps'), which pi would otherwise take and which run commands in Linux.
@@ -2217,7 +2216,7 @@ one from an earlier runner.
 - `history.*` lists the terminals closed in the last 7 days, per project, which
   `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
   title, summary, handle (null if none), `agent` (the program's icon; null for a plain
-  terminal, whose last `program` stands in), `nova` (`true` when that agent is Nova, Novadeck's own pi; absent otherwise), `cwd`, `closedAt`, `closedBy` (the handle of
+  terminal, whose last `program` stands in), `nova` (`true` when that agent is Nova; absent otherwise), `cwd`, `closedAt`, `closedBy` (the handle of
   the agent that closed it; null when the person did, or an agent closed its own terminal) and its `availability`: `ready`,
   `restoring`, `gone` (`conversation` or `folder`), `disconnected` (the agent) or `open` (the
   handle of the terminal the conversation is bound in). The runner keeps rows in
@@ -2494,7 +2493,7 @@ one from an earlier runner.
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
 - `settings.get()` and
-  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, keepMain?, agentModes?, agentMode?, shippingGate?, bundledPi?, murmur? })`
+  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, keepMain?, agentModes?, agentMode?, shippingGate?, nova?, murmur? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
   Inbox entries that ask in the order the person dragged them into, and the entries they snoozed
@@ -2527,15 +2526,15 @@ one from an earlier runner.
   them from device to device.
 
 - `tour.prepare()` readies a run of Novadeck's tour (`backend/tour/`, which the runner builds), always on
-  Novadeck's own pi (the pinned pi `harnesses/bundled-pi.ts` downloads, agent `pi`) with GPT-6 Luna
+  Nova (the pinned pi `harnesses/nova.ts` downloads, agent `pi`) with GPT-6 Luna
   at medium effort, paid for by Novadeck through its website (revision 21; from 12 to 20 it ran
   opencode, and before 12 the input took the person's own `agent`, which is now optional and
   ignored, so an older UI still works against a newer runner; a UI of this build offers the tour
-  only to a runner at 21). First of all it waits for Novadeck's pi to be in place
-  (`BundledPi.want`: the download the consent asked for ahead with `tour.fetch`, joined, started or
-  tried again, whatever the Experimental switch says); a runner without shell files, which can't
-  start it, and a download that fails are a `CONFLICT` ("Novadeck couldn't download Pi, so the
-  tour can't start." and the download's own words). The tour's project is a blank start for a browser game the
+  only to a runner at 26, and only while Nova is switched on). First of all it waits for Nova to
+  be in place (`Nova.ready`: the download Nova's switch started, joined, started or tried again);
+  Nova switched off, a runner without shell files, which can't start it, and a download that
+  fails are a `CONFLICT` ("Novadeck couldn't get Nova, so the tour can't start." and the
+  refusal's or the download's own words). The tour's project is a blank start for a browser game the
   person chooses and can keep: plain JavaScript modules with no build step (`index.html`, the
   game in `src/` from `src/main.js`, `src/models.js` to load a model by name, falling back to the
   placeholder until it exists), three.js and Phaser to draw with, and every character, enemy and
@@ -2596,35 +2595,31 @@ one from an earlier runner.
   Windows Store alias stub doesn't count) runs the seed's `dev.mjs` or `dev.py` on a free port
   of 127.0.0.1 (bound to port 0, read, closed); with none, `page` is false and the lead's script
   has no serving steps.
-  `command` starts Novadeck's own pi there (`novadeck-pi --model novadeck/gpt-6-luna --thinking
+  `command` starts Nova there (`novadeck-nova --model nova/gpt-6-luna --thinking
   medium`; pi asks no permission for an edit, so no write flag), with no prompt on it, and nothing
-  written to pi's settings. `novadeck-pi` is the word Novadeck stores and compares the command
+  written to pi's settings. `novadeck-nova` is the word Novadeck stores and compares the command
   by (`novaProgram`; `expectedAgent` reads it as `pi`): as the terminal's shell starts it, the
-  runner puts the launcher's path there in the form that shell runs a quoted path (`ownPiStartup`,
+  runner puts the launcher's path there in the form that shell runs a quoted path (`novaStartupLine`,
   `programWord`: `& '…'` in PowerShell), so the stored line holds no path of the computer's, and a
-  person typing the word runs nothing. Its model service is not on the line: before
-  anything is removed or started the runner gets a ticket from
-  `${NOVADECK_TOUR_ENDPOINT ?? "https://novadeck.dev/tour/v1"}/tickets` (a 429 or 503 `error` is
-  a `CONFLICT` whose message is the service's sentence, which the consent shows as it is; any
-  other failure is a `CONFLICT` saying the service couldn't be reached). The run's endpoint,
-  ticket and expiry are kept in `tour-runs.json` beside the database (the runner's own, mode 0600,
-  by the folder's name; never in the tour's folder or the workspace's schema; a new run takes its
-  folder's record over, and it goes once no project is open in the folder), and every shell that
-  starts in a tour folder with such a record while the run is live (the lead's, each teammate's), and
-  afterwards, once the person keeps the project or in a runner started again, only a terminal being
-  resumed there (a restart, a restore or a resumed session, as the launch option says: its session
-  resumes on Novadeck's pi with the model it kept, which without the ticket has no service to
-  reach, and a dead ticket is the service's own 402); an agent the person opens anew in their
-  project gets none of it (the Terminals option `launchEnv`, `Tour.launchEnv`). What they get is
-  `NOVADECK_PI_BASE_URL` (the endpoint) and `NOVADECK_PI_KEY` (the ticket), from which Novadeck's
-  extension, in Novadeck's own pi alone, registers the `novadeck` provider and its one model,
-  `gpt-6-luna` (`harnesses/nova/src/model.ts`: OpenAI's Chat Completions, OpenRouter's
-  reasoning field, `max_completion_tokens`, its context held under the 272k past which it costs
-  double), and takes both out of pi's environment before anything runs, so no command of the
-  agent's (its bash or powershell tool) and no pi started from one sees the key. Without them
-  (a session of Novadeck's pi restored outside the tour) the provider points at an address that
-  refuses, so the session fails there rather than going on with another model on the person's
-  own keys, as pi does with a session's model it can't find. Nothing is written to pi's settings
+  person typing the word runs nothing. Its model service is not on the line, and the tour keeps
+  no ticket of its own: before anything is removed or started the runner asks Nova's model
+  service for the ticket its Novas share (`NovaTickets`; a 429 or 503 `error` is a `CONFLICT`
+  whose message is the service's sentence, which the consent shows as it is; any other failure
+  is a `CONFLICT` saying the service didn't answer), and every Nova's launcher, the tour's lead's
+  and teammates' among them, gets that ticket through the fetch above, a restart, a restore or a
+  resumed session too. Only the run's lead is kept in `tour-runs.json` beside the database (the
+  runner's own, mode 0600, by the folder's name; never in the tour's folder or the workspace's
+  schema; a new run takes its folder's record over). What a launcher gets is
+  `NOVADECK_NOVA_BASE_URL` (the endpoint) and `NOVADECK_NOVA_KEY` (the ticket), from which Novadeck's
+  extension, in Nova alone, registers the `nova` provider and its models, `gpt-6-luna`,
+  `gpt-6.1-terra` and `gpt-6.2-sol` (`harnesses/nova/src/model.ts`: OpenAI's Chat Completions,
+  OpenRouter's reasoning field, every thinking level from low to max, `max_completion_tokens`,
+  their context held under the 272k past which they cost more), and takes both out of pi's
+  environment before anything runs, so no command of the agent's (its bash or powershell tool)
+  and no pi started from one sees the key. Without them (the service refused or didn't answer)
+  the provider points at an address that refuses, so the session fails there rather than going
+  on with another model on the person's own keys, as pi does with a session's model it can't
+  find. Nothing is written to pi's settings
   or models. pi then calls `POST <endpoint>/chat/completions` with
   `Authorization: Bearer <ticket>`, streaming with its usage, and the effort as
   `reasoning.effort` (probed in `model.ts`, against the live service too). `brief` is always
@@ -2638,7 +2633,7 @@ one from an earlier runner.
   dialog) and ends its turn, opening no one while the approval is on screen; told the outcome, it
   `show`s the page where they approved it. Then (with the answer, where `page` is false) it
   names the game's three models (the player, an enemy, one more) and, in that one turn (a
-  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on Novadeck's pi (agent `pi`), GPT-6 Luna at medium effort, as above, each with its task as the message, the picks and the names written in for the
+  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on Nova (agent `pi`), GPT-6 Luna at medium effort, as above, each with its task as the message, the picks and the names written in for the
   task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
   three models in a worktree on `models`, shows the first as soon as it exists, asks the person
   one thing about their look, then makes the other two; the Builder writes the game in `src/` in
@@ -2648,29 +2643,25 @@ one from an earlier runner.
   to it. What each agent is told of the shell follows its harness (`shellRule`, in the lead's
   script, both tasks and the folder's note): pi reads and writes files with tools of its
   own and runs no shell command. A
-  teammate the lead opens in the folder is Novadeck's own pi too (`OpenPolicy.program`, through
-  the Terminals option `openPolicy`: `open_agent`'s command line starts with `novadeck-pi`, and the
+  teammate the lead opens in the folder is Nova too (`OpenPolicy.program`, through
+  the Terminals option `openPolicy`: `open_agent`'s command line starts with `novadeck-nova`, and the
   person's pi need not be connected), and on the run's model and effort whatever
-  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs Novadeck's own Pi only…", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
+  model the call names, never judged against the person's own models (`OpenPolicy.pinned`); any other harness is refused there ("The tour runs Nova only…", `OpenPolicy.refuseAgent`). Only the run's lead opens agents in the
   tour's folder: every other terminal there, a teammate or any other, has its `open_agent`
   refused (`Tour.openPolicy`), so an agent that follows a script anyway can't nest a team. The
   lead's terminal is kept with the run's record (`tour.brief` writes it), so the lead resumed in a
   runner started again still opens its teammates.
   `removed` names the projects it removed. A second run while one is being readied is a
-  `CONFLICT`, as are Novadeck's pi that can't be had and a ticket the service refuses
+  `CONFLICT`, as are Nova that can't be had and a ticket the service refuses
   (`MODELS_UNLISTED` is no longer raised). None changes anything. The client then opens the folder as a project and
   starts `command` in a terminal of it (`terminals.create`).
   Agent worktrees work for every terminal in the tour's folder whatever the person's "Agent
   worktrees" setting (never changed by the tour): the MCP server lists the worktree tools and
   the calls go through (`WorktreesWiring.enabled(terminalId)`), the folder counts as ready for
   the agent's process once it exists, and each worktree's changes are shown on its owner's bar.
-- `tour.fetch()` (revision 21) starts downloading Novadeck's own pi for the tour, whatever its
-  Experimental switch says (the person asking for the tour is the consent), joins a download
-  under way or tries a failed one again (`BundledPi.want`), and answers at once; from then on the
-  switch going off stops nothing. Where it stands is the runner settings' `bundledPiFetch`, which
-  says so while the switch is off too (UIs before 21 show it only while the switch is on). The
-  consent asks for it as it opens, so the download is mostly done by Start. A runner without
-  shell files, which can't start Novadeck's pi, is a `CONFLICT`.
+- `tour.fetch()` (revision 21) is kept only for UIs from 21 to 25, which call it as the tour is
+  offered: since 26 it answers at once and does nothing, as Nova's switch is what downloads Nova,
+  and it goes once `oldestClient` passes 25.
 - `tour.brief({ terminalId })` rings the lead's script (composed of the run last readied) to the
   agent in the terminal, as Novadeck's notice, for every harness: the doorbell delivers it once
   the agent's prompt shows and its MCP tools are listed. It records the terminal as the run's
