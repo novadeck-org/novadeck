@@ -1202,12 +1202,12 @@ with every safety check again at that time:
     and when `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
     folders again, so added and removed files show. Run on the card's git command (`projects.updateCheckout`, with the
     repository's `path`) is the same move with tracked changes allowed, where git itself refuses if a changed file is in
-    the way: the refusal carries `said` in plain words and `git`, what git printed, which the card shows verbatim; a main
+    the way: the refusal carries `said` in plain words and, for the merge, `git` (what it printed, up to 20 lines, `more` past them), which the card shows verbatim in red (Novadeck's own `said` is shown as a `#` comment, and the ref move sends no `git`: update-ref's words aren't those of the `git fetch .` shown); a success says `moved` and `ref`, and the card shows its check only for a move that was the command it showed; a main
     that has commits of its own as well is refused first. The card shows `behind.command` (`git merge --ff-only origin/main`
     on main, `git fetch . origin/main:main` off it), each landing's `ref` (only the branch moved: no file pulses), each merge's
-    `by` (the agent's handle), and the repository's `home` and `pullUrl` (a forge page with `{number}`), which the card opens a
-    merge's pull request from. The dependency command runs in a terminal the UI opens (`commands.add` with `quiet`) in `home`,
-    which the card follows by the roster's `busy`; the roster tells no exit status of a program in a living shell. The person is notified (Preferences > Notifications, as a finish is) only for a landing with a merge of
+    `by` (the agent's handle), and the repository's `home` and `pullUrl` (GitHub only: a forge page with `{number}`), which the card opens a
+    merge's pull request from, and a landing's `dependencies.dir` (the lockfile's folder, where its command runs). The dependency command runs in a terminal the UI opens (`commands.add` with `quiet`) in `home`,
+    which the card follows by the roster's `busy`; the roster tells no exit status of a program in a living shell, so the card says `finished` (never a check), with the time the change that showed it over was seen. The person is notified (Preferences > Notifications, as a finish is) only for a landing with a merge of
     one of their agents' pull requests (the forge's branch to pull request, kept as seen) or new dependencies; an
     agent mid-turn in a terminal that works in the repository's own checkout (not a worktree) gets a `Novadeck · Main` notice
     (`worktrees/main-notice.ts`: the commits, the files, the lockfile; facts only) through `Messaging.notice`, which
