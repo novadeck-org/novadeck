@@ -198,7 +198,11 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
   to the person, or its lead, before it acts on it.
 - **Swarm**: agents organise the work themselves. Besides settling overlaps directly, they open
   agents for parts of a task that can run side by side and lead them, and close agents whose
-  work is done. Teams are how a swarm gets the person's work done: an agent joins a team whose
+  work is done. Such a part (work that outlasts the agent's turn, needs its own worktree, holds
+  something others use, or that the person may want to watch or talk to) goes to a Novadeck
+  agent rather than a subagent, which stays the agent's own pick for what serves its own
+  context, such as a search or a check it needs the answer to before it goes on (`ownAgents`
+  in `shell/mcp.ts`; see "Agent" and "team" below). Teams are how a swarm gets the person's work done: an agent joins a team whose
   work its task sits inside, leaves once its part is done and the lead has nothing more for it,
   and hands the lead to a member better placed to lead the rest. Once its own task is finished
   and reported, it looks once for the person's work still under way that it could help with,
@@ -226,7 +230,7 @@ Teams work the same in Solo and Herd: a lead directs, and its teammates act on i
 report back. Approvals of actions stay the person's in every mode, and a harness's own
 permission prompts are never Novadeck's to skip.
 
-The mode words the server's instructions and the `send` and `ask` descriptions (`together`, `meets`, `onward`, `anchored`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
+The mode words the server's instructions and the `send` and `ask` descriptions (`together`, `meets`, `onward`, `anchored`, `decides`, `rules`, `agentsHere` in `shell/mcp.ts`, and the tools whose confirmation Swarm
 drops; `agents` points to `send`'s rather than carry them again), which the MCP server asks
 the runner for (call `mode`) with each handshake and listing,
 and the rules on peers' messages (`peerAction`, `peersShort` in `messaging/messages.ts`), as each
@@ -880,6 +884,15 @@ stayed subagents: "use the code-reviewer agent", "three Explore agents", "a coup
 "a helper so your context stays clean", "fan this out", a skill's "launch 4 research agents" and
 "use agents to speed up this rename" (subagents in 8 of 9; the first wording, without the own-task
 sentence, opened Novadeck terminals for it in 6 and Antigravity's own team once).
+
+In Swarm that own-task sentence gives way to its swarm form (`ownAgents`, `agentsHere` keyed by
+mode): a part of the agent's task that can go on beside it goes to a Novadeck agent it leads,
+and a subagent stays its pick for its own work and context, and where the person or a skill asks
+for one. Left to the own-task sentence, a bare Claude Code (Sonnet, no user settings, skills or
+hooks; 2026-11-27) told "build a multiplayer browser game … you can spawn other agents if you
+need to" in Swarm took two subagents and opened no Novadeck agent in about 35 minutes, as an Opus
+session with the person's own skills had for a card game (three subagents); told "… in their own
+Novadeck terminals", the same setup opened two and led them.
 
 `open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
 opens a terminal running that agent. Without `message` the agent just starts at its prompt;
