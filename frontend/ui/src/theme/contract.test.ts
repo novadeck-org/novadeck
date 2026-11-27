@@ -275,7 +275,6 @@ describe("theme contract", () => {
       "restates in dark every literal colour the light block sets",
       () => {
         const holdsInBoth = new Map([
-          ["--brand-tile-fg", "the choice-card tiles' glyph is the bright cyan in both schemes"],
           ["--artifact-webview-bg", "a live page assumes a white ground in both schemes"],
         ])
         const nodes = cssNodes(uncomment(read(file)))
