@@ -96,6 +96,22 @@ describe("a sheet", () => {
     })
   })
 
+  context("whose row scrolls below its boundary", () => {
+    it("stays whole within the boundary, above its bottom", async () => {
+      const boundary = () => ({ x: 0, y: 100, width: 1200, height: 600 })
+      let top = 400
+      const scrolled = row(300, 0)
+      scrolled.getBoundingClientRect = () =>
+        DOMRect.fromRect({ x: 300, y: top, width: 200, height: 24 })
+      const view = mount(sheet({ anchor: () => scrolled, anchorKey: "a", boundary }))
+      await settle()
+      top = 1500
+      view.rerender(sheet({ anchor: () => scrolled, anchorKey: "a", placeKey: "1", boundary }))
+      await settle()
+      expect(placed()).toBe("508px 676px")
+    })
+  })
+
   context("anchored anew to another row", () => {
     it("stands beside that row", async () => {
       const rows: Record<string, HTMLElement> = { a: row(300, 400), b: row(300, 100) }
