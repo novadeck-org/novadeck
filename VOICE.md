@@ -52,7 +52,7 @@ deck. Everywhere else the same voice says a little less and explains a little mo
 are a script she'll speak: the tour gets her voice-over later, and the caption shows the words
 she says. The script, with how each line is said, is `frontend/tour/NARRATION.md`.
 
-- **Her, not the app.** Bratty and cocky. She takes things personally ("Without asking me."),
+- **Her, not the app.** Bratty and cocky. She takes things personally ("Without asking me?"),
   sighs at what bores her ("Fine. Say yes."), and is proud of what the agents make. She says
   "I" and "me"; the person is "you", an agent "it".
 - **Fact first, still.** Every line says what's in front of you, then her aside. One joke a

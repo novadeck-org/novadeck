@@ -47,11 +47,31 @@ describe("The tour's driver", () => {
     // The one window, in view as the tour began: its box has no eye to bring it.
     expect(coach().getByRole("button", { name: "Show me" }).query()).toBeNull()
     // The agent describes itself as the tour's lead: its step is done, and holds until its
-    // caption has been on screen 3 s, however soon the agent named itself.
+    // caption has been on screen 4 s, however soon the agent named itself.
     await expect.poll(terminalTabNames, leadNamed).toContain("Game lead")
     // Its next step is the team's: the demo's lead opens none here, so nothing is marked yet and
     // no caption shows, but the act has begun.
     await expect.element(page.getByText(/^Act 2, Your call\./), leadNamed).toBeInTheDocument()
+  })
+
+  it("says each line in Nyx's voice as its box shows, from the take's own file", async () => {
+    const played: string[] = []
+    const play = HTMLMediaElement.prototype.play
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      played.push(this.src)
+      return Promise.resolve()
+    }
+    try {
+      await startTour(`${offered}&tourAgent=quiet&tourPatienceMs=60000`)
+      await coachSays("That's your agent. It does the work. I talk.")
+      await expect.poll(() => played.length).toBe(1)
+      expect(played[0]).toMatch(/\/voice\/start\.mp3/)
+      const take = await fetch(played[0]!)
+      expect(take.ok).toBe(true)
+      expect((await take.arrayBuffer()).byteLength).toBeGreaterThan(10_000)
+    } finally {
+      HTMLMediaElement.prototype.play = play
+    }
   })
 
   it("turns Nyx's narration off and on beside End tour, keeping the choice for the next tour", async () => {
@@ -175,7 +195,7 @@ describe("The tour's driver", () => {
   context("while the agent's program has ended and its shell is back", () => {
     it("says it didn't start, pointing at its terminal, and what to do", async () => {
       await startTour(`${offered}&tourAgent=shell&tourPatienceMs=60000`)
-      await coachSays("It didn't even start.")
+      await coachSays("What? It didn't even start.")
       await coachSays("Its terminal says why. End the tour and take it again.")
       expect(document.querySelectorAll("[data-tour-click]")).toHaveLength(1)
       await page.getByRole("button", { name: "End tour" }).click()

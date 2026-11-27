@@ -22,9 +22,10 @@ written is in [VOICE.md](../../VOICE.md), "The tour".
   around each take, brings them all to one loudness, and writes them to `src/voice/`, where the
   tour plays them. It also lists the lines with no take yet, files that match no line, and takes
   longer than their box stays on screen. A line with no take is shown and not spoken.
-- **Length:** short and clipped, as in the skits. A cue gives way as soon as its subject is on
-  screen, so keep cues under about 2 s. `start` shows for 3 s, so keep it under about 2.5 s.
-  The others can run to about 3 s.
+- **Length:** short and clipped, as in the skits. `start` and `finish` show for 4 s, so keep
+  them under about 3.9 s: the next box cuts off anything longer. A cue gives way as soon as its
+  subject is on screen, mid-word if need be, so keep cues short. The other boxes stay until the
+  person or the agents move on.
 - **Pauses:** her full stops are the pauses. Don't add `...` or a pause tag: the caption
   doesn't have one.
 - **The voice:** General American, never British. If a take drifts, record it again rather
@@ -36,37 +37,37 @@ the box (what to press, and where) stays text.
 
 ## The story
 
-- [ ] `start`: `[smug, offhand] That's your agent. It does the work. [smug] I talk.` ★
-- [ ] `ask`: `[curious] Your call. What game? [teasing] Make it a good one.`
-- [ ] `run`: `[flat] It wants to run the game. [sighs] Fine. Say yes.` ★
-- [ ] `page.cue`: `[impatient] Your game's running. Go look.`
-- [ ] `page`: `[deadpan] There. Nothing in it yet. [dismissive] Give it time.`
-- [ ] `team.cue`: `[suspicious] New agents. Go find them.`
-- [ ] `team`: `[impressed] Look. It hired its own help. [offended] Without asking me.` ★
-- [ ] `shape.cue`: `[casual] Its first model's done. Have a look.`
-- [ ] `shape`: `[proud] A model, made from nothing. [bossy] Go on. Spin it.`
-- [ ] `files.cue`: `[bored, bratty] Open your Files. I'll wait.` ★
-- [ ] `files`: `[quietly impressed] See the files blink? That's an agent, writing.`
-- [ ] `diff.cue`: `[teasing] The code's in. Want to read it?`
-- [ ] `diff`: `[smug] Every line it wrote. Nothing hidden.`
-- [ ] `finish`: `[relaxed] They're finishing it. [smug] Relax.`
-- [ ] `play.cue`: `[excited, hiding it] Your game's done. Go open it.`
-- [ ] `play`: `[proud] Three agents, one game. [warm] Go play.`
-- [ ] `play-model.cue`: `[excited, hiding it] Your model's done. Go open it.`
-- [ ] `play-model`: `[proud] Three agents, one model. [warm] Yours.`
-- [ ] `closing`: `[warm] It's yours now. [teasing] Don't break it.` ★
+- [x] `start`: `[smug, offhand] That's your agent. It does the work. [smug] I talk.` ★
+- [x] `ask`: `[curious] Your call. What game? [teasing] Make it a good one.`
+- [x] `run`: `[flat] It wants to run the game. [sighs] Fine. Say yes.` ★
+- [x] `page.cue`: `[impatient] Your game's running. Go look.`
+- [x] `page`: `[deadpan] There. Nothing in it yet. [dismissive] Give it time.`
+- [x] `team.cue`: `[suspicious] New agents? Go find them.`
+- [x] `team`: `[impressed] Look. It hired its own help. [offended] Without asking me?` ★
+- [x] `shape.cue`: `[casual] Its first model's done. Have a look.`
+- [x] `shape`: `[proud] A model, made from nothing. [bossy] Go on. Spin it.`
+- [x] `files.cue`: `[bored, bratty] Open your Files. I'll wait.` ★
+- [x] `files`: `[quietly impressed] See the files blink? That's an agent, writing.`
+- [x] `diff.cue`: `[teasing] The code's in. Want to read it?`
+- [x] `diff`: `[smug] Every line it wrote. Nothing hidden.`
+- [x] `finish`: `[relaxed] They're finishing it. [smug] Relax.`
+- [x] `play.cue`: `[excited, hiding it] Your game's done. Go open it.`
+- [x] `play`: `[proud] Three agents, one game. [warm] Go play.`
+- [x] `play-model.cue`: `[excited, hiding it] Your model's done. Go open it.`
+- [x] `play-model`: `[proud] Three agents, one model. [warm] Yours.`
+- [x] `closing`: `[warm] It's yours now. [teasing] Don't break it.` ★
 
 ## Off the story
 
 What she says while something outside the story holds the tour up.
 
-- [ ] `screen`: `[impatient] It wants an answer first. [pointed] From you.`
-- [ ] `team-screen`: `[impatient] A teammate wants an answer first. [pointed] From you.`
-- [ ] `question`: `[flat] A teammate has a question. [mock offended] For you, not me.` ★
-- [ ] `permission`: `[serious for once] It's asking your permission. Read it first.`
-- [ ] `ended`: `[flat] Your agent stopped. [offended] Rude.` ★
-- [ ] `left`: `[puzzled] It didn't even start.`
-- [ ] `left.team`: `[flat, unimpressed] A teammate quit.`
+- [x] `screen`: `[impatient] It wants an answer first. [pointed] From you.`
+- [x] `team-screen`: `[impatient] A teammate wants an answer first. [pointed] From you.`
+- [x] `question`: `[flat] A teammate has a question. [mock offended] Huh? For you, not me.` ★
+- [x] `permission`: `[serious for once] It's asking your permission. Read it first.`
+- [x] `ended`: `[flat] Your agent stopped. [offended] Ugh. Rude.` ★
+- [x] `left`: `[puzzled] What? It didn't even start.`
+- [x] `left.team`: `[flat, unimpressed] A teammate quit.`
 
 The act wipes ("Act 2, Your call") aren't spoken.
 

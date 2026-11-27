@@ -121,9 +121,9 @@ export const nudgeOf = (step: TourStep, signals: TourSignals): TourRole =>
   typeof step.nudges === "function" ? step.nudges(signals) : (step.nudges ?? "lead")
 
 // How long a step that's done in moments keeps its caption box on screen, counted from when the
-// box shows, so it is there long enough to read: for a step the agents end, which has nothing for
-// the person to do.
-const lineMs = 3_000
+// box shows, so it is there long enough to read and for Nyx to say it (her `start` take runs about
+// 3.5 s): for a step the agents end, which has nothing for the person to do.
+const lineMs = 4_000
 
 // Act 1: in Canvas, a terminal opens and the tour's Pi agent starts there, with its brief,
 // and describes itself as the tour's lead.
@@ -212,10 +212,10 @@ export const teamStep: TourStep = {
   coach: {
     click: ["team"],
     cue: {
-      line: "New agents. Go find them.",
+      line: "New agents? Go find them.",
       note: "They're off screen: the eye shows them.",
     },
-    line: "Look. It hired its own help. Without asking me.",
+    line: "Look. It hired its own help. Without asking me?",
     note: "Click one.",
   },
   done: ({ team }) => team.count >= 2 && team.named >= 2,
@@ -396,7 +396,7 @@ export const teamScreenLine = "A teammate wants an answer first. From you."
 // part of the story, and the tour points at it until they answer or dismiss it.
 export const questionCoach: Coach = {
   click: ["answers", "asking-row", "inbox-button"],
-  line: "A teammate has a question. For you, not me.",
+  line: "A teammate has a question. Huh? For you, not me.",
   note: "Answer it in the Inbox, or dismiss it and it decides itself.",
   overWindows: true,
 }
@@ -413,7 +413,7 @@ export const permissionCoach = (terminalId: string): Coach => ({
 // What the tour says once the lead's agent has stopped: its terminal is still there to read.
 export const endedCoach: Coach = {
   click: ["lead"],
-  line: "Your agent stopped. Rude.",
+  line: "Your agent stopped. Ugh. Rude.",
   note: "Its terminal shows why. Start it again there and the tour goes on, or end the tour.",
 }
 
@@ -424,7 +424,7 @@ export const leftCoach = (terminalId?: string): Coach => ({
   click: terminalId === undefined ? ["lead"] : ["terminal"],
   ...(terminalId !== undefined && { terminalId }),
   // The lead's never got going; a teammate's may have worked a while first.
-  line: terminalId === undefined ? "It didn't even start." : "A teammate quit.",
+  line: terminalId === undefined ? "What? It didn't even start." : "A teammate quit.",
   // The same for any of them: the shell's history doesn't hold the command the tour started it
   // with, so there is nothing the person could run again by a key.
   note: "Its terminal says why. End the tour and take it again.",

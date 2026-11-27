@@ -137,9 +137,9 @@ const seePage = (): Promise<void> =>
 // The person clicks one of the teammates the lead hired.
 const meetTeam = (timeout = 40_000): Promise<void> =>
   touchStep(
-    "Look. It hired its own help. Without asking me.",
+    "Look. It hired its own help. Without asking me?",
     () => [windowNamed("Modeller"), windowNamed("Builder")],
-    { timeout, cue: "New agents. Go find them." },
+    { timeout, cue: "New agents? Go find them." },
   )
 
 // The person spins the Modeller's model.
@@ -170,8 +170,8 @@ const readDiff = (): Promise<void> =>
 const personSteps: Readonly<Record<string, () => Promise<void>>> = {
   "Your game's running. Go look.": seePage,
   "There. Nothing in it yet. Give it time.": seePage,
-  "New agents. Go find them.": meetTeam,
-  "Look. It hired its own help. Without asking me.": meetTeam,
+  "New agents? Go find them.": meetTeam,
+  "Look. It hired its own help. Without asking me?": meetTeam,
   "Its first model's done. Have a look.": spinModel,
   "A model, made from nothing. Go on. Spin it.": spinModel,
   "Open your Files. I'll wait.": openFiles,
@@ -233,7 +233,7 @@ const playToClosing = async (address?: string): Promise<void> => {
   await seePage()
 
   // Then it hires a team, wired to it: the person clicks one.
-  await coachSays("Look. It hired its own help. Without asking me.", 20_000)
+  await coachSays("Look. It hired its own help. Without asking me?", 20_000)
   await expectClickAtWindows("Modeller", "Builder")
   expect(windowNamed("Game lead")).toBeDefined()
   await meetTeam()
@@ -310,7 +310,7 @@ describe("The tour's story", () => {
     await allowRun()
     await seePage()
     // The teammates open their worktrees: the panel is there to show them.
-    await coachSays("Look. It hired its own help. Without asking me.", 20_000)
+    await coachSays("Look. It hired its own help. Without asking me?", 20_000)
     await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
     await sidebarPanel("Worktrees").click()
     await expect.element(page.getByText("models", { exact: true }).first()).toBeVisible()
@@ -370,7 +370,7 @@ describe("The tour's story", () => {
       await approval().getByRole("button", { name: "Don't run" }).click()
       // Within seconds, with no terminal opened and no page shown, the story goes on without
       // them: the lead hires its team all the same.
-      await coachSays("Look. It hired its own help. Without asking me.", 40_000)
+      await coachSays("Look. It hired its own help. Without asking me?", 40_000)
       expect(windowNamed("Game server")).toBeUndefined()
       await playUntil("Three agents, one model. Yours.")
       await expectClickAt(() => paneOf("Modeller"))
@@ -430,7 +430,7 @@ describe("The tour's story", () => {
     await seePage()
     // Silent, it never names itself; the tour rings the lead after its wait, and the story goes
     // on.
-    await coachSays("Look. It hired its own help. Without asking me.", 30_000)
+    await coachSays("Look. It hired its own help. Without asking me?", 30_000)
     await expect.poll(() => windowNamed("Modeller"), { timeout: 20_000 }).toBeDefined()
     await playUntil("A model, made from nothing. Go on. Spin it.", 60_000)
   })
@@ -495,7 +495,7 @@ describe("The tour's story", () => {
       // The Modeller asks as soon as its first model is up: the tour points at the question,
       // whatever step it is at, until the person answers it, and opens the Inbox no more than
       // anything else: it points at its button.
-      await playUntil("A teammate has a question. For you, not me.", 60_000)
+      await playUntil("A teammate has a question. Huh? For you, not me.", 60_000)
       await pressRow("What colour should the hero be?")
       const sheet = page.getByRole("dialog", { name: "Modeller" })
       const pick = sheet.getByRole("button", { name: /Blue/ })

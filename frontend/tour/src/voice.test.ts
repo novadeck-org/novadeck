@@ -1,3 +1,4 @@
+import { narration } from "./steps"
 import { describe, expect, it } from "./test"
 import { createVoice, mutedKey, takeOf, type VoiceAudio } from "./voice"
 
@@ -98,6 +99,11 @@ describe("Nyx's voice-over", () => {
     })
     expect(() => voice.say("Line.")).not.toThrow()
     await Promise.resolve()
+  })
+
+  it("has a take for every line the tour says, so a changed line gets a new one", () => {
+    const unsaid = [...narration()].filter(([, line]) => takeOf(line) === undefined)
+    expect(unsaid.map(([key]) => key)).toEqual([])
   })
 
   it("finds no take for words the tour never says", () => {

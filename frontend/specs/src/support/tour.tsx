@@ -132,7 +132,7 @@ export const coachSaysAny = async (words: readonly string[], timeout = 40_000): 
 
 /** What the tour says when something interrupts its story: a teammate's question, a permission ask. */
 const interruptions = [
-  "A teammate has a question. For you, not me.",
+  "A teammate has a question. Huh? For you, not me.",
   "It's asking your permission. Read it first.",
 ]
 
