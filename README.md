@@ -95,9 +95,8 @@ cleans up after the merge.
   <img src="docs/assets/highlights/files.webp" alt="The Files panel shows the project's tree while the agents write: each file marked with the agent writing it, new files arriving as they're made." width="100%" />
 </p>
 
-Their changes sit in separate worktrees, but the Files panel shows the whole project with all of
-them laid over it, each file marked with the agent changing it. Live. When two of them go for the
-same file, I see it way before it's a merge conflict.
+The Files panel shows all their changes in one tree, live, each file marked with who's on it.
+Two of them going for the same file? I know before git does.
 
 ## Where'd it save that?
 
