@@ -1304,8 +1304,13 @@ const send: Tool<Sent> = {
   name: "send",
   description: (mode, gated) =>
     "Send a message to the agent in another Novadeck terminal of this project and session, by the " +
-    "terminal's exact handle as agents lists it (such as @fox), or, only to terminals you lead, " +
-    "several handles or team; anything else is refused, with the terminals described. It reaches that agent by itself, wrapped as from you, and " +
+    "terminal's exact handle as agents lists it (such as @fox), or several handles (@fox @owl) " +
+    "or team, which is the terminals you lead or, if you lead none, your lead and its other " +
+    "members; anything else is refused, with the terminals described. Send to several only when " +
+    "each of them needs the message: a problem goes to whoever owns that area, with your lead " +
+    "copied, and a reply goes to the sender alone. A send to several counts once for each " +
+    "recipient against the messages a minute you may send, except to terminals you lead, which " +
+    "counts once. It reaches that agent by itself, wrapped as from you, and " +
     "marked as from its lead when you opened that terminal with open_agent or lead it; up to 4 KB, so put longer " +
     "content in a file and send its path." +
     reused +
@@ -1317,8 +1322,9 @@ const send: Tool<Sent> = {
       to: {
         type: "string",
         description:
-          "The terminal's exact handle, such as @fox, as agents lists it; for terminals you " +
-          "lead, several (@fox @owl) or team.",
+          "The terminal's exact handle, such as @fox, as agents lists it; or several (@fox " +
+          "@owl), or team: the terminals you lead, or, if you lead none, your lead and its " +
+          "other members.",
       },
       text: { type: "string", description: "The message, up to 4 KB." },
     },

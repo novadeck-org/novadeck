@@ -4812,19 +4812,13 @@ describe("a lead's message to its team", () => {
     expect(sendAny("A", "fox", "four")).toMatchObject({ ok: true, to: "fox", state: "queued" })
   })
 
-  it("goes only to terminals the sender leads, or nowhere", () => {
+  it("refuses the whole call for a name that is no terminal, and `team` for one with no team", () => {
     const { messaging, records, sendAny } = withTeam()
-    expect(sendAny("A", "owl fox", "hi")).toEqual({
-      ok: false,
-      reason:
-        "@fox isn't a terminal you lead: a message to several terminals, or to your team, goes " +
-        "only to terminals you lead. Send to each other terminal on its own.",
-    })
     expect(sendAny("B", "team", "hi")).toEqual({
       ok: false,
       reason:
-        "`team` names the terminals you lead, and you lead none here; send to your lead or a " +
-        "teammate by its handle.",
+        "`team` names the terminals you lead, or, if you lead none, your lead and its other " +
+        "members, and you have neither here; send to a terminal by its handle.",
     })
     // The name that is no handle, with the terminals there; quoted whole only where `to`
     // holds what no handle has.
@@ -4852,7 +4846,7 @@ describe("a lead's message to its team", () => {
     for (let index = 0; index < 3; index += 1) teamSent(sendAny("A", "owl kite", `rule ${index}`))
     const over =
       "An agent may send 16 messages a minute, 3 of them to any one terminal (a send to " +
-      "several terminals you lead counts once); try again shortly."
+      "several terminals you lead counts once, to any others once for each); try again shortly."
     expect(sendAny("A", "owl kite", "one more")).toEqual({
       ok: false,
       reason: `Not sent to @owl: ${over}\nNot sent to @kite: ${over}`,
@@ -4871,10 +4865,6 @@ describe("a lead's message to its team", () => {
       "kite",
       "crow",
     ])
-    expect(sendAny("A", "owl wren", "hi")).toMatchObject({
-      ok: false,
-      reason: expect.stringMatching(/^@wren isn't a terminal you lead/),
-    })
   })
 
   it("counts once against the sender's rate, which grows by two for each terminal it leads", () => {
@@ -4890,7 +4880,7 @@ describe("a lead's message to its team", () => {
     // A fourth to the same three is over each pair's three: none is kept, and it counts nothing.
     const over =
       "An agent may send 16 messages a minute, 3 of them to any one terminal (a send to " +
-      "several terminals you lead counts once); try again shortly."
+      "several terminals you lead counts once, to any others once for each); try again shortly."
     expect(sendAny("A", "team", "rule 3")).toEqual({
       ok: false,
       reason: ["owl", "kite", "crow"].map((to) => `Not sent to @${to}: ${over}`).join("\n"),
@@ -4910,6 +4900,74 @@ describe("a lead's message to its team", () => {
       ok: false,
       reason: expect.stringContaining("An agent may send 10 messages a minute"),
     })
+  })
+
+  it("lets a terminal that leads nobody send to two named peers, each its own message", () => {
+    const { messaging, sendAny } = withTeam()
+    const answer = teamSent(sendAny("B", "@owl @kite", "Which port is free?"))
+    expect(answer.sent.map(({ to }) => to)).toEqual(["owl", "kite"])
+    expect(messages(messaging, "W1")).toHaveLength(1)
+    expect(messages(messaging, "W2")).toHaveLength(1)
+    expect(messages(messaging, "W3")).toEqual([])
+  })
+
+  it("refuses the whole call for an unknown handle, before anyone gets it", () => {
+    const { records, sendAny } = withTeam()
+    expect(sendAny("B", "@owl @nobody", "hi")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/^"nobody" is no terminal's handle here\./),
+    })
+    expect(records.messages()).toEqual([])
+  })
+
+  it("names a member's team as its lead and its siblings, never itself", () => {
+    const { records, sendAny } = withTeam()
+    const answer = teamSent(sendAny("W2", "team", "I took the lint errors."))
+    expect(answer.sent.map(({ to }) => to)).toEqual(["moth", "owl", "crow"])
+    // Nothing comes back to kite, and nobody outside the team is reached.
+    expect(records.messages().map(({ to }) => to.handle)).toEqual(["moth", "owl", "crow"])
+  })
+
+  it("keeps a lead's `team` to the terminals it leads, and names its own lead by handle", () => {
+    const { messaging, sendAny } = withTeam()
+    // owl leads kite's sibling crow, as well as being led by moth.
+    messaging.setLead("W3", "W1")
+    expect(teamSent(sendAny("W1", "team", "hi")).sent.map(({ to }) => to)).toEqual(["crow"])
+    expect(teamSent(sendAny("W1", "team moth", "hi")).sent.map(({ to }) => to)).toEqual([
+      "crow",
+      "moth",
+    ])
+  })
+
+  it("marks a sibling's message as a peer's, and its lead's as a report", () => {
+    const { records, sendAny, delivered } = withTeam()
+    teamSent(sendAny("W2", "team", "Heads up."))
+    const text = delivered("owl")
+    expect(text).toMatch(/<message id="m-[a-z0-9]+" from="kite" agent="Claude Code"/)
+    expect(text).not.toMatch(/from="kite"[^>]* lead="/)
+    for (const message of records.messages()) expect(message.fromLead).toBe(false)
+  })
+
+  it("counts once for each recipient against a non-lead's rate, and refuses it whole short of that", () => {
+    const { messaging, records, follow, sendAny } = withTeam()
+    const others = ["C", "D", "E", "F"].map((id, index) => {
+      const handle = handleWords[index + 10]!
+      messaging.register(id, here, handle, null)
+      follow(id, binding("codex", `s-${id}`, id))
+      return handle
+    })
+    // fox leads none and may send ten: three sends to two peers each count six...
+    for (let index = 0; index < 3; index += 1)
+      teamSent(sendAny("B", `${others[0]} ${others[1]}`, `ask ${index}`))
+    // ...so four more to others fit, and a send to two more does not.
+    for (const [index, to] of [others[2], others[3], others[2], others[3]].entries())
+      sent(messaging.send("B", { to: to!, text: `solo ${index}` }))
+    const before = records.messages().length
+    expect(sendAny("B", `${others[2]} ${others[3]}`, "too many")).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("An agent may send 10 messages a minute"),
+    })
+    expect(records.messages()).toHaveLength(before)
   })
 
   it("counts once against the runner's sixty", () => {

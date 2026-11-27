@@ -2263,6 +2263,26 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     }
   })
 
+  it("tells send's agent who `team` names and when to send to several", async () => {
+    const [, tools] = await session(terminal(), [initialize, list])
+    const described = tools?.result?.tools as {
+      name: string
+      description: string
+      inputSchema: { properties: { to: { description: string } } }
+    }[]
+    const send = described.find((tool) => tool.name === "send")!
+    expect(send.description).toContain(
+      "several handles (@fox @owl) or team, which is the terminals you lead or, if you lead none, your lead and its other members",
+    )
+    expect(send.description).toContain("Send to several only when each of them needs the message")
+    expect(send.description).toContain(
+      "a problem goes to whoever owns that area, with your lead copied, and a reply goes to the sender alone",
+    )
+    expect(send.description).toContain("counts once for each recipient")
+    expect(send.description).not.toContain("only to terminals you lead")
+    expect(send.inputSchema.properties.to.description).toContain("your lead and its other members")
+  })
+
   it("carries the messaging rules in send's description, once", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as { name: string; description: string }[]

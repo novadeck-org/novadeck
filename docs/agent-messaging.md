@@ -412,7 +412,7 @@ so: the error names the new holder (handle, title, summary, when it was opened),
 terminal the agent may have known as `@moth`, which closed, and that calling again with the
 same handle reaches the new one. The second call of the same
 session to the same handle goes through. A send to `team` names no handle (it means the
-terminals the caller leads, by id), so the guard never holds it back; a send to several
+caller's team, by id), so the guard never holds it back; a send to several
 named handles is refused whole, naming each one the session wasn't shown, before any of
 them gets the message.
 
@@ -560,22 +560,30 @@ answers it in the Inbox.
   hooks untrusted) can still send; the answer, refused or not, adds that replies can't
   reach it until Novadeck's hooks are trusted there (`/hooks`).
 
-  **To its team.** `to` stays one string, as every harness's tool schema keeps a plain
+  **To several.** `to` stays one string, as every harness's tool schema keeps a plain
   string as it is (a string-or-list union is the part Codex's and Antigravity's schema
-  handling are least sure to keep): one handle, or, only for terminals the caller leads,
-  several separated by spaces or commas (`@fox @owl`; the runner takes a JSON list too), or
-  `team` for every terminal it leads (not one led only until its brief is delivered,
-  whose lead marks that brief alone). Each recipient gets its own message, judged as a
-  `send` to it alone is: its own thread, hop and loop count, its lead mark, the pair's
-  rate, the recipient's undelivered cap, a stopped thread's block, duplicates. One
-  refused there doesn't stop the others, and the answer has a line for each, then what
-  every answer adds, once; refused for every one, the call is refused, a line each. The call counts once against the sender's rate and the
-  runner's, if any recipient keeps a message. A name that is no handle there refuses the
-  whole call with the listing, quoting `to` as written (an agent may have meant
-  `@fox · api` as one name), and one the caller doesn't lead refuses it too ("@x isn't a
-  terminal you lead: …"), so nothing reaches only some of them; a caller that leads
-  none is told there is no team. Restricting it to the caller's team keeps a peer from
-  passing its rate by naming many terminals. Messaging's own callers (`open_agent`'s
+  handling are least sure to keep): one handle, or several separated by spaces or commas
+  (`@fox @owl`; the runner takes a JSON list too), from any terminal, or `team`. `team` is
+  the terminals the caller leads (not one led only until its brief is delivered, whose lead
+  marks that brief alone); for a terminal that leads none, it is its own team: its lead and
+  the lead's other members, never itself. A terminal that both leads and is led keeps the
+  first meaning, so `team` reaches the terminals it leads and its own lead is named by
+  handle. There is no word for every terminal in a session, and no broadcast room: the
+  caller names who needs the message. Each recipient gets its own message, judged as a
+  `send` to it alone is: its own thread, hop and loop count, its lead mark (decided per
+  recipient, so a member's message reaches its lead as a report and its siblings as a
+  peer's), the pair's rate, the recipient's undelivered cap, a stopped thread's block,
+  duplicates. One refused there doesn't stop the others, and the answer has a line for each,
+  then what every answer adds, once; refused for every one, the call is refused, a line each.
+  A call whose recipients are all terminals the caller leads counts once against the
+  sender's rate and the runner's, if any recipient keeps a message; any other counts once
+  for each recipient against the sender's own rate (and the runner's, for each message), and
+  is refused whole, before anyone gets it, when the sender's remaining rate can't cover
+  every recipient. A name that is no handle there refuses the whole call with the listing,
+  quoting `to` as written (an agent may have meant `@fox · api` as one name), so nothing
+  reaches only some of them; a `team` that is empty is told so. Counting a peer's sends per
+  recipient keeps it from passing its rate by naming many terminals, while a lead keeps the
+  discount that lets it direct its team. Messaging's own callers (`open_agent`'s
   task, `lead`'s brief) send to one terminal only (`Messaging.send`); the MCP call goes
   through `sendAny`. A second tool was weighed and set aside: it would carry the
   messaging rules again, in every agent's context.
@@ -3096,7 +3104,9 @@ output, not that the model acted on it.
 - **Rates.** A sender may send 10 messages a minute, and 2 more for each terminal it leads
   now (a lead of 17, 44), 3 of them to any one recipient; the runner allows 60 a minute in
   all. A send to several terminals the caller leads counts once against the sender's and
-  the runner's, and once against each pair's. A lead's runaway loop with its team is
+  the runner's, and once against each pair's; a send to several that are not all led counts
+  once for each recipient against the sender's and the runner's, and once against each pair's,
+  and is refused whole if the sender's rate can't cover them all. A lead's runaway loop with its team is
   still held per pair, as above, and bounded by each pair's 3.
 - **Pause.** One switch, stored so it survives restarts, pauses messaging across the
   whole runner, every project and session: waiting messages are held, and `send`
