@@ -189,7 +189,7 @@ describe("the open call", () => {
         owns: (agent: AgentName, transcript: string | undefined) =>
           agent === "pi" && own !== undefined && transcript === own,
         starts: () => true,
-        follow: () => () => {},
+        followSwitch: () => () => {},
       },
     })
     const run = new Calls(1000, host)

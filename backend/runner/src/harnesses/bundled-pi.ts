@@ -270,6 +270,8 @@ export class BundledPi {
   private settling: Promise<void> = Promise.resolve()
   // Whether the tour asked for it (`want`), which the switch going off doesn't undo.
   private wanted = false
+  // Who hears each time the switch is set (`followSwitch`), whatever the state does.
+  private readonly switching = new Set<() => void>()
   // The changes of the file `nova` reads, one after another (`mark`).
   private marking: Promise<void> = Promise.resolve()
 
@@ -305,6 +307,15 @@ export class BundledPi {
     },
   ) {}
 
+  /**
+   * Calls `listener` each time the switch is set, on or off, which the state doesn't always say
+   * (it stands while the tour wants it); the returned function stops it.
+   */
+  followSwitch(listener: () => void): () => void {
+    this.switching.add(listener)
+    return () => this.switching.delete(listener)
+  }
+
   /** Where the fetch stands. */
   state(): BundledPiFetch {
     return this.current
@@ -323,6 +334,7 @@ export class BundledPi {
    */
   switched(): void {
     this.mark()
+    for (const listener of this.switching) listener()
     // The tour's download goes on, and its state stands, whatever the switch.
     if (this.wanted) return void this.ensure().catch(() => {})
     if (!this.host.enabled()) {

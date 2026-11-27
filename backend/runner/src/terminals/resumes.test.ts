@@ -162,7 +162,7 @@ describe("the session an agent asks to resume in a new terminal", () => {
         owns: (agent: AgentName, transcript: string | undefined) =>
           agent === "pi" && transcript === own,
         starts: () => true,
-        follow: () => () => {},
+        followSwitch: () => () => {},
       },
     })
     expect(

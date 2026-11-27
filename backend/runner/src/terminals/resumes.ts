@@ -264,10 +264,10 @@ export type ClaimsHost = {
   /**
    * Nova, Novadeck's own pi (`BundledPi`): whether a session, by its transcript, is its
    * (`owns`), which resumes on Nova (`novaProgram`) with no connection of the person's; whether
-   * it may start in a terminal now (`starts`); and its switch's changes (`follow`). No session is
+   * it may start in a terminal now (`starts`); and its switch's changes (`followSwitch`). No session is
    * its where omitted.
    */
-  readonly nova?: Pick<BundledPi, "owns" | "starts" | "follow">
+  readonly nova?: Pick<BundledPi, "owns" | "starts" | "followSwitch">
 }
 
 /**
@@ -373,7 +373,7 @@ export class Claims {
 
   /** Calls `listener` as Nova is switched on or off; the returned function stops it. */
   followNova(listener: () => void): () => void {
-    return this.host.nova?.follow(listener) ?? (() => {})
+    return this.host.nova?.followSwitch(listener) ?? (() => {})
   }
 
   /**

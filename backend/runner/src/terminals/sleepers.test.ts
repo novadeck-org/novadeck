@@ -121,7 +121,7 @@ const setup = (
           owns: (agent: AgentName, transcript: string | undefined) =>
             agent === "pi" && transcript === options.own,
           starts: () => nova.on,
-          follow: (listener: () => void) => {
+          followSwitch: (listener: () => void) => {
             nova.followers.add(listener)
             return () => nova.followers.delete(listener)
           },

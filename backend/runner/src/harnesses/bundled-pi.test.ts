@@ -423,6 +423,23 @@ describe("Novadeck's pi behind its Experimental switch", () => {
     await expect(stat(on)).resolves.toBeDefined()
   })
 
+  it("tells each setting of its switch, even with the copy ready for the tour", async ({
+    resources,
+  }) => {
+    const lever = { value: false }
+    const { pi, states } = await service(resources, lever)
+    await pi.want()
+    expect(pi.state().state).toBe("ready")
+    const switches: boolean[] = []
+    pi.followSwitch(() => switches.push(lever.value))
+    const told = states.length
+    lever.value = true
+    pi.switched()
+    // The state stands ready for the tour, so only the switch's own listeners hear of it.
+    await expect.poll(() => switches).toEqual([true])
+    expect(states.length).toBe(told)
+  })
+
   it("says whether a terminal's launcher may start it: the switch's, or the tour's", async ({
     resources,
   }) => {
