@@ -116,7 +116,7 @@ changed; **↓2** when `main` is behind and Novadeck left it alone (the card say
 **Update**); **↑1** for commits `main` has that origin doesn't. A closed folder that hides news
 shows a dot, and so does the Files icon while the panel is hidden. You get a notification, per
 Preferences > Notifications, only when a pull request of one of your agents lands in `main`, or when
-new dependencies come in. Agents working in a repository's own folder are told when `main` moved.
+new dependencies come in. Agents in the middle of a turn in a repository's own folder are told when `main` moved; idle ones aren't woken for it.
 
 ## Agents show you their work
 

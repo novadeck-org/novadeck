@@ -1181,7 +1181,7 @@ with every safety check again at that time:
     commits to `MainSync`, which records a landing in memory: the first-parent commits as merges (a pull request's
     number from a trailing `(#123)` or `Merge pull request #123`), the changed files (up to 200) and the command for a
     changed lockfile (`landing.ts`). A landing the person has not seen stays, joined by the next one, until
-    `projects.syncSeen` (the card opening) clears it for every client; a restart forgets it. The Files panel shows
+    `projects.syncSeen` (the card closing) clears it for every client; a restart forgets it. The Files panel shows
     them as marks on the repository's row, or a line over the tree where the project's own folder is the repository;
     it asks every 20 s, one read at a time, for as long as the app runs (the rail's dot and the notices read it too),
     and when `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
@@ -1190,7 +1190,7 @@ with every safety check again at that time:
     reason is shown in plain words ("Your changes to src/a.ts would be overwritten."); a main that has commits of its
     own as well is refused first. The person is notified (Preferences > Notifications, as a finish is) only for a landing with a merge of
     one of their agents' pull requests (the forge's branch to pull request, kept as seen) or new dependencies; an
-    agent whose terminal works in the repository's own checkout (not a worktree) gets a `Novadeck · Main` notice
+    agent mid-turn in a terminal that works in the repository's own checkout (not a worktree) gets a `Novadeck · Main` notice
     (`worktrees/main-notice.ts`: the commits, the files, the lockfile; facts only) through `Messaging.notice`, which
     every harness takes.
   - **Restore and looking again.** A restore from History makes a new terminal id; when the restore

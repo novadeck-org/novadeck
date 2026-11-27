@@ -639,7 +639,7 @@ Agents:
   every 20 s while shown). "Main moves the checkout" adds `src/checkout/Receipt.tsx` and
   removes `src/components/Price.tsx`, which the shown panel reads in within those seconds, and
   leaves a "3 new" whose card lists three merges and a lockfile hint, and a dot on the Files toggle while
-  the panel is hidden; opening the card clears it and pulses the files that came in.
+  the panel is hidden; opening the card pulses the files that came in, and closing it clears the mark.
   A strip of agent chips above the tree lists the agents with work in the project, in the
   session's roster order, each light-able by a click (any number, Escape lets them go; with
   none kept the selected terminal's agent is lit). The `messages` variant has a squad, as
