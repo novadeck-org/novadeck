@@ -74,6 +74,17 @@ export const Sheet = ({
   )
 }
 
+// The anchor's box moved up or down only as far as it takes to stand within the boundary, as
+// the boundary's top or bottom edge; a box within it, or no boundary, is as it is.
+const within = (rect: DOMRect, boundary: HTMLElement | SheetBounds | null): SheetBounds => {
+  const box = boundary instanceof HTMLElement ? boundary.getBoundingClientRect() : boundary
+  const { x, width, height } = rect
+  if (!box) return { x, y: rect.y, width, height }
+  const top = box.y
+  const bottom = Math.max(top, box.y + box.height - height)
+  return { x, y: Math.min(Math.max(rect.y, top), bottom), width, height }
+}
+
 // The sheet as placed for one anchor.
 const Placed = ({
   label,
@@ -101,11 +112,13 @@ const Placed = ({
       flip: false,
       fitViewport: true,
       boundary: () => reads.current.boundary() ?? document.body,
-      // Where the anchor last was, where it has gone: the sheet stays put.
+      // Where the anchor last was, where it has gone: the sheet stays put. An anchor scrolled
+      // past the boundary's edge stands at that edge, so the sheet stays whole within it
+      // rather than following its row off the page.
       getAnchorRect: () => {
         const rect = reads.current.anchor()?.getBoundingClientRect()
         if (rect) last.current = rect
-        return last.current
+        return last.current && within(last.current, reads.current.boundary())
       },
     }),
     [reads],

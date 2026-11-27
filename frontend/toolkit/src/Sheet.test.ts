@@ -30,7 +30,8 @@ const row = (left: number, top: number): HTMLElement => {
 }
 
 const sheet = (
-  placement: Pick<ComponentProps<typeof Sheet>, "anchor" | "anchorKey" | "placeKey">,
+  placement: Pick<ComponentProps<typeof Sheet>, "anchor" | "anchorKey" | "placeKey"> &
+    Partial<Pick<ComponentProps<typeof Sheet>, "boundary">>,
 ) => {
   const props: ComponentProps<typeof Sheet> = {
     label: "Details",
@@ -75,6 +76,23 @@ describe("a sheet", () => {
       view.rerender(sheet({ anchor: () => null, anchorKey: "a", placeKey: "1" }))
       await settle()
       expect(placed()).toBe("508px 400px")
+    })
+  })
+
+  context("whose row scrolls above its boundary", () => {
+    it("stays whole within the boundary, below its top", async () => {
+      const boundary = () => ({ x: 0, y: 100, width: 1200, height: 600 })
+      let top = 400
+      const scrolled = row(300, 0)
+      scrolled.getBoundingClientRect = () =>
+        DOMRect.fromRect({ x: 300, y: top, width: 200, height: 24 })
+      const view = mount(sheet({ anchor: () => scrolled, anchorKey: "a", boundary }))
+      await settle()
+      expect(placed()).toBe("508px 400px")
+      top = -500
+      view.rerender(sheet({ anchor: () => scrolled, anchorKey: "a", placeKey: "1", boundary }))
+      await settle()
+      expect(placed()).toBe("508px 112px")
     })
   })
 
