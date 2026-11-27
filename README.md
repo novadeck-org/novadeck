@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <a href="https://youtu.be/m3utO-zBN-k"><img src="docs/assets/tour.webp" alt="Novadeck's Canvas with eight agents, each marked working, asking, failed or done in the terminal list. Watch the 3-minute tour." width="100%" /></a>
+  <a href="https://youtu.be/uIIKtPlqzPc"><img src="docs/assets/tour.webp" alt="Novadeck's Canvas with eight agents, each marked working, asking, failed or done in the terminal list. Watch the 3-minute tour." width="100%" /></a>
 </p>
 
 I run like four or five coding agents a day. The agents are fine. Keeping up with them was NOT.
