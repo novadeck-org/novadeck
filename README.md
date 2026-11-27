@@ -126,10 +126,11 @@ a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff
 ## Drop a ⭐
 
 > [!IMPORTANT]
-> My deck runs on one dev and zero eddies. Free for you, no account, no tracking, no ad budget.
+> My deck is built by one dev, and it's free.\
+> No account, no tracking, no ad budget.\
 > Stars are how people find it.
 >
-> Think it's preem? Star it. One click. Don't be a gonk.
+> Think it's preem? Star it.
 >
 > Stay nova, choom ✦
 
