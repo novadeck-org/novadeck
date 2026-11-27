@@ -1157,11 +1157,27 @@ describe("Preferences' menu at the narrow layout's edge", () => {
       await openWorkspace()
       await openAppearance()
       const list = preferencesDialog().element().querySelector<HTMLElement>(".preferences-tabs")!
-      // The menu still stands down the side here.
+      // The menu still stands down the side here, the page beside it.
       expect(getComputedStyle(list).flexDirection).toBe("column")
+      const main = preferencesDialog().element().querySelector<HTMLElement>(".preferences-main")!
+      expect(getComputedStyle(main).borderTopWidth).toBe("0px")
+      expect(getComputedStyle(main).borderLeftWidth).not.toBe("0px")
 
       tab("Appearance").element().focus()
       await userEvent.keyboard("{ArrowDown}")
+      await expect.element(tab("Terminal")).toHaveAttribute("aria-selected", "true")
+    })
+
+    it("runs the menu along the top one pixel narrower, its keys with it", async () => {
+      onTestFinished(() => page.viewport(1440, 900))
+      await page.viewport(639, 800)
+      await openWorkspace()
+      await openAppearance()
+      const list = preferencesDialog().element().querySelector<HTMLElement>(".preferences-tabs")!
+      expect(getComputedStyle(list).flexDirection).toBe("row")
+
+      tab("Appearance").element().focus()
+      await userEvent.keyboard("{ArrowRight}")
       await expect.element(tab("Terminal")).toHaveAttribute("aria-selected", "true")
     })
   })
