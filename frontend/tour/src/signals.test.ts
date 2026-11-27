@@ -324,6 +324,17 @@ describe("The tour's story signals", () => {
     })
   })
 
+  it("count a note only where it says so after the role, not where it mentions polishing to come", () => {
+    const messages = messagesOf([
+      message("m1", "02", "01", "Core: first version in, polished once World lands"),
+      message("m2", "03", "01", "World: I'll say first version when it's polished"),
+    ])
+    expect(tourSignals(teamWorkspace(), "01", { messages }).team).toMatchObject({
+      firstIn: 1,
+      polished: 0,
+    })
+  })
+
   it("say whether a teammate is at work, and whether one asked the person", () => {
     const workspace = teamWorkspace()
     const roster = workspace.projects[0]!.history[0]!.state.roster

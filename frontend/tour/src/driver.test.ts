@@ -945,6 +945,12 @@ describe("The tour's story", () => {
         line: "Three agents, one model. Yours.",
       })
     })
+
+    it("ends the story where there is no page and no model to end on", () => {
+      const noModel = world({ ...everything, shown: { page: null, model: null } })
+      const moved = feed(atStep("play", false), noModel, 100)
+      expect(moved).toMatchObject({ run: null, end: "done" })
+    })
   })
 
   context("with no page to run", () => {

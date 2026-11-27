@@ -40,9 +40,10 @@ export type TourRole = "lead" | "mate" | "talker" | "maker"
 export const modelsFolder = "models/"
 
 // What a teammate writes the lead as its work comes along, as its task words it ("<Role>: first
-// version in", "<Role>: polished").
-const firstVersionNote = /first version/i
-const polishedNote = /polished/i
+// version in", "<Role>: polished"): right after the role's colon, so a message that only mentions
+// polishing to come ("first version in, polished once World lands") counts as no more than it is.
+const firstVersionNote = /^[^:\n]{1,40}:\s*first version/i
+const polishedNote = /^[^:\n]{1,40}:\s*polished\b/i
 
 // The tabs a step looks at in a pane.
 export type PaneTab = "messages" | "page" | "model"

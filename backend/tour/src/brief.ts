@@ -27,7 +27,7 @@ import { tourBriefMark } from "./notices.js"
 
 /** What the tour rings its agent where it has gone quiet at a step (`tour.nudge`). */
 export const nudgeLine =
-  "Novadeck's tour is waiting on you: look at what you've done so far and carry on from the next step of the tour brief Novadeck sent you. Don't redo a step."
+  "Novadeck's tour is waiting on you: look at what you've done so far and carry on from the next step of the tour brief Novadeck sent you, or of the task your lead sent you. Don't redo a step."
 
 /** The seed's places the agents' tasks name. Changing one is changing the task that names it. */
 export const modelsGuide = "models/README.md"
@@ -171,7 +171,6 @@ const moods = [
   "calm",
 ]
 
-
 // `count` different items of `list`, in a random order.
 const drawMany = <T>(list: readonly T[], count: number, random: () => number): T[] => {
   const left = [...list]
@@ -241,7 +240,8 @@ If Novadeck's tools (\`describe\`, \`open_worktree\`, \`show\`, \`look\`, \`ask\
    with a model you made) and \`send\` ${lead} "[[role]]: first version in".
 8. Play it${url ? " with `look`" : ""}, then make the one change that makes it best: the game beatable in about two
    minutes but not trivial, the effects, the sound. Then \`send\` ${lead} "[[role]]: polished",
-   say one short sentence, and end your turn. After that, answer only what messages ask.`
+   say one short sentence, and end your turn. After that, act on each message: answer a
+   teammate's line, or make the person's choice if it comes late and tell ${lead} in one line.`
 
 /** The lead's script for a run. */
 export const tourBrief = ({
@@ -296,7 +296,7 @@ ${
 6. When Novadeck says the server started, call \`show\` with \`page\` {"url": "${serving.url}"} and \`open\` true.`
     : ""
 }
-7. Say in one sentence that the team is at work, and end your turn.
+${serving ? 7 : 6}. Say in one sentence that the team is at work, and end your turn.
 
 ## Messages
 

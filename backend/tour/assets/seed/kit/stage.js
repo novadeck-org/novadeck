@@ -86,7 +86,7 @@ export const createStage = (options = {}) => {
     fill.intensity = look.night ? 0.9 : 1.5
     rimLight.color.set(look.accent2)
     rimLight.intensity = look.night ? 1.0 : 0.35
-    Object.assign(post, { bloom: look.bloom, exposure: look.exposure, saturation: look.saturation })
+    Object.assign(post.settings, { bloom: look.bloom, exposure: look.exposure, saturation: look.saturation })
     return stage
   }
   stage.setLook(look)

@@ -393,6 +393,8 @@ const modelPlayStep: TourStep = {
   show: [{ kind: "travel", role: "maker" }],
   open: { role: "maker", tab: "model" },
   ready: ({ shown }) => shown.model !== null,
+  // A team that built its characters in code has no model to end on: the story ends without it.
+  skip: ({ shown }) => shown.model === null,
   holdMs: 8_000,
   coach: {
     click: ["maker-pane", "maker"],
