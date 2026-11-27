@@ -1,5 +1,5 @@
 import type { AgentActivity } from "@novadeck/protocol"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { agentAtWork, watchWorking, type WorkingChange } from "./working.js"
 
@@ -29,7 +29,7 @@ const told = async (
       yield* changes
     })(),
     (working) => said.push(working),
-    (id) => crons.has(id),
+    (id) => (crons.has(id) ? null : undefined),
   )
   return said
 }
@@ -86,6 +86,32 @@ describe("agentAtWork", () => {
 })
 
 describe("watchWorking", () => {
+  it("releases a one-shot schedule that expires without another terminal change", async () => {
+    vi.useFakeTimers()
+    const until = Date.now() + 1_000
+    const ending = Promise.withResolvers<void>()
+    const said: boolean[] = []
+    const watching = watchWorking(
+      (async function* () {
+        yield changed("a", idle)
+        yield { type: "synced" } as const
+        await ending.promise
+      })(),
+      (working) => said.push(working),
+      () => (Date.now() < until ? until : undefined),
+    )
+    try {
+      await vi.advanceTimersByTimeAsync(0)
+      expect(said).toEqual([true])
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(said).toEqual([true, false])
+    } finally {
+      ending.resolve()
+      await watching
+      vi.useRealTimers()
+    }
+  })
+
   it("tells once an agent starts and once the last one stops", async () => {
     expect(
       await told([

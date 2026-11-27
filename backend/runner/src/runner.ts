@@ -813,7 +813,7 @@ const startRunner = (options: RunnerOptions): Runner => {
   let closing: Promise<void> | undefined
   if (options.working)
     watchWorking(terminals.watch(workingWatcher), options.working, (id) =>
-      terminals.scheduled(id),
+      terminals.scheduledUntil(id),
     ).catch((error: unknown) =>
       log.error("working.failed", "Novadeck stopped following whether agents work", {
         err: error,
