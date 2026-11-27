@@ -521,6 +521,10 @@ export class Reports {
       deadline,
       person,
       payload: report.payload,
+      version:
+        record.bound?.binding.agent === report.agent
+          ? (record.bound.binding.version ?? null)
+          : null,
     })
     this.quoted(record, told, submission)
     if (stopAsk) {

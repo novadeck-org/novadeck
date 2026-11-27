@@ -11,9 +11,10 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 
-import { harnesses } from "../harnesses/registry.js"
+import { harnesses, messagingOf } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
+import { installHarness } from "./install.js"
 import { asked, gate, latest, tool } from "./model/script.js"
 import {
   deliveries,
@@ -338,10 +339,14 @@ for (const setup of setups) {
       const ids = read.flatMap((one) => one.ids)
       expect(ids.filter((id) => id === second)).toHaveLength(1)
       expect(ids.filter((id) => id === first)).toHaveLength(1)
-      // Where the harness keeps what its hooks print, the note came in full once and the
-      // later delivery only points to it, with its own marks; elsewhere, as where a prompt's
-      // injection lasts one call, every delivery carries it in full.
-      expect(pointsBack(read.at(-1)!)).toBe(setup.keepsHookText)
+      // Where the harness keeps what its hooks print and tells of a compaction, the note came
+      // in full once and the later delivery only points to it, with its own marks; elsewhere,
+      // as where a prompt's injection lasts one call or no hook tells of a compaction
+      // (Antigravity's), every delivery carries it in full.
+      const { version } = await installHarness(setup.agent)
+      expect(pointsBack(read.at(-1)!)).toBe(
+        messagingOf(setup.agent, version).lasting.includes("prompt"),
+      )
       await t1.until("Noted.")
     })
 

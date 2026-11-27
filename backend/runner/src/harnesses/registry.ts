@@ -1,7 +1,7 @@
 import { agy } from "@novadeck/harness-agy/index"
 import { claude } from "@novadeck/harness-claude/index"
 import { codex } from "@novadeck/harness-codex/index"
-import type { Harness } from "@novadeck/harness-core/harness"
+import type { Harness, MessagingProfile } from "@novadeck/harness-core/harness"
 import { withNova } from "@novadeck/harness-nova/extension"
 import { opencode } from "@novadeck/harness-opencode/index"
 import { pi } from "@novadeck/harness-pi/index"
@@ -19,6 +19,18 @@ export const harnesses: { readonly [agent in AgentName]: Harness } = {
 }
 
 export const agents = Object.keys(harnesses) as AgentName[]
+
+/**
+ * How `agent` takes part in agents' messaging in the release its session is bound with
+ * (`Harness.messagingAt`), or as its profile has it where that version is unknown.
+ */
+export const messagingOf = (
+  agent: AgentName,
+  version: string | null | undefined,
+): MessagingProfile => {
+  const { messaging, messagingAt } = harnesses[agent]
+  return version && messagingAt ? messagingAt(version) : messaging
+}
 
 /**
  * Whether the shipping gate is `agent`'s hook alone (`Harness.hookGate`): no permission dialog

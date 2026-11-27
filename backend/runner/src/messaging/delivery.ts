@@ -890,14 +890,13 @@ type MidTurnCall = "tool call" | "model call"
 
 /**
  * Where a lead's message reaches the harness's agent while its turn runs: at its next tool
- * call, or, where a hook asks before every model call (`reinjectPerCall`), its next model
- * call; undefined where it waits for the turn's end.
+ * call, or, where a hook asks before every model call (`asksEveryCall`, `reinjectPerCall`),
+ * its next model call; undefined where it waits for the turn's end.
  */
 export const midTurnCall = (
   hasToolHook: boolean,
-  reinjectPerCall: boolean,
-): MidTurnCall | undefined =>
-  hasToolHook ? "tool call" : reinjectPerCall ? "model call" : undefined
+  asksEveryCall: boolean,
+): MidTurnCall | undefined => (hasToolHook ? "tool call" : asksEveryCall ? "model call" : undefined)
 
 /**
  * Whether the state is one the doorbell looks at the screen of, for an empty box: Working

@@ -309,6 +309,11 @@ export type Harness = {
   readonly launch: LaunchProfile
   /** How it takes part in agents' messaging: what its hooks print, and how it behaves. */
   readonly messaging: MessagingProfile
+  /**
+   * How a release of it takes part in agents' messaging, where that differs from `messaging`,
+   * by the version its session is bound with; `messaging` holds where the version is unknown.
+   */
+  readonly messagingAt?: (version: string) => MessagingProfile
   /** How its input box reads off its screen, which a prompt checks before and after it pastes. */
   readonly box: BoxProfile
   /** Where it draws its own things at its input, for the chat's live slice. */
@@ -521,9 +526,15 @@ export type MessagingProfile = {
   readonly call?: (delivery: string, event: string) => string
   /**
    * Whether a prompt-time delivery lasts only for the model call it was printed for, so
-   * each later call of the turn gets it again, as in Antigravity.
+   * each later call of the turn gets it again, as in Antigravity before 1.5.18.
    */
   readonly reinjectPerCall: boolean
+  /**
+   * Whether its prompt-time hook asks before every model call of a turn, so a lead's message
+   * reaches the agent at its next model call, whether or not what it printed lasts (as in
+   * Antigravity). Implied by `reinjectPerCall`.
+   */
+  readonly asksEveryCall?: true
   /**
    * Whether a prompt given while a turn runs runs its prompt hook as it is queued, not as it
    * is sent. What that hook prints rides the queued prompt, which the person or a Stop may

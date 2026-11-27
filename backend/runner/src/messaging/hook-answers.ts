@@ -3,7 +3,7 @@ import { silentFor, type MessagingProfile } from "@novadeck/harness-core/harness
 import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName } from "@novadeck/protocol"
 
-import { askOf, harnesses } from "../harnesses/registry.js"
+import { askOf, messagingOf } from "../harnesses/registry.js"
 import { rootedIn, type Root } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"
 import type { Deliveries } from "./deliveries.js"
@@ -140,10 +140,12 @@ export class HookAnswers {
       readonly person?: Person
       /** What the hook reported, which a harness's Stop answer may read (`MessagingProfile.stop`). */
       readonly payload?: Report["payload"]
+      /** The release the terminal's session is bound with, where known (`messagingOf`). */
+      readonly version?: string | null
     },
   ): Answer {
     const { deliveries, withdrawals } = this.host
-    const profile = harnesses[report.agent].messaging
+    const profile = messagingOf(report.agent, report.version)
     const silent = { leaseId: null, stdout: silentFor(profile, report.event) }
     const kind = askOf(report.agent, report.event)
     const live = this.host.sessions.get(terminalId)

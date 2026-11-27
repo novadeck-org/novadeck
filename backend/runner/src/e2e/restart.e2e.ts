@@ -2,12 +2,13 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { AgentDetail, TranscriptItem } from "@novadeck/protocol"
 
-import type { Question } from "./agents/agent.js"
+import { messagingOf } from "../harnesses/registry.js"
+import { keepsHookTextIn, type Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import type { Reach } from "./history.js"
-import { installHarness } from "./install.js"
+import { atLeast, installHarness } from "./install.js"
 import { asked, gate, latest, tool, type Call } from "./model/script.js"
 import {
   answers,
@@ -89,16 +90,6 @@ const colour: Question = {
 
 // Novadeck restarting under its agents, the same for every harness (see messaging.e2e.ts
 // for the rule on parity).
-/** Whether a release's version is `least` or later, by its first three numbers. */
-const atLeast = (version: string, least: readonly number[]): boolean => {
-  const parts = version.split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0)
-  for (const [at, want] of least.entries()) {
-    const have = parts[at] ?? 0
-    if (have !== want) return have > want
-  }
-  return true
-}
-
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
@@ -272,13 +263,18 @@ for (const setup of setups) {
       await t3.submit("Ask moth for the word")
 
       // Where the harness keeps what its hooks print, its conversation holds the first
-      // delivery with the note in full, and this one only points to it; elsewhere the
-      // first is gone, and this one carries the note in full.
+      // delivery with the note in full, and this one only points to it, or, where no hook
+      // tells of a compaction (Antigravity's from 1.5.18), carries it in full again; elsewhere
+      // the first is gone, and this one carries the note in full.
       const rung = await run.model.waitFor(
         (call) => !call.side && ring.test(latest(call)) && deliveries(call).length > 0,
         { after: calls },
       )
-      expect(wrappers(rung).map(pointsBack)).toEqual(setup.keepsHookText ? [false, true] : [false])
+      const { version } = await installHarness(setup.agent)
+      const points = messagingOf(setup.agent, version).lasting.includes("prompt")
+      expect(wrappers(rung).map(pointsBack)).toEqual(
+        keepsHookTextIn(setup, version) ? [false, points] : [false],
+      )
       await resumed.until("Heron, as asked.")
     })
 

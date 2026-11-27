@@ -679,7 +679,10 @@ export class Sending {
             recipient.delivery,
             profile.silentOnFailure,
             isFromLead(message)
-              ? midTurnCall(profile.call !== undefined, profile.reinjectPerCall)
+              ? midTurnCall(
+                  profile.call !== undefined,
+                  profile.reinjectPerCall || profile.asksEveryCall === true,
+                )
               : undefined,
             recipient.waits ?? undefined,
             promptsInBackground(recipient),
