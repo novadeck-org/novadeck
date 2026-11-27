@@ -153,6 +153,20 @@ describe("copying ignored files into a new worktree", () => {
     expect(has(fx, ".env")).toBe(false)
   })
 
+  it.skipIf(process.platform === "win32")(
+    "reports a dangling .worktreeinclude symlink without using the default patterns",
+    async ({ fx }) => {
+      symlinkSync("missing-patterns", join(fx.repo, ".worktreeinclude"))
+      write(join(fx.repo, ".env"))
+      expect(await copyIncluded(fx.repo, fx.worktree)).toMatchObject({
+        by: "file",
+        copied: [],
+        unread: true,
+      })
+      expect(has(fx, ".env")).toBe(false)
+    },
+  )
+
   it("counts only ignored files against the file limit", async ({ fx }) => {
     write(join(fx.repo, ".worktreeinclude"), "*.local\n")
     write(join(fx.repo, ".env.local"))

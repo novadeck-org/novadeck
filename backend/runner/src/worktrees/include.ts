@@ -221,11 +221,18 @@ export const pickedFiles = async (
 const patternsAt = async (
   top: string,
 ): Promise<{ readonly by: Included["by"]; readonly lines?: readonly string[] }> => {
+  const file = join(top, includeFile)
   try {
-    return { by: "file", lines: patternLines(await readFile(join(top, includeFile), "utf8")) }
+    return { by: "file", lines: patternLines(await readFile(file, "utf8")) }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT")
-      return { by: "default", lines: defaultPatterns }
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      // A symlink can be present while what it points at is missing.
+      const missing = await lstat(file).then(
+        () => false,
+        (error: NodeJS.ErrnoException) => error.code === "ENOENT",
+      )
+      if (missing) return { by: "default", lines: defaultPatterns }
+    }
     return { by: "file" }
   }
 }
