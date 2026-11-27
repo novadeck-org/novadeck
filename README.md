@@ -123,7 +123,7 @@ going for the same file.
 Whatever an agent makes opens right next to its terminal. A page, a diff, an image, a video, a PDF,
 a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff.
 
-## Drop a ⭐
+## Drop me a ⭐
 
 > [!IMPORTANT]
 > It's just me out here. No team, no ad budget, not much sleep. Building all of this anyway.\
