@@ -1,4 +1,8 @@
+import { useEffect } from "react"
+
 import "./print.css"
+import { closingLine } from "./steps"
+import { tourVoice } from "./voice"
 
 /**
  * Where the tour ends: the game it built is the person's now, and the project was kept as the
@@ -29,44 +33,51 @@ export const TourClosingCard = ({
   readonly onOpen?: (() => void) | undefined
   readonly onRemove: () => void
   readonly onClose: () => void
-}): React.JSX.Element => (
-  <>
-    <div aria-hidden="true" className="tour-print tour-dim" />
-    <section aria-label="Tour finished" className="tour-print tour-closing">
-      <div className="tour-caption-panel">
-        <h3 className="tour-caption-line tour-closing-line">It's yours now.</h3>
-      </div>
-      <p className="tour-caption-note">
-        The team's game is committed in this project, and the next tour starts a fresh one. The
-        tour's agents stay on its free model until it runs out, up to 3 hours. For more work, open
-        your own agent in this project.
-      </p>
-      {keepError !== null && (
-        <p role="alert" className="tour-caption-note">
-          Novadeck couldn't keep the project: {keepError}{" "}
-          <button type="button" className="tour-quiet" onClick={onRetryKeep}>
-            Try again
-          </button>
+}): React.JSX.Element => {
+  // Nyx's last line, said as the card comes; she stops as it goes.
+  useEffect(() => {
+    tourVoice.say(closingLine)
+    return () => tourVoice.stop()
+  }, [])
+  return (
+    <>
+      <div aria-hidden="true" className="tour-print tour-dim" />
+      <section aria-label="Tour finished" className="tour-print tour-closing">
+        <div className="tour-caption-panel">
+          <h3 className="tour-caption-line tour-closing-line">{closingLine}</h3>
+        </div>
+        <p className="tour-caption-note">
+          The team's game is committed in this project, and the next tour starts a fresh one. The
+          tour's agents stay on its free model until it runs out, up to 3 hours. For more work, open
+          your own agent in this project.
         </p>
-      )}
-      <div className="tour-closing-buttons">
-        <button type="button" className="tour-button" onClick={onClose}>
-          Close
-        </button>
-        {onOpen && (
-          <button type="button" className="tour-button" onClick={onOpen}>
-            Open your own project
+        {keepError !== null && (
+          <p role="alert" className="tour-caption-note">
+            Novadeck couldn't keep the project: {keepError}{" "}
+            <button type="button" className="tour-quiet" onClick={onRetryKeep}>
+              Try again
+            </button>
+          </p>
+        )}
+        <div className="tour-closing-buttons">
+          <button type="button" className="tour-button" onClick={onClose}>
+            Close
+          </button>
+          {onOpen && (
+            <button type="button" className="tour-button" onClick={onOpen}>
+              Open your own project
+            </button>
+          )}
+          <button type="button" className="tour-button tour-button-go" onClick={onKeep}>
+            Keep building
+          </button>
+        </div>
+        {canRemove && (
+          <button type="button" className="tour-quiet" onClick={onRemove}>
+            Remove the Tour project
           </button>
         )}
-        <button type="button" className="tour-button tour-button-go" onClick={onKeep}>
-          Keep building
-        </button>
-      </div>
-      {canRemove && (
-        <button type="button" className="tour-quiet" onClick={onRemove}>
-          Remove the Tour project
-        </button>
-      )}
-    </section>
-  </>
-)
+      </section>
+    </>
+  )
+}

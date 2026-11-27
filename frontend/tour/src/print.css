@@ -216,6 +216,13 @@
   gap: 10px;
   padding-inline: 8px;
 }
+/* Nyx's voice on or off: a square tag beside End tour, its speaker struck through while off. */
+.tour-controls .tour-voice {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  padding: 0;
+}
 .tour-controls-free {
   position: fixed;
   z-index: 60;

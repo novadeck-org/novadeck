@@ -11,6 +11,7 @@ import {
   questionCoach,
   screenCoach,
   stepsOf,
+  teamScreenLine,
   waitOf,
   type Coach,
   type TourMove,
@@ -480,7 +481,7 @@ export const coachNow = (
   if (held) {
     return {
       ...screenCoach(held.screen),
-      line: "A teammate wants an answer first.",
+      line: teamScreenLine,
       terminalId: held.terminalId,
     }
   }
