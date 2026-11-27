@@ -36,7 +36,7 @@
 ## Answer them where you are
 
 <p align="center">
-  <img src="docs/assets/highlights/inbox.webp" alt="In the Grid, Checkout tests, a Claude Code agent, asks to run pnpm test:e2e. The ask opens in the Inbox under what the agent did first, with Allow, always allow and Deny. Allow is picked, and the agent's tests run and pass." width="100%" />
+  <img src="docs/assets/highlights/inbox.webp" alt="Three asks land on the Canvas: a command to run, a plan to approve and a question. Each shows in the Inbox. Opened from there, the command gets Yes, the plan Yes, manually approve edits, and the question its recommended answer, the customer's account. Each agent goes back to work." width="100%" />
 </p>
 
 Every agent's permission prompts, plans and questions land in one Inbox. Most you answer with a click.
@@ -44,7 +44,7 @@ Every agent's permission prompts, plans and questions land in one Inbox. Most yo
 ## Stop being the meat proxy
 
 <p align="center">
-  <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, with its teammates wired to it in the terminal list, Pricing endpoint on Codex and Stock endpoint on Antigravity among them. Its Messages pane opens Cart endpoint's conversation: the brief, the teammate's question about which API version to call, and the lead's answer." width="100%" />
+  <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, opens three teammates, wired to it on the Canvas. Cart endpoint asks which API version to call, in the Inbox and to its lead. The lead answers first, and the ask leaves the Inbox on its own. Pricing endpoint reports done, to its lead and to the Inbox." width="100%" />
 </p>
 
 Agents message each other by handle and start their own teammates. Claude Code, Codex, Antigravity, opencode and pi can share a team.
@@ -52,30 +52,54 @@ Agents message each other by handle and start their own teammates. Claude Code, 
 ## Run one, a few, or the whole crew
 
 <p align="center">
-  <img src="docs/assets/highlights/views.webp" alt="One project's terminals in Focus, one big; then tiled in the Grid; then all ten at once on the Canvas." width="100%" />
+  <img src="docs/assets/highlights/glance.webp" alt="The terminal list marks each agent working, asking, failed or done. Then the same terminals in Focus, one big; on the Canvas, all at once; and tiled in the Grid." width="100%" />
 </p>
 
-Focus, Grid and Canvas: the same terminals, three ways to look at them.
+Every agent's state shows in the list. Focus, Grid and Canvas: the same terminals, three ways to look at them.
+
+## Read them as a chat
+
+<p align="center">
+  <img src="docs/assets/highlights/chat.webp" alt="In Preferences, Show agents as is switched from Terminal to Chat. The Grid's terminals turn into chats: Cart drawer's steps, and Search index's review of its change as a message." width="100%" />
+</p>
+
+Agent Chat shows the same agents as a chat, with their messages to each other. Pick it in Preferences.
+
+## Every agent in its own worktree
+
+<p align="center">
+  <img src="docs/assets/highlights/worktrees.webp" alt="The Worktrees panel lists every agent's worktree with its pull request, checks and handle. Orders API's three teammates hang under it. A check turns green, and Cart endpoint's pull request opens." width="100%" />
+</p>
+
+Each agent works on its own branch. Pull requests, checks and who's on what, in one list.
+
+## Watch every file they touch
+
+<p align="center">
+  <img src="docs/assets/highlights/files.webp" alt="The Files panel shows the project's tree while the agents write: each file marked with the agent writing it, new files arriving as they're made." width="100%" />
+</p>
+
+The Files panel marks each file with the agent changing it, as it happens.
 
 ## Where'd it save that?
 
 <p align="center">
-  <img src="docs/assets/highlights/companion.webp" alt="Order status page, a Claude Code agent, shows its order page in the pane beside its terminal, then a screenshot of three takes on the page's Track package button." width="100%" />
+  <img src="docs/assets/highlights/show.webp" alt="Order status page, an agent, shows its page in the pane beside its terminal, then its changes as diffs, then a video, a PDF invoice, a 3D model, a CSV as a table and a folder of screenshots." width="100%" />
 </p>
 
-Pages, screenshots and diffs an agent shows you open right next to its terminal.
-
-## Back where you left off
-
-<p align="center">
-  <img src="docs/assets/highlights/restore.webp" alt="Novadeck starts again. Its splash counts the terminals as it attaches them, says Deck online, and cuts back to the deck as it was, in Focus on Cart drawer, its Claude Code session where it left off." width="100%" />
-</p>
-
-After a restart, terminals reopen where they were and agents pick up their sessions.
+Pages, diffs, images, videos, PDFs, 3D models, CSVs and folders an agent shows you open right next to its terminal.
 
 ## Bring your own harness
 
+<p align="center">
+  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, opencode and pi, each named as it lands." width="100%" />
+</p>
+
 Novadeck runs the CLIs you already have, with your config and your own accounts. Nothing is wrapped or rebuilt.
+
+## Back where you left off
+
+After a restart, terminals reopen where they were and agents pick up their sessions.
 
 ## Install
 
