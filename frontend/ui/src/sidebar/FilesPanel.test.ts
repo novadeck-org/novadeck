@@ -1712,7 +1712,7 @@ describe("The Files panel", () => {
       panel.view.unmount()
     })
 
-    it("opens what landed as a card, which marks it seen and pulses the files that came in", async () => {
+    it("opens what landed as a card, which marks it seen once it closes, and pulses the files that came in", async () => {
       const held = stand([repo({ landing: landing() })])
       const panel = await mountWith(held.feed, [...tree, "packages/api/pnpm-lock.yaml"])
       await panel.click("packages")
@@ -1727,10 +1727,23 @@ describe("The Files panel", () => {
       expect(card.textContent).toContain(
         "pnpm-lock.yaml changed. Run pnpm install before you start the app.",
       )
+      // Open, the mark stays (pressed) and nothing is seen yet; the files pulse.
+      expect(held.asked).toEqual([])
+      expect(marks(panel, "api")).toEqual(["2 new"])
+      expect(panel.row("api").querySelector("[data-kind=new]")?.getAttribute("data-open")).toBe(
+        "true",
+      )
+      expect(panel.view.container.querySelector("[data-pulse]")).not.toBeNull()
+      // Closing it is seeing it: the mark goes.
+      act(() => {
+        document
+          .querySelector(".files-card")!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      })
+      await panel.settle()
+      await vi.waitFor(() => expect(document.querySelector(".files-card")).toBeNull())
       expect(held.asked).toEqual(["seen packages/api b2"])
-      // The mark is gone with the click, and the card stays.
       expect(marks(panel, "api")).toEqual([])
-      expect(document.querySelector(".files-card")).not.toBeNull()
       await nextFrame()
       panel.view.unmount()
     })

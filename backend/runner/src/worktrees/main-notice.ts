@@ -22,3 +22,20 @@ export const mainNotice = (repository: string, landing: Landing): string => {
     ],
   })
 }
+
+/**
+ * The terminals to tell that main moved in the repository whose main checkout is `home`: those
+ * working in that checkout (not a worktree) whose agent is mid-turn, which gets the notice with
+ * the hook it is already running. An idle agent is not woken for it: it can read main when it next works.
+ */
+export const terminalsToTell = (
+  checkouts: readonly {
+    readonly terminalId: string
+    readonly root: string
+    readonly working: boolean
+  }[],
+  home: string,
+): string[] =>
+  checkouts
+    .filter(({ root, working }) => root === home && working)
+    .map(({ terminalId }) => terminalId)

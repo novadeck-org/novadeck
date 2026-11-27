@@ -50,7 +50,7 @@ import {
 } from "./workspaces/store.js"
 import { keepWorktreeChanges } from "./worktrees/changes-shown.js"
 import { MainCheckouts } from "./worktrees/main-checkout.js"
-import { mainNotice } from "./worktrees/main-notice.js"
+import { mainNotice, terminalsToTell } from "./worktrees/main-notice.js"
 import { MainSync } from "./worktrees/main-sync.js"
 import { repositoryKnown } from "./worktrees/repo.js"
 import { RootFolder } from "./worktrees/root-folder.js"
@@ -712,8 +712,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       void terminals
         .checkouts()
         .then((all) => {
-          for (const { terminalId, root } of all)
-            if (root === home) terminals.messaging.notice(terminalId, text)
+          for (const terminalId of terminalsToTell(all, home))
+            terminals.messaging.notice(terminalId, text)
         })
         .catch((error: unknown) =>
           log.warn("worktrees.main-notice-failed", "Novadeck could not tell agents main moved", {

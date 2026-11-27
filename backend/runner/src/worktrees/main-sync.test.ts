@@ -6,7 +6,7 @@ import { describe, expect, it as base } from "../test.js"
 import { gitIn, withOrigin, type Origin } from "../testing/origin.js"
 import { MainFetcher } from "./fetching.js"
 import { dependenciesOf, mergeOf } from "./landing.js"
-import { mainNotice } from "./main-notice.js"
+import { mainNotice, terminalsToTell } from "./main-notice.js"
 import { MainSync, type Landed } from "./main-sync.js"
 import { repositoriesIn } from "./repositories-in.js"
 
@@ -321,5 +321,26 @@ describe("the notice an agent in the checkout gets", () => {
       ].join("\n"),
     )
     expect(text).not.toContain("→")
+  })
+})
+
+describe("who is told that main moved", () => {
+  it("is the agents mid-turn in the repository's own checkout, not idle ones or those in a worktree", () => {
+    const at = (terminalId: string, root: string, working: boolean) => ({
+      terminalId,
+      root,
+      working,
+    })
+    expect(
+      terminalsToTell(
+        [
+          at("a", "/r/api", true),
+          at("b", "/r/api", false),
+          at("c", "/r/api-wt", true),
+          at("d", "/r/web", true),
+        ],
+        "/r/api",
+      ),
+    ).toEqual(["a"])
   })
 })

@@ -329,16 +329,20 @@ const FilesPanelView = ({
     end: endPulses,
     add: pulse,
   } = usePulses(project?.changes, viewRows, open, showing)
-  // A mark opens its card; opening what landed is seeing it: the mark goes, and the files that
-  // came in pulse once in the tree.
+  // A mark opens its card; opening what landed pulses the files that came in once in the tree.
   const openCard = (repo: RepoSync, kind: SyncCardKind, anchor: HTMLElement): void => {
     const rect = anchor.getBoundingClientRect()
     setRefusal(undefined)
-    if (kind === "new" && repo.landing) {
-      sync?.seen(repo.path, repo.landing.to)
-      pulse(repo.landing.files)
-    }
+    // Another card open is closed first, which has what it showed seen.
+    closeCard()
+    if (kind === "new" && repo.landing) pulse(repo.landing.files)
     setCard({ kind, repo, rect })
+  }
+  // Closing the card of what landed is seeing it: the mark goes, for every window. A landing newer
+  // than the one the card showed stays.
+  const closeCard = (): void => {
+    if (card?.kind === "new" && card.repo.landing) sync?.seen(card.repo.path, card.repo.landing.to)
+    setCard(undefined)
   }
   // Hiding the panel ends the pulses, and showing it again starts the trails over so each reads
   // its true age: a hidden panel's animations restart at full brightness when it shows.
@@ -503,7 +507,7 @@ const FilesPanelView = ({
           label={cardLabel(card.kind, card.repo)}
           open={cardOpen}
           onOpenChange={(next) => {
-            if (!next) setCard(undefined)
+            if (!next) closeCard()
           }}
           anchorRect={() => card.rect}
           placement="right-start"
