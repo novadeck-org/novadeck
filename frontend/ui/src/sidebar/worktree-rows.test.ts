@@ -460,6 +460,15 @@ describe("teams of worktrees", () => {
     expect(chainOf(two, "/r/web-fix")).toEqual([])
   })
 
+  it("keeps a worktree of a repository with no place in the project apart from the project's own", () => {
+    // A submodule's worktree has no `folder`: it heads to its own `develop`, not the project's.
+    const apart = worktreeTeams([
+      work("top-dev", 1, { branch: "develop", folder: { repo: "", project: "" } }),
+      work("sub-fix", 2, { home: "develop", base: "origin/develop" }),
+    ])
+    expect(apart.teams).toEqual([])
+  })
+
   it("breaks a ring of worktrees heading to each other at its newest", () => {
     const ring = worktreeTeams([
       work("a", 1, { home: "feat/b", base: "origin/feat/b" }),

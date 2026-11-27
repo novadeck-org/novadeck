@@ -384,9 +384,11 @@ export type WorktreeTeams = {
 }
 
 // A branch of the repository a work is in: a project may hold several repositories, each with its
-// own `develop`, and the runner gives every worktree of one repository the same `folder`.
+// own `develop`, and the runner gives every worktree of one repository the same `folder`. A
+// repository with no place in the project (a submodule, one beside it) has none, and is kept
+// apart from the project's own.
 const branchIn = (work: Work, branch: string): string =>
-  `${work.folder?.repo ?? ""}\n${work.folder?.project ?? ""}\n${branch}`
+  `${work.folder === undefined ? "-" : `${work.folder.repo}\n${work.folder.project}`}\n${branch}`
 
 export const worktreeTeams = (works: readonly Work[]): WorktreeTeams => {
   const newest = orderedWorks(works)
