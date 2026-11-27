@@ -29,6 +29,15 @@
   <a href="LICENSE"><img src="https://novadeck.dev/badge/license.svg" alt="License: GPL-3.0-or-later" /></a>
 </p>
 
+On macOS and x86_64 Linux:
+
+```sh
+curl -fsSL https://novadeck.dev/install.sh | sh
+```
+
+For Windows and portable builds, see
+[novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
+
 <p align="center">
   <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
 </p>
@@ -111,31 +120,13 @@ each file with the agent changing it, as it happens.
 When an agent makes something, it shows it to you. Pages, diffs, images, videos, PDFs, 3D models,
 CSVs and folders open right next to its terminal, so you don't go looking for them.
 
-## Back where you left off
-
-Close Novadeck at the end of the day. Next time, terminals reopen where they were and agents pick
-up their sessions.
-
-## Install
-
-On macOS and x86_64 Linux:
-
-```sh
-curl -fsSL https://novadeck.dev/install.sh | sh
-```
-
-For Windows and portable builds, see
-[novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
-
-Leave a ⭐ on your way out. It's your way back here, and someone else's way in.
-
-## Docs
-
-- [Guide](docs/guide.md): a short tour of how Novadeck works. The [reference](docs/reference.md) has every detail.
-- [Development](docs/development.md): setup, repository map, tests and releases.
-- [Contributing](CONTRIBUTING.md) · [Code style](CODING.md) · [Security](SECURITY.md)
-- Found a bug or want something? [Open an issue](https://github.com/novadeck-org/novadeck/issues).
-
 ## License
 
 [GPL-3.0-or-later](LICENSE). Contributions come in under the [CLA](CLA.md).
+
+## Leave a ⭐
+
+Novadeck is built by one developer. It's free, it has no account and it doesn't track you, so
+there's no ad budget behind it. Most people find it here on GitHub, and stars are what help it show
+up. If it saved you some tab-flipping, leave a star so the next person running four agents finds it
+too.
