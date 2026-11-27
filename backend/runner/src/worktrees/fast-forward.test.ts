@@ -113,14 +113,13 @@ describe("fast-forwarding a checkout", () => {
     })
     expect(done).toMatchObject({ ok: false, said: "Your changes to a.txt would be overwritten." })
     // What git itself printed, as it printed it: the file it names stays indented.
-    expect(done.ok ? [] : done.git).toEqual([
-      expect.stringMatching(
-        /^error: Your local changes to the following files would be overwritten/,
-      ),
-      expect.stringMatching(/^ {4}a\.txt$/),
-      expect.stringMatching(/^Please commit your changes or stash them/),
-      "Aborting",
-    ])
+    // (The advice line between them is git's, and older gits print none.)
+    const printed = done.ok ? [] : (done.git ?? [])
+    expect(printed[0]).toMatch(
+      /^error: Your local changes to the following files would be overwritten/,
+    )
+    expect(printed[1]).toBe("    a.txt")
+    expect(printed.at(-1)).toBe("Aborting")
     expect(head(origin.repo)).toBe(before)
     expect(other).not.toBe(before)
   })
