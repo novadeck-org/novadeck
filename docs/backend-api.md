@@ -1244,7 +1244,21 @@ Agent is off (Preferences > Experimental, settings' `bundledPi`), the runner ref
 `Turn on Novadeck Agent in Preferences > Experimental.`, so nothing is fetched or started; but
 for a terminal in a folder of the tour's whose run it remembers, with its project open
 (`Tour.paysFor`): the person asked for the tour, and the tour's sessions resume there after a
-restart or once the project is kept.
+restart or once the project is kept. Once it is in place the runner says so with the variables
+its Nova is given, `{"ready": true, "env": {...}}`: for a terminal outside the tour's folder, the
+model service's (`NOVADECK_PI_BASE_URL`, `NOVADECK_PI_KEY`), with a ticket the runner's Novas share
+until it nears its end (harnesses/nova's `NovaTickets`); none for the tour's, whose shells have
+their run's. Where the service refuses, a progress line says why and Nova starts without it. The
+relay prints them on stdout, one `NAME=value` a line, a value of plain characters alone, and the
+launcher takes those two names alone. The fetch also starts a new session in Nova's agent folder
+on Novadeck's model where its `settings.json` names no model of its own (`seededSettings`).
+
+`nova` (`nova.cmd` on Windows), in the shims' folder, starts that launcher while Nova is switched
+on, which the runner keeps the shell folder's `bundled/on` for (`BundledPi.switched`); the folder
+then goes first on PATH in Novadeck's terminals, connected harnesses or not, so a person starts
+Nova by its name, over any other `nova` (Panic's Nova, OpenStack's client), never outside
+Novadeck's terminals. While Nova is off, `nova` runs another `nova` on PATH as it would run, or,
+with none, says what turns Nova on; the folder goes first only for connected harnesses' shims.
 
 Commands start it by the word `novadeck-pi` (harnesses/nova's `novaProgram`), which the runner turns
 into the launcher's path as the shell starts the command (`novaStartup`). A pi session whose

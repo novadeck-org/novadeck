@@ -2,19 +2,22 @@
 // once into Novadeck's data folder, checked against its pinned checksums, behind its
 // Experimental switch, and for the tour whatever the switch says.
 import { randomUUID } from "node:crypto"
-import { chmod, mkdir, readdir, rename, rm } from "node:fs/promises"
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { turnOnLine } from "@novadeck/harness-nova/launcher"
 import {
   buildFolder,
   buildFor,
   bundledPiFolder,
+  bundledPiHome,
   bundledPiProgram,
   ownPiSession,
   pinnedPi,
   type PiBuild,
   type PinnedPi,
 } from "@novadeck/harness-nova/pin"
+import { seededSettings, settingsFile } from "@novadeck/harness-nova/settings"
 import type { AgentName, BundledPiFetch } from "@novadeck/protocol"
 
 import { download, DownloadError, locate } from "../engines/download.js"
@@ -55,9 +58,6 @@ export type FetchOptions = {
   readonly signal?: AbortSignal
   readonly stallMs?: number
 }
-
-/** What a fetch or a launch says while Novadeck's pi is switched off. */
-export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
 
 /** What a fetch stopped by its signal fails with. */
 export const stoppedLine = "The download was stopped."
@@ -282,6 +282,20 @@ export class BundledPi {
        * which the person asked for (`want`). None but the switch's where omitted.
        */
       readonly allows?: (terminalId: string) => boolean
+      /**
+       * The variables a launcher's Nova in `terminalId` is given: its model service's, a ticket of
+       * its own, for one started by hand; none for a terminal that has them already (the tour's).
+       * A line said through `progress` tells why where there are none to give. None where omitted.
+       */
+      readonly service?: (
+        terminalId: string,
+        progress: FetchProgress,
+      ) => Promise<Readonly<Record<string, string>> | undefined>
+      /**
+       * The file kept while the switch is on, which `nova` reads to start Nova (the shell
+       * folder's `bundled/on`); none kept where omitted.
+       */
+      readonly on?: string
       readonly env?: NodeJS.ProcessEnv
       readonly platform?: NodeJS.Platform
       readonly arch?: string
@@ -306,6 +320,7 @@ export class BundledPi {
    * a fetch under way stops and the state says off.
    */
   switched(): void {
+    this.mark()
     // The tour's download goes on, and its state stands, whatever the switch.
     if (this.wanted) return void this.ensure().catch(() => {})
     if (!this.host.enabled()) {
@@ -332,10 +347,16 @@ export class BundledPi {
   }
 
   /**
-   * Fetches Novadeck's `name` (`pi`) for a launcher in `terminalId`, telling `progress`; refused
-   * while switched off, but for a terminal the host allows it in (the tour's).
+   * Fetches Novadeck's `name` (`pi`, Nova) for a launcher in `terminalId`, telling `progress`;
+   * refused while switched off, but for a terminal the host allows it in (the tour's). Resolves
+   * with the variables its Nova is given (`service`), once its agent folder's settings start a
+   * new session on Novadeck's model where they name none of their own (`seededSettings`).
    */
-  async fetch(name: string, progress: FetchProgress, terminalId?: string): Promise<void> {
+  async fetch(
+    name: string,
+    progress: FetchProgress,
+    terminalId?: string,
+  ): Promise<Readonly<Record<string, string>> | undefined> {
     if (name !== "pi") throw new DownloadError(`Novadeck has no ${name} of its own.`)
     const allowed = () =>
       this.host.enabled() || (terminalId !== undefined && this.host.allows?.(terminalId) === true)
@@ -349,6 +370,32 @@ export class BundledPi {
       if (!allowed()) throw new DownloadError(turnOnLine)
       throw error
     }
+    await this.seed()
+    return terminalId === undefined ? undefined : this.host.service?.(terminalId, progress)
+  }
+
+  // The file `nova` reads to start Nova, kept as the switch says (the tour's asks aside, as they
+  // start Nova by its launcher's path); left where it can't be written, as `nova` then says so.
+  private mark(): void {
+    const { on } = this.host
+    if (on === undefined) return
+    const kept = this.host.enabled()
+      ? mkdir(join(on, ".."), { recursive: true }).then(() => writeFile(on, ""))
+      : rm(on, { force: true })
+    void kept.catch(() => {})
+  }
+
+  // Nova's agent folder's settings, with Novadeck's model as the one a new session starts on
+  // where they name none of their own; left as they are where they can't be read or written,
+  // as a session then starts as pi chooses.
+  private async seed(): Promise<void> {
+    const file = join(bundledPiHome(this.host.data), settingsFile)
+    const text = await readFile(file, "utf8").catch(() => undefined)
+    const seeded = seededSettings(text)
+    if (seeded === undefined) return
+    await mkdir(join(file, ".."), { recursive: true })
+      .then(() => writeFile(file, seeded))
+      .catch(() => {})
   }
 
   /**

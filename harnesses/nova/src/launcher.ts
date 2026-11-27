@@ -1,6 +1,8 @@
 import { header } from "@novadeck/harness-core/header"
 import { cmdLaunch, posixLaunch } from "@novadeck/harness-core/launch-mark"
 
+import { ownService } from "./model.js"
+
 /**
  * Nova, Novadeck's own pi, which its launcher starts: the pinned pi (`pin.ts`) that Novadeck
  * downloads into its own data folder (the runner's harnesses/bundled-pi.ts), apart from the
@@ -56,16 +58,27 @@ const quoted = (path: string): string => `'${path.replaceAll("'", `'\\''`)}'`
 
 /**
  * The launcher for Linux and macOS: asks the runner for the program each time
- * (`novadeck-relay fetch pi`), which refuses while Novadeck's pi is switched off in Preferences >
+ * (`novadeck-relay fetch pi`), which refuses while Nova is switched off in Preferences >
  * Experimental, answers at once when it is in place, and otherwise fetches it, the relay showing
- * the progress. Then it starts it with Novadeck's extension and its own agent folder, with pi's
- * check for a newer version off, as Novadeck pins the version. Not on PATH: Novadeck types its path.
+ * the progress. The relay prints the variables of Novadeck's model service the runner gives a
+ * Nova started by hand (a ticket of its own; a tour's terminal has its run's already), one
+ * `NAME=value` a line, and only the service's two are taken (`ownService`). Then it starts the
+ * program with Novadeck's extension and its own agent folder, with pi's check for a newer version
+ * off, as Novadeck pins the version. Novadeck types its path, and `nova` on the PATH of Novadeck's
+ * terminals starts it while Nova is on (`novaShim`).
  */
 export const posixLauncher = (pi: BundledPi): string => `#!/bin/sh
 ${header("#", "launcher for its own pi")}
 # Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
 novadeck_program=${quoted(pi.program)}
-${quoted(pi.relay)} fetch pi || exit 1
+novadeck_service=$(${quoted(pi.relay)} fetch pi) || exit 1
+while IFS= read -r novadeck_line; do
+  case "$novadeck_line" in
+    ${ownService.baseUrl}=*|${ownService.key}=*) export "$novadeck_line" ;;
+  esac
+done <<novadeck_end
+$novadeck_service
+novadeck_end
 PI_CODING_AGENT_DIR=${quoted(pi.home)}
 PI_SKIP_VERSION_CHECK=1
 ${bundledMark}=bundled
@@ -96,7 +109,12 @@ ${header("rem", "launcher for its own pi")}
 rem Starts Novadeck's own pi once the runner says it is on and in place, fetching it first.
 setlocal
 set "novadeck_program=${cmdPath(pi.program)}"
-call "${cmdPath(pi.relay, true)}" fetch pi || exit /b 1
+set "novadeck_service=%TEMP%\\novadeck-nova-%NOVADECK_TERMINAL_ID%-%RANDOM%%RANDOM%.env"
+call "${cmdPath(pi.relay, true)}" fetch pi >"%novadeck_service%"
+if errorlevel 1 goto failed
+for /f "usebackq tokens=1* delims==" %%a in ("%novadeck_service%") do call :service "%%a" "%%b"
+del "%novadeck_service%" 2>nul
+set "novadeck_service="
 set "PI_CODING_AGENT_DIR=${cmdPath(pi.home)}"
 set "PI_SKIP_VERSION_CHECK=1"
 set "${bundledMark}=bundled"
@@ -113,7 +131,93 @@ exit /b %ERRORLEVEL%
 :plain
 "%novadeck_program%" %novadeck_tools% %*
 exit /b %ERRORLEVEL%
+:failed
+del "%novadeck_service%" 2>nul
+exit /b 1
+rem Takes the model service's two variables alone of what the runner gave.
+:service
+if "%~1"=="${ownService.baseUrl}" set "${ownService.baseUrl}=%~2"
+if "%~1"=="${ownService.key}" set "${ownService.key}=%~2"
+exit /b 0
 `
+
+/** The command Nova is on the PATH of Novadeck's terminals: its shim, in the shims' folder. */
+export const novaCommand = "nova"
+
+/** What a launch of Nova while it is switched off says (the runner's refusal, too). */
+export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
+
+/** Where `nova` finds Nova's launcher, and the file that says Nova is switched on. */
+export type NovaShimPaths = {
+  /** Nova's launcher (`bundledLauncher`), under the shell folder's `bundled` folder. */
+  readonly launcher: string
+  /** The file the runner keeps while Nova is switched on, and removes when it is switched off. */
+  readonly on: string
+}
+
+/**
+ * `nova` for Linux and macOS: Nova's launcher while Nova is switched on (`on`); while it is off,
+ * another program named `nova` on PATH, as it would run without Novadeck (Panic's Nova, OpenStack's
+ * client), or, with none, what turns Nova on.
+ */
+export const posixNovaShim = ({ launcher, on }: NovaShimPaths): string => `#!/bin/sh
+${header("#", "shim for nova")}
+# Starts Nova while it is switched on; otherwise another nova, as it would run.
+[ -f ${quoted(on)} ] && exec ${quoted(launcher)} "$@"
+IFS=:
+set -f
+for novadeck_dir in $PATH; do
+  [ -n "$novadeck_dir" ] || continue
+  novadeck_candidate=$novadeck_dir/nova
+  if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ] &&
+    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -qi "novadeck shim for nova"; then
+    exec "$novadeck_candidate" "$@"
+  fi
+done
+echo "${turnOnLine}" >&2
+exit 1
+`
+
+/**
+ * `nova` for Windows, as the POSIX one: `where` lists the matches in PATH order, this shim among
+ * them, and the first other runnable one that isn't another Novadeck's shim wins. No `if (...)`
+ * block holds a path: a ")" in "Program Files (x86)" would end it.
+ */
+export const cmdNovaShim = ({ launcher, on }: NovaShimPaths): string => `@echo off
+${header("rem", "shim for nova")}
+rem Starts Nova while it is switched on; otherwise another nova, as it would run.
+setlocal
+if exist "${cmdPath(on)}" goto nova
+set "novadeck_real="
+for /f "delims=" %%i in ('where $PATH:nova 2^>nul') do call :consider "%%~fi"
+if not defined novadeck_real goto off
+"%novadeck_real%" %*
+exit /b %ERRORLEVEL%
+:nova
+"${cmdPath(launcher)}" %*
+exit /b %ERRORLEVEL%
+:off
+echo ${turnOnLine.replace(">", "^>")} 1>&2
+exit /b 1
+:consider
+if defined novadeck_real exit /b
+if /i "%~dp1"=="%~dp0" exit /b
+rem Another Novadeck's shim would call this one back: only the program itself counts.
+if /i "%~x1"==".cmd" findstr /b /i /c:"rem novadeck shim for nova" "%~1" >nul && exit /b
+if /i "%~x1"==".exe" set "novadeck_real=%~1"
+if /i "%~x1"==".cmd" set "novadeck_real=%~1"
+if /i "%~x1"==".bat" set "novadeck_real=%~1"
+exit /b
+`
+
+/** `nova`'s file for `platform`, in the shims' folder, first on PATH in Novadeck's terminals. */
+export const novaShim = (
+  platform: NodeJS.Platform,
+  paths: NovaShimPaths,
+): { readonly path: string; readonly content: string; readonly mode?: number } =>
+  platform === "win32"
+    ? { path: `${novaCommand}.cmd`, content: cmdNovaShim(paths) }
+    : { path: novaCommand, content: posixNovaShim(paths), mode: 0o700 }
 
 /** The launcher's file for `platform`, under the shell folder's `bundled` folder. */
 export const bundledLauncher = (

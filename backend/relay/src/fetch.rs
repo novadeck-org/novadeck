@@ -1,11 +1,14 @@
 //! A launcher's: has the runner of the terminal it runs in fetch one of Novadeck's own agents
-//! (`pi`), as the launcher of Novadeck's pi does when its program isn't in place yet. What the
-//! runner says of its progress shows on the terminal (stderr): on a terminal each line over the
-//! last, elsewhere one under the other. It succeeds once the runner says the program is in
-//! place, and fails with the runner's reason, or its own, otherwise. stdout stays empty.
+//! (`pi`, Nova), as Nova's launcher does each time it starts. What the runner says of its
+//! progress shows on the terminal (stderr): on a terminal each line over the last, elsewhere one
+//! under the other. It succeeds once the runner says the program is in place, and fails with the
+//! runner's reason, or its own, otherwise. On success stdout holds the variables the runner gives
+//! the agent (its model service's, for a Nova started by hand), one `NAME=value` a line, which the
+//! launcher takes; each is checked first (`variable`), and one that isn't plain is left out.
 //!
 //! The runner answers with lines of JSON: `{"progress": "<line>"}` as it goes, then
-//! `{"ready": true}` or `{"error": "<reason>"}`, and ends the connection.
+//! `{"ready": true}`, with `"env": {"NAME": "value"}` where it gives any, or
+//! `{"error": "<reason>"}`, and ends the connection.
 
 use std::io::{self, IsTerminal, Write};
 
@@ -14,12 +17,29 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::endpoint::{self, Terminal};
 
-/// What the runner said last: a line of progress, the program in place, or why it isn't.
+/// What the runner said last: a line of progress, the program in place (with the variables it
+/// gives the agent), or why it isn't.
 #[derive(Debug, PartialEq)]
 pub enum Said {
     Progress(String),
-    Ready,
+    Ready(Vec<(String, String)>),
     Failed(String),
+}
+
+/// A variable the launcher may take as it is: a name of capitals, digits and `_`, and a value of
+/// a URL's or a key's plain characters alone, nothing a shell or cmd reads (no quote, space, `%`,
+/// `$`, `!` or newline), so no line of it can be more than one variable.
+pub fn variable(name: &str, value: &str) -> bool {
+    let named = name.starts_with(|c: char| c.is_ascii_uppercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+    let plain = !value.is_empty()
+        && value.len() <= 2048
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_-.:/@+=".contains(c));
+    named && plain
 }
 
 /// One line of the runner's answer; None for a line this relay doesn't know.
@@ -29,7 +49,17 @@ pub fn said(line: &str) -> Option<Said> {
         return Some(Said::Progress(progress.to_owned()));
     }
     if value.get("ready").and_then(Value::as_bool) == Some(true) {
-        return Some(Said::Ready);
+        let env = value
+            .get("env")
+            .and_then(Value::as_object)
+            .map(|env| {
+                env.iter()
+                    .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_owned())))
+                    .filter(|(name, value)| variable(name, value))
+                    .collect()
+            })
+            .unwrap_or_default();
+        return Some(Said::Ready(env));
     }
     value
         .get("error")
@@ -102,8 +132,13 @@ pub fn run(name: &str) -> bool {
     let result = runtime.block_on(fetch(&terminal, name, &mut shown));
     runtime.shutdown_background();
     match result {
-        Ok(()) => {
+        Ok(env) => {
             shown.end(None);
+            let mut out = io::stdout().lock();
+            for (name, value) in env {
+                let _ = writeln!(out, "{name}={value}");
+            }
+            let _ = out.flush();
             true
         }
         Err(reason) => {
@@ -113,7 +148,11 @@ pub fn run(name: &str) -> bool {
     }
 }
 
-async fn fetch(terminal: &Terminal, name: &str, shown: &mut Shown) -> Result<(), String> {
+async fn fetch(
+    terminal: &Terminal,
+    name: &str,
+    shown: &mut Shown,
+) -> Result<Vec<(String, String)>, String> {
     let unreachable = || "Novadeck isn't answering. Restart Novadeck and try again.".to_owned();
     let (reader, mut writer) = endpoint::connect(&terminal.endpoint)
         .await
@@ -130,7 +169,7 @@ async fn fetch(terminal: &Terminal, name: &str, shown: &mut Shown) -> Result<(),
         match lines.next_line().await {
             Ok(Some(line)) => match said(&line) {
                 Some(Said::Progress(line)) => shown.progress(&line),
-                Some(Said::Ready) => return Ok(()),
+                Some(Said::Ready(env)) => return Ok(env),
                 Some(Said::Failed(reason)) => return Err(reason),
                 None => {}
             },
@@ -151,12 +190,46 @@ mod tests {
                 "Downloading pi 1.6.0: 1.0 of 59.0 MB (1%)".to_owned()
             ))
         );
-        assert_eq!(said(r#"{"ready":true}"#), Some(Said::Ready));
+        assert_eq!(said(r#"{"ready":true}"#), Some(Said::Ready(vec![])));
+        assert_eq!(
+            said(
+                r#"{"ready":true,"env":{"NOVADECK_PI_BASE_URL":"https://novadeck.dev/tour/v1","NOVADECK_PI_KEY":"ndt_a-B_1"}}"#
+            ),
+            Some(Said::Ready(vec![
+                (
+                    "NOVADECK_PI_BASE_URL".to_owned(),
+                    "https://novadeck.dev/tour/v1".to_owned()
+                ),
+                ("NOVADECK_PI_KEY".to_owned(), "ndt_a-B_1".to_owned()),
+            ]))
+        );
         assert_eq!(
             said(r#"{"error":"Could not reach github.com."}"#),
             Some(Said::Failed("Could not reach github.com.".to_owned()))
         );
         assert_eq!(said(r#"{"later":1}"#), None);
         assert_eq!(said("not json"), None);
+    }
+
+    #[test]
+    fn takes_plain_variables_alone() {
+        assert!(variable("NOVADECK_PI_KEY", "ndt_a-B_1"));
+        assert!(variable(
+            "NOVADECK_PI_BASE_URL",
+            "http://127.0.0.1:9/tour/v1"
+        ));
+        assert!(!variable("novadeck", "x"));
+        assert!(!variable("_X", "x"));
+        assert!(!variable("X", ""));
+        for value in [
+            "a b", "a\nB=1", "%PATH%", "$(id)", "a'b", "a\"b", "a!b", "a;b", "a&b",
+        ] {
+            assert!(!variable("X", value), "{value}");
+        }
+        let env = said(r#"{"ready":true,"env":{"X":"a b","Y":"ok","z":"ok","N":1}}"#);
+        assert_eq!(
+            env,
+            Some(Said::Ready(vec![("Y".to_owned(), "ok".to_owned())]))
+        );
     }
 }

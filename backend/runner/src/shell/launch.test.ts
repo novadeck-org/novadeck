@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
@@ -29,7 +29,7 @@ describe("Novadeck's launchers in a shell", () => {
     }
   })
 
-  it("puts the shims first only with harnesses that use them, and names those harnesses", () => {
+  it("puts the shims first with harnesses that use them, or while Nova is on, and names those harnesses", () => {
     const posix: InstalledShell = {
       ...shellPaths("/data", "linux"),
       launcher: "/data/hook",
@@ -46,6 +46,16 @@ describe("Novadeck's launchers in a shell", () => {
     expect(without.PATH).toBe("/usr/bin")
     expect(without).not.toHaveProperty("NOVADECK_BIN")
     expect(without).not.toHaveProperty("NOVADECK_SHIMS")
+    // While Nova is on (its file is there), its `nova` is in that folder: it goes first with
+    // no harness's shims, which all run their programs unchanged, as NOVADECK_SHIMS names none.
+    const shell = mkdtempSync(join(tmpdir(), "launch-nova-"))
+    onTestFinished(() => rmSync(shell, { recursive: true, force: true }))
+    const on: InstalledShell = { ...shellPaths(shell, "linux"), launcher: "/h", mcpLauncher: "/m" }
+    mkdirSync(join(shell, "bundled"))
+    writeFileSync(on.bundledPi.on, "")
+    const nova = shellLaunch("bash", on, { PATH: "/usr/bin" }).env
+    expect(nova.PATH).toBe(`${on.bin}${delimiter}/usr/bin`)
+    expect(nova).not.toHaveProperty("NOVADECK_SHIMS")
   })
 
   it("has a Windows cmd's startup command wait for its job through the relay", () => {

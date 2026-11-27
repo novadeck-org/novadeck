@@ -4,6 +4,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 
+import { turnOnLine } from "@novadeck/harness-nova/launcher"
 import {
   buildFolder,
   bundledPiFolder,
@@ -19,7 +20,7 @@ import { afterAll, afterEach, beforeAll } from "vitest"
 import { describe, expect, it } from "../test.js"
 import { folder, sha256 } from "../testing/engines.js"
 import type { Resources } from "../testing/resources.js"
-import { BundledPi, fetchBundledPi, progressLine, turnOnLine } from "./bundled-pi.js"
+import { BundledPi, fetchBundledPi, progressLine } from "./bundled-pi.js"
 
 const licenceText = "MIT License\n\nCopyright (c) pi's authors\n"
 
@@ -312,6 +313,91 @@ describe("Novadeck's pi behind its Experimental switch", () => {
 
     expect(states.length).toBe(told)
     expect(pi.state()).toEqual({ state: "ready" })
+  })
+
+  it("gives a launcher's Nova the variables its host gives it, saying why there are none", async ({
+    resources,
+  }) => {
+    const release = await fakeRelease(resources)
+    const data = await folder(resources)
+    const env = { NOVADECK_PI_BASE_URL: "https://novadeck.dev/tour/v1", NOVADECK_PI_KEY: "T1" }
+    const asked: string[] = []
+    const pi = new BundledPi({
+      data,
+      enabled: () => true,
+      service: (terminalId, progress) => {
+        asked.push(terminalId)
+        if (terminalId === "refused") progress("No ticket today.")
+        return Promise.resolve(terminalId === "t1" ? env : undefined)
+      },
+      env: {
+        NOVADECK_BUNDLED_PI_SOURCE: release.source,
+        NOVADECK_BUNDLED_PI_LICENCE: release.licence,
+      },
+      platform: "linux",
+      arch: "x64",
+      pinned: release.pinned,
+    })
+    const said: string[] = []
+
+    await expect(pi.fetch("pi", () => {}, "t1")).resolves.toEqual(env)
+    await expect(pi.fetch("pi", (line) => said.push(line), "refused")).resolves.toBeUndefined()
+    // A fetch for no terminal (the tour's own, ahead of a launch) asks for none.
+    await expect(pi.fetch("pi", () => {})).resolves.toBeUndefined()
+
+    expect(asked).toEqual(["t1", "refused"])
+    expect(said).toContain("No ticket today.")
+  })
+
+  it("starts a new session on Novadeck's model where its settings name none", async ({
+    resources,
+  }) => {
+    const { pi, data } = await service(resources, { value: true })
+    const settings = join(bundledPiHome(data), "settings.json")
+
+    await pi.fetch("pi", () => {})
+    expect(JSON.parse(await readFile(settings, "utf8"))).toEqual({
+      defaultProvider: "novadeck",
+      defaultModel: "gpt-6-luna",
+      defaultThinkingLevel: "medium",
+    })
+
+    // The person's own pick is kept.
+    await writeFile(settings, JSON.stringify({ defaultProvider: "anthropic", defaultModel: "m" }))
+    await pi.fetch("pi", () => {})
+    expect(JSON.parse(await readFile(settings, "utf8"))).toEqual({
+      defaultProvider: "anthropic",
+      defaultModel: "m",
+    })
+  })
+
+  it("keeps the file nova reads while it is switched on, and removes it when off", async ({
+    resources,
+  }) => {
+    const data = await folder(resources)
+    const on = join(data, "shell", "bundled", "on")
+    const lever = { value: true }
+    const pi = new BundledPi({ data, enabled: () => lever.value, on, platform: "freebsd" })
+
+    pi.switched()
+    await expect
+      .poll(() =>
+        stat(on).then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(true)
+    lever.value = false
+    pi.switched()
+    await expect
+      .poll(() =>
+        stat(on).then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(false)
   })
 
   it("fetches only its own pi", async ({ resources }) => {

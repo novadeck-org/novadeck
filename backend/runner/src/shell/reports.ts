@@ -338,15 +338,16 @@ export type ReportHandlers = {
     listed: boolean,
   ) => void
   /**
-   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`pi`), in the terminal its
-   * relay named: settles once it is in place, telling its `progress` in lines a person reads, or
-   * fails with a reason a person reads. Absent, every fetch fails.
+   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`pi`, Nova), in the terminal
+   * its relay named: settles once it is in place, with the variables the agent is given where
+   * there are any (its model service's), telling its `progress` in lines a person reads, or fails
+   * with a reason a person reads. Absent, every fetch fails.
    */
   readonly fetch?: (
     name: string,
     progress: (line: string) => void,
     terminalId: string,
-  ) => Promise<void>
+  ) => Promise<Readonly<Record<string, string>> | void>
 }
 
 export type Reports = {
@@ -500,8 +501,8 @@ export const listenForReports = async (
     try {
       if (!from || typeof name !== "string" || !handlers.fetch)
         throw new Error("Novadeck has nothing to fetch by that name.")
-      await handlers.fetch(name, (progress) => say({ progress }), from.terminalId)
-      say({ ready: true })
+      const env = await handlers.fetch(name, (progress) => say({ progress }), from.terminalId)
+      say({ ready: true, ...(env && Object.keys(env).length > 0 && { env }) })
     } catch (error) {
       say({ error: error instanceof Error ? error.message : String(error) })
     }
