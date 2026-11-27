@@ -1232,7 +1232,7 @@ export const Preferences = ({
                             id="keep-main-label"
                             icon={GitMerge}
                             label="Keep main current"
-                            description="After each fetch, Novadeck moves main up to origin's when nothing of yours is in the way. Turn this off to move it yourself: the Files panel then shows how far behind it is, with an Update button."
+                            description="After each fetch, Novadeck moves main up to origin's when nothing of yours is in the way. Turn this off to move it yourself: the Files panel then shows how far behind it is, with the command to run it."
                             descriptionId="keep-main-description"
                           />
                           <Switch

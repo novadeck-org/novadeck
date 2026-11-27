@@ -9,7 +9,7 @@ import { gitIn, withOrigin, type Origin } from "../testing/origin.js"
 import { MainFetcher } from "./fetching.js"
 import { dependenciesOf, mergeOf } from "./landing.js"
 import { mainNotice, terminalsToTell } from "./main-notice.js"
-import { MainSync, type Landed } from "./main-sync.js"
+import { MainSync, pullUrlOf, type Landed } from "./main-sync.js"
 import { repositoriesIn } from "./repositories-in.js"
 
 type Setup = {
@@ -18,7 +18,7 @@ type Setup = {
   sync: MainSync
   common: string
   told: Landed[]
-  own: { number: number; title: string }[]
+  own: { number: number; title: string; handle?: string }[]
   /** The person's "Keep main current": flip `on` to turn it off. */
   keep: { on: boolean }
   /** Fetches origin and lets the runner follow it, then waits for the landing to be recorded. */
@@ -29,7 +29,7 @@ const it = base.extend<{ setup: Setup }>({
   setup: async ({ resources }, use) => {
     const origin = withOrigin((cleanup) => resources.defer(cleanup))
     const told: Landed[] = []
-    const own: { number: number; title: string }[] = []
+    const own: { number: number; title: string; handle?: string }[] = []
     const common = join(origin.repo, ".git")
     const keep = { on: true }
     let sync: MainSync | undefined
@@ -293,6 +293,8 @@ describe("how far a repository is from origin", () => {
       remote: "origin/main",
       count: 1,
       why: "You have edits in a.txt",
+      command: "git merge --ff-only origin/main",
+      local: expect.stringMatching(/^[0-9a-f]{40}$/),
       merges: [
         { subject: "Rewrite a", pr: 4, commit: expect.any(String), own: false, latest: false },
       ],
@@ -309,6 +311,8 @@ describe("how far a repository is from origin", () => {
       remote: "origin/main",
       count: 1,
       why: null,
+      command: "git merge --ff-only origin/main",
+      local: expect.stringMatching(/^[0-9a-f]{40}$/),
       merges: [
         { subject: "add b.txt", pr: null, commit: expect.any(String), own: false, latest: false },
       ],
@@ -439,6 +443,69 @@ describe("keeping main current while the checkout is on another branch", () => {
       behind: null,
       landing: null,
     })
+  })
+})
+
+describe("what the Files card shows of a repository", () => {
+  it("names, off main, the fetch that moves it by hand, which does what the runner's own move does", async ({
+    setup: s,
+  }) => {
+    s.keep.on = false
+    gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
+    s.origin.land("c.txt")
+    await s.follow()
+    const [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo?.behind?.command).toBe("git fetch . origin/main:main")
+    expect(repo?.home).toBe(s.origin.repo)
+    gitIn(s.origin.repo, "fetch", ".", "origin/main:main")
+    expect(mainRef(s.origin.repo)).toBe(gitIn(s.origin.repo, "rev-parse", "origin/main"))
+  })
+
+  it("marks a landing that moved the branch alone, until a move of the checkout joins it", async ({
+    setup: s,
+  }) => {
+    gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
+    s.origin.land("b.txt")
+    await s.follow()
+    expect((await s.sync.sync(s.origin.repo)).repos[0]?.landing?.ref).toBe(true)
+    gitIn(s.origin.repo, "checkout", "--quiet", "main")
+    s.origin.land("c.txt")
+    await s.follow()
+    expect((await s.sync.sync(s.origin.repo)).repos[0]?.landing?.ref).toBeUndefined()
+  })
+
+  it("names the agent whose pull request a merge was, and where pull requests are on the forge", async ({
+    setup: s,
+  }) => {
+    s.own.push({ number: 8, title: "Add b", handle: "fable" })
+    s.origin.land("b.txt", "Add b (#8)")
+    s.origin.land("c.txt", "Add c (#9)")
+    await s.follow()
+    const [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo?.landing?.merges.map(({ pr, own, by }) => [pr, own, by])).toEqual([
+      [9, false, undefined],
+      [8, true, "fable"],
+    ])
+    // A local origin is on no forge.
+    expect(repo?.pullUrl).toBeNull()
+  })
+
+  it("builds a pull request's page for each forge", () => {
+    expect(pullUrlOf({ forge: "github", host: "github.com", owner: "o", name: "r" })).toBe(
+      "https://github.com/o/r/pull/{number}",
+    )
+    expect(pullUrlOf({ forge: "gitlab", host: "gitlab.com", path: "g/s/p" })).toBe(
+      "https://gitlab.com/g/s/p/-/merge_requests/{number}",
+    )
+    expect(
+      pullUrlOf({
+        forge: "azure",
+        host: "dev.azure.com",
+        organization: "o",
+        project: "p",
+        name: "r",
+      }),
+    ).toBe("https://dev.azure.com/o/p/_git/r/pullrequest/{number}")
   })
 })
 

@@ -207,6 +207,13 @@ describe("the Agents tab", () => {
     expect(keepMainSwitch()?.getAttribute("aria-checked")).toBe("false")
   })
 
+  it("says the Files card has the command to run, not an Update button", async () => {
+    await show({ tab: "agents", keepMain: { enabled: true, onChange: () => {} } })
+    const text = keepMainSwitch()?.closest("[role=tabpanel]")?.textContent ?? ""
+    expect(text).toContain("with the command to run it")
+    expect(text).not.toContain("Update button")
+  })
+
   it("leaves Keep main current out where the backend has no such switch", async () => {
     await show({ tab: "agents", worktrees: { enabled: true, onChange: () => {} } })
     expect(keepMainSwitch()).toBeNull()

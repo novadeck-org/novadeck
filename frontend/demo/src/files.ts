@@ -433,7 +433,14 @@ export type DemoCheckout = {
 // What main's move brought, as the demo tells it: three merges (one of them an agent's), the files
 // of `movedFiles` among 14, and a lockfile that changed.
 const demoMerges = [
-  { subject: "Add the receipt step", pr: 41, commit: "a1b2c3d4e5f6", own: true, latest: true },
+  {
+    subject: "Add the receipt step",
+    pr: 41,
+    commit: "a1b2c3d4e5f6",
+    own: true,
+    by: "fable",
+    latest: true,
+  },
   { subject: "Price rounds to cents", pr: 40, commit: "b2c3d4e5f6a1", own: false, latest: true },
   { subject: "Bump the payment SDK", pr: 39, commit: "c3d4e5f6a1b2", own: false, latest: true },
 ]
@@ -568,6 +575,8 @@ export const createDemoFiles = (
                 standing.why ??
                 (standing.refusal === undefined ? null : "You have edits in src/cart/useCart.ts"),
               merges: demoMerges.slice(0, standing.count),
+              command: "git merge --ff-only origin/main",
+              local: "4f0e2aa9d1c3",
             }
           : null,
         ahead: aheadBy,
@@ -576,6 +585,7 @@ export const createDemoFiles = (
           : null,
         moved,
         head: `demo-${moved}`,
+        pullUrl: "https://github.com/novadeck/storefront/pull/{number}",
       },
     ]
     if (nested)
@@ -604,7 +614,16 @@ export const createDemoFiles = (
       if (nested) nested = { ...nested, behind: false }
       return { ok: true }
     }
-    if (standing?.refusal !== undefined) return { ok: false, said: standing.refusal }
+    if (standing?.refusal !== undefined)
+      return {
+        ok: false,
+        said: standing.refusal,
+        git: [
+          "error: Your local changes to the following",
+          "files would be overwritten by merge:",
+          "    src/cart/useCart.ts",
+        ],
+      }
     if (standing) {
       standing = undefined
       movedOnDisk = true

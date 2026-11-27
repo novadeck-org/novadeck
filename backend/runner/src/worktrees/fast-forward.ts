@@ -58,6 +58,20 @@ export const refusal = (run: Extract<Run, { ok: false }>): string => {
   return named !== "" ? `${plain}: ${named}` : plain || said(run)
 }
 
+/**
+ * What git printed when it refused, line by line (the card shows it as git said it): the lines
+ * that name files, which git indents, indented again. Undefined where it printed nothing.
+ */
+export const printed = (run: Extract<Run, { ok: false }>): string[] | undefined => {
+  const lines = (run.err ?? []).slice(0, 20)
+  if (lines.length === 0) return undefined
+  return lines.map((line) =>
+    /^(error|fatal|hint|warning|please|aborting)\b/i.test(line) || line.endsWith(":")
+      ? line
+      : `    ${line}`,
+  )
+}
+
 export type Forwarded =
   | { readonly ok: true; readonly moved: false }
   /**
@@ -71,7 +85,7 @@ export type Forwarded =
       readonly to: string
       readonly ref?: true
     }
-  | { readonly ok: false; readonly said: string }
+  | { readonly ok: false; readonly said: string; readonly git?: string[] }
 
 /** Why the checkout can't move now: an operation in progress or a lock, else undefined. */
 export const operationIn = async (
@@ -171,7 +185,12 @@ const moveMainRef = async (home: string, options: FastForward): Promise<Forwarde
   )
   return moved.ok
     ? { ok: true, moved: true, from: was, to: main.commit, ref: true }
-    : { ok: false, said: refusal(moved) }
+    : { ok: false, said: refusal(moved), ...gitSaid(moved) }
+}
+
+const gitSaid = (run: Extract<Run, { ok: false }>): { readonly git?: string[] } => {
+  const git = printed(run)
+  return git === undefined ? {} : { git }
 }
 
 /**
@@ -240,5 +259,5 @@ export const fastForward = async (home: string, options: FastForward): Promise<F
     )
   return merged.ok
     ? { ok: true, moved: true, from: behind.head, to: behind.commit }
-    : { ok: false, said: refusal(merged) }
+    : { ok: false, said: refusal(merged), ...gitSaid(merged) }
 }

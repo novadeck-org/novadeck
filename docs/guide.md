@@ -114,13 +114,16 @@ branch alone (nothing in your folder changes) unless `main` has commits origin d
 worktree has it checked out.
 
 To move `main` yourself, turn off **Keep main current** in Preferences > Agents. Novadeck still
-fetches, and the Files panel shows **↓2** with **Update**. It's separate from **Agent worktrees**.
+fetches, and the Files panel shows **↓2**, with the git command that moves it and a **Run** button. It's separate from **Agent worktrees**.
 
 The **Files** panel says where each repository stands, on its folder row (or on a line over the tree,
 where the project is one repository): **3 new** when `main` just caught up, with a card listing the
-merges, the files that changed (they pulse once in the tree) and the command to run if a lockfile
-changed; **↓2** when `main` is behind and Novadeck left it alone (the card says why and has
-**Update**); **↑1** for commits `main` has that origin doesn't. A closed folder that hides news
+merges (click one to open its pull request; the changed files pulse once in the tree, unless only
+the `main` branch moved) and the command to run if a lockfile changed; **↓2** when `main` is behind
+and Novadeck left it alone (the card says why and shows the git command that moves it). The card
+reads like a terminal: every command is a `$` line with **Copy** and **Run**, and nothing runs until
+you press Run. Git's command runs in place, and a refusal is printed as git said it; a dependency
+command opens a terminal of its own in the repository, which the card follows; **↑1** for commits `main` has that origin doesn't. A closed folder that hides news
 shows a dot, and so does the Files icon while the panel is hidden. You get a notification, per
 Preferences > Notifications, only when a pull request of one of your agents lands in `main`, or when
 new dependencies come in. Agents in the middle of a turn in a repository's own folder on `main` are told when it moved; idle ones aren't woken for it.

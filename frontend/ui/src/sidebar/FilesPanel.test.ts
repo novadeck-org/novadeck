@@ -11,7 +11,13 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { folderListings } from "../test/files"
-import { createSyncFeed, syncPollMs, type SyncFeed } from "./files-sync"
+import {
+  createSyncFeed,
+  syncPollMs,
+  type SyncFeed,
+  type SyncTerminals,
+  type TerminalProgress,
+} from "./files-sync"
 import { FilesPanel } from "./FilesPanel"
 import { readTimeoutMs } from "./useFolderReader"
 import { pulseMs } from "./usePulses"
@@ -122,6 +128,7 @@ const mount = async (
   onOpenFile: (path: string) => Promise<void> = () => Promise.resolve(),
   watch?: () => () => void,
   sync?: SyncFeed,
+  terminals?: SyncTerminals,
 ) => {
   let visible = true
   let turn = 0
@@ -130,6 +137,7 @@ const mount = async (
     list: reads.list,
     turn,
     sync,
+    terminals,
     watch,
     onOpenFile,
     selectedHandle: handle,
@@ -172,6 +180,7 @@ const mount = async (
       await redraw()
     },
     show,
+    redraw,
     // An agent's turn ends in the project.
     endTurn: async (): Promise<void> => {
       turn += 1
@@ -1607,7 +1616,14 @@ describe("The Files panel", () => {
       at: Date.now() - 120_000,
       commits: 3,
       merges: [
-        { subject: "Add the cart", pr: 12, commit: "c1c1c1c1", own: true, latest: true },
+        {
+          subject: "Add the cart",
+          pr: 12,
+          commit: "c1c1c1c1",
+          own: true,
+          by: "fable",
+          latest: true,
+        },
         { subject: "Fix prices", pr: null, commit: "d2d2d2d2", own: false, latest: true },
       ],
       files: ["packages/api/src/index.ts"],
@@ -1713,20 +1729,82 @@ describe("The Files panel", () => {
       panel.view.unmount()
     })
 
-    it("opens what landed as a card, which marks it seen once it closes, and pulses the files that came in", async () => {
-      const held = stand([repo({ landing: landing() })])
-      const panel = await mountWith(held.feed, [...tree, "packages/api/pnpm-lock.yaml"])
-      await panel.click("packages")
-      await panel.click("api")
-      act(() => panel.row("api").querySelector<HTMLElement>("[data-kind=new]")!.click())
+    // Terminals the card can open, record what it asked of them and tell what `state.progress` says.
+    const terminalsFor = () => {
+      const state: { progress: TerminalProgress } = { progress: { phase: "running", ms: 0 } }
+      const listeners = new Set<() => void>()
+      const terminals: SyncTerminals = {
+        run: vi.fn<SyncTerminals["run"]>(() => "t1"),
+        show: vi.fn<SyncTerminals["show"]>(),
+        follow: () => ({
+          subscribe: (listener) => {
+            listeners.add(listener)
+            return () => void listeners.delete(listener)
+          },
+          get: () => state.progress,
+        }),
+      }
+      const tell = (progress: TerminalProgress): void => {
+        state.progress = progress
+        act(() => listeners.forEach((listener) => listener()))
+      }
+      return { terminals, tell }
+    }
+    const mountWithTerminals = (
+      feed: SyncFeed,
+      terminals: SyncTerminals,
+      entries: readonly string[] = tree,
+    ) =>
+      mount(
+        undefined,
+        undefined,
+        undefined,
+        backend(undefined, entries),
+        undefined,
+        undefined,
+        feed,
+        terminals,
+      )
+    const openMark = async (
+      panel: Awaited<ReturnType<typeof mountWith>>,
+      kind: "new" | "behind",
+    ): Promise<Element> => {
+      if (!panel.row("api")) await panel.click("packages")
+      act(() => panel.row("api").querySelector<HTMLElement>(`[data-kind=${kind}]`)!.click())
       await panel.settle()
-      const card = document.querySelector(".files-card")!
-      expect(card.textContent).toContain("api caught up with origin")
-      expect(card.textContent).toContain("main moved 3 commits · 2 min ago · 14 files")
-      expect(card.textContent).toContain("Add the cart#12")
-      expect(card.textContent).toContain("Fix prices")
-      expect(card.textContent).toContain(
-        "pnpm-lock.yaml changed. Run pnpm install before you start the app.",
+      return document.querySelector(".files-card")!
+    }
+    const button = (card: Element, label: string): HTMLButtonElement =>
+      card.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+    const closeCard = async (panel: Awaited<ReturnType<typeof mountWith>>): Promise<void> => {
+      act(() => {
+        document
+          .querySelector(".files-card")!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      })
+      await panel.settle()
+      await vi.waitFor(() => expect(document.querySelector(".files-card")).toBeNull())
+    }
+
+    it("opens what landed as a terminal's readout, which marks it seen once it closes, and pulses the files that came in", async () => {
+      const held = stand([
+        repo({
+          landing: landing(),
+          pullUrl: "https://github.com/o/api/pull/{number}",
+        }),
+      ])
+      const panel = await mountWith(held.feed, [...tree, "packages/api/pnpm-lock.yaml"])
+      const card = await openMark(panel, "new")
+      expect(card.querySelector(".files-readout-head")?.textContent).toContain("api")
+      expect(card.querySelector(".files-route")?.textContent).toBe("main ‹ origin")
+      const merges = Array.from(card.querySelectorAll(".files-merge")).map((el) => el.textContent)
+      // The short commit, dimmed, the number and the subject; a merge with no pull request still shows.
+      expect(merges).toEqual(["c1c1c1c#12Add the cart@fable", "d2d2d2dFix prices"])
+      expect(card.querySelector(".files-pr")?.textContent).toBe("#12")
+      expect(card.querySelector(".files-comment")?.textContent).toBe("# pnpm-lock.yaml changed")
+      expect(card.querySelector(".files-command .files-t")?.textContent).toBe("pnpm install")
+      expect(card.querySelector(".files-readout-foot")?.textContent).toBe(
+        "2 merges · 2 min ago · changed files pulse in the tree",
       )
       // Open, the mark stays (pressed) and nothing is seen yet; the files pulse.
       expect(held.asked).toEqual([])
@@ -1736,78 +1814,284 @@ describe("The Files panel", () => {
       )
       expect(panel.view.container.querySelector("[data-pulse]")).not.toBeNull()
       // Closing it is seeing it: the mark goes.
-      act(() => {
-        document
-          .querySelector(".files-card")!
-          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
-      })
-      await panel.settle()
-      await vi.waitFor(() => expect(document.querySelector(".files-card")).toBeNull())
+      await closeCard(panel)
       expect(held.asked).toEqual(["seen packages/api b2"])
       expect(marks(panel, "api")).toEqual([])
       await nextFrame()
       panel.view.unmount()
     })
 
-    it("opens what is behind with the reason and the waiting merges, and updates on request", async () => {
-      const held = stand([repo({ behind })])
-      const panel = await mountWith(held.feed)
-      await panel.click("packages")
-      act(() => panel.row("api").querySelector<HTMLElement>("[data-kind=behind]")!.click())
-      await panel.settle()
-      const card = document.querySelector(".files-card")!
-      expect(card.textContent).toContain("api is 2 behind origin")
-      expect(card.textContent).toContain("Left as it is: you have edits in src/a.ts.")
-      expect(card.textContent).toContain("Waiting merge#7")
-      held.update.mockResolvedValueOnce({
-        ok: false,
-        said: "Your changes to src/a.ts would be overwritten.",
-      })
-      act(() => card.querySelector<HTMLButtonElement>(".files-update")!.click())
-      await panel.settle()
-      expect(held.update).toHaveBeenCalledWith("p", "packages/api")
-      expect(document.querySelector(".files-card")?.textContent).toContain(
-        "Can't update: Your changes to src/a.ts would be overwritten.",
-      )
-      expect(document.querySelector(".files-card .files-update")?.textContent).toBe("Retry")
+    it("pulses no file for a landing that moved the branch alone, whose checkout's files didn't change", async () => {
+      const held = stand([repo({ landing: landing({ ref: true }) })])
+      const panel = await mountWith(held.feed, [...tree, "packages/api/pnpm-lock.yaml"])
+      const card = await openMark(panel, "new")
+      expect(panel.view.container.querySelector("[data-pulse]")).toBeNull()
+      expect(card.querySelector(".files-readout-foot")?.textContent).toContain("your files didn't")
       await nextFrame()
       panel.view.unmount()
     })
 
-    it("says what a single-repository project's own repository holds on a line over the tree", async () => {
+    it("lists five merges, then how many more there are, which open in place", async () => {
+      const many = Array.from({ length: 9 }, (_, at) => ({
+        subject: `Merge ${at}`,
+        pr: 100 + at,
+        commit: `${at}abcdef0`,
+        own: false,
+        latest: true,
+      }))
+      const held = stand([repo({ landing: landing({ merges: many, dependencies: null }) })])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "new")
+      expect(card.querySelectorAll(".files-merge")).toHaveLength(5)
+      const more = card.querySelector<HTMLButtonElement>(".files-more-button")!
+      expect(more.textContent).toBe("# 4 more merges")
+      act(() => more.click())
+      expect(card.querySelectorAll(".files-merge")).toHaveLength(9)
+      expect(card.querySelector(".files-more-button")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("opens a merge's pull request on the forge when clicked, and has no link where none is known", async () => {
+      const open = vi.spyOn(window, "open").mockReturnValue(null)
+      const held = stand([
+        repo({ landing: landing(), pullUrl: "https://github.com/o/api/pull/{number}" }),
+      ])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "new")
+      act(() => button(card, "#12 Add the cart, open the pull request").click())
+      expect(open).toHaveBeenCalledWith(
+        "https://github.com/o/api/pull/12",
+        "_blank",
+        "noopener,noreferrer",
+      )
+      // A merge with no number has nothing to open.
+      expect(card.querySelectorAll(".files-merge button")).toHaveLength(1)
+      await closeCard(panel)
+      act(() => held.set([repo({ landing: landing({ to: "c3" }), pullUrl: null })]))
+      held.feed.refresh()
+      await panel.settle()
+      const again = await openMark(panel, "new")
+      expect(again.querySelectorAll(".files-merge button")).toHaveLength(0)
+      open.mockRestore()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("puts Copy and Run on every command, and no Update or Retry anywhere in the card", async () => {
+      const held = stand([repo({ landing: landing(), behind })])
+      const panel = await mountWith(held.feed)
+      for (const kind of ["new", "behind"] as const) {
+        // eslint-disable-next-line no-await-in-loop -- One card after the other.
+        const card = await openMark(panel, kind)
+        const commands = card.querySelectorAll(".files-command")
+        expect(commands.length).toBeGreaterThan(0)
+        for (const line of commands) {
+          const command = line.querySelector(".files-t")!.textContent
+          expect(line.querySelector(`button[aria-label="Copy ${command}"]`)).not.toBeNull()
+          expect(line.querySelector(`button[aria-label="Run ${command}"]`)).not.toBeNull()
+        }
+        expect(card.textContent).not.toMatch(/update|retry/i)
+        // eslint-disable-next-line no-await-in-loop -- One card after the other.
+        await closeCard(panel)
+      }
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("copies the command it shows", async () => {
+      const written: string[] = []
+      const clipboard = {
+        writeText: vi.fn<(text: string) => Promise<void>>(
+          async (text: string) => void written.push(text),
+        ),
+      }
+      vi.stubGlobal("navigator", { ...navigator, clipboard })
+      const held = stand([repo({ landing: landing() })])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "new")
+      act(() => button(card, "Copy pnpm install").click())
+      expect(written).toEqual(["pnpm install"])
+      vi.unstubAllGlobals()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("opens what is behind with its reason, the waiting merges and the command that moves main", async () => {
+      const off = {
+        ...behind,
+        why: "Keeping main current is off.",
+        command: "git fetch . origin/main:main",
+        local: "4f0e2aa9",
+      }
+      const held = stand([repo({ behind: off })])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "behind")
+      expect(card.querySelector(".files-route")?.textContent).toBe("main · 2 behind origin")
+      expect(card.querySelector(".files-merge")?.textContent).toBe("e3e3e3e#7Waiting merge")
+      expect(card.querySelector(".files-comment")?.textContent).toBe(
+        "# left as it is: keeping main current is off",
+      )
+      expect(card.querySelector(".files-command .files-t")?.textContent).toBe(
+        "git fetch . origin/main:main",
+      )
+      // Nothing runs until Run is pressed.
+      expect(held.update).not.toHaveBeenCalled()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("shows the merge command where the runner names none, as a runner before it moved the checkout", async () => {
+      const held = stand([repo({ behind })])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "behind")
+      expect(card.querySelector(".files-command .files-t")?.textContent).toBe(
+        "git merge --ff-only origin/main",
+      )
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("runs the git command in place, and shows the move done with a check and nothing more", async () => {
+      const held = stand([repo({ behind })])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "behind")
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      expect(held.update).toHaveBeenCalledWith("p", "packages/api")
+      const done = document.querySelector(".files-card")!
+      expect(done.querySelector(".files-readout-head [data-phase=done]")).not.toBeNull()
+      expect(done.querySelector(".files-route")?.textContent).toBe("main ‹ origin")
+      const last = done.querySelector(".files-command")!
+      expect(last.querySelector("[data-phase=done]")).not.toBeNull()
+      expect(last.querySelector("button")).toBeNull()
+      expect(done.querySelector(".files-err")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("prints git's own refusal in red, says where main stays, and keeps Run on the line to run it again", async () => {
+      const held = stand([repo({ behind: { ...behind, local: "4f0e2aa9" } })])
+      held.update.mockResolvedValueOnce({
+        ok: false,
+        said: "Your changes to functions/api.ts would be overwritten.",
+        git: [
+          "error: Your local changes to the following",
+          "files would be overwritten by merge:",
+          "    functions/api.ts",
+        ],
+      })
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "behind")
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      const refused = document.querySelector(".files-card")!
+      expect(
+        Array.from(refused.querySelectorAll(".files-err")).map((el) => el.textContent),
+      ).toEqual([
+        "error: Your local changes to the following",
+        "files would be overwritten by merge:",
+        "    functions/api.ts",
+      ])
+      expect(refused.querySelector(".files-readout-head [data-failed]")).not.toBeNull()
+      expect(refused.querySelector(".files-comment")?.textContent).toBe(
+        "# main stays at 4f0e2aa, your files as they are",
+      )
+      expect(refused.querySelector(".files-readout-foot")?.textContent).toContain(
+        "Commit or set aside the edit",
+      )
+      expect(button(refused, "Run git merge --ff-only origin/main")).not.toBeNull()
+      expect(refused.textContent).not.toMatch(/retry|update/i)
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("prints Novadeck's own words in red where the refusal wasn't git's", async () => {
+      const held = stand([repo({ behind })])
+      held.update.mockResolvedValueOnce({ ok: false, said: "It has commits origin doesn't." })
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "behind")
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      expect(document.querySelector(".files-card .files-err")?.textContent).toBe(
+        "It has commits origin doesn't.",
+      )
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("runs the dependency command in a terminal of its own, in the repository, and follows it there", async () => {
+      const held = stand([repo({ landing: landing(), home: "/work/packages/api" })])
+      const { terminals, tell } = terminalsFor()
+      const panel = await mountWithTerminals(held.feed, terminals)
+      const card = await openMark(panel, "new")
+      expect(terminals.run).not.toHaveBeenCalled()
+      act(() => button(card, "Run pnpm install").click())
+      expect(terminals.run).toHaveBeenCalledWith({
+        directory: "/work/packages/api",
+        command: "pnpm install",
+      })
+      // Under way: the spinner and "in a terminal", where it runs, and Show it.
+      tell({ phase: "running", ms: 0 })
+      const running = document.querySelector(".files-card")!
+      expect(running.querySelector(".files-command [data-phase=running]")).not.toBeNull()
+      expect(running.querySelector(".files-command .files-dim")?.textContent).toBe("in a terminal")
+      expect(running.querySelector(".files-command button")).toBeNull()
+      expect(running.querySelector(".files-readout-foot")?.textContent).toBe(
+        "Runs in its own terminal, in packages/apiShow it",
+      )
+      act(() => running.querySelector<HTMLButtonElement>(".files-show")!.click())
+      expect(terminals.show).toHaveBeenCalledWith("t1")
+      // Over: a check and how long it took.
+      tell({ phase: "done", ms: 12_000 })
+      const done = document.querySelector(".files-card")!
+      expect(done.querySelector(".files-command [data-phase=done]")).not.toBeNull()
+      expect(done.querySelector(".files-command .files-dim")?.textContent).toBe("12 s")
+      expect(done.querySelector(".files-readout-foot")?.textContent).toContain("2 merges")
+      // Failed: a cross and the time, with the command offered again.
+      tell({ phase: "failed", ms: 3000 })
+      const failed = document.querySelector(".files-card")!
+      expect(failed.querySelector(".files-command [data-failed]")).not.toBeNull()
+      expect(button(failed, "Run pnpm install")).not.toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("offers no terminal run where the app has none", async () => {
+      const held = stand([repo({ landing: landing() })])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "new")
+      expect(() => act(() => button(card, "Run pnpm install").click())).not.toThrow()
+      expect(card.querySelector(".files-show")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says what a single-repository project's own repository holds on a line over the tree, with the mark alone to open the card", async () => {
       const held = stand([repo({ path: "", name: "storefront", landing: landing() })])
       const panel = await mountWith(held.feed)
       const line = panel.view.container.querySelector(".files-sync-line")!
       expect(line.textContent).toContain("main")
       expect(line.textContent).toContain("just caught up")
       expect(line.textContent).toContain("2 new")
-      expect(line.querySelector(".files-update")).toBeNull()
+      expect(line.querySelector("button:not(.files-mark)")).toBeNull()
       act(() => held.set([repo({ path: "", name: "storefront", behind })]))
       held.feed.refresh()
       await panel.settle()
       const behindLine = panel.view.container.querySelector(".files-sync-line")!
       expect(behindLine.textContent).toContain("is behind")
       expect(behindLine.textContent).toContain("↓2")
-      act(() => behindLine.querySelector<HTMLButtonElement>(".files-update")!.click())
+      expect(behindLine.textContent).not.toMatch(/update|retry|can't/i)
+      act(() => behindLine.querySelector<HTMLElement>("[data-kind=behind]")!.click())
+      await panel.settle()
+      act(() =>
+        button(
+          document.querySelector(".files-card")!,
+          "Run git merge --ff-only origin/main",
+        ).click(),
+      )
       await panel.settle()
       expect(held.update).toHaveBeenCalledWith("p", "")
-      await nextFrame()
-      panel.view.unmount()
-    })
-
-    it("says on the line why an update was refused, keeps it when the card opens, and offers Retry", async () => {
-      const held = stand([repo({ path: "", name: "storefront", behind })])
-      held.update.mockResolvedValueOnce({ ok: false, said: "Your changes to a.ts would be lost." })
-      const panel = await mountWith(held.feed)
-      act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
-      await panel.settle()
-      const line = () => panel.view.container.querySelector(".files-sync-line")!
-      expect(line().textContent).toContain("Can't update: Your changes to a.ts would be lost.")
-      expect(line().querySelector(".files-update")?.textContent).toBe("Retry")
-      act(() => line().querySelector<HTMLElement>("[data-kind=behind]")!.click())
-      await panel.settle()
-      expect(line().textContent).toContain("Can't update: Your changes to a.ts would be lost.")
-      expect(document.querySelector(".files-card")?.textContent).toContain("Can't update:")
       await nextFrame()
       panel.view.unmount()
     })

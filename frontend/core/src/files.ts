@@ -57,6 +57,8 @@ export type SyncMerge = {
   readonly pr: number | null
   readonly commit: string
   readonly own: boolean
+  // The handle of the agent whose pull request it was.
+  readonly by?: string | undefined
   // It came in the last move of main: what a notice is about.
   readonly latest: boolean
 }
@@ -74,6 +76,8 @@ export type SyncLanding = {
   readonly dependencies: { readonly file: string; readonly command: string } | null
   // The last move of main changed a lockfile.
   readonly dependenciesLatest: boolean
+  // Only the local main branch moved (the checkout is on another branch): no file changed.
+  readonly ref?: boolean | undefined
 }
 
 // How one git repository of a project stands against its origin's main. `path` is its folder from
@@ -93,17 +97,28 @@ export type RepoSync = {
     readonly why: string | null
     // The merges waiting on origin, newest first.
     readonly merges: readonly SyncMerge[]
+    // The command that moves it by hand, as Novadeck would; absent from an older runner.
+    readonly command?: string | undefined
+    // The commit local main is at.
+    readonly local?: string | undefined
   } | null
   readonly ahead: number
   readonly landing: SyncLanding | null
   readonly moved: number
   readonly head: string | null
+  // The checkout's folder where the backend runs, for a command that runs there.
+  readonly home?: string | undefined
+  // A pull request's page on the forge, `{number}` for its number; null where none is known.
+  readonly pullUrl?: string | null | undefined
 }
 
 export type ProjectSync = { readonly repos: readonly RepoSync[] }
 
 // What an update of a checkout did: it moved (or had nothing to move), or git's reason.
-export type CheckoutUpdate = { readonly ok: true } | { readonly ok: false; readonly said: string }
+export type CheckoutUpdate =
+  | { readonly ok: true }
+  // `git` is what git printed, line by line, where it was git that refused.
+  | { readonly ok: false; readonly said: string; readonly git?: readonly string[] | undefined }
 
 export type ProjectFiles = {
   readonly state: Store<FilesState>

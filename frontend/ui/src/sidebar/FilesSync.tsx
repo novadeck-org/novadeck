@@ -1,17 +1,27 @@
 import type { RepoSync, SyncLanding } from "@novadeck/core/files"
+import { HandleChip } from "@novadeck/toolkit/HandleChip"
+import { PhaseGlyph, type GlyphPhase } from "@novadeck/toolkit/PhaseGlyph"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { GitMerge, Package } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { Check, Copy, ExternalLink, SquareTerminal } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import {
   agoOf,
   baseName,
+  elapsedOf,
   hasNews,
-  landingSub,
+  landingFoot,
   marksOf,
+  moveCommand,
   newCount,
+  pullHref,
+  shortSha,
   whyBehind,
+  type DependencyRun,
   type SyncMark,
+  type SyncTerminals,
+  type TerminalProgress,
+  type UpdateRun,
 } from "./files-sync"
 
 // How each git repository stands against its origin's main, in the Files panel: the marks on a
@@ -100,22 +110,15 @@ export const SyncMarks = ({
 export const SyncDot = (): React.JSX.Element => <span className="files-dot" aria-hidden="true" />
 
 // The line over a tree that starts inside a repository, there while it has news: that main just
-// caught up, or is behind and can be updated. Its marks open the same cards a folder row's do.
+// caught up, or is behind. Its marks open the same cards a folder row's do, where what to run is.
 export const SyncLine = ({
   repo,
   open,
-  updating,
-  refused,
   onOpen,
-  onUpdate,
 }: {
   repo: RepoSync | undefined
   open: SyncCardKind | undefined
-  updating: boolean
-  // Why the last update was refused, in git's words.
-  refused: string | undefined
   onOpen: (repo: RepoSync, kind: SyncCardKind, anchor: HTMLElement) => void
-  onUpdate: (repo: RepoSync) => void
 }): React.JSX.Element | null => {
   if (!repo || !hasNews(repo)) return null
   const marks = marksOf(repo).filter(({ kind }) => kind !== "ahead")
@@ -125,16 +128,9 @@ export const SyncLine = ({
       className="files-sync-line"
       data-state={behind ? "behind" : "new"}
       data-open={open !== undefined}
-      data-refused={refused !== undefined || undefined}
     >
       <b className="files-sync-branch">{repo.branch}</b>
-      <span className="files-sync-said" title={refused}>
-        {refused !== undefined
-          ? `Can't update: ${refused}`
-          : behind
-            ? "is behind"
-            : "just caught up"}
-      </span>
+      <span className="files-sync-said">{behind ? "is behind" : "just caught up"}</span>
       <span className="files-sync-marks">
         {marks.map((mark) => (
           <Mark
@@ -147,139 +143,452 @@ export const SyncLine = ({
           />
         ))}
       </span>
-      {behind && (
-        <button
-          type="button"
-          className="files-update"
-          disabled={updating}
-          onClick={() => onUpdate(repo)}
-        >
-          {updating ? "Updating…" : refused !== undefined ? "Retry" : "Update"}
-        </button>
-      )}
     </div>
   )
 }
 
-// How many merges a card lists before it says how many more there are.
-const listed = 8
+type Merge = SyncLanding["merges"][number]
 
-const MergeList = ({
-  merges,
+// How many merges a card lists before it says how many more there are.
+const listed = 5
+
+// A line of the card's log: it comes in after the lines above it, so the log reads in top to
+// bottom as the card opens (files.css holds it still under reduced motion).
+const Line = ({
+  at,
+  className = "",
+  children,
+  ...rest
 }: {
-  merges: readonly SyncLanding["merges"][number][]
-}): React.JSX.Element => (
-  <ul className="files-card-list">
-    {merges.slice(0, listed).map((merge) => (
-      <li key={merge.commit}>
-        <GitMerge size={13} strokeWidth={1.75} aria-hidden="true" />
-        <span className="files-card-subject">{merge.subject}</span>
-        <span className="files-card-number">
-          {merge.pr === null ? merge.commit.slice(0, 7) : `#${merge.pr}`}
-        </span>
-      </li>
-    ))}
-    {merges.length > listed && (
-      <li className="files-card-more">and {merges.length - listed} more</li>
-    )}
-  </ul>
+  at: number
+  className?: string
+  children: React.ReactNode
+} & React.HTMLAttributes<HTMLDivElement>): React.JSX.Element => (
+  <div
+    {...rest}
+    className={`files-line ${className}`.trimEnd()}
+    style={{ "--line": at } as React.CSSProperties}
+  >
+    {children}
+  </div>
 )
 
-// What came in: the merges, the dependency hint where a lockfile changed, and how many files
-// pulse in the tree. The landing is the one the card was opened on, kept as it was then.
-const LandingCard = ({
+// One merge: its short commit (dimmed), its pull request number, its subject and, at the end, the
+// handle of the agent whose pull request it was. Where it has a pull request page, it opens it.
+const MergeLine = ({
   repo,
-  landing,
+  merge,
+  at,
 }: {
   repo: RepoSync
-  landing: SyncLanding
+  merge: Merge
+  at: number
 }): React.JSX.Element => {
-  const [now] = useState(Date.now)
+  const href = pullHref(repo, merge.pr)
+  const body = (
+    <>
+      <span className="files-sha">{shortSha(merge.commit)}</span>
+      {merge.pr !== null && <span className="files-pr">#{merge.pr}</span>}
+      <span className="files-t">{merge.subject}</span>
+      <span className="files-end">
+        {merge.own && <HandleChip handle={merge.by} className="handle-plain" />}
+        {href && <ExternalLink className="files-open" size={12} strokeWidth={2} aria-hidden />}
+      </span>
+    </>
+  )
+  return href ? (
+    <Line at={at} className="files-merge" data-link="true">
+      <button
+        type="button"
+        className="files-merge-button"
+        aria-label={`#${merge.pr} ${merge.subject}, open the pull request`}
+        onClick={() => void window.open(href, "_blank", "noopener,noreferrer")}
+      >
+        {body}
+      </button>
+    </Line>
+  ) : (
+    <Line at={at} className="files-merge">
+      {body}
+    </Line>
+  )
+}
+
+// The merges, newest first: up to `listed`, then "# N more merges", which opens the rest here.
+const MergeLog = ({
+  repo,
+  merges,
+}: {
+  repo: RepoSync
+  merges: readonly Merge[]
+}): React.JSX.Element => {
+  const [all, setAll] = useState(false)
+  const shown = all ? merges : merges.slice(0, listed)
   return (
     <>
-      <div>
-        <h4 className="files-card-title">{repo.name} caught up with origin</h4>
-        <div className="files-card-sub">{landingSub(repo, landing, now)}</div>
-      </div>
-      {landing.merges.length > 0 && <MergeList merges={landing.merges} />}
-      {landing.dependencies && (
-        <div className="files-card-hint">
-          <Package size={14} strokeWidth={1.75} aria-hidden="true" />
-          <span>
-            New dependencies: <code>{baseName(landing.dependencies.file)}</code> changed. Run{" "}
-            <code>{landing.dependencies.command}</code> before you start the app.
-          </span>
-        </div>
+      {shown.map((merge, at) => (
+        <MergeLine key={merge.commit} repo={repo} merge={merge} at={at} />
+      ))}
+      {!all && merges.length > listed && (
+        <Line at={listed} className="files-more">
+          <button
+            type="button"
+            className="files-more-button"
+            aria-expanded={false}
+            onClick={() => setAll(true)}
+          >
+            # {merges.length - listed} more {merges.length - listed === 1 ? "merge" : "merges"}
+          </button>
+        </Line>
       )}
-      <div className="files-card-foot">
-        <span>
-          {landing.filesTotal === 0 ? "No files changed" : "Changed files pulse in the tree"}
-        </span>
-      </div>
     </>
   )
 }
 
-// What main left behind: why it was left, the merges waiting, and Update.
+// Puts a command on the clipboard where the app can; one it can't write goes nowhere.
+const copyText = (text: string): void => {
+  void navigator.clipboard?.writeText(text).catch(() => undefined)
+}
+
+// A `$ command` line: whatever the command, Copy and Run are on it, and nothing runs but by Run.
+// `lead` stands in the prompt's place (a spinner, a check) while it is under way or has been.
+const CommandLine = ({
+  at,
+  command,
+  lead,
+  end,
+  onRun,
+  primary = false,
+  running = false,
+  buttons = true,
+}: {
+  at: number
+  command: string
+  lead?: React.ReactNode
+  // What stands at its end instead of the buttons: "in a terminal", a time.
+  end?: React.ReactNode
+  onRun: () => void
+  primary?: boolean
+  running?: boolean
+  buttons?: boolean
+}): React.JSX.Element => {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return undefined
+    const timer = setTimeout(() => setCopied(false), 1200)
+    return () => clearTimeout(timer)
+  }, [copied])
+  return (
+    <Line at={at} className="files-command" data-prompt="true">
+      {lead ?? <span className="files-p">$</span>}
+      <span className="files-t">{command}</span>
+      <span className="files-end">
+        {end}
+        {buttons && (
+          <>
+            <button
+              type="button"
+              className="files-ib"
+              aria-label={copied ? `Copied ${command}` : `Copy ${command}`}
+              onClick={() => {
+                copyText(command)
+                setCopied(true)
+              }}
+            >
+              {copied ? (
+                <Check size={12} strokeWidth={2} aria-hidden />
+              ) : (
+                <Copy size={12} strokeWidth={1.9} aria-hidden />
+              )}
+            </button>
+            <button
+              type="button"
+              className="files-run"
+              data-primary={primary || undefined}
+              aria-label={`Run ${command}`}
+              disabled={running}
+              onClick={onRun}
+            >
+              <SquareTerminal size={12} strokeWidth={2} aria-hidden /> Run
+            </button>
+          </>
+        )}
+      </span>
+    </Line>
+  )
+}
+
+// The card: a head strip (the phase, the repository, where main stands against its origin), a
+// log on the terminal's own ground and a muted foot.
+const Readout = ({
+  repo,
+  phase,
+  failed = false,
+  route,
+  foot,
+  children,
+}: {
+  repo: RepoSync
+  phase: GlyphPhase
+  failed?: boolean
+  route: string
+  foot?: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element => (
+  <>
+    <div className="files-readout-head">
+      <PhaseGlyph phase={phase} failed={failed} />
+      <b>{repo.name}</b>
+      <span className="files-route">{route}</span>
+    </div>
+    <div className="files-readout-log">{children}</div>
+    {foot !== undefined && <div className="files-readout-foot">{foot}</div>}
+  </>
+)
+
+// What a card with no terminal followed subscribes to.
+const ignore = (): (() => void) => () => undefined
+const nothingFollowed = (): undefined => undefined
+
+// Where a command runs, as the card says it: the repository's folder from the project's root.
+const placeOf = (repo: RepoSync): string => (repo.path === "" ? repo.name : repo.path)
+
+// The lines for the command a changed lockfile asks for: not run yet, or run in a terminal that
+// is followed (`progress`) until it ends. A failed one offers its command again.
+const dependencyLines = ({
+  landing,
+  at,
+  progress,
+  onRun,
+}: {
+  landing: SyncLanding
+  at: number
+  progress: TerminalProgress | undefined
+  onRun: () => void
+}): React.JSX.Element | null => {
+  const dependencies = landing.dependencies
+  if (!dependencies) return null
+  const { command } = dependencies
+  const comment = (
+    <Line at={at} className="files-comment" data-gap="true">
+      # {baseName(dependencies.file)} changed
+    </Line>
+  )
+  if (progress === undefined || progress.phase === "failed")
+    return (
+      <>
+        {comment}
+        <CommandLine
+          at={at + 1}
+          command={command}
+          onRun={onRun}
+          {...(progress !== undefined && {
+            lead: <PhaseGlyph phase="done" failed hidden={false} className="files-g" />,
+            end: <span className="files-dim">{elapsedOf(progress.ms)}</span>,
+          })}
+        />
+      </>
+    )
+  const finished = progress.phase === "done"
+  return (
+    <>
+      {comment}
+      <CommandLine
+        at={at + 1}
+        command={command}
+        buttons={false}
+        onRun={onRun}
+        lead={
+          <PhaseGlyph phase={finished ? "done" : "running"} hidden={false} className="files-g" />
+        }
+        end={
+          <span className="files-dim">{finished ? elapsedOf(progress.ms) : "in a terminal"}</span>
+        }
+      />
+    </>
+  )
+}
+
+// What came in: the merges, then, where a lockfile changed, the command its dependencies ask
+// for. The landing is the one the card was opened on, kept as it was then.
+const LandingCard = ({
+  repo,
+  landing,
+  dependency,
+  follow,
+  onRunDependency,
+  onShowTerminal,
+}: {
+  repo: RepoSync
+  landing: SyncLanding
+  dependency: DependencyRun | undefined
+  follow: SyncTerminals["follow"] | undefined
+  onRunDependency: () => void
+  onShowTerminal: (id: string) => void
+}): React.JSX.Element => {
+  const [now] = useState(Date.now)
+  const followed = useMemo(
+    () => (dependency ? follow?.(dependency.id, dependency.startedAt) : undefined),
+    [follow, dependency],
+  )
+  const progress = useSyncExternalStore(
+    followed?.subscribe ?? ignore,
+    followed?.get ?? nothingFollowed,
+  )
+  const underway = progress?.phase === "running"
+  return (
+    <Readout
+      repo={repo}
+      phase="done"
+      route={`${repo.branch} ‹ origin`}
+      foot={
+        <>
+          <span>
+            {underway ? `Runs in its own terminal, in ${placeOf(repo)}` : landingFoot(landing, now)}
+          </span>
+          {dependency && (
+            <button
+              type="button"
+              className="files-show"
+              onClick={() => onShowTerminal(dependency.id)}
+            >
+              Show it
+            </button>
+          )}
+        </>
+      }
+    >
+      <MergeLog repo={repo} merges={landing.merges} />
+      {dependencyLines({
+        landing,
+        at: Math.min(landing.merges.length, listed + 1),
+        progress,
+        onRun: onRunDependency,
+      })}
+    </Readout>
+  )
+}
+
+// What main left behind: the merges waiting, why they were left, and the command that moves
+// main, which Run runs here. A refusal is git's own words in red, with where main stays.
 const BehindCard = ({
   repo,
-  updating,
-  refused,
+  update,
   onUpdate,
 }: {
   repo: RepoSync
-  updating: boolean
-  refused: string | undefined
+  update: UpdateRun | undefined
   onUpdate: () => void
 }): React.JSX.Element | null => {
   const { behind } = repo
   if (!behind) return null
-  const why = whyBehind(behind)
+  const command = moveCommand(behind)
+  const refused = update?.state === "refused" ? update : undefined
+  const at = Math.min(behind.merges.length, listed + 1)
+  const stays = behind.local ?? repo.head
+  const printed = refused ? (refused.git ?? [refused.said]) : []
+  const hint = printed.some((each) => /local changes|overwritten/i.test(each))
   return (
-    <>
-      <div>
-        <h4 className="files-card-title">
-          {repo.name} is {behind.count} behind origin
-        </h4>
-        <div className="files-card-sub">{behind.why === null ? why : `Left as it is: ${why}.`}</div>
-      </div>
-      {behind.merges.length > 0 && <MergeList merges={behind.merges} />}
-      <div className="files-card-foot" data-refused={refused !== undefined || undefined}>
-        <span>
-          {refused !== undefined
-            ? `Can't update: ${refused}`
-            : behind.why !== null && /edits/i.test(behind.why)
-              ? "Update keeps your edits where git can"
-              : "Update moves main forward"}
-        </span>
-        <button type="button" className="files-update" disabled={updating} onClick={onUpdate}>
-          {updating ? "Updating…" : refused !== undefined ? "Retry" : "Update"}
-        </button>
-      </div>
-    </>
+    <Readout
+      repo={repo}
+      phase={refused ? "done" : "waiting"}
+      failed={refused !== undefined}
+      route={`${repo.branch} · ${behind.count} behind origin`}
+      foot={refused && hint ? "Commit or set aside the edit, then run it again" : undefined}
+    >
+      <MergeLog repo={repo} merges={behind.merges} />
+      {!refused && (
+        <Line at={at} className="files-comment" data-gap="true">
+          # {behind.why === null ? "main hasn't moved yet" : `left as it is: ${whyBehind(behind)}`}
+        </Line>
+      )}
+      <CommandLine
+        at={at + 1}
+        command={command}
+        primary={!refused}
+        running={update?.state === "running"}
+        onRun={onUpdate}
+        {...(update?.state === "running" && {
+          lead: <PhaseGlyph phase="running" hidden={false} className="files-g" />,
+        })}
+      />
+      {printed.map((text, index) => (
+        <Line
+          // eslint-disable-next-line react/no-array-index-key -- Git's lines are as printed, in order.
+          key={index}
+          at={at + 2 + index}
+          className="files-err"
+        >
+          {text}
+        </Line>
+      ))}
+      {refused && (
+        <Line at={at + 2 + printed.length} className="files-comment" data-gap="true">
+          #{" "}
+          {stays
+            ? `main stays at ${shortSha(stays)}, your files as they are`
+            : "main stays as it is"}
+        </Line>
+      )}
+    </Readout>
+  )
+}
+
+// A move that went through here: what was waiting, and the command with its check, which is all
+// there is to say; the card stays until it is closed.
+const MovedCard = ({ repo, command }: { repo: RepoSync; command: string }): React.JSX.Element => {
+  const merges = repo.behind?.merges ?? []
+  return (
+    <Readout repo={repo} phase="done" route={`${repo.branch} ‹ origin`}>
+      <MergeLog repo={repo} merges={merges} />
+      <Line at={Math.min(merges.length, listed + 1)} className="files-command" data-gap="true">
+        <PhaseGlyph phase="done" hidden={false} className="files-g" />
+        <span className="files-t">{command}</span>
+      </Line>
+    </Readout>
   )
 }
 
 // What a card holds. A landing's is the snapshot it was opened on; a behind card follows the
-// repository as it stands, and goes (`null`) once it is no longer behind.
+// repository as it stands, and after Run moved main stays as the move left it (`behind` is then
+// the snapshot it was opened on).
 export const SyncCard = ({
   kind,
   repo,
-  updating,
-  refused,
+  update,
   onUpdate,
+  dependency,
+  follow,
+  onRunDependency,
+  onShowTerminal,
 }: {
   kind: SyncCardKind
   repo: RepoSync
-  updating: boolean
-  refused: string | undefined
+  update: UpdateRun | undefined
   onUpdate: () => void
-}): React.JSX.Element | null =>
-  kind === "new" ? (
-    repo.landing && <LandingCard repo={repo} landing={repo.landing} />
+  dependency: DependencyRun | undefined
+  // Follows the terminal the dependency command runs in.
+  follow: SyncTerminals["follow"] | undefined
+  onRunDependency: () => void
+  onShowTerminal: (id: string) => void
+}): React.JSX.Element | null => {
+  if (kind === "new")
+    return repo.landing ? (
+      <LandingCard
+        repo={repo}
+        landing={repo.landing}
+        dependency={dependency}
+        follow={follow}
+        onRunDependency={onRunDependency}
+        onShowTerminal={onShowTerminal}
+      />
+    ) : null
+  return update?.state === "ok" && repo.behind ? (
+    <MovedCard repo={repo} command={moveCommand(repo.behind)} />
   ) : (
-    <BehindCard repo={repo} updating={updating} refused={refused} onUpdate={onUpdate} />
+    <BehindCard repo={repo} update={update} onUpdate={onUpdate} />
   )
+}
 
 // The card's name, for assistive technology.
 export const cardLabel = (kind: SyncCardKind, repo: RepoSync): string =>

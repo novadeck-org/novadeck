@@ -111,7 +111,16 @@ describe("fast-forwarding a checkout", () => {
       hooks: () => Promise.resolve(hooks),
       allowChanges: true,
     })
-    expect(done).toEqual({ ok: false, said: "Your changes to a.txt would be overwritten." })
+    expect(done).toMatchObject({ ok: false, said: "Your changes to a.txt would be overwritten." })
+    // What git itself printed, as it printed it: the file it names stays indented.
+    expect(done.ok ? [] : done.git).toEqual([
+      expect.stringMatching(
+        /^error: Your local changes to the following files would be overwritten/,
+      ),
+      expect.stringMatching(/^ {4}a\.txt$/),
+      expect.stringMatching(/^Please commit your changes or stash them/),
+      "Aborting",
+    ])
     expect(head(origin.repo)).toBe(before)
     expect(other).not.toBe(before)
   })

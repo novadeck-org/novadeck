@@ -14,7 +14,14 @@ import {
   type Squad,
 } from "./files-agents"
 import { textWidth } from "./files-fonts"
-import { hidesNews, rootRepo, type SyncFeed } from "./files-sync"
+import {
+  hidesNews,
+  rootRepo,
+  type DependencyRun,
+  type SyncFeed,
+  type SyncTerminals,
+  type UpdateRun,
+} from "./files-sync"
 import {
   buildTree,
   chipsOf,
@@ -71,6 +78,7 @@ const FilesPanelView = ({
   list,
   turn,
   sync,
+  terminals,
   watch,
   onOpenFile,
   onOpenFolder,
@@ -90,6 +98,8 @@ const FilesPanelView = ({
   turn: number
   // How the project's git repositories stand against their origins' main, where the backend tells.
   sync?: SyncFeed | undefined
+  // Opens, shows and follows the terminal a card's command runs in, where the app can.
+  terminals?: SyncTerminals | undefined
   // Follows the works `project` comes from until the returned release is called, where it
   // comes from them.
   watch?: (() => () => void) | undefined
@@ -208,25 +218,59 @@ const FilesPanelView = ({
   const [card, setCard] = useState<
     { readonly kind: SyncCardKind; readonly repo: RepoSync; readonly rect: DOMRect } | undefined
   >()
-  const [updating, setUpdating] = useState(false)
-  // Why the last update was refused, and of which repository: it stands while that one is behind.
-  const [refusal, setRefusal] = useState<{ readonly path: string; readonly said: string }>()
-  const refusedAt = (path: string): string | undefined =>
-    refusal?.path === path && repos.find((repo) => repo.path === path)?.behind
-      ? refusal.said
-      : undefined
+  // What Run did to a repository's main (the git command the card shows), and of which: a refusal
+  // stands while that one is behind, and a move until the card closes.
+  const [ran, setRan] = useState<{ readonly path: string; readonly run: UpdateRun }>()
+  const runOf = (path: string): UpdateRun | undefined => {
+    if (ran?.path !== path) return undefined
+    if (ran.run.state === "refused" && !repos.find((repo) => repo.path === path)?.behind)
+      return undefined
+    return ran.run
+  }
   const live = card && repos.find((repo) => repo.path === card.repo.path)
-  const cardRepo = card?.kind === "behind" ? live : card?.repo
+  const moved = card !== undefined && runOf(card.repo.path)?.state === "ok"
+  // Behind, the card follows the repository as it stands; once Run moved main, it is the one it
+  // was opened on, with the move done.
+  const cardRepo = card?.kind === "behind" && !moved ? live : card?.repo
   const cardOpen =
-    card !== undefined && cardRepo !== undefined && (card.kind === "new" || !!live?.behind)
+    card !== undefined && cardRepo !== undefined && (card.kind === "new" || moved || !!live?.behind)
   const update = (repo: RepoSync): void => {
-    if (!sync || updating) return
-    setUpdating(true)
-    setRefusal(undefined)
-    void sync.update(repo.path).then((done) => {
-      setUpdating(false)
-      if (!done.ok) setRefusal({ path: repo.path, said: done.said })
-    })
+    if (!sync || ran?.run.state === "running") return
+    setRan({ path: repo.path, run: { state: "running" } })
+    void sync.update(repo.path).then((done) =>
+      setRan({
+        path: repo.path,
+        run: done.ok
+          ? { state: "ok" }
+          : { state: "refused", said: done.said, ...(done.git && { git: done.git }) },
+      }),
+    )
+  }
+  // The terminal a landing's dependency command was run in, by repository: what the card follows.
+  const [dependencyRuns, setDependencyRuns] = useState<ReadonlyMap<string, DependencyRun>>(
+    new Map(),
+  )
+  const runDependency = (repo: RepoSync): void => {
+    const landing = repo.landing
+    if (!terminals || !landing?.dependencies) return
+    const { command } = landing.dependencies
+    const id = terminals.run({ directory: repo.home, command })
+    setDependencyRuns((known) =>
+      new Map(known).set(repo.path, {
+        key: `${landing.to}\0${command}`,
+        id,
+        startedAt: Date.now(),
+      }),
+    )
+  }
+  const dependencyOf = (repo: RepoSync): DependencyRun | undefined => {
+    const known = dependencyRuns.get(repo.path)
+    const landing = repo.landing
+    return known &&
+      landing?.dependencies &&
+      known.key === `${landing.to}\0${landing.dependencies.command}`
+      ? known
+      : undefined
   }
   const [selected, setSelected] = useState<string | null>(null)
   // A chip can leave from under the pointer, folded into `+N` by another agent's write or a
@@ -341,13 +385,15 @@ const FilesPanelView = ({
     const rect = anchor.getBoundingClientRect()
     // Another card open is closed first, which has what it showed seen.
     closeCard()
-    if (kind === "new" && repo.landing) pulse(repo.landing.files)
+    // Only where the checkout's files changed: a main that moved as a branch alone changed none.
+    if (kind === "new" && repo.landing && repo.landing.ref !== true) pulse(repo.landing.files)
     setCard({ kind, repo, rect })
   }
   // Closing the card of what landed is seeing it: the mark goes, for every window. A landing newer
   // than the one the card showed stays.
   const closeCard = (): void => {
     if (card?.kind === "new" && card.repo.landing) sync?.seen(card.repo.path, card.repo.landing.to)
+    if (moved) setRan(undefined)
     setCard(undefined)
   }
   // Hiding the panel ends the pulses, and showing it again starts the trails over so each reads
@@ -504,10 +550,7 @@ const FilesPanelView = ({
       <SyncLine
         repo={rootRepo(repos)}
         open={card?.repo.path === "" ? card.kind : undefined}
-        updating={updating}
-        refused={refusedAt("")}
         onOpen={openCard}
-        onUpdate={update}
       />
       {card && (
         <Popover
@@ -525,9 +568,12 @@ const FilesPanelView = ({
             <SyncCard
               kind={card.kind}
               repo={cardRepo}
-              updating={updating}
-              refused={refusedAt(card.repo.path)}
+              update={runOf(card.repo.path)}
               onUpdate={() => update(cardRepo)}
+              dependency={dependencyOf(cardRepo)}
+              follow={terminals?.follow}
+              onRunDependency={() => runDependency(cardRepo)}
+              onShowTerminal={(id) => terminals?.show(id)}
             />
           )}
         </Popover>
