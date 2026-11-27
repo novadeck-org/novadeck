@@ -209,9 +209,11 @@
   --artifact-code-pointed-bg: #e6eae4;
   --prose-code-bg: oklab(from var(--color-paper) calc(l - 0.03) a b);
 
-  /* Brand: the choice-card tiles are dark in both schemes, their glyphs the bright cyan. */
-  --brand-tile-bg: linear-gradient(180deg, #2e2d2a, #181816);
-  --brand-tile-fg: #00e5d6;
+  /* Brand: a choice-card tile that is on takes What's new's tint of the teal, its glyph the
+     darker teal that keeps 4.5:1 on it, and a faint edge of that teal. */
+  --brand-tile-bg: var(--whats-new-accent-bg);
+  --brand-tile-fg: var(--whats-new-accent-fg);
+  --brand-tile-border-color: color-mix(in srgb, var(--whats-new-accent-fg) 18%, transparent);
 
   /* What's new: the tape and the icon tiles share a tint of the teal, their glyphs and
      letters a darker teal than the strong colour, as it would miss 4.5:1 on the tint. */
@@ -377,6 +379,7 @@
 
   /* Brand: the tile stays slate with a light edge, its glyph the cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2f3137, #24262b);
+  --brand-tile-fg: #00e5d6;
   --brand-tile-border-color: #595c64;
 
   /* What's new: a deep tint of the cyan, its glyphs and letters the cyan itself. */
