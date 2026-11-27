@@ -169,8 +169,8 @@ type ExperimentalToggle = {
 }
 
 // The window width at which the menu turns from a column into a row above the page (the
-// `max-[640px]` classes below), where its arrow keys turn with it.
-const narrowQuery = "(max-width: 640px)"
+// `max-[640px]` classes below, narrower than 640px), where its arrow keys turn with it.
+const narrowQuery = "(width < 640px)"
 const subscribeNarrow = (changed: () => void): (() => void) => {
   if (typeof matchMedia !== "function") return () => {}
   const query = matchMedia(narrowQuery)

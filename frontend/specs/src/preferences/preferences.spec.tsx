@@ -1147,6 +1147,24 @@ describe("Terminal's text sample", () => {
   })
 })
 
+describe("Preferences' menu at the narrow layout's edge", () => {
+  context("when the window is exactly as wide as the menu still stands down the side", () => {
+    it("moves between pages with the arrow keys that run along it", async () => {
+      onTestFinished(() => page.viewport(1440, 900))
+      await page.viewport(640, 800)
+      await openWorkspace()
+      await openAppearance()
+      const list = preferencesDialog().element().querySelector<HTMLElement>(".preferences-tabs")!
+      // The menu still stands down the side here.
+      expect(getComputedStyle(list).flexDirection).toBe("column")
+
+      tab("Appearance").element().focus()
+      await userEvent.keyboard("{ArrowDown}")
+      await expect.element(tab("Terminal")).toHaveAttribute("aria-selected", "true")
+    })
+  })
+})
+
 describe("Scale preference", () => {
   const scaleSelect = () => preferencesDialog().getByRole("combobox", { name: "Scale" })
 
