@@ -8,8 +8,8 @@
 </p>
 
 <p align="center">
-  <strong>A desktop terminal for Claude Code, Codex, Antigravity, opencode and pi.</strong><br />
-  When an agent needs you, its question comes to one Inbox, and you answer it right there.<br />
+  <strong>An agentic development environment for Claude Code, Codex, Antigravity, OpenCode and Pi.</strong><br />
+  Run a bunch of agents at once, in real terminals, and actually keep up with them.<br />
   Free and open source, no account.
 </p>
 
@@ -22,7 +22,7 @@
 <p align="center">
   <a href="https://github.com/novadeck-org/novadeck/releases/latest"><img src="https://novadeck.dev/badge/latest.svg" alt="Latest release" /></a>
   <a href="https://github.com/novadeck-org/novadeck/commits/main"><img src="https://novadeck.dev/badge/commits.svg" alt="Commits this week" /></a>
-  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity, opencode and pi" /></a>
+  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity, OpenCode and Pi" /></a>
   <br />
   <a href="https://novadeck.dev/download?utm_source=readme"><img src="https://novadeck.dev/badge/runs-on.svg" alt="Runs on macOS, Windows and Linux" /></a>
   <a href="https://novadeck.dev/privacy?utm_source=readme"><img src="https://novadeck.dev/badge/privacy.svg" alt="Privacy: no account, no telemetry" /></a>
@@ -33,51 +33,13 @@
   <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
 </p>
 
-## Answer them where you are
+I run like four or five coding agents a day. The agents are fine. Keeping up with them was NOT.
+Tab, tab, tab to find the one that's waiting, copy-pasting answers between them, no idea which
+branch had what. So now I use Novadeck.
 
-<p align="center">
-  <img src="docs/assets/highlights/inbox.webp" alt="In the Grid, Checkout tests, a Claude Code agent, asks to run pnpm test:e2e. The ask opens in the Inbox under what the agent did first, with Allow, always allow and Deny. Allow is picked, and the agent's tests run and pass." width="100%" />
-</p>
-
-Every agent's permission prompts, plans and questions land in one Inbox. Most you answer with a click.
-
-## Stop being the meat proxy
-
-<p align="center">
-  <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, with its teammates wired to it in the terminal list, Pricing endpoint on Codex and Stock endpoint on Antigravity among them. Its Messages pane opens Cart endpoint's conversation: the brief, the teammate's question about which API version to call, and the lead's answer." width="100%" />
-</p>
-
-Agents message each other by handle and start their own teammates. Claude Code, Codex, Antigravity, opencode and pi can share a team.
-
-## Run one, a few, or the whole crew
-
-<p align="center">
-  <img src="docs/assets/highlights/views.webp" alt="One project's terminals in Focus, one big; then tiled in the Grid; then all ten at once on the Canvas." width="100%" />
-</p>
-
-Focus, Grid and Canvas: the same terminals, three ways to look at them.
-
-## Where'd it save that?
-
-<p align="center">
-  <img src="docs/assets/highlights/companion.webp" alt="Order status page, a Claude Code agent, shows its order page in the pane beside its terminal, then a screenshot of three takes on the page's Track package button." width="100%" />
-</p>
-
-Pages, screenshots and diffs an agent shows you open right next to its terminal.
-
-## Back where you left off
-
-<p align="center">
-  <img src="docs/assets/highlights/restore.webp" alt="Novadeck starts again. Its splash counts the terminals as it attaches them, says Deck online, and cuts back to the deck as it was, in Focus on Cart drawer, its Claude Code session where it left off." width="100%" />
-</p>
-
-After a restart, terminals reopen where they were and agents pick up their sessions.
-
-## Bring your own harness
-
-Novadeck runs the CLIs you already have, with your config and your own accounts. Nothing is wrapped or rebuilt.
-
-## Install
+It's not tmux with extra steps. Novadeck knows what each agent is doing, so it can tell you who's
+waiting and pass their messages around. All it adds is a small plugin to each agent. Your settings
+stay yours, and outside Novadeck the plugin does nothing.
 
 On macOS and x86_64 Linux:
 
@@ -88,14 +50,83 @@ curl -fsSL https://novadeck.dev/install.sh | sh
 For Windows and portable builds, see
 [novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
 
-Leave a ⭐ on your way out. It's your way back here, and someone else's way in.
+## Keep the agents you have
 
-## Docs
+<p align="center">
+  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, OpenCode and Pi, each named as it lands." width="100%" />
+</p>
 
-- [Guide](docs/guide.md): a short tour of how Novadeck works. The [reference](docs/reference.md) has every detail.
-- [Development](docs/development.md): setup, repository map, tests and releases.
-- [Contributing](CONTRIBUTING.md) · [Code style](CODING.md) · [Security](SECURITY.md)
-- Found a bug or want something? [Open an issue](https://github.com/novadeck-org/novadeck/issues).
+It runs the CLIs you already have. Your config, your accounts. Start them like you always do.
+
+## See who needs you
+
+<p align="center">
+  <img src="docs/assets/highlights/glance.webp" alt="The terminal list marks each agent working, asking, failed or done. Then the same terminals in Focus, one big; on the Canvas, all at once; and tiled in the Grid." width="100%" />
+</p>
+
+Every terminal says if its agent is working, asking, failed or done. I see who wants me without
+opening anything. Focus for one, Canvas for all of them, Grid to tile.
+
+## Answer them where you are
+
+<p align="center">
+  <img src="docs/assets/highlights/inbox.webp" alt="Three asks land on the Canvas: a command to run, a plan to approve and a question. Each shows in the Inbox. Opened from there, the command gets Yes, the plan Yes, manually approve edits, and the question its recommended answer, the customer's account. Each agent goes back to work." width="100%" />
+</p>
+
+Permission prompts, plans, questions. They all land in the Inbox. I answer from there, usually in
+one click, and the agent's back at it.
+
+## Stop being the meat proxy
+
+<p align="center">
+  <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, opens three teammates, wired to it on the Canvas. Cart endpoint asks which API version to call, in the Inbox and to its lead. The lead answers first, and the ask leaves the Inbox on its own. Pricing endpoint reports done, to its lead and to the Inbox." width="100%" />
+</p>
+
+Half the stuff they ask me is really for another agent. Here they message each other by handle,
+and one can start its own teammates and lead them. The lead gets their questions too and usually
+answers before I even look. Claude Code, Codex, Antigravity, OpenCode and Pi, all on one team.
+
+## Read along as a chat
+
+<p align="center">
+  <img src="docs/assets/highlights/chat.webp" alt="In Preferences, Show agents as is switched from Terminal to Chat. The Grid's terminals turn into chats: Cart drawer's steps, and Search index's review of Cart drawer's change as a message." width="100%" />
+</p>
+
+Not into raw terminals? Agent Chat shows the same agents as a chat, their messages to each other
+too. It's in Preferences. The terminal's still there when the chat can't handle something.
+
+## Keep their work apart
+
+<p align="center">
+  <img src="docs/assets/highlights/worktrees.webp" alt="The Worktrees panel lists every agent's worktree with its pull request, checks and handle. Orders API's three teammates hang under it. A check turns green, and Cart endpoint's pull request opens." width="100%" />
+</p>
+
+Each agent makes its own git worktree, so nobody edits over anybody, and my checkout stays mine,
+which tbh was the main thing. The Worktrees panel has the PR, the checks and who's on it, and
+cleans up after the merge.
+
+## See what they're changing
+
+<p align="center">
+  <img src="docs/assets/highlights/files.webp" alt="The Files panel shows the project's tree while the agents write: each file marked with the agent writing it, new files arriving as they're made." width="100%" />
+</p>
+
+The Files panel marks every file with the agent changing it. Live. That's how I catch two of them
+going for the same file.
+
+## Where'd it save that?
+
+<p align="center">
+  <img src="docs/assets/highlights/show.webp" alt="Order status page, an agent, shows its page in the pane beside its terminal, then its changes as diffs, then an image, a video, a PDF invoice, a 3D model, a CSV as a table and a folder of screenshots." width="100%" />
+</p>
+
+Whatever an agent makes opens right next to its terminal. A page, a diff, an image, a video, a PDF,
+a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff.
+
+## Leave a ⭐
+
+One person builds this. Free, no account, no tracking, zero ad budget. Most people find it on
+GitHub, and stars are how. If it helps you, star it.
 
 ## License
 

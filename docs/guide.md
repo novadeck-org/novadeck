@@ -20,6 +20,8 @@ first:
 - [Claude Code](https://code.claude.com/docs/en/setup): `claude`
 - [Codex](https://developers.openai.com/codex/cli): `codex`
 - [Antigravity CLI](https://antigravity.google/docs/getting-started?tab=cli): `agy`
+- [OpenCode](https://opencode.ai/docs/): `opencode`
+- [Pi](https://pi.dev): `pi`
 
 ![The welcome dialog: Claude Code and Codex ticked, Antigravity not installed, and a Let's build something button.](assets/guide/welcome.webp)
 
@@ -53,7 +55,7 @@ Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages wo
 
 ## The Inbox
 
-![Claude Code asks to run its tests. The ask opens in the Inbox, Allow is picked, and the tests run.](assets/highlights/inbox.webp)
+![Three asks land in the Inbox: a command, a plan and a question. Each is answered from its sheet, and its agent goes back to work.](assets/highlights/inbox.webp)
 
 When an agent wants a permission, a plan approved or an answer, it lands in the Inbox. Most of
 the time you answer with a button, right there.
