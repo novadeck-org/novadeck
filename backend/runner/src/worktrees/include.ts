@@ -53,7 +53,7 @@ export type Included = {
   readonly failed: readonly string[]
   /** The patterns picked more than `includeLimit`, so nothing was copied. */
   readonly over?: true
-  /** Git couldn't list the checkout's files, so nothing was copied. */
+  /** The patterns or the checkout's matching files couldn't be read, so nothing was copied. */
   readonly unread?: true
 }
 
@@ -200,7 +200,6 @@ export const pickedFiles = async (
     const inWhole = (path: string) => foldersAbove(path).some((folder) => whole.has(folder))
     const chosen = [...new Set([...named.filter((path) => !inWhole(path)), ...pathed])]
     if (chosen.length === 0) return { ok: true, paths: [] }
-    if (chosen.length > limit.files) return { ok: false, why: "over" }
     // Only what git ignores: a pattern may also match an untracked file it doesn't. Git lists
     // every ignored file, folders' too, and only the chosen ones are kept as it goes.
     const wanted = new Set(chosen)
@@ -210,22 +209,25 @@ export const pickedFiles = async (
       { ...listing, entries: (path) => wanted.has(path) },
     )
     if (!checked.ok || checked.cut) return { ok: false, why: "unread" }
-    const kept = new Set(filesOf(checked.out))
-    return { ok: true, paths: chosen.filter((path) => kept.has(path)).toSorted(byDepth) }
+    const kept = filesOf(checked.out)
+    if (kept.length > limit.files) return { ok: false, why: "over" }
+    return { ok: true, paths: kept.toSorted(byDepth) }
   } finally {
     await rm(scratch, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
-/** The patterns that pick what is copied from `top`, and where they came from. */
+/** The patterns to copy, or no lines if an existing .worktreeinclude can't be read. */
 const patternsAt = async (
   top: string,
-): Promise<{ readonly by: Included["by"]; readonly lines: readonly string[] }> => {
-  const text = await readFile(join(top, includeFile), "utf8").catch(() => undefined)
-  // An empty `.worktreeinclude` is one that copies nothing.
-  return text === undefined
-    ? { by: "default", lines: defaultPatterns }
-    : { by: "file", lines: patternLines(text) }
+): Promise<{ readonly by: Included["by"]; readonly lines?: readonly string[] }> => {
+  try {
+    return { by: "file", lines: patternLines(await readFile(join(top, includeFile), "utf8")) }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT")
+      return { by: "default", lines: defaultPatterns }
+    return { by: "file" }
+  }
 }
 
 /** What a path reaches, followed through links; undefined where it reaches nothing. */
@@ -293,6 +295,7 @@ export const copyIncluded = async (
 ): Promise<Included> => {
   const { by, lines } = await patternsAt(top)
   const none = { from: top, by, copied: [], failed: [] } as const
+  if (lines === undefined) return { ...none, unread: true }
   try {
     const picked = await pickedFiles(top, lines, limit)
     if (!picked.ok)

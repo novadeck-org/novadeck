@@ -763,7 +763,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         "files, such as .env files, installed dependencies or build output.",
     )
     expect(includedSaid({ ...base, by: "default", unread: true })).toBe(
-      " Novadeck couldn't list the ignored files of /repo, so none were copied: the worktree " +
+      " Novadeck couldn't tell which ignored files to copy from /repo, so none were copied: the worktree " +
         "has no ignored files, such as .env files, installed dependencies or build output.",
     )
     expect(includedSaid(undefined)).toBe("")
