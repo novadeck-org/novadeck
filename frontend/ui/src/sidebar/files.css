@@ -203,6 +203,11 @@
 .files-row-action:focus-visible {
   opacity: 1;
 }
+/* A repository's marks are in the action's place, and must stay where the pointer found them: the
+   row's menu has "Open in the pane" for it. */
+.files-row:has(.files-mark) .files-row-action {
+  display: none;
+}
 
 /* An agent writing a file shows as a terminal's cursor after its name. */
 .files-cursor {
