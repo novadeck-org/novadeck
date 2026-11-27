@@ -3,13 +3,19 @@ import { readdirSync, unwatchFile, watchFile } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
+import { noFreeModel, NovaTickets } from "@novadeck/harness-nova/ticket"
 import { compatibility, errors, forgeName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
 import { taggedScopes, terminalPriorities, userScopes, windowsJobs } from "@novadeck/terminal/pty"
+import { TourError } from "@novadeck/tour-runner/errors"
+import { TourRecords } from "@novadeck/tour-runner/records"
+import type { TourAssets } from "@novadeck/tour-runner/seed"
+import { Tour } from "@novadeck/tour-runner/tour"
 import { createSessions, type Sessions, type Verdict } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
+import { git } from "./checkouts/git.js"
 import { Snapshots } from "./checkouts/snapshots.js"
 import { CompanionItems } from "./companions/items.js"
 import { secrets } from "./companions/secrets.js"
@@ -21,6 +27,7 @@ import { BundledPi } from "./harnesses/bundled-pi.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
+import { findProgram } from "./programs.js"
 import { apiError, createRouter } from "./router.js"
 import { codexConfig, installShellFiles } from "./shell/install.js"
 import { Shipping } from "./shipping/service.js"
@@ -31,9 +38,6 @@ import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealin
 import { SeenTerminals } from "./terminals/seen.js"
 import { Uploads } from "./terminals/uploads.js"
 import { watchWorking } from "./terminals/working.js"
-import { TourRecords } from "./tour/records.js"
-import type { TourAssets } from "./tour/seed.js"
-import { Tour } from "./tour/tour.js"
 import { Voice } from "./voice/service.js"
 import { Works } from "./works/works.js"
 import { Projects } from "./workspaces/projects.js"
@@ -474,6 +478,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   // The terminals below are made with the gate, which asks them only once it is answering.
   const shippingTerminals = (): Terminals => terminals
+  // The ticket Novas started by hand share (`NovaTickets`), for the runner's life.
+  const novaTickets = new NovaTickets()
   // Novadeck's own pi (Experimental), fetched into the data folder beside the shell files: its
   // launcher asks for it, and its switch, read live, starts its fetch, here as the runner starts.
   // Only with the shell files, which hold its launcher.
@@ -485,6 +491,17 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           enabled: () => store.settings.runner().bundledPi === true,
           // The tour's terminals start it whatever its switch says: the person asked for the tour.
           allows: (terminalId) => tour.paysFor(terminalId),
+          // What `nova` in Novadeck's terminals reads to start it, kept while the switch is on.
+          on: join(options.shell, "bundled", "on"),
+          // A Nova started by hand runs on Novadeck's model with a ticket of its own, which the
+          // runner's Novas share; the tour's terminals have their run's already.
+          service: async (terminalId, progress) => {
+            if (tour.isTours(terminalId)) return undefined
+            const given = await novaTickets.service()
+            if (given.ok) return given.env
+            progress(`${noFreeModel} ${given.reason}`)
+            return undefined
+          },
         })
   bundledPi?.switched()
   const terminals = new Terminals({
@@ -547,6 +564,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const projects = new Projects(store, terminals, items, worktrees)
   // In the person's home, where the agents are looked for too.
   const tour = new Tour({
+    git,
+    findProgram,
     // What each run was given, beside the database, so a runner started again still gives the
     // tour's agents their provider (the file holds a ticket: the runner's owner's alone).
     ...(options.database !== undefined &&
@@ -562,7 +581,14 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),
-      remove: (id) => projects.remove(id),
+      // Through a promise, as the store refuses a missing project at once.
+      remove: (id) =>
+        Promise.resolve()
+          .then(() => projects.remove(id))
+          .catch((error: unknown) => {
+            // Removed meanwhile, as from another window.
+            if (!(error instanceof DomainError && error.code === "NOT_FOUND")) throw error
+          }),
     },
     notice: (terminalId, text) => terminals.messaging.notice(terminalId, text, { always: true }),
     cwdOf: (terminalId) => terminals.get(terminalId).cwd,
@@ -741,7 +767,12 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
 const logFailure = (path: readonly string[], error: unknown): void => {
   const code: unknown = (error as { code?: unknown } | undefined)?.code
   const procedure = path.join(".")
-  if (error instanceof DomainError || error instanceof TerminalError || error instanceof ORPCError)
+  if (
+    error instanceof DomainError ||
+    error instanceof TerminalError ||
+    error instanceof TourError ||
+    error instanceof ORPCError
+  )
     log.info("rpc.failed", "A call failed as the contract says.", {
       data: { path: procedure, code: typeof code === "string" ? code : null },
     })

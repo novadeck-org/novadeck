@@ -3,7 +3,7 @@ import { createStore } from "@novadeck/core/store"
 
 type BundledPi = NonNullable<Backend["bundledPi"]>
 
-// The demo's Novadeck Agent (Preferences > Experimental): switched on, it plays a download of
+// The demo's Nova (Preferences > Experimental): switched on, it plays a download of
 // pi's size over a few seconds, then is ready; off, it says nothing and keeps its "copy", as the
 // runner does. `show` puts it in any state, for the debug panel.
 export type DemoBundledPi = BundledPi & {

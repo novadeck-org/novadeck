@@ -164,6 +164,7 @@ const Row = ({
           size={30}
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}
+          nova={you ? undefined : peer?.nova}
         />
         <span className="message-row-main">
           <span className="message-row-top">
@@ -379,6 +380,7 @@ const Chat = ({
           size={26}
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}
+          nova={you ? undefined : peer?.nova}
         />
         <h3 className="message-chat-name">
           <strong>{name}</strong>

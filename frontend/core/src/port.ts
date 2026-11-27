@@ -413,7 +413,7 @@ export type BackendFields = {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
-  // Optional. Whether Novadeck's own pi (Novadeck Agent) is on, an Experimental switch the runner
+  // Optional. Whether Novadeck's own pi (Nova) is on, an Experimental switch the runner
   // keeps: on, the runner downloads its pinned pi once; off, nothing fetches or starts it, and a
   // copy in place stays. `fetch` is where its download stands. Absent where the backend has none,
   // as a runner from before it (revision 16).

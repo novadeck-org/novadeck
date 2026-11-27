@@ -18,8 +18,12 @@ export type RunnerHistory = {
 // Newest first, the rows of every project.
 // A row as the history holds it: one of a harness a newer Novadeck integrates shows as a plain
 // terminal's, which the runner still restores.
-const rowOf = (row: RunnerRow): ClosedTerminal =>
-  row.agent === newer ? { ...row, agent: null } : { ...row, agent: row.agent }
+const rowOf = ({ nova, ...row }: RunnerRow): ClosedTerminal => {
+  const own = nova ? { nova } : {}
+  return row.agent === newer
+    ? { ...row, ...own, agent: null }
+    : { ...row, ...own, agent: row.agent }
+}
 
 const byClosedAt = (rows: Iterable<ClosedTerminal>): ClosedTerminal[] =>
   [...rows].toSorted((a, b) => b.closedAt - a.closedAt)

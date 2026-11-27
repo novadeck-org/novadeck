@@ -11,6 +11,8 @@ import {
   maxClientStateLength,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
+import { TourError } from "@novadeck/tour-runner/errors"
+import type { Tour } from "@novadeck/tour-runner/tour"
 import { dropUnknownKeys, type SessionContext } from "@novadeck/wire/server"
 import { implement, ORPCError } from "@orpc/server"
 
@@ -32,7 +34,6 @@ import type { ClientWindows } from "./terminals/client-windows.js"
 import type { Terminals } from "./terminals/index.js"
 import type { SeenTerminals } from "./terminals/seen.js"
 import type { Uploads } from "./terminals/uploads.js"
-import type { Tour } from "./tour/tour.js"
 import type { Voice } from "./voice/service.js"
 import type { Works } from "./works/works.js"
 import { listFolder } from "./workspaces/folder.js"
@@ -71,8 +72,8 @@ export const apiError = (error: unknown): unknown => {
       message: error.message,
       data: error.data ?? (error.reason ? { reason: error.reason } : undefined),
     })
-  // The terminal library's codes are the contract's own, under the same names.
-  if (error instanceof TerminalError)
+  // The terminal library's codes, and the tour's, are the contract's own, under the same names.
+  if (error instanceof TerminalError || error instanceof TourError)
     return new ORPCError(error.code, {
       status: contractErrors[error.code].status,
       message: error.message,

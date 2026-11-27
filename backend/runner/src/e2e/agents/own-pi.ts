@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { bundledPiHome } from "../../harnesses/bundled-pi.js"
+import { bundledPiHome } from "@novadeck/harness-nova/pin"
+
 import type { AgentSetup } from "./agent.js"
 import { pi } from "./pi.js"
 

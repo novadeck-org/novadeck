@@ -1,0 +1,75 @@
+{
+  "name": "@novadeck/tour-runner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Novadeck's onboarding tour on the runner's side: its folder and repo, the seed project, the agents' launch and briefs, and the run each start readies.",
+  "license": "GPL-3.0-or-later",
+  "author": "mzpkdev",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./brief": {
+      "development": "./src/brief.ts",
+      "types": "./dist/brief.d.ts",
+      "default": "./dist/brief.js"
+    },
+    "./errors": {
+      "development": "./src/errors.ts",
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
+    "./folder": {
+      "development": "./src/folder.ts",
+      "types": "./dist/folder.d.ts",
+      "default": "./dist/folder.js"
+    },
+    "./launch": {
+      "development": "./src/launch.ts",
+      "types": "./dist/launch.d.ts",
+      "default": "./dist/launch.js"
+    },
+    "./notices": {
+      "development": "./src/notices.ts",
+      "types": "./dist/notices.d.ts",
+      "default": "./dist/notices.js"
+    },
+    "./records": {
+      "development": "./src/records.ts",
+      "types": "./dist/records.d.ts",
+      "default": "./dist/records.js"
+    },
+    "./seed": {
+      "development": "./src/seed.ts",
+      "types": "./dist/seed.d.ts",
+      "default": "./dist/seed.js"
+    },
+    "./tour": {
+      "development": "./src/tour.ts",
+      "types": "./dist/tour.d.ts",
+      "default": "./dist/tour.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/harness-core": "workspace:*",
+    "@novadeck/harness-nova": "workspace:*",
+    "@novadeck/harness-pi": "workspace:*",
+    "@novadeck/protocol": "workspace:*",
+    "phaser": "3.90.0",
+    "three": "0.187.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "novadeck": {
+    "platform": "system"
+  }
+}

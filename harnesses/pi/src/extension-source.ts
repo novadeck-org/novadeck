@@ -50,11 +50,11 @@ export type ExtensionConfig = {
    */
   readonly gate?: boolean
   /**
-   * The model Novadeck pays for, which the extension registers in Novadeck's own pi alone
-   * (own-model.ts): the provider's name, the variables its base URL and key come in, and the rest
-   * of its configuration.
+   * The model Novadeck pays for, which the extension registers in Nova, Novadeck's own pi, alone
+   * (@novadeck/harness-nova's model.ts): the provider's name, the variables its base URL and key
+   * come in, and the rest of its configuration. Absent, Nova gets no model of Novadeck's.
    */
-  readonly own: {
+  readonly own?: {
     readonly provider: string
     readonly variables: { readonly baseUrl: string; readonly key: string }
     readonly config: object
@@ -114,16 +114,19 @@ globalThis.novadeckOwnPi ??= process.env.NOVADECK_PI === "bundled"
 delete process.env.NOVADECK_PI
 const ownPi = globalThis.novadeckOwnPi
 
-// The model service Novadeck pays for, as the terminal gives it (own-model.ts), read once per
+// The model service Novadeck pays for, as the terminal gives it (Nova's model.ts), read once per
 // process and taken out of the environment, so no command the agent runs, nor a pi started from
 // one, has its key. Kept on the process, as novadeckOwnPi is.
 globalThis.novadeckService ??= (() => {
+  if (!config.own) return null
   const baseUrl = process.env[config.own.variables.baseUrl]
   const key = process.env[config.own.variables.key]
   return baseUrl && key ? { baseUrl, key } : null
 })()
-delete process.env[config.own.variables.baseUrl]
-delete process.env[config.own.variables.key]
+if (config.own) {
+  delete process.env[config.own.variables.baseUrl]
+  delete process.env[config.own.variables.key]
+}
 const service = globalThis.novadeckService
 
 // Runs Novadeck's hook command for event with payload on its input, and gives what it printed;
@@ -387,7 +390,7 @@ export default function novadeck(pi) {
   // address that refuses, so a session of Novadeck's model resumed where the service isn't
   // given fails there rather than going on with another model on the person's own keys, which
   // pi does with a session's model it can't find (probed 2026-11-25, 1.6.0).
-  if (ownPi) {
+  if (ownPi && config.own) {
     const given = service && /^[A-Za-z0-9_-]+$/.test(service.key)
     try {
       pi.registerProvider(config.own.provider, {

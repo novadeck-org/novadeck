@@ -417,7 +417,7 @@ describe("the IS_EXPERIMENTAL flag", () => {
     await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
   })
 
-  it("turns Novadeck Agent off where the channel is stable", async () => {
+  it("turns Nova off where the channel is stable", async () => {
     const enabled = createStore(true)
     const bundledPi = {
       enabled,

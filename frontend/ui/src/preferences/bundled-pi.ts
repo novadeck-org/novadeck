@@ -1,9 +1,9 @@
 import type { BundledPiFetchState } from "@novadeck/core/port"
 
-// The Experimental row of Novadeck's own pi (Novadeck Agent): what it is for and what it costs.
-export const bundledPiLabel = "Novadeck Agent (Pi built in)"
+// The Experimental row of Novadeck's own pi (Nova): what it is for and what it costs.
+export const bundledPiLabel = "Nova"
 export const bundledPiDescription =
-  "Gets Novadeck's own agent ready ahead of time. Downloads Pi once, about 50–60 MB. It isn't in the agent picker yet. Off: the download stays, and Novadeck won't fetch or start it."
+  "Type nova in a Novadeck terminal to start Nova, Novadeck's own agent. It runs on a model Novadeck pays for, a few sessions a day. It downloads Pi once, about 50–60 MB. Off: the download stays, and nova doesn't start."
 
 // What the row says under its description of where the download stands: `error` is for an alert,
 // which offers to try again.

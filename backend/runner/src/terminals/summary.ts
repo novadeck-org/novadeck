@@ -19,6 +19,7 @@ export const noAgent = {
   sleeping: false,
   restingAgent: null,
   lastTurnAt: null,
+  nova: undefined,
 } as const
 
 /** A terminal's whole summary: its record's half and its host's. */
@@ -35,6 +36,8 @@ export const summaryOf = (record: {
 /** What a saved terminal says of its sleeping agent, if one rests there (see `Sleepers`). */
 export type Resting = {
   readonly agent: AgentName
+  /** Whether that agent is Nova, Novadeck's own pi. */
+  readonly nova: boolean
   /** Whether its wake is wanted already: a `create` is coming, so it is not asleep. */
   readonly waking: boolean
   /** The standing report of the agent's session, so a done mark survives its sleep. */
@@ -72,6 +75,7 @@ export const savedSummaryOf = (terminal: ListedTerminal, resting?: Resting): Ter
   ...(resting && {
     sleeping: !resting.waking,
     restingAgent: resting.agent,
+    ...(resting.nova && { nova: true }),
     reported: resting.reported,
     lastTurnAt: resting.lastTurnAt,
   }),

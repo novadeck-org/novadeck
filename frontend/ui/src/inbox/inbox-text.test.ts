@@ -3,6 +3,7 @@ import type { InboxEntry } from "@novadeck/core/inbox"
 import { describe, expect, it } from "../test"
 import {
   clock,
+  agentName,
   codeParts,
   endedLine,
   endedWords,
@@ -343,5 +344,14 @@ describe("A limit's window", () => {
   it("names the models it covers after its length, where not all of them", () => {
     expect(limitWindow(10_080, "Fable")).toBe("weekly Fable")
     expect(limitWindow(0, "Gemini")).toBe("Gemini usage")
+  })
+})
+
+describe("an agent's name in the Inbox", () => {
+  it("is Nova for Novadeck's own pi, Pi for the person's, and the harness's for the rest", () => {
+    expect(agentName("pi", true)).toBe("Nova")
+    expect(agentName("pi")).toBe("Pi")
+    expect(agentName("claude", true)).toBe("Claude")
+    expect(agentName("newer")).toBe("the agent")
   })
 })

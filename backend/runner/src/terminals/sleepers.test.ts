@@ -568,3 +568,20 @@ describe("sleepers", () => {
     expect(sleepers.holdsKeys({ woken: Date.now(), resumeFile: undefined })).toBe(false)
   })
 })
+
+describe("Nova, Novadeck's own pi, in a sleeper's summary", () => {
+  it("is set for a pi sleeper under Nova's folder, and not for the person's pi or another agent", () => {
+    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const theirs = "/home/p/.pi/agent/sessions/--t--/1_two.jsonl"
+    const rows = [
+      row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } }),
+      row("b", "pi", { pi: { sessionId: "two", seq: 1, transcript: theirs } }),
+      row("c", "claude", { claude: { sessionId: "three", seq: 1, transcript: own } }),
+    ]
+    const { sleepers } = setup(rows, { own })
+    sleepers.start()
+    expect(sleepers.summaryOf(rows[0]!)).toMatchObject({ restingAgent: "pi", nova: true })
+    expect(sleepers.summaryOf(rows[1]!).nova).toBeUndefined()
+    expect(sleepers.summaryOf(rows[2]!).nova).toBeUndefined()
+  })
+})

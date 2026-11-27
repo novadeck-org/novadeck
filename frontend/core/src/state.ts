@@ -184,6 +184,7 @@ export type WorkspaceAction =
       agentRan?: boolean
       restorable?: boolean
       busy?: boolean
+      nova?: boolean
       titleSource?: TitleSource
     }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
@@ -700,6 +701,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ...(action.agentRan !== undefined && { agentRan: action.agentRan }),
           ...(action.restorable !== undefined && { restorable: action.restorable }),
           ...(action.busy !== undefined && { busy: action.busy }),
+          ...(action.nova !== undefined && { nova: action.nova }),
           ...(action.titleSource !== undefined && { titleSource: action.titleSource }),
         })
         return roster === state.roster

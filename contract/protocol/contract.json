@@ -1,5 +1,5 @@
 {
-  "revision": 21,
+  "revision": 22,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -709,6 +709,7 @@
                 {"type":"null"}
               ]
             },
+            "nova": {"type":"boolean"},
             "ready": {
               "anyOf": [
                 {
@@ -1249,6 +1250,7 @@
               {"type":"null"}
             ]
           },
+          "nova": {"type":"boolean"},
           "ready": {
             "anyOf": [
               {
@@ -1982,6 +1984,7 @@
                       {"type":"null"}
                     ]
                   },
+                  "nova": {"type":"boolean"},
                   "ready": {
                     "anyOf": [
                       {
@@ -2842,6 +2845,7 @@
               {"type":"null"}
             ]
           },
+          "nova": {"type":"boolean"},
           "ready": {
             "anyOf": [
               {
@@ -4835,6 +4839,7 @@
                 {"type":"null"}
               ]
             },
+            "nova": {"type":"boolean"},
             "program": {"anyOf":[{"type":"string","maxLength":256},{"type":"null"}]},
             "cwd": {"type":"string","minLength":1,"maxLength":4096},
             "closedAt": {"type":"number"},
@@ -4945,6 +4950,7 @@
                       {"type":"null"}
                     ]
                   },
+                  "nova": {"type":"boolean"},
                   "program": {"anyOf":[{"type":"string","maxLength":256},{"type":"null"}]},
                   "cwd": {"type":"string","minLength":1,"maxLength":4096},
                   "closedAt": {"type":"number"},

@@ -117,8 +117,8 @@ export const requestReceipt = (
 const ownWords = (entry: InboxEntry, label = "Reply in your own words"): MenuRow => ({
   type: "words",
   label,
-  placeholder: `Reply to ${agentName(entry.source.agent)}`,
-  field: `Reply to ${agentName(entry.source.agent)}`,
+  placeholder: `Reply to ${agentName(entry.source.agent, entry.source.nova)}`,
+  field: `Reply to ${agentName(entry.source.agent, entry.source.nova)}`,
   required: true,
   answer: (text) => ({ kind: "ask", answer: { type: "reply", option: null, text: text.trim() } }),
   receipt: () => `Reply queued for @${entry.source.handle}.`,
@@ -220,7 +220,7 @@ const troubleMenu = (entry: InboxEntry, trouble: Trouble, now: number): Menu => 
             type: "words",
             label: "Nudge it in your own words",
             placeholder: "What should it try?",
-            field: `What ${agentName(entry.source.agent)} should try`,
+            field: `What ${agentName(entry.source.agent, entry.source.nova)} should try`,
             required: true,
             answer: (text) => ({
               kind: "trouble",

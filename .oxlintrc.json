@@ -76,7 +76,12 @@
       }
     },
     {
-      "files": ["harnesses/agy/**", "harnesses/opencode/**", "harnesses/pi/**"],
+      "files": [
+        "harnesses/agy/**",
+        "harnesses/opencode/**",
+        "harnesses/pi/**",
+        "harnesses/nova/**"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -444,11 +449,5 @@
       }
     }
   ],
-  "ignorePatterns": [
-    "out",
-    "release",
-    "storybook-static",
-    "coverage",
-    "backend/runner/assets/tour/seed"
-  ]
+  "ignorePatterns": ["out", "release", "storybook-static", "coverage", "backend/tour/assets/seed"]
 }

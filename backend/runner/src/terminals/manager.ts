@@ -486,6 +486,7 @@ export class Terminals {
       detailed: (record) => this.streams.detailed(record),
       cards: (id) => this.options.shipping?.cardsOf(id).length ?? 0,
       permits: (id) => this.options.shipping?.held(id).permits.length ?? 0,
+      ownPi: (agent, transcript) => this.claims.own(agent, transcript),
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
@@ -859,11 +860,10 @@ export class Terminals {
         throw new DomainError("TERMINAL_NOT_FOUND")
       // A concurrent creation may have taken the id meanwhile.
       this.available(input.id)
-      // Read again after every wait above: a rename meanwhile, as from another window,
-      // stands. Nothing waits between this and saving it, and a terminal that can't be
-      // given a handle fails before its shell starts. Only one saved for this session counts:
-      // another's handle and opener mean nothing here, and must never give a terminal
-      // there a lead.
+      // Read again after every wait above: a rename meanwhile, as from another window, stands.
+      // Nothing waits between this and saving it, and a terminal that can't be given a handle fails
+      // before its shell starts. Only one saved for this session counts: another's handle and
+      // opener mean nothing here, and must never give a terminal there a lead.
       const kept = plan
         ? plan.identity(input.sessionId)
         : saved

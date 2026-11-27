@@ -1,137 +1,28 @@
-// Novadeck's own pi: a pinned build of pi's standalone binary (Bun-compiled, no Node), which
-// Novadeck downloads the first time it starts one, into its own data folder, and runs on an
-// agent folder of its own. It is not the person's pi (harnesses/pi, found on PATH), shows in no
-// picker, and never reads or writes `~/.pi`.
+// Nova's download, in a runner: the pinned pi of @novadeck/harness-nova (its `pin.ts`), fetched
+// once into Novadeck's data folder, checked against its pinned checksums, behind its
+// Experimental switch, and for the tour whatever the switch says.
 import { randomUUID } from "node:crypto"
-import { chmod, mkdir, readdir, rename, rm } from "node:fs/promises"
-import { join, posix, win32 } from "node:path"
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 
+import { turnOnLine } from "@novadeck/harness-nova/launcher"
+import {
+  buildFolder,
+  buildFor,
+  bundledPiFolder,
+  bundledPiHome,
+  bundledPiProgram,
+  ownPiSession,
+  pinnedPi,
+  type PiBuild,
+  type PinnedPi,
+} from "@novadeck/harness-nova/pin"
+import { seededSettings, settingsFile } from "@novadeck/harness-nova/settings"
 import type { AgentName, BundledPiFetch } from "@novadeck/protocol"
 
 import { download, DownloadError, locate } from "../engines/download.js"
 import { extract } from "../engines/unpack.js"
 import { exists } from "../files.js"
-
-/** One build of pi for one system: its archive on the release, and its program inside. */
-export type PiBuild = {
-  readonly file: string
-  readonly sha256: string
-  readonly size: number
-  /** The program, as the archive holds it. */
-  readonly program: string
-}
-
-/**
- * The pinned pi: its release's archives by system (`<platform>-<arch>`, as Node names them),
- * from its `SHA256SUMS`, and pi's MIT licence, by the commit the release's tag names, which
- * every copy keeps beside its program. Read 2026-11-25 from github.com/earendil-works/pi,
- * release v1.6.0, the version the pi e2e runs.
- */
-export const pinnedPi = {
-  version: "1.6.0",
-  source: "https://github.com/earendil-works/pi/releases/download/v1.6.0/",
-  builds: {
-    "linux-x64": {
-      file: "pi-linux-x64.tar.gz",
-      sha256: "ef77dbe4379b3bdeb425a1e1b862fa3c915c255000dfe4965c98eee96a5765d1",
-      size: 58_977_130,
-      program: "pi/pi",
-    },
-    "linux-arm64": {
-      file: "pi-linux-arm64.tar.gz",
-      sha256: "5404547b9739be596d50ae7142c52535899e8e7dd37a7bace9be593e0355b468",
-      size: 58_847_610,
-      program: "pi/pi",
-    },
-    "darwin-x64": {
-      file: "pi-darwin-x64.tar.gz",
-      sha256: "5b69cd87c3b00e74cce2d1499df3b7a1ec73632f11abf64696d110f0f4dc4192",
-      size: 50_640_053,
-      program: "pi/pi",
-    },
-    "darwin-arm64": {
-      file: "pi-darwin-arm64.tar.gz",
-      sha256: "6429287b7ae98d726ec577815d14fd680e7c587e89ecc5153b4a145dc4adba33",
-      size: 48_128_107,
-      program: "pi/pi",
-    },
-    "win32-x64": {
-      file: "pi-windows-x64.zip",
-      sha256: "f5defb6c403ee698f5b3f8886db473e55b78aac670a8ce03620a47f5f0aec57c",
-      size: 61_995_847,
-      program: "pi.exe",
-    },
-    "win32-arm64": {
-      file: "pi-windows-arm64.zip",
-      sha256: "56433d392e1baecf9f1692785a3bf171c125b415a29dd36097d02baca98bc9eb",
-      size: 56_672_454,
-      program: "pi.exe",
-    },
-  } satisfies { readonly [system: string]: PiBuild },
-  licence: {
-    url: "https://raw.githubusercontent.com/earendil-works/pi/faac585884ae2c013a6b1400f3e9e77f10b34bac/LICENSE",
-    sha256: "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
-    size: 1069,
-  },
-} as const
-
-export type PinnedPi = {
-  readonly version: string
-  readonly source: string
-  readonly builds: { readonly [system: string]: PiBuild }
-  readonly licence: { readonly url: string; readonly sha256: string; readonly size: number }
-}
-
-/** The build of `pinned` for this system, or undefined where pi publishes none. */
-export const buildFor = (
-  platform: NodeJS.Platform,
-  arch: string,
-  pinned: PinnedPi = pinnedPi,
-): PiBuild | undefined => pinned.builds[`${platform}-${arch}`]
-
-/** Where Novadeck's pi lives under Novadeck's data folder `data`. */
-export const bundledPiFolder = (data: string): string => join(data, "bundled", "pi")
-
-/**
- * Where Novadeck's pi keeps its settings, sign-ins and sessions (its `PI_CODING_AGENT_DIR`): a
- * folder of Novadeck's, never the person's `~/.pi/agent`. It outlives a new pinned version.
- */
-export const bundledPiHome = (data: string): string => join(bundledPiFolder(data), "agent")
-
-/**
- * Whether a pi session is Novadeck's own pi's, by its transcript: its sessions are kept in its own
- * agent folder (`bundledPiHome`, its `PI_CODING_AGENT_DIR`), and the person's pi never writes
- * there. False with no transcript, which pi names as its session starts.
- */
-export const ownPiSession = (
-  transcript: string | undefined,
-  data: string,
-  platform: NodeJS.Platform = process.platform,
-): boolean => {
-  if (transcript === undefined) return false
-  const paths = platform === "win32" ? win32 : posix
-  const fold = (text: string) =>
-    platform === "win32" || platform === "darwin" ? text.toLowerCase() : text
-  const inner = paths.relative(
-    fold(paths.resolve(bundledPiHome(data))),
-    fold(paths.resolve(transcript)),
-  )
-  return inner !== "" && inner.split(paths.sep)[0] !== ".." && !paths.isAbsolute(inner)
-}
-
-/** The folder a build unpacks to: its version and the start of its checksum. */
-export const buildFolder = (
-  data: string,
-  build: PiBuild,
-  version: string = pinnedPi.version,
-): string => join(bundledPiFolder(data), `${version}-${build.sha256.slice(0, 12)}`)
-
-/** The program of `build` once it is in place under `data`. */
-export const bundledPiProgram = (
-  data: string,
-  build: PiBuild,
-  version: string = pinnedPi.version,
-): string => join(buildFolder(data, build, version), build.program)
 
 /** What a fetch tells as it goes, a line a person reads. */
 export type FetchProgress = (line: string) => void
@@ -167,9 +58,6 @@ export type FetchOptions = {
   readonly signal?: AbortSignal
   readonly stallMs?: number
 }
-
-/** What a fetch or a launch says while Novadeck's pi is switched off. */
-export const turnOnLine = "Turn on Novadeck Agent in Preferences > Experimental."
 
 /** What a fetch stopped by its signal fails with. */
 export const stoppedLine = "The download was stopped."
@@ -394,6 +282,20 @@ export class BundledPi {
        * which the person asked for (`want`). None but the switch's where omitted.
        */
       readonly allows?: (terminalId: string) => boolean
+      /**
+       * The variables a launcher's Nova in `terminalId` is given: its model service's, a ticket of
+       * its own, for one started by hand; none for a terminal that has them already (the tour's).
+       * A line said through `progress` tells why where there are none to give. None where omitted.
+       */
+      readonly service?: (
+        terminalId: string,
+        progress: FetchProgress,
+      ) => Promise<Readonly<Record<string, string>> | undefined>
+      /**
+       * The file kept while the switch is on, which `nova` reads to start Nova (the shell
+       * folder's `bundled/on`); none kept where omitted.
+       */
+      readonly on?: string
       readonly env?: NodeJS.ProcessEnv
       readonly platform?: NodeJS.Platform
       readonly arch?: string
@@ -418,6 +320,7 @@ export class BundledPi {
    * a fetch under way stops and the state says off.
    */
   switched(): void {
+    this.mark()
     // The tour's download goes on, and its state stands, whatever the switch.
     if (this.wanted) return void this.ensure().catch(() => {})
     if (!this.host.enabled()) {
@@ -444,10 +347,16 @@ export class BundledPi {
   }
 
   /**
-   * Fetches Novadeck's `name` (`pi`) for a launcher in `terminalId`, telling `progress`; refused
-   * while switched off, but for a terminal the host allows it in (the tour's).
+   * Fetches Novadeck's `name` (`pi`, Nova) for a launcher in `terminalId`, telling `progress`;
+   * refused while switched off, but for a terminal the host allows it in (the tour's). Resolves
+   * with the variables its Nova is given (`service`), once its agent folder's settings start a
+   * new session on Novadeck's model where they name none of their own (`seededSettings`).
    */
-  async fetch(name: string, progress: FetchProgress, terminalId?: string): Promise<void> {
+  async fetch(
+    name: string,
+    progress: FetchProgress,
+    terminalId?: string,
+  ): Promise<Readonly<Record<string, string>> | undefined> {
     if (name !== "pi") throw new DownloadError(`Novadeck has no ${name} of its own.`)
     const allowed = () =>
       this.host.enabled() || (terminalId !== undefined && this.host.allows?.(terminalId) === true)
@@ -461,6 +370,32 @@ export class BundledPi {
       if (!allowed()) throw new DownloadError(turnOnLine)
       throw error
     }
+    await this.seed()
+    return terminalId === undefined ? undefined : this.host.service?.(terminalId, progress)
+  }
+
+  // The file `nova` reads to start Nova, kept as the switch says (the tour's asks aside, as they
+  // start Nova by its launcher's path); left where it can't be written, as `nova` then says so.
+  private mark(): void {
+    const { on } = this.host
+    if (on === undefined) return
+    const kept = this.host.enabled()
+      ? mkdir(join(on, ".."), { recursive: true }).then(() => writeFile(on, ""))
+      : rm(on, { force: true })
+    void kept.catch(() => {})
+  }
+
+  // Nova's agent folder's settings, with Novadeck's model as the one a new session starts on
+  // where they name none of their own; left as they are where they can't be read or written,
+  // as a session then starts as pi chooses.
+  private async seed(): Promise<void> {
+    const file = join(bundledPiHome(this.host.data), settingsFile)
+    const text = await readFile(file, "utf8").catch(() => undefined)
+    const seeded = seededSettings(text)
+    if (seeded === undefined) return
+    await mkdir(join(file, ".."), { recursive: true })
+      .then(() => writeFile(file, seeded))
+      .catch(() => {})
   }
 
   /**

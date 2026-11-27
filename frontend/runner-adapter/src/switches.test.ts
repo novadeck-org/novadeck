@@ -125,7 +125,7 @@ describe("the shipping gate setting", () => {
   })
 })
 
-describe("the Novadeck Agent setting", () => {
+describe("the Nova setting", () => {
   it("isn't offered by a runner from before it (revision 15), which reports no switch", () => {
     const app = scripted({ shown: [] })
     expect(app.backend.bundledPi).toBeUndefined()

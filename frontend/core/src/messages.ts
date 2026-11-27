@@ -191,6 +191,8 @@ export type MessagePeer = {
   // known. Words older than this that name the handle meant an earlier terminal.
   readonly handleGivenAt?: number
   readonly program: string | undefined
+  // Its program is Nova, Novadeck's own pi, which the peer shows by that name and mark.
+  readonly nova?: true
   readonly live: "idle" | "working" | "gone"
 }
 
@@ -214,6 +216,7 @@ export const samePeers = (
         one.handle === other.handle &&
         (one.handleGivenAt ?? 0) === (other.handleGivenAt ?? 0) &&
         one.program === other.program &&
+        one.nova === other.nova &&
         one.live === other.live
       )
     })

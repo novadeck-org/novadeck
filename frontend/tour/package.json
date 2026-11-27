@@ -9,10 +9,11 @@
     "./ClosingCard": "./src/ClosingCard.tsx",
     "./consent": "./src/consent.ts",
     "./Stage": "./src/Stage.tsx",
+    "./tour-folder": "./src/tour-folder.ts",
     "./tour-host": "./src/tour-host.ts",
+    "./tour.css": "./src/tour.css",
     "./TourConsent": "./src/TourConsent.tsx",
-    "./TourProvider": "./src/TourProvider.tsx",
-    "./tour.css": "./src/tour.css"
+    "./TourProvider": "./src/TourProvider.tsx"
   },
   "scripts": {
     "test": "vitest run",

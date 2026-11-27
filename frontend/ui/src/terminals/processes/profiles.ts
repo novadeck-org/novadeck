@@ -1,11 +1,7 @@
 import type { Item } from "@novadeck/core/items"
 import type { TerminalMetadata } from "@novadeck/core/types"
+import { agentIcon } from "@novadeck/items/agent-icon"
 import { iconOf } from "@novadeck/items/registry"
-import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
-import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
-import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
-import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
-import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { CircleDashed, FileText, SquareTerminal, Terminal, type LucideIcon } from "lucide-react"
 
 // How the UI presents a program: its icon in the tab and window header. The window itself
@@ -18,15 +14,8 @@ type ProcessProfile = {
 
 const fallback: ProcessProfile = { icon: Terminal }
 
-// Keyed by `programName`; programs not listed present as a plain terminal.
-const profiles: ReadonlyMap<string, ProcessProfile> = new Map([
-  ["claude", { icon: ClaudeIcon }],
-  ["codex", { icon: CodexIcon }],
-  ["agy", { icon: AntigravityIcon }],
-  ["opencode", { icon: OpencodeIcon }],
-  ["pi", { icon: PiIcon }],
-])
-
+// The agents' programs, which present as their mark (`agentIcon`); any other presents as a plain
+// terminal.
 // The program a terminal presents as, which names its window: one with a profile, while it
 // holds the foreground, or, where no process runs, the agent that sleeps there or is being
 // woken (its tab and window dim it). A shell, a fresh start, or an ending presents none.
@@ -39,7 +28,7 @@ export const presentedProgram = (terminal: TerminalMetadata): string | undefined
         : terminal.state === "starting"
           ? terminal.restoredProcess
           : undefined
-  return program !== undefined && profiles.has(program) ? program : undefined
+  return program !== undefined && agentIcon(program) ? program : undefined
 }
 
 // A window undocked from a terminal's companion presents as what it shows: a plan, or an
@@ -58,8 +47,10 @@ export const windowProfile = (
 })
 
 // The icon a program presents with, by its name: a plain terminal's for one without a
-// profile.
-export const programIcon = (program: string): LucideIcon => (profiles.get(program) ?? fallback).icon
+// profile. `nova`: it is Nova's, which has Novadeck's mark in place of Pi's.
+export const programIcon = (program: string, nova?: boolean): LucideIcon =>
+  agentIcon(program, nova) ?? fallback.icon
 
-export const terminalProfile = (terminal: TerminalMetadata): ProcessProfile =>
-  profiles.get(presentedProgram(terminal) ?? "") ?? fallback
+export const terminalProfile = (terminal: TerminalMetadata): ProcessProfile => ({
+  icon: programIcon(presentedProgram(terminal) ?? "", terminal.nova),
+})

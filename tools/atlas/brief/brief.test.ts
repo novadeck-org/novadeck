@@ -19,11 +19,11 @@ const changed = (change: (copy: Atlas) => void): Atlas => {
   return copy
 }
 
-// Briefs exist to fit in an agent's context: the index stays under 8000 characters and
-// every other subject under 6000 (about 1.5k tokens).
+// Briefs exist to fit in an agent's context: the index stays under 8500 characters (a line for
+// each of some 70 areas) and every other subject under 6000 (about 1.5k tokens).
 describe("brief", () => {
   it("renders every subject within budget", () => {
-    expect(brief(atlas, undefined).text.length).toBeLessThan(8000)
+    expect(brief(atlas, undefined).text.length).toBeLessThan(8500)
     // The overviews are also asked for by their bare names, as AGENTS.md tells people to.
     const bare = ["api", "data", "state", "flows", "harnesses"]
     const asked = [...bare, ...subjects(atlas).map(({ kind, name }) => `${kind}:${name}`)]

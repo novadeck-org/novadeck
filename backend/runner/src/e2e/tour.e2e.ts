@@ -4,9 +4,9 @@ import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 
+import { tourMarker } from "@novadeck/tour-runner/folder"
 import { afterAll, beforeAll } from "vitest"
 
-import { tourMarker } from "../tour/folder.js"
 import { ownPi } from "./agents/own-pi.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { ownPiFromCache } from "./own-pi-cache.js"

@@ -439,6 +439,7 @@ export const WorkspaceTerminal = memo(
                     conversation={conversation}
                     terminalName={terminal.name}
                     program={terminal.process}
+                    {...(terminal.nova && { nova: true })}
                     agent={terminal.state === "running" ? terminal.agent : undefined}
                     starting={terminal.state === "running" && terminal.expecting !== undefined}
                     compact={view !== "focus"}

@@ -2,7 +2,7 @@ import { firedFacts } from "@novadeck/harness-core/decode"
 import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
 import { silentFor } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
-import { fromOwnPi } from "@novadeck/harness-pi/bundled"
+import { fromOwnPi } from "@novadeck/harness-nova/launcher"
 import type { AgentName } from "@novadeck/protocol"
 import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/terminal/pty"
 

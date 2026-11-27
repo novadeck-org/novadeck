@@ -19,6 +19,7 @@ import {
   type MessageThread,
   type TerminalThreads,
 } from "../messages"
+import { isNova } from "../terminals/agent-look"
 import { isAgentProgram } from "../terminals/process"
 import {
   type TerminalMetadata,
@@ -112,6 +113,7 @@ const sourceOf = (
   terminalId: terminal.id,
   handle: terminal.handle ?? "",
   agent,
+  ...(isNova(agent, terminal.nova) ? { nova: true as const } : {}),
   title: terminal.name,
   projectName: project.name,
 })

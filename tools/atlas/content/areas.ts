@@ -34,12 +34,14 @@ export const roots: Root[] = [
   { token: "contract/protocol", dir: "contract/protocol", node: "runner" },
   { token: "contract/runner-client", dir: "contract/runner-client", node: "renderer" },
   { token: "backend/relay", dir: "backend/relay", node: "relay" },
+  { token: "backend/tour", dir: "backend/tour", node: "runner" },
   { token: "harnesses/core", dir: "harnesses/core", node: "runner" },
   { token: "harnesses/claude", dir: "harnesses/claude", node: "runner" },
   { token: "harnesses/codex", dir: "harnesses/codex", node: "runner" },
   { token: "harnesses/agy", dir: "harnesses/agy", node: "runner" },
   { token: "harnesses/opencode", dir: "harnesses/opencode", node: "runner" },
   { token: "harnesses/pi", dir: "harnesses/pi", node: "runner" },
+  { token: "harnesses/nova", dir: "harnesses/nova", node: "runner" },
   {
     token: "apps/desktop",
     dir: "apps/desktop",
@@ -116,10 +118,10 @@ export const notes: Record<string, Note> = {
       "Every forge (no switches): each tracked repository's branches asked of GitHub, GitLab or Azure DevOps for their pull requests, with a token from the forge's own signed-in command-line tool, kept in memory for the works; and where each forge's tool and hosts stand, for Preferences.",
     entries: [{ file: `${runner}/forges/service.ts`, text: "export class Forges" }],
   },
-  "backend/runner/tour": {
+  "backend/tour": {
     purpose:
-      "Novadeck's tour on the runner's side: its folder, ~/.novadeck/tour, emptied and briefed for each run (and never one of the person's own), the projects open there removed first, and the launch line that starts the person's agent there on its cheapest model, taking edits; and the start line rung by the doorbell where a harness takes none on its launch line.",
-    entries: [{ file: `${runner}/tour/tour.ts`, text: "export class Tour" }],
+      "Novadeck's tour on the runner's side, its own package (@novadeck/tour-runner), which the runner builds with what it needs of it (its host: git, the projects, notices, terminals' folders and handles): its folder, ~/.novadeck/tour, emptied, made a repo of the seed project and briefed for each run (and never one of the person's own), the projects open there removed first, the line that starts Novadeck's own pi there on the model Novadeck pays for, and the briefs the doorbell rings its lead and artist, which the runner's messaging frames as their task.",
+    entries: [{ file: "backend/tour/src/tour.ts", text: "export class Tour" }],
   },
   "backend/runner/works": {
     purpose:
@@ -256,6 +258,12 @@ export const notes: Record<string, Note> = {
   "harnesses/pi": {
     purpose: "The pi harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/pi/src/index.ts", text: "export const pi" }],
+    docs: ["docs/harness-coverage.md"],
+  },
+  "harnesses/nova": {
+    purpose:
+      "Nova, Novadeck's own pi. It is agent pi, on the pi adapter: the pinned pi Novadeck downloads (its builds, checksums and folders), the launcher Novadeck starts it with by the word `nova`, the model Novadeck pays for, which it adds to pi's extension (`withNova`), and the startup word's swap for the launcher's path. The runner's harnesses/bundled-pi.ts fetches it.",
+    entries: [{ file: "harnesses/nova/src/extension.ts", text: "export const withNova" }],
     docs: ["docs/harness-coverage.md"],
   },
   "apps/desktop": {

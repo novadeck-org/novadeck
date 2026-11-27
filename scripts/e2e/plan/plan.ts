@@ -76,6 +76,7 @@ export const allSystemsFolders = [
   ".github/actions/e2e-harness-cache/",
   "backend/relay/",
   "backend/runner/",
+  "backend/tour/",
   "harnesses/",
   "libraries/emulator/",
   "libraries/sandbox/",
@@ -95,6 +96,16 @@ const everySystem: readonly string[] = [systems.linux, systems.windows, systems.
 /** The adapter package of a harness. */
 export const adapterOf = (id: string): string => `@novadeck/harness-${id}`
 
+// The packages built on a harness's adapter that are that harness's too: Nova, Novadeck's own
+// pi, is agent pi (harnesses/nova), so a change to it runs pi's rows alone.
+const builtOn: Readonly<Record<string, string>> = { "@novadeck/harness-nova": "pi" }
+
+// The packages a harness's rows answer for: its adapter, and those built on it.
+const packagesOf = (id: string): readonly string[] => [
+  adapterOf(id),
+  ...Object.keys(builtOn).filter((name) => builtOn[name] === id),
+]
+
 /**
  * Whether a run follows its change: a pull request's, against its base, and a merge queue's
  * group's, against the group's parent (`merge_group.base_sha`). Any other event runs everything.
@@ -111,12 +122,12 @@ export const select = (facts: Facts, ids: readonly string[]): readonly string[] 
   if (!followsChange(facts.event)) return ids
   const { affected, files, runner } = facts
   if (!affected || !files || !runner) return ids
-  const adapters = new Set(ids.map(adapterOf))
+  const adapters = new Set(ids.flatMap(packagesOf))
   const reached = affected.filter((name) => runner.includes(name))
   if (reached.some((name) => !adapters.has(name) && !unshared.has(name))) return ids
   if (files.some((file) => sharedFiles.has(file) || sharedFolders.some((f) => file.startsWith(f))))
     return ids
-  return ids.filter((id) => affected.includes(adapterOf(id)))
+  return ids.filter((id) => packagesOf(id).some((name) => affected.includes(name)))
 }
 
 /**

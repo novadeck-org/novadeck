@@ -131,12 +131,12 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
       },
       {
         label: "Tour agent: exits to its shell",
-        hint: "The running tour lead's program ends and its shell is back at the prompt, as Claude Code leaves where you don't trust the folder: the tour says It didn't start. and to end it and take it again",
+        hint: "The running tour lead's program ends and its shell is back at the prompt, as Claude Code leaves where you don't trust the folder: the tour says What? It didn't even start. and to end it and take it again",
         run: () => tour.exitToShell(),
       },
       {
         label: "Tour agent: stop",
-        hint: "The running tour lead's process exits: its terminal shows the exit and the tour says Your agent stopped",
+        hint: "The running tour lead's process exits: its terminal shows the exit and the tour says Your agent stopped. Ugh. Rude.",
         run: () => tour.stop(),
       },
     ],

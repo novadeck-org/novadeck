@@ -189,7 +189,7 @@ const RequestSheet = ({
   return (
     <RequestCard
       request={request}
-      agent={agentName(entry.source.agent)}
+      agent={agentName(entry.source.agent, entry.source.nova)}
       send={send}
       onAnswerInTerminal={reveal}
       // Where focus goes after an answer is the Inbox's: on to the next entry's sheet.
@@ -282,7 +282,7 @@ const TroubleThing = ({
   readonly trouble: Trouble
   readonly now: number
 }): React.JSX.Element => {
-  const agent = agentName(entry.source.agent)
+  const agent = agentName(entry.source.agent, entry.source.nova)
   switch (trouble.type) {
     case "failed":
       return trouble.error ? (

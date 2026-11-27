@@ -1,11 +1,14 @@
-import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
-import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
-import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
-import { OpencodeIcon } from "@novadeck/toolkit/icons/OpencodeIcon"
-import { PiIcon } from "@novadeck/toolkit/icons/PiIcon"
 import { Terminal } from "lucide-react"
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import {
+  createElement,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
 
+import { agentIcon } from "../../../../agent-icon"
 import { clocksOf, handleParts, hueOf, imp, impClocks, spriteOf, type Clocks } from "./critters"
 import { deviceScale, onScaleChange } from "./device-scale"
 
@@ -15,15 +18,6 @@ import { allCells, cellsPath, hopped, ledGrid, tonesOf, type LedGrid } from "./l
 // Whether a handle's agent is there: at rest, working (its critter hops), or gone from its
 // terminal (still and dim).
 export type AvatarLive = "idle" | "working" | "gone"
-
-// The program's mark in the avatar's corner, by the program's name.
-const programIcons: Readonly<Record<string, typeof Terminal>> = {
-  claude: ClaudeIcon,
-  codex: CodexIcon,
-  agy: AntigravityIcon,
-  opencode: OpencodeIcon,
-  pi: PiIcon,
-}
 
 // The screen's scale, measured on the avatar once it's laid out and again whenever it may
 // have changed, so its LEDs stay on whole device pixels.
@@ -111,6 +105,7 @@ export const Avatar = ({
   size,
   live = "idle",
   program,
+  nova,
 }: {
   handle: string
   // The person's, whatever `handle` says.
@@ -120,6 +115,8 @@ export const Avatar = ({
   live?: AvatarLive
   // The program in its terminal, for the mark in its corner from 24 pixels up.
   program?: string | undefined
+  // The program is Nova, Novadeck's own pi: its mark is Novadeck's.
+  nova?: boolean | undefined
 }): React.JSX.Element => {
   const element = useRef<HTMLSpanElement>(null)
   const scale = useDeviceScale(element)
@@ -128,7 +125,7 @@ export const Avatar = ({
   const sprite = useMemo(() => (you ? imp : spriteOf(handle)), [you, handle])
   const hop = useMemo(() => hopped(sprite), [sprite])
   const { numeral } = handleParts(handle)
-  const Program = program === undefined ? undefined : (programIcons[program] ?? Terminal)
+  const Program = program === undefined ? undefined : (agentIcon(program, nova) ?? Terminal)
   return (
     <span
       ref={element}
@@ -160,7 +157,7 @@ export const Avatar = ({
       {numeral && !you && <b className="message-av-n">{numeral}</b>}
       {Program && size >= 24 && (
         <span className="message-av-program">
-          <Program size={10} strokeWidth={1.75} />
+          {createElement(Program, { size: 10, strokeWidth: 1.75 })}
         </span>
       )}
     </span>

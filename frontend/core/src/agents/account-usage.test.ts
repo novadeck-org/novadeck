@@ -259,6 +259,30 @@ describe("the terminals that report to the account", () => {
     expect(runningSeats(workspace).every((seat) => seat.program === "claude")).toBe(true)
   })
 
+  it("leave out Nova's, which runs on Novadeck's model, not the person's pi account", () => {
+    const base = workspaceOf("running")
+    const [project] = base.projects
+    const [session] = project!.history
+    const [seat] = session!.state.roster.terminals
+    const nova = { ...seat!, process: "pi", nova: true } as TerminalMetadata
+    const own = { ...seat!, id: "own", process: "pi" } as TerminalMetadata
+    const workspace: Workspace = {
+      ...base,
+      projects: [
+        {
+          ...project!,
+          history: [
+            {
+              ...session!,
+              state: createTerminalState([nova, own], "grid", "grid"),
+            },
+          ],
+        },
+      ],
+    }
+    expect(runningSeats(workspace).map((each) => each.id)).toEqual(["own"])
+  })
+
   it("leave out terminals that are not running, whatever they once reported", () => {
     const workspace = workspaceOf("idle")
     expect(runningSeats(workspace)).toEqual([])

@@ -23,6 +23,12 @@ the workspace's signals and plays its steps, and what it draws over the workspac
 - **No beat before its subject.** A step says nothing until what it's about is there (`ready`),
   and a step with a `cue` says that (the person's part: open Files, open the pane) until its
   subject is on screen, its own line only then.
+- **Nyx narrates it, in her own voice.** Every line the caption box letters is one she says
+  (VOICE.md, "The tour"): `narration()` in `src/steps.ts` keys each line, `NARRATION.md` lists
+  how she says it, and `narration.test.ts` fails when they differ. `src/voice.ts` plays a line's
+  take (`src/voice/<key>.mp3`) as its box shows, and the Narration button beside End tour turns
+  her off, kept in local storage. A line with no take is lettered only. Notes under the box stay
+  text.
 - **Its look is its own.** The tour is meant to stand apart from the app, so what it draws over
   the workspace (`print.css`) takes no colour from the app's themes: every colour set on
   `.tour-print` (and in the marks' own rules), none a theme token, and a theme's glow on text

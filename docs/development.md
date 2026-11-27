@@ -288,7 +288,9 @@ Terminals:
   in sight in Grid and Canvas, wakes by itself: waking, then its agent resting; one the panel set,
   from here or the gallery, stays asleep), waking (that agent on its way back), loading
   output, another window holding its keyboard (idle, or typing so a key shows the strip's busy
-  form; see "Observing a terminal another client controls"), back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
+  form; see "Observing a terminal another client controls"), back at the prompt, running a long program, Claude Code, Codex, Antigravity or Nova (a pi the
+  runner says is Novadeck's own: its tab, window header, chat and avatar say Nova with Novadeck's mark, and
+  the footer's pi account leaves it out; any other agent there makes it the person's again), Nova asleep (its tab, sleep screen and close dialog say nova), a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
@@ -300,7 +302,7 @@ Terminals:
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
   planning, subagents, asking, waiting, paused at its limit (resetting soon, or in 8 days) or at a model's own (weekly Fable), waiting on a wake-up due in minutes or in 7 days, asleep (plain, done, asking),
-  waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
+  waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent), but for "Nova", which is always a pi. "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
   an agent that works on with a question open. You stay on one that needs permission, and the
@@ -851,8 +853,8 @@ App:
   makes the next `Tour.prepare` answer `page: false` (no server, no page, the steps for them left
   out); "Tour story: keeping fails" makes the next `Tour.keep` reject, for the closing card's
   error line and Try again; "Tour agent: exits to its shell" ends the lead's program with its
-  shell back (`agentRan`, an idle shell), for the coach "It didn't start."; "Tour agent: stop"
-  exits the lead's process (the UI's "Your agent stopped."). "Tour agent: hold at folder trust"
+  shell back (`agentRan`, an idle shell), for the coach "What? It didn't even start."; "Tour agent: stop"
+  exits the lead's process (the UI's "Your agent stopped. Ugh. Rude."). "Tour agent: hold at folder trust"
   / "sign-in" / "hooks" hold the next one at that startup screen until "Answer the startup
   screen"; "Tour agent: quiet until nudged" has the next one sit idle at its prompt, no turn
   begun, until `Tour.nudge`, then work and name itself; "Tour agent: ask permission first" has
@@ -881,30 +883,30 @@ App:
   what a step marks is there but has been out of sight 2.5 s (the person went elsewhere, opened a
   file over it, or is in Zen with the rail hidden), its caption box shows all the same with
   Show me, which takes the same calm way back (`showAgain`), or opens the panel the rail would. A step the agents end holds a while once done
-  (`holdMs`: 3 s, the first and the finish) from when its caption box is shown (`onCaption`, the
+  (`holdMs`: 4 s, the first and the finish, long enough for Nyx to say their lines) from when its caption box is shown (`onCaption`, the
   reducer's `caption` event); a caption that hasn't shown `captionWaitMs` (8 s) after the step
   was done on screen is given up on, and the hold counts from then. Its
-  steps (`frontend/tour/src/steps.ts`), in Nyx's voice: "That's your agent. It runs this job."
-  (`start`, the lead describes itself); "Your call. What game?" (`ask`, the Inbox's button,
+  steps (`frontend/tour/src/steps.ts`), spoken by Nyx as each box shows (her takes in `frontend/tour/src/voice/`, the script in `frontend/tour/NARRATION.md`, Narration beside End tour turns her off): "That's your agent. It does the work. I talk."
+  (`start`, the lead describes itself); "Your call. What game? Make it a good one." (`ask`, the Inbox's button,
   then the lead's sheet in it, until it is answered); "It wants to run the game. Fine. Say yes." (`run`, the
   approval's Run command is marked, and the step waits on the person: the lead hires no one
-  before they answer, so the approval has the screen to itself); "The game. Live. Empty, for
-  now." (`page`, the lead's page tab); "Look. It hired its own help." (`team`, both teammates
-  there and named); "A model. From scratch. Go on, spin it." (`shape`, the
-  Modeller's model tab); "Every blink? An agent. Writing." (`files`, the Files panel); "What it
-  wrote. Line by line." (`diff`, the Builder's changes tab); and "Three agents. Your game. Go
-  play." (`play`, the lead's page, a while, then the closing card: "It's yours now."). A
+  before they answer, so the approval has the screen to itself); "There. Nothing in it yet. Give
+  it time." (`page`, the lead's page tab); "Look. It hired its own help. Without asking me?" (`team`, both teammates
+  there and named); "A model, made from nothing. Go on. Spin it." (`shape`, the
+  Modeller's model tab); "See the files blink? That's an agent, writing." (`files`, the Files panel); "Every line
+  it wrote. Nothing hidden." (`diff`, the Builder's changes tab); and "Three agents, one game. Go
+  play." (`play`, the lead's page, a while, then the closing card: "It's yours now. Don't break it."). A
   teammate's own question to the person is no step: while one waits in the Inbox the coach says
-  "A teammate has a question for you." and points at it (or the Inbox's button) until it is
+  "A teammate has a question. Huh? For you, not me." and points at it (or the Inbox's button) until it is
   answered or dismissed, and no step makes its moves meanwhile (the camera would take the person
   away from the Inbox). The
   UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
   to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
   Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run
-  and page steps and ends on the model ("Three agents. Your game. Yours."). While a startup
-  screen holds, the coach says "It wants an answer first." with that screen's words under it,
-  "It didn't start." (an agent's program ended, its shell back), or "It's asking your
-  permission." while an agent of the story has an Unblock row waiting in the Inbox. End tour
+  and page steps and ends on the model ("Three agents, one model. Yours."). While a startup
+  screen holds, the coach says "It wants an answer first. From you." with that screen's words under it,
+  "What? It didn't even start." (the lead's program ended, its shell back; "A teammate quit." for a teammate's), or "It's asking your
+  permission. Read it first." while an agent of the story has an Unblock row waiting in the Inbox. End tour
   sits in the footer; while another project is on screen, a small bar stands in for it. A run
   kept in session storage by a version with other steps is dropped, not followed. The specs
   (`tour.spec.tsx`, `tour-driver.spec.tsx`, `tour-story.spec.tsx`, with `support/tour.tsx`) read
@@ -975,8 +977,8 @@ App:
   name line ends in "#812" tinted by its state (its page opens from the row's actions under the
   pointer), and the work's changes item (in the showcase, select its row) has
   a "#812" chip in its row, which opens the page in the browser.
-- **Novadeck Agent:** the App section's group for Novadeck's own pi (Preferences > Experimental >
-  Novadeck Agent (pi built in), which needs the experimental channel). "Off", "Starting",
+- **Nova:** the App section's group for Novadeck's own pi (Preferences > Experimental >
+  Nova, which needs the experimental channel). "Off", "Starting",
   "Downloading, size unknown", "Downloading", "Ready" and "Failed" put the row in that state
   without a reboot: the note under its description reads "Starting the download…", "Downloading
   pi…", the download's megabytes, "Ready.", or the error in red with Try again. Switching it on in
@@ -1146,7 +1148,7 @@ holds the desk at its first frames: nothing moves on its own and the plan never 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `apps/` holds what
 ships or deploys: the desktop app, the visitor build and the content preview; `frontend/`
 the UI, split into packages (the model, the two backend adapters, the terminal views, the
-specs and the test kit); `backend/` the runner and the relay; `contract/` the protocol and
+specs and the test kit); `backend/` the runner, the relay and the tour's runner side; `contract/` the protocol and
 the runner client; `engines/` holds the native inference engines Novadeck downloads once
 installed, and the build they share; `harnesses/` holds the agent harness adapters and the
 contract they share; `libraries/` holds the mechanics that never import app code (see
@@ -1174,6 +1176,7 @@ atlas.
 | `apps/previews`           | The content preview: the demo with its debug panel.                                        |
 | `backend/runner`          | The runner: shells and metadata, served over WebSocket or port.                            |
 | `backend/relay`           | Rust relay for agents' Novadeck MCP server and hooks.                                      |
+| `backend/tour`            | The tour on the runner's side: its folder and repo, seed project, agents' launch, briefs.  |
 | `contract/protocol`       | Shared Zod contracts the runner and its clients agree on.                                  |
 | `contract/runner-client`  | The `connectRunner` client UIs reach a runner with.                                        |
 | `engines/whisper`         | Voice engine: whisper.cpp built for download (`build:engine`).                             |
@@ -1185,6 +1188,7 @@ atlas.
 | `harnesses/agy`           | The Antigravity adapter, same shape.                                                       |
 | `harnesses/opencode`      | The opencode adapter: the plugin its shim loads per launch, transcripts, dialogs, box.     |
 | `harnesses/pi`            | The pi adapter: the extension its shim loads per launch, session files, dialogs, box.      |
+| `harnesses/nova`          | Nova, Novadeck's own pi on the pi adapter: its pin, launcher, `nova` word and free model.  |
 | `libraries/emulator`      | The terminal emulator: xterm.js pinned and patched, the character-width rule, helpers.     |
 | `libraries/terminal`      | Hosting terminals: a pty, a headless screen, a resumable stream, the browser view.         |
 | `libraries/tui-input`     | Typing into a full-screen program and checking that the text landed.                       |

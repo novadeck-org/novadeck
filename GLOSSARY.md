@@ -25,5 +25,7 @@ the app shows it; keep the list short.
 - **Inbox sheet**: the popup a row opens, where you read the whole entry and answer it in place.
 - **Handle**: a terminal's word, such as `@moth`, that agents use to message it.
 - **Team**: agents one **lead** started and works with; each of them is a **teammate**.
+- **Nova**: Novadeck's own agent, built on Pi. Type `nova` in a terminal to start it. It shows as
+  Nova, with Novadeck's mark; your own `pi` stays Pi. It's an Experimental switch.
 - **Device**: a computer or phone that reaches a runner with a credential of its own. The
   runner's owner can **sign it out** (revoke that credential) without touching any other.

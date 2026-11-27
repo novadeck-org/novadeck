@@ -78,6 +78,14 @@ const setProcess = (key: TerminalKey, process: string): BackendAction => ({
   process,
 })
 
+// Whether the agent there is Nova, as the runner's summary says.
+const setNova = (key: TerminalKey, nova: boolean): BackendAction => ({
+  type: "terminal/update",
+  target: sessionTarget(key),
+  terminalId: key.terminalId,
+  nova,
+})
+
 // A name the person gave it.
 export const rename = (key: TerminalKey, name: string): BackendAction => ({
   type: "terminal/update",
@@ -122,6 +130,7 @@ export const sleeping = (
   reported = false,
   endedAt?: number,
 ): BackendAction[] => [
+  setNova(key, false),
   setStatus(key, {
     state: "sleeping",
     agent,
@@ -180,7 +189,22 @@ const agentSays = (key: TerminalKey, agent: AgentStatus): BackendAction[] => [
 // An agent started at the prompt, resting.
 export const runAgent = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
+  setNova(key, false),
   ...agentSays(key, resting),
+]
+
+// Nova, Novadeck's own pi, started at the prompt, resting: the agent is `pi`, and the runner says
+// it is Nova's, so the tab, window and rows show its name and Novadeck's mark in place of Pi's.
+export const runNova = (key: TerminalKey): BackendAction[] => [
+  setProcess(key, "pi"),
+  setNova(key, true),
+  ...agentSays(key, resting),
+]
+
+// Nova asleep, its session saved: its tab, sleep screen and close dialog say nova.
+export const sleepingNova = (key: TerminalKey): BackendAction[] => [
+  ...sleeping(key, "pi"),
+  setNova(key, true),
 ]
 
 // The report an agent makes through its MCP `done` call when its task is finished, which the
@@ -248,6 +272,7 @@ export const mcpAsk = (
 // An agent the terminal's program is, which Novadeck hears nothing from.
 export const unheardAgent = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
+  setNova(key, false),
   setStatus(key, { state: "running" }),
 ]
 
@@ -259,6 +284,7 @@ export const atStartupScreen = (
   screen: NonNullable<AgentStatus["startup"]> = "startup",
 ): BackendAction[] => [
   setProcess(key, program),
+  setNova(key, false),
   setStatus(key, { state: "running", agent: { working: false, startup: screen } }),
 ]
 
@@ -266,6 +292,7 @@ export const atStartupScreen = (
 // shows already, and holds what is sent until it is ready.
 export const agentStarting = (key: TerminalKey, agent: AgentName): BackendAction[] => [
   setProcess(key, agent),
+  setNova(key, false),
   setStatus(key, { state: "running", expecting: agent }),
 ]
 

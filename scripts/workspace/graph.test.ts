@@ -93,6 +93,7 @@ const backends = new Set([
   "contract/runner-client",
   "backend/runner",
   "backend/relay",
+  "backend/tour",
 ])
 
 describe("the package graph", () => {
@@ -110,9 +111,14 @@ describe("the package graph", () => {
       "frontend/demo-debug",
       "frontend/runner-adapter",
       "contract/runner-client",
+      "backend/tour",
       "harnesses/core",
     ])
       expect(packages.has(folder), folder).toBe(true)
+  })
+
+  it("keeps the tour's runner side off the runner, which builds it with what it needs (its host)", () => {
+    expect(reaches("backend/tour").has("backend/runner")).toBe(false)
   })
 
   it("names no workspace package by a path, which pnpm installs whatever its name", () => {
@@ -361,12 +367,18 @@ describe("the package graph", () => {
 
   it("keeps each harness, and what it reaches, off the runner and the other adapters", () => {
     const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
+    // Nova is agent pi: harnesses/nova adds its pin, launcher and model to pi's adapter, which
+    // never reaches back.
+    const builtOn = (folder: string, dependency: string) =>
+      folder === "harnesses/nova" && dependency === "harnesses/pi"
     const offending = harnesses.flatMap((folder) =>
       [...reaches(folder)]
         .filter(
           (dependency) =>
             dependency.startsWith("backend/") ||
-            (dependency.startsWith("harnesses/") && dependency !== "harnesses/core"),
+            (dependency.startsWith("harnesses/") &&
+              dependency !== "harnesses/core" &&
+              !builtOn(folder, dependency)),
         )
         .map((dependency) => `${folder} -> ${dependency}`),
     )

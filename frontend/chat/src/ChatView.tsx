@@ -98,6 +98,7 @@ const ChatBody = ({
   conversation,
   terminalName,
   program,
+  nova,
   agent,
   starting = false,
   compact,
@@ -139,6 +140,8 @@ const ChatBody = ({
   readonly terminalName: string
   // The terminal's foreground program, which names the agent until its session does.
   readonly program: string
+  // The agent is Nova, Novadeck's own pi, which the chat names so.
+  readonly nova?: boolean
   // What the terminal's agent says it is doing.
   readonly agent: AgentStatus | undefined
   // Whether the agent the terminal was opened or woken to run is starting, before its prompt
@@ -243,7 +246,7 @@ const ChatBody = ({
   // stands in the log as its whole screen, which never takes the keys by itself, so what the
   // person types as it starts stays in the box.
   const slice = starting ? null : drawnSlice
-  const name = agentName(harness ?? program)
+  const name = agentName(harness ?? program, nova)
   const blocks = useMemo(
     () => groupItems(wentItems(items, prompts), doorbell.delivered, doorbell.notices),
     [items, prompts, doorbell.delivered, doorbell.notices],

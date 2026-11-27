@@ -1084,6 +1084,8 @@ export const runnerBackend = (
         : undefined
     const busy =
       (current.busy ?? false) !== (summary.busy ?? false) ? (summary.busy ?? false) : undefined
+    const nova =
+      (current.nova ?? false) !== (summary.nova ?? false) ? (summary.nova ?? false) : undefined
     // While the person's name is on its way, it is theirs, whatever the runner said before.
     const titleSource =
       unconfirmed === undefined && !sameTitleSource(current.titleSource, summary.titleSource)
@@ -1100,6 +1102,7 @@ export const runnerBackend = (
         agentRan,
         restorable,
         busy,
+        nova,
         titleSource,
       ].every((fact) => fact === undefined)
     )
@@ -1118,6 +1121,7 @@ export const runnerBackend = (
         ...(agentRan !== undefined && { agentRan }),
         ...(restorable !== undefined && { restorable }),
         ...(busy !== undefined && { busy }),
+        ...(nova !== undefined && { nova }),
         ...(titleSource !== undefined && { titleSource }),
       },
     ]

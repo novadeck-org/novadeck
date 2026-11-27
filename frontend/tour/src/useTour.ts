@@ -87,7 +87,8 @@ export const useTour = (
     setConsent(startingTour(consent))
     const effects: TourEffects = {
       tour,
-      openTour: commands.openTour,
+      openTour: ({ directory, removed }) =>
+        commands.openProjectInPlace({ name: "Tour", directory, replaces: removed }),
       add: (options) => commands.add(options),
     }
     startTour(effects).then(

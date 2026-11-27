@@ -6,8 +6,20 @@ import { pathToFileURL } from "node:url"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { extensionSource, type ExtensionConfig } from "./extension-source.js"
-import { ownProvider, ownProviderConfig, ownService, ownUnavailable } from "./own-model.js"
 import { events } from "./plugin.js"
+
+// A model of Novadeck's as the extension takes one (Nova's own is @novadeck/harness-nova's
+// model.ts, which this package doesn't import): its provider, the variables its service comes
+// in, its configuration, and where it points without the service.
+const ownProvider = "novadeck"
+const ownService = { baseUrl: "NOVADECK_PI_BASE_URL", key: "NOVADECK_PI_KEY" } as const
+const ownUnavailable = "http://127.0.0.1:9/novadeck-unavailable"
+const ownProviderConfig = {
+  name: "Novadeck",
+  api: "openai-completions",
+  authHeader: true,
+  models: [{ id: "a-model", name: "A model", reasoning: true, input: ["text"] }],
+} as const
 
 /**
  * Novadeck's pi extension, rendered and run as pi runs it, against a stand-in for pi's extension

@@ -8,11 +8,6 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./bundled": {
-      "development": "./src/bundled.ts",
-      "types": "./dist/bundled.d.ts",
-      "default": "./dist/bundled.js"
-    },
     "./box": {
       "development": "./src/box.ts",
       "types": "./dist/box.d.ts",
@@ -32,11 +27,6 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./own-model": {
-      "development": "./src/own-model.ts",
-      "types": "./dist/own-model.d.ts",
-      "default": "./dist/own-model.js"
     },
     "./plugin": {
       "development": "./src/plugin.ts",

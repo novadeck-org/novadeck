@@ -3,6 +3,7 @@ import { subagentMarks, subagentsBadge, subagentsDetail } from "@novadeck/core/a
 import { nextTurnAge, turnAge } from "@novadeck/core/agents/turn-age"
 import { messageBadgeLabel, type MessageBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
+import { programWord } from "@novadeck/core/terminals/agent-look"
 import {
   endingText,
   idleNote,
@@ -245,15 +246,10 @@ export const TerminalTab = ({
         : nextWhenChange(resets),
   )
   // A window runs no program; a project window names its file's folder there instead.
-  // A sleeping agent has no process; its name stands there.
-  const process =
-    (shell?.state === "sleeping"
-      ? shell.agent === "newer"
-        ? "agent"
-        : shell.agent
-      : shell?.process) ??
-    folder ??
-    ""
+  // A sleeping agent has no process; its name stands there. Nova's is `nova`, its word.
+  const running =
+    shell?.state === "sleeping" ? (shell.agent === "newer" ? "agent" : shell.agent) : shell?.process
+  const process = (running && programWord(running, shell?.nova)) ?? folder ?? ""
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,

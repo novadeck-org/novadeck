@@ -2,6 +2,7 @@ import { agy } from "@novadeck/harness-agy/index"
 import { claude } from "@novadeck/harness-claude/index"
 import { codex } from "@novadeck/harness-codex/index"
 import type { Harness } from "@novadeck/harness-core/harness"
+import { withNova } from "@novadeck/harness-nova/extension"
 import { opencode } from "@novadeck/harness-opencode/index"
 import { pi } from "@novadeck/harness-pi/index"
 import type { AgentName } from "@novadeck/protocol"
@@ -13,7 +14,8 @@ export const harnesses: { readonly [agent in AgentName]: Harness } = {
   codex,
   agy,
   opencode,
-  pi,
+  // Nova, Novadeck's own pi, is agent pi: the adapter carries the model it runs on.
+  pi: withNova(pi),
 }
 
 export const agents = Object.keys(harnesses) as AgentName[]

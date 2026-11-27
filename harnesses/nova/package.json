@@ -1,0 +1,66 @@
+{
+  "name": "@novadeck/harness-nova",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nova, Novadeck's own agent: a pinned pi Novadeck downloads and starts, on its own agent folder and the free model Novadeck pays for, built on the pi adapter.",
+  "license": "GPL-3.0-or-later",
+  "author": "mzpkdev",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./extension": {
+      "development": "./src/extension.ts",
+      "types": "./dist/extension.d.ts",
+      "default": "./dist/extension.js"
+    },
+    "./launcher": {
+      "development": "./src/launcher.ts",
+      "types": "./dist/launcher.d.ts",
+      "default": "./dist/launcher.js"
+    },
+    "./model": {
+      "development": "./src/model.ts",
+      "types": "./dist/model.d.ts",
+      "default": "./dist/model.js"
+    },
+    "./pin": {
+      "development": "./src/pin.ts",
+      "types": "./dist/pin.d.ts",
+      "default": "./dist/pin.js"
+    },
+    "./settings": {
+      "development": "./src/settings.ts",
+      "types": "./dist/settings.d.ts",
+      "default": "./dist/settings.js"
+    },
+    "./startup": {
+      "development": "./src/startup.ts",
+      "types": "./dist/startup.d.ts",
+      "default": "./dist/startup.js"
+    },
+    "./ticket": {
+      "development": "./src/ticket.ts",
+      "types": "./dist/ticket.d.ts",
+      "default": "./dist/ticket.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/harness-core": "workspace:*",
+    "@novadeck/harness-pi": "workspace:*",
+    "@novadeck/terminal": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "novadeck": {
+    "platform": "system"
+  }
+}
