@@ -172,6 +172,11 @@ describe("readerOf", () => {
   })
 })
 
+// Building the whole contract's snapshot takes about 0.1 s here and 1 to 2 s a file on a macOS
+// runner, but 8.2 s once at the start of a loaded job (run 45914826966), against the 5 s default,
+// and this package's tests aren't retried.
+const wholeContract = { timeout: 30_000 }
+
 describe("the contract's open schemas", () => {
   const procedures = (node: unknown, path: string[] = []): [string, Record<string, unknown>][] => {
     if (typeof node !== "object" || node === null) return []
@@ -188,7 +193,7 @@ describe("the contract's open schemas", () => {
   })
 
   // A UI never sends what only its reader writes: inputs take the closed schemas.
-  it("has no placeholder in any input", () => {
+  it("has no placeholder in any input", wholeContract, () => {
     const written = snapshotContract(contract, compatibility)
     const inputs = Object.entries(written.procedures).filter(([, { input }]) =>
       JSON.stringify(input).includes(`"${newer}"`),

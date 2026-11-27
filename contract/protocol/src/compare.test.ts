@@ -84,10 +84,15 @@ const saveFields = {
 }
 const getFields = { id: z.uuid(), name: z.string().max(80), rank: z.number().int() }
 
+// Building the whole contract's snapshot takes about 0.1 s here and 1 to 2 s a file on a macOS
+// runner, but 8.4 s once at the start of a loaded job (run 45914826966), against the 5 s default,
+// and this package's tests aren't retried.
+const wholeContract = { timeout: 30_000 }
+
 describe("compareContracts", () => {
   context("over the real contract", () => {
     // As contract.json holds it, which snapshot.test.ts pins.
-    it("finds nothing between it and itself", () => {
+    it("finds nothing between it and itself", wholeContract, () => {
       const written = snapshotContract(contract, compatibility)
       expect(judgeContract(written, written)).toEqual({ findings: [], gated: [], problems: [] })
     })
