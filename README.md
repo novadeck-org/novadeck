@@ -37,9 +37,10 @@ I run like four or five coding agents a day. The agents are fine. Keeping up wit
 Tab, tab, tab to find the one that's waiting, copy-pasting answers between them, no idea which
 branch had what. So now I use Novadeck.
 
-It's not tmux with extra steps. Novadeck knows what each agent is doing, so it can tell you who's
-waiting and pass their messages around. All it adds is a small plugin to each agent. Your settings
-stay yours, and outside Novadeck the plugin does nothing.
+It runs the agent CLIs you already have, on your own accounts. And it's not tmux with extra
+steps: Novadeck knows what each agent is doing, so it can tell you who's waiting and pass their
+messages around. All it adds is a small plugin to each agent. Your settings stay yours, and
+outside Novadeck the plugin does nothing.
 
 On macOS and x86_64 Linux:
 
@@ -49,14 +50,6 @@ curl -fsSL https://novadeck.dev/install.sh | sh
 
 For Windows and portable builds, see
 [novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
-
-## Keep the agents you have
-
-<p align="center">
-  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, OpenCode and Pi, each named as it lands." width="100%" />
-</p>
-
-It runs the CLIs you already have. Your config, your accounts. Start them like you always do.
 
 ## See who needs you
 
@@ -86,15 +79,6 @@ Half the stuff they ask me is really for another agent. Here they message each o
 and one can start its own teammates and lead them. The lead gets their questions too and usually
 answers before I even look. Claude Code, Codex, Antigravity, OpenCode and Pi, all on one team.
 
-## Read along as a chat
-
-<p align="center">
-  <img src="docs/assets/highlights/chat.webp" alt="In Preferences, Show agents as is switched from Terminal to Chat. The Grid's terminals turn into chats: Cart drawer's steps, and Search index's review of Cart drawer's change as a message." width="100%" />
-</p>
-
-Not into raw terminals? Agent Chat shows the same agents as a chat, their messages to each other
-too. It's in Preferences. The terminal's still there when the chat can't handle something.
-
 ## Keep their work apart
 
 <p align="center">
@@ -111,8 +95,9 @@ cleans up after the merge.
   <img src="docs/assets/highlights/files.webp" alt="The Files panel shows the project's tree while the agents write: each file marked with the agent writing it, new files arriving as they're made." width="100%" />
 </p>
 
-The Files panel marks every file with the agent changing it. Live. That's how I catch two of them
-going for the same file.
+Their changes sit in separate worktrees, but the Files panel shows the whole project with all of
+them laid over it, each file marked with the agent changing it. Live. When two of them go for the
+same file, I see it way before it's a merge conflict.
 
 ## Where'd it save that?
 
