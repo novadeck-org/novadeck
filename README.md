@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <strong>A desktop terminal for Claude Code, Codex, Antigravity, opencode and pi.</strong><br />
+  <strong>A desktop terminal for Claude Code, Codex, Antigravity, OpenCode and Pi.</strong><br />
   When an agent needs you, its question comes to one Inbox, and you answer it right there.<br />
   Free and open source, no account.
 </p>
@@ -22,7 +22,7 @@
 <p align="center">
   <a href="https://github.com/novadeck-org/novadeck/releases/latest"><img src="https://novadeck.dev/badge/latest.svg" alt="Latest release" /></a>
   <a href="https://github.com/novadeck-org/novadeck/commits/main"><img src="https://novadeck.dev/badge/commits.svg" alt="Commits this week" /></a>
-  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity, opencode and pi" /></a>
+  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity, OpenCode and Pi" /></a>
   <br />
   <a href="https://novadeck.dev/download?utm_source=readme"><img src="https://novadeck.dev/badge/runs-on.svg" alt="Runs on macOS, Windows and Linux" /></a>
   <a href="https://novadeck.dev/privacy?utm_source=readme"><img src="https://novadeck.dev/badge/privacy.svg" alt="Privacy: no account, no telemetry" /></a>
@@ -49,7 +49,7 @@ which branch holds what. Novadeck is a terminal for running several at once.
 ## Keep the agents you have
 
 <p align="center">
-  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, opencode and pi, each named as it lands." width="100%" />
+  <img src="docs/assets/highlights/agents.webp" alt="The terminal list's rows, one per harness: Claude Code, Codex, Antigravity, OpenCode and Pi, each named as it lands." width="100%" />
 </p>
 
 Novadeck runs the CLIs you already use, with your config and your own accounts. Nothing is wrapped
@@ -81,7 +81,7 @@ answer with a click, and the agent goes back to work.
 
 Often an agent's question is really for another agent. Here they message each other by handle and
 start their own teammates, so you stop copying answers between them. Claude Code, Codex,
-Antigravity, opencode and pi can share a team.
+Antigravity, OpenCode and Pi can share a team.
 
 ## Read along as a chat
 
