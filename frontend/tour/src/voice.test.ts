@@ -21,7 +21,10 @@ const rig = (take: (line: string) => string | undefined = (line) => `/voice/${li
       get volume() {
         return each.volume
       },
-      play: () => Promise.resolve(),
+      play: () => {
+        each.paused = false
+        return Promise.resolve()
+      },
       pause: () => {
         each.paused = true
       },
@@ -40,6 +43,18 @@ describe("Nyx's voice-over", () => {
       ["/voice/There. Nothing in it yet. Give it time..mp3", false],
     ])
     expect(played[1]!.volume).toBeLessThan(1)
+  })
+
+  it("never starts a take stopped in the same tick, as StrictMode's second effect does", async () => {
+    const { voice, played } = rig()
+    voice.say("It's yours now. Don't break it.")
+    voice.stop()
+    voice.say("It's yours now. Don't break it.")
+    await Promise.resolve()
+    expect(played.map(({ paused }) => paused)).toEqual([true, false])
+    voice.set(false)
+    await Promise.resolve()
+    expect(played.every(({ paused }) => paused)).toBe(true)
   })
 
   it("doesn't say a line twice when its box is drawn again", () => {

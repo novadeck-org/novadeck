@@ -49,7 +49,7 @@ const trim = [
 const loudness = "I=-18:TP=-1.5:LRA=11"
 const measured = (input: string): Record<string, string> => {
   // ffmpeg prints what it measured on stderr, after its own lines.
-  const { stderr } = spawnSync(
+  const { status, error, stderr } = spawnSync(
     "ffmpeg",
     [
       "-hide_banner",
@@ -63,7 +63,9 @@ const measured = (input: string): Record<string, string> => {
     ],
     { encoding: "utf8" },
   )
+  if (error) throw new Error(`Couldn't run ffmpeg: ${error.message}`)
   const from = stderr.lastIndexOf("{")
+  if (status !== 0 || from === -1) throw new Error(`ffmpeg couldn't measure ${input}:\n${stderr}`)
   return JSON.parse(stderr.slice(from, stderr.indexOf("}", from) + 1))
 }
 const filterFor = (input: string): string => {
@@ -75,7 +77,9 @@ mkdirSync(out, { recursive: true })
 const missing: string[] = []
 const long: string[] = []
 for (const key of keys) {
-  const file = files.find((name) => keyOf(name) === key)
+  const named = files.filter((name) => keyOf(name) === key)
+  if (named.length > 1) throw new Error(`Two takes for ${key}: ${named.join(", ")}. Keep one.`)
+  const file = named[0]
   if (file === undefined) {
     missing.push(key)
     continue

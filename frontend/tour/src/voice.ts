@@ -87,7 +87,17 @@ export const createVoice = ({
     },
     subscribe: (listener) => {
       listeners.add(listener)
-      return () => listeners.delete(listener)
+      // Turned off or on in another window of the app, which shares the storage.
+      const stored = (event: StorageEvent): void => {
+        if (event.key !== mutedKey && event.key !== null) return
+        if (!on()) stop()
+        listener()
+      }
+      if (typeof window !== "undefined") window.addEventListener("storage", stored)
+      return () => {
+        listeners.delete(listener)
+        if (typeof window !== "undefined") window.removeEventListener("storage", stored)
+      }
     },
     say: (line) => {
       if (line === last) return
@@ -98,10 +108,14 @@ export const createVoice = ({
       const now = audio(url)
       now.volume = volume
       playing = now
-      // A page that may not play sound yet (no click on it so far) keeps the caption alone.
-      Promise.resolve()
-        .then(() => now.play())
-        .catch(() => {})
+      // Played at once, never a tick later: a take stopped in the same tick (StrictMode's second
+      // effect, a newer line) would start all the same, and no longer be the one stop reaches. A
+      // page that may not play sound yet (no click on it so far) keeps the caption alone.
+      try {
+        void Promise.resolve(now.play()).catch(() => {})
+      } catch {
+        // As refused.
+      }
     },
     stop,
   }
