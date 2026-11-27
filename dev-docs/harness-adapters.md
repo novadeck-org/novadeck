@@ -182,10 +182,10 @@ Adding a harness:
    other adapters' and harness-core's (`scripts/harnesses/fence.test.ts` fails until
    then).
 5. Its end-to-end setup, its pin, and its cache steps in the E2E workflow (see
-   `docs/e2e-testing.md`, "Adding a harness").
+   `dev-docs/e2e-testing.md`, "Adding a harness").
 6. What stays by hand: its icon in the UI's welcome dialog (a type error until then) and
    its process profile (`frontend/ui/src/terminals/processes/profiles.ts`), its coverage in
-   `docs/harness-coverage.md`, and any variable of its hooks' environment the runner's
+   `dev-docs/harness-coverage.md`, and any variable of its hooks' environment the runner's
    `shell/hook.ts` tells nested agents apart by.
 
 A concept every harness has goes in the common set's file of that name; one only a
@@ -939,7 +939,7 @@ harness.
   steps would type without one is an internal error, and nothing is pressed. Each key goes through the person's key
   bookkeeping, as `agents.prompt`'s do, inside `Messaging.pressing`, so messaging takes the
   keys as Novadeck's and they leave no draft, unless the answer then fails
-  (docs/agent-messaging.md, "What counts").
+  (dev-docs/agent-messaging.md, "What counts").
 - **Confirming.** It waits up to 5 s, on a screen that held still on two reads, for the
   adapter to see the dialog go as the answer should have it go, or for the request to be
   gone (its hook said it was answered). An answer also counts as taken where the screen no

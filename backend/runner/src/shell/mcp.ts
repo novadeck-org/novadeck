@@ -25,7 +25,7 @@
  *   terminal works on.
  * - `ask`, `tell` and `done` put a question, a milestone and a report in the person's
  *   Inbox; `feedback` drafts feedback about Novadeck for the person's feedback card (see
- *   docs/agent-messaging.md).
+ *   dev-docs/agent-messaging.md).
  *
  * Each call goes to the terminal's runner with the terminal's own token, as the relay named
  * them, and the runner's answer is told back as text. Only Claude Code reads a server's

@@ -74,7 +74,7 @@ describe("packaging a pull request", () => {
   it("doesn't package a change outside what the app is built from", () => {
     expect(
       pullRequest([
-        "docs/e2e-testing.md",
+        "dev-docs/e2e-testing.md",
         "tools/atlas/content/flows.ts",
         "libraries/viewers/src/code.ts",
         "scripts/e2e/plan/plan.ts",
@@ -86,7 +86,7 @@ describe("packaging a pull request", () => {
   })
 
   it("packages when any one changed file can change the app", () => {
-    expect(pullRequest(["docs/e2e-testing.md", "frontend/ui/src/app/App.tsx"])).toBe(true)
+    expect(pullRequest(["dev-docs/e2e-testing.md", "frontend/ui/src/app/App.tsx"])).toBe(true)
   })
 
   it("matches a package's folder whole, not a sibling that begins alike", () => {

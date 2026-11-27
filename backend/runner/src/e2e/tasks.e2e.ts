@@ -30,8 +30,8 @@ import {
   through,
 } from "./scenarios.js"
 
-// An agent starting another with a task (docs/agent-messaging.md, "Starting a task"), or
-// closing another's terminal (docs/agent-workspace.md), the same for every harness (see
+// An agent starting another with a task (dev-docs/agent-messaging.md, "Starting a task"), or
+// closing another's terminal (dev-docs/agent-workspace.md), the same for every harness (see
 // messaging.e2e.ts for the rule on parity).
 // Whether the call's latest user turn delivered a Novadeck notice holding `part`.
 const notified = (call: Call, part: string): boolean =>

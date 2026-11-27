@@ -21,7 +21,7 @@ and a feature can't import the shell.
   as one of its base layers, which every feature may use and which may use nothing of theirs.
 - **How a control looks is its recipe** (`button.css`, `item.css`, `sheet.css`, …), imported by
   the UI's `styles.css` into `layer(components)` at the place it always had. The recipes use
-  `@apply`, which compiles in the UI's Tailwind run; the theming contract (`docs/theming.md`)
+  `@apply`, which compiles in the UI's Tailwind run; the theming contract (`dev-docs/theming.md`)
   covers them as it covers the UI's own.
 - **`markdown.css` is imported just before `chat.css`**, not with the recipes above, so the
   Markdown's rules still come after the Inbox's and win their ties as they always did.

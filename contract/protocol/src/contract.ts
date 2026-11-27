@@ -538,7 +538,7 @@ export const contract = {
     // bracketed paste, is a CONFLICT. With `along`, text in the box goes out with the prompt,
     // what Novadeck knows there comes out and goes back as `returned`, and a shell mode is
     // left, where the screen shows that's safe; where not, or without `along`, that's a
-    // CONFLICT (see docs/backend-api.md, "A box that isn't empty"); a paste that never
+    // CONFLICT (see dev-docs/backend-api.md, "A box that isn't empty"); a paste that never
     // showed, or showed other than exactly the text, is PROMPT_FAILED, and what landed of it
     // stays in the box as a draft; text a TUI would read as a command or a file pick (a
     // leading `/` or `!`, a trailing `@name` or `$name`, a control character), or that is
@@ -614,7 +614,7 @@ export const contract = {
     // Takes what the agent's input box holds out of it and gives it to the client, as a chat
     // over the terminal is where the person writes: only what reads whole and steady off the
     // screen. Null where nothing was taken, the box's text then still in `agents.detail`'s
-    // `box` (see docs/backend-api.md, "One input").
+    // `box` (see dev-docs/backend-api.md, "One input").
     takeBox: procedure.input(z.strictObject({ terminalId: id })).output(
       z.strictObject({
         returned: z.string().nullable(),
@@ -632,7 +632,7 @@ export const contract = {
     // Empties the agent's input box as the person asked, of whatever it holds, which is gone
     // for good: `seen` is its `text` as `agents.detail`'s `box` showed it to them, and a box
     // that no longer holds that is left. `cleared` false leaves it as it was, or as the keys
-    // left it, the box still in `box` (see docs/backend-api.md, "One input").
+    // left it, the box still in `box` (see dev-docs/backend-api.md, "One input").
     clearBox: procedure
       .input(z.strictObject({ terminalId: id, seen: z.string().min(1).max(16_384) }))
       .output(z.strictObject({ cleared: z.boolean() })),
@@ -971,7 +971,7 @@ export const contract = {
     // Gives a window its item's name again; errors as `renameWindow` does.
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
-  // The person's Inbox: what agents ask and tell them (see docs/agent-messaging.md).
+  // The person's Inbox: what agents ask and tell them (see dev-docs/agent-messaging.md).
   inbox: {
     list: procedure.input(z.void()).output(z.array(inboxEntry)),
     watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),
@@ -1112,7 +1112,7 @@ export const contract = {
     watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(runnerSettingsState)),
   },
   // The person's own preferences, which follow them from device to device (see
-  // `preferenceChange`; docs/backend-api.md, "Preferences").
+  // `preferenceChange`; dev-docs/backend-api.md, "Preferences").
   preferences: {
     // Every preference kept, and the revision they are at (`writer` null).
     get: procedure.meta({ since: 7 }).input(z.void()).output(preferenceChange),
@@ -1133,7 +1133,7 @@ export const contract = {
     // key once, as it is when it reads it. Ends with the connection.
     watch: procedure.meta({ since: 7 }).input(z.void()).output(eventIterator(preferenceChange)),
   },
-  // Devices with credentials of their own (docs/backend-api.md, "Devices"). A connection
+  // Devices with credentials of their own (dev-docs/backend-api.md, "Devices"). A connection
   // proved by the owner's token, or the desktop app's own, is the owner's; one proved by a
   // device's credential is that device's.
   devices: {

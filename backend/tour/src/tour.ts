@@ -130,7 +130,7 @@ type Run = {
 /**
  * Novadeck's tour, on the runner's side: its folder, made afresh for each run, and the line
  * that starts its agent there. The client opens the project and the terminal, as it lays them
- * out; see docs/backend-api.md.
+ * out; see dev-docs/backend-api.md.
  */
 export class Tour {
   // The run being readied, so a second start meanwhile doesn't empty its folder under it.

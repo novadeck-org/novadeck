@@ -39,7 +39,7 @@ import {
 // The person's controls over a running agent, and seeds that leave something untrusted,
 // the same for every harness (see messaging.e2e.ts for the rule on parity): what each
 // harness needs for them is a trait of its setup, and one without it skips, saying which.
-// The states asserted are docs/agent-messaging.md's ("What counts", "States").
+// The states asserted are dev-docs/agent-messaging.md's ("What counts", "States").
 
 // The tool the agent called last, whose answer the call may be its look at.
 /**
@@ -708,7 +708,7 @@ for (const setup of setups) {
     it("ends a turn its model refused, and settles", async ({ e2e: run }) => {
       // An API rejecting the request fails the turn: Claude Code's StopFailure and
       // Antigravity's Stop say so; Codex fires no hook, and its rollout records the failed
-      // turn's end (see docs/harness-coverage.md, "Activity").
+      // turn's end (see dev-docs/harness-coverage.md, "Activity").
       run.model.use(
         own((call) => {
           if (!call.side && asked(call, "Refuse this")) throw new Refusal(400)

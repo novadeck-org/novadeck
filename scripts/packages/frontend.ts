@@ -33,7 +33,7 @@ export type Pkg = {
   /** The `include` of its tsconfig besides src. */
   readonly include?: readonly string[]
   /** Why its typecheck adds the `node` condition, as its tsconfig's comment's lines say it, the
-   * first going on from "leaves out". Every app adds it (docs/build-graph.md). */
+   * first going on from "leaves out". Every app adds it (dev-docs/build-graph.md). */
   readonly node?: readonly string[]
   readonly author?: string
 }
@@ -179,7 +179,7 @@ export const packages: readonly Pkg[] = [
     vitest: "unit",
     include: ["scripts/**/*.ts"],
     node: [
-      ", as every app's does (docs/build-graph.md):",
+      ", as every app's does (dev-docs/build-graph.md):",
       "its Vite config and scripts run in Node.",
     ],
   },
@@ -197,7 +197,7 @@ export const packages: readonly Pkg[] = [
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
     vitest: "unit",
-    node: [", as every app's does (docs/build-graph.md):", "its Vite config runs in Node."],
+    node: [", as every app's does (dev-docs/build-graph.md):", "its Vite config runs in Node."],
   },
 ]
 
@@ -753,7 +753,7 @@ export const tsconfigOf = (pkg: Pkg, types: readonly string[], tsx: boolean): st
   ]
   return `{
   "compilerOptions": {
-    // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
+    // Workspace packages' source, as Vitest reads it: no build first (see dev-docs/build-graph.md).
 ${conditions(pkg.node)}
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],

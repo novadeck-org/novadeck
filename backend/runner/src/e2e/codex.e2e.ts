@@ -106,7 +106,7 @@ const rollout = (
 describe.skipIf(!supported)("Codex", () => {
   // Wide and tall enough, Codex draws a logo on its first screen while its box is empty,
   // and erases it as anything lands there: the doorbell's test paste changes rows far
-  // from its line, which it accepts only as text vanishing whole (docs/agent-messaging.md,
+  // from its line, which it accepts only as text vanishing whole (dev-docs/agent-messaging.md,
   // "The doorbell").
   it("rings a Codex still at its first screen", async ({ e2e: run, skip }) => {
     run.model.use(
@@ -159,7 +159,7 @@ describe.skipIf(!supported)("Codex", () => {
   // 100 columns or more beside it), its title naming it. Up to 0.170.0 the thread is ephemeral
   // by default: it takes no writer lock, and its hooks name no transcript. From 0.171.0 Codex
   // keeps it, with a lock and a rollout whose first record says it is a side conversation, which
-  // its `SessionStart` names (docs/agent-messaging.md, "Per harness"). The person asks it
+  // its `SessionStart` names (dev-docs/agent-messaging.md, "Per harness"). The person asks it
   // something on the side, then goes back to the root with Ctrl-/. The person's keys opening it leave the terminal Drafting, so nothing
   // rings the side conversation's box, and their next prompt in the root delivers.
   it("keeps its session bound through a /side conversation, and delivers at the root's next prompt", async ({
@@ -291,7 +291,7 @@ describe.skipIf(!supported)("Codex", () => {
   // A spawned agent's approval dialog shows in its root's screen, naming its thread. Esc on
   // it fires no hook (no Interrupt, no SubagentStop) and aborts only that agent's turn,
   // which only its own rollout records, `turn_aborted`; Novadeck follows that rollout while
-  // the agent runs (docs/agent-messaging.md, "What counts"). The root's turn has ended,
+  // the agent runs (dev-docs/agent-messaging.md, "What counts"). The root's turn has ended,
   // so nothing else would ever say the dialog is gone.
   it("never rings while a spawned agent's request waits, and rings once its rollout records Esc on it", async ({
     e2e: run,

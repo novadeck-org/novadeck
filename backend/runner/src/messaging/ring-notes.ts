@@ -15,7 +15,7 @@ import { isNotice, type Message } from "./messages.js"
 
 /**
  * What each terminal's rings and deliveries said, for its view to draw over the lines the
- * harness shows (see docs/agent-messaging.md, "The doorbell's row in the terminal"). The tag the
+ * harness shows (see dev-docs/agent-messaging.md, "The doorbell's row in the terminal"). The tag the
  * doorbell types holds no words, so the view is told them here, by the ring's nonce; a hook's
  * delivery block, which holds no nonce, by its messages' ids.
  *

@@ -26,7 +26,7 @@ import {
 } from "./scenarios.js"
 
 // The person typing around messages, the same for every harness (see messaging.e2e.ts for
-// the rule on parity). What Novadeck must do is docs/agent-messaging.md's ("What counts",
+// the rule on parity). What Novadeck must do is dev-docs/agent-messaging.md's ("What counts",
 // "States", "Acceptance scenarios"): while the box may hold the person's text it never
 // rings, and their next prompt's hook carries what waits.
 

@@ -3,7 +3,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 
-// Sanitized payloads captured from real harness runs; docs/harness-coverage.md rests on
+// Sanitized payloads captured from real harness runs; dev-docs/harness-coverage.md rests on
 // what they show, so these checks keep the two in step.
 type Payload = { readonly [key: string]: unknown }
 const fixture = <T>(harness: string, name: string): T =>

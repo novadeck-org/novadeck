@@ -35,7 +35,7 @@ export type Lease = {
 }
 
 /**
- * The leases handed to terminals' hooks (see docs/agent-messaging.md, "Hook answers"): each
+ * The leases handed to terminals' hooks (see dev-docs/agent-messaging.md, "Hook answers"): each
  * lasts until its hook acknowledges it, or lapses after `ms`, when `lapsed` hears of it.
  * They also keep each terminal's prompt-time delivery for its turn, for a harness whose
  * injected messages last one model call, so each later call of the turn gets it again.

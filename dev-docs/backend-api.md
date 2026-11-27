@@ -1563,7 +1563,7 @@ one from an earlier runner.
   box alone. Leaving the chat with a menu up
   leaves its text in the terminal's box and the draft goes; coming back to a menu goes on from
   the box. A command the person runs so has no receipt and hardly a record ("What a harness
-  draws at its input" in docs/harness-coverage.md): the chat echoes what they typed as their
+  draws at its input" in dev-docs/harness-coverage.md): the chat echoes what they typed as their
   words, unless an Enter left the text in the box, with the last of the view it opened under it,
   never a `secret` one, for as long as it lives.
 - `agents.transcript({ terminalId, actor })` streams an actor's conversation, by the ref
@@ -1718,7 +1718,7 @@ one from an earlier runner.
   columns less the marker's two (tabs spread to multiples of eight columns), plus a row of
   margin, take more rows than the harness leaves for its box; a text the harness certainly
   collapses to a placeholder is not refused. The rows left and the thresholds are each
-  harness's own, probed, in `docs/harness-coverage.md` and `harnesses/*/src/box.ts`. A box's own
+  harness's own, probed, in `dev-docs/harness-coverage.md` and `harnesses/*/src/box.ts`. A box's own
   lines may be indented, tab and trailing spaces included, and hold blank lines; text is
   compared without its white space, and without the emoji a harness drew blank, unless the
   text is only emoji. The runner's headless terminal counts wide characters (emoji
@@ -2084,7 +2084,7 @@ one from an earlier runner.
   `agents.prompt`). Where the option chosen sends words as the agent's next prompt, they are
   given once the dialog took its key. Its keys go through the bookkeeping the person's own
   do, but messaging takes them as Novadeck's: they leave no draft in the agent's box, so
-  the next message rings once the turn ends (docs/agent-messaging.md, "What counts").
+  the next message rings once the turn ends (dev-docs/agent-messaging.md, "What counts").
   Errors:
   - `NOT_FOUND`: the agent has no such request.
   - `DIALOG_CHANGED`: the screen no longer reads with the answer's `dialog`; nothing is

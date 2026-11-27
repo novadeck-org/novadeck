@@ -12,7 +12,7 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, text, tool, type Call, type Reply } from "./model/script.js"
 import { delivered, nestedRuns, own, result, start } from "./scenarios.js"
 
-// The agents and team listings of a lead's team, every harness in it (docs/agent-messaging.md,
+// The agents and team listings of a lead's team, every harness in it (dev-docs/agent-messaging.md,
 // "agents()" and "team()"): every terminal at one level, the team named once at the top,
 // each teammate's repository and branch where its agent works now, as its own shell command
 // tells it, whichever harness runs it; and team, which the lead and each teammate call

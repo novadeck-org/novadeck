@@ -16,7 +16,7 @@ import { mcpAnswer, type McpCall } from "./mcp.js"
 const log = logs.for("reports")
 
 /**
- * What a Stop or prompt-time hook hears back as it asks (see docs/agent-messaging.md):
+ * What a Stop or prompt-time hook hears back as it asks (see dev-docs/agent-messaging.md):
  * what it prints, exactly as its agent expects, and the lease it acknowledges once it has
  * printed it. A null `stdout` leaves the hook to print what it does without Novadeck.
  */
@@ -138,7 +138,7 @@ const maxRelayHook = 2_100_000
 const relayStart = '{"relay":'
 
 /**
- * The versions of the relay protocol the runner speaks (see docs/backend-api.md, "Relay
+ * The versions of the relay protocol the runner speaks (see dev-docs/backend-api.md, "Relay
  * protocol"). An agent's plugin starts whichever relay the install that connected it
  * last copied in, so a runner can meet a relay older or newer than its own: when the
  * protocol changes, the runner keeps taking the version before it for a release. A
@@ -358,7 +358,7 @@ export type Reports = {
 
 /**
  * Listens for Novadeck's relays (see backend/relay), which speak only the relay
- * protocol (docs/backend-api.md, "Relay protocol"). Each connection's first line names
+ * protocol (dev-docs/backend-api.md, "Relay protocol"). Each connection's first line names
  * the relay's version and what it carries: an agent's hook, a report or an ask, answered
  * with one line, a `HookAnswer`, and then perhaps acknowledged (see `serveHook`); or an
  * agent's MCP session, which stays open for as long as the agent runs, its tool calls

@@ -233,7 +233,7 @@ type Escape = {
 /**
  * How long after the person's Escape the harness has to say how the turn ended: Claude
  * Code and Codex record the interruption, or the finish, within about half a second
- * (probed, docs/harness-coverage.md). Past it, a Stop held since is the end, and without
+ * (probed, dev-docs/harness-coverage.md). Past it, a Stop held since is the end, and without
  * one the Escape stands.
  */
 export const escapeVerdictMs = 1500

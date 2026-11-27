@@ -2,7 +2,7 @@ import { noticePrefix } from "@novadeck/protocol/notices"
 
 /**
  * The one shape of every text Novadeck sends an agent of its own accord (see
- * docs/agent-messaging.md, "Notice format"): standing notices on the prompt, event notices
+ * dev-docs/agent-messaging.md, "Notice format"): standing notices on the prompt, event notices
  * sent as messages, the hook's lines, and the rules of a delivery's wrapper.
  *
  *     Novadeck · <Kind>

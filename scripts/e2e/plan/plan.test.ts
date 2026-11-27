@@ -172,7 +172,7 @@ describe("E2E selection", () => {
 
   context("when a pull request changes nothing the suite runs on", () => {
     it("runs nothing for documentation alone", () => {
-      expect(select(pullRequest([], ["docs/e2e-testing.md", "README.md"]), ids)).toEqual([])
+      expect(select(pullRequest([], ["dev-docs/e2e-testing.md", "README.md"]), ids)).toEqual([])
     })
 
     it("runs nothing for the UI alone", () => {
@@ -326,7 +326,7 @@ describe("E2E jobs by change", () => {
       6,
       1,
     ],
-    ["documentation alone", [], ["docs/e2e-testing.md"], 0, 0],
+    ["documentation alone", [], ["dev-docs/e2e-testing.md"], 0, 0],
   ])("starts the jobs of %s", (_name, affected, files, jobs, macos) => {
     expect(planFor(affected, files)).toEqual({ jobs, macos })
   })
@@ -951,7 +951,7 @@ describe("E2E on a merge group", () => {
     expect(followsChange("pull_request")).toBe(true)
     for (const event of ["schedule", "workflow_dispatch", "push", ""])
       expect(followsChange(event)).toBe(false)
-    const docs = group([], ["docs/development.md"])
+    const docs = group([], ["dev-docs/development.md"])
     expect(plan(docs, ids, sharding)).toMatchObject({ run: false })
     expect(select(group(["@novadeck/harness-codex"], ["harnesses/codex/src/a.ts"]), ids)).toEqual([
       "codex",

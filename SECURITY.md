@@ -252,7 +252,7 @@ the same release as the files, so alone they show a download arrived whole, not 
 To check by hand: `gh attestation verify <file> --repo novadeck-org/novadeck`.
 
 There is no GPG signature today: the workflow signs `SHA256SUMS` as `SHA256SUMS.asc` only once
-a release key is configured (`docs/release-signing.md`), and none exists yet. macOS builds are
+a release key is configured (`dev-docs/release-signing.md`), and none exists yet. macOS builds are
 signed and notarized when the Apple credentials are set. Windows builds are unsigned until
 Azure signing is set up, so Windows shows SmartScreen's warning. The desktop app's own
 updates come from GitHub: it downloads only files under
@@ -302,7 +302,7 @@ removed from inherited PTY environment variables, but processes sharing the OS
 account are not isolated from the runner.
 
 The token is the owner's. The owner can give each device a credential of its own
-(`devices.mint`, docs/backend-api.md "Devices"), which grants the same shell access but is
+(`devices.mint`, dev-docs/backend-api.md "Devices"), which grants the same shell access but is
 revoked alone (`devices.revoke`), ending that device's sessions at once, without rotating the
 token. The runner keeps only a SHA-256 hash of each device's 256-bit secret, and compares it
 in constant time after looking the device up by its public id. Only the owner's connections
@@ -346,7 +346,7 @@ hangup-ignoring descendants may survive. Use service-level process isolation and
 cleanup if that guarantee is required. Where an agent ran, a close or a quit also ends what it
 left detached in the terminal: on Linux what its systemd scope holds, on macOS what started
 with the terminal's `NOVADECK_TERMINAL_ID` in its environment, in the app's own coalition
-(docs/backend-api.md, "Closing").
+(dev-docs/backend-api.md, "Closing").
 To find those on macOS the relay reads the starting environment of each of the user's own
 processes, as `ps -E` can, and prints only that variable's value, never the rest. A process of
 the user's can name any terminal there, or none: it can have itself ended with another

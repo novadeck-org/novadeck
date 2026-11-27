@@ -293,7 +293,7 @@ export type Harness = {
   /**
    * Whether work a turn leaves running, as a background subagent or command, wakes the
    * agent with a turn of its own once done, so it works on until then (see
-   * docs/harness-coverage.md, "Activity").
+   * dev-docs/harness-coverage.md, "Activity").
    */
   readonly wakes: boolean
   /**
@@ -301,7 +301,7 @@ export type Harness = {
    * Escape: Claude Code's transcript and Codex's `Interrupt` hook and rollout record the
    * interruption or the finish, and their Stop fires for a turn they took the key just
    * after the reply of, so the Stop alone is not the end. Antigravity fires its Stop only
-   * for a turn that finished, so there it is (see docs/harness-coverage.md, "Escape against
+   * for a turn that finished, so there it is (see dev-docs/harness-coverage.md, "Escape against
    * a reply on its way").
    */
   readonly records: boolean
@@ -499,7 +499,7 @@ export type Apart = (closed: {
 }) => Promise<readonly ApartProcess[]>
 
 /**
- * What a harness knows of agents' messaging (see docs/agent-messaging.md): what its hooks
+ * What a harness knows of agents' messaging (see dev-docs/agent-messaging.md): what its hooks
  * print when they ask Novadeck, each a whole line of the JSON it reads, and how it
  * behaves, so shared code never asks which harness it is. Nothing here says how it draws
  * its screen: the doorbell's checks are the same for every TUI.
@@ -572,7 +572,7 @@ export type MessagingProfile = {
   /**
    * What an Escape in its question dialog does: `interrupts`, as Claude Code's and Codex's
    * end the turn there, or `skips`, as Antigravity's skips the question on screen and the
-   * turn goes on with that answer (see docs/harness-coverage.md). A skipping Escape ends
+   * turn goes on with that answer (see dev-docs/harness-coverage.md). A skipping Escape ends
    * no turn for delivery or the agent's activity. An Escape in a confirmation ends the turn
    * in all three.
    */

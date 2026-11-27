@@ -305,7 +305,7 @@ export const tallySummary = (
 
 /**
  * The tally the weekly scoreboard reads, as the `flake-tally` artifact's tally.json. Its shape
- * is documented in docs/development.md ("Retried tests"); change both together.
+ * is documented in dev-docs/development.md ("Retried tests"); change both together.
  */
 export type TallyReport = {
   readonly since: string
@@ -413,7 +413,7 @@ export const budgetAction = (
     "A retry keeps a pull request green, so a race it hides shows only here: find each one's " +
       "cause and fix it, or register it in `scripts/flakes/register.json` while it's being " +
       "found. Known Flakes edits this list each morning, and closes this issue once every " +
-      'retried test is within the budget. See docs/development.md, "Retried tests".',
+      'retried test is within the budget. See dev-docs/development.md, "Retried tests".',
     "",
     `A test stays listed while its retried runs in the last ${budget.days} days are over the ` +
       "budget, even once a fix has landed: the count doesn't know of the fix, so a fixed test " +
@@ -560,7 +560,7 @@ export const prComment = (
           "",
         ]
       : []),
-    'Known Flakes updates this comment after each run, and counts each retry against the budget (docs/development.md, "Retried tests").',
+    'Known Flakes updates this comment after each run, and counts each retry against the budget (dev-docs/development.md, "Retried tests").',
     "",
   ].join("\n")
 }

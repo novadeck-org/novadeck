@@ -4,7 +4,7 @@
 // matches it before the theme's stylesheet arrives, and the record's ground, when it
 // holds one, as its background-color, so a theme the CSS does not know still shows its
 // ground. apply.ts hands both back to the theme. A file of its own, because the Content Security Policy allows no inline
-// scripts; see docs/theming.md.
+// scripts; see dev-docs/theming.md.
 ;(() => {
   // The record carries the theme's schemes, so this file needs no list of themes and
   // shows whatever theme was picked. A theme is a plain id; its schemes are light, dark

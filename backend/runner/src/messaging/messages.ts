@@ -17,7 +17,7 @@ import { tourBriefs, type Brief } from "@novadeck/tour-runner/notices"
 import { noticeText } from "./notice-format.js"
 
 /**
- * The message rules, as pure functions over its records (see docs/agent-messaging.md,
+ * The message rules, as pure functions over its records (see dev-docs/agent-messaging.md,
  * "Message store" and "Guards"). `Messaging` keeps the records and applies these.
  */
 
@@ -148,7 +148,7 @@ export type Message = {
 /**
  * Messages between two terminals that follow each other closely. `heldFrom` is the hop its
  * hold starts at, while the person hasn't released or stopped it, and `heldFor` why: a loop,
- * or null for a hold carried over from the twelve-message rule (docs/agent-messaging.md,
+ * or null for a hold carried over from the twelve-message rule (dev-docs/agent-messaging.md,
  * Guards, "Loops").
  */
 export type Thread = {

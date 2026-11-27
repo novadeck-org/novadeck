@@ -179,7 +179,7 @@ export const box: BoxProfile = {
   cut: ({ scrolled }) => scrolled === true,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
-  // Runs at once while a turn works (probed 2026-10-07, 0.159.3; docs/harness-coverage.md).
+  // Runs at once while a turn works (probed 2026-10-07, 0.159.3; dev-docs/harness-coverage.md).
   shell: {
     expands: true,
     starts: false,

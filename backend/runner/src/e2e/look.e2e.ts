@@ -3,7 +3,7 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool, type Call } from "./model/script.js"
 import { own, result, start, through } from "./scenarios.js"
 
-// An agent's look at a page it showed (docs/agent-messaging.md, "Looking at a page"): the
+// An agent's look at a page it showed (dev-docs/agent-messaging.md, "Looking at a page"): the
 // deck answers the look as a pane would, and the next thing the harness sends its model
 // holds the picture. The same for every harness (see messaging.e2e.ts for the rule on
 // parity). The model here is a script, so this checks that each harness passes the image

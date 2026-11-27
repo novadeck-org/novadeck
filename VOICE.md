@@ -6,7 +6,7 @@ itself, talking straight to you. Readability comes first: a line that's fun but 
 read is wrong. Names come from [GLOSSARY.md](GLOSSARY.md).
 
 Texts that agents read (tool descriptions, notices, the "You notice…" lines) have their own
-rules in docs/agent-messaging.md and stay out of this.
+rules in dev-docs/agent-messaging.md and stay out of this.
 
 ## The rules
 

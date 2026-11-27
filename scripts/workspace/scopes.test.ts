@@ -154,7 +154,7 @@ describe("a scope's file", () => {
 
 describe("prose", () => {
   it("is a Markdown file", () => {
-    expect(isProse("docs/development.md")).toBe(true)
+    expect(isProse("dev-docs/development.md")).toBe(true)
     expect(isProse("AGENTS.md")).toBe(true)
     expect(isProse("docs/assets/a.webp")).toBe(false)
   })

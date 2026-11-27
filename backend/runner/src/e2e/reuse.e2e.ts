@@ -3,7 +3,7 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool } from "./model/script.js"
 import { delivered, messages, own, result, sent, start, through } from "./scenarios.js"
 
-// A handle that went to a new terminal (docs/agent-messaging.md, "Handles come back"): the
+// A handle that went to a new terminal (dev-docs/agent-messaging.md, "Handles come back"): the
 // agent that knew the old one is refused its first call to the handle, which names the new
 // holder, and its second goes through. The same for every harness (see messaging.e2e.ts
 // for the rule on parity). The project here has only `moth` and `fox` to give, and takes a

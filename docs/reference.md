@@ -71,10 +71,10 @@ Novadeck never restarts by itself. An AppImage run from anywhere other than the
 install path (`~/.local/share/novadeck/novadeck.AppImage`, or Homebrew's
 `~/Applications/novadeck.AppImage`), a macOS app run from outside an Applications
 folder, and the Windows ZIP (`novadeck-win-x64.zip`, unpacked anywhere), is portable: it only looks for new releases and offers to install Novadeck (from itself on Linux and macOS,
-the latest setup on Windows; see [docs/auto-update.md](auto-update.md)). Those links point to the latest stable release; newer
+the latest setup on Windows; see [dev-docs/auto-update.md](../dev-docs/auto-update.md)). Those links point to the latest stable release; newer
 prereleases, the experimental channel, are on the
 [Releases page](https://github.com/novadeck-org/novadeck/releases). See
-[docs/auto-update.md](auto-update.md) for how updates work.
+[dev-docs/auto-update.md](../dev-docs/auto-update.md) for how updates work.
 
 ## Working in Novadeck
 
@@ -151,7 +151,7 @@ on macOS a terminal's processes are told instead by the terminal their environme
 
 A program started detached stays in the scope of the terminal it was started in, though it
 has left the shell's tree, so a close or a quit ends what an agent left there (see "Closing"
-in `docs/backend-api.md`): what started in the scope while an agent ran, and is not what the
+in `dev-docs/backend-api.md`): what started in the scope while an agent ran, and is not what the
 person started there before it or after it, nor its harness's shared service. An app opened
 with `xdg-open`, `gio open` or `BROWSER` gets a scope of its own through Novadeck's shims, so a
 browser window an agent opened for the person stays open. Without a user
@@ -386,7 +386,7 @@ restart forgets those of unread replies. The browser build (`pnpm dev:web`) show
 notifications. The behaviour specs' demo (`?demo=agents`) finishes a prompt you give its
 Claude Code in Build, with a `done` call.
 
-When agents message each other (see [Agent messaging](agent-messaging.md)), a
+When agents message each other (see [Agent messaging](../dev-docs/agent-messaging.md)), a
 terminal's tab says in its tooltip how many messages wait for its agent: queued, being
 delivered or held, never those delivered, and whether a thread is held for your release
 or messaging is paused. A terminal that has had messages gets a **Messages** icon in its
@@ -659,7 +659,7 @@ agent.
   turning it off uninstalls it. The plugin holds a single hook that tells the Novadeck
   terminal it runs in which session it is, and does nothing when the agent runs
   anywhere else. It adds nothing to the model's context but the messages other agents in
-  Novadeck send it, wrapped as theirs (see [Agent messaging](agent-messaging.md)).
+  Novadeck send it, wrapped as theirs (see [Agent messaging](../dev-docs/agent-messaging.md)).
   Agents address each other by terminal handle: a word its project gives each terminal,
   such as `moth`, which no other terminal of the project has. Novadeck shows it as `@moth`
   and it stays the terminal's when you rename it. After a terminal closes, its handle can

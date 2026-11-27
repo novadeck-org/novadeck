@@ -3,7 +3,7 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool } from "./model/script.js"
 import { own, result, start, through } from "./scenarios.js"
 
-// An agent's description of its own terminal (docs/agent-messaging.md, "Naming"): the
+// An agent's description of its own terminal (dev-docs/agent-messaging.md, "Naming"): the
 // title it gives names the terminal where nothing else has, by the terminal's own handle,
 // and its summary is what other agents read. The same for every harness (see
 // messaging.e2e.ts for the rule on parity). The model here is a script, so this checks

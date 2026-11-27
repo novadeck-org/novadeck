@@ -86,7 +86,7 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/router.ts`, text: "export const createRouter" },
       { file: `${runner}/server.ts`, text: "serveWebSocket(runner.sessions" },
     ],
-    docs: ["docs/backend-api.md", "docs/backend-plan.md"],
+    docs: ["dev-docs/backend-api.md", "dev-docs/backend-plan.md"],
   },
   "backend/runner/terminals": {
     purpose:
@@ -96,7 +96,7 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/terminals/opens.ts` },
       { file: `${runner}/messaging/doorbell.ts` },
     ],
-    docs: ["docs/agent-workspace.md"],
+    docs: ["dev-docs/agent-workspace.md"],
   },
   "backend/runner/workspaces": {
     purpose:
@@ -105,13 +105,13 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/workspaces/store.ts`, text: "CREATE TABLE projects" },
       { file: `${runner}/workspaces/projects.ts` },
     ],
-    docs: ["docs/agent-workspace.md"],
+    docs: ["dev-docs/agent-workspace.md"],
   },
   "backend/runner/companions": {
     purpose:
       "The items an agent shows beside its terminal (files, pages, plans), their records, content, the requests that open them, the looks at a page, and the files it never shows by itself.",
     entries: [{ file: `${runner}/companions/items.ts`, text: "export class CompanionItems" }],
-    docs: ["docs/agent-workspace.md"],
+    docs: ["dev-docs/agent-workspace.md"],
   },
   "backend/runner/forges": {
     purpose:
@@ -144,7 +144,7 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/messaging/messages.ts`, text: "export const maxMessageBytes" },
       { file: `${runner}/messaging/delivery.ts` },
     ],
-    docs: ["docs/agent-messaging.md"],
+    docs: ["dev-docs/agent-messaging.md"],
   },
   "backend/runner/harnesses": {
     purpose:
@@ -154,7 +154,7 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/harnesses/service.ts`, text: "export const createHarnesses" },
       { file: `${runner}/harnesses/bindings.ts` },
     ],
-    docs: ["docs/harness-adapters.md", "docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-adapters.md", "dev-docs/harness-coverage.md"],
   },
   "backend/runner/shell": {
     purpose:
@@ -164,7 +164,7 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/shell/reports.ts`, text: "const callTypes" },
       { file: `${runner}/shell/install.ts` },
     ],
-    docs: ["docs/agent-messaging.md"],
+    docs: ["dev-docs/agent-messaging.md"],
   },
   "backend/runner/engines": {
     purpose:
@@ -189,12 +189,12 @@ export const notes: Record<string, Note> = {
       { file: `${runner}/murmur/service.ts`, text: "export class Murmur" },
       { file: `${runner}/murmur/describer.ts`, text: "export type Digest" },
     ],
-    docs: ["docs/murmur.md"],
+    docs: ["dev-docs/murmur.md"],
   },
   "backend/runner/e2e": {
     purpose: "End-to-end scenarios that drive real harness CLIs against a runner.",
     entries: [{ file: `${runner}/e2e/scenarios.ts` }],
-    docs: ["docs/e2e-testing.md"],
+    docs: ["dev-docs/e2e-testing.md"],
   },
   "backend/runner/testing": {
     purpose:
@@ -204,7 +204,7 @@ export const notes: Record<string, Note> = {
     purpose:
       "The contract between UI and runner: the oRPC procedures with Zod schemas and error codes, and the Electron bridge types. It never imports its client, which is a package of its own.",
     entries: [{ file: "contract/protocol/src/contract.ts", text: "export const contract" }],
-    docs: ["docs/backend-api.md"],
+    docs: ["dev-docs/backend-api.md"],
   },
   "contract/runner-client": {
     purpose:
@@ -213,7 +213,7 @@ export const notes: Record<string, Note> = {
       { file: "contract/runner-client/src/index.ts" },
       { file: "contract/runner-client/src/runner.ts", text: "export const connectRunner" },
     ],
-    docs: ["docs/backend-api.md"],
+    docs: ["dev-docs/backend-api.md"],
   },
   "backend/relay": {
     purpose:
@@ -223,7 +223,7 @@ export const notes: Record<string, Note> = {
       { file: "backend/relay/src/hook.rs" },
       { file: "backend/relay/src/mcp.rs", text: "pub fn run" },
     ],
-    docs: ["docs/agent-messaging.md"],
+    docs: ["dev-docs/agent-messaging.md"],
   },
   "harnesses/core": {
     purpose:
@@ -232,39 +232,39 @@ export const notes: Record<string, Note> = {
       { file: "harnesses/core/src/harness.ts", text: "export type Harness = {" },
       { file: "harnesses/core/src/events.ts" },
     ],
-    docs: ["docs/harness-adapters.md"],
+    docs: ["dev-docs/harness-adapters.md"],
   },
   "harnesses/claude": {
     purpose:
       "The Claude Code harness: its plugin and hooks, hook reports, transcripts, dialogs, input box and sessions.",
     entries: [{ file: "harnesses/claude/src/index.ts", text: "export const claude" }],
-    docs: ["docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-coverage.md"],
   },
   "harnesses/codex": {
     purpose: "The Codex harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/codex/src/index.ts", text: "export const codex" }],
-    docs: ["docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-coverage.md"],
   },
   "harnesses/agy": {
     purpose: "The Antigravity harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/agy/src/index.ts", text: "export const agy" }],
-    docs: ["docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-coverage.md"],
   },
   "harnesses/opencode": {
     purpose: "The opencode harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/opencode/src/index.ts", text: "export const opencode" }],
-    docs: ["docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-coverage.md"],
   },
   "harnesses/pi": {
     purpose: "The pi harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/pi/src/index.ts", text: "export const pi" }],
-    docs: ["docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-coverage.md"],
   },
   "harnesses/nova": {
     purpose:
       "Nova, Novadeck's own pi. It is agent pi, on the pi adapter: the pinned pi Novadeck downloads (its builds, checksums and folders), the launcher Novadeck starts it with by the word `nova`, the model Novadeck pays for, which it adds to pi's extension (`withNova`), and the startup word's swap for the launcher's path. The runner's harnesses/bundled-pi.ts fetches it.",
     entries: [{ file: "harnesses/nova/src/extension.ts", text: "export const withNova" }],
-    docs: ["docs/harness-coverage.md"],
+    docs: ["dev-docs/harness-coverage.md"],
   },
   "apps/desktop": {
     purpose:
@@ -277,7 +277,7 @@ export const notes: Record<string, Note> = {
       { file: "apps/desktop/src/main/index.ts", text: "const createWindow" },
       { file: "apps/desktop/src/main/updates/updater.ts" },
     ],
-    docs: ["docs/auto-update.md", "docs/release-signing.md"],
+    docs: ["dev-docs/auto-update.md", "dev-docs/release-signing.md"],
   },
   "apps/desktop/preload": {
     purpose:
@@ -317,7 +317,7 @@ export const notes: Record<string, Note> = {
       { file: `${adapter}/backend.ts`, text: "export type RunnerBackendOptions" },
       { file: `${adapter}/terminals/screens-options.ts`, text: "export const screensOptions" },
     ],
-    docs: ["docs/backend-api.md"],
+    docs: ["dev-docs/backend-api.md"],
   },
   "frontend/terminal-views": {
     purpose:
@@ -372,7 +372,7 @@ export const notes: Record<string, Note> = {
   "frontend/ui/theme": {
     purpose: "Themes (Coolant, Phosphor), their tokens and contract.",
     entries: [{ file: `${ui}/theme/apply.ts` }],
-    docs: ["docs/theming.md"],
+    docs: ["dev-docs/theming.md"],
   },
   "frontend/ui/interaction": {
     purpose: "Shortcuts, the keymap and focus helpers.",
@@ -441,6 +441,6 @@ export const notes: Record<string, Note> = {
     purpose:
       "Builds llama.cpp into the downloadable murmur engine and its engine.json, with the patches Novadeck applies.",
     entries: [{ file: "engines/murmur/index.js", text: "export const engineManifest" }],
-    docs: ["docs/murmur.md"],
+    docs: ["dev-docs/murmur.md"],
   },
 }

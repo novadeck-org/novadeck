@@ -755,7 +755,7 @@ export const judgeContract = (before: ContractSnapshot, after: ContractSnapshot)
     const left = findings.filter((finding) => finding.behind === behind)
     if (left.length > 0 && after[edge] <= was)
       problems.push(
-        `${left.length} change(s) leave ${peer} of revision ${was} behind, but ${edge} is ${after[edge]}: make them additive (docs/backend-api.md, "Versions"), or raise ${edge} to ${Math.max(was + 1, after.revision)} so the handshake refuses those ${peer}.`,
+        `${left.length} change(s) leave ${peer} of revision ${was} behind, but ${edge} is ${after[edge]}: make them additive (dev-docs/backend-api.md, "Versions"), or raise ${edge} to ${Math.max(was + 1, after.revision)} so the handshake refuses those ${peer}.`,
       )
   }
   for (const path of gated) {

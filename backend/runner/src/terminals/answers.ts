@@ -182,7 +182,7 @@ const pasted = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
 
 /**
  * Answers agents' requests through their dialogs as the person would (see
- * docs/backend-api.md, `agents.answer`): it reads the dialog from the screen through the
+ * dev-docs/backend-api.md, `agents.answer`): it reads the dialog from the screen through the
  * harness's adapter once, holds the person's keys, presses what the adapter says for the
  * answer, waiting on its `until` steps between moves, and waits for the dialog to go
  * as the adapter predicts. Each press goes through the bookkeeping the person's own keys

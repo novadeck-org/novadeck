@@ -24,7 +24,7 @@ index 0ae9e1126e1dc136977914ef1bfd46709fc9db1b..0bfd4cd566f8fdb31bc8b36991ceb616
      }
 +    // Novadeck: HttpExecutor's timeout starts on the request's "socket" event, which Electron's
 +    // net requests never emit, so a check or download whose connection went quiet waited
-+    // forever (docs/auto-update.md, "Checks through novadeck.dev"). This one ends a request
++    // forever (dev-docs/auto-update.md, "Checks through novadeck.dev"). This one ends a request
 +    // that goes `timeout` without its response, a redirect or another byte of the body.
 +    addTimeOutHandler(request, callback, timeout) {
 +        let timer = null;

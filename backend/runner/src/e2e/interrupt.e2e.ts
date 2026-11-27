@@ -12,7 +12,7 @@ import { answers, lacking, own, replies, result, start, through } from "./scenar
 
 // The chat's Stop, `agents.interrupt`, never leaves the agent's TUI in a state the chat
 // can't recover from: it presses Escape once, while a turn works or its queued messages go
-// on, so no second Escape opens a rewind picker over an empty box (docs/backend-api.md).
+// on, so no second Escape opens a rewind picker over an empty box (dev-docs/backend-api.md).
 
 // Waits until the message queued last is through what its harness runs before it can send
 // it, where its screen says (Claude Code's UserPromptSubmit hooks, over a second each on

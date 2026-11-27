@@ -59,7 +59,7 @@ const signedOutLingerMs = 10 * 60_000
  * yet. Until an agent takes the terminal for itself, turning on bracketed paste, what shows is
  * the shell's: the shell runs a startup command before its line editor ever turns that on, so
  * however long an agent takes to load, what its shell printed doesn't count until then. Codex
- * turns it on about 0.2 s before it first draws (docs/agent-messaging.md, "Startup screens").
+ * turns it on about 0.2 s before it first draws (dev-docs/agent-messaging.md, "Startup screens").
  * The screens of the three harnesses are probed in `startup-watch.test.ts`.
  */
 export type StartupLook = "box" | "screen" | "nothing"

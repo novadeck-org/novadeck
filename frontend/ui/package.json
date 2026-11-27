@@ -75,7 +75,7 @@
     "platform": "neutral",
     "reads": [
       "apps",
-      "docs/theming.md",
+      "dev-docs/theming.md",
       "frontend"
     ]
   }

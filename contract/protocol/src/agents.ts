@@ -251,7 +251,7 @@ const agentCoverage = z.strictObject({
 
 // A prompt given through `agents.prompt`, and whether the agent's own record (its transcript)
 // has it, as the runner reads that record with the harness's decoder, the one the chat's
-// transcript comes from (see docs/backend-api.md, "Prompt receipts"):
+// transcript comes from (see dev-docs/backend-api.md, "Prompt receipts"):
 // - `pending`: sent, and not in the record yet;
 // - `settled`: there, as the person's words of the user item at `item` of the root's
 //   transcript (`agents.transcript`'s index), which a client may show the prompt as until

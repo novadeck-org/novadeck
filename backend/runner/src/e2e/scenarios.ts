@@ -369,7 +369,7 @@ export const sent = (call: Call, to: string): boolean => {
   return last?.role === "tool" && new RegExp(` to @?${to} is queued`).test(last.text)
 }
 
-/** The doorbell's line, whatever its nonce (see docs/agent-messaging.md). */
+/** The doorbell's line, whatever its nonce (see dev-docs/agent-messaging.md). */
 export const ring = new RegExp(doorbell.source)
 
 /** One message a delivery carried, as its recipient's model read it. */

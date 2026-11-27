@@ -7,7 +7,7 @@ import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } fro
 
 /**
  * When Novadeck nudges a terminal's agent to describe its work (see
- * docs/agent-messaging.md, "Naming"): a new root session; a compaction, where the harness
+ * dev-docs/agent-messaging.md, "Naming"): a new root session; a compaction, where the harness
  * reports one; the work drifting from where it was at the last `describe` (its plan's
  * title, the folder it writes in most, or its branch); as a backstop, `backstopPrompts` of
  * the person's prompts since the last `describe`; and every prompt while the terminal has
@@ -315,7 +315,7 @@ export const nudgeText = (current: {
         })
 
 /**
- * What a session is told once of the bar beside its terminal (see docs/agent-workspace.md,
+ * What a session is told once of the bar beside its terminal (see dev-docs/agent-workspace.md,
  * "Companion pane"): what to show there and what not to, since an agent left to itself
  * shows nothing until asked, or every file it touches once asked. Worded as Novadeck's
  * notice of the Show kind; independent of `describe`.
@@ -385,7 +385,7 @@ export const inboxNotice = noticeText("Inbox", {
 })
 
 /**
- * What a session is told of agent worktrees (see docs/agent-messaging.md,
+ * What a session is told of agent worktrees (see dev-docs/agent-messaging.md,
  * "Nudges") while the runner setting `worktrees` is on: that its changes go in a worktree it
  * opens or takes with Novadeck's tools, not in its terminal's checkout, and that the person's
  * own words decide otherwise (told to work in place, or in a folder, it does). That is the

@@ -20,7 +20,7 @@ import { lacking, nestedRuns, own, replies, start, through, turn } from "./scena
 
 // The chat view's way to an agent, the same for every harness (see messaging.e2e.ts for
 // the rule on parity): `agents.prompt` and `agents.interrupt`, read back through
-// `agents.transcript` of the root actor `agents.detail` names (docs/backend-api.md).
+// `agents.transcript` of the root actor `agents.detail` names (dev-docs/backend-api.md).
 
 /**
  * What the record holds of a message sent along with text in the box: a blank line between,
