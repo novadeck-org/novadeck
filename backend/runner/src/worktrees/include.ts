@@ -237,16 +237,30 @@ const reaches = (path: string) =>
     () => undefined,
   )
 
+/** Makes missing folders in the worktree without following a symlink in a parent path. */
+const makeParents = async (folder: string, worktree: string): Promise<void> => {
+  if (folder === worktree) return
+  const parent = dirname(folder)
+  if (parent === folder) throw new Error("Destination is outside the worktree.")
+  await makeParents(parent, worktree)
+  try {
+    await mkdir(folder)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !(await lstat(folder)).isDirectory())
+      throw error
+  }
+}
+
 /**
  * Copies one file as it is: a symlink as a symlink (a relative one that reaches nothing from the
  * worktree points absolutely at what it reached from the checkout), a file as a copy-on-write clone where the
  * file system makes one (APFS, btrfs, XFS, ReFS) and a copy elsewhere. Never over a file the
  * worktree has. False where it wasn't copied.
  */
-const copyOne = async (from: string, to: string): Promise<boolean> => {
+const copyOne = async (from: string, to: string, worktree: string): Promise<boolean> => {
   try {
     const info = await lstat(from)
-    await mkdir(dirname(to), { recursive: true })
+    await makeParents(dirname(to), worktree)
     if (info.isSymbolicLink()) {
       const target = await readlink(from)
       const reached = isAbsolute(target) ? target : resolve(dirname(from), target)
@@ -301,13 +315,16 @@ export const copyIncluded = async (
     if (!picked.ok)
       return picked.why === "over" ? { ...none, over: true } : { ...none, unread: true }
     if (!(await fits(top, picked.paths, limit))) return { ...none, over: true }
+    const destination = resolve(worktree)
     const copied: string[] = []
     const failed: string[] = []
     for (let at = 0; at < picked.paths.length; at += together) {
       const batch = picked.paths.slice(at, at + together)
       // eslint-disable-next-line no-await-in-loop -- A few at a time, so a long list doesn't open every file at once.
       const done = await Promise.all(
-        batch.map((path) => copyOne(join(top, path), join(worktree, ...path.split("/")))),
+        batch.map((path) =>
+          copyOne(join(top, path), join(destination, ...path.split("/")), destination),
+        ),
       )
       for (const [index, path] of batch.entries()) (done[index] ? copied : failed).push(path)
     }
