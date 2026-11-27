@@ -126,8 +126,8 @@ a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff
 ## Drop a ⭐
 
 > [!IMPORTANT]
-> One dev builds this, and it's free. No account, no tracking, no ad budget.\
-> Stars are how people find it. Think it's preem? Star it.
+> It's just me out here. No team, no ad budget, not much sleep. Building all of this anyway.\
+> Stars are how anyone finds it, and they keep me going. Think it's preem? You know what to do.
 >
 > Stay nova, choom ✦
 
