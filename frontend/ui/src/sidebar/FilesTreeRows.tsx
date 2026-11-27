@@ -1,7 +1,6 @@
 import type { FileChange, RepoSync } from "@novadeck/core/files"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
-import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import {
   ChevronRight,
   File,
@@ -304,23 +303,10 @@ export const TreeRow = ({
           )}
         </span>
       )}
-      {openable && (
-        <Tooltip content="Open in the pane">
-          {/* A pointer's shortcut to the menu's entry, which keyboards reach by the row's own menu. */}
-          <button
-            type="button"
-            className="icon-button files-row-action"
-            tabIndex={-1}
-            aria-hidden="true"
-            onClick={() => onOpenFolder(row)}
-          >
-            <PanelRight size={14} strokeWidth={1.75} />
-          </button>
-        </Tooltip>
-      )}
     </div>
   )
-  // What the row's menu offers, which keyboards reach it by: the pane, and the cards of its marks.
+  // What the row's menu offers, the only way in for pointers and keyboards alike: the pane (a
+  // folder unfolds in the tree on a click), and the cards of its marks.
   const items = [
     ...(openable
       ? [
