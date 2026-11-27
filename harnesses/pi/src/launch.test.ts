@@ -36,3 +36,12 @@ describe("resuming a pi session", () => {
     ])
   })
 })
+
+describe("the choice a pi agent opens its own kind on", () => {
+  it("is its model and thinking effort, and none of its other flags", () => {
+    const words = launch.kept!(["--model", "openai/gpt-6", "--thinking", "high", "--no-mcp"])
+    expect(launch.chosen!(words)).toEqual({ model: "openai/gpt-6", effort: "high" })
+    // A thinking level that is no effort Novadeck knows is left out.
+    expect(launch.chosen!(launch.kept!(["--thinking", "off"]))).toEqual({})
+  })
+})

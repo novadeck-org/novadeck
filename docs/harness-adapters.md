@@ -706,6 +706,8 @@ type LaunchProfile = {
   ) => Promise<readonly string[] | undefined>
   /** The words that continue its session by id, with the model and effort chosen. */
   readonly resume?: (session: string, choice?: Choice) => readonly string[]
+  /** The model and effort the kept words of a launch set, for an agent opened by its own kind. */
+  readonly chosen?: (kept: readonly string[]) => Choice
   /** The models it can start with on this machine, each with the efforts it takes. */
   readonly models: (install: Install) => Promise<readonly Model[]>
   /** The words that go right after its program to start it with this model and effort. */

@@ -85,3 +85,18 @@ describe("what the shim adds to let Novadeck's tools run", () => {
     ])
   })
 })
+
+describe("the choice an Antigravity agent opens its own kind on", () => {
+  it("is its model and effort, and no mode or sandbox", () => {
+    const words = kept!([
+      "--mode",
+      "plan",
+      "--sandbox",
+      "--model",
+      "gemini-3-pro",
+      "--effort",
+      "high",
+    ])
+    expect(agy.launch.chosen!(words)).toEqual({ model: "gemini-3-pro", effort: "high" })
+  })
+})

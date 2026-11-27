@@ -7,7 +7,7 @@ import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest, text, tool, type Call } from "./model/script.js"
 import { closed, deliveries, delivered, holds, own, result, sends, start } from "./scenarios.js"
 
-// A lead and its team across harnesses (docs/agent-messaging.md, "To its team", and
+// A lead and its team across harnesses (docs/agent-messaging.md, "To several", and
 // docs/agent-workspace.md, "Closing terminals"): one `send` to `team` reaches a teammate
 // in every harness, each as its lead's own message, and a teammate's report still on its
 // way when its lead closes it arrives marked as from a closed terminal. Each harness
