@@ -126,9 +126,8 @@ a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff
 ## Stay nova ⭐
 
 > [!IMPORTANT]
-> A nova is a star that suddenly gets way brighter. This one's built by one person: free, no
-> account, no tracking, zero ad budget. People find it through GitHub stars, so if it saved you
-> some tab, tab, tab, star it.
+> One person builds this. Free, no account, no tracking, zero ad budget. People find it through
+> GitHub stars, so if it's been nova for you, star it.
 >
 > Stay nova ✦
 
