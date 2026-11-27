@@ -312,16 +312,19 @@ export const recentSends = (times: readonly number[], now: number): readonly num
   times.filter((time) => now - time < rates.windowMs)
 
 /**
- * The send times kept after one more at `now`, when that stays within `limit` a minute;
+ * The send times kept after `count` more at `now`, when that stays within `limit` a minute;
  * undefined when it would not. Times past the window drop out.
  */
 export const allowSend = (
   times: readonly number[],
   now: number,
   limit: number,
+  count = 1,
 ): readonly number[] | undefined => {
   const recent = recentSends(times, now)
-  return recent.length < limit ? [...recent, now] : undefined
+  return recent.length + count <= limit
+    ? [...recent, ...Array.from({ length: count }, () => now)]
+    : undefined
 }
 
 /** Whether a message went between the terminals `a` and `b`, either way. */

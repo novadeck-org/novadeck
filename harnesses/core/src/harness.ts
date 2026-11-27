@@ -637,6 +637,11 @@ export type LaunchProfile = {
    */
   readonly kept?: (argv: readonly string[]) => readonly string[]
   /**
+   * The model and effort that words `kept` gave set, as a new agent of this harness, started
+   * by an agent of its own, takes them for its own: none of its other flags (`chosenFlags`).
+   */
+  readonly chosen?: (kept: readonly string[]) => Choice
+  /**
    * Whether a resume of `claim` worked, from what the terminal shows so far: its bound
    * session (Claude Code's and Antigravity's id equals the claim) and whether its prompt
    * shows (Codex has no id before its first prompt, so reaching ready is its sign).

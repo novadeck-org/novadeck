@@ -1,6 +1,6 @@
 import { resolve as resolvePath } from "node:path"
 
-import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
+import type { Choice, Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { commandLine, startLine } from "@novadeck/harness-core/prompts"
 import { isAgentName, type AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
@@ -227,12 +227,28 @@ export class Calls {
       request.agent !== undefined && request.resume === undefined
         ? policy.pinned?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
         : undefined
-    const choice = pinned
+    const named = pinned
       ? { model: pinned.model, ...(pinned.effort !== undefined && { effort: pinned.effort }) }
       : {
           ...(request.model !== undefined && { model: request.model }),
           ...(request.effort !== undefined && { effort: request.effort }),
         }
+    // A call that names neither starts a caller's own harness on the caller's model and effort,
+    // read off the flags it was launched with. A model its harness no longer offers falls back
+    // to the user's defaults, where one asked for would be refused.
+    const inherited =
+      request.agent !== undefined &&
+      request.resume === undefined &&
+      !pinned &&
+      request.model === undefined &&
+      request.effort === undefined &&
+      record.summary.agent === request.agent
+        ? this.inheritedChoice(request.agent, record.agents[request.agent]?.launch)
+        : {}
+    const choice =
+      request.agent !== undefined && !(await this.unfitChoice(request.agent, inherited))
+        ? { ...named, ...inherited }
+        : named
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
       const barred = policy.refuseAgent?.(
@@ -528,6 +544,11 @@ export class Calls {
     if (task?.ok && this.host.messaging().briefOf(id) === task.id)
       this.leads.releaseAfterBrief(id, lead.summary.id, task.id)
     else this.host.bindings().endLead(led)
+  }
+
+  /** The model and effort `agent` was launched with, from the kept words its report holds. */
+  private inheritedChoice(agent: AgentName, launch: readonly string[] | undefined): Choice {
+    return launch === undefined ? {} : (harnesses[agent].launch.chosen?.(launch) ?? {})
   }
 
   /**

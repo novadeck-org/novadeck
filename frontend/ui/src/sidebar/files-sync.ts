@@ -207,13 +207,103 @@ export const agoOf = (at: number, now: number): string => {
   return hours < 24 ? `${hours} h ago` : `${Math.floor(hours / 24)} d ago`
 }
 
-// The card's sub line for a landing: how far main moved, when, and how many files changed.
-export const landingSub = (repo: RepoSync, landing: SyncLanding, now: number): string =>
+// The card's foot for a landing: how many merges, when, and what the tree shows of them.
+export const landingFoot = (landing: SyncLanding, now: number): string =>
   [
-    `${repo.branch} moved ${plural(landing.commits, "commit")}`,
+    plural(newCount(landing), kindOf(landing.merges)),
     agoOf(landing.at, now),
-    plural(landing.filesTotal, "file"),
+    landing.ref === true
+      ? "main moved, your files didn't"
+      : landing.filesTotal === 0
+        ? "no files changed"
+        : "changed files pulse in the tree",
   ].join(" · ")
+
+// The command that moves a behind repository's main, as the runner does it: the runner says it.
+// A runner before that (revision 24) doesn't, and none is guessed: its move depends on the branch.
+export const moveCommand = (behind: NonNullable<RepoSync["behind"]>): string | undefined =>
+  behind.command
+
+// The first characters of a commit, as git shortens it.
+export const shortSha = (commit: string): string => commit.slice(0, 7)
+
+// Where a merge's pull request is on its forge's web, or undefined where there is none to open.
+export const pullHref = (repo: RepoSync, pr: number | null): string | undefined => {
+  if (pr === null || !repo.pullUrl) return undefined
+  const url = repo.pullUrl.replace("{number}", String(pr))
+  return /^https?:\/\//i.test(url) ? url : undefined
+}
+
+// How long a command ran, in a few words.
+export const elapsedOf = (ms: number): string => {
+  const seconds = Math.max(1, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds} s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes} min${seconds % 60 === 0 ? "" : ` ${seconds % 60} s`}`
+}
+
+// How a terminal the card opened for a command stands: still going, or over, and for how long.
+export type TerminalProgress = {
+  // `finished` says nothing of whether it worked: nothing tells a program's exit status in a shell.
+  readonly phase: "running" | "finished" | "failed"
+  // How long it ran, where that was seen.
+  readonly ms?: number | undefined
+}
+
+// What the card does with terminals, given by the app that has them: opens one in a folder with a
+// command that it types at its first prompt (it is not brought into view), brings one forward, and
+// follows one, from when it began.
+export type SyncTerminals = {
+  readonly run: (input: {
+    readonly directory: string | undefined
+    readonly command: string
+  }) => string
+  readonly show: (id: string) => void
+  readonly follow: (id: string, since: number) => TerminalFollower
+}
+
+// A terminal's progress as a store a component reads: it tells while something subscribes.
+export type TerminalFollower = {
+  readonly subscribe: (listener: () => void) => () => void
+  readonly get: () => TerminalProgress
+}
+
+// The terminal a landing's dependency command was run in, and when.
+export type DependencyRun = {
+  readonly key: string
+  readonly id: string
+  readonly startedAt: number
+}
+
+// What Run did to a repository's main, here: it is under way, moved it, or git said no, in its own
+// words (`git`) or, where it wasn't git, in Novadeck's (`said`).
+export type UpdateRun =
+  | { readonly state: "running" }
+  | { readonly state: "ok" }
+  | {
+      readonly state: "refused"
+      readonly said: string
+      readonly git?: readonly string[] | undefined
+      readonly more?: number | undefined
+    }
+
+// What Run did, with the command it was for and how the repository stood when it ran: a refusal
+// is of that standing alone, and what it says is only of that command.
+export type RepoRun = {
+  readonly command: string
+  readonly standing: string
+  readonly run: UpdateRun
+}
+
+// How a repository's main stands behind, as one value: a refusal or a move is of it and no other.
+export const behindStanding = (repo: RepoSync): string =>
+  repo.behind
+    ? `${repo.behind.count}|${repo.behind.local ?? ""}|${repo.behind.why ?? ""}|${repo.behind.command ?? ""}`
+    : ""
+
+// The lockfile's path as the card says it: from the repository, not the project.
+export const lockPathIn = (repo: RepoSync, file: string): string =>
+  repo.path !== "" && file.startsWith(`${repo.path}/`) ? file.slice(repo.path.length + 1) : file
 
 // The last part of a path.
 export const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1)

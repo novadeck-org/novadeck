@@ -184,7 +184,7 @@ describe("the runner's files", () => {
         expect(repos).toMatchObject([
           { path: "api", name: "api", behind: { count: 1, why: null }, ahead: 0, landing: null },
         ])
-        await expect(files.update?.(project.id, "api")).resolves.toEqual({ ok: true })
+        await expect(files.update?.(project.id, "api")).resolves.toEqual({ ok: true, moved: true })
         await expect(files.sync?.(project.id)).resolves.toMatchObject({
           repos: [{ path: "api", behind: null, moved: 1 }],
         })

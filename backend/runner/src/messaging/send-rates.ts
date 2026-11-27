@@ -3,7 +3,7 @@ import { allowSend, rates, recentSends } from "./messages.js"
 /** Why a send is over the rates, or the means to spend it once the message is kept. */
 export type Verdict =
   | { readonly ok: false; readonly reason: string }
-  | { readonly ok: true; readonly spend: () => void }
+  | { readonly ok: true; readonly spend: (kept?: number) => void }
 
 /**
  * How many messages a minute a terminal that leads `team` terminals may send: an agent's
@@ -13,7 +13,8 @@ export const senderRate = (team: number): number => rates.sender + rates.perTeam
 
 const overRate = (limit: number): string =>
   `An agent may send ${limit} messages a minute, ${rates.pair} of them to any one terminal ` +
-  "(a send to several terminals you lead counts once); try again shortly."
+  "(a send to several terminals you lead counts once, to any others once for each); try again " +
+  "shortly."
 
 const overAll =
   "Agents in Novadeck have sent as many messages as they may this minute; try again shortly."
@@ -39,21 +40,25 @@ export class SendRates {
   }
 
   /**
-   * Whether `sender` may send one more at `now`, within `limit` a minute and the runner's
-   * own rate: a send to several terminals is one. A send that is kept calls `spend` to
-   * count itself; one refused counts for nothing.
+   * Whether `sender` may send `count` more at `now` (one, as a send to several terminals it
+   * leads is), within `limit` a minute and the runner's own rate. A send that is kept calls
+   * `spend` to count itself, with how many were kept if fewer than `count`; one refused
+   * counts for nothing.
    */
-  sender(sender: string, now: number, limit: number = rates.sender): Verdict {
+  sender(sender: string, now: number, limit: number = rates.sender, count = 1): Verdict {
     prune(this.sent, now)
-    const bySender = allowSend(this.sent.get(sender) ?? [], now, limit)
-    const byAll = allowSend(this.all, now, rates.all)
+    const bySender = allowSend(this.sent.get(sender) ?? [], now, limit, count)
+    const byAll = allowSend(this.all, now, rates.all, count)
     if (!bySender) return { ok: false, reason: overRate(limit) }
     if (!byAll) return { ok: false, reason: overAll }
     return {
       ok: true,
-      spend: () => {
-        this.sent.set(sender, bySender)
-        this.all = byAll
+      spend: (kept = count) => {
+        this.sent.set(
+          sender,
+          kept === count ? bySender : bySender.slice(0, bySender.length - count + kept),
+        )
+        this.all = kept === count ? byAll : byAll.slice(0, byAll.length - count + kept)
       },
     }
   }

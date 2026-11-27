@@ -1,3 +1,6 @@
+import { dirname, join } from "node:path"
+
+import { parseRemote, repositoryOf, type Repository } from "@novadeck/forges"
 import type { CheckoutUpdate, ProjectSync, RepoSync } from "@novadeck/protocol"
 
 import { git } from "../checkouts/git.js"
@@ -12,7 +15,12 @@ import { KeptRepositories, type Found } from "./repositories-in.js"
 const log = logs.for("worktrees")
 
 /** A pull request from one of the person's agents' worktrees. */
-export type OwnPull = { readonly number: number; readonly title: string }
+export type OwnPull = {
+  readonly number: number
+  readonly title: string
+  /** The handle of the agent whose worktree it is from, where it has one. */
+  readonly handle?: string | undefined
+}
 
 /** What a recorded landing says to the runner's other parts: who is told of it. */
 export type Landed = {
@@ -52,7 +60,21 @@ type Status = {
   readonly why: string | null
   readonly waiting: readonly Merge[]
   readonly head: string | null
+  /** The command that moves main by hand, as the runner would. */
+  readonly command: string
+  readonly local: string | undefined
+  /** Where a pull request is on the forge's web, `{number}` for its number. */
+  readonly pullUrl: string | null
 }
+
+/**
+ * A pull request's page on its forge's web, with `{number}` for its number: GitHub's only, where
+ * the `#N` a merge says is a pull request (on GitLab it is an issue, on Azure a work item).
+ */
+export const pullUrlOf = (repository: Repository): string | null =>
+  repository.forge === "github"
+    ? `https://${repository.host}/${repository.owner}/${repository.name}/pull/{number}`
+    : null
 
 /** How long a repository's standing is kept before git is asked again. */
 const keptMs = 5000
@@ -109,6 +131,8 @@ const shownLanding = (
   landing: Landing,
   found: Found,
   own: ReadonlyMap<number, string>,
+  handles: ReadonlyMap<number, string>,
+  ref: boolean,
 ): NonNullable<RepoSync["landing"]> => {
   const down = found.path === "" ? found.inside : ""
   const inProject = (file: string): string | undefined =>
@@ -129,14 +153,20 @@ const shownLanding = (
       pr,
       commit,
       own: pr !== null && own.has(pr),
+      ...(pr !== null && handles.has(pr) && { by: handles.get(pr)! }),
       latest: landing.latest.includes(commit),
     })),
     files,
     filesTotal: down === "" ? landing.filesTotal : files.length,
     dependencies: lock
-      ? { file: prefixed(inProject(lock.file) ?? lock.file), command: lock.command }
+      ? {
+          file: prefixed(inProject(lock.file) ?? lock.file),
+          command: lock.command,
+          dir: join(found.home, dirname(lock.file)),
+        }
       : null,
     dependenciesLatest: landing.dependenciesLatest,
+    ...(ref && { ref }),
   }
 }
 
@@ -149,6 +179,8 @@ const shownLanding = (
 export class MainSync {
   private readonly repositories: KeptRepositories
   private readonly landings = new Map<string, Landing>()
+  /** The repositories whose unseen landing moved the local main branch alone: no file changed. */
+  private readonly refOnly = new Set<string>()
   private readonly tail = new Map<string, Promise<void>>()
   private readonly standing = new Map<
     string,
@@ -156,6 +188,7 @@ export class MainSync {
   >()
   /** The pull requests of agents' worktrees seen so far, by repository: a worktree may be cleaned up before its landing. */
   private readonly ownNumbers = new Map<string, Map<number, string>>()
+  private readonly ownHandles = new Map<string, Map<number, string>>()
   private readonly now: () => number
 
   constructor(private readonly host: MainSyncHost) {
@@ -173,9 +206,18 @@ export class MainSync {
 
   private remember(commonDir: string): Map<number, string> {
     const known = this.ownNumbers.get(commonDir) ?? new Map<number, string>()
-    for (const { number, title } of this.host.own?.(commonDir) ?? []) known.set(number, title)
+    const handles = this.ownHandles.get(commonDir) ?? new Map<number, string>()
+    for (const { number, title, handle } of this.host.own?.(commonDir) ?? []) {
+      known.set(number, title)
+      if (handle !== undefined) handles.set(number, handle)
+    }
     this.ownNumbers.set(commonDir, known)
+    this.ownHandles.set(commonDir, handles)
     return known
+  }
+
+  private handlesOf(commonDir: string): ReadonlyMap<number, string> {
+    return this.ownHandles.get(commonDir) ?? new Map<number, string>()
   }
 
   /**
@@ -225,6 +267,9 @@ export class MainSync {
     const dependencies = ref ? (prior?.dependencies ?? null) : all.dependencies
     const latest = ref ? { ...fresh, dependencies: null } : fresh
     // The merges and lockfile of this move are those a notice is about.
+    // Files changed in the checkout if any move since the last one seen changed it.
+    if (ref && (prior === undefined || this.refOnly.has(commonDir))) this.refOnly.add(commonDir)
+    else this.refOnly.delete(commonDir)
     this.landings.set(commonDir, {
       ...all,
       dependencies,
@@ -282,6 +327,9 @@ export class MainSync {
       line(await git(home, ["symbolic-ref", "-q", "HEAD"], small)) === `refs/heads/${branch}`
     // Off main too: the runner moves the local main branch there, and says so while it hasn't.
     const behind = behindAll ?? 0
+    const origin = line(await git(home, ["remote", "get-url", "origin"], small))
+    const remote = origin === undefined ? undefined : parseRemote(origin)
+    const forge = remote === undefined ? undefined : repositoryOf(remote)
     const head = (await commitAt(home, "HEAD")) ?? null
     let why: string | null = null
     if (behind > 0) {
@@ -314,6 +362,9 @@ export class MainSync {
       why,
       waiting,
       head,
+      command: onBranch ? `git merge --ff-only ${main.name}` : `git fetch . ${main.name}:${branch}`,
+      local,
+      pullUrl: forge === undefined ? null : pullUrlOf(forge),
     }
   }
 
@@ -341,14 +392,30 @@ export class MainSync {
                   pr,
                   commit,
                   own: pr !== null && own.has(pr),
+                  ...(pr !== null &&
+                    this.handlesOf(found.commonDir).has(pr) && {
+                      by: this.handlesOf(found.commonDir).get(pr)!,
+                    }),
                   latest: false,
                 })),
+                command: status.command,
+                ...(status.local !== undefined && { local: status.local }),
               }
             : null,
         ahead: status.ahead,
-        landing: landing ? shownLanding(landing, found, own) : null,
+        landing: landing
+          ? shownLanding(
+              landing,
+              found,
+              own,
+              this.handlesOf(found.commonDir),
+              this.refOnly.has(found.commonDir),
+            )
+          : null,
         moved: this.host.moved(found.commonDir),
         head: status.head,
+        home: found.home,
+        pullUrl: status.pullUrl,
       })
     }
     return { repos: repos.slice(0, reposLimit) }
@@ -359,7 +426,10 @@ export class MainSync {
     const found = (await this.repositories.of(cwd)).find((each) => each.path === path)
     if (found === undefined) return
     const landing = this.landings.get(found.commonDir)
-    if (landing && (to === undefined || landing.to === to)) this.landings.delete(found.commonDir)
+    if (landing && (to === undefined || landing.to === to)) {
+      this.landings.delete(found.commonDir)
+      this.refOnly.delete(found.commonDir)
+    }
   }
 
   /** Moves the checkout of the repository at `path` (the project's own when omitted) to main. */
@@ -371,6 +441,10 @@ export class MainSync {
       return { ok: false, said: "It has commits origin doesn't, so it can't just move forward." }
     this.standing.delete(found.commonDir)
     const done = await this.host.update(found.commonDir)
-    return done.ok ? { ok: true } : done
+    return done.ok
+      ? done.moved
+        ? { ok: true, moved: true, ...(done.ref === true && { ref: true }) }
+        : { ok: true, moved: false }
+      : done
   }
 }

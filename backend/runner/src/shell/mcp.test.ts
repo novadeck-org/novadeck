@@ -2041,23 +2041,60 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
   })
 
   it("says what an agent and a team are here, where harnesses have their own", async () => {
-    const [handshake, tools] = await session(terminal(), [initialize, list])
-    const described = tools?.result?.tools as { name: string; description: string }[]
-    const of = (name: string) => described.find((tool) => tool.name === name)!.description
-    for (const text of [handshake?.result?.instructions as string, of("open_agent"), of("team")]) {
-      // An agent the user hands a task opens in a Novadeck terminal, a subagent only when asked.
-      expect(text).toContain(
-        'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
-      )
-      // Agents for the agent's own task, even asked for, stay its own pick.
-      expect(text).toContain(
-        "Agents that you, the user or a skill want used for your own task, such as to do it faster, are yours to pick as you normally would, except that a team is always a Novadeck one",
-      )
-      // A team is always Novadeck's; subagents stay the agent's own, and are never one.
-      expect(text).toContain(
-        "a team, or a swarm, is a lead and the agents in the Novadeck terminals it leads",
-      )
-      expect(text).toContain("subagents you start within your own turn are never a team")
+    const texts = async (mode: "herd" | "solo" | "swarm") => {
+      answersBy.mode = { ok: true, mode }
+      const [handshake, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      const of = (name: string) => described.find((tool) => tool.name === name)!.description
+      return [handshake?.result?.instructions as string, of("open_agent"), of("team")]
+    }
+    try {
+      // Each listing in turn, as they share the runner's mode.
+      const herd = await texts("herd")
+      const solo = await texts("solo")
+      const swarm = await texts("swarm")
+      for (const listed of [herd, solo, swarm]) {
+        for (const text of listed) {
+          // An agent the user hands a task opens in a Novadeck terminal, a subagent only when asked.
+          expect(text).toContain(
+            'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent,',
+          )
+          // Agents the user leaves it free to spawn for parts of their task are Novadeck's too.
+          expect(text).toContain(
+            'and so are the other agents the user leaves you free to spawn to take on parts of their task, as in "you can spawn other agents if you need to", unless they ask for a subagent or say that is what they mean',
+          )
+          // A team is always Novadeck's; subagents stay the agent's own, and are never one.
+          expect(text).toContain(
+            "a team, or a swarm, is a lead and the agents in the Novadeck terminals it leads",
+          )
+          expect(text).toContain("subagents you start within your own turn are never a team")
+        }
+      }
+      // In Herd and Solo, agents for the agent's own task, even asked for, stay its own pick.
+      for (const listed of [herd, solo]) {
+        for (const text of listed) {
+          expect(text).toContain(
+            "Agents that you, the user or a skill want used for your own task, such as to do it faster, are yours to pick as you normally would, except that a team is always a Novadeck one",
+          )
+          expect(text).not.toContain("In a swarm, a part of your task")
+        }
+      }
+      // In a swarm, a part that goes on beside the agent goes to a Novadeck agent it leads,
+      // and a subagent stays its pick for its own context: one rule, not two that pull apart.
+      for (const text of swarm) {
+        expect(text).toContain(
+          "In a swarm, a part of your task that can go on beside you, such as work that outlasts your turn, needs its own worktree, or holds something others use",
+        )
+        expect(text).toContain(
+          "goes to an agent in its own Novadeck terminal that you open with open_agent and lead",
+        )
+        expect(text).toContain(
+          "A subagent within your turn stays yours to pick as you normally would for what serves your own work and context",
+        )
+        expect(text).not.toContain("are yours to pick as you normally would, except")
+      }
+    } finally {
+      delete answersBy.mode
     }
   })
 
@@ -2224,6 +2261,26 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     } finally {
       delete answersBy.mode
     }
+  })
+
+  it("tells send's agent who `team` names and when to send to several", async () => {
+    const [, tools] = await session(terminal(), [initialize, list])
+    const described = tools?.result?.tools as {
+      name: string
+      description: string
+      inputSchema: { properties: { to: { description: string } } }
+    }[]
+    const send = described.find((tool) => tool.name === "send")!
+    expect(send.description).toContain(
+      "several handles (@fox @owl) or team, which is the terminals you lead or, if you lead none, your lead and its other members",
+    )
+    expect(send.description).toContain("Send to several only when each of them needs the message")
+    expect(send.description).toContain(
+      "a problem goes to whoever owns that area, with your lead copied, and a reply goes to the sender alone",
+    )
+    expect(send.description).toContain("counts once for each recipient")
+    expect(send.description).not.toContain("only to terminals you lead")
+    expect(send.inputSchema.properties.to.description).toContain("your lead and its other members")
   })
 
   it("carries the messaging rules in send's description, once", async () => {

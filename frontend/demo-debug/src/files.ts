@@ -89,17 +89,17 @@ export const filesGroups = (files: DemoFiles | undefined): readonly DemoActionGr
             },
             {
               label: "Checkout is behind main",
-              hint: 'Open Files: under the header a line says "main is 3 behind origin" with Update; Update moves the checkout (the line goes, Receipt.tsx appears in src/checkout and Price.tsx leaves src/components)',
+              hint: 'Open Files: under the header a line says "main is 3 behind origin" with ↓3, whose card shows git merge --ff-only origin/main with Run; Run moves the checkout (the mark goes, Receipt.tsx appears in src/checkout and Price.tsx leaves src/components)',
               run: () => files.stand({ count: 3 }),
             },
             {
               label: "Checkout is behind, Keep main current off",
-              hint: 'Open Files: "↓3" says why in words, "keeping main current is off", and its card has Update (the checkout may be on any branch: Update moves main)',
+              hint: 'Open Files: "↓3" says why in words, "keeping main current is off", and its card shows the command with Run (the checkout may be on any branch: Run moves main)',
               run: () => files.stand({ count: 3, why: "Keeping main current is off." }),
             },
             {
               label: "Checkout can't update",
-              hint: 'Open Files: the same line; Update gives way to "Can\'t update: Your changes to src/cart/useCart.ts would be overwritten." with Retry',
+              hint: "Open Files: the card; Run prints git’s refusal in red (error: Your local changes to the following files would be overwritten by merge) and says where main stays, with Run kept on the line",
               run: () =>
                 files.stand({
                   count: 3,

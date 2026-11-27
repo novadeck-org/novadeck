@@ -44,8 +44,22 @@ export type CheckoutState = z.infer<typeof checkoutState>
 
 // What `projects.updateCheckout` did: moved to main (or found it there already), or why not.
 export const checkoutUpdate = z.discriminatedUnion("ok", [
-  z.strictObject({ ok: z.literal(true) }),
-  z.strictObject({ ok: z.literal(false), said: z.string().max(300) }),
+  z.strictObject({
+    ok: z.literal(true),
+    // Whether anything moved (false: it was found as it was, or changed under the move), and
+    // whether only the local main branch did, with no file touched. Absent from a runner before
+    // revision 25, which says neither.
+    moved: z.boolean().optional(),
+    ref: z.boolean().optional(),
+  }),
+  z.strictObject({
+    ok: z.literal(false),
+    said: z.string().max(300),
+    // What git itself printed for the command the card shows, line by line, where it was git that
+    // refused (up to 20 lines), and how many more it printed.
+    git: z.array(z.string().max(300)).max(20).optional(),
+    more: z.number().int().min(1).optional(),
+  }),
 ])
 export type CheckoutUpdate = z.infer<typeof checkoutUpdate>
 
@@ -64,6 +78,8 @@ export const syncMerge = z.strictObject({
   pr: z.number().int().min(1).nullable(),
   commit: z.string().max(128),
   own: z.boolean(),
+  // The handle of the agent whose pull request it was, where it was one of the person's agents'.
+  by: z.string().max(64).optional(),
   // It came in the last move of main, which a notice is about; the earlier ones the person was told of.
   latest: z.boolean(),
 })
@@ -78,10 +94,18 @@ export const syncLanding = z.strictObject({
   files: z.array(z.string().max(4096)).max(200),
   filesTotal: z.number().int().min(0),
   dependencies: z
-    .strictObject({ file: z.string().max(4096), command: z.string().max(200) })
+    .strictObject({
+      file: z.string().max(4096),
+      command: z.string().max(200),
+      // The folder the command runs in, the lockfile's own, on the runner's disk.
+      dir: z.string().max(4096).optional(),
+    })
     .nullable(),
   // The last move of main changed a lockfile.
   dependenciesLatest: z.boolean(),
+  // Only the local main branch moved, the checkout being on another branch: no file changed, so
+  // none is new in the tree. Absent reads as false.
+  ref: z.boolean().optional(),
 })
 export type SyncLanding = z.infer<typeof syncLanding>
 
@@ -96,12 +120,23 @@ export const repoSync = z.strictObject({
       why: z.string().max(300).nullable(),
       // The merges waiting on origin, newest first (up to 10).
       merges: z.array(syncMerge).max(10),
+      // The command that does the move by hand and that Novadeck's own move is the same as:
+      // `git merge --ff-only origin/main` in a checkout on main, `git fetch . origin/main:main`
+      // while it is on another branch.
+      command: z.string().max(300).optional(),
+      // The commit local main is at.
+      local: z.string().max(128).optional(),
     })
     .nullable(),
   ahead: z.number().int().min(0),
   landing: syncLanding.nullable(),
   moved: z.number().int().min(0),
   head: z.string().max(128).nullable(),
+  // The repository's checkout on the runner's disk, where a command for it runs.
+  home: z.string().max(4096).optional(),
+  // Where one of its pull requests is on the forge's web, `{number}` for the pull request's:
+  // null where Novadeck knows no forge for its origin.
+  pullUrl: z.string().max(1024).nullable().optional(),
 })
 export type RepoSync = z.infer<typeof repoSync>
 

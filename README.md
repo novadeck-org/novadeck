@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <strong>An agentic development environment for Claude Code, Codex, Antigravity, OpenCode and Pi.</strong><br />
-  Run a bunch of agents at once, in real terminals, and actually keep up with them.<br />
-  Free and open source, no account.
+  <strong>Run a bunch of coding agents at once, and actually keep up with them.</strong><br />
+  Claude Code, Codex, Antigravity, OpenCode and Pi, in real terminals.<br />
+  Free and open source, no sign-up.
 </p>
 
 <p align="center">
@@ -22,11 +22,10 @@
 <p align="center">
   <a href="https://github.com/novadeck-org/novadeck/releases/latest"><img src="https://novadeck.dev/badge/latest.svg" alt="Latest release" /></a>
   <a href="https://github.com/novadeck-org/novadeck/commits/main"><img src="https://novadeck.dev/badge/commits.svg" alt="Commits this week" /></a>
-  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex, Antigravity, OpenCode and Pi" /></a>
+  <a href="LICENSE"><img src="https://novadeck.dev/badge/license.svg" alt="License: GPL-3.0-or-later" /></a>
   <br />
   <a href="https://novadeck.dev/download?utm_source=readme"><img src="https://novadeck.dev/badge/runs-on.svg" alt="Runs on macOS, Windows and Linux" /></a>
   <a href="https://novadeck.dev/privacy?utm_source=readme"><img src="https://novadeck.dev/badge/privacy.svg" alt="Privacy: no account, no telemetry" /></a>
-  <a href="LICENSE"><img src="https://novadeck.dev/badge/license.svg" alt="License: GPL-3.0-or-later" /></a>
 </p>
 
 <p align="center">
@@ -39,8 +38,7 @@ branch had what. So now I use Novadeck.
 
 It runs the agent CLIs you already have, on your own accounts. And it's not tmux with extra
 steps: Novadeck knows what each agent is doing, so it can tell you who's waiting and pass their
-messages around. All it adds is a small plugin to each agent. Your settings stay yours, and
-outside Novadeck the plugin does nothing.
+messages around.
 
 On macOS and x86_64 Linux:
 

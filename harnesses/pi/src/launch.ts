@@ -1,5 +1,10 @@
 import type { LaunchProfile } from "@novadeck/harness-core/harness"
-import { forgottenUnits, keptFlags, resumeFlags } from "@novadeck/harness-core/kept-flags"
+import {
+  chosenFlags,
+  forgottenUnits,
+  keptFlags,
+  resumeFlags,
+} from "@novadeck/harness-core/kept-flags"
 
 import { choose, readModels } from "./models.js"
 import { kept } from "./shim.js"
@@ -53,6 +58,7 @@ export const launch: LaunchProfile = {
   ],
   kept: (argv) => keptFlags(argv, kept),
   forgets: (words) => forgottenUnits(words, kept),
+  chosen: (words) => chosenFlags(words, kept),
   models: readModels,
   choose,
 }

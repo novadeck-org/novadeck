@@ -78,9 +78,10 @@ describe("a project's checkout against main", () => {
     await s.fetcher.idle()
     expect(s.fetcher.moved(s.common)).toBe(0)
     expect(await s.checkouts.read(s.origin.repo)).toMatchObject({ behind: { count: 1 } })
-    expect(await s.checkouts.update(s.origin.repo)).toEqual({
+    expect(await s.checkouts.update(s.origin.repo)).toMatchObject({
       ok: false,
       said: "b.txt is in the way, and not tracked.",
+      git: expect.arrayContaining(["    b.txt"]),
     })
   })
 
@@ -89,9 +90,10 @@ describe("a project's checkout against main", () => {
     writeFileSync(join(s.origin.repo, "a.txt"), "mine\n")
     await s.fetcher.fetchNow([s.common])
     await s.fetcher.idle()
-    expect(await s.checkouts.update(s.origin.repo)).toEqual({
+    expect(await s.checkouts.update(s.origin.repo)).toMatchObject({
       ok: false,
       said: "Your changes to a.txt would be overwritten.",
+      git: expect.arrayContaining(["    a.txt"]),
     })
   })
 

@@ -139,3 +139,12 @@ describe("what the shim adds to let Novadeck's tools run", () => {
     ])
   })
 })
+
+describe("the choice a Codex agent opens its own kind on", () => {
+  it("is its model and effort, as flags or as config overrides, and no approval or sandbox", () => {
+    const flags = kept!(["-m", "gpt-6", "-s", "read-only", "-c", "model_reasoning_effort=high"])
+    expect(codex.launch.chosen!(flags)).toEqual({ model: "gpt-6", effort: "high" })
+    const config = kept!(["-c", "model=gpt-5", "-a", "never", "-c", "model_reasoning_effort=low"])
+    expect(codex.launch.chosen!(config)).toEqual({ model: "gpt-5", effort: "low" })
+  })
+})

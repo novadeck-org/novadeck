@@ -198,7 +198,11 @@ Herd it words Novadeck's texts only; Swarm also changes what Novadeck asks the p
   to the person, or its lead, before it acts on it.
 - **Swarm**: agents organise the work themselves. Besides settling overlaps directly, they open
   agents for parts of a task that can run side by side and lead them, and close agents whose
-  work is done. Teams are how a swarm gets the person's work done: an agent joins a team whose
+  work is done. Such a part (work that outlasts the agent's turn, needs its own worktree, holds
+  something others use, or that the person may want to watch or talk to) goes to a Novadeck
+  agent rather than a subagent, which stays the agent's own pick for what serves its own
+  context, such as a search or a check it needs the answer to before it goes on (`ownAgents`
+  in `shell/mcp.ts`; see "Agent" and "team" below). Teams are how a swarm gets the person's work done: an agent joins a team whose
   work its task sits inside, leaves once its part is done and the lead has nothing more for it,
   and hands the lead to a member better placed to lead the rest. Once its own task is finished
   and reported, it looks once for the person's work still under way that it could help with,
@@ -226,7 +230,7 @@ Teams work the same in Solo and Herd: a lead directs, and its teammates act on i
 report back. Approvals of actions stay the person's in every mode, and a harness's own
 permission prompts are never Novadeck's to skip.
 
-The mode words the server's instructions and the `send` and `ask` descriptions (`together`, `meets`, `onward`, `anchored`, `decides`, `rules` in `shell/mcp.ts`, and the tools whose confirmation Swarm
+The mode words the server's instructions and the `send` and `ask` descriptions (`together`, `meets`, `onward`, `anchored`, `decides`, `rules`, `agentsHere` in `shell/mcp.ts`, and the tools whose confirmation Swarm
 drops; `agents` points to `send`'s rather than carry them again), which the MCP server asks
 the runner for (call `mode`) with each handshake and listing,
 and the rules on peers' messages (`peerAction`, `peersShort` in `messaging/messages.ts`), as each
@@ -408,7 +412,7 @@ so: the error names the new holder (handle, title, summary, when it was opened),
 terminal the agent may have known as `@moth`, which closed, and that calling again with the
 same handle reaches the new one. The second call of the same
 session to the same handle goes through. A send to `team` names no handle (it means the
-terminals the caller leads, by id), so the guard never holds it back; a send to several
+caller's team, by id), so the guard never holds it back; a send to several
 named handles is refused whole, naming each one the session wasn't shown, before any of
 them gets the message.
 
@@ -556,22 +560,30 @@ answers it in the Inbox.
   hooks untrusted) can still send; the answer, refused or not, adds that replies can't
   reach it until Novadeck's hooks are trusted there (`/hooks`).
 
-  **To its team.** `to` stays one string, as every harness's tool schema keeps a plain
+  **To several.** `to` stays one string, as every harness's tool schema keeps a plain
   string as it is (a string-or-list union is the part Codex's and Antigravity's schema
-  handling are least sure to keep): one handle, or, only for terminals the caller leads,
-  several separated by spaces or commas (`@fox @owl`; the runner takes a JSON list too), or
-  `team` for every terminal it leads (not one led only until its brief is delivered,
-  whose lead marks that brief alone). Each recipient gets its own message, judged as a
-  `send` to it alone is: its own thread, hop and loop count, its lead mark, the pair's
-  rate, the recipient's undelivered cap, a stopped thread's block, duplicates. One
-  refused there doesn't stop the others, and the answer has a line for each, then what
-  every answer adds, once; refused for every one, the call is refused, a line each. The call counts once against the sender's rate and the
-  runner's, if any recipient keeps a message. A name that is no handle there refuses the
-  whole call with the listing, quoting `to` as written (an agent may have meant
-  `@fox · api` as one name), and one the caller doesn't lead refuses it too ("@x isn't a
-  terminal you lead: …"), so nothing reaches only some of them; a caller that leads
-  none is told there is no team. Restricting it to the caller's team keeps a peer from
-  passing its rate by naming many terminals. Messaging's own callers (`open_agent`'s
+  handling are least sure to keep): one handle, or several separated by spaces or commas
+  (`@fox @owl`; the runner takes a JSON list too), from any terminal, or `team`. `team` is
+  the terminals the caller leads (not one led only until its brief is delivered, whose lead
+  marks that brief alone); for a terminal that leads none, it is its own team: its lead and
+  the lead's other members, never itself. A terminal that both leads and is led keeps the
+  first meaning, so `team` reaches the terminals it leads and its own lead is named by
+  handle. There is no word for every terminal in a session, and no broadcast room: the
+  caller names who needs the message. Each recipient gets its own message, judged as a
+  `send` to it alone is: its own thread, hop and loop count, its lead mark (decided per
+  recipient, so a member's message reaches its lead as a report and its siblings as a
+  peer's), the pair's rate, the recipient's undelivered cap, a stopped thread's block,
+  duplicates. One refused there doesn't stop the others, and the answer has a line for each,
+  then what every answer adds, once; refused for every one, the call is refused, a line each.
+  A call whose recipients are all terminals the caller leads counts once against the
+  sender's rate and the runner's, if any recipient keeps a message; any other counts once
+  for each recipient against the sender's own rate (and the runner's, for each message), and
+  is refused whole, before anyone gets it, when the sender's remaining rate can't cover
+  every recipient. A name that is no handle there refuses the whole call with the listing,
+  quoting `to` as written (an agent may have meant `@fox · api` as one name), so nothing
+  reaches only some of them; a `team` that is empty is told so. Counting a peer's sends per
+  recipient keeps it from passing its rate by naming many terminals, while a lead keeps the
+  discount that lets it direct its team. Messaging's own callers (`open_agent`'s
   task, `lead`'s brief) send to one terminal only (`Messaging.send`); the MCP call goes
   through `sendAny`. A second tool was weighed and set aside: it would carry the
   messaging rules again, in every agent's context.
@@ -866,7 +878,9 @@ Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they 
 (`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
 descriptions, which are what Codex and Antigravity read): an agent the person asks to take on a
 task ("spawn an agent to fix X", "open a claude") is one in its own Novadeck terminal, started with
-`open_agent`, unless they ask for a subagent or say that is what they mean, as an AGENTS.md line
+`open_agent`, and so are the agents the person leaves it free to spawn for parts of their task
+("you can spawn other agents if you need to"), unless they ask for a subagent or say that is what
+they mean, as an AGENTS.md line
 "when I ask for an agent, I mean a subagent" does; a team is a lead and the agents in the Novadeck
 terminals it leads, and so is a swarm; agents the agent, the person or a skill want used for the
 agent's own task, such as to do it faster, are its own pick as usual, except that a team is
@@ -880,6 +894,27 @@ stayed subagents: "use the code-reviewer agent", "three Explore agents", "a coup
 "a helper so your context stays clean", "fan this out", a skill's "launch 4 research agents" and
 "use agents to speed up this rename" (subagents in 8 of 9; the first wording, without the own-task
 sentence, opened Novadeck terminals for it in 6 and Antigravity's own team once).
+
+In Swarm that own-task sentence gives way to its swarm form (`ownAgents`, `agentsHere` keyed by
+mode): a part of the agent's task that can go on beside it goes to a Novadeck agent it leads,
+and a subagent stays its pick for its own work and context, and where the person or a skill asks
+for one. Left to the own-task sentence, a bare Claude Code (Sonnet, no user settings, skills or
+hooks; 2026-11-27) told "build a multiplayer browser game … you can spawn other agents if you
+need to" in Swarm took two subagents and opened no Novadeck agent in about 35 minutes, as an Opus
+session with the person's own skills had for a card game (three subagents); told "… in their own
+Novadeck terminals", the same setup opened two and led them.
+
+The leave ("agents the person leaves it free to spawn for parts of their task") holds in every
+mode. Without it, such a leave read as the agent's own pick, and a subagent served it. In probes
+of the Herd texts (2026-11-27: a bare Claude Code, Sonnet at medium effort, with a stand-in
+Novadeck MCP server that serves `agentsHere` and `open_agent`'s description and records each
+call, asked to build a browser game; three runs each, the first way it brought in an agent),
+"feel free to bring in more agents if it helps", a leave the text doesn't quote, went from a
+subagent in 3 of 3 to a Novadeck agent in 3 of 3. Asks meant for subagents stayed subagents or
+brought in none: "you can use subagents if you need to" (subagents in 2, none in 1) and "use a
+helper if you need one, so your own context stays clean" (subagents in 2, none in 1, given 20
+turns). "You can spawn other agents if you need to" brought in no agent in 3 of 3 given 20 turns,
+the agent doing the work alone, as it may.
 
 `open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
 opens a terminal running that agent. Without `message` the agent just starts at its prompt;
@@ -922,7 +957,12 @@ refuses an effort without a model or one its model doesn't take. The ids differ 
 Code's aliases and Antigravity's ids are fixed in their adapters, and Codex's are the
 listed ones in its `models_cache.json`. So `tools/list` asks the runner for
 them (`models` call) and builds `open_agent`'s `model` enum from the union, naming which
-ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. The choice
+ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. When a call names neither
+`model` nor `effort` and no open policy pins one, an agent of the caller's own harness starts
+on the caller's model and effort, read from the words the caller was launched with
+(`LaunchProfile.chosen`, over the kept flags its report holds) and nothing else of its
+launch, so no permission mode or sandbox comes along; one of another harness starts on the
+person's defaults, and a model its harness no longer lists falls back to them too. The choice
 holds for the agent's first session only: a resume after Novadeck restarts starts it
 again with its harness's own resume command, on whatever model that restores.
 
@@ -3064,7 +3104,9 @@ output, not that the model acted on it.
 - **Rates.** A sender may send 10 messages a minute, and 2 more for each terminal it leads
   now (a lead of 17, 44), 3 of them to any one recipient; the runner allows 60 a minute in
   all. A send to several terminals the caller leads counts once against the sender's and
-  the runner's, and once against each pair's. A lead's runaway loop with its team is
+  the runner's, and once against each pair's; a send to several that are not all led counts
+  once for each recipient against the sender's and the runner's, and once against each pair's,
+  and is refused whole if the sender's rate can't cover them all. A lead's runaway loop with its team is
   still held per pair, as above, and bounded by each pair's 3.
 - **Pause.** One switch, stored so it survives restarts, pauses messaging across the
   whole runner, every project and session: waiting messages are held, and `send`
