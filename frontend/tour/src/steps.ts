@@ -121,9 +121,9 @@ export const nudgeOf = (step: TourStep, signals: TourSignals): TourRole =>
   typeof step.nudges === "function" ? step.nudges(signals) : (step.nudges ?? "lead")
 
 // How long a step that's done in moments keeps its caption box on screen, counted from when the
-// box shows, so it is there long enough to read: for a step the agents end, which has nothing for
-// the person to do.
-const lineMs = 3_000
+// box shows, so it is there long enough to read and for Nyx to say it (her `start` take runs about
+// 3.5 s): for a step the agents end, which has nothing for the person to do.
+const lineMs = 4_000
 
 // Act 1: in Canvas, a terminal opens and the tour's Pi agent starts there, with its brief,
 // and describes itself as the tour's lead.
@@ -136,7 +136,7 @@ export const startStep: TourStep = {
   // A lead that names itself at once is done before its caption shows: it holds, so the first
   // beat is read.
   holdMs: lineMs,
-  coach: { look: "lead", line: "That's your agent. It runs this job." },
+  coach: { look: "lead", line: "That's your agent. It does the work. I talk." },
   // It describes itself, as its brief asks; or, where a cheap model skips that, its first turn
   // ends.
   done: ({ lead }) => lead.kind === "agent" && (lead.named || lead.answered),
@@ -152,7 +152,7 @@ export const askStep: TourStep = {
   show: [],
   coach: {
     click: ["answers", "asking-row", "inbox-button"],
-    line: "Your call. What game?",
+    line: "Your call. What game? Make it a good one.",
     note: "Open your Inbox: pick a world and a kind, or write your own.",
     overWindows: true,
   },
@@ -192,8 +192,8 @@ export const pageStep: TourStep = {
   coach: {
     click: ["lead-pane", "lead"],
     tab: "page",
-    cue: { line: "The game's up.", note: "Open it: the eye, or its window." },
-    line: "The game. Live. Empty, for now.",
+    cue: { line: "Your game's running. Go look.", note: "Open it: the eye, or its window." },
+    line: "There. Nothing in it yet. Give it time.",
     note: "Click into it.",
   },
   done: ({ shown }) => shown.page !== null,
@@ -211,8 +211,11 @@ export const teamStep: TourStep = {
   person: true,
   coach: {
     click: ["team"],
-    cue: { line: "It hired help.", note: "They're off screen: the eye shows them." },
-    line: "Look. It hired its own help.",
+    cue: {
+      line: "New agents? Go find them.",
+      note: "They're off screen: the eye shows them.",
+    },
+    line: "Look. It hired its own help. Without asking me?",
     note: "Click one.",
   },
   done: ({ team }) => team.count >= 2 && team.named >= 2,
@@ -231,8 +234,8 @@ export const shapeStep: TourStep = {
   coach: {
     click: ["modeller-pane", "modeller"],
     tab: "model",
-    cue: { line: "Its first model's in.", note: "Open it: the eye, or its window." },
-    line: "A model. From scratch. Go on, spin it.",
+    cue: { line: "Its first model's done. Have a look.", note: "Open it: the eye, or its window." },
+    line: "A model, made from nothing. Go on. Spin it.",
     note: "Drag it.",
   },
   done: ({ shown }) => shown.model !== null,
@@ -253,8 +256,8 @@ export const filesStep: TourStep = {
   coach: {
     click: ["files", "files-button"],
     opened: true,
-    cue: { line: "Open your Files.", note: "On the left. See what they're writing." },
-    line: "Every blink? An agent. Writing.",
+    cue: { line: "Open your Files. I'll wait.", note: "On the left. See what they're writing." },
+    line: "See the files blink? That's an agent, writing.",
   },
   done: ({ changed }) => changed.models && changed.game,
   wait: "nudge",
@@ -274,8 +277,8 @@ export const diffStep: TourStep = {
   coach: {
     click: ["builder-pane", "builder"],
     tab: "changes",
-    cue: { line: "Its code's in.", note: "Open it: the eye, or its window." },
-    line: "What it wrote. Line by line.",
+    cue: { line: "The code's in. Want to read it?", note: "Open it: the eye, or its window." },
+    line: "Every line it wrote. Nothing hidden.",
     note: "Click a file to see its lines.",
   },
   done: ({ shown }) => shown.changes !== null,
@@ -293,7 +296,7 @@ export const finishStep: TourStep = {
   show: [{ kind: "fit-all" }],
   holdMs: lineMs,
   capMs: 5 * 60_000,
-  coach: { look: "team", line: "They're finishing it." },
+  coach: { look: "team", line: "They're finishing it. Relax." },
   done: ({ team, askingRow, permission }) =>
     team.count > 0 &&
     team.reported >= team.count &&
@@ -317,8 +320,8 @@ export const playStep: TourStep = {
   coach: {
     click: ["lead-pane", "lead"],
     tab: "page",
-    cue: { line: "Your game's done.", note: "Open it: the eye, or its window." },
-    line: "Three agents. Your game. Go play.",
+    cue: { line: "Your game's done. Go open it.", note: "Open it: the eye, or its window." },
+    line: "Three agents, one game. Go play.",
     note: "It's live in the pane: click it.",
   },
   // Never while a teammate's question waits: the closing card waits for the person's answer.
@@ -337,8 +340,11 @@ const modelPlayStep: TourStep = {
   coach: {
     click: ["modeller-pane", "modeller"],
     tab: "model",
-    cue: { line: "Your game's done.", note: "Open its model: the eye, or its window." },
-    line: "Three agents. Your game. Yours.",
+    cue: {
+      line: "Your model's done. Go open it.",
+      note: "Open its model: the eye, or its window.",
+    },
+    line: "Three agents, one model. Yours.",
     note: "Give it one more spin.",
   },
 }
@@ -366,24 +372,31 @@ export const tourSteps: readonly TourStep[] = played.page
 // run) the run and page steps are left out and the story ends on the model.
 export const stepsOf = (page: boolean): readonly TourStep[] => played[page ? "page" : "noPage"]
 
+// The closing card's line, the last thing the tour says.
+export const closingLine = "It's yours now. Don't break it."
+
 // What the tour says while the lead's agent holds at a screen of its own, whatever the step:
 // the person answers it in the agent's terminal, and the tour waits as long as that takes.
 // Pi holds at none in practice (Novadeck's own pi has no trust, sign-in or hooks-review screen);
 // the words are for a screen it might show all the same.
 export const screenCoach = (screen: Extract<LeadState, { kind: "screen" }>["screen"]): Coach => ({
   click: ["terminal"],
-  line: "It wants an answer first.",
+  line: "It wants an answer first. From you.",
   note:
     screen === "hooks"
       ? "Novadeck can't follow it until that's answered. Answer it in its terminal, then the tour goes on."
       : "Answer it here, in its terminal: it's its own question. The tour goes on once you have.",
 })
 
+// What the tour says over `screenCoach`'s words while a teammate, not the lead, holds at a screen
+// of its own.
+export const teamScreenLine = "A teammate wants an answer first. From you."
+
 // What the tour says while a teammate's own question to the person waits in the Inbox: it isn't
 // part of the story, and the tour points at it until they answer or dismiss it.
 export const questionCoach: Coach = {
   click: ["answers", "asking-row", "inbox-button"],
-  line: "A teammate has a question for you.",
+  line: "A teammate has a question. Huh? For you, not me.",
   note: "Answer it in the Inbox, or dismiss it and it decides itself.",
   overWindows: true,
 }
@@ -393,14 +406,14 @@ export const questionCoach: Coach = {
 export const permissionCoach = (terminalId: string): Coach => ({
   click: ["terminal"],
   terminalId,
-  line: "It's asking your permission.",
+  line: "It's asking your permission. Read it first.",
   note: "It wants to do something in the tour's folder. Answer it here, in its terminal, and the tour goes on.",
 })
 
 // What the tour says once the lead's agent has stopped: its terminal is still there to read.
 export const endedCoach: Coach = {
   click: ["lead"],
-  line: "Your agent stopped.",
+  line: "Your agent stopped. Ugh. Rude.",
   note: "Its terminal shows why. Start it again there and the tour goes on, or end the tour.",
 }
 
@@ -410,8 +423,32 @@ export const endedCoach: Coach = {
 export const leftCoach = (terminalId?: string): Coach => ({
   click: terminalId === undefined ? ["lead"] : ["terminal"],
   ...(terminalId !== undefined && { terminalId }),
-  line: "It didn't start.",
+  // The lead's never got going; a teammate's may have worked a while first.
+  line: terminalId === undefined ? "What? It didn't even start." : "A teammate quit.",
   // The same for any of them: the shell's history doesn't hold the command the tour started it
   // with, so there is nothing the person could run again by a key.
   note: "Its terminal says why. End the tour and take it again.",
 })
+
+// Every line the caption box letters, which Nyx's voice-over says, by the key its take is named
+// for (`NARRATION.md`, the takes in `voice/`): a step's line by its id and its cue as
+// `<id>.cue`, the run without a page's own ending as `play-model`, then the coaches off the story
+// and the closing card's.
+export const narration = (): ReadonlyMap<string, string> => {
+  const lines = new Map<string, string>()
+  const add = (key: string, coach: Coach): void => {
+    lines.set(key, coach.line)
+    if (coach.cue) lines.set(`${key}.cue`, coach.cue.line)
+  }
+  for (const step of played.page) add(step.id, step.coach)
+  add("play-model", modelPlayStep.coach)
+  lines.set("screen", screenCoach("startup").line)
+  lines.set("team-screen", teamScreenLine)
+  add("question", questionCoach)
+  add("permission", permissionCoach(""))
+  add("ended", endedCoach)
+  add("left", leftCoach())
+  add("left.team", leftCoach(""))
+  lines.set("closing", closingLine)
+  return lines
+}

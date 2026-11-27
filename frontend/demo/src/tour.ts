@@ -160,7 +160,7 @@ export type DemoTour = Tour & {
   readonly goMateAsks: (asks?: boolean) => void
   // The next run's lead's program ends once it has bound, its shell back.
   readonly goShell: (shell?: boolean) => void
-  // The running lead's program ends, its shell back at the prompt: "It didn't start.".
+  // The running lead's program ends, its shell back at the prompt: "What? It didn't even start.".
   readonly exitToShell: () => void
   readonly shelled: (listener: () => void) => () => void
   // The next run has no page, as on a computer with neither Node nor Python.
