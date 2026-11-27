@@ -97,6 +97,22 @@ const killed = (name: unknown, args: unknown, time: number | null): TranscriptEn
 const contentOf = (fields: Fields): string =>
   typeof fields.content === "string" ? fields.content : ""
 
+// What a hook injected, as a step records it. Up to 1.5.17 an EPHEMERAL_MESSAGE step holds the
+// hook's text as it printed it; from 1.5.18 a SYSTEM_SDK SYSTEM_MESSAGE step holds it in the
+// wrapper Antigravity gives every system message, after a line naming the hook (probed
+// 2026-11-27, 1.5.18, fixtures/notices.probe.1.5.18.json).
+const injected =
+  /^The following is a <SYSTEM_MESSAGE> not actually sent by the user\.[^\n]*\n+<SYSTEM_MESSAGE>\n(?:The following system message was injected by an? \S+ hook:\n)?([\s\S]*?)\n?<\/SYSTEM_MESSAGE>\s*$/
+
+/** The text a hook injected, from a step that records one; undefined for any other step. */
+const hookText = (fields: Fields): string | undefined => {
+  if (fields.source !== "SYSTEM_SDK") return undefined
+  const content = contentOf(fields)
+  if (fields.type === "EPHEMERAL_MESSAGE") return content
+  if (fields.type !== "SYSTEM_MESSAGE") return undefined
+  return injected.exec(content)?.[1] ?? content
+}
+
 // What a step says was typed into the box, unwrapped: a USER_EXPLICIT USER_INPUT step's
 // text. Subagents' messages, hooks' continuations and notices are SYSTEM_MESSAGE steps.
 const typed = (fields: Fields): string | undefined => {
@@ -205,8 +221,8 @@ export const transcripts: TranscriptDecoder = {
       return [noteEntry({ type: "compaction" }, time, content)]
     // What a hook injected: Novadeck's standing notices ride on a prompt this way, and any
     // delivery of agents' messages the same text holds is read apart.
-    if (fields.source === "SYSTEM_SDK" && fields.type === "EPHEMERAL_MESSAGE")
-      return noticeEntries(content, time)
+    const hook = hookText(fields)
+    if (hook !== undefined) return noticeEntries(hook, time)
     if (fields.source === "SYSTEM" && fields.type === "SYSTEM_MESSAGE")
       return endedSubagents(content).flatMap((one) =>
         endOf(one.conversation, one.text, one.failed, time),

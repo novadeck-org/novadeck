@@ -563,3 +563,41 @@ describe("Novadeck's notices on a prompt's hook, as Antigravity's steps record t
     expect(shapes(JSON.stringify(describing)).map(({ verdict }) => verdict)).toEqual(["read"])
   })
 })
+
+const wrapped = loadProbe(import.meta.dirname, "notices.probe.1.5.18.json") as { records: object[] }
+const [wrappedPrompt, wrappedNotices, wrappedDelivery] = wrapped.records
+
+describe("Novadeck's notices on a prompt's hook, as Antigravity 1.5.18 wraps them in a system message", () => {
+  const read = (record: object) =>
+    transcripts.items(JSON.stringify(record)).map(({ role, kind, note, text }) => ({
+      shape: `${role} ${kind}${note ? ` ${note.type}` : ""}`,
+      text: text.split("\n")[0],
+    }))
+  const headers = [
+    "Novadeck · Show",
+    "Novadeck · Inbox",
+    "Novadeck · Describe",
+    "Novadeck · Worktrees",
+  ]
+
+  it("reads the hook's text, out of its wrapper, as the notices it printed", () => {
+    expect(read(wrappedPrompt!).map(({ shape }) => shape)).toEqual(["note text mode", "user text"])
+    expect(read(wrappedNotices!)).toEqual(
+      headers.map((text) => ({ shape: "note text notice", text })),
+    )
+    expect(transcripts.items(JSON.stringify(wrappedNotices))[0]!.text).not.toContain(
+      "SYSTEM_MESSAGE",
+    )
+  })
+
+  it("reads the notices after a delivery, leaving the delivery to the ring", () => {
+    expect(read(wrappedDelivery!)).toEqual(
+      headers.map((text) => ({ shape: "note text notice", text })),
+    )
+  })
+
+  it("keeps the wrapped step among the shapes it reads", () => {
+    for (const record of [wrappedNotices, wrappedDelivery])
+      expect(shapes(JSON.stringify(record)).map(({ verdict }) => verdict)).toEqual(["read"])
+  })
+})
