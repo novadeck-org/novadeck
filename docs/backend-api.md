@@ -265,6 +265,8 @@ stands: `{ repos: [{ path, name, branch, behind: { remote, count, why, merges } 
 head }] }`, `path` being the repository's folder from the project's root ("" for the one the root is in) and
 `landing` what the runner's last move of main brought that nobody has seen (`from`, `to`, `at`, `commits`,
 `merges` with `pr`, `own` and `latest`, `files` from the project's root, `filesTotal`, `dependencies: { file, command } | null`, `dependenciesLatest`).
+From revision 24, `behind` and `landing` also show where the checkout is on another branch (the runner moves the local
+main branch alone there, and Update does the same), and settings' `keepMain` (on by default) turns the runner's own moves off while fetching goes on.
 `projects.syncSeen({ projectId, path, to? })` clears the landing of the repository at `path` (a newer one than `to`
 stays), for every client.
 `sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the
@@ -2492,7 +2494,7 @@ one from an earlier runner.
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
 - `settings.get()` and
-  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, agentModes?, agentMode?, shippingGate?, bundledPi?, murmur? })`
+  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees?, keepMain?, agentModes?, agentMode?, shippingGate?, bundledPi?, murmur? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
   Inbox entries that ask in the order the person dragged them into, and the entries they snoozed

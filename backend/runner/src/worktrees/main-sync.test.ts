@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -19,6 +19,8 @@ type Setup = {
   common: string
   told: Landed[]
   own: { number: number; title: string }[]
+  /** The person's "Keep main current": flip `on` to turn it off. */
+  keep: { on: boolean }
   /** Fetches origin and lets the runner follow it, then waits for the landing to be recorded. */
   follow: () => Promise<void>
 }
@@ -29,10 +31,12 @@ const it = base.extend<{ setup: Setup }>({
     const told: Landed[] = []
     const own: { number: number; title: string }[] = []
     const common = join(origin.repo, ".git")
+    const keep = { on: true }
     let sync: MainSync | undefined
     const fetcher = new MainFetcher({
       environment: {},
-      landed: (dir, from, to) => void sync?.landed(dir, from, to),
+      follow: () => keep.on,
+      landed: (dir, from, to, ref) => void sync?.landed(dir, from, to, ref),
     })
     resources.defer(() => fetcher.abort())
     sync = new MainSync({
@@ -40,6 +44,7 @@ const it = base.extend<{ setup: Setup }>({
       moved: (dir) => fetcher.moved(dir),
       update: (dir) => fetcher.update(dir),
       own: () => own,
+      keepMain: () => keep.on,
       landed: (landed) => told.push(landed),
     })
     const follow = async (): Promise<void> => {
@@ -47,7 +52,7 @@ const it = base.extend<{ setup: Setup }>({
       await fetcher.idle()
       await sync.idle()
     }
-    await use({ origin, fetcher, sync, common, told, own, follow })
+    await use({ origin, fetcher, sync, common, told, own, keep, follow })
   },
 })
 
@@ -354,6 +359,134 @@ describe("how far a repository is from origin", () => {
     })
     expect(await sync.update(join(s.origin.repo, ".."), "nowhere")).toMatchObject({ ok: false })
     expect(await sync.followed()).toContain(s.common)
+  })
+})
+
+const mainRef = (repo: string): string => gitIn(repo, "rev-parse", "refs/heads/main")
+
+describe("keeping main current while the checkout is on another branch", () => {
+  it("moves the local main alone, records a landing, and leaves files and HEAD", async ({
+    setup: s,
+  }) => {
+    gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
+    writeFileSync(join(s.origin.repo, "a.txt"), "edit\n")
+    const head = gitIn(s.origin.repo, "rev-parse", "HEAD")
+    s.origin.land("b.txt", "Add b (#5)")
+    const last = s.origin.land("pnpm-lock.yaml", "Deps (#6)")
+    await s.follow()
+    expect(mainRef(s.origin.repo)).toBe(last)
+    expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(head)
+    expect(gitIn(s.origin.repo, "branch", "--show-current")).toBe("feature")
+    expect(existsSync(join(s.origin.repo, "b.txt"))).toBe(false)
+    const [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo).toMatchObject({ behind: null, moved: 0 })
+    expect(repo?.landing).toMatchObject({ to: last, commits: 2, dependencies: null })
+    expect(s.told).toHaveLength(1)
+    expect(s.told[0]?.ref).toBe(true)
+  })
+
+  it("shows the ahead mark's reason, and refuses, where main has commits origin lacks", async ({
+    setup: s,
+  }) => {
+    writeFileSync(join(s.origin.repo, "mine.txt"), "mine\n")
+    gitIn(s.origin.repo, "add", "-A")
+    gitIn(s.origin.repo, "commit", "--quiet", "-m", "local")
+    gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
+    const mine = mainRef(s.origin.repo)
+    s.origin.land("b.txt")
+    await s.follow()
+    expect(mainRef(s.origin.repo)).toBe(mine)
+    const [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo).toMatchObject({
+      ahead: 1,
+      behind: { count: 1, why: "main has commits that origin doesn't" },
+      landing: null,
+    })
+    expect(await s.sync.update(s.origin.repo)).toMatchObject({ ok: false })
+    expect(mainRef(s.origin.repo)).toBe(mine)
+  })
+
+  it("leaves a main that a linked worktree has checked out, and says so", async ({ setup: s }) => {
+    const first = mainRef(s.origin.repo)
+    gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
+    const linked = join(s.origin.repo, "..", "linked")
+    gitIn(s.origin.repo, "worktree", "add", "--quiet", linked, "main")
+    s.origin.land("b.txt")
+    await s.follow()
+    expect(mainRef(s.origin.repo)).toBe(first)
+    const [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo?.behind?.why).toContain("main is checked out in")
+    expect(await s.sync.update(s.origin.repo)).toMatchObject({ ok: false })
+    expect(mainRef(s.origin.repo)).toBe(first)
+  })
+
+  it("moves the ref, not the checkout, on the person's Update, and tells no one", async ({
+    setup: s,
+  }) => {
+    s.keep.on = false
+    gitIn(s.origin.repo, "checkout", "--quiet", "-b", "feature")
+    const head = gitIn(s.origin.repo, "rev-parse", "HEAD")
+    const landed = s.origin.land("b.txt")
+    await s.follow()
+    expect((await s.sync.sync(s.origin.repo)).repos[0]?.behind?.count).toBe(1)
+    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true })
+    await s.sync.idle()
+    expect(mainRef(s.origin.repo)).toBe(landed)
+    expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(head)
+    expect(gitIn(s.origin.repo, "branch", "--show-current")).toBe("feature")
+    expect(s.told).toEqual([])
+    expect((await s.sync.sync(s.origin.repo)).repos[0]).toMatchObject({
+      behind: null,
+      landing: null,
+    })
+  })
+})
+
+describe("Keep main current off", () => {
+  it("fetches but moves nothing, and says the switch is why, even with edits or an operation", async ({
+    setup: s,
+  }) => {
+    s.keep.on = false
+    const first = mainRef(s.origin.repo)
+    writeFileSync(join(s.origin.repo, "a.txt"), "mine\n")
+    s.origin.land("a.txt", "Rewrite a (#4)")
+    await s.follow()
+    expect(s.fetcher.fetchedAt(s.common)).toBeDefined()
+    expect(gitIn(s.origin.repo, "rev-parse", "origin/main")).not.toBe(first)
+    expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(first)
+    expect(s.told).toEqual([])
+    const why = "Keeping main current is off."
+    let [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo).toMatchObject({ behind: { count: 1, why }, landing: null, moved: 0 })
+    writeFileSync(join(s.origin.repo, ".git", "MERGE_HEAD"), `${first}\n`)
+    // A fresh reading: the first is kept a few seconds.
+    const again = new MainSync({
+      projects: () => [{ id: "p", cwd: s.origin.repo }],
+      moved: () => 0,
+      update: (dir) => s.fetcher.update(dir),
+      keepMain: () => false,
+    })
+    ;[repo] = (await again.sync(s.origin.repo)).repos
+    expect(repo?.behind?.why).toBe(why)
+  })
+
+  it("lets the person's Update still move a clean checkout", async ({ setup: s }) => {
+    s.keep.on = false
+    const landed = s.origin.land("b.txt")
+    await s.follow()
+    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true })
+    expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(landed)
+    expect(s.told).toEqual([])
+  })
+
+  it("moves a checkout again once it is back on", async ({ setup: s }) => {
+    s.keep.on = false
+    const landed = s.origin.land("b.txt")
+    await s.follow()
+    s.keep.on = true
+    await s.follow()
+    expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(landed)
+    expect(s.told).toHaveLength(1)
   })
 })
 

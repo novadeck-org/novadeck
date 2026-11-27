@@ -4,7 +4,7 @@ import { git } from "../checkouts/git.js"
 import { mainBranch } from "../checkouts/repository.js"
 import { logs } from "../log.js"
 import { ellipsized } from "../text.js"
-import { operationIn, type Forwarded } from "./fast-forward.js"
+import { heldBy, operationIn, type Forwarded } from "./fast-forward.js"
 import { landingOf, mergesOf, mergesWaiting, type Landing, type Merge } from "./landing.js"
 import { commitAt } from "./repo.js"
 import { KeptRepositories, type Found } from "./repositories-in.js"
@@ -21,6 +21,8 @@ export type Landed = {
   readonly home: string
   readonly name: string
   readonly landing: Landing
+  /** Only the local main branch moved: the checkout was on another branch, so no file did. */
+  readonly ref: boolean
   /** The pull requests of the person's agents' worktrees among the landing's merges. */
   readonly own: readonly OwnPull[]
 }
@@ -33,6 +35,8 @@ export type MainSyncHost = {
   readonly moved: (commonDir: string) => number
   /** Moves the checkout to main on the person's say (`MainFetcher.update`). */
   readonly update: (commonDir: string) => Promise<Forwarded>
+  /** Whether the runner moves main by itself after a fetch (the person's "Keep main current"); on when omitted. */
+  readonly keepMain?: () => boolean
   /** The pull requests of the worktrees agents hold in the repository, as the forge knows them. */
   readonly own?: (commonDir: string) => readonly OwnPull[]
   /** Told after a landing is recorded. */
@@ -175,13 +179,14 @@ export class MainSync {
   }
 
   /**
-   * The runner moved the repository's checkout from `from` to `to`: records what that brought,
+   * The runner moved the repository's checkout (or, with `ref`, only its local main branch) from
+   * `from` to `to`: records what that brought,
    * joined to what the person has not yet seen of earlier moves. Moves of one repository are
    * recorded in order.
    */
-  landed(commonDir: string, from: string, to: string): Promise<void> {
+  landed(commonDir: string, from: string, to: string, ref = false): Promise<void> {
     const before = this.tail.get(commonDir) ?? Promise.resolve()
-    const run = before.then(() => this.record(commonDir, from, to))
+    const run = before.then(() => this.record(commonDir, from, to, ref))
     const tail = run.catch(() => undefined)
     this.tail.set(commonDir, tail)
     void tail.then(() => {
@@ -197,7 +202,7 @@ export class MainSync {
       await Promise.all(this.tail.values())
   }
 
-  private async record(commonDir: string, from: string, to: string): Promise<void> {
+  private async record(commonDir: string, from: string, to: string, ref: boolean): Promise<void> {
     const found = await this.found(commonDir)
     if (found === undefined) return
     const own = this.remember(commonDir)
@@ -215,18 +220,24 @@ export class MainSync {
       })
       return
     }
+    // A new lockfile is installed in a checkout that moved; one whose main moved alone has not
+    // got it, so no "run the install" is said for it (an earlier one still waiting stays).
+    const dependencies = ref ? (prior?.dependencies ?? null) : all.dependencies
+    const latest = ref ? { ...fresh, dependencies: null } : fresh
     // The merges and lockfile of this move are those a notice is about.
     this.landings.set(commonDir, {
       ...all,
-      latest: fresh.merges.map(({ commit }) => commit),
-      dependenciesLatest: fresh.dependencies !== null,
+      dependencies,
+      latest: latest.merges.map(({ commit }) => commit),
+      dependenciesLatest: latest.dependencies !== null,
     })
     const named = new Set(fresh.merges.flatMap(({ pr }) => (pr === null ? [] : [pr])))
     this.host.landed?.({
       commonDir,
       home: found.home,
       name: found.name,
-      landing: fresh,
+      landing: latest,
+      ref,
       own: [...own]
         .filter(([number]) => named.has(number))
         .map(([number, title]) => ({ number, title })),
@@ -269,14 +280,27 @@ export class MainSync {
     const [behindAll, ahead] = (counts ?? "0\t0").split(/\s+/).map((each) => Number(each) || 0)
     const onBranch =
       line(await git(home, ["symbolic-ref", "-q", "HEAD"], small)) === `refs/heads/${branch}`
-    const behind = onBranch ? (behindAll ?? 0) : 0
+    // Off main too: the runner moves the local main branch there, and says so while it hasn't.
+    const behind = behindAll ?? 0
     const head = (await commitAt(home, "HEAD")) ?? null
     let why: string | null = null
     if (behind > 0) {
-      const operation = await operationIn(home)
-      if (operation !== undefined) why = ellipsized(operation, whyLimit)
-      else if ((ahead ?? 0) > 0) why = "main has commits that origin doesn't"
-      else why = (await editsIn(home)) ?? null
+      if ((ahead ?? 0) > 0) why = "main has commits that origin doesn't"
+      // Whatever else is so, the switch is why the runner didn't move it.
+      else if (this.host.keepMain?.() === false) why = "Keeping main current is off."
+      else if (onBranch) {
+        const operation = await operationIn(home)
+        why =
+          operation !== undefined
+            ? ellipsized(operation, whyLimit)
+            : ((await editsIn(home)) ?? null)
+      } else {
+        const holder = await heldBy(home, branch)
+        why =
+          holder === undefined
+            ? null
+            : ellipsized(`${branch} is checked out in ${holder}.`, whyLimit)
+      }
     }
     const waiting =
       behind > 0 && local !== undefined

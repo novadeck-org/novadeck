@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import { git as realGit, gitScope, type Run } from "../checkouts/git.js"
-import { behindMain } from "../checkouts/repository.js"
+import { behindMain, mainBranch } from "../checkouts/repository.js"
 import { logs } from "../log.js"
 import { said } from "./repo.js"
 
@@ -60,8 +60,17 @@ export const refusal = (run: Extract<Run, { ok: false }>): string => {
 
 export type Forwarded =
   | { readonly ok: true; readonly moved: false }
-  /** Moved from the commit HEAD was at to the one main is at. */
-  | { readonly ok: true; readonly moved: true; readonly from: string; readonly to: string }
+  /**
+   * Moved from the commit HEAD was at to the one main is at; `ref` where the checkout was on
+   * another branch, so only the local main branch moved and no file did.
+   */
+  | {
+      readonly ok: true
+      readonly moved: true
+      readonly from: string
+      readonly to: string
+      readonly ref?: true
+    }
   | { readonly ok: false; readonly said: string }
 
 /** Why the checkout can't move now: an operation in progress or a lock, else undefined. */
@@ -103,17 +112,81 @@ export const trackedChanges = async (
 }
 
 /**
+ * The folder of the worktree (the repository's own checkout included) that has `branch` checked
+ * out, or undefined where none has; also undefined where git can't tell, which the caller's
+ * guarded move then settles.
+ */
+export const heldBy = async (
+  home: string,
+  branch: string,
+  run: typeof realGit = realGit,
+): Promise<string | undefined> => {
+  const listed = await run(home, ["worktree", "list", "--porcelain"], patient)
+  if (!listed.ok) return undefined
+  let folder: string | undefined
+  for (const each of listed.out.split("\n")) {
+    if (each.startsWith("worktree ")) folder = each.slice("worktree ".length).trim()
+    else if (each.trim() === `branch refs/heads/${branch}`) return folder
+  }
+  return undefined
+}
+
+/**
+ * Moves the local main branch to the remote's main while the checkout is on another branch (or
+ * on no branch): only the branch ref moves, checked against the commit it was read at, so no
+ * file, index or HEAD changes. Only where local main is strictly behind and no worktree has it
+ * checked out. Hooks off (a reference-transaction hook included).
+ */
+const moveMainRef = async (home: string, options: FastForward): Promise<Forwarded> => {
+  const run = options.run ?? realGit
+  const main = await mainBranch(home)
+  if (main === undefined || !main.name.startsWith("origin/")) return { ok: true, moved: false }
+  const branch = main.name.slice("origin/".length)
+  const local = await run(
+    home,
+    ["rev-parse", "--verify", "-q", `refs/heads/${branch}^{commit}`],
+    small,
+  )
+  if (!local.ok) return { ok: true, moved: false }
+  const was = local.out.trim()
+  if (was === "" || was === main.commit) return { ok: true, moved: false }
+  const held = await run(home, ["merge-base", "--is-ancestor", was, main.commit], small)
+  if (!held.ok) return { ok: true, moved: false }
+  const holder = await heldBy(home, branch, run)
+  if (holder !== undefined) return { ok: false, said: `${branch} is checked out in ${holder}.` }
+  const hooks = await options.hooks()
+  const moved = await run(
+    home,
+    [
+      "-c",
+      `core.hooksPath=${hooks}`,
+      "update-ref",
+      "-m",
+      "novadeck: fast-forward to origin",
+      `refs/heads/${branch}`,
+      main.commit,
+      was,
+    ],
+    { cap: 4096, env: options.env ?? {} },
+  )
+  return moved.ok
+    ? { ok: true, moved: true, from: was, to: main.commit, ref: true }
+    : { ok: false, said: refusal(moved) }
+}
+
+/**
  * Moves the repository's own checkout (`home`, never a linked worktree) to the remote's main
  * when it is on the branch main is and strictly behind it, with `git merge --ff-only` to the
  * very commit that was checked, hooks off. Without `allowChanges` it also waits for a checkout
- * with no tracked changes and no operation in progress. Never throws.
+ * with no tracked changes and no operation in progress. Where the checkout is on another
+ * branch, local main is moved as a ref alone (`moveMainRef`). Never throws.
  */
 export const fastForward = async (home: string, options: FastForward): Promise<Forwarded> => {
   const run = options.run ?? realGit
-  const behind = await behindMain(home)
-  if (behind === undefined) return { ok: true, moved: false }
   const working = await run(home, ["rev-parse", "--is-inside-work-tree"], small)
   if (!working.ok || working.out.trim() !== "true") return { ok: true, moved: false }
+  const behind = await behindMain(home)
+  if (behind === undefined) return moveMainRef(home, options)
   const operation = await operationIn(home, run)
   if (operation !== undefined) return { ok: false, said: operation }
   if (options.allowChanges !== true) {

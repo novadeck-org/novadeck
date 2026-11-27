@@ -156,7 +156,7 @@ export class Settings {
     // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
     // keeps its own order until the person drags its rows, and snoozes none until they do; idle
     // agents are stopped after the default wait until the person chooses another, or never;
-    // agents get worktrees until the person turns them off, and work as a Herd until they turn
+    // agents get worktrees until the person turns them off, main is kept current until they turn that off, and work as a Herd until they turn
     // Agent modes on and pick Solo or Swarm; Murmur runs only once its Experimental switch is on.
     return {
       transcripts: saved.get("transcripts") !== "false",
@@ -166,6 +166,7 @@ export class Settings {
       inboxHistory: inboxHistoryOf(saved.get("inboxHistory")),
       hibernateAfterMinutes: hibernateOf(saved.get("hibernateAfterMinutes")),
       worktrees: saved.get("worktrees") !== "false",
+      keepMain: saved.get("keepMain") !== "false",
       agentModes: saved.get("agentModes") === "true",
       agentMode: agentModeOf(saved.get("agentMode")),
       shippingGate: saved.get("shippingGate") === "true",

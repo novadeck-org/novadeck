@@ -665,6 +665,14 @@ describe("workspace metadata API", () => {
     expect(await client.settings.get()).toMatchObject({ murmur: true })
   })
 
+  it("reports Keep main current, on until turned off", async ({ resources }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    expect(await client.settings.get()).toMatchObject({ keepMain: true })
+    await client.settings.set({ keepMain: false })
+    expect(await client.settings.get()).toMatchObject({ keepMain: false })
+  })
+
   it("lists a project's folders, and refuses what is not one of them", async ({ resources }) => {
     const app = await fixture(resources)
     const { client } = await app.connect()

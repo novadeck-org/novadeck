@@ -65,13 +65,18 @@ export type FetcherOptions = {
    * under way as the runner closes, when omitted.
    */
   readonly hooksFolder?: string
-  /** Whether a fetch is followed by moving the repository's checkout; always, when omitted. */
+  /**
+   * Whether a fetch is followed by moving the repository's checkout (or its local main, where
+   * the checkout is on another branch); always, when omitted. Read at each fetch. The person's
+   * Update ignores it.
+   */
   readonly follow?: () => boolean
   /**
    * Told each time the runner itself (not the person's Update) moved a checkout to its main,
-   * with the commits it moved between; what it throws is logged, never raised.
+   * with the commits it moved between, and `ref` where only the local main branch moved (the
+   * checkout was on another branch); what it throws is logged, never raised.
    */
-  readonly landed?: (commonDir: string, from: string, to: string) => void
+  readonly landed?: (commonDir: string, from: string, to: string, ref: boolean) => void
 }
 
 /**
@@ -198,8 +203,9 @@ export class MainFetcher {
         allowChanges,
       })
       if (done.ok && done.moved) {
-        this.moves.set(commonDir, this.moved(commonDir) + 1)
-        if (!allowChanges) this.tellLanded(commonDir, done.from, done.to)
+        // A move of the ref alone changes no file, so it isn't a move of the checkout.
+        if (done.ref !== true) this.moves.set(commonDir, this.moved(commonDir) + 1)
+        if (!allowChanges) this.tellLanded(commonDir, done.from, done.to, done.ref === true)
       }
       if (!done.ok)
         log.debug("worktrees.checkout-kept", "Novadeck left a repository's own checkout as it is", {
@@ -214,9 +220,9 @@ export class MainFetcher {
     }
   }
 
-  private tellLanded(commonDir: string, from: string, to: string): void {
+  private tellLanded(commonDir: string, from: string, to: string, ref: boolean): void {
     try {
-      this.landed?.(commonDir, from, to)
+      this.landed?.(commonDir, from, to, ref)
     } catch (error) {
       log.warn("worktrees.landed-failed", "Novadeck could not record where main moved", {
         err: error,

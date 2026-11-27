@@ -58,7 +58,11 @@ export const compatibility: Compatibility = {
   // which a UI before it shows as Pi.
   // 23: each git repository in a project says how it stands against origin's main (`projects.sync`,
   // `projects.syncSeen`), and `projects.updateCheckout` takes a repository's `path`.
-  revision: 23,
+  // 24: "Keep main current" is a runner setting (settings' `keepMain`, which a runner before it
+  // drops); a UI offers the switch only where the runner's settings report it. The runner also
+  // moves the local main branch while the checkout is on another branch, so `projects.sync`
+  // shows a repository's landing, or its behind with a reason, off main too.
+  revision: 24,
   oldestClient: 11,
   oldestRunner: 12,
 }

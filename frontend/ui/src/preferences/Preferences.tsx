@@ -21,6 +21,7 @@ import {
   Coffee,
   FlaskConical,
   GitBranch,
+  GitMerge,
   History,
   Info,
   Ligature,
@@ -510,6 +511,7 @@ export const Preferences = ({
   murmurSwitch,
   tour = false,
   worktrees,
+  keepMain,
   forges,
   agents,
   voice,
@@ -588,6 +590,12 @@ export const Preferences = ({
   // Whether agents get git worktrees, on unless the person turns it off; absent where the
   // backend has none.
   worktrees?: {
+    readonly enabled: boolean
+    readonly onChange: (enabled: boolean) => void
+  }
+  // Whether Novadeck keeps main current in the repositories of the open projects, on unless the
+  // person turns it off, apart from the worktrees; absent where the backend has no such switch.
+  keepMain?: {
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
@@ -801,6 +809,7 @@ export const Preferences = ({
     hasAgents ||
     hibernation !== undefined ||
     worktrees !== undefined ||
+    keepMain !== undefined ||
     showForges ||
     showAgentMode ||
     hasAgentExperiments
@@ -945,7 +954,8 @@ export const Preferences = ({
   // Experimental row is on, and only where the app can keep the computer awake.
   const showKeepAwake = awake && hasExperimental && value.keepAwakeOffered
   const agentsRunning = hibernation !== undefined || showAgentMode || showKeepAwake
-  const agentsGit = worktrees !== undefined || showForges || gitToggles.length > 0
+  const agentsGit =
+    worktrees !== undefined || keepMain !== undefined || showForges || gitToggles.length > 0
   const pageTitle = pageLabel(shown) ?? ""
   return (
     <Dialog
@@ -1194,7 +1204,7 @@ export const Preferences = ({
                 // Where agents' work goes: their worktrees, what they may push, and the pull
                 // requests the Worktrees panel reads.
                 <Section title="Worktrees and pull requests">
-                  {(worktrees || gitToggles.length > 0) && (
+                  {(worktrees || keepMain || gitToggles.length > 0) && (
                     <div className={settingsStackClasses}>
                       {/* On for everyone: a way out for whoever keeps worktrees with a tool of
                           their own. */}
@@ -1212,6 +1222,24 @@ export const Preferences = ({
                             onChange={worktrees.onChange}
                             labelledBy="agent-worktrees-label"
                             describedBy="agent-worktrees-description"
+                          />
+                        </div>
+                      )}
+                      {/* Apart from the worktrees: each works with the other off. */}
+                      {keepMain && (
+                        <div className={`preference-row ${settingRowClasses}`}>
+                          <SettingText
+                            id="keep-main-label"
+                            icon={GitMerge}
+                            label="Keep main current"
+                            description="After each fetch, Novadeck moves main up to origin's when nothing of yours is in the way. Turn this off to move it yourself: the Files panel then shows how far behind it is, with an Update button."
+                            descriptionId="keep-main-description"
+                          />
+                          <Switch
+                            checked={keepMain.enabled}
+                            onChange={keepMain.onChange}
+                            labelledBy="keep-main-label"
+                            describedBy="keep-main-description"
                           />
                         </div>
                       )}

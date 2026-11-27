@@ -118,6 +118,8 @@ export const demoBackend = (
   const agentMode = createStore<AgentMode>("herd")
   // Agent worktrees start on, as in the app, so the demo shows the Worktrees panel they bring.
   const worktrees = createStore(true)
+  // Main is kept current unless the person turns that off, as in the app.
+  const keepMain = createStore(true)
   const agents = createStore<readonly AgentConnection[]>(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
@@ -195,6 +197,7 @@ export const demoBackend = (
     murmurSwitch: { enabled: murmurSwitch, set: (enabled) => murmurSwitch.update(() => enabled) },
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
+    keepMain: { enabled: keepMain, set: (enabled) => keepMain.update(() => enabled) },
     agents: {
       state: agents,
       set: (agent, connected) =>

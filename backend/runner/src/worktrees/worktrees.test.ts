@@ -14,6 +14,8 @@ import {
 import { tmpdir } from "node:os"
 import { basename, join, relative } from "node:path"
 
+import { vi } from "vitest"
+
 import { git as realGit } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { withOrigin } from "../testing/origin.js"
@@ -493,6 +495,76 @@ describe("opening a worktree", () => {
     await worktrees.tidy(true)
     await fetcher.idle()
     expect(git(origin.repo, "rev-parse", "HEAD")).toBe(landed)
+  })
+
+  it("fetches but moves nothing while Keep main current is off, tracked worktrees working as ever", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    await f.store.createProject({ id: "p2", name: "Q", cwd: origin.repo })
+    const common = join(origin.repo, ".git")
+    const keep = { on: false }
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      followed: () => Promise.resolve([common]),
+      keepMain: () => keep.on,
+    })
+    resources.defer(() => void worktrees.stop())
+    const opened = await worktrees.open({
+      title: "Some work",
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat/x",
+      from: "main",
+    })
+    if (!opened.ok) throw new Error(opened.reason)
+    const before = git(origin.repo, "rev-parse", "HEAD")
+    const landed = origin.land("c.txt")
+    await worktrees.tidy(true)
+    expect(worktrees.fetchedAt(common)).toBeTypeOf("number")
+    expect(git(origin.repo, "rev-parse", "origin/main")).toBe(landed)
+    // Off, a fetch is never followed: the checkout and its main stay, now and after a pause.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(before)
+    // A new worktree still starts from the fetched origin/main.
+    const next = await worktrees.open({
+      title: "More work",
+      projectId: "p2",
+      terminalId: "t1",
+      cwd: origin.repo,
+      branch: "feat/y",
+    })
+    if (!next.ok) throw new Error(next.reason)
+    expect(git(next.path, "rev-parse", "HEAD")).toBe(landed)
+    // On again, the next fetch moves the checkout.
+    keep.on = true
+    const later = origin.land("d.txt")
+    await worktrees.fetchMerged(common)
+    await vi.waitFor(() => expect(git(origin.repo, "rev-parse", "HEAD")).toBe(later))
+  })
+
+  it("moves the local main of a repository whose checkout is on another branch, with no worktrees", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    const common = join(origin.repo, ".git")
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      followed: () => Promise.resolve([common]),
+      keepMain: () => true,
+    })
+    resources.defer(() => void worktrees.stop())
+    git(origin.repo, "checkout", "--quiet", "-b", "feature")
+    const head = git(origin.repo, "rev-parse", "HEAD")
+    const landed = origin.land("b.txt")
+    await worktrees.tidy(true)
+    await vi.waitFor(() => expect(git(origin.repo, "rev-parse", "refs/heads/main")).toBe(landed))
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(head)
   })
 
   it("keeps the state of a repository whose fetch is under way when a look forgets the rest", async ({

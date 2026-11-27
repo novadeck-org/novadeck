@@ -576,3 +576,23 @@ describe("the forge switches", () => {
     app.stop()
   })
 })
+
+describe("the Keep main current setting", () => {
+  it("isn't offered by a runner from before it (revision 23)", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.keepMain).toBeUndefined()
+    app.stop()
+  })
+
+  it("shows what the runner said, and changes it there, apart from the worktrees switch", async () => {
+    const app = scripted({ shown: [], keepMain: true })
+    const { enabled, set } = app.backend.keepMain!
+    expect(enabled.getSnapshot()).toBe(true)
+    set(false)
+    expect(enabled.getSnapshot()).toBe(false)
+    expect(app.backend.worktrees!.enabled.getSnapshot()).toBe(true)
+    await app.idle()
+    expect(app.of("settings")).toEqual([{ keepMain: false }])
+    app.stop()
+  })
+})

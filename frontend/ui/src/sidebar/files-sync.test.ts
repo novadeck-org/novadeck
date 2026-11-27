@@ -75,6 +75,21 @@ describe("the words a repository's marks say", () => {
     expect(whyBehind({ ...held, why: null })).toBe("Novadeck hasn't moved it yet")
   })
 
+  it("says Keep main current is off as the reason, and counts it as news the rail's dot tells of", () => {
+    const off = {
+      remote: "origin/main",
+      count: 2,
+      why: "Keeping main current is off.",
+      merges: [],
+    }
+    expect(marksOf(repo({ behind: off }))[0]).toEqual({
+      kind: "behind",
+      text: "↓2",
+      tip: "2 behind origin: keeping main current is off",
+    })
+    expect(filesNews([repo({ behind: off })], new Map())).toBe("one is behind origin")
+  })
+
   it("says commits not on origin, which are no news", () => {
     expect(marksOf(repo({ ahead: 2 }))).toEqual([
       { kind: "ahead", text: "↑2", tip: "2 commits not on origin yet" },

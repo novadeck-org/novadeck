@@ -1173,9 +1173,24 @@ with every safety check again at that time:
     dependency or build folders or in another repository; kept for a minute per project), which `Cleanup`'s sweep
     fetches on the same five-minute schedule and follows; a repository kept on the schedule for a compare's sake alone
     is not followed. A watched pull request turning merged (`Forges`' `merged`) fetches and follows its repository at
-    once (`Worktrees.fetchNow`). The one switch is `MainFetcher`'s `follow` option.
-    **What the person is told.** Where the checkout is on main and behind and was not moved, whatever held it (tracked
-    changes, an operation, a file in the way, a repository not fetched since), `projects.sync` reports `behind` for
+    once (`Worktrees.fetchNow`). The one switch is `MainFetcher`'s `follow` option, which the runner
+    wires to the person's **Keep main current** setting (`settings.keepMain`, revision 24, on by default,
+    independent of the worktrees setting): off, every fetch still runs (worktrees start from and are checked
+    against `origin/<main>`, and the Files marks need it) but none is followed, so no checkout and no main
+    branch moves by itself, no landing is recorded and no notification or agent notice follows. The person's
+    Update ignores it.
+    **Main while the checkout is on another branch** (`moveMainRef` in `fast-forward.ts`). Where `HEAD` is on
+    another branch, or detached, the same follow moves the local main branch alone: `git update-ref
+    refs/heads/<x> <origin's commit> <the commit read>` (hooks pointed at the empty folder, a
+    reference-transaction hook included), no checkout, index or file touched. Only where local main is a strict
+    ancestor of origin's main and no worktree, the repository's own included, has it checked out (`git worktree list`);
+    main with commits origin lacks is left, as is one a linked worktree holds (its reason says so). Such a
+    move is a landing, recorded with `ref` and without a lockfile hint (nothing was installed in the checkout),
+    and counts no `moved`; it earns the person's notice by the same rule, but agents in the checkout get no
+    `Novadeck · Main` notice: they are not on main and no file changed under them.
+    **What the person is told.** Where main is behind and was not moved, on or off the checkout's branch, whatever held it (Keep main current
+    off, tracked changes, an operation, a file in the way, a worktree that has main, a repository not fetched since; the switch is the reason
+    shown whatever else is so, and main with commits of its own is shown as that), `projects.sync` reports `behind` for
     each repository (its count, why in words, and the merges waiting), and `ahead`, the commits main has that origin
     lacks. When the runner itself (not the person's Update) moves a checkout, `MainFetcher`'s `landed` hands the
     commits to `MainSync`, which records a landing in memory: the first-parent commits as merges (a pull request's

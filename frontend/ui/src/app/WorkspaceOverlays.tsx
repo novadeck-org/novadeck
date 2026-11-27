@@ -187,6 +187,17 @@ const useBundledPi = (
 }
 const offFetch: BundledPiFetchState = { state: "off" }
 
+// Whether main is kept current, for Preferences; undefined where the backend has no such switch.
+const useKeepMain = (
+  keepMain: Backend["keepMain"],
+): { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void } | undefined => {
+  const enabled = useSyncExternalStore(
+    keepMain?.enabled.subscribe ?? always,
+    () => keepMain?.enabled.getSnapshot() ?? true,
+  )
+  return keepMain && { enabled, onChange: keepMain.set }
+}
+
 // Whether agents get worktrees, for Preferences; undefined where the backend has none.
 const useWorktrees = (
   worktrees: Backend["worktrees"],
@@ -433,6 +444,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const bundledPi = useBundledPi(backend.bundledPi)
   const murmurSwitch = useMurmurSwitch(backend)
   const worktrees = useWorktrees(backend.worktrees)
+  const keepMain = useKeepMain(backend.keepMain)
   const agents = useAgents(backend.agents, backend.projectWindows?.extra === true)
   const installs = useInstalls(backend.agents)
   const driver = useTourRun()
@@ -732,6 +744,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(bundledPi ? { bundledPi } : {})}
           {...(murmurSwitch ? { murmurSwitch } : {})}
           {...(worktrees ? { worktrees } : {})}
+          {...(keepMain ? { keepMain } : {})}
           tour={tour !== undefined}
           notices={backend.notices !== undefined}
           screenReaderKnown={backend.screenReader !== undefined}

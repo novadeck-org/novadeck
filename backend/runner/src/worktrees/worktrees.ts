@@ -56,6 +56,8 @@ export type WorktreesHost = {
   readonly followed?: CleanupHost["followed"]
   /** Told when a checkout was moved to main by the runner (`CleanupHost.landed`). */
   readonly landed?: CleanupHost["landed"]
+  /** Whether fetches are followed by moving main (`CleanupHost.keepMain`). */
+  readonly keepMain?: CleanupHost["keepMain"]
   /** Repositories beyond the tracked worktrees' that are kept fetched (compares of remote refs). */
   readonly repositories?: () => Promise<readonly string[]>
   /** The runner's own folder for git's hooks to be pointed at while a checkout moves. */
@@ -222,6 +224,7 @@ export class Worktrees {
       ...(host.repositories && { repositories: host.repositories }),
       ...(host.followed && { followed: host.followed }),
       ...(host.landed && { landed: host.landed }),
+      ...(host.keepMain && { keepMain: host.keepMain }),
       ...host.cleanup,
     })
   }

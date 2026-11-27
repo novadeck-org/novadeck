@@ -454,7 +454,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     repositories: () => items.remoteRepositories(),
     // Every repository of an open project follows its origin's main, as a worktree's does.
     followed: () => mainSync.followed(),
-    landed: (commonDir, from, to) => void mainSync.landed(commonDir, from, to),
+    landed: (commonDir, from, to, ref) => void mainSync.landed(commonDir, from, to, ref),
+    // The person's "Keep main current": off, fetches still run but move no checkout and no main.
+    keepMain: () => keepMainOn(),
     // Beside the database, owner-only: where a repository's hooks are pointed away to.
     ...(options.database !== undefined &&
       options.database !== ":memory:" && {
@@ -463,6 +465,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   // On unless the person turned them off, carried on once for everyone as they left Experimental.
   store.settings.carryWorktreesSwitch()
+  // On unless the person turned it off, whatever the worktrees switch says.
+  const keepMainOn = (): boolean => store.settings.runner().keepMain !== false
   // The person's setting, except that the tour's terminals have worktrees whatever it says.
   const worktreesOn = (terminalId?: string): boolean =>
     store.settings.runner().worktrees || (terminalId !== undefined && tour.isTours(terminalId))
@@ -698,6 +702,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // who is told of it (agents working in the repository's own checkout).
   const mainSync = new MainSync({
     projects: () => store.projects().map(({ id, cwd }) => ({ id, cwd })),
+    keepMain: () => keepMainOn(),
     moved: (commonDir) => worktrees.moved(commonDir),
     update: (commonDir) => worktrees.update(commonDir),
     // The pull requests of the worktrees agents hold in a repository, as the forge knows them.
@@ -707,7 +712,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           row.commonDir === commonDir ? forges.pullRequest(commonDir, row.branch) : undefined
         return pull ? [{ number: pull.number, title: pull.title }] : []
       }),
-    landed: ({ home, name, landing }) => {
+    landed: ({ home, name, landing, ref }) => {
+      // Agents on another branch see no file change when only the local main branch moved: no notice.
+      if (ref) return
       const text = mainNotice(name, landing)
       void terminals
         .checkouts()

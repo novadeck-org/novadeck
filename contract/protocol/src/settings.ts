@@ -51,6 +51,13 @@ export const runnerSettings = z.strictObject({
   // Whether agents may open git worktrees through Novadeck's tools, which tracks and cleans
   // them up; on until the person turns it off (off until turned on while it was Experimental).
   worktrees: z.boolean(),
+  // Whether the runner keeps main current in every git repository of an open project after each
+  // fetch (moves the checkout, or the local main branch where the checkout is on another branch,
+  // to origin's main where that is safe); on until the person turns it off. Off, it still
+  // fetches and moves nothing by itself, and the person's Update still works. From revision 24: a
+  // runner before it drops the key, and a UI offers the switch only where the runner's settings
+  // report it.
+  keepMain: z.boolean().optional(),
   // Whether Solo and Swarm may be picked, an Experimental feature, off until the person turns
   // it on: while off, agents work as a Herd whatever `agentMode` holds.
   agentModes: z.boolean(),
