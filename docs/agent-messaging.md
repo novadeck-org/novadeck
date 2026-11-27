@@ -870,7 +870,9 @@ Codex its agents, Antigravity subagents and a swarm. Novadeck settles what they 
 (`agentsHere` in `shell/mcp.ts`, in the server's instructions and in `open_agent`'s and `team`'s
 descriptions, which are what Codex and Antigravity read): an agent the person asks to take on a
 task ("spawn an agent to fix X", "open a claude") is one in its own Novadeck terminal, started with
-`open_agent`, unless they ask for a subagent or say that is what they mean, as an AGENTS.md line
+`open_agent`, and so are the agents the person leaves it free to spawn for parts of their task
+("you can spawn other agents if you need to"), unless they ask for a subagent or say that is what
+they mean, as an AGENTS.md line
 "when I ask for an agent, I mean a subagent" does; a team is a lead and the agents in the Novadeck
 terminals it leads, and so is a swarm; agents the agent, the person or a skill want used for the
 agent's own task, such as to do it faster, are its own pick as usual, except that a team is
@@ -893,6 +895,18 @@ hooks; 2026-11-27) told "build a multiplayer browser game … you can spawn othe
 need to" in Swarm took two subagents and opened no Novadeck agent in about 35 minutes, as an Opus
 session with the person's own skills had for a card game (three subagents); told "… in their own
 Novadeck terminals", the same setup opened two and led them.
+
+The leave ("agents the person leaves it free to spawn for parts of their task") holds in every
+mode. Without it, such a leave read as the agent's own pick, and a subagent served it. In probes
+of the Herd texts (2026-11-27: a bare Claude Code, Sonnet at medium effort, with a stand-in
+Novadeck MCP server that serves `agentsHere` and `open_agent`'s description and records each
+call, asked to build a browser game; three runs each, the first way it brought in an agent),
+"feel free to bring in more agents if it helps", a leave the text doesn't quote, went from a
+subagent in 3 of 3 to a Novadeck agent in 3 of 3. Asks meant for subagents stayed subagents or
+brought in none: "you can use subagents if you need to" (subagents in 2, none in 1) and "use a
+helper if you need one, so your own context stays clean" (subagents in 2, none in 1, given 20
+turns). "You can spawn other agents if you need to" brought in no agent in 3 of 3 given 20 turns,
+the agent doing the work alone, as it may.
 
 `open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
 opens a terminal running that agent. Without `message` the agent just starts at its prompt;

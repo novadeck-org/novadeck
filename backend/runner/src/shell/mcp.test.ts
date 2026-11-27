@@ -2057,7 +2057,11 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         for (const text of listed) {
           // An agent the user hands a task opens in a Novadeck terminal, a subagent only when asked.
           expect(text).toContain(
-            'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent, unless they ask for a subagent or say that is what they mean',
+            'an agent the user asks to take on a task, as in "spawn an agent to fix X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started with open_agent,',
+          )
+          // Agents the user leaves it free to spawn for parts of their task are Novadeck's too.
+          expect(text).toContain(
+            'and so are the other agents the user leaves you free to spawn to take on parts of their task, as in "you can spawn other agents if you need to", unless they ask for a subagent or say that is what they mean',
           )
           // A team is always Novadeck's; subagents stay the agent's own, and are never one.
           expect(text).toContain(

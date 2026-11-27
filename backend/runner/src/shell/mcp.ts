@@ -635,13 +635,17 @@ const withModel = (schema: object, models: Models): object => {
 }
 
 // What "agent" and "team" mean here, where each harness has its own: an agent the user asks
-// for opens in a Novadeck terminal, a subagent only when they say so, and a team is always
-// Novadeck's.
+// for opens in a Novadeck terminal, as do the agents they leave the agent free to spawn for
+// parts of their task, a subagent only when they say so, and a team is always Novadeck's.
+// Without the leave, "you can spawn other agents if you need to" read as the agent's own
+// pick below, and a bare Claude Code took subagents for it.
 const agentsMean =
   'In Novadeck, an agent the user asks to take on a task, as in "spawn an agent to fix ' +
   'X", "open a claude" or "get a codex on it", is one in its own Novadeck terminal, started ' +
-  "with open_agent, unless they ask for a subagent or say that is what they mean; a team, or " +
-  "a swarm, is a lead and the agents in the Novadeck terminals it leads. "
+  "with open_agent, and so are the other agents the user leaves you free to spawn to take " +
+  'on parts of their task, as in "you can spawn other agents if you need to", unless they ' +
+  "ask for a subagent or say that is what they mean; a team, or a swarm, is a lead and the " +
+  "agents in the Novadeck terminals it leads. "
 
 // Who picks the agents for an agent's own task, as the user set it (`AgentMode`). In Herd and
 // Solo they are its own pick, as its harness has it pick them. In a swarm, a part that can go
