@@ -123,11 +123,11 @@ going for the same file.
 Whatever an agent makes opens right next to its terminal. A page, a diff, an image, a video, a PDF,
 a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff.
 
-## License
-
-[GPL-3.0-or-later](LICENSE). Contributions come in under the [CLA](CLA.md).
-
 ## Leave a ⭐
 
 One person builds this. Free, no account, no tracking, zero ad budget. Most people find it on
 GitHub, and stars are how. If it helps you, star it.
+
+## License
+
+[GPL-3.0-or-later](LICENSE). Contributions come in under the [CLA](CLA.md).
