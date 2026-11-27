@@ -2510,9 +2510,8 @@ one from an earlier runner.
   the person turns it on in Preferences' Experimental tab; while off, agents work as a Herd whatever `agentMode`
   holds, and the saved pick returns with the switch), whether the shipping gate is on
   (`shippingGate`, off until the person turns it on in the same tab; see "The shipping gate" in
-  agent-messaging.md), whether Murmur may run (`murmur`, revision 20, off until the person turns
-  it on in the same tab, and first saved on where they had turned Murmur on before it was
-  Experimental, or have its files on disk; see [murmur.md](murmur.md)), and how agents work with each other,
+  agent-messaging.md), whether Murmur may be installed (`murmur`, revision 20, off until the person
+  turns it on in the same tab; a Murmur already on disk runs either way; see [murmur.md](murmur.md)), and how agents work with each other,
   `"herd"` until the person picks `"solo"` or `"swarm"` (see "Herd, Solo and Swarm" in agent-messaging.md). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a

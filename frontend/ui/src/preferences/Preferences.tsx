@@ -911,7 +911,7 @@ export const Preferences = ({
       page: "addons",
       onPage: false,
       label: MURMUR_NAME,
-      description: `A small model on this computer's graphics names your terminals, in place of the agents' own titles. This adds ${MURMUR_NAME} to the Addons page, where you install it. Off: nothing is named or downloaded, and an install stays on disk.`,
+      description: `A small model on this computer's graphics names your terminals, in place of the agents' own titles. This adds ${MURMUR_NAME} to the Addons page, where you install it. Off: you can't install it. One already installed stays in Addons and keeps naming until you uninstall it.`,
       checked: murmurSwitch?.enabled ?? false,
       onToggle: (enabled: boolean) => murmurSwitch?.onChange(enabled),
       disabled: !murmurSwitch,

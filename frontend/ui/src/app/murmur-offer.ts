@@ -5,7 +5,7 @@ import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import type { WorkspaceServices } from "./controller/context"
-import { shownMurmur } from "./murmur-shown"
+import { offeredMurmur } from "./murmur-shown"
 import { currentContext, currentState } from "./selectors"
 
 // The one-time offer of Murmur: a chip beside the title of the first terminal whose agent
@@ -72,7 +72,7 @@ export const nameFinished =
     commands,
   }: Pick<WorkspaceServices, "backend" | "workspace" | "ui" | "commands">) =>
   (context: string, id: string): void => {
-    const murmur = shownMurmur(backend)
+    const murmur = offeredMurmur(backend)
     if (!murmur || ui.getSnapshot().addonOffer !== null) return
     if (!offerDue(murmur.state.getSnapshot())) return
     if (canCarryChip(workspace.getSnapshot(), { context, id }))

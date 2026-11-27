@@ -73,7 +73,8 @@ type MurmurOptions = {
   readonly voice?: Activity
   /**
    * Whether murmur's Experimental switch is on, read live (`switched` tells of a change): off,
-   * it describes nothing, installs and updates nothing, and keeps what is installed. On when unset.
+   * nothing new installs, but murmur with files on disk keeps working, and the person can check it
+   * again, have its engine updated, or uninstall it. On when unset.
    */
   readonly switchedOn?: () => boolean
   readonly launch?: Launch
@@ -372,16 +373,22 @@ export class Murmur implements Describer {
   }
 
   /**
-   * Murmur's Experimental switch changed. Off, an install or update under way stops, the engine
-   * ends and the titles murmur wrote go; on, an engine an update of the app left behind is fetched.
+   * Murmur's Experimental switch changed. Off, an install from nothing under way stops; what is on
+   * disk stays and keeps working.
    */
   switched(): void {
     if (this.closed) return
-    const on = this.switchedOn()
-    if (!on) this.running?.controller.abort()
+    if (!this.mayInstall()) this.running?.controller.abort()
     this.changed()
-    if (!on && this.settings.murmurSettings().enabled) this.cleared()
-    if (on) this.updateEngine()
+  }
+
+  /**
+   * Whether an install may start or go on: while the switch is on, or where murmur has files on
+   * disk, as an install that keeps them (a check run again, an engine the app's update replaced).
+   * Uninstalled outside Experimental, it can't be installed again until the switch is on.
+   */
+  private mayInstall(): boolean {
+    return this.switchedOn() || this.modelReady
   }
 
   private installed(): boolean {
@@ -431,11 +438,10 @@ export class Murmur implements Describer {
     this.watchers.release(owner)
   }
 
-  /** Whether jobs can run: switched on, installed, on, and checked on a GPU. */
+  /** Whether jobs can run: installed, on, and checked on a GPU. */
   private usable(): boolean {
     return (
       !this.closed &&
-      this.switchedOn() &&
       !this.uninstalling &&
       this.installed() &&
       this.settings.murmurSettings().enabled &&
@@ -494,7 +500,7 @@ export class Murmur implements Describer {
     // `refresh` yielded: the runner may have closed, or another install may have started.
     this.assertOpen()
     if (this.manifest === undefined) throw unavailable("Murmur is not available in this build.")
-    if (!this.switchedOn()) throw unavailable(switchedOff)
+    if (!this.mayInstall()) throw unavailable(switchedOff)
     if (this.options.softwareGraphics) throw unavailable("Murmur can't run on this computer.")
     if (this.running || this.uninstalling)
       throw new DomainError("CONFLICT", "Murmur is already installing.")
@@ -521,7 +527,6 @@ export class Murmur implements Describer {
     const { manifest } = this
     if (
       this.closed ||
-      !this.switchedOn() ||
       this.running ||
       this.uninstalling ||
       (this.updateFailedAt !== undefined && this.clock() - this.updateFailedAt < updateRetryMs) ||

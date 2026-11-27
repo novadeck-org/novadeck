@@ -663,7 +663,7 @@ describe("murmur's Experimental switch", () => {
     expect(murmur.state()).toMatchObject({ installed: true, enabled: true })
   })
 
-  it("names nothing while off, clears its titles, and names again once on, keeping what is installed", async ({
+  it("keeps an installed murmur naming while off, clearing none of its titles", async ({
     resources,
   }) => {
     let on = true
@@ -675,18 +675,39 @@ describe("murmur's Experimental switch", () => {
 
     on = false
     murmur.switched()
-    await expect(murmur.describe(digest, { terminal: "t" })).resolves.toBeUndefined()
-    expect(cleared).toBe(1)
-    // Murmur itself stays on and installed: the switch alone holds it.
-    expect(murmur.state()).toMatchObject({ installed: true, enabled: true })
-
-    on = true
-    murmur.switched()
     await expect(murmur.describe(digest, { terminal: "t" })).resolves.toBeDefined()
-    expect(heard).toEqual([true, false, true])
+    expect(cleared).toBe(0)
+    expect(heard).toEqual([true])
+    expect(murmur.state()).toMatchObject({ installed: true, enabled: true })
   })
 
-  it("stops an install under way when switched off", async ({ resources }) => {
+  it("checks an installed murmur again while off", async ({ resources }) => {
+    let on = true
+    const { murmur } = await installed(resources, { switchedOn: () => on })
+    on = false
+    murmur.switched()
+
+    await murmur.install()
+    await murmur.settled()
+
+    expect(murmur.state()).toMatchObject({ installed: true, failure: null })
+    expect(murmur.state().check).not.toBeNull()
+  })
+
+  it("can't be installed again while off once it is uninstalled", async ({ resources }) => {
+    let on = true
+    const { murmur } = await installed(resources, { switchedOn: () => on })
+    on = false
+    murmur.switched()
+
+    await murmur.uninstall()
+    expect(murmur.state()).toMatchObject({ installed: false, kept: false })
+
+    await expect(murmur.install()).rejects.toThrow("Turn on Murmur in Preferences > Experimental.")
+    expect(murmur.state().installing).toBeNull()
+  })
+
+  it("stops an install from nothing under way when switched off", async ({ resources }) => {
     let on = true
     const { murmur } = await setup(resources, { switchedOn: () => on })
     await murmur.install()
@@ -695,34 +716,27 @@ describe("murmur's Experimental switch", () => {
     murmur.switched()
     await murmur.settled()
 
-    expect(murmur.state()).toMatchObject({ installing: null, enabled: false })
+    expect(murmur.state()).toMatchObject({ installing: null, installed: false, enabled: false })
   })
 
-  it("fetches no engine an update of the app left behind while off", async ({ resources }) => {
+  it("fetches the engine an update of the app left behind while off", async ({ resources }) => {
     const store = new WorkspaceStore()
     resources.defer(() => store.close())
     const directory = await folder(resources)
     const first = await installed(resources, { store, directory })
     await first.murmur.close()
 
-    let on = false
     const next = await setup(resources, {
       store,
       directory,
       engine: await llamaArchive(resources, "2"),
-      switchedOn: () => on,
+      switchedOn: () => false,
     })
     const controller = new AbortController()
     const states: MurmurState[] = []
     const watching = (async () => {
       for await (const state of next.murmur.watch("owner", controller.signal)) states.push(state)
     })()
-    await sleep(100)
-    expect(states.length).toBeGreaterThan(0)
-    expect(states.every((state) => state.installing === null)).toBe(true)
-
-    on = true
-    next.murmur.switched()
     await vi.waitFor(() => {
       expect(states.some((state) => state.installing?.step === "engine")).toBe(true)
       expect(next.murmur.state()).toMatchObject({ installing: null, enabled: true })
