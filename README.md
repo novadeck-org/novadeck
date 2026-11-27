@@ -127,7 +127,7 @@ a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff
 
 > [!IMPORTANT]
 > One person builds this. Free, no account, no tracking, zero ad budget. People find it through
-> GitHub stars, so if it's been nova for you, star it.
+> GitHub stars, so if you think it's preem, star it.
 >
 > Stay nova, choom ✦
 
