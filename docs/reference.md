@@ -255,7 +255,7 @@ reload or the app booting again after a reconnect counts as a new run) and comes
 preferences, so preferences saved earlier load as before.
 
 With **Agent Chat** on (Preferences → Appearance → Layout, or the welcome dialog), a terminal
-running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
+running an agent (Claude Code, Codex, Antigravity, OpenCode or Pi) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts
 (`backend.conversations`). Chat shows the agent's own conversation as it records it,
 read from its session's transcript rather than a second agent process: your messages,
@@ -654,7 +654,8 @@ agent.
   terminal of its own, for you to sign in; while it runs, Preferences shows the agent as
   installing. Connecting installs a small Novadeck plugin into
   it with the agent's own plugin commands (`claude plugin`, `codex plugin`,
-  `agy plugin`, from a local marketplace or folder in Novadeck's data directory);
+  `agy plugin`, from a local marketplace or folder in Novadeck's data directory; OpenCode
+  and Pi load it for each launch instead);
   turning it off uninstalls it. The plugin holds a single hook that tells the Novadeck
   terminal it runs in which session it is, and does nothing when the agent runs
   anywhere else. It adds nothing to the model's context but the messages other agents in

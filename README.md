@@ -89,7 +89,7 @@ answers before I even look. Claude Code, Codex, Antigravity, OpenCode and Pi, al
 ## Read along as a chat
 
 <p align="center">
-  <img src="docs/assets/highlights/chat.webp" alt="In Preferences, Show agents as is switched from Terminal to Chat. The Grid's terminals turn into chats: Cart drawer's steps, and Search index's review of its change as a message." width="100%" />
+  <img src="docs/assets/highlights/chat.webp" alt="In Preferences, Show agents as is switched from Terminal to Chat. The Grid's terminals turn into chats: Cart drawer's steps, and Search index's review of Cart drawer's change as a message." width="100%" />
 </p>
 
 Not into raw terminals? Agent Chat shows the same agents as a chat, their messages to each other

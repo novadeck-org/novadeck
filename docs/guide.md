@@ -20,6 +20,8 @@ first:
 - [Claude Code](https://code.claude.com/docs/en/setup): `claude`
 - [Codex](https://developers.openai.com/codex/cli): `codex`
 - [Antigravity CLI](https://antigravity.google/docs/getting-started?tab=cli): `agy`
+- [OpenCode](https://opencode.ai/docs/): `opencode`
+- [Pi](https://pi.dev): `pi`
 
 ![The welcome dialog: Claude Code and Codex ticked, Antigravity not installed, and a Let's build something button.](assets/guide/welcome.webp)
 
