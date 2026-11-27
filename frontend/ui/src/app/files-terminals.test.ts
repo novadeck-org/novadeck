@@ -47,7 +47,7 @@ describe("following the terminal a Files card's command runs in", () => {
     expect(standingOf(world(undefined).store.getSnapshot(), "t1")).toBe("gone")
   })
 
-  it("runs until its program has run and left the shell, then is done, with how long it took", () => {
+  it("runs until its program has run and left the shell, then is finished, with how long it ran", () => {
     const { store, set } = world({ state: "starting" })
     const follower = followTerminal(store, "t1", Date.now())
     const told = vi.fn<() => void>()
@@ -57,18 +57,28 @@ describe("following the terminal a Files card's command runs in", () => {
     vi.advanceTimersByTime(12_000)
     expect(follower.get().phase).toBe("running")
     set({ state: "idle", busy: false })
-    expect(follower.get()).toEqual({ phase: "done", ms: 12_000 })
+    expect(follower.get()).toEqual({ phase: "finished", ms: 12_000 })
     expect(told).toHaveBeenCalled()
   })
 
-  it("takes a command that never showed a program as done once it has settled at the prompt", () => {
+  it("is not taken as over while a program runs, though its shell sat at the prompt before it", () => {
+    const { store, set } = world({ state: "idle" })
+    const follower = followTerminal(store, "t1", Date.now())
+    vi.advanceTimersByTime(1000)
+    set({ state: "idle", busy: true })
+    vi.advanceTimersByTime(settleMs + 1000)
+    expect(follower.get().phase).toBe("running")
+    set({ state: "idle", busy: false })
+    expect(follower.get()).toEqual({ phase: "finished", ms: 1000 + settleMs + 1000 })
+  })
+
+  it("takes a command never seen running as finished, with no time, once its shell has settled", () => {
     const { store } = world({ state: "idle" })
     const follower = followTerminal(store, "t1", Date.now())
-    follower.subscribe(() => {})
     vi.advanceTimersByTime(settleMs - 1)
     expect(follower.get().phase).toBe("running")
     vi.advanceTimersByTime(2)
-    expect(follower.get().phase).toBe("done")
+    expect(follower.get()).toEqual({ phase: "finished" })
   })
 
   it("fails where the terminal exits with a status or goes", () => {
@@ -84,14 +94,14 @@ describe("following the terminal a Files card's command runs in", () => {
     expect(two.get().phase).toBe("failed")
   })
 
-  it("keeps where it got to while nothing listens, and listens to nothing then", () => {
+  it("keeps the time it ended at, whoever reads it later", () => {
     const { store, set } = world({ state: "idle", busy: true })
     const follower = followTerminal(store, "t1", Date.now())
-    const stop = follower.subscribe(() => {})
+    vi.advanceTimersByTime(3000)
     set({ state: "idle", busy: false })
+    vi.advanceTimersByTime(60_000)
+    const stop = follower.subscribe(() => {})
+    expect(follower.get()).toEqual({ phase: "finished", ms: 3000 })
     stop()
-    expect(follower.get().phase).toBe("done")
-    follower.subscribe(() => {})
-    expect(follower.get().phase).toBe("done")
   })
 })

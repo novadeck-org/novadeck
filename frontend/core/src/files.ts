@@ -73,7 +73,12 @@ export type SyncLanding = {
   readonly files: readonly string[]
   // How many files changed, which may be more than `files` lists.
   readonly filesTotal: number
-  readonly dependencies: { readonly file: string; readonly command: string } | null
+  readonly dependencies: {
+    readonly file: string
+    readonly command: string
+    // The lockfile's folder where the backend runs, where the command runs.
+    readonly dir?: string | undefined
+  } | null
   // The last move of main changed a lockfile.
   readonly dependenciesLatest: boolean
   // Only the local main branch moved (the checkout is on another branch): no file changed.
@@ -116,9 +121,16 @@ export type ProjectSync = { readonly repos: readonly RepoSync[] }
 
 // What an update of a checkout did: it moved (or had nothing to move), or git's reason.
 export type CheckoutUpdate =
-  | { readonly ok: true }
+  // `moved`: anything moved; `ref`: only the local main branch did. Absent from an older runner.
+  | { readonly ok: true; readonly moved?: boolean | undefined; readonly ref?: boolean | undefined }
   // `git` is what git printed, line by line, where it was git that refused.
-  | { readonly ok: false; readonly said: string; readonly git?: readonly string[] | undefined }
+  | {
+      readonly ok: false
+      readonly said: string
+      readonly git?: readonly string[] | undefined
+      // How many more lines git printed than `git` holds.
+      readonly more?: number | undefined
+    }
 
 export type ProjectFiles = {
   readonly state: Store<FilesState>

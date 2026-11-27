@@ -219,10 +219,10 @@ export const landingFoot = (landing: SyncLanding, now: number): string =>
         : "changed files pulse in the tree",
   ].join(" · ")
 
-// The command that moves a behind repository's main, as the runner does it: the runner says it;
-// a runner before that moved the checkout only, with a merge.
-export const moveCommand = (behind: NonNullable<RepoSync["behind"]>): string =>
-  behind.command ?? `git merge --ff-only ${behind.remote}`
+// The command that moves a behind repository's main, as the runner does it: the runner says it.
+// A runner before that (revision 24) doesn't, and none is guessed: its move depends on the branch.
+export const moveCommand = (behind: NonNullable<RepoSync["behind"]>): string | undefined =>
+  behind.command
 
 // The first characters of a commit, as git shortens it.
 export const shortSha = (commit: string): string => commit.slice(0, 7)
@@ -244,8 +244,10 @@ export const elapsedOf = (ms: number): string => {
 
 // How a terminal the card opened for a command stands: still going, or over, and for how long.
 export type TerminalProgress = {
-  readonly phase: "running" | "done" | "failed"
-  readonly ms: number
+  // `finished` says nothing of whether it worked: nothing tells a program's exit status in a shell.
+  readonly phase: "running" | "finished" | "failed"
+  // How long it ran, where that was seen.
+  readonly ms?: number | undefined
 }
 
 // What the card does with terminals, given by the app that has them: opens one in a folder with a
@@ -282,7 +284,26 @@ export type UpdateRun =
       readonly state: "refused"
       readonly said: string
       readonly git?: readonly string[] | undefined
+      readonly more?: number | undefined
     }
+
+// What Run did, with the command it was for and how the repository stood when it ran: a refusal
+// is of that standing alone, and what it says is only of that command.
+export type RepoRun = {
+  readonly command: string
+  readonly standing: string
+  readonly run: UpdateRun
+}
+
+// How a repository's main stands behind, as one value: a refusal or a move is of it and no other.
+export const behindStanding = (repo: RepoSync): string =>
+  repo.behind
+    ? `${repo.behind.count}|${repo.behind.local ?? ""}|${repo.behind.why ?? ""}|${repo.behind.command ?? ""}`
+    : ""
+
+// The lockfile's path as the card says it: from the repository, not the project.
+export const lockPathIn = (repo: RepoSync, file: string): string =>
+  repo.path !== "" && file.startsWith(`${repo.path}/`) ? file.slice(repo.path.length + 1) : file
 
 // The last part of a path.
 export const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1)

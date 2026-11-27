@@ -24,11 +24,13 @@ export const standingOf = (workspace: Workspace, id: string): TerminalStanding =
 // was given is taken as done (a command quick enough to end between two reads).
 export const settleMs = 8000
 
-// Follows the command run in the terminal `id`, begun at `since`: running until its program has run
-// and left its shell (or the terminal ended), then done, or failed where the terminal failed, went
-// or exited with a status. The roster doesn't tell a program's own exit status while its shell goes
-// on, so a finished command in a living shell reads as done. It listens only while something
-// subscribes, and keeps where it got to between subscriptions.
+// Follows the command run in the terminal `id`, begun at `since`, from the moment it is made until
+// it is over (so it keeps its time while no card shows it): running until its program has run and
+// left its shell, or the terminal ended. Then `finished`, which says nothing of whether it worked:
+// the roster tells no exit status of a program in a living shell. Only a terminal that failed, went
+// or exited with a status is `failed`. The time is that of the change that showed it over; a
+// command never seen running (one quick enough to end between two reads) is `finished` once its
+// shell has sat at the prompt for `settleMs`, with no time.
 export const followTerminal = (
   workspace: Pick<WorkspaceStore, "getSnapshot" | "subscribe">,
   id: string,
@@ -36,42 +38,38 @@ export const followTerminal = (
   now: () => number = Date.now,
 ): TerminalFollower => {
   let sawBusy = false
-  let progress: TerminalProgress = { phase: "running", ms: 0 }
+  let progress: TerminalProgress = { phase: "running" }
   const listeners = new Set<() => void>()
   let timer: ReturnType<typeof setTimeout> | undefined
   let stop: (() => void) | undefined
-  const end = (failed: boolean): void => {
-    progress = { phase: failed ? "failed" : "done", ms: now() - since }
+  const end = (phase: "finished" | "failed", ms?: number): void => {
+    progress = { phase, ...(ms !== undefined && { ms }) }
     clearTimeout(timer)
+    stop?.()
+    stop = undefined
     for (const listener of listeners) listener()
   }
   const look = (): void => {
     if (progress.phase !== "running") return
     const standing = standingOf(workspace.getSnapshot(), id)
-    if (standing === "busy") sawBusy = true
-    else if (standing === "ended") end(false)
-    else if (standing === "failed" || standing === "gone") end(true)
-    else if (standing === "quiet" && sawBusy) end(false)
-    else if (standing === "quiet") {
+    // Whatever the shell showed, a program running now ends the wait for one.
+    if (standing !== "quiet") {
       clearTimeout(timer)
-      timer = setTimeout(() => end(false), Math.max(0, since + settleMs - now()))
+      timer = undefined
     }
+    if (standing === "busy") sawBusy = true
+    else if (standing === "ended") end("finished", now() - since)
+    else if (standing === "failed" || standing === "gone") end("failed", now() - since)
+    else if (standing === "quiet" && sawBusy) end("finished", now() - since)
+    else if (standing === "quiet" && timer === undefined)
+      timer = setTimeout(() => end("finished"), Math.max(0, since + settleMs - now()))
   }
+  stop = workspace.subscribe(look)
+  look()
   return {
     subscribe: (listener) => {
       listeners.add(listener)
-      if (listeners.size === 1) {
-        stop = workspace.subscribe(look)
-        look()
-      }
-      return () => {
-        listeners.delete(listener)
-        if (listeners.size === 0) {
-          stop?.()
-          stop = undefined
-          clearTimeout(timer)
-        }
-      }
+      return () => void listeners.delete(listener)
     },
     get: () => progress,
   }

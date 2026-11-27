@@ -1628,7 +1628,11 @@ describe("The Files panel", () => {
       ],
       files: ["packages/api/src/index.ts"],
       filesTotal: 14,
-      dependencies: { file: "packages/api/pnpm-lock.yaml", command: "pnpm install" },
+      dependencies: {
+        file: "packages/api/pnpm-lock.yaml",
+        command: "pnpm install",
+        dir: "/work/packages/api",
+      },
       dependenciesLatest: true,
       ...parts,
     })
@@ -1647,6 +1651,7 @@ describe("The Files panel", () => {
       remote: "origin/main",
       count: 2,
       why: "You have edits in src/a.ts",
+      command: "git merge --ff-only origin/main",
       merges: [{ subject: "Waiting merge", pr: 7, commit: "e3e3e3e3", own: false, latest: true }],
     }
     // A backend that tells `current`, and records what was asked of it.
@@ -1941,13 +1946,14 @@ describe("The Files panel", () => {
       panel.view.unmount()
     })
 
-    it("shows the merge command where the runner names none, as a runner before it moved the checkout", async () => {
-      const held = stand([repo({ behind })])
+    it("shows the facts alone, with no command to run, where the runner names none (a runner before it did)", async () => {
+      const { command: _none, ...bare } = behind
+      const held = stand([repo({ behind: bare })])
       const panel = await mountWith(held.feed)
       const card = await openMark(panel, "behind")
-      expect(card.querySelector(".files-command .files-t")?.textContent).toBe(
-        "git merge --ff-only origin/main",
-      )
+      expect(card.querySelector(".files-merge")).not.toBeNull()
+      expect(card.querySelector(".files-comment")?.textContent).toContain("left as it is")
+      expect(card.querySelector(".files-command")).toBeNull()
       await nextFrame()
       panel.view.unmount()
     })
@@ -2006,22 +2012,107 @@ describe("The Files panel", () => {
       panel.view.unmount()
     })
 
-    it("prints Novadeck's own words in red where the refusal wasn't git's", async () => {
+    it("says Novadeck's own words as a comment, not as git's red output", async () => {
       const held = stand([repo({ behind })])
-      held.update.mockResolvedValueOnce({ ok: false, said: "It has commits origin doesn't." })
+      held.update.mockResolvedValueOnce({ ok: false, said: "A rebase is in progress." })
       const panel = await mountWith(held.feed)
       const card = await openMark(panel, "behind")
       act(() => button(card, "Run git merge --ff-only origin/main").click())
       await panel.settle()
-      expect(document.querySelector(".files-card .files-err")?.textContent).toBe(
-        "It has commits origin doesn't.",
+      const refused = document.querySelector(".files-card")!
+      expect(refused.querySelector(".files-err")).toBeNull()
+      expect(
+        Array.from(refused.querySelectorAll(".files-comment")).map((el) => el.textContent),
+      ).toContain("# a rebase is in progress")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says how many more lines git printed than it shows", async () => {
+      const held = stand([repo({ behind })])
+      held.update.mockResolvedValueOnce({
+        ok: false,
+        said: "x",
+        git: ["error: a", "    f"],
+        more: 3,
+      })
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "behind")
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      expect(
+        Array.from(document.querySelectorAll(".files-card .files-comment")).map(
+          (el) => el.textContent,
+        ),
+      ).toContain("# … 3 more lines")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("puts no check on a run where nothing moved, or what moved wasn't the command run", async () => {
+      const held = stand([repo({ behind })])
+      held.update.mockResolvedValueOnce({ ok: true, moved: false })
+      const panel = await mountWith(held.feed)
+      let card = await openMark(panel, "behind")
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      card = document.querySelector(".files-card")!
+      expect(card.querySelector(".files-command [data-phase=done]")).toBeNull()
+      expect(button(card, "Run git merge --ff-only origin/main")).not.toBeNull()
+      // A ref move ran where the merge was shown: the branch changed since the card was drawn.
+      held.update.mockResolvedValueOnce({ ok: true, moved: true, ref: true })
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      card = document.querySelector(".files-card")!
+      expect(card.querySelector(".files-command [data-phase=done]")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("keeps a run for each repository, and drops a refusal once its repository stands otherwise", async () => {
+      const web = { ...behind, command: "git fetch . origin/main:main" }
+      const held = stand([
+        repo({ behind }),
+        repo({ path: "packages/web", name: "web", behind: web }),
+      ])
+      let release: (() => void) | undefined
+      held.update.mockImplementationOnce(
+        () => new Promise((resolve) => (release = () => resolve({ ok: true, moved: true }))),
       )
+      held.update.mockResolvedValueOnce({ ok: false, said: "Nope." })
+      const panel = await mountWith(held.feed)
+      let card = await openMark(panel, "behind")
+      act(() => button(card, "Run git merge --ff-only origin/main").click())
+      await closeCard(panel)
+      // The first is still running when the other is run.
+      if (!panel.row("web")) await panel.click("packages")
+      act(() => panel.row("web").querySelector<HTMLElement>("[data-kind=behind]")!.click())
+      await panel.settle()
+      card = document.querySelector(".files-card")!
+      act(() => button(card, "Run git fetch . origin/main:main").click())
+      await panel.settle()
+      expect(held.update).toHaveBeenCalledTimes(2)
+      expect(held.update).toHaveBeenLastCalledWith("p", "packages/web")
+      expect(document.querySelector(".files-card .files-comment")?.textContent).toContain("nope")
+      // Its repository stands otherwise (it is further behind): the refusal is no longer of it.
+      act(() =>
+        held.set([
+          repo({ behind }),
+          repo({ path: "packages/web", name: "web", behind: { ...web, count: 5 } }),
+        ]),
+      )
+      held.feed.refresh()
+      await panel.settle()
+      expect(document.querySelector(".files-card .files-comment")?.textContent).not.toContain(
+        "nope",
+      )
+      release?.()
       await nextFrame()
       panel.view.unmount()
     })
 
     it("runs the dependency command in a terminal of its own, in the repository, and follows it there", async () => {
-      const held = stand([repo({ landing: landing(), home: "/work/packages/api" })])
+      const held = stand([repo({ landing: landing() })])
       const { terminals, tell } = terminalsFor()
       const panel = await mountWithTerminals(held.feed, terminals)
       const card = await openMark(panel, "new")
@@ -2032,7 +2123,7 @@ describe("The Files panel", () => {
         command: "pnpm install",
       })
       // Under way: the spinner and "in a terminal", where it runs, and Show it.
-      tell({ phase: "running", ms: 0 })
+      tell({ phase: "running" })
       const running = document.querySelector(".files-card")!
       expect(running.querySelector(".files-command [data-phase=running]")).not.toBeNull()
       expect(running.querySelector(".files-command .files-dim")?.textContent).toBe("in a terminal")
@@ -2040,19 +2131,122 @@ describe("The Files panel", () => {
       expect(running.querySelector(".files-readout-foot")?.textContent).toBe(
         "Runs in its own terminal, in packages/apiShow it",
       )
+      expect(running.querySelector("[role=status]")?.textContent).toBe(
+        "Running pnpm install in a terminal",
+      )
       act(() => running.querySelector<HTMLButtonElement>(".files-show")!.click())
       expect(terminals.show).toHaveBeenCalledWith("t1")
-      // Over: a check and how long it took.
-      tell({ phase: "done", ms: 12_000 })
+      // The terminal is forward, so the card gives way; its install is running, so it isn't seen.
+      await panel.settle()
+      await vi.waitFor(() => expect(document.querySelector(".files-card")).toBeNull())
+      expect(held.asked).toEqual([])
+      const again = await openMark(panel, "new")
+      expect(again.querySelector(".files-command .files-dim")?.textContent).toBe("in a terminal")
+      // Over, with no word of whether it worked: a muted mark and how long it took, never a check.
+      tell({ phase: "finished", ms: 12_000 })
       const done = document.querySelector(".files-card")!
-      expect(done.querySelector(".files-command [data-phase=done]")).not.toBeNull()
-      expect(done.querySelector(".files-command .files-dim")?.textContent).toBe("12 s")
+      expect(done.querySelector(".files-command [data-phase=unheard]")).not.toBeNull()
+      expect(done.querySelector(".files-command [data-phase=done]")).toBeNull()
+      expect(done.querySelector(".files-command .files-dim")?.textContent).toBe("finished · 12 s")
+      expect(done.querySelector(".files-command .sr-only")?.textContent).toBe("Finished")
+      expect(done.querySelector("[role=status]")?.textContent).toBe("pnpm install finished")
       expect(done.querySelector(".files-readout-foot")?.textContent).toContain("2 merges")
       // Failed: a cross and the time, with the command offered again.
       tell({ phase: "failed", ms: 3000 })
       const failed = document.querySelector(".files-card")!
       expect(failed.querySelector(".files-command [data-failed]")).not.toBeNull()
+      expect(failed.querySelector(".files-command .sr-only")?.textContent).toBe("Failed")
       expect(button(failed, "Run pnpm install")).not.toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says a nested lockfile by its path from the repository and runs its command in the lockfile's own folder", async () => {
+      const held = stand([
+        repo({
+          landing: landing({
+            dependencies: {
+              file: "packages/api/web/pnpm-lock.yaml",
+              command: "pnpm install",
+              dir: "/work/packages/api/web",
+            },
+          }),
+        }),
+      ])
+      const { terminals } = terminalsFor()
+      const panel = await mountWithTerminals(held.feed, terminals)
+      const card = await openMark(panel, "new")
+      expect(card.querySelector(".files-comment")?.textContent).toBe("# web/pnpm-lock.yaml changed")
+      act(() => button(card, "Run pnpm install").click())
+      expect(terminals.run).toHaveBeenCalledWith({
+        directory: "/work/packages/api/web",
+        command: "pnpm install",
+      })
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("only says the command, with nothing to run it in, where the runner names no folder for it", async () => {
+      const held = stand([
+        repo({
+          landing: landing({
+            dependencies: { file: "packages/api/pnpm-lock.yaml", command: "pnpm install" },
+          }),
+        }),
+      ])
+      const panel = await mountWith(held.feed)
+      const card = await openMark(panel, "new")
+      expect(card.querySelector(".files-comment")?.textContent).toBe(
+        "# pnpm-lock.yaml changed: pnpm install",
+      )
+      expect(card.querySelector(".files-command")).toBeNull()
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("starts each repository's card with its merges folded, whatever another opened", async () => {
+      const many = Array.from({ length: 8 }, (_, at) => ({
+        subject: `Merge ${at}`,
+        pr: 100 + at,
+        commit: `${at}abcdef0`,
+        own: false,
+        latest: true,
+      }))
+      const held = stand([
+        repo({ landing: landing({ merges: many, dependencies: null }) }),
+        repo({
+          path: "packages/web",
+          name: "web",
+          landing: landing({ to: "c3", merges: many, dependencies: null }),
+        }),
+      ])
+      const panel = await mountWith(held.feed)
+      let card = await openMark(panel, "new")
+      act(() => card.querySelector<HTMLButtonElement>(".files-more-button")!.click())
+      expect(card.querySelectorAll(".files-merge")).toHaveLength(8)
+      // Another repository's mark, with the card still open: its merges are folded.
+      act(() => panel.row("web").querySelector<HTMLElement>("[data-kind=new]")!.click())
+      await panel.settle()
+      card = document.querySelector(".files-card")!
+      expect(card.querySelectorAll(".files-merge")).toHaveLength(5)
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("keeps focus on the command's line, not the page, once Run is pressed and gives way", async () => {
+      const held = stand([repo({ landing: landing(), behind })])
+      const { terminals } = terminalsFor()
+      const panel = await mountWithTerminals(held.feed, terminals)
+      const card = await openMark(panel, "new")
+      act(() => button(card, "Run pnpm install").focus())
+      act(() => button(card, "Run pnpm install").click())
+      expect(document.activeElement?.classList.contains("files-command")).toBe(true)
+      await closeCard(panel)
+      const behindCard = await openMark(panel, "behind")
+      act(() => button(behindCard, "Run git merge --ff-only origin/main").click())
+      await panel.settle()
+      // The card is the move done, and focus is on its line.
+      expect(document.activeElement?.classList.contains("files-command")).toBe(true)
       await nextFrame()
       panel.view.unmount()
     })

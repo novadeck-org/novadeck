@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path"
+
 import { parseRemote, repositoryOf, type Repository } from "@novadeck/forges"
 import type { CheckoutUpdate, ProjectSync, RepoSync } from "@novadeck/protocol"
 
@@ -65,14 +67,14 @@ type Status = {
   readonly pullUrl: string | null
 }
 
-/** A pull request's page on its forge's web, with `{number}` for its number. */
-export const pullUrlOf = (repository: Repository): string => {
-  if (repository.forge === "github")
-    return `https://${repository.host}/${repository.owner}/${repository.name}/pull/{number}`
-  if (repository.forge === "gitlab")
-    return `https://${repository.host}/${repository.path}/-/merge_requests/{number}`
-  return `https://${repository.host}/${repository.organization}/${repository.project}/_git/${repository.name}/pullrequest/{number}`
-}
+/**
+ * A pull request's page on its forge's web, with `{number}` for its number: GitHub's only, where
+ * the `#N` a merge says is a pull request (on GitLab it is an issue, on Azure a work item).
+ */
+export const pullUrlOf = (repository: Repository): string | null =>
+  repository.forge === "github"
+    ? `https://${repository.host}/${repository.owner}/${repository.name}/pull/{number}`
+    : null
 
 /** How long a repository's standing is kept before git is asked again. */
 const keptMs = 5000
@@ -157,7 +159,11 @@ const shownLanding = (
     files,
     filesTotal: down === "" ? landing.filesTotal : files.length,
     dependencies: lock
-      ? { file: prefixed(inProject(lock.file) ?? lock.file), command: lock.command }
+      ? {
+          file: prefixed(inProject(lock.file) ?? lock.file),
+          command: lock.command,
+          dir: join(found.home, dirname(lock.file)),
+        }
       : null,
     dependenciesLatest: landing.dependenciesLatest,
     ...(ref && { ref }),
@@ -435,6 +441,10 @@ export class MainSync {
       return { ok: false, said: "It has commits origin doesn't, so it can't just move forward." }
     this.standing.delete(found.commonDir)
     const done = await this.host.update(found.commonDir)
-    return done.ok ? { ok: true } : done
+    return done.ok
+      ? done.moved
+        ? { ok: true, moved: true, ...(done.ref === true && { ref: true }) }
+        : { ok: true, moved: false }
+      : done
   }
 }

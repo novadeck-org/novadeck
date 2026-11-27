@@ -19,13 +19,17 @@ export const FilesSection = memo(
       // One follower for each terminal, which keeps where it got to while no card shows it.
       const followers = new Map<string, TerminalFollower>()
       return {
-        run: ({ directory, command }: { directory: string | undefined; command: string }) =>
-          commands.add({
+        run: ({ directory, command }: { directory: string | undefined; command: string }) => {
+          const id = commands.add({
             command,
             title: command,
             quiet: true,
             ...(directory !== undefined && { directory }),
-          }),
+          })
+          // Followed from now on, whether or not a card shows it.
+          followers.set(id, followTerminal(workspace, id, Date.now()))
+          return id
+        },
         show: (id: string) => commands.reveal(id, "terminals"),
         follow: (id: string, since: number) => {
           const known = followers.get(id) ?? followTerminal(workspace, id, since)

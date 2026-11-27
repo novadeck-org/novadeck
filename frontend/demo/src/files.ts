@@ -557,7 +557,11 @@ export const createDemoFiles = (
     merges: demoMerges,
     files: paths,
     filesTotal: 14,
-    dependencies: { file: "package-lock.json", command: "npm install" },
+    dependencies: {
+      file: "package-lock.json",
+      command: "npm install",
+      dir: "/projects/storefront",
+    },
     dependenciesLatest: true,
   })
   const sync = async (id: string): Promise<ProjectSync> => {
@@ -612,7 +616,7 @@ export const createDemoFiles = (
     if (id !== projectId) return { ok: true }
     if (path !== "") {
       if (nested) nested = { ...nested, behind: false }
-      return { ok: true }
+      return { ok: true, moved: true }
     }
     if (standing?.refusal !== undefined)
       return {
@@ -629,7 +633,7 @@ export const createDemoFiles = (
       movedOnDisk = true
       moved += 1
     }
-    return { ok: true }
+    return { ok: true, moved: true }
   }
 
   const faults = new Map<string, FilesFault>()

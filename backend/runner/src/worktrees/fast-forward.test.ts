@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { gitIn, withOrigin, type Origin } from "../testing/origin.js"
-import { fastForward } from "./fast-forward.js"
+import { printed, fastForward } from "./fast-forward.js"
 
 const it = base.extend<{ origin: Origin; hooks: string }>({
   origin: async ({ resources }, use) => {
@@ -114,12 +114,12 @@ describe("fast-forwarding a checkout", () => {
     expect(done).toMatchObject({ ok: false, said: "Your changes to a.txt would be overwritten." })
     // What git itself printed, as it printed it: the file it names stays indented.
     // (The advice line between them is git's, and older gits print none.)
-    const printed = done.ok ? [] : (done.git ?? [])
-    expect(printed[0]).toMatch(
+    const shown = done.ok ? [] : (done.git ?? [])
+    expect(shown[0]).toMatch(
       /^error: Your local changes to the following files would be overwritten/,
     )
-    expect(printed[1]).toBe("    a.txt")
-    expect(printed.at(-1)).toBe("Aborting")
+    expect(shown[1]).toBe("    a.txt")
+    expect(shown.at(-1)).toBe("Aborting")
     expect(head(origin.repo)).toBe(before)
     expect(other).not.toBe(before)
   })
@@ -231,5 +231,29 @@ describe("fast-forwarding a checkout", () => {
     await fastForward(origin.repo, { hooks: () => Promise.resolve(hooks) })
     expect(gitIn(origin.repo, "rev-parse", "refs/heads/main")).toBe(landed)
     expect(existsSync(join(origin.repo, "hook-ran"))).toBe(false)
+  })
+})
+
+describe("what git printed, for the card", () => {
+  const failed = (err: string[]) => ({
+    ok: false as const,
+    kind: "exit" as const,
+    status: 1,
+    said: "",
+    err,
+  })
+
+  it("keeps each line within the contract's width after indenting, and counts the lines it cut", () => {
+    const long = "x".repeat(300)
+    const lines = ["error: refused:", long, ...Array.from({ length: 25 }, (_, at) => `f${at}`)]
+    const shown = printed(failed(lines))!
+    expect(shown.git).toHaveLength(20)
+    expect(shown.git[1]).toBe(`    ${long}`.slice(0, 300))
+    expect(shown.git.every((line) => line.length <= 300)).toBe(true)
+    expect(shown.more).toBe(7)
+  })
+
+  it("says nothing where git printed nothing", () => {
+    expect(printed(failed([]))).toBeUndefined()
   })
 })

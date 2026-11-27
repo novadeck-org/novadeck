@@ -58,18 +58,29 @@ export const refusal = (run: Extract<Run, { ok: false }>): string => {
   return named !== "" ? `${plain}: ${named}` : plain || said(run)
 }
 
+/** The most lines of git's own words a refusal carries, and the longest each may be (the contract's). */
+const printedLines = 20
+const printedWidth = 300
+
 /**
  * What git printed when it refused, line by line (the card shows it as git said it): the lines
- * that name files, which git indents, indented again. Undefined where it printed nothing.
+ * that name files, which git indents, indented again, each cut to the contract's width after that;
+ * `more` is how many lines past the limit there were. Undefined where it printed nothing.
  */
-export const printed = (run: Extract<Run, { ok: false }>): string[] | undefined => {
-  const lines = (run.err ?? []).slice(0, 20)
-  if (lines.length === 0) return undefined
-  return lines.map((line) =>
-    /^(error|fatal|hint|warning|please|aborting)\b/i.test(line) || line.endsWith(":")
-      ? line
-      : `    ${line}`,
-  )
+export const printed = (
+  run: Extract<Run, { ok: false }>,
+): { readonly git: string[]; readonly more?: number } | undefined => {
+  const all = run.err ?? []
+  if (all.length === 0) return undefined
+  const git = all
+    .slice(0, printedLines)
+    .map((line) =>
+      (/^(error|fatal|hint|warning|please|aborting)\b/i.test(line) || line.endsWith(":")
+        ? line
+        : `    ${line}`
+      ).slice(0, printedWidth),
+    )
+  return all.length > printedLines ? { git, more: all.length - printedLines } : { git }
 }
 
 export type Forwarded =
@@ -85,7 +96,12 @@ export type Forwarded =
       readonly to: string
       readonly ref?: true
     }
-  | { readonly ok: false; readonly said: string; readonly git?: string[] }
+  | {
+      readonly ok: false
+      readonly said: string
+      readonly git?: string[]
+      readonly more?: number
+    }
 
 /** Why the checkout can't move now: an operation in progress or a lock, else undefined. */
 export const operationIn = async (
@@ -185,13 +201,14 @@ const moveMainRef = async (home: string, options: FastForward): Promise<Forwarde
   )
   return moved.ok
     ? { ok: true, moved: true, from: was, to: main.commit, ref: true }
-    : { ok: false, said: refusal(moved), ...gitSaid(moved) }
+    : // update-ref's words are not those of the `git fetch .` the card shows for this move: only
+      // Novadeck's own are sent.
+      { ok: false, said: refusal(moved) }
 }
 
-const gitSaid = (run: Extract<Run, { ok: false }>): { readonly git?: string[] } => {
-  const git = printed(run)
-  return git === undefined ? {} : { git }
-}
+const gitSaid = (
+  run: Extract<Run, { ok: false }>,
+): { readonly git?: string[]; readonly more?: number } => printed(run) ?? {}
 
 /**
  * Moves the repository's own checkout (`home`, never a linked worktree) to the remote's main

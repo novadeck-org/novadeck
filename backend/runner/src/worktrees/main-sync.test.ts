@@ -227,7 +227,10 @@ describe("what main's move brought", () => {
     expect(repo?.path).toBe("")
     expect(repo?.landing?.files).toEqual(["a.ts", "pnpm-lock.yaml"])
     expect(repo?.landing?.filesTotal).toBe(2)
-    expect(repo?.landing?.dependencies).toEqual({ file: "pnpm-lock.yaml", command: "pnpm install" })
+    expect(repo?.landing?.dependencies).toMatchObject({
+      file: "pnpm-lock.yaml",
+      command: "pnpm install",
+    })
     expect(await sync.followed()).toContain(s.common)
   })
 
@@ -262,7 +265,7 @@ describe("what main's move brought", () => {
     s.origin.land("b.txt", "One (#1)")
     await s.fetcher.fetchNow([s.common])
     await s.fetcher.idle()
-    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true })
+    expect(await s.sync.update(s.origin.repo)).toMatchObject({ ok: true, moved: true })
     await s.sync.idle()
     expect(s.told).toEqual([])
     expect((await s.sync.sync(s.origin.repo)).repos[0]).toMatchObject({
@@ -355,7 +358,10 @@ describe("how far a repository is from origin", () => {
     const { repos } = await sync.sync(join(s.origin.repo, ".."))
     const api = repos.find(({ name }) => name === "api")
     expect(api).toMatchObject({ path: "api", behind: { count: 1 } })
-    expect(await sync.update(join(s.origin.repo, ".."), "api")).toEqual({ ok: true })
+    expect(await sync.update(join(s.origin.repo, ".."), "api")).toMatchObject({
+      ok: true,
+      moved: true,
+    })
     expect(
       (await sync.sync(join(s.origin.repo, ".."))).repos.find(({ name }) => name === "api"),
     ).toMatchObject({
@@ -433,7 +439,7 @@ describe("keeping main current while the checkout is on another branch", () => {
     const landed = s.origin.land("b.txt")
     await s.follow()
     expect((await s.sync.sync(s.origin.repo)).repos[0]?.behind?.count).toBe(1)
-    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true })
+    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true, moved: true, ref: true })
     await s.sync.idle()
     expect(mainRef(s.origin.repo)).toBe(landed)
     expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(head)
@@ -459,6 +465,21 @@ describe("what the Files card shows of a repository", () => {
     expect(repo?.home).toBe(s.origin.repo)
     gitIn(s.origin.repo, "fetch", ".", "origin/main:main")
     expect(mainRef(s.origin.repo)).toBe(gitIn(s.origin.repo, "rev-parse", "origin/main"))
+  })
+
+  it("says a lockfile's own folder, which the command runs in", async ({ setup: s }) => {
+    s.origin.land("web/pnpm-lock.yaml", "Deps (#3)")
+    await s.follow()
+    const [repo] = (await s.sync.sync(s.origin.repo)).repos
+    expect(repo?.landing?.dependencies).toEqual({
+      file: "web/pnpm-lock.yaml",
+      command: "pnpm install",
+      dir: join(s.origin.repo, "web"),
+    })
+  })
+
+  it("says nothing moved where the update found main as it was", async ({ setup: s }) => {
+    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true, moved: false })
   })
 
   it("marks a landing that moved the branch alone, until a move of the checkout joins it", async ({
@@ -490,13 +511,11 @@ describe("what the Files card shows of a repository", () => {
     expect(repo?.pullUrl).toBeNull()
   })
 
-  it("builds a pull request's page for each forge", () => {
+  it("builds a pull request's page on GitHub only, where the number a merge says is one", () => {
     expect(pullUrlOf({ forge: "github", host: "github.com", owner: "o", name: "r" })).toBe(
       "https://github.com/o/r/pull/{number}",
     )
-    expect(pullUrlOf({ forge: "gitlab", host: "gitlab.com", path: "g/s/p" })).toBe(
-      "https://gitlab.com/g/s/p/-/merge_requests/{number}",
-    )
+    expect(pullUrlOf({ forge: "gitlab", host: "gitlab.com", path: "g/s/p" })).toBeNull()
     expect(
       pullUrlOf({
         forge: "azure",
@@ -505,7 +524,7 @@ describe("what the Files card shows of a repository", () => {
         project: "p",
         name: "r",
       }),
-    ).toBe("https://dev.azure.com/o/p/_git/r/pullrequest/{number}")
+    ).toBeNull()
   })
 })
 
@@ -541,7 +560,7 @@ describe("Keep main current off", () => {
     s.keep.on = false
     const landed = s.origin.land("b.txt")
     await s.follow()
-    expect(await s.sync.update(s.origin.repo)).toEqual({ ok: true })
+    expect(await s.sync.update(s.origin.repo)).toMatchObject({ ok: true, moved: true })
     expect(gitIn(s.origin.repo, "rev-parse", "HEAD")).toBe(landed)
     expect(s.told).toEqual([])
   })

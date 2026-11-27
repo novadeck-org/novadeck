@@ -44,12 +44,21 @@ export type CheckoutState = z.infer<typeof checkoutState>
 
 // What `projects.updateCheckout` did: moved to main (or found it there already), or why not.
 export const checkoutUpdate = z.discriminatedUnion("ok", [
-  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({
+    ok: z.literal(true),
+    // Whether anything moved (false: it was found as it was, or changed under the move), and
+    // whether only the local main branch did, with no file touched. Absent from a runner before
+    // revision 25, which says neither.
+    moved: z.boolean().optional(),
+    ref: z.boolean().optional(),
+  }),
   z.strictObject({
     ok: z.literal(false),
     said: z.string().max(300),
-    // What git itself printed, line by line, where it was git that refused.
+    // What git itself printed for the command the card shows, line by line, where it was git that
+    // refused (up to 20 lines), and how many more it printed.
     git: z.array(z.string().max(300)).max(20).optional(),
+    more: z.number().int().min(1).optional(),
   }),
 ])
 export type CheckoutUpdate = z.infer<typeof checkoutUpdate>
@@ -85,7 +94,12 @@ export const syncLanding = z.strictObject({
   files: z.array(z.string().max(4096)).max(200),
   filesTotal: z.number().int().min(0),
   dependencies: z
-    .strictObject({ file: z.string().max(4096), command: z.string().max(200) })
+    .strictObject({
+      file: z.string().max(4096),
+      command: z.string().max(200),
+      // The folder the command runs in, the lockfile's own, on the runner's disk.
+      dir: z.string().max(4096).optional(),
+    })
     .nullable(),
   // The last move of main changed a lockfile.
   dependenciesLatest: z.boolean(),
