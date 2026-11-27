@@ -30,6 +30,8 @@ export const lists: ShapeLists = {
     // What a hook injected: Novadeck's standing notices ride on a prompt this way (probed
     // 2026-11-20, 1.5.13); text with none of its notices is read for nothing.
     "step:SYSTEM_SDK/EPHEMERAL_MESSAGE",
+    // The same from 1.5.18, in the wrapper of a system message (probed 2026-11-27, 1.5.18).
+    "step:SYSTEM_SDK/SYSTEM_MESSAGE",
     "tag:USER_REQUEST",
     // The Inbox reply tag, typed by the doorbell as the person's own prompt.
     "tag:novadeck-reply",

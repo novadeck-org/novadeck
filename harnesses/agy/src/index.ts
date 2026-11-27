@@ -69,7 +69,8 @@ const messaging: MessagingProfile = {
   toolsAtTurnStart: true,
   // Its hooks name no prompt, but its transcript tells what was typed (a USER_EXPLICIT
   // USER_INPUT step) from what woke it: a subagent's message, a Stop hook's continuation
-  // or a notice are SYSTEM_MESSAGE steps, and injected messages EPHEMERAL_MESSAGE ones.
+  // or a notice are SYSTEM_MESSAGE steps, and injected messages EPHEMERAL_MESSAGE ones (from
+  // 1.5.18, SYSTEM_SDK SYSTEM_MESSAGE ones).
   typedEntry,
 }
 
