@@ -281,8 +281,11 @@ const playToClosing = async (address?: string): Promise<void> => {
   await expectClickAt(() => paneOf("Game lead"))
   await new Promise((resolve) => setTimeout(resolve, 3_000))
   expect(closing().query()).toBeNull()
-  await touchStep("Three agents. Your game. Go play.", () => [paneOf("Game lead")], { stays: true })
-  await expect.element(closing(), { timeout: 60_000 }).toBeVisible()
+  // The step holds 20 s after the touch (frontend/tour's playStep), then the card comes.
+  await touchStep("Three agents. Your game. Go play.", () => [paneOf("Game lead")], {
+    holdMs: 20_000,
+  })
+  await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
   await expect.element(coach()).not.toBeInTheDocument()
   await expect.poll(() => closing().query()?.textContent ?? "").toContain("It's yours now.")
 }
@@ -416,9 +419,9 @@ describe("The tour's story", () => {
       // Nothing to play: the model is what is left to look at.
       await expectClickAt(() => paneOf("Modeller"))
       await touchStep("Three agents. Your game. Yours.", () => [paneOf("Modeller")], {
-        stays: true,
+        holdMs: 8_000,
       })
-      await expect.element(closing(), { timeout: 30_000 }).toBeVisible()
+      await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
     },
   )
 

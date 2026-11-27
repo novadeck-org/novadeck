@@ -883,6 +883,15 @@
       "seen": ["feat/pi-harness run 45401874650", "main's nightly run 45487367593 (Windows 1/3)"]
     },
     {
+      "id": "ui-tour-story-closing-touch-unheard",
+      "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/agents/tour-story.spec.tsx > The tour's story > ",
+      "signature": "Cannot find element with locator: getByRole\\('region', \\{ name: 'Tour finished' \\}\\)|The tour never moved on from \"Three agents\\. Your game\\.",
+      "status": "fixed",
+      "cause": "The game's last step holds 20 s after the person touches its subject, then the closing card comes. The spec pressed that subject once and waited 60 s for the card, and in the run where it didn't come the tour never kept the project, so its story hadn't ended; the likeliest cause is a touch the tour didn't hear. The spec now presses again 10 s past the hold where the caption still shows, as it does for every other step, and a failure says where the tour's run was (touched, done). Not reproduced: reasoned from the log.",
+      "seen": ["fix/ci-flakes-1126 run 45904610700 (Windows 1/3), retried and passed"]
+    },
+    {
       "id": "ui-inbox-sheet-press-held-back",
       "jobs": ["^Test \\((?:Linux|macOS|Windows)(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/inbox/inbox.spec.tsx > An Inbox entry's sheet > ",
