@@ -379,7 +379,7 @@ export class Sleepers {
       return stuckReason(agent)
     }
     this.unstick(terminalId)
-    const why = wakeRefusal(agent, check.reason)
+    const why = wakeRefusal(agent, check.reason, check.nova === true)
     this.host.messaging().wakeFailed(terminalId, why)
     return why
   }

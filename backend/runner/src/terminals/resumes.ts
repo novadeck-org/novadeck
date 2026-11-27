@@ -64,13 +64,21 @@ export const endExpecting = (
   murmur?.released(record.summary.id)
 }
 
-/** Why an agent can't be started on a session an agent asked to resume, in a sentence for it. */
+/** The agent as its sentences call it: Nova for Novadeck's own pi's sessions (`nova`). */
+export const labelOf = (agent: AgentName, nova = false): string =>
+  nova ? "Nova" : agentLabel(agent)
+
+/**
+ * Why an agent can't be started on a session an agent asked to resume, in a sentence for it;
+ * `nova` where the session is Nova's.
+ */
 export const resumeRefusal = (
   agent: AgentName,
   reason: UnavailableReason,
   asleep = false,
+  nova = false,
 ): string => {
-  const label = agentLabel(agent)
+  const label = labelOf(agent, nova)
   switch (reason) {
     case "not-connected":
       return `Novadeck isn't connected to ${label}, so it can't resume its sessions.`
@@ -93,10 +101,11 @@ export const resumeRefusal = (
 
 /**
  * Why a sleeping agent could not be woken for the messages waiting for it, in a sentence
- * for their senders: they are gone, and the terminal stays asleep as it was.
+ * for their senders: they are gone, and the terminal stays asleep as it was. `nova` where the
+ * session is Nova's.
  */
-export const wakeRefusal = (agent: AgentName, reason: UnavailableReason): string => {
-  const label = agentLabel(agent)
+export const wakeRefusal = (agent: AgentName, reason: UnavailableReason, nova = false): string => {
+  const label = labelOf(agent, nova)
   const why = {
     "not-connected": `Novadeck isn't connected to ${label}`,
     unsupported: `${label} can't resume a session by its id here`,
@@ -132,7 +141,7 @@ export const resumeNote = (
   took: boolean,
 ): string | undefined => {
   if (!checked || !agent) return undefined
-  const label = agentLabel(agent)
+  const label = labelOf(agent, !checked.ok && checked.nova === true)
   const why = checked.ok
     ? took
       ? undefined
@@ -148,14 +157,17 @@ export const resumeNote = (
   return why && `${label} was running here, but wasn't resumed: ${why}.`
 }
 
-/** Whether a session may resume now: its command and claim, or why not. */
+/**
+ * Whether a session may resume now: its command and claim, or why not, with `nova` where the
+ * session is Nova's, which the sentences saying why call it.
+ */
 export type ResumeCheck =
   | {
       readonly ok: true
       readonly argv: readonly string[]
       readonly key: string
     }
-  | { readonly ok: false; readonly reason: UnavailableReason }
+  | { readonly ok: false; readonly reason: UnavailableReason; readonly nova?: true }
 
 /**
  * Whether a terminal other than `terminalId` has the agent's session: bound, or, where the
@@ -352,8 +364,9 @@ export class Claims {
       session,
       inUse,
     })
-    if (availability.state !== "ready") return { ok: false, reason: availability.reason }
-    if (!resume || session === undefined) return { ok: false, reason: "unsupported" }
+    const nova = own ? { nova: true as const } : {}
+    if (availability.state !== "ready") return { ok: false, reason: availability.reason, ...nova }
+    if (!resume || session === undefined) return { ok: false, reason: "unsupported", ...nova }
     const [program = "", ...rest] = resume(session, choice, launch, transcript)
     return { ok: true, argv: [own ? novaProgram : program, ...rest], key }
   }
@@ -387,7 +400,11 @@ export class Claims {
   ): string | undefined {
     if (!resume) return undefined
     const found = this.check(terminalId, resume.agent, resume.session, true)
-    if (!found.ok) throw new DomainError("CONFLICT", resumeRefusal(resume.agent, found.reason))
+    if (!found.ok)
+      throw new DomainError(
+        "CONFLICT",
+        resumeRefusal(resume.agent, found.reason, false, found.nova === true),
+      )
     return found.key
   }
 

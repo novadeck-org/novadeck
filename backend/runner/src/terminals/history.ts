@@ -23,7 +23,7 @@ import { savedSession } from "./binding/standing.js"
 import { mention } from "./handles.js"
 import type { Former } from "./introductions.js"
 import type { Record } from "./record.js"
-import { resumeNote } from "./resumes.js"
+import { labelOf, resumeNote } from "./resumes.js"
 import {
   hasRun,
   type AgentReport,
@@ -871,12 +871,18 @@ export class ClosedTerminals {
       const state = await this.availability(row)
       this.announce(row)
       if (!say) return
-      const label = agentLabel(waiting.agent)
+      // Nova's session is told by its name.
+      const nova = this.host.ownPi?.(waiting.agent, row.agents[waiting.agent]?.transcript) === true
+      const label = labelOf(waiting.agent, nova)
       const note =
         why !== undefined
           ? `${label} was running here, but wasn't resumed: ${why}.`
           : state.state === "gone" && state.reason === "conversation"
-            ? resumeNote({ ok: false, reason: "conversation-gone" }, waiting.agent, true)
+            ? resumeNote(
+                { ok: false, reason: "conversation-gone", ...(nova && { nova }) },
+                waiting.agent,
+                true,
+              )
             : `${label} was running here, but its conversation didn't open.`
       if (note) this.host.say(record, note)
     })().catch((error: unknown) =>

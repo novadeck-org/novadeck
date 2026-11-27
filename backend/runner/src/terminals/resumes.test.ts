@@ -19,6 +19,7 @@ import {
   resumeRefusal,
   sessionHeldElsewhere,
   transcriptFor,
+  wakeRefusal,
 } from "./resumes.js"
 
 describe("the task a restored worker starts again", () => {
@@ -184,10 +185,21 @@ describe("the session an agent asks to resume in a new terminal", () => {
     })
     // Taken by another terminal, it is in use as any session.
     mine.claim("pi:s-1", "other")
-    expect(mine.check("t1", "pi", "s-1", false, undefined, undefined, own)).toEqual({
-      ok: false,
-      reason: "in-use",
-    })
+    const taken = mine.check("t1", "pi", "s-1", false, undefined, undefined, own)
+    expect(taken).toEqual({ ok: false, reason: "in-use", nova: true })
+    // Said of Nova by its name, the person's pi by Pi's.
+    expect(resumeNote(taken, "pi", false)).toBe(
+      "Nova was running here, but wasn't resumed: that Nova session is already open in another terminal.",
+    )
+    expect(resumeNote({ ok: false, reason: "in-use" }, "pi", false)).toBe(
+      "Pi was running here, but wasn't resumed: that Pi session is already open in another terminal.",
+    )
+    expect(wakeRefusal("pi", "in-use", true)).toBe(
+      "Nova was asleep there and could not be woken: that Nova session is open in another terminal.",
+    )
+    expect(resumeRefusal("pi", "conversation-gone", false, true)).toBe(
+      "That Nova conversation is gone: Nova no longer has it.",
+    )
   })
 
   it("is refused for a disconnected agent, a session another terminal runs or was given", () => {

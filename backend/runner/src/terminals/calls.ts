@@ -299,7 +299,7 @@ export class Calls {
             )
         : undefined
     if (request.agent !== undefined && resuming && !resuming.ok)
-      return refused(resumeRefusal(request.agent, resuming.reason))
+      return refused(resumeRefusal(request.agent, resuming.reason, false, resuming.nova === true))
     // A session a sleeping agent rests on is as taken as one running.
     if (request.agent !== undefined && request.resume !== undefined) {
       const holder = this.host.messaging().holder(request.agent, request.resume)
