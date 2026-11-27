@@ -9,7 +9,7 @@ import { freshNonce } from "@novadeck/tui-input"
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
-import { agentLabel } from "../messaging/messages.js"
+import { agentLabel, agentLabelOf } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { openCallMs, unansweredCalls, type Call } from "../shell/reports.js"
 import type { Shipping } from "../shipping/service.js"
@@ -692,7 +692,7 @@ export class Calls {
       ok: true,
       handle: target.handle,
       title: closing.summary.title,
-      ...(agent !== null && { ran: agentLabel(agent) }),
+      ...(agent !== null && { ran: agentLabelOf(agent, closing.summary.nova) }),
       ...(gone.length > 0 && { gone }),
       ...(others > 0 && { others }),
       ...(coming.length > 0 && { coming }),
@@ -752,7 +752,7 @@ export class Calls {
     agent: AgentName | null,
   ): CloseAnswer {
     const { id, handle, title, sessionId } = closing.summary
-    const ran = agent === null ? undefined : agentLabel(agent)
+    const ran = agent === null ? undefined : agentLabelOf(agent, closing.summary.nova)
     this.host
       .approvals()
       .request(

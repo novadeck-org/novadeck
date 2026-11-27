@@ -337,6 +337,13 @@ const labels = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) a
 /** The harness's name as people know it. */
 export const agentLabel = (agent: AgentName): string => labels[agent]
 
+/**
+ * The agent's name as people know it, Nova for Novadeck's own pi where its terminal's summary
+ * says so (`nova`): the person's own pi stays Pi.
+ */
+export const agentLabelOf = (agent: AgentName, nova?: boolean): string =>
+  nova === true && agent === "pi" ? "Nova" : labels[agent]
+
 /** Text as it goes inside the delivery wrapper: never able to close or forge an element. */
 export const escapeText = (text: string): string =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")

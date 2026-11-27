@@ -9,7 +9,7 @@ import { DomainError } from "../errors.js"
 import type { BundledPi } from "../harnesses/bundled-pi.js"
 import { resumeAvailability, type UnavailableReason } from "../harnesses/eligibility.js"
 import { harnesses } from "../harnesses/registry.js"
-import { agentLabel } from "../messaging/messages.js"
+import { agentLabel, agentLabelOf } from "../messaging/messages.js"
 import { sessionFolder } from "../worktrees/root.js"
 import { expectedAgent } from "./commands.js"
 import type { Record } from "./record.js"
@@ -65,8 +65,7 @@ export const endExpecting = (
 }
 
 /** The agent as its sentences call it: Nova for Novadeck's own pi's sessions (`nova`). */
-export const labelOf = (agent: AgentName, nova = false): string =>
-  nova ? "Nova" : agentLabel(agent)
+export const labelOf = (agent: AgentName, nova = false): string => agentLabelOf(agent, nova)
 
 /**
  * Why an agent can't be started on a session an agent asked to resume, in a sentence for it;
