@@ -131,7 +131,7 @@ const sectionTitleClasses = "settings-section-title m-0"
 const groupTitleClasses = "text-body font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
 const panelClasses =
-  "preferences-panel col-start-1 row-start-1 flex flex-col gap-7 px-8 py-6 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[640px]:px-4 max-[640px]:py-5"
+  "preferences-panel col-start-1 row-start-1 flex min-w-0 flex-col gap-7 px-8 py-6 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[640px]:px-4 max-[640px]:py-5"
 
 // A page's name in the menu, by its id.
 const pageLabel = (id: string): string | undefined =>
