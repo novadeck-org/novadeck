@@ -1441,8 +1441,20 @@ const team: Tool<Listing> = {
   failed: "Novadeck couldn't list your team.",
 }
 
+// What describe's answer adds in a swarm when work starts with no team around it (the runner's
+// `plans`): one look for parts that can go on side by side, each worth an agent of its own, or
+// none. Told "you can spawn other agents if you need to", a bare Claude Code in a swarm built a
+// whole game alone; told "feel free to bring in more agents", it opened three and led them.
+const planning =
+  " Before you go on: this is a swarm, so look once at the task for parts that can go on " +
+  "side by side with yours, each in files of its own, with a way to tell it is done, and big " +
+  "enough to be worth a brief, such as a client beside a server, or art, sound and tests " +
+  "beside the game. Open an agent in its own Novadeck terminal for each such part, with a " +
+  "complete brief, and lead it, keeping a part for yourself. If no part is, carry on alone."
+
 const describe: Tool<{
   readonly worktree?: { readonly branch: string; readonly title: string }
+  readonly plan?: true
 }> = {
   name: "describe",
   description:
@@ -1497,9 +1509,9 @@ const describe: Tool<{
   call: "describe",
   request: (args) => picked(args, ["title", "summary", "waitingFor", "worktree", "worktreeTitle"]),
   said: (answer) =>
-    answer.worktree
+    (answer.worktree
       ? `Described this terminal, and titled the worktree on ${answer.worktree.branch} "${answer.worktree.title}".`
-      : "Described this terminal.",
+      : "Described this terminal.") + (answer.plan ? planning : ""),
   failed: "Novadeck couldn't describe the terminal.",
 }
 

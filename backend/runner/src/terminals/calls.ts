@@ -944,6 +944,8 @@ export class Calls {
     // A summary murmur already named the terminal from says nothing new to it, as when an
     // agent that summarized before agents gave titles describes only to add its title.
     const unchanged = record.naming.summary === summary && record.naming.murmur !== null
+    // A title it hasn't given before names work that starts here (`plans`).
+    const starts = record.naming.own?.title.toLowerCase() !== title.toLowerCase()
     record.naming = described(record.naming, title, summary)
     const waiting = waitingForOf(read.request.waitingFor, Date.now())
     if (waiting !== undefined) record.waitingFor = waiting ?? undefined
@@ -951,8 +953,24 @@ export class Calls {
     this.host.retitle(record)
     this.host.save(record)
     if (!unchanged) this.host.summarized(record.summary.id)
+    const plan = starts && this.plans(call.terminalId) ? { plan: true as const } : {}
     return titled
-      ? { ok: true, worktree: { branch: titled.branch, title: titled.title } }
-      : { ok: true }
+      ? { ok: true, worktree: { branch: titled.branch, title: titled.title }, ...plan }
+      : { ok: true, ...plan }
+  }
+
+  /**
+   * Whether the terminal's agent is to look, as its work starts, for parts of it that can go
+   * on side by side: in a swarm, and only where no team is around it yet, neither a lead of its
+   * own (whose brief already split the work) nor terminals it leads. Left to their own pick,
+   * agents in a swarm split no work unless the person's words pushed them to.
+   */
+  private plans(terminalId: string): boolean {
+    if (this.host.agentMode() !== "swarm") return false
+    const messaging = this.host.messaging()
+    if (messaging.leadOf(terminalId) !== undefined) return false
+    for (const id of this.host.records().keys())
+      if (messaging.leadOf(id)?.terminalId === terminalId) return false
+    return true
   }
 }
