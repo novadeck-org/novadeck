@@ -252,10 +252,10 @@ export class MainFetcher {
    * or not. A repository already being fetched is not fetched twice: its fetch is waited for.
    * A failure leaves the repository's own schedule as it was.
    */
-  async fetchNow(commonDirs: Iterable<string>): Promise<void> {
+  async fetchNow(commonDirs: Iterable<string>, follow = true): Promise<void> {
     await Promise.all(
       [...new Set(commonDirs)].map((commonDir) =>
-        this.fetching(commonDir, this.stateOf(commonDir), true, true),
+        this.fetching(commonDir, this.stateOf(commonDir), true, follow),
       ),
     )
   }

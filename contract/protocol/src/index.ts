@@ -215,6 +215,7 @@ export {
   type CheckoutState,
   type CheckoutUpdate,
   type FolderListing,
+  projectSync,
   type ProjectSync,
   type RepoSync,
   type SyncLanding,

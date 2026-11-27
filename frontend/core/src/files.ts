@@ -57,6 +57,8 @@ export type SyncMerge = {
   readonly pr: number | null
   readonly commit: string
   readonly own: boolean
+  // It came in the last move of main: what a notice is about.
+  readonly latest: boolean
 }
 
 export type SyncLanding = {
@@ -70,6 +72,8 @@ export type SyncLanding = {
   // How many files changed, which may be more than `files` lists.
   readonly filesTotal: number
   readonly dependencies: { readonly file: string; readonly command: string } | null
+  // The last move of main changed a lockfile.
+  readonly dependenciesLatest: boolean
 }
 
 // How one git repository of a project stands against its origin's main. `path` is its folder from

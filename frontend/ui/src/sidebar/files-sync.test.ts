@@ -4,7 +4,9 @@ import { vi } from "vitest"
 import { describe, expect, it } from "../test"
 import {
   agoOf,
+  acknowledgedOf,
   createSyncFeed,
+  filesNews,
   freshNotices,
   hasNews,
   hidesNews,
@@ -13,6 +15,7 @@ import {
   marksOf,
   syncFeedOf,
   syncPollMs,
+  syncSlowPollMs,
   whyBehind,
 } from "./files-sync"
 
@@ -22,12 +25,13 @@ const landing = (parts: Partial<SyncLanding> = {}): SyncLanding => ({
   at: 0,
   commits: 3,
   merges: [
-    { subject: "Mine", pr: 1, commit: "x", own: true },
-    { subject: "Theirs", pr: 2, commit: "y", own: false },
+    { subject: "Mine", pr: 1, commit: "x", own: true, latest: true },
+    { subject: "Theirs", pr: 2, commit: "y", own: false, latest: true },
   ],
   files: [],
   filesTotal: 14,
   dependencies: null,
+  dependenciesLatest: false,
   ...parts,
 })
 const repo = (parts: Partial<RepoSync> = {}): RepoSync => ({
@@ -52,7 +56,9 @@ describe("the words a repository's marks say", () => {
     expect(marksOf(repo({ landing: landing() }))).toEqual([
       { kind: "new", text: "2 new", tip: "2 merges from origin" },
     ])
-    const plain = landing({ merges: [{ subject: "x", pr: null, commit: "z", own: false }] })
+    const plain = landing({
+      merges: [{ subject: "x", pr: null, commit: "z", own: false, latest: true }],
+    })
     expect(marksOf(repo({ landing: plain }))[0]).toMatchObject({
       text: "1 new",
       tip: "1 commit from origin",
@@ -105,24 +111,74 @@ describe("the notice a landing earns", () => {
     expect(
       landingNotice(
         repo(),
-        landing({ dependencies: { file: "x/pnpm-lock.yaml", command: "pnpm install" } }),
+        landing({
+          dependencies: { file: "x/pnpm-lock.yaml", command: "pnpm install" },
+          dependenciesLatest: true,
+        }),
       ),
     ).toMatchObject({ body: "New dependencies: run pnpm install before you start the app." })
   })
 
   it("is for new dependencies alone, and for a teammate's merge alone is none", () => {
-    const theirs = landing({ merges: [{ subject: "Theirs", pr: 2, commit: "y", own: false }] })
+    const theirs = landing({
+      merges: [{ subject: "Theirs", pr: 2, commit: "y", own: false, latest: true }],
+    })
     expect(landingNotice(repo(), theirs)).toBeUndefined()
     expect(
       landingNotice(repo(), {
         ...theirs,
         dependencies: { file: "x/Cargo.lock", command: "cargo build" },
+        dependenciesLatest: true,
       }),
     ).toEqual({
       id: "main-1234567890ab",
       title: "New dependencies in api",
       body: "Cargo.lock changed. Run cargo build before you start the app.",
     })
+  })
+})
+
+describe("what a landing is told of again", () => {
+  it("is only what came in the last move, not the merges or lockfile of the ones before", () => {
+    const earlier = landing({
+      merges: [
+        { subject: "Mine, told of already", pr: 1, commit: "x", own: true, latest: false },
+        { subject: "Theirs", pr: 2, commit: "y", own: false, latest: true },
+      ],
+      dependencies: { file: "pnpm-lock.yaml", command: "pnpm install" },
+      dependenciesLatest: false,
+    })
+    expect(landingNotice(repo(), earlier)).toBeUndefined()
+    const second = landing({
+      merges: [
+        { subject: "Mine again", pr: 3, commit: "z", own: true, latest: true },
+        ...earlier.merges,
+      ],
+      dependencies: earlier.dependencies,
+      dependenciesLatest: false,
+    })
+    expect(landingNotice(repo(), second)).toMatchObject({
+      title: "Mine again landed in main",
+      body: "api caught up with origin",
+    })
+  })
+})
+
+describe("the rail's dot for the repositories", () => {
+  const held = { remote: "origin/main", count: 2, why: "You have edits in a.ts", merges: [] }
+  it("is lit by a landing, and by main left behind until the panel has been open on it", () => {
+    expect(filesNews([repo({ landing: landing() })], new Map())).toBe("main moved")
+    expect(filesNews([repo({ behind: held })], new Map())).toBe("one is behind origin")
+    expect(
+      filesNews([repo({ behind: held })], acknowledgedOf([repo({ behind: held })])),
+    ).toBeUndefined()
+    expect(filesNews([repo({ ahead: 3 })], new Map())).toBeUndefined()
+  })
+
+  it("lights again when main falls further behind, and not for a reason not yet known", () => {
+    const seen = acknowledgedOf([repo({ behind: held })])
+    expect(filesNews([repo({ behind: { ...held, count: 3 } })], seen)).toBe("one is behind origin")
+    expect(filesNews([repo({ behind: { ...held, why: null } })], new Map())).toBeUndefined()
   })
 })
 
@@ -142,6 +198,50 @@ describe("the landings the person is told of", () => {
 })
 
 describe("the feed of a project's repositories", () => {
+  it("asks slowly while only the rail and the notices follow it, and fast while the panel does", async () => {
+    vi.useFakeTimers()
+    try {
+      const sync = vi.fn<NonNullable<ProjectFiles["sync"]>>(async () => ({ repos: [] }))
+      const feed = createSyncFeed({ sync }, "p")!
+      const slow = feed.retain()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sync).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(syncPollMs * 3)
+      expect(sync).toHaveBeenCalledTimes(1)
+      const fast = feed.retain(true)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sync).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(syncPollMs)
+      expect(sync).toHaveBeenCalledTimes(3)
+      fast()
+      await vi.advanceTimersByTimeAsync(syncPollMs * 2)
+      expect(sync).toHaveBeenCalledTimes(3)
+      await vi.advanceTimersByTimeAsync(syncSlowPollMs)
+      expect(sync).toHaveBeenCalledTimes(4)
+      slow()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("says once that reading the repositories failed, not at every poll", async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const feed = createSyncFeed(
+        { sync: async () => Promise.reject(new Error("bad answer")) },
+        "p",
+      )!
+      const release = feed.retain(true)
+      await vi.advanceTimersByTimeAsync(syncPollMs * 3)
+      expect(warn).toHaveBeenCalledTimes(1)
+      release()
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it("is none where the backend tells none, and one for each backend and project", () => {
     expect(createSyncFeed({}, "p")).toBeUndefined()
     const files = { sync: async () => ({ repos: [] }) } as unknown as ProjectFiles
@@ -155,8 +255,8 @@ describe("the feed of a project's repositories", () => {
     try {
       const sync = vi.fn<NonNullable<ProjectFiles["sync"]>>(async () => ({ repos: [repo()] }))
       const feed = createSyncFeed({ sync }, "p")!
-      const first = feed.retain()
-      const second = feed.retain()
+      const first = feed.retain(true)
+      const second = feed.retain(true)
       await vi.advanceTimersByTimeAsync(0)
       expect(sync).toHaveBeenCalledTimes(1)
       expect(feed.store.getSnapshot()?.repos).toHaveLength(1)

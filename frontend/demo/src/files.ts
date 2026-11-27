@@ -428,9 +428,9 @@ export type DemoCheckout = { readonly count: number; readonly refusal?: string }
 // What main's move brought, as the demo tells it: three merges (one of them an agent's), the files
 // of `movedFiles` among 14, and a lockfile that changed.
 const demoMerges = [
-  { subject: "Add the receipt step", pr: 41, commit: "a1b2c3d4e5f6", own: true },
-  { subject: "Price rounds to cents", pr: 40, commit: "b2c3d4e5f6a1", own: false },
-  { subject: "Bump the payment SDK", pr: 39, commit: "c3d4e5f6a1b2", own: false },
+  { subject: "Add the receipt step", pr: 41, commit: "a1b2c3d4e5f6", own: true, latest: true },
+  { subject: "Price rounds to cents", pr: 40, commit: "b2c3d4e5f6a1", own: false, latest: true },
+  { subject: "Bump the payment SDK", pr: 39, commit: "c3d4e5f6a1b2", own: false, latest: true },
 ]
 
 // The file main brings to the checkout when it moves, and the one it takes away.
@@ -546,6 +546,7 @@ export const createDemoFiles = (
     files: paths,
     filesTotal: 14,
     dependencies: { file: "package-lock.json", command: "npm install" },
+    dependenciesLatest: true,
   })
   const sync = async (id: string): Promise<ProjectSync> => {
     if (id !== projectId) return { repos: [] }

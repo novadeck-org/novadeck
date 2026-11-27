@@ -1607,12 +1607,13 @@ describe("The Files panel", () => {
       at: Date.now() - 120_000,
       commits: 3,
       merges: [
-        { subject: "Add the cart", pr: 12, commit: "c1c1c1c1", own: true },
-        { subject: "Fix prices", pr: null, commit: "d2d2d2d2", own: false },
+        { subject: "Add the cart", pr: 12, commit: "c1c1c1c1", own: true, latest: true },
+        { subject: "Fix prices", pr: null, commit: "d2d2d2d2", own: false, latest: true },
       ],
       files: ["packages/api/src/index.ts"],
       filesTotal: 14,
       dependencies: { file: "packages/api/pnpm-lock.yaml", command: "pnpm install" },
+      dependenciesLatest: true,
       ...parts,
     })
     const repo = (parts: Partial<RepoSync> = {}): RepoSync => ({
@@ -1630,7 +1631,7 @@ describe("The Files panel", () => {
       remote: "origin/main",
       count: 2,
       why: "You have edits in src/a.ts",
-      merges: [{ subject: "Waiting merge", pr: 7, commit: "e3e3e3e3", own: false }],
+      merges: [{ subject: "Waiting merge", pr: 7, commit: "e3e3e3e3", own: false, latest: true }],
     }
     // A backend that tells `current`, and records what was asked of it.
     const stand = (first: readonly RepoSync[]) => {
@@ -1790,6 +1791,42 @@ describe("The Files panel", () => {
       act(() => behindLine.querySelector<HTMLButtonElement>(".files-update")!.click())
       await panel.settle()
       expect(held.update).toHaveBeenCalledWith("p", "")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("says on the line why an update was refused, keeps it when the card opens, and offers Retry", async () => {
+      const held = stand([repo({ path: "", name: "storefront", behind })])
+      held.update.mockResolvedValueOnce({ ok: false, said: "Your changes to a.ts would be lost." })
+      const panel = await mountWith(held.feed)
+      act(() => panel.view.container.querySelector<HTMLButtonElement>(".files-update")!.click())
+      await panel.settle()
+      const line = () => panel.view.container.querySelector(".files-sync-line")!
+      expect(line().textContent).toContain("Can't update: Your changes to a.ts would be lost.")
+      expect(line().querySelector(".files-update")?.textContent).toBe("Retry")
+      act(() => line().querySelector<HTMLElement>("[data-kind=behind]")!.click())
+      await panel.settle()
+      expect(line().textContent).toContain("Can't update: Your changes to a.ts would be lost.")
+      expect(document.querySelector(".files-card")?.textContent).toContain("Can't update:")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
+    it("keeps a mark on the line in the tab order and a mark in a row out of it and out of what is read", async () => {
+      const held = stand([
+        repo({ path: "", name: "storefront", landing: landing() }),
+        repo({ path: "packages/web", name: "web", landing: landing({ to: "c3" }) }),
+      ])
+      const panel = await mountWith(held.feed)
+      const onLine = panel.view.container.querySelector<HTMLElement>(
+        ".files-sync-line .files-mark",
+      )!
+      expect(onLine.getAttribute("tabindex")).toBe("0")
+      expect(onLine.getAttribute("aria-hidden")).toBeNull()
+      await panel.click("packages")
+      const inRow = panel.row("web").querySelector<HTMLElement>(".files-mark")!
+      expect(inRow.getAttribute("tabindex")).toBe("-1")
+      expect(inRow.getAttribute("aria-hidden")).toBe("true")
       await nextFrame()
       panel.view.unmount()
     })

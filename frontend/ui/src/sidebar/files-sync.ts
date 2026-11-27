@@ -14,12 +14,16 @@ import { createStore, type Store } from "@novadeck/core/store"
 // fetch that moved main, or the person's own pull or commit (the commit it is at changes), shows
 // within this.
 export const syncPollMs = 20_000
+// While nothing shows them (the Files panel is hidden), they are followed for the rail's dot and the
+// notices only, which can wait: a fetch every five minutes is what there is to see.
+export const syncSlowPollMs = 120_000
 
 export type SyncFeed = {
   readonly store: Store<ProjectSync | undefined>
-  // Follows the repositories (the first call asks at once, and then every `syncPollMs`) until the
+  // Follows the repositories (the first call asks at once, and then every `syncSlowPollMs`, or
+  // every `syncPollMs` while any caller follows them `fast`, as the shown panel does) until the
   // returned release is called; the last one to let go stops the asking.
-  readonly retain: () => () => void
+  readonly retain: (fast?: boolean) => () => void
   // Asks again now, once the answer under way, if any, is in.
   readonly refresh: () => void
   // The person saw what main's move up to the commit `to` brought in the repository at `path`.
@@ -40,9 +44,12 @@ export const createSyncFeed = (
   if (!sync) return undefined
   const store = createStore<ProjectSync | undefined>(undefined)
   let users = 0
+  let fastUsers = 0
   let timer: ReturnType<typeof setInterval> | undefined
   let reading = false
   let again = false
+  // Said once for each time the reads begin to fail, not at every poll.
+  let failing = false
   const read = async (): Promise<void> => {
     if (reading) {
       again = true
@@ -52,29 +59,38 @@ export const createSyncFeed = (
     do {
       again = false
       // eslint-disable-next-line no-await-in-loop -- One read at a time (a big repository's can take long).
-      const next = await sync(projectId).catch(() => undefined)
+      const next = await sync(projectId).catch((error: unknown) => {
+        if (!failing) console.warn("Novadeck couldn't read how its repositories stand:", error)
+        failing = true
+        return undefined
+      })
+      if (next) failing = false
       if (next) store.update((known) => (sameSync(known, next) ? known! : next))
       // eslint-disable-next-line no-unmodified-loop-condition -- Others retain and release meanwhile.
     } while (again && users > 0)
     reading = false
   }
+  // The asking, at the pace of whoever follows closest; `now` asks at once as well.
+  const schedule = (now: boolean): void => {
+    clearInterval(timer)
+    timer = undefined
+    if (users === 0) return
+    if (now) void read()
+    timer = setInterval(() => void read(), fastUsers > 0 ? syncPollMs : syncSlowPollMs)
+  }
   return {
     store,
-    retain: () => {
+    retain: (fast = false) => {
       users += 1
-      if (users === 1) {
-        void read()
-        timer = setInterval(() => void read(), syncPollMs)
-      }
+      if (fast) fastUsers += 1
+      schedule(users === 1 || (fast && fastUsers === 1))
       let released = false
       return () => {
         if (released) return
         released = true
         users -= 1
-        if (users === 0) {
-          clearInterval(timer)
-          timer = undefined
-        }
+        if (fast) fastUsers -= 1
+        schedule(false)
       }
     },
     refresh: () => void read(),
@@ -216,10 +232,12 @@ export const landingNotice = (
   landing: SyncLanding,
 ): { readonly id: string; readonly title: string; readonly body: string } | undefined => {
   const id = `${landingNoticePrefix}${landing.to.slice(0, 12)}`
-  const own = landing.merges.filter((merge) => merge.own)
-  const hint = landing.dependencies
-    ? `New dependencies: run ${landing.dependencies.command} before you start the app.`
-    : undefined
+  // Only what came in the last move: the earlier ones the person was told of.
+  const own = landing.merges.filter((merge) => merge.own && merge.latest)
+  const hint =
+    landing.dependencies && landing.dependenciesLatest
+      ? `New dependencies: run ${landing.dependencies.command} before you start the app.`
+      : undefined
   const first = own[0]
   if (first)
     return {
@@ -227,7 +245,7 @@ export const landingNotice = (
       title: `${first.subject}${own.length > 1 ? ` and ${own.length - 1} more` : ""} landed in ${repo.branch}`,
       body: hint ?? `${repo.name} caught up with origin`,
     }
-  if (landing.dependencies)
+  if (landing.dependencies && landing.dependenciesLatest)
     return {
       id,
       title: `New dependencies in ${repo.name}`,
@@ -254,3 +272,35 @@ export const freshNotices = (
     const notice = landingNotice(repo, landing)
     return notice ? [notice] : []
   })
+
+// How many commits each repository (by path) was behind when the person last had the Files panel
+// open: what the rail's dot has been told of.
+export type Acknowledged = ReadonlyMap<string, number>
+
+// What the rail's dot says, or undefined for none: a landing not yet seen, or main left behind that
+// the person hasn't had the panel open on, since it began or grew. A repository behind only while
+// Novadeck hasn't moved it yet (no reason) is no news: it is moved a moment later.
+export const filesNews = (
+  repos: readonly RepoSync[],
+  acknowledged: Acknowledged,
+): string | undefined => {
+  const landed = repos.filter((repo) => repo.landing !== null).length
+  const behind = repos.filter(
+    (repo) =>
+      repo.behind !== null &&
+      repo.behind.why !== null &&
+      repo.behind.count > (acknowledged.get(repo.path) ?? 0),
+  ).length
+  if (landed === 0 && behind === 0) return undefined
+  return [
+    landed > 0 ? (landed === 1 ? "main moved" : `main moved in ${landed} repositories`) : "",
+    behind > 0 ? (behind === 1 ? "one is behind origin" : `${behind} are behind origin`) : "",
+  ]
+    .filter(Boolean)
+    .join(", ")
+}
+
+// The repositories behind as they stand: what having the panel open acknowledges. One that is no
+// longer behind is forgotten, so it lights the dot again when it falls behind anew.
+export const acknowledgedOf = (repos: readonly RepoSync[]): Acknowledged =>
+  new Map(repos.flatMap((repo) => (repo.behind ? [[repo.path, repo.behind.count] as const] : [])))

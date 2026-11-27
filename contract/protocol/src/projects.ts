@@ -64,6 +64,8 @@ export const syncMerge = z.strictObject({
   pr: z.number().int().min(1).nullable(),
   commit: z.string().max(128),
   own: z.boolean(),
+  // It came in the last move of main, which a notice is about; the earlier ones the person was told of.
+  latest: z.boolean(),
 })
 export type SyncMerge = z.infer<typeof syncMerge>
 
@@ -78,6 +80,8 @@ export const syncLanding = z.strictObject({
   dependencies: z
     .strictObject({ file: z.string().max(4096), command: z.string().max(200) })
     .nullable(),
+  // The last move of main changed a lockfile.
+  dependenciesLatest: z.boolean(),
 })
 export type SyncLanding = z.infer<typeof syncLanding>
 

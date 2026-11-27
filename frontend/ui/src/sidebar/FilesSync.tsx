@@ -29,11 +29,15 @@ const Mark = ({
   mark,
   path,
   open,
+  inTree,
   onOpen,
 }: {
   mark: SyncMark
   path: string
   open: boolean
+  // It sits in a tree's row, whose own label says it and whose menu opens it: out of the tab order
+  // and of what a screen reader reads. Outside the tree it is a control like any other.
+  inTree: boolean
   onOpen: (kind: SyncCardKind, anchor: HTMLElement) => void
 }): React.JSX.Element =>
   mark.kind === "ahead" ? (
@@ -50,7 +54,8 @@ const Mark = ({
         data-kind={mark.kind}
         data-open={open}
         data-sync-mark={markKey(mark.kind, path)}
-        tabIndex={-1}
+        tabIndex={inTree ? -1 : 0}
+        aria-hidden={inTree ? true : undefined}
         aria-label={mark.tip}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -83,6 +88,7 @@ export const SyncMarks = ({
           mark={mark}
           path={repo.path}
           open={open === mark.kind}
+          inTree
           onOpen={(kind, anchor) => onOpen(repo, kind, anchor)}
         />
       ))}
@@ -99,12 +105,15 @@ export const SyncLine = ({
   repo,
   open,
   updating,
+  refused,
   onOpen,
   onUpdate,
 }: {
   repo: RepoSync | undefined
   open: SyncCardKind | undefined
   updating: boolean
+  // Why the last update was refused, in git's words.
+  refused: string | undefined
   onOpen: (repo: RepoSync, kind: SyncCardKind, anchor: HTMLElement) => void
   onUpdate: (repo: RepoSync) => void
 }): React.JSX.Element | null => {
@@ -116,9 +125,16 @@ export const SyncLine = ({
       className="files-sync-line"
       data-state={behind ? "behind" : "new"}
       data-open={open !== undefined}
+      data-refused={refused !== undefined || undefined}
     >
       <b className="files-sync-branch">{repo.branch}</b>
-      <span className="files-sync-said">{behind ? "is behind" : "just caught up"}</span>
+      <span className="files-sync-said" title={refused}>
+        {refused !== undefined
+          ? `Can't update: ${refused}`
+          : behind
+            ? "is behind"
+            : "just caught up"}
+      </span>
       <span className="files-sync-marks">
         {marks.map((mark) => (
           <Mark
@@ -126,6 +142,7 @@ export const SyncLine = ({
             mark={mark}
             path={repo.path}
             open={open === mark.kind}
+            inTree={false}
             onOpen={(kind, anchor) => onOpen(repo, kind, anchor)}
           />
         ))}
@@ -137,7 +154,7 @@ export const SyncLine = ({
           disabled={updating}
           onClick={() => onUpdate(repo)}
         >
-          {updating ? "Updating…" : "Update"}
+          {updating ? "Updating…" : refused !== undefined ? "Retry" : "Update"}
         </button>
       )}
     </div>

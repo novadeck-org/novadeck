@@ -22,6 +22,9 @@ export type Landing = {
   readonly files: readonly string[]
   readonly filesTotal: number
   readonly dependencies: Dependencies | null
+  /** The commits of the last move among `merges`, and whether that move changed a lockfile. */
+  readonly latest: readonly string[]
+  readonly dependenciesLatest: boolean
 }
 
 export type Dependencies = { readonly file: string; readonly command: string }
@@ -130,5 +133,7 @@ export const landingOf = async (
     files: files.slice(0, filesKept),
     filesTotal: files.length,
     dependencies: dependenciesOf(files),
+    latest: merges.map(({ commit }) => commit),
+    dependenciesLatest: dependenciesOf(files) !== null,
   }
 }

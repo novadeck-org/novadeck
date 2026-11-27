@@ -437,6 +437,34 @@ describe("opening a worktree", () => {
     expect(git(origin.repo, "rev-parse", "HEAD")).toBe(landed)
   })
 
+  it("fetches a repository whose pull request merged, moving its checkout only where the sweep would", async ({
+    resources,
+    fx: f,
+  }) => {
+    const origin = withOrigin((cleanup) => resources.defer(cleanup))
+    const common = join(origin.repo, ".git")
+    let followed: string[] = []
+    const { fetches, fetcher } = recordingFetcher(resources, 0)
+    const worktrees = new Worktrees(f.store, {
+      exists: (id) => f.live.has(id),
+      root: f.root,
+      cleanup: { fetcher },
+      followed: () => Promise.resolve(followed),
+    })
+    resources.defer(() => void worktrees.stop())
+    const before = git(origin.repo, "rev-parse", "HEAD")
+    origin.land("b.txt")
+    await worktrees.fetchMerged(common)
+    await fetcher.idle()
+    expect(fetches).toHaveLength(1)
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(before)
+    followed = [common]
+    const landed = origin.land("c.txt")
+    await worktrees.fetchMerged(common)
+    await fetcher.idle()
+    expect(git(origin.repo, "rev-parse", "HEAD")).toBe(landed)
+  })
+
   it("moves the checkout of a repository that also has a tracked worktree, on the schedule", async ({
     resources,
     fx: f,

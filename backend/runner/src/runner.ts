@@ -615,8 +615,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // are watched. There are no switches: a `forges.set` from a client before them saves nothing
   // and leaves the forge on.
   const forges = new Forges({
-    // A pull request of a watched branch merged: its origin's main is fetched and followed now.
-    merged: (commonDir) => void worktrees.fetchNow([commonDir]),
+    // A pull request of a watched branch merged: its origin's main is fetched now, and followed where the sweep would.
+    merged: (commonDir) => void worktrees.fetchMerged(commonDir),
     enabled: () => forgeName.options,
     save: () => {},
     // The branches the works' checkouts are on now, not those they were opened on.

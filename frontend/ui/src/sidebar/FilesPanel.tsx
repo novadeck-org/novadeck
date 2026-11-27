@@ -186,6 +186,8 @@ const FilesPanelView = ({
   // again now. The backend moved a checkout to main, or the person's own pull or commit moved it:
   // the files on disk changed, so what is on screen is read again, added and removed files with it.
   const repos = useRepoSync(sync)
+  // Shown, the repositories are asked of faster than when only the rail and the notices follow them.
+  useEffect(() => (showing ? sync?.retain(true) : undefined), [showing, sync])
   useEffect(() => {
     if (showing) sync?.refresh()
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A turn's end asks again.
@@ -207,7 +209,12 @@ const FilesPanelView = ({
     { readonly kind: SyncCardKind; readonly repo: RepoSync; readonly rect: DOMRect } | undefined
   >()
   const [updating, setUpdating] = useState(false)
-  const [refusal, setRefusal] = useState<string | undefined>()
+  // Why the last update was refused, and of which repository: it stands while that one is behind.
+  const [refusal, setRefusal] = useState<{ readonly path: string; readonly said: string }>()
+  const refusedAt = (path: string): string | undefined =>
+    refusal?.path === path && repos.find((repo) => repo.path === path)?.behind
+      ? refusal.said
+      : undefined
   const live = card && repos.find((repo) => repo.path === card.repo.path)
   const cardRepo = card?.kind === "behind" ? live : card?.repo
   const cardOpen =
@@ -218,7 +225,7 @@ const FilesPanelView = ({
     setRefusal(undefined)
     void sync.update(repo.path).then((done) => {
       setUpdating(false)
-      if (!done.ok) setRefusal(done.said)
+      if (!done.ok) setRefusal({ path: repo.path, said: done.said })
     })
   }
   const [selected, setSelected] = useState<string | null>(null)
@@ -332,7 +339,6 @@ const FilesPanelView = ({
   // A mark opens its card; opening what landed pulses the files that came in once in the tree.
   const openCard = (repo: RepoSync, kind: SyncCardKind, anchor: HTMLElement): void => {
     const rect = anchor.getBoundingClientRect()
-    setRefusal(undefined)
     // Another card open is closed first, which has what it showed seen.
     closeCard()
     if (kind === "new" && repo.landing) pulse(repo.landing.files)
@@ -499,6 +505,7 @@ const FilesPanelView = ({
         repo={rootRepo(repos)}
         open={card?.repo.path === "" ? card.kind : undefined}
         updating={updating}
+        refused={refusedAt("")}
         onOpen={openCard}
         onUpdate={update}
       />
@@ -519,7 +526,7 @@ const FilesPanelView = ({
               kind={card.kind}
               repo={cardRepo}
               updating={updating}
-              refused={refusal}
+              refused={refusedAt(card.repo.path)}
               onUpdate={() => update(cardRepo)}
             />
           )}

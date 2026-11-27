@@ -121,8 +121,19 @@ export class Cleanup {
   }
 
   /** Fetches the repositories' origins now: see `MainFetcher.fetchNow`. */
-  fetchNow(commonDirs: Iterable<string>): Promise<void> {
-    return this.fetcher.fetchNow(commonDirs)
+  fetchNow(commonDirs: Iterable<string>, follow = true): Promise<void> {
+    return this.fetcher.fetchNow(commonDirs, follow)
+  }
+
+  /**
+   * Fetches a repository now where a pull request of it merged, and moves its checkout only where the
+   * sweep would: it has a tracked worktree, or is in an open project.
+   */
+  async fetchMerged(commonDir: string): Promise<void> {
+    const owned = this.service.all().some((row) => row.commonDir === commonDir)
+    const followed =
+      owned || ((await this.host.followed?.().catch(() => [])) ?? []).includes(commonDir)
+    await this.fetcher.fetchNow([commonDir], followed)
   }
 
   /** Starts the periodic look, and takes the first now. */

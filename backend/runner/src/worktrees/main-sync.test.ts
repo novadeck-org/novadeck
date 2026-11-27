@@ -1,6 +1,8 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+
+import { projectSync } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { gitIn, withOrigin, type Origin } from "../testing/origin.js"
@@ -185,6 +187,63 @@ describe("what main's move brought", () => {
     expect(s.told.map(({ landing }) => landing.commits)).toEqual([1, 1])
   })
 
+  it("says which merges and whether a lockfile came in the last move, not in those before", async ({
+    setup: s,
+  }) => {
+    s.origin.land("pnpm-lock.yaml", "One (#1)")
+    await s.follow()
+    s.origin.land("c.txt", "Two (#2)")
+    await s.follow()
+    const landing = (await s.sync.sync(s.origin.repo)).repos[0]?.landing
+    expect(landing?.merges.map(({ pr, latest }) => [pr, latest])).toEqual([
+      [2, true],
+      [1, false],
+    ])
+    expect(landing?.dependencies?.command).toBe("pnpm install")
+    expect(landing?.dependenciesLatest).toBe(false)
+  })
+
+  it("gives a landing's files from the project's folder where that is inside the repository", async ({
+    setup: s,
+  }) => {
+    mkdirSync(join(s.origin.repo, "packages", "app"), { recursive: true })
+    s.origin.land("packages/app/a.ts", "Inside (#1)")
+    s.origin.land("packages/app/pnpm-lock.yaml", "Lock (#2)")
+    s.origin.land("other.ts", "Outside (#3)")
+    await s.follow()
+    const sync = new MainSync({
+      projects: () => [{ id: "p", cwd: join(s.origin.repo, "packages", "app") }],
+      moved: (dir) => s.fetcher.moved(dir),
+      update: (dir) => s.fetcher.update(dir),
+      landed: () => {},
+    })
+    // The landing is the runner's own, recorded by the service that watched the move.
+    const [repo] = (await s.sync.sync(join(s.origin.repo, "packages", "app"))).repos
+    expect(repo?.path).toBe("")
+    expect(repo?.landing?.files).toEqual(["a.ts", "pnpm-lock.yaml"])
+    expect(repo?.landing?.filesTotal).toBe(2)
+    expect(repo?.landing?.dependencies).toEqual({ file: "pnpm-lock.yaml", command: "pnpm install" })
+    expect(await sync.followed()).toContain(s.common)
+  })
+
+  it("names the file a rename went to, not the one it came from, and keeps the reason within what the contract allows", async ({
+    setup: s,
+  }) => {
+    gitIn(s.origin.repo, "mv", "a.txt", "renamed.txt")
+    s.origin.land("b.txt")
+    s.origin.fetch()
+    expect((await s.sync.sync(s.origin.repo)).repos[0]?.behind?.why).toBe(
+      "You have edits in renamed.txt",
+    )
+    const long = join("d".repeat(120), "d".repeat(120), "d".repeat(120), "f".repeat(120))
+    mkdirSync(join(s.origin.repo, dirname(long)), { recursive: true })
+    writeFileSync(join(s.origin.repo, long), "x\n")
+    gitIn(s.origin.repo, "add", long)
+    const why = (await s.sync.sync(s.origin.repo)).repos[0]?.behind?.why
+    expect(why?.length).toBeLessThanOrEqual(300)
+    expect(projectSync.safeParse(await s.sync.sync(s.origin.repo)).success).toBe(true)
+  })
+
   it("forgets a landing once it is seen, and keeps a newer one than the one seen", async ({
     setup: s,
   }) => {
@@ -234,7 +293,9 @@ describe("how far a repository is from origin", () => {
       remote: "origin/main",
       count: 1,
       why: "You have edits in a.txt",
-      merges: [{ subject: "Rewrite a", pr: 4, commit: expect.any(String), own: false }],
+      merges: [
+        { subject: "Rewrite a", pr: 4, commit: expect.any(String), own: false, latest: false },
+      ],
     })
     expect(repo?.landing).toBeNull()
     const refused = await s.sync.update(s.origin.repo, "")
@@ -248,7 +309,9 @@ describe("how far a repository is from origin", () => {
       remote: "origin/main",
       count: 1,
       why: null,
-      merges: [{ subject: "add b.txt", pr: null, commit: expect.any(String), own: false }],
+      merges: [
+        { subject: "add b.txt", pr: null, commit: expect.any(String), own: false, latest: false },
+      ],
     })
   })
 
@@ -310,6 +373,8 @@ describe("the notice an agent in the checkout gets", () => {
       files: ["src/a.ts", "pnpm-lock.yaml"],
       filesTotal: 2,
       dependencies: { file: "pnpm-lock.yaml", command: "pnpm install" },
+      latest: [],
+      dependenciesLatest: true,
     })
     expect(text).toBe(
       [

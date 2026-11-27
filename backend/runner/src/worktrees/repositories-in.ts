@@ -14,6 +14,11 @@ export type Found = {
   /** Its folder from the project's root with `/` between names; "" for the one the root is in. */
   readonly path: string
   readonly name: string
+  /**
+   * Where the project's root is in the repository, from its top with `/` between names ("" where
+   * it is the top); only for the repository the root is in.
+   */
+  readonly inside: string
 }
 
 /** How deep under the project's root a nested repository is looked for. */
@@ -56,9 +61,18 @@ export const repositoriesIn = async (cwd: string): Promise<readonly Found[]> => 
   const own = await repositoryAt(root).catch(() => undefined)
   if (own?.ok) {
     const { home, commonDir, name } = own.repository
-    found.set(commonDir, { home, commonDir, path: "", name })
+    const down = relative(home, root).split(sep).join("/")
+    found.set(commonDir, {
+      home,
+      commonDir,
+      path: "",
+      name,
+      inside: down.startsWith("..") ? "" : down,
+    })
   }
   let looked = 0
+  // Every folder looked at or looked into counts, so a wide folder is cut as a deep one is.
+  let checked = 0
   let level = [root]
   for (let depth = 0; depth < searchDepth && level.length > 0; depth += 1) {
     const next: string[] = []
@@ -69,6 +83,8 @@ export const repositoriesIn = async (cwd: string): Promise<readonly Found[]> => 
       const entries = await readdir(folder, { withFileTypes: true }).catch(() => [])
       for (const entry of entries) {
         if (!entry.isDirectory() || entry.name.startsWith(".") || skipped.has(entry.name)) continue
+        if (checked >= searchLimit) break
+        checked += 1
         const path = join(folder, entry.name)
         // eslint-disable-next-line no-await-in-loop -- As above.
         if (await isRepository(path)) {
@@ -79,6 +95,7 @@ export const repositoriesIn = async (cwd: string): Promise<readonly Found[]> => 
               commonDir,
               path: relative(root, path).split(sep).join("/"),
               name: basename(path),
+              inside: "",
             })
         } else next.push(path)
       }

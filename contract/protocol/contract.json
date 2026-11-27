@@ -396,9 +396,10 @@
                                 ]
                               },
                               "commit": {"type":"string","maxLength":128},
-                              "own": {"type":"boolean"}
+                              "own": {"type":"boolean"},
+                              "latest": {"type":"boolean"}
                             },
-                            "required": ["subject","pr","commit","own"],
+                            "required": ["subject","pr","commit","own","latest"],
                             "additionalProperties": false
                           }
                         }
@@ -433,9 +434,10 @@
                                 ]
                               },
                               "commit": {"type":"string","maxLength":128},
-                              "own": {"type":"boolean"}
+                              "own": {"type":"boolean"},
+                              "latest": {"type":"boolean"}
                             },
-                            "required": ["subject","pr","commit","own"],
+                            "required": ["subject","pr","commit","own","latest"],
                             "additionalProperties": false
                           }
                         },
@@ -458,7 +460,8 @@
                             },
                             {"type":"null"}
                           ]
-                        }
+                        },
+                        "dependenciesLatest": {"type":"boolean"}
                       },
                       "required": [
                         "from",
@@ -468,7 +471,8 @@
                         "merges",
                         "files",
                         "filesTotal",
-                        "dependencies"
+                        "dependencies",
+                        "dependenciesLatest"
                       ],
                       "additionalProperties": false
                     },

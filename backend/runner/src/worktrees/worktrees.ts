@@ -319,6 +319,11 @@ export class Worktrees {
     return this.cleanup.fetchNow(commonDirs)
   }
 
+  /** Fetches a repository whose pull request merged, following it as the sweep would (`Cleanup.fetchMerged`). */
+  fetchMerged(commonDir: string): Promise<void> {
+    return this.cleanup.fetchMerged(commonDir)
+  }
+
   /** Looks at every worktree for cleanup and waits for that (tests; `start` does it on a timer). */
   tidy(fetch = false): Promise<void> {
     return this.cleanup.look(fetch)

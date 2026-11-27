@@ -1180,10 +1180,10 @@ with every safety check again at that time:
     lacks. When the runner itself (not the person's Update) moves a checkout, `MainFetcher`'s `landed` hands the
     commits to `MainSync`, which records a landing in memory: the first-parent commits as merges (a pull request's
     number from a trailing `(#123)` or `Merge pull request #123`), the changed files (up to 200) and the command for a
-    changed lockfile (`landing.ts`). A landing the person has not seen stays, joined by the next one, until
+    changed lockfile (`landing.ts`). A landing the person has not seen stays, joined by the next one (each merge says whether it came in the last move, `latest`, as does the lockfile hint, which is what a notice tells of; its files are from the project's root, not the repository's top), until
     `projects.syncSeen` (the card closing) clears it for every client; a restart forgets it. The Files panel shows
     them as marks on the repository's row, or a line over the tree where the project's own folder is the repository;
-    it asks every 20 s, one read at a time, for as long as the app runs (the rail's dot and the notices read it too),
+    it asks every 20 s while shown and every 2 minutes otherwise (the rail's dot and the notices follow it as long as the app runs), one read at a time,
     and when `moved` or `head` (the commit HEAD is at) changes, which the person's own pull does too, reads its
     folders again, so added and removed files show. Update (`projects.updateCheckout`, with the repository's `path`) is
     the same move with tracked changes allowed, where git itself refuses if a changed file is in the way, and its

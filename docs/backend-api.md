@@ -264,7 +264,7 @@ nested at that path. `projects.sync({ projectId })` (revision 23) says how each 
 stands: `{ repos: [{ path, name, branch, behind: { remote, count, why, merges } | null, ahead, landing, moved,
 head }] }`, `path` being the repository's folder from the project's root ("" for the one the root is in) and
 `landing` what the runner's last move of main brought that nobody has seen (`from`, `to`, `at`, `commits`,
-`merges` with `pr` and `own`, `files`, `filesTotal`, `dependencies: { file, command } | null`).
+`merges` with `pr`, `own` and `latest`, `files` from the project's root, `filesTotal`, `dependencies: { file, command } | null`, `dependenciesLatest`).
 `projects.syncSeen({ projectId, path, to? })` clears the landing of the repository at `path` (a newer one than `to`
 stays), for every client.
 `sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the

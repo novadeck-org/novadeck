@@ -291,7 +291,11 @@ const RailWithBadge = (
   const madeIn = useCallback((counts: WorksMade) => counts.get(projectId) ?? 0, [projectId])
   const made = useStoreSelector(backend.works?.made ?? noneMade, madeIn)
   const worksMade = useMemo(() => ({ count: made, projectId }), [made, projectId])
-  const filesNews = useFilesNews(backend, projectId)
+  const filesNews = useFilesNews(
+    backend,
+    projectId,
+    props.sidebarVisible && props.sidebarPanel === "files",
+  )
   return (
     <SidebarRail
       {...props}

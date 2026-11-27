@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 // A real repository with a bare origin, and a second clone to land commits on the remote with,
 // as a merged pull request does.
@@ -44,6 +44,7 @@ export const withOrigin = (defer: (cleanup: () => void) => void): Origin => {
     repo,
     land: (file, message = `add ${file}`) => {
       gitIn(other, "pull", "--quiet", "origin", "main")
+      mkdirSync(dirname(join(other, file)), { recursive: true })
       writeFileSync(join(other, file), `${file}\n`)
       gitIn(other, "add", "-A")
       gitIn(other, "commit", "--quiet", "-m", message)

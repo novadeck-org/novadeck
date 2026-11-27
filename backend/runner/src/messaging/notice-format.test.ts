@@ -94,6 +94,8 @@ describe("every notice Novadeck words", () => {
       files: ["src/a.ts"],
       filesTotal: 1,
       dependencies: null,
+      latest: [],
+      dependenciesLatest: false,
     }),
   ]
 

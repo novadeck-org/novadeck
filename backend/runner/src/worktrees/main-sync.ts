@@ -3,6 +3,7 @@ import type { CheckoutUpdate, ProjectSync, RepoSync } from "@novadeck/protocol"
 import { git } from "../checkouts/git.js"
 import { mainBranch } from "../checkouts/repository.js"
 import { logs } from "../log.js"
+import { ellipsized } from "../text.js"
 import { operationIn, type Forwarded } from "./fast-forward.js"
 import { landingOf, mergesOf, mergesWaiting, type Landing, type Merge } from "./landing.js"
 import { commitAt } from "./repo.js"
@@ -53,6 +54,9 @@ type Status = {
 const keptMs = 5000
 
 const small = { cap: 64 * 1024 }
+/** What the contract keeps of a reason and of a project's repositories. */
+const whyLimit = 300
+const reposLimit = 200
 const line = (run: Awaited<ReturnType<typeof git>>): string | undefined =>
   run.ok ? run.out.trim() || undefined : undefined
 
@@ -73,15 +77,63 @@ const editsIn = async (home: string): Promise<string | undefined> => {
     { cap: 256 * 1024, ms: 60_000, truncate: true },
   )
   if (!status.ok) return undefined
-  const files = status.out
-    .split("\0")
-    .filter((entry) => entry.length > 3)
-    .map((entry) => entry.slice(3))
+  // `XY path`, and for a rename or copy the path it came from as an entry of its own.
+  const entries = status.out.split("\0")
+  const files: string[] = []
+  for (let at = 0; at < entries.length; at += 1) {
+    const entry = entries[at]!
+    if (entry.length <= 3) continue
+    files.push(entry.slice(3))
+    if (/[RC]/.test(entry.slice(0, 2))) at += 1
+  }
   if (files.length === 0) return undefined
   const shown = files.slice(0, 2).join(", ")
-  return files.length > 2
-    ? `You have edits in ${shown} and ${files.length - 2} more`
-    : `You have edits in ${shown}`
+  return ellipsized(
+    files.length > 2
+      ? `You have edits in ${shown} and ${files.length - 2} more`
+      : `You have edits in ${shown}`,
+    whyLimit,
+  )
+}
+
+/**
+ * A landing as a project sees it: the file paths are from the project's root, not the repository's
+ * top, which differ where the project is a folder inside the repository; files outside the folder
+ * are not the project's.
+ */
+const shownLanding = (
+  landing: Landing,
+  found: Found,
+  own: ReadonlyMap<number, string>,
+): NonNullable<RepoSync["landing"]> => {
+  const down = found.path === "" ? found.inside : ""
+  const inProject = (file: string): string | undefined =>
+    down === "" ? file : file.startsWith(`${down}/`) ? file.slice(down.length + 1) : undefined
+  const prefixed = (file: string): string => (found.path === "" ? file : `${found.path}/${file}`)
+  const files = landing.files.flatMap((file) => {
+    const inside = inProject(file)
+    return inside === undefined ? [] : [prefixed(inside)]
+  })
+  const lock = landing.dependencies
+  return {
+    from: landing.from,
+    to: landing.to,
+    at: landing.at,
+    commits: landing.commits,
+    merges: landing.merges.map(({ subject, pr, commit }) => ({
+      subject: subject.slice(0, 300),
+      pr,
+      commit,
+      own: pr !== null && own.has(pr),
+      latest: landing.latest.includes(commit),
+    })),
+    files,
+    filesTotal: down === "" ? landing.filesTotal : files.length,
+    dependencies: lock
+      ? { file: prefixed(inProject(lock.file) ?? lock.file), command: lock.command }
+      : null,
+    dependenciesLatest: landing.dependenciesLatest,
+  }
 }
 
 /**
@@ -163,7 +215,12 @@ export class MainSync {
       })
       return
     }
-    this.landings.set(commonDir, all)
+    // The merges and lockfile of this move are those a notice is about.
+    this.landings.set(commonDir, {
+      ...all,
+      latest: fresh.merges.map(({ commit }) => commit),
+      dependenciesLatest: fresh.dependencies !== null,
+    })
     const named = new Set(fresh.merges.flatMap(({ pr }) => (pr === null ? [] : [pr])))
     this.host.landed?.({
       commonDir,
@@ -217,7 +274,7 @@ export class MainSync {
     let why: string | null = null
     if (behind > 0) {
       const operation = await operationIn(home)
-      if (operation !== undefined) why = operation
+      if (operation !== undefined) why = ellipsized(operation, whyLimit)
       else if ((ahead ?? 0) > 0) why = "main has commits that origin doesn't"
       else why = (await editsIn(home)) ?? null
     }
@@ -225,7 +282,15 @@ export class MainSync {
       behind > 0 && local !== undefined
         ? ((await mergesOf(home, `${local}..${main.commit}`, mergesWaiting)) ?? [])
         : []
-    return { branch, remote: main.name, behind, ahead: ahead ?? 0, why, waiting, head }
+    return {
+      branch: branch.slice(0, 200),
+      remote: main.name.slice(0, 200),
+      behind,
+      ahead: ahead ?? 0,
+      why,
+      waiting,
+      head,
+    }
   }
 
   /** How each repository of the project stands; those with no origin main are left out. */
@@ -252,42 +317,17 @@ export class MainSync {
                   pr,
                   commit,
                   own: pr !== null && own.has(pr),
+                  latest: false,
                 })),
               }
             : null,
         ahead: status.ahead,
-        landing: landing
-          ? {
-              from: landing.from,
-              to: landing.to,
-              at: landing.at,
-              commits: landing.commits,
-              merges: landing.merges.map(({ subject, pr, commit }) => ({
-                subject: subject.slice(0, 300),
-                pr,
-                commit,
-                own: pr !== null && own.has(pr),
-              })),
-              files: landing.files.map((file) =>
-                found.path === "" ? file : `${found.path}/${file}`,
-              ),
-              filesTotal: landing.filesTotal,
-              dependencies: landing.dependencies
-                ? {
-                    file:
-                      found.path === ""
-                        ? landing.dependencies.file
-                        : `${found.path}/${landing.dependencies.file}`,
-                    command: landing.dependencies.command,
-                  }
-                : null,
-            }
-          : null,
+        landing: landing ? shownLanding(landing, found, own) : null,
         moved: this.host.moved(found.commonDir),
         head: status.head,
       })
     }
-    return { repos }
+    return { repos: repos.slice(0, reposLimit) }
   }
 
   /** The person saw the landing of the repository at `path`; one newer than `to` stays. */
