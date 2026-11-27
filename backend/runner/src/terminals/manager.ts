@@ -1381,8 +1381,8 @@ export class Terminals {
    * What restores it is forgotten at once, but its session claims last until its shell ends.
    */
   private closeRunning(record: Record, closedBy: string | null = null): Promise<void> {
-    const closing = this.closingRecords.get(record)
-    if (closing) return closing
+    const underway = this.closingRecords.get(record)
+    if (underway) return underway
     const id = record.summary.id
     this.history.closing(record, closedBy)
     record.closed = true
