@@ -123,10 +123,13 @@ going for the same file.
 Whatever an agent makes opens right next to its terminal. A page, a diff, an image, a video, a PDF,
 a 3D model, a CSV, a whole folder even. No more digging for where it saved stuff.
 
-## Leave a ⭐
+## Drop me a ⭐
 
-One person builds this. Free, no account, no tracking, zero ad budget. Most people find it on
-GitHub, and stars are how. If it helps you, star it.
+> [!IMPORTANT]
+> It's just me out here. No team, no ad budget, not much sleep. Building all of this anyway.\
+> Stars are how anyone finds it, and they keep me going. Think it's preem? You know what to do.
+>
+> Stay nova, choom ✦
 
 ## License
 
