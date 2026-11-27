@@ -2,7 +2,7 @@ import type { AgentMode, AgentName } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
-import { agentLabel, cleanInboxText } from "../messaging/messages.js"
+import { agentLabelOf, cleanInboxText } from "../messaging/messages.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { noticeText } from "../messaging/notice-format.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -386,7 +386,7 @@ export class Leads {
     const targetAgent = this.identity(led)
     if (!targetAgent) return unansweredCalls.lead
     const { id, handle, title, sessionId } = led.summary
-    const ran = target.agent === null ? undefined : agentLabel(target.agent)
+    const ran = target.agent === null ? undefined : agentLabelOf(target.agent, led.summary.nova)
     // Where agents decide for themselves, the lead takes effect at once.
     if (host.agentMode() === "swarm") {
       const brief = this.form(caller, led, message, false)

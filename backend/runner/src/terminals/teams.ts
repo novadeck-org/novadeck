@@ -1,7 +1,7 @@
 import type { ApprovalAction } from "@novadeck/protocol"
 import { z } from "zod"
 
-import { cleanInboxText, agentLabel } from "../messaging/messages.js"
+import { agentLabelOf, cleanInboxText } from "../messaging/messages.js"
 import { noticeText } from "../messaging/notice-format.js"
 import { unboundNote } from "../messaging/peers.js"
 import { refusalOfText, type SendAnswer } from "../messaging/sending.js"
@@ -42,6 +42,8 @@ type Failure = OpenFailure
 type Party = {
   readonly summary: {
     readonly id: string
+    /** Whether its agent is Nova, Novadeck's own pi. */
+    readonly nova?: boolean | undefined
     readonly handle: string
     readonly title: string
     readonly sessionId: string
@@ -352,7 +354,7 @@ export class Teams {
     const seen = this.seenIn(own, lead)
     if (!seen) return unansweredCalls.join
     const { handle, title } = lead.summary
-    const ran = target.agent === null ? undefined : agentLabel(target.agent)
+    const ran = target.agent === null ? undefined : agentLabelOf(target.agent, lead.summary.nova)
     const named = { handle, title, ...(ran !== undefined && { ran }) }
     const joined = (byUser: boolean): string | undefined => {
       host.bindings().setLead(caller, lead.summary.id)
@@ -415,7 +417,7 @@ export class Teams {
     if (host.stopping()) return unansweredCalls.leave
     const { handle, title } = lead.summary
     const agent = host.messaging().agentIn(lead.summary.id)
-    const ran = agent?.ok ? agentLabel(agent.agent) : undefined
+    const ran = agent?.ok ? agentLabelOf(agent.agent, lead.summary.nova) : undefined
     const named = { handle, title, ...(ran !== undefined && { ran }) }
     const left = (byUser: boolean): void => {
       this.endLead(caller)
@@ -495,7 +497,7 @@ export class Teams {
     const unfit = this.unfitHand(caller, heir)
     if (unfit) return refused(unfit)
     const { handle, title } = heir.summary
-    const ran = target.agent === null ? undefined : agentLabel(target.agent)
+    const ran = target.agent === null ? undefined : agentLabelOf(target.agent, heir.summary.nova)
     const named = { handle, title, ...(ran !== undefined && { ran }) }
     const handed = (byUser: boolean) => {
       const { id } = caller.summary

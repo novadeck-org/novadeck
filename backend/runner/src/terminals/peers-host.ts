@@ -457,6 +457,7 @@ export class TerminalPeers {
           const owned = await this.owned(terminal.summary.id)
           const done = happenings.findLast((each) => each.kind === "done")
           const where: Whereabouts = {
+            ...(terminal.summary.nova === true && { nova: true }),
             // Its session's default title ("Terminal") says nothing of it, so no listing names it.
             title: terminal.summary.titleSource.kind === "default" ? null : terminal.summary.title,
             summary: terminal.naming.summary,

@@ -400,6 +400,64 @@ describe("Novadeck's pi behind its Experimental switch", () => {
       .toBe(false)
   })
 
+  it("leaves the file nova reads as the last switch says, switched on and off at once", async ({
+    resources,
+  }) => {
+    const data = await folder(resources)
+    const on = join(data, "shell", "bundled", "on")
+    const lever = { value: true }
+    const pi = new BundledPi({ data, enabled: () => lever.value, on, platform: "freebsd" })
+
+    pi.switched()
+    lever.value = false
+    pi.switched()
+    await pi.marked()
+    await expect(stat(on)).rejects.toThrow()
+    lever.value = true
+    pi.switched()
+    lever.value = false
+    pi.switched()
+    lever.value = true
+    pi.switched()
+    await pi.marked()
+    await expect(stat(on)).resolves.toBeDefined()
+  })
+
+  it("tells each setting of its switch, even with the copy ready for the tour", async ({
+    resources,
+  }) => {
+    const lever = { value: false }
+    const { pi, states } = await service(resources, lever)
+    await pi.want()
+    expect(pi.state().state).toBe("ready")
+    const switches: boolean[] = []
+    pi.followSwitch(() => switches.push(lever.value))
+    const told = states.length
+    lever.value = true
+    pi.switched()
+    // The state stands ready for the tour, so only the switch's own listeners hear of it.
+    await expect.poll(() => switches).toEqual([true])
+    expect(states.length).toBe(told)
+  })
+
+  it("says whether a terminal's launcher may start it: the switch's, or the tour's", async ({
+    resources,
+  }) => {
+    const data = await folder(resources)
+    const lever = { value: false }
+    const pi = new BundledPi({
+      data,
+      enabled: () => lever.value,
+      allows: (terminalId) => terminalId === "tour",
+      platform: "freebsd",
+    })
+
+    expect(pi.starts("t1")).toBe(false)
+    expect(pi.starts("tour")).toBe(true)
+    lever.value = true
+    expect(pi.starts("t1")).toBe(true)
+  })
+
   it("fetches only its own pi", async ({ resources }) => {
     const { pi } = await service(resources, { value: true })
     await expect(pi.fetch("claude", () => {})).rejects.toThrow("Novadeck has no claude of its own.")

@@ -9,7 +9,7 @@ import type { GitState } from "../terminals/git-state.js"
 import { mention } from "../terminals/handles.js"
 import { cut, shorten } from "../text.js"
 import { checksLine, pullsOf, statedLine, type Stack, type Statement } from "./coordination.js"
-import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js"
+import { agentLabel, agentLabelOf, clock, holdOf, isNotice, type Message } from "./messages.js"
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title; the summary its
@@ -18,6 +18,8 @@ import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js
  * its turns ended; and, for a plain shell, what runs there.
  */
 export type Whereabouts = {
+  /** Whether its agent is Nova, Novadeck's own pi, as its summary says. */
+  readonly nova?: boolean
   readonly title: string | null
   readonly summary: string | null
   /** The git checkout its agent works in now (see `Git`); null outside one. */
@@ -174,6 +176,8 @@ export type Peer = {
   readonly terminalId: string
   readonly handle: string
   readonly agent: AgentName | null
+  /** Its agent is Nova, Novadeck's own pi, which its lines call by that name. */
+  readonly nova?: true
   /** The agent it was opened to run, which messages may already be sent to, before it binds. */
   readonly expecting: AgentName | null
   /**
@@ -318,6 +322,7 @@ export const peerOf = (input: {
     terminalId: input.terminalId,
     handle: input.handle,
     agent,
+    ...(agent === "pi" && where?.nova === true && { nova: true as const }),
     expecting,
     untrusted,
     // A session's only mark is its prompt saying it isn't signed in.
@@ -489,7 +494,7 @@ const statusOf = (peer: Peer, now: number, full: boolean): string => {
             : peer.waitsOn
               ? `waiting on ${peer.waitsOn}, will wake by itself`
               : `${peer.state}${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
-    return `${agentLabel(peer.agent)}, ${doing}`
+    return `${agentLabelOf(peer.agent, peer.nova)}, ${doing}`
   }
   if (peer.untrusted) return `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
   if (peer.expecting)
@@ -871,11 +876,14 @@ export const blank = (peer: Peer, leads: ReadonlySet<string | null>): boolean =>
 /** Blank asleep agents (see `blank`) on one line, by agent: their handles are all there is. */
 const blankLine = (peers: readonly Peer[]): string | null => {
   if (peers.length === 0) return null
-  const byAgent = new Map<AgentName | null, string[]>()
-  for (const peer of peers)
-    byAgent.set(peer.agent, [...(byAgent.get(peer.agent) ?? []), mention(peer.handle)])
+  // By the agent's name, so Nova's are told from the person's pi's.
+  const byAgent = new Map<string | null, string[]>()
+  for (const peer of peers) {
+    const label = peer.agent && agentLabelOf(peer.agent, peer.nova)
+    byAgent.set(label, [...(byAgent.get(label) ?? []), mention(peer.handle)])
+  }
   const groups = [...byAgent].map(
-    ([agent, handles]) => `${listed(handles)}${agent ? ` (${agentLabel(agent)})` : ""}`,
+    ([label, handles]) => `${listed(handles)}${label ? ` (${label})` : ""}`,
   )
   return `- asleep, never described and nothing reported: ${groups.join(" · ")}`
 }

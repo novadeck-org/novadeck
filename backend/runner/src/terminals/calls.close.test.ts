@@ -226,6 +226,13 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     expect(run.steps).toContain("removed fox")
   })
 
+  it("calls a Nova teammate Nova, as its summary says", async () => {
+    const run = setup({ moth: "claude", fox: "pi" }, { fox: "moth" })
+    const fox = run.records.get("id-fox")!
+    fox.summary = { ...fox.summary, nova: true }
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, ran: "Nova" })
+  })
+
   it("names the teammate's messages to it still on the way, which arrive after", async () => {
     const run = setup({ moth: "claude", fox: "codex" }, { fox: "moth" })
     const at = new Date(2026, 9, 31, 1, 48).getTime()

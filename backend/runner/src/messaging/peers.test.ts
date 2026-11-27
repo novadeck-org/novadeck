@@ -421,6 +421,23 @@ describe("asleep agents in the agents listing", () => {
     ])
   })
 
+  it("calls Nova by its name, apart from the person's pi, where its summary says it is Nova", () => {
+    const nova = whereabouts({ nova: true })
+    const lines = agents([
+      listing({ terminalId: "owl", handle: "owl", agent: "pi", where: nova }),
+      listing({ terminalId: "elk", handle: "elk", agent: "pi" }),
+      sleeper("fox", { agent: "pi", where: nova }),
+      sleeper("yak", { agent: "pi" }),
+      // Only a pi is ever Nova.
+      sleeper("emu", { where: nova }),
+    ])
+    expect(lines).toContain("- @owl: Nova, idle, peer")
+    expect(lines).toContain("- @elk: Pi, idle, peer")
+    expect(lines).toContain(
+      "- asleep, never described and nothing reported: @fox (Nova) · @yak (Pi) · @emu (Claude Code)",
+    )
+  })
+
   it("keeps on its own line a sleeper with a title, a summary, a report, work left or a team", () => {
     const dirty = { detached: false, ahead: 0, gone: false, dirty: true }
     const kept = [

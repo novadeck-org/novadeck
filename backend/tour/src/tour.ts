@@ -117,7 +117,7 @@ export type TourHost = {
 }
 
 // Where the runner can't start Novadeck's own pi.
-const noOwnPi = "Novadeck can't start its own Pi here, so the tour can't start."
+const noOwnPi = "Novadeck can't start Nova here, so the tour can't start."
 
 // What the run last readied is, once it starts: its folder, its agent's launch, and its terminals.
 type Run = {

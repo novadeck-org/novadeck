@@ -76,6 +76,12 @@ const setup = (
     for (const follower of followers)
       follower({ agent: "claude", connected, lost: !connected && !own })
   }
+  // Nova's switch, which a test turns, and who follows it.
+  const nova = { on: true, followers: new Set<() => void>() }
+  const switchNova = (on: boolean) => {
+    nova.on = on
+    for (const follower of nova.followers) follower()
+  }
   const host = {
     messaging: () => ({
       rest: (id: string, _scope: unknown, _handle: string, _led: unknown, on: never) => {
@@ -111,7 +117,15 @@ const setup = (
     claims: () =>
       new Claims({
         boundElsewhere: () => options.taken === true,
-        ownPi: (agent, transcript) => agent === "pi" && transcript === options.own,
+        nova: {
+          owns: (agent: AgentName, transcript: string | undefined) =>
+            agent === "pi" && transcript === options.own,
+          starts: () => nova.on,
+          followSwitch: (listener: () => void) => {
+            nova.followers.add(listener)
+            return () => nova.followers.delete(listener)
+          },
+        },
       }),
     connected: () => Promise.resolve(harness.connected),
     ...(options.connections && {
@@ -140,7 +154,16 @@ const setup = (
     changed: (each: ListedTerminal) => calls.push(`changed ${each.id}`),
     ended: (id: string) => calls.push(`ended stream ${id}`),
   } as unknown as SleepersHost
-  return { sleepers: new Sleepers(host), calls, resting, held, connect, followers }
+  return {
+    sleepers: new Sleepers(host),
+    calls,
+    resting,
+    held,
+    connect,
+    followers,
+    switchNova,
+    nova,
+  }
 }
 
 describe("sleepers", () => {
@@ -344,6 +367,52 @@ describe("sleepers", () => {
     })
     expect(sleepers.restable(running(own), "pi")).toBe(true)
     expect(sleepers.restable(running(theirs), "pi")).toBe(false)
+  })
+
+  it("keeps the messages of a sleeping Nova while Nova is off, and wakes it once it is on", async () => {
+    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const { sleepers, calls, switchNova, nova } = setup(
+      [row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } })],
+      { connected: false, connections: true, own, wanted: new Set(["a"]) },
+    )
+    nova.on = false
+    sleepers.start()
+    // Its launcher would refuse: it sleeps on, its messages kept, and the person's pi isn't
+    // said to be lost.
+    await vi.waitFor(() => expect(sleepers.stuckOn("a")).toBe(true))
+    expect(calls).toContain(
+      "stuck a: Nova is switched off (the user turns it on in Novadeck's Preferences > Experimental)",
+    )
+    expect(calls).not.toContain("strand pi")
+    expect(calls.some((call) => call.startsWith("failed a"))).toBe(false)
+    expect(sleepers.asleep("a")).toBe(true)
+    switchNova(true)
+    await vi.waitFor(() => expect(sleepers.asleep("a")).toBe(false))
+    expect(sleepers.stuckOn("a")).toBe(false)
+    expect(calls).toContain("unstuck a")
+  })
+
+  it("puts no Nova to sleep while Nova is off, as it couldn't be woken", () => {
+    const own = "/data/bundled/pi/agent/sessions/--t--/1_one.jsonl"
+    const { sleepers, nova } = setup(
+      [row("a", "pi", { pi: { sessionId: "one", seq: 1, transcript: own } })],
+      { connected: false, connections: true, own },
+    )
+    const running = {
+      summary: { id: "a", sessionId: "s" },
+      agents: { pi: { sessionId: "one", seq: 1, transcript: own } },
+    }
+    expect(sleepers.restable(running, "pi")).toBe(true)
+    nova.on = false
+    expect(sleepers.restable(running, "pi")).toBe(false)
+  })
+
+  it("stops following Nova's switch once it stops", () => {
+    const { sleepers, nova } = setup([])
+    sleepers.start()
+    expect(nova.followers.size).toBe(1)
+    sleepers.stop()
+    expect(nova.followers.size).toBe(0)
   })
 
   it("stops following the harnesses' connections once it stops", () => {
