@@ -183,10 +183,10 @@ const moveMainRef = async (home: string, options: FastForward): Promise<Forwarde
  */
 export const fastForward = async (home: string, options: FastForward): Promise<Forwarded> => {
   const run = options.run ?? realGit
-  const working = await run(home, ["rev-parse", "--is-inside-work-tree"], small)
-  if (!working.ok || working.out.trim() !== "true") return { ok: true, moved: false }
   const behind = await behindMain(home)
   if (behind === undefined) return moveMainRef(home, options)
+  const working = await run(home, ["rev-parse", "--is-inside-work-tree"], small)
+  if (!working.ok || working.out.trim() !== "true") return { ok: true, moved: false }
   const operation = await operationIn(home, run)
   if (operation !== undefined) return { ok: false, said: operation }
   if (options.allowChanges !== true) {
