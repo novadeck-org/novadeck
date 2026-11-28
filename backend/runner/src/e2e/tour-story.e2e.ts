@@ -6,12 +6,13 @@ import { novaFromCache } from "./nova-cache.js"
 import { folder, tell } from "./tour-story.js"
 
 // Novadeck's tour story (see tour-story.ts), with Nova as the tour's agent, on the
-// fake tour service (the fake model's, which gives the one ticket it accepts): the lead asks
-// the person which game, then asks for a dev server the person approves, then opens a modeller
-// and a builder;
-// each teammate works in a worktree of its own and asks the person one thing; the person then
-// keeps the project, and the team's work is committed on main. The model is a script that
-// follows the briefs. All three agents run on Nova, which the runner unpacks from
+// fake tour service (the fake model's, which gives the one ticket it accepts): the lead pitches
+// three games to the person, then asks for a dev server the person approves, then opens Core,
+// World and Feel;
+// each teammate works in a worktree of its own, tells the teammates before it what it exports and
+// asks the person one thing while it works on; the person then keeps the project, and the team's
+// work is committed on main. The model is a script that
+// follows the briefs. All four agents run on Nova, which the runner unpacks from
 // the e2e cache's copy of the pinned release.
 
 const story = 360_000
@@ -26,7 +27,7 @@ describe.skipIf(!supported)(nova.name, () => {
   const it = e2e.seeded({ trustedInHome: [folder] }, nova)
 
   it(
-    "tells the tour's story: three agents make the game in worktrees, the person naming the world in their own words",
+    "tells the tour's story: three agents make the game in worktrees, the person naming the game in their own words",
     { timeout: story },
     async ({ e2e: run }) => {
       await tell(run, nova, { words: "a penguin on a skateboard" })

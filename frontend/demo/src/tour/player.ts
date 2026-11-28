@@ -80,9 +80,8 @@ type Player = {
 // Plays the tour's agent in its terminal: an optional startup screen, held until answered;
 // bound at the doorbell's ring where the harness waits for one (Antigravity), else at once;
 // working; describing itself (once nudged, where quiet); then, with the story on, asking the
-// person what game to make, opening its modeller and builder, running the game's server and
-// showing its page, and showing it again once the team built the game (see `story.ts`); and a
-// finished turn. Answers a function
+// person what game to make, running the game's server, opening its three teammates and showing
+// its page, and showing it again as their work lands (see `story.ts`); and a finished turn. Answers a function
 // that stops it.
 export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, stage }: Player) => {
   const plan = tour.take()
@@ -137,10 +136,10 @@ export const playTourAgent = ({ key, harness, tour, turns, dispatch, terminal, s
       stage,
       terminal,
       quietTeam: plan.quietTeam === true,
-      quietModeller: plan.quietModeller === true,
+      quietMate: plan.quietMate === true,
       mateAsks: plan.mateAsks === true,
       noPage: plan.noPage === true,
-      finish: () => finish("The game is built."),
+      finish: () => finish("The game is ready to play."),
     })
     stops.add(stopStory)
   }

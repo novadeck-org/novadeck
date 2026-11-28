@@ -7,11 +7,11 @@ import type { NovaService } from "@novadeck/harness-nova/ticket"
 import type { Project } from "@novadeck/protocol"
 
 import {
-  branches,
-  builderTask,
+  drawSparks,
   keptLine,
-  modellerTask,
+  mateTask,
   nudgeLine,
+  parts,
   projectNote,
   sandboxNote,
   shellRule,
@@ -415,11 +415,11 @@ describe("readying the tour", () => {
   })
 })
 
-// The arguments the brief gives `open_agent` for each teammate.
-const opened = (text: string): string[] =>
-  [...text.matchAll(/Call `open_agent`(?: again)? with (agent "[^\n]*?), and as/g)].map(
-    ([, each]) => each!,
-  )
+// The arguments the brief gives `open_agent` for its teammates, and how many it opens.
+const opened = (text: string): { count: string; with: string } | undefined => {
+  const found = /Call `open_agent` (\w+) times, with (agent "[^\n]*?), one per part/.exec(text)
+  return found ? { count: found[1]!, with: found[2]! } : undefined
+}
 
 describe("the sandbox repo", () => {
   it("is a git repo on main with one commit by the tour, the marker and the libraries kept out of it", async ({
@@ -496,7 +496,7 @@ describe("the sandbox repo", () => {
     const directory = tourFolder(home)
     await writeFile(join(directory, "src", "main.js"), "changed\n")
     await tour.prepare()
-    expect(await readFile(join(directory, "src", "main.js"), "utf8")).toContain("placeholder")
+    expect(await readFile(join(directory, "src", "main.js"), "utf8")).not.toBe("changed\n")
     expect(
       execFileSync("git", ["-C", directory, "rev-list", "--count", "HEAD"], {
         encoding: "utf8",
@@ -513,18 +513,17 @@ describe("the sandbox repo", () => {
 })
 
 describe("the brief's facts", () => {
-  it("has the lead open both teammates on the tour's model, their tasks quoted", async ({
+  it("has the lead open a teammate per part on the tour's model, the task quoted", async ({
     resources,
   }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare()
     const text = brief()
-    expect(opened(text)).toHaveLength(2)
-    expect(text).toContain("> You are Modeller, a teammate in Novadeck's tour.")
-    expect(text).toContain("> You are Builder, a teammate in Novadeck's tour.")
-    expect(text).toContain(`branch "${branches.modeller}"`)
-    expect(text).toContain(`branch "${branches.builder}"`)
+    expect(opened(text)?.count).toBe("three")
+    expect(parts).toHaveLength(3)
+    for (const part of parts) expect(text).toContain(`${part.role} (branch "${part.branch}"`)
+    expect(text).toContain("> You are [[role]], one of three teammates")
   })
 
   it("names the serving command and the page's address where the game can be served", async ({
@@ -538,14 +537,13 @@ describe("the brief's facts", () => {
     const text = brief()
     expect(text).toContain('`command` "python3 dev.py 6123"')
     expect(text).toContain("http://127.0.0.1:6123/")
-    // It asks to run the server first, its turn ending there, and opens its team only once the
-    // person has answered that, so the approval isn't on screen with the team coming up.
+    // It asks to run the server once the person has picked, before its team, and shows the page
+    // once the server has started; the teammates look at that page.
     const serve = text.indexOf("Call `open_terminal`")
-    expect(serve).toBeGreaterThan(-1)
+    expect(serve).toBeGreaterThan(text.indexOf("Call `ask`"))
     expect(serve).toBeLessThan(text.indexOf("Call `open_agent`"))
-    expect(text.slice(serve, text.indexOf("Call `open_agent`"))).toMatch(
-      /end your turn\.\n4\. When Novadeck says the command started/,
-    )
+    expect(text).toContain('`look` with page {"url": "http://127.0.0.1:6123/"}')
+    expect(text).toMatch(/When Novadeck says the server started, call `show`/)
   })
 
   it("names neither where it can't", async ({ resources }) => {
@@ -557,16 +555,40 @@ describe("the brief's facts", () => {
     expect(text).not.toContain("dev.py")
     expect(text).not.toContain("127.0.0.1")
     expect(text).not.toContain("Game server")
+    expect(text).not.toContain("`look` with page")
   })
 
-  it("has the lead open both teammates on Nova, GPT-6 Luna at medium", async ({ resources }) => {
+  it("has the lead open its teammates on Nova, GPT-6 Luna at medium", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare()
-    expect(opened(brief())).toEqual([
-      'agent "pi", model "nova/gpt-6-luna", effort "medium"',
-      'agent "pi", model "nova/gpt-6-luna", effort "medium"',
-    ])
+    expect(opened(brief())?.with).toBe('agent "pi", model "nova/gpt-6-luna", effort "medium"')
+  })
+
+  it("pitches games on the run's sparks, three different ones each time", () => {
+    const sparks = [
+      "a toy box; gravity flips; silly",
+      "a dream; draw your own path; calm",
+      "x; y; z",
+    ]
+    const text = tourBrief({
+      lead: "@fox",
+      mate: { agent: "pi", model: "m" },
+      serving: null,
+      sparks,
+    })
+    for (const spark of sparks) expect(text).toContain(`   - ${spark}\n`)
+    let seed = 7
+    const random = () => ((seed = (seed * 16_807) % 2_147_483_647) - 1) / 2_147_483_646
+    for (let run = 0; run < 50; run++) {
+      const drawn = drawSparks(random)
+      expect(drawn).toHaveLength(3)
+      for (const at of [0, 1, 2]) {
+        const column = drawn.map((spark) => spark.split("; ")[at])
+        expect(new Set(column).size).toBe(3)
+        expect(column).not.toContain("undefined")
+      }
+    }
   })
 
   it("never names the person, and tells its agents not to", async ({ resources }) => {
@@ -617,36 +639,46 @@ describe("ringing the tour's brief", () => {
 })
 
 describe("what the briefs say of the shell", () => {
-  // Codex reads files only through its shell, so "run no shell command" leaves it unable to
-  // read the file it is to change; the others have tools of their own for files.
-  it("lets Codex read files with it and nothing else, and tells the others to run none", () => {
+  // Nova asks no one before a command, so its agents may check their work with node; Codex
+  // reads files only through its shell; the others have tools of their own for files.
+  it("lets Nova test with node, Codex read files, and the others run none", () => {
+    expect(shellRule("pi")).toMatch(/node --check/)
+    expect(shellRule("pi")).toMatch(/never install anything, run git or start a server/)
     expect(shellRule("codex")).toMatch(/only to read files/)
     expect(shellRule("claude")).toBe("Run no shell command.")
     expect(shellRule("agy")).toBe("Run no shell command.")
   })
 
-  it("says so in the lead's brief, both teammates' tasks and the folder's note", () => {
-    for (const agent of ["claude", "codex", "agy"] as const) {
-      const rule = shellRule(agent)
-      const lead = tourBrief({ lead: "@fox", mate: { agent, model: "m" }, serving: null })
-      // Once for the lead, once in each quoted task.
-      expect(lead.split(rule)).toHaveLength(4)
-      expect(sandboxNote(agent)).toContain(rule)
-    }
+  it("says so in the folder's note, and the brief lets the team check its work", () => {
+    for (const agent of ["pi", "claude", "codex", "agy"] as const)
+      expect(sandboxNote(agent)).toContain(shellRule(agent))
+    const lead = tourBrief({ lead: "@fox", mate: { agent: "pi", model: "m" }, serving: null })
+    expect(lead).toContain("run `node --check`")
+    expect(lead).toContain("Install nothing, run no git")
   })
 })
 
-describe("the teammates' tasks", () => {
-  it("leave the picks and the models' names for the lead to write in, and run no git", () => {
-    for (const task of [modellerTask("@fox", "codex"), builderTask("@fox", "codex")]) {
-      for (const name of ["[[world]]", "[[kind]]", "[[one]]", "[[two]]", "[[three]]"])
-        expect(task).toContain(name)
-      expect(task).toContain("Call `ask` once")
-      expect(task).toContain('`to` "@fox"')
-      expect(task).toContain("run git")
-    }
-    expect(modellerTask("@fox", "codex")).toContain("Make models/[[one]].gltf")
-    expect(builderTask("@fox", "codex")).toContain('loadModel("[[one]]")')
+describe("the teammates' task", () => {
+  const task = mateTask("@fox", "http://127.0.0.1:5180/")
+
+  it("leaves the role, branch and part for the lead to write in, and runs no git", () => {
+    for (const name of ["[[role]]", "[[branch]]", "[[part]]"]) expect(task).toContain(name)
+    expect(task).toContain("run no git")
+    expect(task).toContain('`send` @fox "[[role]]: first version in"')
+    expect(task).toContain('`send` @fox "[[role]]: polished"')
+  })
+
+  it("has teammates talk to each other, ask the person once, and look at the page", () => {
+    expect(task).toContain("`send` each teammate your part touches one line")
+    expect(task).toContain("`ask` the person one question about your part")
+    expect(task).toContain("Don't wait")
+    expect(task).toContain('`look` with page {"url": "http://127.0.0.1:5180/"}')
+    expect(mateTask("@fox", undefined)).not.toContain("`look` with page")
+  })
+
+  it("builds on the seed's kit", () => {
+    expect(task).toContain("kit/README.md")
+    expect(task).toContain("never rewrite it")
   })
 })
 
@@ -820,8 +852,8 @@ describe("the brief's wording", () => {
     await tour.prepare()
     const text = brief()
     expect(text).toContain("Never answer their questions to the")
-    expect(text).toContain('"header":"The world"')
-    expect(text).toContain('"header":"The kind"')
+    expect(text).toContain('subject "Which game shall we build?"')
+    expect(text).toContain('shape {"type":"options","options":[...]}')
   })
 })
 
@@ -838,7 +870,7 @@ describe("what the folder's own instructions say", () => {
     }
     const note = await readFile(join(folder, "AGENTS.md"), "utf8")
     expect(note.replaceAll(/\s+/g, " ")).toContain("If you were given a task, do only that task.")
-    expect(note).toContain("Run no shell command.")
+    expect(note).toContain(shellRule("pi"))
     expect(nudgeLine).toContain("tour brief Novadeck sent you")
   })
 })

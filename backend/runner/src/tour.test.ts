@@ -47,6 +47,12 @@ const noticeOf = (text: string): Message => ({
   toLead: false,
 })
 
+// Sparks as long as any the runner draws (a setting, a mechanic and a mood).
+const longSparks = Array.from(
+  { length: 3 },
+  () => "an underground mushroom realm; everything you shoot bounces; triumphant",
+)
+
 describe("the tour's brief to its lead", () => {
   // Delivered whole: wrapped as Novadeck's notice, in every harness, it fits one delivery, which
   // a harness takes no more than (a brief past it is rung but never handed over).
@@ -55,6 +61,7 @@ describe("the tour's brief to its lead", () => {
       lead: "@h-t1",
       mate: { agent: tourAgent, model: tourModel, effort: tourEffort },
       serving: { command: "node dev.mjs 5173", url: "http://127.0.0.1:5173/" },
+      sparks: longSparks,
     })
     expect(deliveredBytes(noticeOf(text))).toBeLessThanOrEqual(maxDeliveryBytes)
   })
@@ -64,15 +71,17 @@ describe("the tour's brief to its lead", () => {
       lead: "@a-twenty-char-name-x",
       mate: { agent: "agy", model: "gemini-3-flash-lite-preview", effort: "medium" },
       serving: { command: "python3 dev.py 65535", url: "http://127.0.0.1:65535/" },
+      sparks: longSparks,
     })
     expect(deliveredBytes(noticeOf(longest))).toBeLessThanOrEqual(maxDeliveryBytes)
   })
 
-  it("fits with Codex's longer rule for the shell, which each of its three texts carries", () => {
+  it("fits with Codex's longer model name", () => {
     const codex = tourBrief({
       lead: "@a-twenty-char-name-x",
       mate: { agent: "codex", model: "gpt-9.9-codex-max-luna", effort: "medium" },
       serving: { command: "python3 dev.py 65535", url: "http://127.0.0.1:65535/" },
+      sparks: longSparks,
     })
     expect(deliveredBytes(noticeOf(codex))).toBeLessThanOrEqual(maxDeliveryBytes)
   })

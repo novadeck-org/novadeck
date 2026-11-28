@@ -3,7 +3,7 @@ import type { ViewMode } from "@novadeck/core/types"
 import type { LeadState, PaneTab, TourRole, TourSignals } from "./signals"
 
 // What the tour marks on the page (`anchors.ts`): the window of a role, or its companion pane
-// (its tabs: the page, the model, the changes, the image, Messages), the terminal the coach
+// (its tabs: the page, the model, Messages), the terminal the coach
 // names, the teammates' windows, the approval dialog's button, the Inbox row waiting on the
 // person, the answers of the request sheet open now, the Files panel, and the sidebar rail's
 // buttons that open the Inbox and Files.
@@ -107,11 +107,17 @@ export type TourStep = {
   // How long the step waits at most, from when it began, before the run moves on all the same:
   // for a step that waits on agents at work, which no nudge counts.
   readonly capMs?: number
+  // Whether the step's subject will never come, so the run moves on at once, as at its cap: for a
+  // beat the agents may leave out.
+  readonly skip?: (signals: TourSignals) => boolean
   readonly coach: Coach
   readonly done: (signals: TourSignals, memory: TourMemory) => boolean
   readonly wait: TourWait | ((memory: TourMemory, signals: TourSignals) => TourWait)
   // Whom the step waits on, and so whom its nudge rings: the lead where none is named.
   readonly nudges?: TourRole | ((signals: TourSignals) => TourRole)
+  // Whether the step is about a teammate's question in the Inbox: its own coach then speaks while
+  // one waits, in place of the general one (`questionCoach`).
+  readonly asks?: true
 }
 
 export const waitOf = (step: TourStep, memory: TourMemory, signals: TourSignals): TourWait =>
@@ -143,9 +149,9 @@ export const startStep: TourStep = {
   wait: "nudge",
 }
 
-// Act 2: the lead asks the person, in the Inbox, what game to build: one sheet of two
-// questions, the world and the kind. It waits on the agent until the sheet shows, then on the
-// person, as long as they take: they open the Inbox (its button marked), its row, and answer.
+// Act 2: the lead asks the person, in the Inbox, what game to build: three pitches to pick from,
+// or their own words. It waits on the agent until the question shows, then on the person, as long
+// as they take: they open the Inbox (its button marked), its row, and answer.
 export const askStep: TourStep = {
   id: "ask",
   act: 2,
@@ -153,7 +159,7 @@ export const askStep: TourStep = {
   coach: {
     click: ["answers", "asking-row", "inbox-button"],
     line: "Your call. What game? Make it a good one.",
-    note: "Open your Inbox: pick a world and a kind, or write your own.",
+    note: "Open your Inbox: pick a game, or write your own.",
     overWindows: true,
   },
   done: ({ sheet }, { asked }) => sheet.answered || (asked && !sheet.asking),
@@ -179,30 +185,10 @@ export const runStep: TourStep = {
   wait: (_, { approving }) => (approving ? "patient" : "nudge"),
 }
 
-// Act 3: allowed, the lead shows the game's page in its pane, a blank start the team fills in.
-// Silent until the page is there; then, until the person has it on screen, it says so; it waits
-// for them to click into it.
-export const pageStep: TourStep = {
-  id: "page",
-  act: 3,
-  show: [{ kind: "travel" }],
-  open: { role: "lead", tab: "page" },
-  ready: ({ shown }) => shown.page !== null,
-  person: true,
-  coach: {
-    click: ["lead-pane", "lead"],
-    tab: "page",
-    cue: { line: "Your game's running. Go look.", note: "Open it: the eye, or its window." },
-    line: "There. Nothing in it yet. Give it time.",
-    note: "Click into it.",
-  },
-  done: ({ shown }) => shown.page !== null,
-  wait: "nudge",
-}
-
-// Still act 3: the lead opens its two teammates, which come up on the canvas, wired to it, and
-// name themselves. Silent until the first is there; where they landed out of sight, the box's
-// button frames every window. Once both are there, it waits for the person to click one.
+// Act 3: the lead opens its teammates, which come up on the canvas, wired to it, and name
+// themselves. Silent until the first is there; where they landed out of sight, the box's button
+// frames every window. Done once every one that came up has named itself, as the lead opens them
+// one after another, and then it waits for the person to click one.
 export const teamStep: TourStep = {
   id: "team",
   act: 3,
@@ -218,93 +204,164 @@ export const teamStep: TourStep = {
     line: "Look. It hired its own help. Without asking me?",
     note: "Click one.",
   },
-  done: ({ team }) => team.count >= 2 && team.named >= 2,
+  done: ({ team, lead }) =>
+    team.count > 0 &&
+    team.named >= team.count &&
+    (team.count >= 3 || (lead.kind === "agent" && !lead.working)),
   wait: "nudge",
 }
 
-// Still act 3: the modeller's first model, in 3D in its pane, for the person to spin: silent until
+// Still act 3: allowed, the lead shows the game's page in its pane, which opens on the kit's
+// showcase, a start the team changes. Silent until the page is there; then, until the person has
+// it on screen, it says so; it waits for them to click into it.
+export const pageStep: TourStep = {
+  id: "page",
+  act: 3,
+  show: [{ kind: "travel" }],
+  open: { role: "lead", tab: "page" },
+  ready: ({ shown }) => shown.page !== null,
+  person: true,
+  coach: {
+    click: ["lead-pane", "lead"],
+    tab: "page",
+    cue: { line: "Your game's running. Go look.", note: "Open it: the eye, or its window." },
+    line: "There. Just a showcase. Wait for yours.",
+    note: "Click into it.",
+  },
+  done: ({ shown }) => shown.page !== null,
+  wait: "nudge",
+}
+
+// Still act 3: a teammate wrote to another teammate, not to the lead, about what it exports or
+// needs. Silent until one has; the box's button opens the sender's Messages, where the lines are.
+export const talkStep: TourStep = {
+  id: "talk",
+  act: 3,
+  show: [{ kind: "travel", role: "talker" }],
+  open: { role: "talker", tab: "messages" },
+  ready: ({ roles }) => roles.talker !== undefined,
+  person: true,
+  coach: {
+    click: ["talker-pane", "talker"],
+    tab: "messages",
+    cue: {
+      line: "They're talking. Go listen.",
+      note: "Open its Messages: the eye, or its window.",
+    },
+    line: "Agent to agent. Not through me.",
+    note: "Click a thread to read it.",
+  },
+  done: ({ roles }) => roles.talker !== undefined,
+  wait: "nudge",
+  nudges: "mate",
+}
+
+// Still act 3: a teammate's question to the person arrives in the Inbox while the others carry on:
+// the windows show who is at work and who waits on you. Silent until it does; done once none
+// waits, or where every teammate has finished without asking.
+export const mateAskStep: TourStep = {
+  id: "mate-ask",
+  act: 3,
+  show: [{ kind: "fit-all" }],
+  ready: ({ askingRow }) => askingRow !== null,
+  asks: true,
+  coach: {
+    look: "team",
+    click: ["answers", "asking-row", "inbox-button"],
+    line: "One of them waits on you. The rest keep working.",
+    note: "Answer it in the Inbox, or dismiss it and it decides itself.",
+    overWindows: true,
+  },
+  done: ({ team, askingRow }) =>
+    askingRow === null && (team.asked || (team.count > 0 && team.polished >= team.count)),
+  wait: "nudge",
+  nudges: "mate",
+}
+
+// Still act 3: the maker's first model, in 3D in its pane, for the person to spin: silent until
 // it's there.
 export const shapeStep: TourStep = {
   id: "shape",
   act: 3,
-  show: [{ kind: "travel", role: "modeller" }],
-  open: { role: "modeller", tab: "model" },
+  show: [{ kind: "travel", role: "maker" }],
+  open: { role: "maker", tab: "model" },
   ready: ({ shown }) => shown.model !== null,
   person: true,
   coach: {
-    click: ["modeller-pane", "modeller"],
+    click: ["maker-pane", "maker"],
     tab: "model",
     cue: { line: "Its first model's done. Have a look.", note: "Open it: the eye, or its window." },
     line: "A model, made from nothing. Go on. Spin it.",
     note: "Drag it.",
   },
   done: ({ shown }) => shown.model !== null,
+  // A team that builds its characters in code shows no model: once every teammate's first
+  // version is in with none shown, none is coming, and the story goes on without the beat.
+  skip: ({ shown, team }) => shown.model === null && team.count > 0 && team.firstIn >= team.count,
   wait: "nudge",
-  nudges: "modeller",
+  nudges: "mate",
 }
 
-// Still act 3: the agents write in their own worktrees, and the Files panel shows each blink.
-// Until the person has it open (its rail button marked), the box asks them to open it; the line
-// about the blinks comes only with the panel on screen, which is all the step asks, and holds a
-// moment from then. Done once the models and the game have each been changed.
-export const filesStep: TourStep = {
-  id: "files",
+// Still act 3: the first versions land, and the lead's page changes under the person's eyes.
+// Silent until a teammate has told the lead its first version is in; the page is the subject, its
+// pane or the lead's window marked where it isn't on top.
+export const firstStep: TourStep = {
+  id: "first",
   act: 3,
-  show: [],
-  person: true,
+  show: [{ kind: "travel" }],
+  open: { role: "lead", tab: "page" },
+  ready: ({ team }) => team.firstIn > 0,
   holdMs: 5_000,
   coach: {
-    click: ["files", "files-button"],
-    opened: true,
-    cue: { line: "Open your Files. I'll wait.", note: "On the left. See what they're writing." },
-    line: "See the files blink? That's an agent, writing.",
+    click: ["lead-pane", "lead"],
+    tab: "page",
+    line: "First versions are in. Watch your page change.",
   },
-  done: ({ changed }) => changed.models && changed.game,
+  done: ({ team }) => team.firstIn > 0,
   wait: "nudge",
-  // The modeller is the one writing, until the models are changed; then the builder is.
-  nudges: ({ changed }) => (changed.models ? "builder" : "modeller"),
+  nudges: "mate",
 }
 
-// Still act 3: the builder's pane, with the diff it shows of the game it wrote: silent until
-// it's there.
-export const diffStep: TourStep = {
-  id: "diff",
+// Still act 3: the polishing round, as the first teammate says its part is polished: the page
+// changes again.
+export const polishStep: TourStep = {
+  id: "polish",
   act: 3,
-  show: [{ kind: "travel", role: "builder" }],
-  open: { role: "builder", tab: "changes" },
-  ready: ({ shown }) => shown.changes !== null,
-  person: true,
+  show: [{ kind: "travel" }],
+  open: { role: "lead", tab: "page" },
+  ready: ({ team }) => team.polished > 0,
+  holdMs: 5_000,
   coach: {
-    click: ["builder-pane", "builder"],
-    tab: "changes",
-    cue: { line: "The code's in. Want to read it?", note: "Open it: the eye, or its window." },
-    line: "Every line it wrote. Nothing hidden.",
-    note: "Click a file to see its lines.",
+    click: ["lead-pane", "lead"],
+    tab: "page",
+    line: "Polishing now. See it change again.",
   },
-  done: ({ shown }) => shown.changes !== null,
+  done: ({ team }) => team.polished > 0,
   wait: "nudge",
-  nudges: "builder",
+  nudges: "mate",
 }
 
 // Still act 3: the team finishes what it started, its answers to the person's questions taken
 // in; the story ends only then, so the project keeps the whole game. Done once every teammate
-// has reported to the lead and none is at work or waits on the person, and held a moment, as a
-// teammate may take up a new turn right after. A run that never settles ends all the same.
+// has told the lead its part is polished and none is at work or waits on the person, and held a
+// moment, as a teammate may take up a new turn right after. A run that never settles ends all
+// the same: the game is meant to be playable about seven minutes in.
 export const finishStep: TourStep = {
   id: "finish",
   act: 3,
   show: [{ kind: "fit-all" }],
   holdMs: lineMs,
-  capMs: 5 * 60_000,
+  capMs: 8 * 60_000,
   coach: { look: "team", line: "They're finishing it. Relax." },
   done: ({ team, askingRow, permission }) =>
     team.count > 0 &&
-    team.reported >= team.count &&
+    team.polished >= team.count &&
     !team.working &&
     askingRow === null &&
     permission === null,
   // No nudge while a teammate is at work: the lead is rung only once all are quiet.
   wait: (_, { team }) => (team.working ? "patient" : "nudge"),
+  nudges: "mate",
 }
 
 // Act 4: the result's wipe, then the game in the lead's pane, for the person to play: a while
@@ -321,7 +378,7 @@ export const playStep: TourStep = {
     click: ["lead-pane", "lead"],
     tab: "page",
     cue: { line: "Your game's done. Go open it.", note: "Open it: the eye, or its window." },
-    line: "Three agents, one game. Go play.",
+    line: "A whole team, one game. Go play.",
     note: "It's live in the pane: click it.",
   },
   // Never while a teammate's question waits: the closing card waits for the person's answer.
@@ -330,21 +387,23 @@ export const playStep: TourStep = {
 }
 
 // The same, where there is no page to play (this computer has neither Node nor Python 3): the
-// modeller's model is what is left to look at.
+// maker's model is what is left to look at.
 const modelPlayStep: TourStep = {
   ...playStep,
-  show: [{ kind: "travel", role: "modeller" }],
-  open: { role: "modeller", tab: "model" },
+  show: [{ kind: "travel", role: "maker" }],
+  open: { role: "maker", tab: "model" },
   ready: ({ shown }) => shown.model !== null,
+  // A team that built its characters in code has no model to end on: the story ends without it.
+  skip: ({ shown }) => shown.model === null,
   holdMs: 8_000,
   coach: {
-    click: ["modeller-pane", "modeller"],
+    click: ["maker-pane", "maker"],
     tab: "model",
     cue: {
       line: "Your model's done. Go open it.",
       note: "Open its model: the eye, or its window.",
     },
-    line: "Three agents, one model. Yours.",
+    line: "A whole team, one model. Yours.",
     note: "Give it one more spin.",
   },
 }
@@ -354,22 +413,33 @@ const played = {
     startStep,
     askStep,
     runStep,
-    pageStep,
     teamStep,
+    pageStep,
+    talkStep,
+    mateAskStep,
     shapeStep,
-    filesStep,
-    diffStep,
+    firstStep,
+    polishStep,
     finishStep,
     playStep,
   ],
-  noPage: [startStep, askStep, teamStep, shapeStep, filesStep, diffStep, finishStep, modelPlayStep],
+  noPage: [
+    startStep,
+    askStep,
+    teamStep,
+    talkStep,
+    mateAskStep,
+    shapeStep,
+    finishStep,
+    modelPlayStep,
+  ],
 } as const
 
 // The tour's steps, in order: the story the briefs ask the agents to play.
 export const tourSteps: readonly TourStep[] = played.page
 
 // The steps a run plays: without a page (no Node or Python 3 here, or the person declined the
-// run) the run and page steps are left out and the story ends on the model.
+// run) the run, page and page-change steps are left out and the story ends on the model.
 export const stepsOf = (page: boolean): readonly TourStep[] => played[page ? "page" : "noPage"]
 
 // The closing card's line, the last thing the tour says.

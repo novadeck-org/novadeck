@@ -2626,23 +2626,26 @@ one from an earlier runner.
   `doorbell`: the lead's script reaches it by `tour.brief`.
   The script is composed for each run, and never names the person: it calls them "you", and
   tells every agent never to use their name, even one it knows. It has the lead describe itself
-  and ask the person which game to build: one `ask` of two questions, "The world" (Fantasy,
-  Sci-fi, Modern) and "The kind" (RPG, Shooter, Strategy), own words allowed (dismissed, it takes
-  Fantasy and RPG). With the answer, where `page` is true, it first asks to `open_terminal` the
-  dev server's command (`node dev.mjs <port>`, say, which the person approves in the app's usual
-  dialog) and ends its turn, opening no one while the approval is on screen; told the outcome, it
-  `show`s the page where they approved it. Then (with the answer, where `page` is false) it
-  names the game's three models (the player, an enemy, one more) and, in that one turn (a
-  sentence in between ends a cheap model's turn), opens two teammates with `open_agent` on Nova (agent `pi`), GPT-6 Luna at medium effort, as above, each with its task as the message, the picks and the names written in for the
-  task's `[[world]]`, `[[kind]]`, `[[one]]`, `[[two]]` and `[[three]]` (the Modeller makes the
-  three models in a worktree on `models`, shows the first as soon as it exists, asks the person
-  one thing about their look, then makes the other two; the Builder writes the game in `src/` in
-  a worktree on `game`, loading the models by name, shows its changes, asks the person one thing
-  it should get next and makes that change; each tells the lead when done). No agent runs git. The texts were tuned
-  on Codex (its `*-luna`, low effort), and run on pi's GPT-6 Luna at medium effort untuned
-  to it. What each agent is told of the shell follows its harness (`shellRule`, in the lead's
-  script, both tasks and the folder's note): pi reads and writes files with tools of its
-  own and runs no shell command. A
+  and pitch the person three games, one on each of three sparks the runner draws for the run
+  (`drawSparks`: a setting, a mechanic and a mood, none twice), as one options `ask`, own words
+  allowed (dismissed, it takes the first). With the answer, where `page` is true, it asks to
+  `open_terminal` the dev server's command (`node dev.mjs <port>`, say, which the person approves
+  in the app's usual dialog) and goes on in the same turn: it writes `PLAN.md` (the game, its
+  controls, how to win or lose, and three parts, each with its owner, branch, files and the
+  functions between them) and opens three teammates with `open_agent` on Nova (agent
+  `pi`), GPT-6 Luna at medium effort, as above, each with `mateTask` as the message, its
+  `[[role]]`, `[[branch]]` and `[[part]]` written in (`parts`: Core on `core` with
+  `src/main.js`, World on `world` with `src/world.js` and `models/`, Feel on `feel` with
+  `src/feel.js`); told the server started, it `show`s the page. Each teammate opens a worktree on
+  its branch, reads the seed's README and its kit (`kit/README.md`: stage, post-processing,
+  particles, juice, shapes, materials, sound, music, UI, input), `send`s the teammates its part
+  touches what it exports and needs, builds its part on the kit, `ask`s the person one question
+  and keeps working while it waits, `show`s its first version and tells the lead, plays the game
+  with `look`, makes one polishing change, and tells the lead it's polished. The lead `look`s at
+  the page after each first version and sends its owner a fix where something's broken. No agent
+  runs git. What each agent is told of the shell follows its harness (`shellRule`, in the
+  folder's note): pi asks no one before a command, so the tour's agents may run `node --check`
+  and small node scripts, and never install anything, run git or start a server of their own. A
   teammate the lead opens in the folder is Nova too (`OpenPolicy.program`, through
   the Terminals option `openPolicy`: `open_agent`'s command line starts with `novadeck-nova`, and the
   person's pi need not be connected), and on the run's model and effort whatever

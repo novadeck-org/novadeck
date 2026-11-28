@@ -6,14 +6,7 @@ import { join } from "node:path"
 import { samePath } from "@novadeck/harness-core/paths"
 import { novaDefaultModel } from "@novadeck/harness-nova/model"
 import type { AgentName, Approval } from "@novadeck/protocol"
-import {
-  branches,
-  gameEntry,
-  keptLine,
-  kinds,
-  projectNote,
-  worlds,
-} from "@novadeck/tour-runner/brief"
+import { gameEntry, keptLine, parts, planFile, projectNote } from "@novadeck/tour-runner/brief"
 import { tourMarker } from "@novadeck/tour-runner/folder"
 import { tourEffort } from "@novadeck/tour-runner/launch"
 import { tourBriefMark } from "@novadeck/tour-runner/notices"
@@ -34,18 +27,20 @@ import {
   through,
 } from "./scenarios.js"
 
-// Novadeck's tour story (backend/tour/src/brief.ts): the lead asks the person which game
-// to make (a world and a kind, one sheet of two questions), then asks to run the game's dev
-// server; once the person approves it shows its page and opens a modeller and a builder with
-// `open_agent`, their tasks with the picks and three models' names written in. The modeller makes the first
-// model in a worktree, shows it, asks the person one thing, then makes the other two; the builder
-// writes the game in a worktree, shows its changes, asks one thing, and makes that change. Once
-// the person keeps the project, the runner commits their work on main. The fake model plays all
-// three, each by the brief it was given: what a step says (a title, a branch, the words to send)
-// is read out of the brief's text, so a brief that changes in a way the story can't follow breaks
-// the test. It has no tool call for writing a file in every harness, so its rules make each edit
-// themselves, in the worktree its agent opened, where the agent's model would write it. A
-// conversation's role is told by what it was briefed with, so one script serves the three.
+// Novadeck's tour story (backend/tour/src/brief.ts): the lead asks the person which game to make
+// (three pitches to pick from, or their own words), then asks to run the game's dev server; once
+// the person approves it writes PLAN.md, opens Core, World and Feel with `open_agent`, their
+// tasks as the brief quotes them with their role, branch and part written in, and shows its page.
+// Each teammate opens a worktree, tells the teammates opened before it what its part exports,
+// asks the person one thing and goes on working without waiting, writes its files, shows them,
+// tells the lead its first version is in, and, once the person has answered, makes one more
+// change and tells the lead it is polished. Once the person keeps the project, the runner commits
+// their work on main. The fake model plays all four, each by the brief it was given: what a step
+// says (a title, a branch, the words to send) is read out of the brief's text, so a brief that
+// changes in a way the story can't follow breaks the test. It has no tool call for writing a file
+// in every harness, so its rules make each edit themselves, in the worktree its agent opened,
+// where the agent's model would write it. A conversation's role is told by what it was briefed
+// with, so one script serves the four.
 
 /** The tour's folder, as the sandbox's home holds it. */
 export const folder = join(".novadeck", "tour")
@@ -108,13 +103,15 @@ export type Opening = {
   readonly message: string
 }
 
-/** The `open_agent` calls the brief asks of its lead, read from its text, in order. */
-export const openings = (brief: string): Opening[] =>
-  [
-    ...brief.matchAll(
-      /Call `open_agent`(?: again)? with agent "(\w+)", model "([^"]+)"(?:, effort "(\w+)")?, and as `message` this text[^\n]*(?:\n[^\n>]+)*:\n\n((?:> ?.*\n?)+)/g,
-    ),
-  ].map(([, agent, model, effort, quoted]) => ({
+/** The one `open_agent` call the brief asks of its lead, three times over, read from its text. */
+export const opening = (brief: string): Opening => {
+  const found =
+    /Call `open_agent` three times, with agent "(\w+)", model "([^"]+)"(?:, effort "(\w+)")?, one per part, and as\s+`message` this text[^\n]*\n\n((?:> ?.*\n?)+)/.exec(
+      brief,
+    )
+  if (!found) throw new Error("The lead's brief has no open_agent call for its three parts")
+  const [, agent, model, effort, quoted] = found
+  return {
     agent: agent as AgentName,
     model: model!,
     ...(effort !== undefined && { effort }),
@@ -123,7 +120,8 @@ export const openings = (brief: string): Opening[] =>
       .map((line) => line.replace(/^> ?/, ""))
       .join("\n")
       .trim(),
-  }))
+  }
+}
 
 // The text of a brief with its line breaks and indents as single spaces.
 const flat = (words: string): string => words.replace(/\s+/g, " ")
@@ -145,8 +143,12 @@ const fromAgents = (call: Call) => received(call).filter((one) => one.from !== "
 const noticeIn = (call: Call, mark: string): string | undefined =>
   received(call).find((one) => one.from === "novadeck" && one.text.startsWith(mark))?.text
 
-type Mate = "builder" | "modeller"
+/** A teammate: the part it has, by the role its title reads. */
+type Part = (typeof parts)[number]
+type Mate = Lowercase<Part["role"]>
 type Role = Mate | "lead"
+
+const mateOf = (part: Part): Mate => part.role.toLowerCase() as Mate
 
 /** What a conversation was briefed with: its role, its task and, for a teammate, its lead. */
 type Briefing = {
@@ -168,21 +170,23 @@ const known = (call: Call): string => {
   return rung ?? users[0] ?? ""
 }
 
-const taskOf: Readonly<Record<Mate, string>> = {
-  modeller: "You are Modeller, a teammate in Novadeck's tour.",
-  builder: "You are Builder, a teammate in Novadeck's tour.",
-}
+// How a teammate's task begins, by its role.
+const startOf = (part: Part): string => `You are ${part.role}, one of three teammates`
 
 /** Who a call is for, and what it was briefed with: a teammate by the task it holds as its lead's message, or else the lead. */
 const briefing = (call: Call, kept: Map<string, Briefing>): Briefing => {
   const key = known(call)
-  for (const role of ["modeller", "builder"] as const) {
-    const task = fromAgents(call).find((one) => one.text.includes(taskOf[role]))
+  for (const part of parts) {
+    const task = fromAgents(call).find((one) => one.text.includes(startOf(part)))
     // A copy of the task with no sender (as Antigravity quotes it back in a tool's error) never
     // takes the place of the lead it was first seen from. The lead is named in the task: its
     // handle, the one address `send` takes, never the id the message came `from`.
     if (task && (task.from || !kept.has(key)))
-      kept.set(key, { role, task: task.text, lead: /(@[\w-]+) leads you/.exec(task.text)?.[1] })
+      kept.set(key, {
+        role: mateOf(part),
+        task: task.text,
+        lead: /(@[\w-]+) leads you/.exec(task.text)?.[1],
+      })
   }
   return kept.get(key) ?? { role: "lead" }
 }
@@ -196,35 +200,69 @@ const answerIn = (words: string): string =>
   /<quoted-option>([\s\S]*?)<\/quoted-option>/.exec(words)?.[1]?.trim() ||
   ""
 
-// The person's answers to an ask of several questions, one per question in its order.
-const answersIn = (words: string): string[] =>
-  words
-    .split(/Your question \d+/)
-    .slice(1)
-    .map((part) => answerIn(part))
+/** The three games the fake lead pitches, each a title and a line, from the sparks it was given. */
+export const pitches = [
+  { label: "Glass Drift", summary: "Drift a skiff over a desert of glass." },
+  { label: "Magnet Rush", summary: "Pull and push with a magnet through a neon city." },
+  { label: "Beat Cat", summary: "Guide a cat through a haunted carnival on the beat." },
+] as const
 
-/** The names the fake lead gives the game's three models. */
-export const modelNames = ["hero", "foe", "chest"] as const
+/** The one model the fake World makes. */
+export const modelName = "hero"
 
-// A task with the lead's values written in for its [[name]]s.
-const filled = (task: string, world: string, kind: string): string =>
+/** The one question each fake teammate asks the person, and the answers it offers. */
+export const questions: Readonly<Record<Mate, { subject: string; labels: readonly string[] }>> = {
+  core: { subject: "How hard should the game be?", labels: ["Gentle", "Brutal"] },
+  world: { subject: "What should the hero look like?", labels: ["Robot", "Penguin"] },
+  feel: { subject: "What should the game sound like?", labels: ["Chiptune", "Calm"] },
+}
+
+/** What each fake teammate says to the lead as its work comes along, as its task words it. */
+export const firstVersion = (part: Part): string => `${part.role}: first version in`
+export const polished = (part: Part): string => `${part.role}: polished`
+
+// A task with the lead's values written in for its [[name]]s: the plan's two lines for the part.
+const partLines = (part: Part): string => `${part.owns}: ${part.does}.`
+const filled = (task: string, part: Part): string =>
   task
-    .replaceAll("[[world]]", world)
-    .replaceAll("[[kind]]", kind)
-    .replaceAll("[[one]]", modelNames[0])
-    .replaceAll("[[two]]", modelNames[1])
-    .replaceAll("[[three]]", modelNames[2])
+    .replaceAll("[[role]]", part.role)
+    .replaceAll("[[branch]]", part.branch)
+    .replaceAll("[[part]]", partLines(part))
 
-// The game the builder writes, loading the three models by name, with what the person asked for.
-const gameOf = (world: string, kind: string, next?: string): string =>
-  `// A ${world} ${kind} game.
-import * as THREE from "three"
+// The plan the fake lead writes: the game in a line, then each part with its owner and files.
+const planOf = (pick: string): string =>
+  `# Plan\n\nA browser game: ${pick}.\n\n${parts
+    .map((part) => `- ${part.role} (branch ${part.branch}), ${partLines(part)}`)
+    .join("\n")}\n`
+
+// ---- The files the agents write, as their models would. ----
+
+const coreOf = (pick: string, next?: string): string =>
+  `// ${pick}: the rules, the player and the loop.
+import { buildWorld } from "./world.js"
+import { hud } from "./feel.js"
+
+export const start = (scene, state) => {
+  buildWorld(scene)
+  hud(state)
+}
+${next === undefined ? "" : `// As asked: ${next}\n`}`
+
+const worldOf = (pick: string): string =>
+  `// ${pick}: the scene, built on the kit, and the hero's model.
 import { loadModel } from "./models.js"
 
-const [hero, foe, chest] = await Promise.all(${JSON.stringify(modelNames)}.map(loadModel))
-const scene = new THREE.Scene()
-scene.add(hero, foe, chest)
-${next === undefined ? "" : `// Next, as asked: ${next}\n`}`
+export const buildWorld = async (scene) => {
+  scene.add(await loadModel("${modelName}"))
+}
+`
+
+const feelOf = (pick: string, next?: string): string =>
+  `// ${pick}: the title, the HUD and the juice.
+export const hud = (state) => {
+  state.title = "${pick}"
+}
+${next === undefined ? "" : `// As asked: ${next}\n`}`
 
 // ---- The files the agents write, as their models would. ----
 
@@ -247,7 +285,7 @@ const primitives = {
   cylinder: { POSITION: 9, NORMAL: 10, indices: 11 },
 } as const
 
-type Part = {
+type Piece = {
   readonly name: string
   readonly shape: keyof typeof primitives
   readonly colour: keyof typeof colours
@@ -255,7 +293,7 @@ type Part = {
   readonly size: readonly [number, number, number]
 }
 
-const penguin: readonly Part[] = [
+const penguin: readonly Piece[] = [
   { name: "board", shape: "box", colour: "brown", at: [0, 0.2, 0], size: [1.8, 0.1, 0.6] },
   { name: "wheel", shape: "sphere", colour: "grey", at: [-0.6, 0.1, 0.2], size: [0.2, 0.2, 0.2] },
   { name: "wheel", shape: "sphere", colour: "grey", at: [-0.6, 0.1, -0.2], size: [0.2, 0.2, 0.2] },
@@ -269,7 +307,7 @@ const penguin: readonly Part[] = [
   { name: "foot", shape: "box", colour: "orange", at: [0.25, 0.3, 0.2], size: [0.3, 0.1, 0.4] },
 ]
 
-const robot: readonly Part[] = [
+const robot: readonly Piece[] = [
   { name: "leg", shape: "box", colour: "grey", at: [-0.3, 0.4, 0], size: [0.3, 0.8, 0.3] },
   { name: "leg", shape: "box", colour: "grey", at: [0.3, 0.4, 0], size: [0.3, 0.8, 0.3] },
   { name: "body", shape: "box", colour: "blue", at: [0, 1.2, 0], size: [1, 0.9, 0.6] },
@@ -285,11 +323,11 @@ const list = (items: readonly string[]): string => `[\n    ${items.join(",\n    
 
 // A model's glTF as models/README.md has it written: the lines above `"materials"` as the seed
 // has them, then the materials, the meshes, the nodes and the scene.
-const sculpted = (seed: string, parts: readonly Part[]): string => {
+const sculpted = (seed: string, pieces: readonly Piece[]): string => {
   const head = seed.slice(0, seed.indexOf('"materials"'))
   if (head === "") throw new Error(`The placeholder has no "materials" to replace from`)
-  const used = [...new Set(parts.map((part) => part.colour))]
-  const pairs = [...new Set(parts.map((part) => `${part.colour} ${part.shape}`))]
+  const used = [...new Set(pieces.map((part) => part.colour))]
+  const pairs = [...new Set(pieces.map((part) => `${part.colour} ${part.shape}`))]
   const materials = used.map(
     (name) =>
       `{"name":"${name}","pbrMetallicRoughness":{"baseColorFactor":[${[...colours[name]!, 1].join(",")}],"metallicFactor":0,"roughnessFactor":0.7}}`,
@@ -299,11 +337,11 @@ const sculpted = (seed: string, parts: readonly Part[]): string => {
     const { POSITION, NORMAL, indices } = primitives[shape]
     return `{"name":"${pair}","primitives":[{"attributes":{"POSITION":${POSITION},"NORMAL":${NORMAL}},"indices":${indices},"material":${used.indexOf(colour)}}]}`
   })
-  const nodes = parts.map(
+  const nodes = pieces.map(
     (part) =>
       `{"name":"${part.name}","mesh":${pairs.indexOf(`${part.colour} ${part.shape}`)},"translation":[${part.at.join(",")}],"scale":[${part.size.join(",")}]}`,
   )
-  return `${head}"materials": ${list(materials)},\n  "meshes": ${list(meshes)},\n  "nodes": ${list(nodes)},\n  "scenes": [{"nodes":[${parts.map((_, index) => index).join(",")}]}]\n}\n`
+  return `${head}"materials": ${list(materials)},\n  "meshes": ${list(meshes)},\n  "nodes": ${list(nodes)},\n  "scenes": [{"nodes":[${pieces.map((_, index) => index).join(",")}]}]\n}\n`
 }
 
 /** What the story's rules learned from the conversations, for the test to check. */
@@ -312,8 +350,8 @@ export type Learned = {
   readonly script: () => string
   /** The tasks the teammates were sent, as they held them. */
   readonly tasks: () => Readonly<Partial<Record<Mate, string>>>
-  /** The world and the kind the lead read in the person's answer. */
-  readonly picks: () => readonly [world: string, kind: string] | undefined
+  /** The game the lead read in the person's answer. */
+  readonly pick: () => string | undefined
 }
 
 // A conversation's plan: steps to take one at a time, each as the agent's tool call or, for a
@@ -352,16 +390,19 @@ const proceed = (one: Mind, call: Call, closing: string): Reply => {
 
 /**
  * The rules of the whole story. A tool's name is found among those any call of the run
- * offered, as the first call of an agent goes out before its MCP tools load.
+ * offered, as the first call of an agent goes out before its MCP tools load. `directory` is the
+ * tour's folder, where the lead writes its plan.
  */
-export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
+export const storyRules = (run: E2E, directory: string): { rules: Rule[] } & Learned => {
   // The lead's brief, kept from the first call that carries it: a harness may drop an old
   // delivery from the calls after.
   let script: string | undefined
   const tasks: Partial<Record<Mate, string>> = {}
-  let picks: readonly [string, string] | undefined
+  let pick: string | undefined
   const kept = new Map<string, Briefing>()
-  const minds: Record<Role, Mind> = { lead: mind(), modeller: mind(), builder: mind() }
+  const minds = Object.fromEntries(
+    ["lead", ...parts.map(mateOf)].map((role) => [role, mind()]),
+  ) as Record<Role, Mind>
   const named = (call: Call, name: string): string | undefined =>
     [call, ...run.model.calls].map((one) => tool(one, name)).find(Boolean)
   const using =
@@ -380,31 +421,59 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
     if (!row) throw new Error(`No worktree on ${branch}`)
     return row.path
   }
+  // The handles of the teammates the lead has opened so far, in the order it opened them, by
+  // role: a teammate writes the ones opened before it, which are there to be written to.
+  const handles = (lead: string | undefined): readonly string[] => {
+    const leader = run.deck.store.terminals().find((each) => `@${each.handle}` === lead)
+    return run.deck.store
+      .terminals()
+      .filter((each) => leader !== undefined && each.ledBy === leader.id)
+      .map((each) => `@${each.handle}`)
+  }
   // The steps every teammate begins with, as its task has them.
-  const describing = (brief: string): Step =>
+  const describing = (task: string, part: Part): Step =>
     using("describe", () => {
-      const [title, summary] = read(
-        brief,
-        /Call `describe` with (?:the )?title "([^"]+)" and (?:the )?summary "([^"]+)"/,
-        "describe",
-      ) as [string, string]
-      return { title, summary }
+      const [title] = read(task, /Call `describe` with title "([^"]+)"/, "describe") as [string]
+      return { title, summary: part.does }
     })
-  const opening = (brief: string): Step => using("open_worktree", () => openedOf(brief))
-  const showing = (brief: string, file: () => string): Step =>
-    using("show", () => {
-      const [kind] = read(brief, /call `show` with `(file|changes)` \{"path"/i, "show")
-      return { [kind!]: { path: file() }, open: true }
-    })
-  const telling = (brief: string, to: () => string, said: RegExp): Step =>
-    using("send", () => ({ to: to(), text: read(brief, said, "send's text")[0] }))
+  const worktreeOpening = (task: string): Step => using("open_worktree", () => openedOf(task))
+  // One line to each teammate opened before this one: what its part exports.
+  const telling =
+    (part: Part, lead: string | undefined): Step =>
+    (from) => {
+      const mine = handles(lead)
+      const found = named(from, "send")
+      if (!found) throw new Error("The model was never offered send")
+      const earlier = mine.slice(
+        0,
+        parts.findIndex((each) => each.role === part.role),
+      )
+      if (earlier.length === 0) return undefined
+      return {
+        calls: earlier.map((to) => ({
+          name: found,
+          input: { to, text: `${part.role}: ${part.owns} is mine; ask me what it exports.` },
+        })),
+      }
+    }
   // A teammate's one question: its words are its own, the shape as its task has it.
-  const asking = (subject: string, labels: readonly string[]): Step =>
+  const asking = (mate: Mate): Step =>
     using("ask", () => ({
-      subject,
+      subject: questions[mate].subject,
       body: "Pick one, or write your own.",
-      shape: { type: "options", options: labels.map((label) => ({ label })) },
+      shape: { type: "options", options: questions[mate].labels.map((label) => ({ label })) },
     }))
+  // What a teammate shows: its worktree's changes, or a model it made.
+  const showing = (task: string, file?: () => string): Step =>
+    using("show", () => {
+      read(task, /call `show` \(`changes` with your worktree's folder/i, "show")
+      return file
+        ? { file: { path: file() }, open: true }
+        : { changes: { path: worktree(openedOf(task).branch) }, open: true }
+    })
+  // A teammate's word to the lead.
+  const reporting = (lead: string | undefined, said: string): Step =>
+    using("send", () => ({ to: lead ?? "", text: said }))
   // The person's answer to a teammate's question, once: what it says, or undefined.
   const heard = (call: Call, one: Mind): string | undefined => {
     if (one.seen.has("answered")) return undefined
@@ -414,22 +483,79 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
     return words || undefined
   }
 
-  // The lead's two calls that open its team, each with its task as the brief quotes it, the
-  // picks and the models' names written in.
-  const hire = (brief: string, [world, kind]: readonly [string, string]): Step[] => {
-    const [first, second] = openings(brief)
-    if (!first || !second) throw new Error("The lead's brief has no two open_agent calls")
-    return [first, second].map((mate) =>
+  // The lead's calls that open its team: one per part, each with the task as the brief quotes it
+  // and the part's role, branch and lines written in.
+  const hire = (brief: string): Step[] => {
+    const mate = opening(brief)
+    return parts.map((part) =>
       using("open_agent", () => ({
         agent: mate.agent,
         model: mate.model,
         ...(mate.effort !== undefined && { effort: mate.effort }),
-        message: filled(mate.message, world, kind),
+        message: filled(mate.message, part),
       })),
     )
   }
+  // The lead writes its plan in its own folder, as its model would.
+  const planning = (): Step => () => {
+    writeFileSync(join(directory, planFile), planOf(pick ?? ""))
+    return undefined
+  }
+  // The game as the lead read it in the person's answer.
+  const gameName = (): string => pick ?? "the game"
   // Whether the lead has opened its team.
   let hired = false
+
+  // A teammate's rule: briefed, it describes itself, opens its worktree, tells the teammates
+  // opened before it what its part exports, asks the person its one question and goes on
+  // without waiting, writes its files, shows them and tells the lead its first version is in;
+  // the person's answer wakes it for one more change, and its word that it is polished.
+  const teammate = (
+    part: Part,
+    write: (where: string, pick: string, next?: string) => void,
+    show: (task: string, where: () => string) => Step,
+  ): Rule =>
+    own((one) => {
+      const mate = mateOf(part)
+      const { role, task, lead: leader } = briefing(one, kept)
+      if (role !== mate || !task) return undefined
+      tasks[mate] ??= task
+      const mine = minds[mate]
+      const where = (): string => worktree(openedOf(task).branch)
+      const writing =
+        (next?: string): Step =>
+        () => {
+          write(where(), gameName(), next)
+          return undefined
+        }
+      let news = false
+      if (!mine.begun) {
+        if (!fresh(one) || one.turns.some((turn) => turn.role === "assistant")) return undefined
+        mine.begun = news = true
+        mine.queue.push(
+          describing(task, part),
+          worktreeOpening(task),
+          telling(part, leader),
+          asking(mate),
+          writing(),
+          show(task, where),
+          reporting(leader, firstVersion(part)),
+          ends(`${part.role}: first version in.`),
+        )
+      } else if (fresh(one)) {
+        const words = heard(one, mine)
+        if (words) {
+          news = true
+          mine.queue.push(
+            writing(words),
+            show(task, where),
+            reporting(leader, polished(part)),
+            ends(`${part.role}: polished.`),
+          )
+        }
+      }
+      return goes(one, news) ? proceed(mine, one, "Done.") : undefined
+    })
 
   const rules: Rule[] = [
     // The lead, by the brief's steps and what it is told after.
@@ -444,14 +570,28 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
         lead.begun = news = true
         const brief = script
         lead.queue.push(
-          describing(brief),
-          using("ask", () => {
-            const [subject, body, shape] = read(
+          using("describe", () => {
+            const [title, summary] = read(
               brief,
-              /Call `ask` with subject "([^"]+)", body "([^"]+)" and shape (\{.*?\}) Then say/,
+              /Call `describe` with the title "([^"]+)" and the summary "([^"]+)"/,
+              "describe",
+            ) as [string, string]
+            return { title, summary }
+          }),
+          using("ask", () => {
+            const [subject, body] = read(
+              brief,
+              /Call `ask` with subject "([^"]+)", body "([^"]+)" and shape/,
               "ask",
-            ) as [string, string, string]
-            return { subject, body, shape: JSON.parse(shape) as unknown }
+            ) as [string, string]
+            return {
+              subject,
+              body,
+              shape: {
+                type: "options",
+                options: pitches.map(({ label, summary }) => ({ label, summary })),
+              },
+            }
           }),
           ends("I'm your own agent, and my team builds the game you pick."),
         )
@@ -462,9 +602,8 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
           lead.seen.add(id)
           news = true
           const brief = script!
-          if (message.from === "you" && picks === undefined) {
-            const [world = "", kind = ""] = answersIn(message.text)
-            picks = [world, kind]
+          if (message.from === "you" && pick === undefined) {
+            pick = answerIn(message.text)
             // Where the dev server can run, the lead asks for it and opens its team only once
             // the person has answered that; else it opens the team at once.
             if (/Call `open_terminal`/.test(brief))
@@ -481,121 +620,52 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
               )
             else {
               hired = true
-              lead.queue.push(...hire(brief, picks), ends("The team is at work."))
+              lead.queue.push(planning(), ...hire(brief), ends("The team is at work."))
             }
           } else if (
             message.from === "novadeck" &&
             /(approved|declined) running/.test(message.text) &&
-            picks !== undefined &&
+            pick !== undefined &&
             !hired
           ) {
             hired = true
+            lead.queue.push(planning(), ...hire(brief))
             if (/approved running/.test(message.text)) {
               const [url] = read(brief, /`page` \{"url": "([^"]+)"\}/, "show page")
               lead.queue.push(using("show", () => ({ page: { url }, open: true })))
             }
-            lead.queue.push(...hire(brief, picks), ends("The team is at work."))
+            lead.queue.push(ends("The team is at work."))
           }
         }
       }
       return goes(one, news) ? proceed(lead, one, "Noted.") : undefined
     }),
-    // The modeller: makes the first model and shows it, asks the person, makes the other two.
-    own((one) => {
-      const { role, task, lead: leader } = briefing(one, kept)
-      if (role !== "modeller" || !task) return undefined
-      tasks.modeller ??= task
-      const modeller = minds.modeller
-      const model = (name: string): string =>
-        join(worktree(openedOf(task).branch), "models", `${name}.gltf`)
-      const make =
-        (name: string, parts: readonly Part[]): Step =>
-        () => {
-          const placeholder = readFileSync(
-            join(worktree(openedOf(task).branch), "models", "placeholder.gltf"),
-            "utf8",
-          )
-          writeFileSync(model(name), sculpted(placeholder, parts))
-          return undefined
-        }
-      let news = false
-      if (!modeller.begun) {
-        if (!fresh(one) || one.turns.some((turn) => turn.role === "assistant")) return undefined
-        modeller.begun = news = true
-        const [first] = read(task, /Make models\/([\w-]+)\.gltf there/, "the first model")
-        modeller.queue.push(
-          describing(task),
-          opening(task),
-          make(first!, robot),
-          showing(task, () => model(first!)),
-          asking("What should the characters look like?", ["Robots", "Penguins"]),
-          ends("Asked you how the characters look."),
+    // Core: the rules and the loop, in src/main.js.
+    teammate(
+      parts[0],
+      (where, game, next) => writeFileSync(join(where, gameEntry), coreOf(game, next)),
+      (task) => showing(task),
+    ),
+    // World: the scene in src/world.js, and the hero's model, which it shows. Its answer picks
+    // the model's look.
+    teammate(
+      parts[1],
+      (where, game, next) => {
+        writeFileSync(join(where, "src", "world.js"), worldOf(game))
+        const placeholder = readFileSync(join(where, "models", "placeholder.gltf"), "utf8")
+        writeFileSync(
+          join(where, "models", `${modelName}.gltf`),
+          sculpted(placeholder, next !== undefined && /penguin/i.test(next) ? penguin : robot),
         )
-      } else if (fresh(one)) {
-        const words = heard(one, modeller)
-        if (words) {
-          news = true
-          const parts = /penguin/i.test(words) ? penguin : robot
-          const [second, third] = read(
-            task,
-            /Make models\/([\w-]+)\.gltf and models\/([\w-]+)\.gltf/,
-            "the other models",
-          ) as [string, string]
-          modeller.queue.push(
-            make(second, parts),
-            showing(task, () => model(second)),
-            make(third, parts),
-            showing(task, () => model(third)),
-            telling(task, () => leader ?? "", /`text` "(Models done\.)"/),
-            ends("Models done."),
-          )
-        }
-      }
-      return goes(one, news) ? proceed(modeller, one, "Done.") : undefined
-    }),
-    // The builder: writes the game and shows its changes, asks the person, makes that change.
-    own((one) => {
-      const { role, task, lead: leader } = briefing(one, kept)
-      if (role !== "builder" || !task) return undefined
-      tasks.builder ??= task
-      const builder = minds.builder
-      const where = (): string => worktree(openedOf(task).branch)
-      const [world, kind] = read(task, /The person picked a (.+?) (\S+) game\./, "the picks") as [
-        string,
-        string,
-      ]
-      const write =
-        (next?: string): Step =>
-        () => {
-          writeFileSync(join(where(), gameEntry), gameOf(world, kind, next))
-          return undefined
-        }
-      let news = false
-      if (!builder.begun) {
-        if (!fresh(one) || one.turns.some((turn) => turn.role === "assistant")) return undefined
-        builder.begun = news = true
-        builder.queue.push(
-          describing(task),
-          opening(task),
-          write(),
-          showing(task, where),
-          asking("What should the game get next?", ["More enemies", "A score"]),
-          ends("Asked you what comes next."),
-        )
-      } else if (fresh(one)) {
-        const words = heard(one, builder)
-        if (words) {
-          news = true
-          builder.queue.push(
-            write(words),
-            showing(task, where),
-            telling(task, () => leader ?? "", /`text` "(Game done\.)"/),
-            ends("Game done."),
-          )
-        }
-      }
-      return goes(one, news) ? proceed(builder, one, "Done.") : undefined
-    }),
+      },
+      (task, where) => showing(task, () => join(where(), "models", `${modelName}.gltf`)),
+    ),
+    // Feel: the title, the HUD and the juice, in src/feel.js.
+    teammate(
+      parts[2],
+      (where, game, next) => writeFileSync(join(where, "src", "feel.js"), feelOf(game, next)),
+      (task) => showing(task),
+    ),
   ]
   return {
     rules,
@@ -604,7 +674,7 @@ export const storyRules = (run: E2E): { rules: Rule[] } & Learned => {
       return script
     },
     tasks: () => tasks,
-    picks: () => picks,
+    pick: () => pick,
   }
 }
 
@@ -616,15 +686,15 @@ const inTour = (terminal: DeckTerminal, directory: string): void => {
   )
 }
 
-/** What the person says of the world in the lead's sheet: their own words, or the option they pick. */
+/** What the person says of the game in the lead's pitch: their own words, or the option they pick. */
 export type Answer = { readonly words: string } | { readonly option: number }
 
 const git = (cwd: string, ...args: string[]): string =>
   execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" }).trim()
 
 /**
- * Runs the story with `setup`'s agent as the lead, the modeller and the builder, as the person
- * drives it, and checks what each did (see the scenarios in tour-story.e2e.ts). With
+ * Runs the story with `setup`'s agent as the lead and its three teammates, as the person drives
+ * it, and checks what each did (see the scenarios in tour-story.e2e.ts). With
  * `worktreesFolder`, the folder of agents' worktrees is there before the lead starts, as on
  * every computer Novadeck has run agents on, and each harness's shim passes it on as `--add-dir`.
  */
@@ -659,7 +729,7 @@ const told = async (
   // Node is here, so the lead can run the game's dev server.
   expect(prepared.page).toBe(true)
 
-  const story = storyRules(run)
+  const story = storyRules(run, prepared.directory)
   run.model.use(...story.rules)
   const requests = run.deck.answerRequests()
   // The person's approvals, followed here and answered by the test, not by the deck.
@@ -707,6 +777,14 @@ const answerFirst = async (run: E2E, terminal: DeckTerminal): Promise<void> => {
   )
 }
 
+// Whether the lead has been told `said` by `from`.
+const reported = (to: DeckTerminal, from: DeckTerminal, said: string): boolean =>
+  messages(to).some((each) => each.from === from.handle && each.text === said)
+
+// Whether `from` has written something to `to`.
+const among = (from: DeckTerminal, to: DeckTerminal): boolean =>
+  messages(from).some((each) => each.from === from.handle && each.to === to.handle)
+
 const play = async (
   run: E2E,
   setup: AgentSetup,
@@ -718,21 +796,18 @@ const play = async (
 ): Promise<void> => {
   const directory = prepared.directory
   const seed = await readFile(join(directory, gameEntry), "utf8")
-  // 1. The lead: the prepared command, rung its brief. It asks the person which game, in one
-  // sheet of two questions, and opens nobody before the answer.
+  // 1. The lead: the prepared command, rung its brief. It pitches three games, as one question
+  // of options, and opens nobody before the answer.
   const lead = await run.deck.openAt(directory, prepared.command)
   await begin(lead, setup, (id) => run.deck.tour.brief(id))
-  const sheet = await askOf(run, lead)
-  expect(sheet.content).toMatchObject({
+  const pitch = await askOf(run, lead)
+  expect(pitch.content).toMatchObject({
     kind: "ask",
     ask: {
       subject: "Which game shall we build?",
       shape: {
-        type: "questions",
-        questions: [
-          { header: "The world", options: worlds.map((label) => ({ label })) },
-          { header: "The kind", options: kinds.map((label) => ({ label })) },
-        ],
+        type: "options",
+        options: pitches.map(({ label }) => expect.objectContaining({ label })),
       },
     },
   })
@@ -740,16 +815,13 @@ const play = async (
   expect(instructions).toContain("browser game")
   expect(instructions).not.toContain("Ada")
   await expect(requests.next(1_500)).rejects.toThrow()
-  const world = "words" in answer ? answer.words : worlds[answer.option]!
-  run.deck.terminals.answerAsk(sheet.id, {
-    type: "questions",
-    answers: [
-      "words" in answer
-        ? { options: [], text: answer.words }
-        : { options: [answer.option], text: "" },
-      { options: [0], text: "" },
-    ],
-  })
+  const game = "words" in answer ? answer.words : pitches[answer.option]!.label
+  run.deck.terminals.answerAsk(
+    pitch.id,
+    "words" in answer
+      ? { type: "reply", option: null, text: answer.words }
+      : { type: "reply", option: answer.option, text: "" },
+  )
 
   // 2. It asks to run the game's dev server, and opens nobody before the person answers: the
   // person is asked, and approves, and the server's terminal is the first the lead opens.
@@ -770,37 +842,28 @@ const play = async (
   const server = await requests.next(90_000)
   inTour(server, directory)
   expect(server.summary().title).toBe("Game server")
-  // The lead is told and shows the page: a page item for the address, on the lead's bar.
-  const [url] = read(instructions, /`page` \{"url": "([^"]+)"\}/, "page") as [string]
-  const page = await lead.poll(
-    () => run.deck.items.bar(lead.id).find((each) => each.kind === "page"),
-    "its page shown",
-    90_000,
-  )
-  expect(page).toMatchObject({ kind: "page", by: "agent", from: { terminalId: lead.id } })
-  expect(JSON.stringify(page)).toContain(url)
 
-  // 3. Only then it opens the modeller and the builder, on the brief's model and effort, each with
-  // its task as the brief quotes it, the picks and the models' names written in.
-  const modeller = await requests.next(90_000)
-  const builder = await requests.next(90_000)
-  expect(story.picks()).toEqual([world, kinds[0]])
-  const [first, second] = openings(instructions)
-  expect(first).toBeDefined()
-  expect(second).toBeDefined()
-  for (const mate of [modeller, builder]) {
+  // 3. Then it writes its plan and opens Core, World and Feel, on the brief's model and effort,
+  // each with its task as the brief quotes it, its role, branch and lines written in.
+  const mates = [await requests.next(90_000), await requests.next(90_000)]
+  mates.push(await requests.next(90_000))
+  const [core, world, feel] = mates as [DeckTerminal, DeckTerminal, DeckTerminal]
+  expect(story.pick()).toBe(game)
+  expect(await readFile(join(directory, planFile), "utf8")).toContain(game)
+  const template = opening(instructions)
+  for (const mate of mates) {
     expect(run.deck.store.terminal(mate.id)?.ledBy).toBe(lead.id)
     inTour(mate, directory)
   }
   // Their command lines only on Linux, as the runner reads no foreground process's argv on
   // Windows or macOS.
   if (process.platform === "linux")
-    for (const mate of [modeller, builder]) {
+    for (const mate of mates) {
       // Nova, which the lead's open_agent started by its word: the process is pi's
       // program, from Novadeck's own folder (`<data>/nova`), on the tour's model and
       // thinking level whatever the call named, and carrying Novadeck's extension.
       const wanted = `--model ${novaDefaultModel} --thinking ${tourEffort}`
-      // eslint-disable-next-line no-await-in-loop -- Two terminals, one after the other.
+      // eslint-disable-next-line no-await-in-loop -- Three terminals, one after the other.
       const argv = await poll(
         () => {
           const words = mate.summary().process?.argv?.join(" ")
@@ -822,100 +885,126 @@ const play = async (
       )
     }
   await poll(
-    () => (story.tasks().modeller && story.tasks().builder ? true : undefined),
-    "both teammates to read their tasks",
+    () => (parts.every((part) => story.tasks()[mateOf(part)]) ? true : undefined),
+    "all three teammates to read their tasks",
     90_000,
   )
-  for (const task of [story.tasks().modeller!, story.tasks().builder!]) {
+  for (const part of parts) {
+    const task = story.tasks()[mateOf(part)]!
     expect(task).not.toContain("[[")
-    expect(task).toContain(`The person picked a ${world} ${kinds[0]} game.`)
+    expect(task).toBe(filled(template.message, part))
   }
-  expect(story.tasks().modeller).toBe(filled(first!.message, world, kinds[0]))
-  expect(story.tasks().builder).toBe(filled(second!.message, world, kinds[0]))
 
-  // 4. The modeller: describes itself, works in a worktree, shows its first model, asks the
-  // person, then makes the other two and tells the lead.
-  await modeller.poll(
-    () => (modeller.summary().title === "Modeller" ? true : undefined),
-    "its title",
+  // The lead shows its page once the team is open: a page item for the address, on its bar.
+  const [url] = read(instructions, /`page` \{"url": "([^"]+)"\}/, "page") as [string]
+  const page = await lead.poll(
+    () => run.deck.items.bar(lead.id).find((each) => each.kind === "page"),
+    "its page shown",
     90_000,
   )
-  expect(modeller.summary()).toMatchObject({
-    titleSource: { kind: "agent", by: modeller.handle },
-    agent: setup.agent,
-    ledBy: lead.id,
+  expect(page).toMatchObject({ kind: "page", by: "agent", from: { terminalId: lead.id } })
+  expect(JSON.stringify(page)).toContain(url)
+
+  // 4. Each teammate: describes itself by its part's role, works in a worktree on its branch,
+  // tells the teammates opened before it what its part exports, asks the person one thing,
+  // shows its work and tells the lead its first version is in.
+  const trees: Record<string, string> = {}
+  for (const [index, part] of parts.entries()) {
+    const mate = mates[index]!
+    // eslint-disable-next-line no-await-in-loop -- Each teammate is checked in its turn.
+    await mate.poll(
+      () => (mate.summary().title === part.role ? true : undefined),
+      `${part.role}'s title`,
+      90_000,
+    )
+    expect(mate.summary()).toMatchObject({
+      titleSource: { kind: "agent", by: mate.handle },
+      agent: setup.agent,
+      ledBy: lead.id,
+    })
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    const tree = await mate.poll(
+      () => run.deck.worktrees.all().find((each) => each.branch === part.branch),
+      `${part.role}'s worktree`,
+      90_000,
+    )
+    expect(tree.terminalId).toBe(mate.id)
+    trees[part.branch] = tree.path
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    const shown = await mate.poll(
+      () =>
+        run.deck.items
+          .bar(mate.id)
+          .find((each) => each.kind === (index === 1 ? "model" : "changes") && each.by === "agent"),
+      `${part.role}'s work shown`,
+      90_000,
+    )
+    expect(shown).toMatchObject({ by: "agent", from: { terminalId: mate.id } })
+    if (index === 1) expect(shown.name).toBe(`${modelName}.gltf`)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await poll(
+      () => (reported(lead, mate, firstVersion(part)) ? true : undefined),
+      `${part.role}'s first version to reach the lead`,
+      90_000,
+    )
+    // Its question is waiting in the Inbox, and it has not said it is polished.
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    const ask = await askOf(run, mate)
+    expect(ask.content).toMatchObject({
+      kind: "ask",
+      ask: { subject: questions[mateOf(part)].subject, shape: { type: "options" } },
+    })
+    expect(reported(lead, mate, polished(part))).toBe(false)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await through(mate, ["settled"])
+  }
+  // Teammates wrote to each other, not through the lead: World, opened after Core, wrote it, and
+  // Feel wrote both.
+  expect(among(world, core)).toBe(true)
+  expect(among(feel, core)).toBe(true)
+  expect(among(feel, world)).toBe(true)
+
+  // 5. The person answers each one's question; each hears it, makes one more change and tells the
+  // lead it is polished.
+  for (const mate of mates)
+    // eslint-disable-next-line no-await-in-loop -- Each answer is heard before the next.
+    await answerFirst(run, mate)
+  for (const [index, part] of parts.entries())
+    // eslint-disable-next-line no-await-in-loop -- Each report is waited for in turn.
+    await poll(
+      () => (reported(lead, mates[index]!, polished(part)) ? true : undefined),
+      `${part.role} to tell the lead it is polished`,
+      90_000,
+    )
+  for (const mate of mates)
+    // eslint-disable-next-line no-await-in-loop -- Each turn is waited for in turn.
+    await mate.reached(holds(mate.handle, lead.handle, "delivered"), { timeoutMs: 90_000 })
+  const code = await readFile(join(trees.core!, gameEntry), "utf8")
+  expect(code).toContain(game)
+  expect(code).toContain("As asked: Gentle")
+  const files: Record<string, string> = {
+    world: await readFile(join(trees.world!, "src", "world.js"), "utf8"),
+    feel: await readFile(join(trees.feel!, "src", "feel.js"), "utf8"),
+    model: await readFile(join(trees.world!, "models", `${modelName}.gltf`), "utf8"),
+  }
+  expect(files.feel).toContain("As asked: Chiptune")
+  expect(JSON.parse(files.model!) as { nodes: unknown[] }).toMatchObject({
+    nodes: expect.arrayContaining([expect.anything()]),
   })
-  const models = await modeller.poll(
-    () => run.deck.worktrees.all().find((each) => each.branch === branches.modeller),
-    "its worktree",
-    90_000,
-  )
-  expect(models.terminalId).toBe(modeller.id)
-  const shown = await modeller.poll(
-    () => run.deck.items.bar(modeller.id).find((each) => each.kind === "model"),
-    "its model shown",
-    90_000,
-  )
-  expect(shown).toMatchObject({ by: "agent", from: { terminalId: modeller.id } })
-  expect(shown.name).toBe(`${modelNames[0]}.gltf`)
-  await answerFirst(run, modeller)
-  await poll(
-    () =>
-      messages(lead).some((each) => each.from === modeller.handle && each.text === "Models done.")
-        ? true
-        : undefined,
-    "Models done. to reach the lead",
-    90_000,
-  )
-  const made: Record<string, string> = {}
-  for (const name of modelNames) {
-    // eslint-disable-next-line no-await-in-loop -- Three small files.
-    made[name] = await readFile(join(models.path, "models", `${name}.gltf`), "utf8")
-    const parsed = JSON.parse(made[name]) as { nodes: unknown[] }
-    expect(parsed.nodes.length).toBeGreaterThanOrEqual(6)
-  }
-
-  // 5. The builder: describes itself, writes the game in a worktree, shows its changes, asks
-  // the person, makes that change and tells the lead.
-  await builder.poll(
-    () => (builder.summary().title === "Builder" ? true : undefined),
-    "its title",
-    90_000,
-  )
-  const game = await builder.poll(
-    () => run.deck.worktrees.all().find((each) => each.branch === branches.builder),
-    "its worktree",
-    90_000,
-  )
-  expect(game.terminalId).toBe(builder.id)
-  const changes = await builder.poll(
-    () => run.deck.items.bar(builder.id).find((each) => each.kind === "changes"),
-    "its changes shown",
-    90_000,
-  )
-  expect(changes).toMatchObject({ by: "agent", from: { terminalId: builder.id } })
-  await answerFirst(run, builder)
-  await builder.reached(holds(builder.handle, lead.handle, "delivered"), { timeoutMs: 90_000 })
-  expect(
-    messages(lead)
-      .filter((each) => each.from === builder.handle)
-      .map((each) => each.text),
-  ).toEqual(["Game done."])
-  const code = await readFile(join(game.path, gameEntry), "utf8")
-  expect(code).toContain(`A ${world} ${kinds[0]} game.`)
-  expect(code).toContain("Next, as asked: More enemies")
+  expect((JSON.parse(files.model!) as { nodes: unknown[] }).nodes.length).toBeGreaterThanOrEqual(6)
   await through(lead, ["settled"])
 
-  // 6. The end state: two works, each with its files; the tour folder's own checkout as it
-  // was; and the open policy, which lets only the lead open agents there.
+  // 6. The end state: three works, each with its files; the tour folder's own checkout as it
+  // was, bar the plan the lead wrote; and the open policy, which lets only the lead open agents
+  // there.
   const branchesNow = run.deck.worktrees.all().map((each) => each.branch)
-  expect(branchesNow.toSorted()).toEqual(Object.values(branches).toSorted())
-  expect(git(directory, "status", "--porcelain")).toBe("")
+  expect(branchesNow.toSorted()).toEqual(parts.map(({ branch }) => branch).toSorted())
+  expect(git(directory, "status", "--porcelain")).toBe(`?? ${planFile}`)
   expect(await readFile(join(directory, gameEntry), "utf8")).toBe(seed)
   const policy = (terminal: DeckTerminal) => run.deck.tour.openPolicy(terminal.id)
   expect(policy(lead).refusal).toBeUndefined()
   expect(policy(lead).flags).toBeDefined()
-  for (const other of [modeller, builder])
+  for (const other of mates)
     expect(policy(other).refusal, `${other.handle}'s open_agent is refused`).toMatch(
       /Only the lead of Novadeck's tour/,
     )
@@ -932,10 +1021,10 @@ const play = async (
       30_000,
     )
   expect((await served("/")).status).toBe(200)
-  for (const name of modelNames)
-    // eslint-disable-next-line no-await-in-loop -- Three small files.
-    expect(await (await served(`/models/${name}.gltf`)).text()).toBe(made[name])
+  expect(await (await served(`/models/${modelName}.gltf`)).text()).toBe(files.model)
   expect(await (await served(`/${gameEntry}`)).text()).toBe(code)
+  expect(await (await served("/src/world.js")).text()).toBe(files.world)
+  expect(await (await served("/src/feel.js")).text()).toBe(files.feel)
 
   // 7. The person keeps the project: the team's work comes home, committed on main, and the
   // folder is theirs; the next run uses another.
@@ -947,9 +1036,9 @@ const play = async (
   expect(afterwards).not.toContain(".claude")
   expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(projectNote)
   expect(await readFile(join(directory, gameEntry), "utf8")).toBe(code)
-  for (const name of modelNames)
-    // eslint-disable-next-line no-await-in-loop -- Three small files.
-    expect(await readFile(join(directory, "models", `${name}.gltf`), "utf8")).toBe(made[name])
+  expect(await readFile(join(directory, "src", "world.js"), "utf8")).toBe(files.world)
+  expect(await readFile(join(directory, "src", "feel.js"), "utf8")).toBe(files.feel)
+  expect(await readFile(join(directory, "models", `${modelName}.gltf`), "utf8")).toBe(files.model)
   expect(git(directory, "log", "-1", "--format=%s")).toBe("The team's game")
   // Git holds the project as the person keeps it: nothing of the tour's rules is changed,
   // skipped or tracked, so a worktree made from here carries none of them.
@@ -958,7 +1047,7 @@ const play = async (
   expect(git(directory, "ls-files")).not.toContain(".claude/")
   // Each worktree holds that commit and nothing more.
   const main = git(directory, "rev-parse", "HEAD")
-  for (const worktree of [models.path, game.path]) {
+  for (const worktree of Object.values(trees)) {
     expect(git(worktree, "rev-parse", "HEAD")).toBe(main)
     expect(git(worktree, "status", "--porcelain")).toBe("")
   }

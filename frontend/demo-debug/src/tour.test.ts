@@ -93,7 +93,7 @@ describe("the tour the debug panel shares with the demo", () => {
     await expect(tour.prepare()).resolves.toMatchObject({ removed: ["p1"] })
   })
 
-  it("drives the story: answers the sheet and the modeller's question, quiets the team and the modeller", () => {
+  it("drives the story: answers the pitch and World's question, quiets the team and Core", () => {
     const tour = tourOf()
     const run = runner(tour)
     const sheets: unknown[] = []
@@ -102,23 +102,20 @@ describe("the tour the debug panel shares with the demo", () => {
     tour.sheet((answer) => sheets.push(answer))
     tour.mate((answer) => mates.push(answer))
     tour.stopped(() => stopped.push("stop"))
-    run("Tour story: answer the sheet (Fantasy, RPG)")
-    run("Tour story: answer the sheet (own words)")
-    run("Tour story: answer the modeller's question (Red)")
+    run("Tour story: answer the pitch (first game)")
+    run("Tour story: answer the pitch (own words)")
+    run("Tour story: answer World's question (Red)")
     run("Tour agent: stop")
-    run("Tour story: the lead's sheet waits until nudged")
-    run("Tour story: the modeller stays quiet until nudged")
-    run("Tour story: the modeller asks about the hero's colour")
-    expect(sheets).toEqual([
-      { world: 0, kind: 0 },
-      { world: "Modern", kind: "Racing" },
-    ])
+    run("Tour story: the lead's pitch waits until nudged")
+    run("Tour story: Core stays quiet until nudged")
+    run("Tour story: World asks about the hero's colour")
+    expect(sheets).toEqual([0, "Space pirates"])
     expect(mates).toEqual([0])
     expect(stopped).toEqual(["stop"])
     expect(tour.take()).toEqual({
       quiet: false,
       quietTeam: true,
-      quietModeller: true,
+      quietMate: true,
       mateAsks: true,
     })
   })

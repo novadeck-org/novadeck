@@ -1,4 +1,4 @@
-import { page, type Locator } from "vitest/browser"
+import { page, userEvent, type Locator } from "vitest/browser"
 
 import { takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
@@ -11,7 +11,6 @@ import {
   coachSaysAny,
   consent,
   expectClickAt,
-  expectClickAtWindows,
   paneOf,
   showMe,
   topTab,
@@ -20,6 +19,7 @@ import {
 } from "../support/tour"
 import {
   expectSelected,
+  nameOf,
   openWorkspace,
   sidebarPanel,
   terminalTabNames,
@@ -86,34 +86,28 @@ const pressRow = async (words: string): Promise<void> => {
     .toBe(true)
 }
 
-// Opens the lead's sheet from the Inbox, as the tour points the person to: the Inbox's button,
+// The pitches the lead offers (the demo's, `frontend/demo/src/tour/content.ts`).
+const pitches = ["Glass Desert Drift", "Neon Magnet Rush", "Carnival Beat Cat"] as const
+
+// Opens the lead's pitch from the Inbox, as the tour points the person to: the Inbox's button,
 // the row, then the sheet, whose answers it points at.
-const openSheet = async (): Promise<Locator> => {
+const openPitch = async (): Promise<Locator> => {
   await coachSays("Your call. What game? Make it a good one.", 30_000)
   await pressRow("Which game shall we build?")
   const sheet = page.getByRole("dialog", { name: "Game lead" })
-  const worlds = sheet.getByRole("radiogroup", { name: /The world/ })
   // Pressed once the card stands still: a click just after it moved is held back.
-  await standsStill(worlds)
+  await standsStill(sheet.getByRole("group", { name: "Answers" }))
   // The tour now points at the answers.
   await expect
     .poll(() => clicked()[0]?.textContent ?? "", { timeout: 15_000 })
-    .toMatch(/The world.*Fantasy.*Sci-fi.*Modern/s)
+    .toContain(pitches[0])
   return sheet
 }
 
-// Answers the lead's sheet: a world and a kind of game.
-const answerSheet = async (world: string, kind: string): Promise<void> => {
-  const sheet = await openSheet()
-  await sheet
-    .getByRole("radiogroup", { name: /The world/ })
-    .getByText(world)
-    .click()
-  await sheet
-    .getByRole("radiogroup", { name: /The kind/ })
-    .getByText(kind)
-    .click()
-  await sheet.getByRole("button", { name: "Submit answers" }).click()
+// Answers the lead's pitch: the game picked.
+const answerPitch = async (game: (typeof pitches)[number] = pitches[0]): Promise<void> => {
+  const sheet = await openPitch()
+  await sheet.getByRole("button", { name: new RegExp(`^${game}`) }).click()
   await expect.element(sheet).not.toBeInTheDocument()
 }
 
@@ -128,63 +122,49 @@ const captionNow = (): string =>
   document.querySelector('section[aria-label="Tour step"][data-shown]')?.textContent ?? ""
 
 // The person clicks into the lead's page, as the tour waits for them to.
+const pageLine = "There. Just a showcase. Wait for yours."
 const seePage = (): Promise<void> =>
-  touchStep("There. Nothing in it yet. Give it time.", () => [paneOf("Game lead")], {
-    cue: "Your game's running. Go look.",
-  })
+  touchStep(pageLine, () => [paneOf("Game lead")], { cue: "Your game's running. Go look." })
 
 // The person clicks one of the teammates the lead hired.
+const teamLine = "Look. It hired its own help. Without asking me?"
 const meetTeam = (timeout = 40_000): Promise<void> =>
-  touchStep(
-    "Look. It hired its own help. Without asking me?",
-    () => [windowNamed("Modeller"), windowNamed("Builder")],
-    { timeout, cue: "New agents? Go find them." },
-  )
-
-// The person spins the Modeller's model.
-const spinModel = (): Promise<void> =>
-  touchStep("A model, made from nothing. Go on. Spin it.", () => [paneOf("Modeller")], {
-    cue: "Its first model's done. Have a look.",
+  touchStep(teamLine, () => [windowNamed("Core"), windowNamed("World"), windowNamed("Feel")], {
+    timeout,
+    cue: "New agents? Go find them.",
   })
 
-// The person opens Files from its button, as the box asks, which is all the step asks: its line
-// about the blinks comes only then, held a moment before the story goes on.
-const filesLine = "See the files blink? That's an agent, writing."
-const openFiles = async (): Promise<void> => {
-  if ((await coachSaysAny(["Open your Files. I'll wait.", filesLine])) !== filesLine) {
-    await expect.poll(() => clicked().length, { timeout: 15_000 }).toBeGreaterThan(0)
-    await page.elementLocator(clicked()[0]!).click()
-    await coachSays(filesLine, 15_000)
-  }
-  await expect.poll(captionNow, { timeout: 20_000 }).not.toContain(filesLine)
-}
+// The person reads the Messages of the teammate that wrote to another teammate, World.
+const talkLine = "Agent to agent. Not through me."
+const hearTalk = (): Promise<void> =>
+  touchStep(talkLine, () => [paneOf("World")], { cue: "They're talking. Go listen." })
 
-// The person looks at the Builder's changes.
-const readDiff = (): Promise<void> =>
-  touchStep("Every line it wrote. Nothing hidden.", () => [paneOf("Builder")], {
-    cue: "The code's in. Want to read it?",
+// The person spins World's model.
+const spinModel = (): Promise<void> =>
+  touchStep("A model, made from nothing. Go on. Spin it.", () => [paneOf("World")], {
+    cue: "Its first model's done. Have a look.",
   })
 
 // What the person does at each step that waits on them, by its line or its cue.
 const personSteps: Readonly<Record<string, () => Promise<void>>> = {
   "Your game's running. Go look.": seePage,
-  "There. Nothing in it yet. Give it time.": seePage,
+  [pageLine]: seePage,
   "New agents? Go find them.": meetTeam,
-  "Look. It hired its own help. Without asking me?": meetTeam,
+  [teamLine]: meetTeam,
+  "They're talking. Go listen.": hearTalk,
+  [talkLine]: hearTalk,
   "Its first model's done. Have a look.": spinModel,
   "A model, made from nothing. Go on. Spin it.": spinModel,
-  "Open your Files. I'll wait.": openFiles,
-  [filesLine]: openFiles,
-  "The code's in. Want to read it?": readDiff,
-  "Every line it wrote. Nothing hidden.": readDiff,
 }
 
 // Plays on as the person, whatever step the tour is at, until its caption says `line`.
-const playUntil = async (line: string, timeout = 150_000): Promise<void> => {
+const playUntil = async (words: string | readonly string[], timeout = 150_000): Promise<void> => {
+  const lines = typeof words === "string" ? [words] : words
+  const line = lines.join('" or "')
   const deadline = Date.now() + timeout
   for (;;) {
     const now = captionNow()
-    if (now.includes(line)) return
+    if (lines.some((each) => now.includes(each))) return
     if (Date.now() > deadline) throw new Error(`The tour never said "${line}": it says "${now}"`)
     const step = Object.keys(personSteps).find((each) => now.includes(each))
     // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
@@ -202,78 +182,71 @@ const playToClosing = async (address?: string): Promise<void> => {
   await expect.element(view("Canvas")).toBeChecked()
   await expect.poll(terminalTabNames, { timeout: 15_000 }).toContain("Game lead")
 
-  // Act 2: it asks the person what game to make.
+  // Act 2: it pitches three games, and asks the person what game to make.
   await coachSays("Your call. What game? Make it a good one.", 30_000)
   await expect.element(page.getByText(/^Act 2, Your call\./)).toBeInTheDocument()
-  await answerSheet("Sci-fi", "Shooter")
+  await answerPitch(pitches[0])
 
   // Still the person's call: it asks to run the game, which only the person allows, and hires no
   // one before they have: the approval has the screen to itself.
   await coachSays("It wants to run the game. Fine. Say yes.")
   await expect.element(page.getByText(/^Act 2, Your call\./)).toBeInTheDocument()
   await expect.element(approval()).toBeVisible()
-  expect(windowNamed("Modeller")).toBeUndefined()
-  expect(windowNamed("Builder")).toBeUndefined()
+  expect(windowNamed("Core")).toBeUndefined()
+  expect(windowNamed("World")).toBeUndefined()
   const run = approval().getByRole("button", { name: "Run command" })
   await expect.poll(() => clicked()).toEqual([run.element()])
   await run.click()
   await expect.element(approval()).not.toBeInTheDocument()
 
-  // Act 3: a terminal of its own opens, and the lead shows the game. The tour opens nothing and
-  // moves on only once the person clicks into it.
+  // Act 3: a terminal of its own opens, the lead hires a team, wired to it, and the person clicks
+  // one. The tour opens nothing and moves on only once the person does.
   await expect.poll(() => windowNamed("Game server"), { timeout: 15_000 }).toBeDefined()
-  await coachSays("There. Nothing in it yet. Give it time.")
+  await coachSays(teamLine, 20_000)
   await expect.element(page.getByText(/^Act 3, The team\./)).toBeInTheDocument()
-  await expectClickAt(() => paneOf("Game lead"))
-  await expect.poll(() => topTab(paneOf("Game lead"))).toContain("127.0.0.1")
-  // It waits, however long: the team may be hired meanwhile, but the caption stays.
-  await new Promise((resolve) => setTimeout(resolve, 3_000))
-  await coachSays("There. Nothing in it yet. Give it time.")
-  await seePage()
-
-  // Then it hires a team, wired to it: the person clicks one.
-  await coachSays("Look. It hired its own help. Without asking me?", 20_000)
-  await expectClickAtWindows("Modeller", "Builder")
+  // Marks the teammates' windows that are in sight: on Canvas the third may land past the edge.
+  await expect
+    .poll(
+      () =>
+        clicked()
+          .map((each) => nameOf(each.getAttribute("aria-label") ?? "").replace(/ terminal$/, ""))
+          .filter((name) => ["Core", "World", "Feel"].includes(name)).length,
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThanOrEqual(2)
   expect(windowNamed("Game lead")).toBeDefined()
   await meetTeam()
 
-  // The Modeller's model, in 3D, to spin.
-  await coachSays("A model, made from nothing. Go on. Spin it.")
-  await expectClickAt(() => paneOf("Modeller"))
-  await expect.poll(() => topTab(paneOf("Modeller"))).toContain("hero.gltf")
+  // The lead shows the game: the kit's showcase, until the team's work lands. It waits for the
+  // person to click into it, however long.
+  await coachSaysAny([pageLine, "Your game's running. Go look."])
+  await expectClickAt(() => paneOf("Game lead"))
+  await expect.poll(() => topTab(paneOf("Game lead"))).toContain("127.0.0.1")
+  await new Promise((resolve) => setTimeout(resolve, 3_000))
+  await coachSaysAny([pageLine, "Your game's running. Go look."])
+  await seePage()
+
+  // The teammates talk to each other, not through the lead: the person reads one's Messages.
+  await coachSaysAny([talkLine, "They're talking. Go listen."], 20_000)
+  await hearTalk()
+
+  // World's model, in 3D, to spin: the box's cue first where its pane isn't showing it.
+  await coachSaysAny([
+    "A model, made from nothing. Go on. Spin it.",
+    "Its first model's done. Have a look.",
+  ])
   await spinModel()
+  await expect.poll(() => topTab(paneOf("World"))).toContain("hero.gltf")
 
-  // The Files panel, where every agent's write blinks: the tour asks the person to open it and
-  // points at its button, as it opens no panel itself; the line about the blinks waits for it.
-  await coachSays("Open your Files. I'll wait.")
-  await expect
-    .poll(() => clicked().map((each) => each.getAttribute("data-tour-rail") ?? each.id))
-    .toEqual(["files"])
-  expect(captionNow()).not.toContain(filesLine)
-  await openFiles()
-  await expect.element(page.getByRole("treeitem", { name: /^hero\.gltf,/ })).toBeVisible()
-  await expect.element(page.getByRole("treeitem", { name: /^main\.js,/ })).toBeVisible()
-
-  // The Builder's pane, with its changes: while it isn't showing them, the box says they're in
-  // and marks the Builder's window, whose press brings them.
-  const diffLine = "Every line it wrote. Nothing hidden."
-  if ((await coachSaysAny(["The code's in. Want to read it?", diffLine])) !== diffLine) {
-    await expectClickAtWindows("Builder")
-    await page
-      .elementLocator(windowNamed("Builder")!.querySelector<HTMLElement>(".terminal-header")!)
-      .click()
-    await coachSays(diffLine)
-  }
-  await expectClickAt(() => paneOf("Builder"))
-  await expect.poll(() => topTab(paneOf("Builder"))).toContain("build-game")
-  await readDiff()
-
-  // The team finishes what it started, and reports: only then does the story end.
+  // The first versions land and the page changes, then the polishing round; the team finishes
+  // what it started and says so: only then does the story end.
+  await coachSays("First versions are in. Watch your page change.", 60_000)
+  await coachSays("Polishing now. See it change again.", 60_000)
   await coachSays("They're finishing it. Relax.", 60_000)
 
   // Act 4: the game in the lead's pane: the closing card comes a while after the person clicks
   // into it, never before. Where the lead's pane isn't showing it, the box's eye brings it.
-  const playLine = "Three agents, one game. Go play."
+  const playLine = "A whole team, one game. Go play."
   if ((await coachSaysAny(["Your game's done. Go open it.", playLine])) !== playLine) {
     await showMe().click()
     await coachSays(playLine)
@@ -283,7 +256,7 @@ const playToClosing = async (address?: string): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 3_000))
   expect(closing().query()).toBeNull()
   // The step holds 20 s after the touch (frontend/tour's playStep), then the card comes.
-  await touchStep("Three agents, one game. Go play.", () => [paneOf("Game lead")], {
+  await touchStep("A whole team, one game. Go play.", () => [paneOf("Game lead")], {
     holdMs: 20_000,
   })
   await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
@@ -307,15 +280,14 @@ describe("The tour's story", () => {
       await closePreferences()
       expect(sidebarPanel("Worktrees").query()).toBeNull()
       await beginTour()
-      await answerSheet("Fantasy", "RPG")
+      await answerPitch()
       await allowRun()
-      await seePage()
       // The teammates open their worktrees: the panel is there to show them.
-      await coachSays("Look. It hired its own help. Without asking me?", 20_000)
+      await coachSays(teamLine, 20_000)
       await expect.poll(() => sidebarPanel("Worktrees").query(), { timeout: 15_000 }).not.toBeNull()
       await sidebarPanel("Worktrees").click()
-      await expect.element(page.getByText("models", { exact: true }).first()).toBeVisible()
-      await expect.element(page.getByText("game", { exact: true }).first()).toBeVisible()
+      await expect.element(page.getByText("core", { exact: true }).first()).toBeVisible()
+      await expect.element(page.getByText("world", { exact: true }).first()).toBeVisible()
       // Another project has none, as the setting says.
       await switchProject("storefront")
       await expect.poll(() => sidebarPanel("Worktrees").query()).toBeNull()
@@ -367,15 +339,15 @@ describe("The tour's story", () => {
     walks,
     async () => {
       await startTour()
-      await answerSheet("Modern", "Strategy")
+      await answerPitch(pitches[1])
       await coachSays("It wants to run the game. Fine. Say yes.", 40_000)
       await approval().getByRole("button", { name: "Don't run" }).click()
       // Within seconds, with no terminal opened and no page shown, the story goes on without
       // them: the lead hires its team all the same.
-      await coachSays("Look. It hired its own help. Without asking me?", 40_000)
+      await coachSays(teamLine, 40_000)
       expect(windowNamed("Game server")).toBeUndefined()
-      await playUntil("Three agents, one model. Yours.")
-      await expectClickAt(() => paneOf("Modeller"))
+      await playUntil("A whole team, one model. Yours.")
+      await expectClickAt(() => paneOf("World"))
     },
   )
 
@@ -390,17 +362,13 @@ describe("The tour's story", () => {
     },
   )
 
-  it("takes the person's own words for the game, from the Inbox's sheet", walks, async () => {
+  it("takes the person's own words for the game, from the Inbox's pitch", walks, async () => {
     await startTour()
-    const sheet = await openSheet()
-    await sheet.getByRole("textbox", { name: /^Other: The world/ }).fill("underwater")
-    // Words written turn no page: the person goes on to the next question's tab.
-    await sheet.getByRole("tab", { name: /The kind/ }).click()
-    await sheet
-      .getByRole("radiogroup", { name: /The kind/ })
-      .getByText("RPG")
-      .click()
-    await sheet.getByRole("button", { name: "Submit answers" }).click()
+    const sheet = await openPitch()
+    await sheet.getByRole("textbox").fill("underwater taxi")
+    await sheet.getByRole("textbox").click()
+    await userEvent.keyboard("{Enter}")
+    await expect.element(sheet).not.toBeInTheDocument()
     await coachSays("It wants to run the game. Fine. Say yes.", 30_000)
   })
 
@@ -409,32 +377,30 @@ describe("The tour's story", () => {
     walks,
     async () => {
       await startTour("/?channel=experimental&tourPage=none")
-      await answerSheet("Fantasy", "RPG")
+      await answerPitch()
       // No command to approve: the next thing is the team, then the model.
       await meetTeam()
       expect(approval().query()).toBeNull()
       expect(windowNamed("Game server")).toBeUndefined()
-      await coachSays("A model, made from nothing. Go on. Spin it.", 30_000)
-      await playUntil("Three agents, one model. Yours.")
+      await playUntil("A whole team, one model. Yours.", 150_000)
       // Nothing to play: the model is what is left to look at.
-      await expectClickAt(() => paneOf("Modeller"))
-      await touchStep("Three agents, one model. Yours.", () => [paneOf("Modeller")], {
+      await expectClickAt(() => paneOf("World"))
+      await touchStep("A whole team, one model. Yours.", () => [paneOf("World")], {
         holdMs: 8_000,
       })
       await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
     },
   )
 
-  it("nudges a modeller gone quiet, which then shows its model", walks, async () => {
-    await startTour("/?channel=experimental&tourModeller=quiet&tourPatienceMs=1500")
-    await answerSheet("Sci-fi", "RPG")
+  it("nudges a teammate gone quiet, whose part then lands", walks, async () => {
+    await startTour("/?channel=experimental&tourMate=quiet&tourPatienceMs=1500")
+    await answerPitch(pitches[2])
     await allowRun()
-    await seePage()
     // Silent, it never names itself; the tour rings the lead after its wait, and the story goes
     // on.
-    await coachSays("Look. It hired its own help. Without asking me?", 30_000)
-    await expect.poll(() => windowNamed("Modeller"), { timeout: 20_000 }).toBeDefined()
-    await playUntil("A model, made from nothing. Go on. Spin it.", 60_000)
+    await coachSays(teamLine, 30_000)
+    await expect.poll(() => windowNamed("Core"), { timeout: 20_000 }).toBeDefined()
+    await playUntil("They're finishing it. Relax.", 90_000)
   })
 
   it(
@@ -442,16 +408,16 @@ describe("The tour's story", () => {
     walks,
     async () => {
       await startTour()
-      await answerSheet("Fantasy", "RPG")
+      await answerPitch()
       await allowRun()
-      await playUntil("Open your Files. I'll wait.")
-      await openFiles()
-      // The person opens a file instead of looking at the Builder's changes: its preview takes the
-      // view, and the Builder is out of sight.
+      await playUntil("Its first model's done. Have a look.")
+      // The person opens a file instead of looking at World's model: its preview takes the view,
+      // and World is out of sight.
       await coachSaysAny([
-        "The code's in. Want to read it?",
-        "Every line it wrote. Nothing hidden.",
+        "Its first model's done. Have a look.",
+        "A model, made from nothing. Go on. Spin it.",
       ])
+      await sidebarPanel("Files").click()
       await page
         .getByRole("treeitem", { name: /^index\.html/ })
         .first()
@@ -463,9 +429,9 @@ describe("The tour's story", () => {
       await new Promise((resolve) => setTimeout(resolve, 2_000))
       expect(clicked()).toEqual([])
       await show.click()
-      await expectClickAt(() => paneOf("Builder"))
-      await coachSays("Every line it wrote. Nothing hidden.")
-      await readDiff()
+      await expectClickAt(() => paneOf("World"))
+      await coachSays("A model, made from nothing. Go on. Spin it.")
+      await spinModel()
     },
   )
 
@@ -488,23 +454,29 @@ describe("The tour's story", () => {
   })
 
   it(
-    "points at a teammate's own question in the Inbox until the person answers it",
+    "has a teammate's question arrive in the Inbox while the others work, and points at it until the person answers",
     walks,
     async () => {
       await startTour("/?channel=experimental&tourMate=asks")
-      await answerSheet("Fantasy", "Shooter")
+      await answerPitch()
       await allowRun()
-      // The Modeller asks as soon as its first model is up: the tour points at the question,
-      // whatever step it is at, until the person answers it, and opens the Inbox no more than
-      // anything else: it points at its button.
-      await playUntil("A teammate has a question. Huh? For you, not me.", 60_000)
+      // World asks while Core and Feel work on: the tour points at the question, whatever step it
+      // is at, until the person answers it, and opens the Inbox no more than anything else: it
+      // points at its button.
+      await playUntil(
+        [
+          "One of them waits on you. The rest keep working.",
+          "A teammate has a question. Huh? For you, not me.",
+        ],
+        60_000,
+      )
       await pressRow("What colour should the hero be?")
-      const sheet = page.getByRole("dialog", { name: "Modeller" })
+      const sheet = page.getByRole("dialog", { name: "World" })
       const pick = sheet.getByRole("button", { name: /Blue/ })
       await standsStill(pick)
       await pick.click()
-      // Answered, the story goes on where it was.
-      await playUntil("Three agents, one game. Go play.")
+      // Answered, the story goes on where it was, to the game.
+      await playUntil(["Your game's done. Go open it.", "A whole team, one game. Go play."])
     },
   )
 })

@@ -130,14 +130,14 @@ const teamWorkspace = () => {
 const agentParty = (terminalId: string) =>
   ({ kind: "agent", terminalId, handle: terminalId, agent: "claude" }) as const
 
-const message = (id: string, from: string, to: string): AgentMessage =>
+const message = (id: string, from: string, to: string, text = "hi", sentAt = 0): AgentMessage =>
   ({
     id,
     hop: 1,
     from: agentParty(from),
     to: agentParty(to),
-    text: "hi",
-    sentAt: 0,
+    text,
+    sentAt,
     state: "delivered",
     held: null,
     deliveredAt: 0,
@@ -150,6 +150,8 @@ const messagesOf = (list: readonly AgentMessage[]): MessagesState =>
       b: { threads: [{ messages: list }] },
     },
   }) as unknown as MessagesState
+
+const inboxOf = (...items: InboxEntry[]): InboxState => ({ items }) as unknown as InboxState
 
 const askRow = (terminalId: string, shape: "options" | "action" = "options"): InboxEntry =>
   ({
@@ -301,15 +303,39 @@ describe("The tour's story signals", () => {
       count: 2,
       named: 1,
       ids: ["02", "03"],
-      // With no messages to read, every teammate counts as reported.
-      reported: 2,
+      // With no messages to read, every teammate counts as having told the lead.
+      firstIn: 2,
+      polished: 2,
       working: false,
+      asked: false,
     })
   })
 
-  it("count the teammates that reported to the lead, and say whether any is at work", () => {
-    const messages = messagesOf([message("m1", "03", "01"), message("m2", "02", "04")])
-    expect(tourSignals(teamWorkspace(), "01", { messages }).team.reported).toBe(1)
+  it("count the teammates that told the lead their first version is in, and that it is polished", () => {
+    const messages = messagesOf([
+      message("m1", "03", "01", "World: first version in"),
+      message("m2", "02", "04", "Core: first version in"),
+      message("m3", "03", "01", "World: polished"),
+      message("m4", "02", "01", "Core: what does your scene export?"),
+    ])
+    expect(tourSignals(teamWorkspace(), "01", { messages }).team).toMatchObject({
+      firstIn: 1,
+      polished: 1,
+    })
+  })
+
+  it("count a note only where it says so after the role, not where it mentions polishing to come", () => {
+    const messages = messagesOf([
+      message("m1", "02", "01", "Core: first version in, polished once World lands"),
+      message("m2", "03", "01", "World: I'll say first version when it's polished"),
+    ])
+    expect(tourSignals(teamWorkspace(), "01", { messages }).team).toMatchObject({
+      firstIn: 1,
+      polished: 0,
+    })
+  })
+
+  it("say whether a teammate is at work, and whether one asked the person", () => {
     const workspace = teamWorkspace()
     const roster = workspace.projects[0]!.history[0]!.state.roster
     Object.assign(roster, {
@@ -319,6 +345,33 @@ describe("The tour's story signals", () => {
     })
     expect(tourSignals(workspace, "01").team.working).toBe(true)
     expect(tourSignals(teamWorkspace(), "01").team.working).toBe(false)
+    const asked = tourSignals(teamWorkspace(), "01", { inbox: inboxOf(askRow("03")) }).team
+    expect(asked.asked).toBe(true)
+    expect(tourSignals(teamWorkspace(), "01", { inbox: inboxOf(askRow("01")) }).team.asked).toBe(
+      false,
+    )
+    expect(tourSignals(teamWorkspace(), "01").team.asked).toBe(false)
+  })
+
+  it("name the teammate that first wrote to another teammate, not to the lead", () => {
+    const talker = (list: AgentMessage[]) =>
+      tourSignals(teamWorkspace(), "01", { messages: messagesOf(list) })
+    expect(talker([]).roles.talker).toBeUndefined()
+    // To the lead, from the lead, and to a terminal outside the team: no one talks.
+    expect(
+      talker([message("m1", "02", "01"), message("m2", "01", "03"), message("m3", "02", "04")])
+        .roles.talker,
+    ).toBeUndefined()
+    const first = talker([message("m2", "02", "03", "hi", 20), message("m1", "03", "02", "hi", 10)])
+    expect(first.roles.talker).toBe("03")
+    expect(first.mates.talker).toMatchObject({ kind: "starting" })
+  })
+
+  it("name the teammate to wait on: one that hasn't said it is polished", () => {
+    const messages = messagesOf([message("m1", "02", "01", "Core: polished")])
+    expect(tourSignals(teamWorkspace(), "01", { messages }).roles.mate).toBe("03")
+    expect(tourSignals(teamWorkspace(), "01").roles.mate).toBe("02")
+    expect(tourSignals(workspaceFixture({ terminals: 1 }), "01").roles.mate).toBeUndefined()
   })
 })
 
@@ -367,86 +420,31 @@ describe("The tour's signals of the game story", () => {
     expect(tourSignals(page, "01")).toMatchObject({ served: true, shown: { page: "game" } })
   })
 
-  it("find the modeller by its model shown or its work on the models, never by title", () => {
+  it("find the maker by its model shown or its work on the models, never by title", () => {
     const by = (parts: Parameters<typeof tourSignals>[2], workspace = teamWorkspace()) =>
       tourSignals(workspace, "01", parts).roles
-    expect(by({}).modeller).toBeUndefined()
-    expect(by({ works: [work("03", "worktrees/models/models/hero.gltf")] }).modeller).toBe("03")
-    expect(by({ works: [work("03", "C:\\w\\a\\models\\hero.gltf")] }).modeller).toBe("03")
-    expect(by({ works: [work("03", "other/notmodels/hero.gltf")] }).modeller).toBeUndefined()
+    expect(by({}).maker).toBeUndefined()
+    expect(by({ works: [work("03", "worktrees/models/models/hero.gltf")] }).maker).toBe("03")
+    expect(by({ works: [work("03", "C:\\w\\a\\models\\hero.gltf")] }).maker).toBe("03")
+    expect(by({ works: [work("03", "other/notmodels/hero.gltf")] }).maker).toBeUndefined()
+    // Work on the game casts no one.
+    expect(by({ works: [work("03", "src/main.js")] }).maker).toBeUndefined()
     const shown = withItems(teamWorkspace(), itemFixture("hero", "02", { kind: "model" }))
-    expect(by({}, shown).modeller).toBe("02")
-  })
-
-  it("find the builder as another teammate, by its work on the game, never by its changes alone", () => {
-    const models = work("02", "models/hero.gltf")
-    const roles = (parts: Parameters<typeof tourSignals>[2]) =>
-      tourSignals(teamWorkspace(), "01", parts).roles
-    expect(roles({ works: [models, work("03", "src/main.js")] })).toMatchObject({
-      lead: "01",
-      modeller: "02",
-      builder: "03",
-    })
-    // One teammate never plays both.
-    expect(
-      roles({ works: [work("02", "models/hero.gltf", "src/main.js")] }).builder,
-    ).toBeUndefined()
-    // Every teammate's worktree shows its changes as it opens: that casts no one.
-    const shown = withItems(
-      teamWorkspace(),
-      itemFixture("diff", "03", { kind: "changes" }),
-      itemFixture("other", "02", { kind: "changes" }),
-    )
-    expect(tourSignals(shown, "01").roles.builder).toBeUndefined()
-    expect(tourSignals(shown, "01").shown.changes).toBeNull()
-    const built = tourSignals(shown, "01", { works: [work("03", "src/main.js")] })
-    expect(built.roles.builder).toBe("03")
-    expect(built.shown.changes).toBe("diff")
-  })
-
-  it("say which folders were changed, whichever teammate's work did", () => {
-    const works = [work("02", "models/hero.gltf")]
-    expect(tourSignals(teamWorkspace(), "01", { works }).changed).toEqual({
-      models: true,
-      game: false,
-    })
-    const both = [...works, work("03", "src/main.js")]
-    expect(tourSignals(teamWorkspace(), "01", { works: both }).changed).toEqual({
-      models: true,
-      game: true,
-    })
-    const removed = [{ ...work("03"), files: [{ path: "src/main.js", status: "deleted" }] }]
-    expect(
-      tourSignals(teamWorkspace(), "01", { works: removed as unknown as Work[] }).changed.game,
-    ).toBe(false)
-    // The lead's own work is no teammate's.
-    expect(
-      tourSignals(teamWorkspace(), "01", { works: [work("01", "src/main.js")] }).changed.game,
-    ).toBe(false)
+    expect(by({}, shown).maker).toBe("02")
   })
 
   it("say what each role showed, on its own bar", () => {
     const workspace = withItems(
       teamWorkspace(),
       itemFixture("model", "02", { kind: "model" }),
-      itemFixture("diff", "03", { kind: "changes" }),
       // A model on the lead's bar is no one's.
       itemFixture("elsewhere", "01", { kind: "model" }),
     )
-    const works = [work("03", "src/main.js")]
-    expect(tourSignals(workspace, "01", { works }).shown).toEqual({
-      page: null,
-      model: "model",
-      changes: "diff",
-    })
+    expect(tourSignals(workspace, "01").shown).toEqual({ page: null, model: "model" })
   })
 
   it("say what each role's pane shows: its open top tab, by what it is", () => {
-    const workspace = withItems(
-      teamWorkspace(),
-      itemFixture("model", "02", { kind: "model" }),
-      itemFixture("diff", "03", { kind: "changes" }),
-    )
+    const workspace = withItems(teamWorkspace(), itemFixture("model", "02", { kind: "model" }))
     const state = workspace.projects[0]!.history[0]!.state
     Object.assign(state, {
       bars: {
@@ -460,7 +458,7 @@ describe("The tour's signals of the game story", () => {
         "01": { order: ["messages"], hidden: [], stack: ["messages"], open: true },
       },
     })
-    const open = tourSignals(workspace, "01", { works: [work("03", "src/main.js")] }).open
-    expect(open).toMatchObject({ modeller: "model", lead: "messages", builder: null })
+    const open = tourSignals(workspace, "01").open
+    expect(open).toMatchObject({ maker: "model", lead: "messages" })
   })
 })
