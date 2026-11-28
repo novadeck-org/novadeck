@@ -73,7 +73,7 @@ the build rules and the test sandbox. The app keeps the product.
   `dist`; a package's own `dist` (`katex/dist/katex.min.css`) is a package's import, and allowed.
   So a library's typecheck reads the libraries it imports as built, and its `turbo.json` has it
   wait for their builds; its tests read their sources (see
-  [docs/build-graph.md](../docs/build-graph.md)).
+  [dev-docs/build-graph.md](../dev-docs/build-graph.md)).
 - **The pins check** (`scripts/libraries/pins.test.ts`): the emulator's packages are installed by
   the emulator library alone, pinned exactly, so xterm and its addons move together.
 - **The browser build check** (`scripts/libraries/browser.test.ts`): the lint sees direct imports

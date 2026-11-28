@@ -5,7 +5,7 @@ Before changing this repository, read each file in this list:
 - [README.md](README.md) for what Novadeck is.
 - [GLOSSARY.md](GLOSSARY.md) for the names the app shows people, in its copy, docs and notes.
 - [VOICE.md](VOICE.md) for how the app's copy sounds.
-- [docs/development.md](docs/development.md) for setup, the repository map and releases.
+- [dev-docs/development.md](dev-docs/development.md) for setup, the repository map and releases.
 - [CODING.md](CODING.md) for code and test style.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for issues and pull requests.
 - [SECURITY.md](SECURITY.md) for credentials and security findings.
@@ -24,7 +24,7 @@ People run Novadeck every day, and every installed build updates itself. What a
 release finds on their computer is theirs, so it carries forward:
 
 - A workspace schema change ships with an in-place migration and a test from the
-  version before (see [docs/development.md](docs/development.md)); a bump never sets a
+  version before (see [dev-docs/development.md](dev-docs/development.md)); a bump never sets a
   workspace aside.
 - Settings, saved window and view state, and files Novadeck writes keep working after an
   update, or are carried forward by the update; renamed ids keep their old names
@@ -37,7 +37,7 @@ code moving inside the repository.
 
 # The Contract's Window
 
-A change to `contract/protocol` follows docs/backend-api.md ("Versions"): it raises
+A change to `contract/protocol` follows dev-docs/backend-api.md ("Versions"): it raises
 `revision` in `compatibility.ts` past main's (released or not: the next release ships it), and a
 change that can't be additive moves `oldestClient` or `oldestRunner` past the revision it
 leaves behind. A new value in an
@@ -81,7 +81,7 @@ window phase, a backend field it never sets — add it in the same change:
   `frontend/demo-debug/src/desktop/`, with their named scenarios in `desktop/scenarios.ts`.
 - Every group names its `section` (Terminals, Agents or App), and an action that boots
   the demo again sets `reboots: true` instead of saying so in its hint.
-- Give each action a hint that names what appears, and keep "Debug panel" in docs/development.md
+- Give each action a hint that names what appears, and keep "Debug panel" in dev-docs/development.md
   current.
 
 # Architecture Briefs

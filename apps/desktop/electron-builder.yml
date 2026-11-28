@@ -153,14 +153,14 @@ mac:
     - "!node_modules/{koffi,@koromix}{,/**}"
   # Signed with the Developer ID certificate in the keychain and notarized with the App
   # Store Connect key in APPLE_API_KEY*, when the release workflow has them; without a
-  # certificate the app is left unsigned. See docs/release-signing.md.
+  # certificate the app is left unsigned. See dev-docs/release-signing.md.
   hardenedRuntime: true
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   notarize: true
   category: public.app-category.utilities
   # The disk image people drag to Applications, and the ZIP the app installs its
-  # updates from (see docs/auto-update.md). The app inside both is the one signed, notarized and stapled.
+  # updates from (see dev-docs/auto-update.md). The app inside both is the one signed, notarized and stapled.
   target:
     - target: zip
       arch:
@@ -173,7 +173,7 @@ win:
   # specific is set.
   icon: resources/icon.ico
   # Signed through Azure Artifact Signing when the release workflow names the signing hook,
-  # scripts/sign-windows.mjs, as signtoolOptions.sign; see docs/release-signing.md.
+  # scripts/sign-windows.mjs, as signtoolOptions.sign; see dev-docs/release-signing.md.
   # Executables are signed by default; the libraries and native modules too, so antivirus
   # heuristics see a known publisher.
   signExts:
@@ -208,7 +208,7 @@ nsis:
   # One click, for the current user, into %LOCALAPPDATA%\Programs\novadeck, with no
   # administrator prompt; uninstalling keeps the projects and sessions in app data.
   # resources/installer.nsh, which builder includes by name, replaces its running-app check
-  # so a portable copy running elsewhere is never stopped; see docs/auto-update.md.
+  # so a portable copy running elsewhere is never stopped; see dev-docs/auto-update.md.
   artifactName: novadeck-${os}-${arch}-setup.${ext}
 toolsets:
   appimage: 1.0.3

@@ -5,7 +5,7 @@ import type { Scheme } from "./scheme"
 // The themes the app offers: an id, the name Preferences shows, the schemes it defines,
 // the sound it rings with by default, and the file in `theme/` that draws it, `<id>.css` unless themes
 // share one. The first theme is the default, used whenever a saved theme is unknown. See
-// docs/theming.md.
+// dev-docs/theming.md.
 export type ThemeEntry<Id extends string = string> = {
   readonly id: Id
   readonly name: string

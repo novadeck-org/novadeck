@@ -63,7 +63,7 @@ const inside = (times: readonly number[], from: number, to: number): boolean =>
 
 /**
  * What each terminal's agent did between two moments, for the loop hold
- * (docs/agent-messaging.md, Guards, "Loops"): whether it worked, so a message sent while
+ * (dev-docs/agent-messaging.md, Guards, "Loops"): whether it worked, so a message sent while
  * neither end of its thread did is idle. Fed every harness event a terminal's session
  * reports, as it reaches the runner, and each send the terminal makes; kept in memory only,
  * so a runner restart forgets it.

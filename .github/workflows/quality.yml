@@ -317,7 +317,7 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.proof-macos-rows) }}
     steps: *steps
 
-  # The contract against the newest release's (scripts/compatibility, docs/backend-api.md
+  # The contract against the newest release's (scripts/compatibility, dev-docs/backend-api.md
   # "Versions"): a change that leaves a UI or runner of that release behind moves that side's
   # edge of the window, so the handshake refuses that peer, or fails here. Against the base's
   # too, as the next release ships it: between a merge and its release, a change that fits the

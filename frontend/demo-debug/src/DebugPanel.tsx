@@ -2,7 +2,7 @@
 // manual checks. It is a drawer kept below the page's bottom edge, a small handle at the
 // bottom middle peeking out; the handle slides it up and back down. Its groups sit under
 // their sections, folded until opened; a search finds an action by its words. See
-// docs/development.md, "Debug panel".
+// dev-docs/development.md, "Debug panel".
 import "./debug-panel.css"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import type { BackendConnectionState, BackendSink, TerminalKey } from "@novadeck/core/port"

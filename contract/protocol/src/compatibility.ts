@@ -2,7 +2,7 @@
  * Which UIs and runners work together, as revisions of this contract. A UI and a runner from
  * different releases work together while each is inside the other's window, and are refused
  * at the handshake, with which side to update, once one isn't. Never later, with a call that
- * fails to decode or validate. docs/backend-api.md ("Versions") says how each kind of change
+ * fails to decode or validate. dev-docs/backend-api.md ("Versions") says how each kind of change
  * ships; `contract.json` beside this package is the contract as each release had it, which
  * `scripts/compatibility` compares the next one with.
  */

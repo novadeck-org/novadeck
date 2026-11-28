@@ -3,7 +3,7 @@
 # builder's own running-app check (`CHECK_APP_RUNNING`), which ends up stopping every
 # process named novadeck.exe by name where PowerShell is not usable. That would close a
 # portable copy running from another folder, and a portable copy installs itself by
-# running this setup silently while it keeps running. See docs/auto-update.md.
+# running this setup silently while it keeps running. See dev-docs/auto-update.md.
 #
 # One rule, in terms of the install folder alone:
 #   - Novadeck runs from it when any process other than this setup has a path inside
@@ -50,7 +50,7 @@
 # not with this process's rights, and carries only the system and the version that was
 # installed. It opens where `customUnInstall` runs, before the files go: builder gives no
 # later hook, and the only ways out before that point (declining the confirmation, an app that
-# cannot be closed) have already quit. See docs/auto-update.md.
+# cannot be closed) have already quit. See dev-docs/auto-update.md.
 !ifdef BUILD_UNINSTALLER
   # 1 when this run is an uninstall the person started.
   Var novadeckBye

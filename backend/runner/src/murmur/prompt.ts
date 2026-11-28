@@ -1,6 +1,6 @@
 // What the model is told. It is a 2B model reading a few kilobytes: the prompt is short,
 // what to write comes last where it weighs most, and every rule is one the model was seen to
-// break without it (see docs/murmur.md).
+// break without it (see dev-docs/murmur.md).
 import { ellipsized } from "../text.js"
 import type { AgentDigest, Digest } from "./describer.js"
 import { exampleTitles, titleCharacters, titleWords } from "./description.js"

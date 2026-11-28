@@ -75,7 +75,7 @@ for (const setup of setups) {
     it("starts straight at its prompt, which Novadeck sees as Ready", async ({ e2e: run }) => {
       // Ready is Novadeck's word that the agent's own empty prompt shows, past any trust,
       // onboarding, sign-in, key, update or hooks screen, each harness telling it its own
-      // way (docs/agent-messaging.md, "States").
+      // way (dev-docs/agent-messaging.md, "States").
       const t1 = await start(run, setup)
 
       // Only the screen shows that it is the harness's own first screen.
@@ -113,7 +113,7 @@ for (const setup of setups) {
     })
 
     // Linux and macOS only: on Windows an agent starts the relay of the build that connected
-    // it, as docs/development.md says, so a later connect by another build is that build's server.
+    // it, as dev-docs/development.md says, so a later connect by another build is that build's server.
     const unlessWindows = process.platform === "win32" ? it.skip : it
     gated(unlessWindows, lacking(setup, "pluginCopy"))(
       "reaches its own Novadeck's MCP server when another build connected it last",

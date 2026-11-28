@@ -79,7 +79,7 @@ person's prompt, and typing Enter is safe only when Novadeck can see nothing but
 empty prompt. The chat is the exception: a prompt the person sends goes along with a draft
 in the box where the screen shows that's safe, which the doorbell doesn't do: a ring still
 waits on a draft. Where the first probe had the paste "append", it lands at the cursor,
-and only with the cursor at the end does it append (probed 2026-11-06; `docs/backend-api.md`,
+and only with the cursor at the end does it append (probed 2026-11-06; `dev-docs/backend-api.md`,
 "A box that isn't empty", holds the rules, and `leftoverOf` and `Prompts.room`, in
 `libraries/tui-input`, the mechanism, which takes no part of the doorbell's timing and which
 the doorbell could use if that is ever decided). Codex's hooks run only once the person trusts them in its "Hooks need
@@ -1834,7 +1834,7 @@ only gates them (`backend/runner/src/shipping/`).
     case exactly, and a permitted one, even with a long `--body`, runs with no dialog. A rule
     for any other verb would run what the reader reads as not shipping (an own-branch push,
     `git reset`) unasked, so there is none. Probed the same day: the hook fires for a subagent's
-    commands too (docs/harness-coverage.md).
+    commands too (dev-docs/harness-coverage.md).
   - **Where the runner doesn't answer, these two are refused.** The relay's fallback is
     `{"decision":"ask"}` for every other agy PreToolUse (whatever its configuration says), but for
     a command of those shapes, read coarsely per segment, or one it can't read (a payload cut

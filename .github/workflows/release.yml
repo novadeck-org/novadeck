@@ -234,7 +234,7 @@ jobs:
         run: sha256sum -- * > SHA256SUMS
 
       # A detached signature over the checksums, the way Linux users and packagers check a
-      # download, once the release key is in the secrets. See docs/release-signing.md.
+      # download, once the release key is in the secrets. See dev-docs/release-signing.md.
       - name: Sign Checksums
         working-directory: release-assets
         env:
@@ -262,7 +262,7 @@ jobs:
           fi
           if ! gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
             --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS <<<"$GPG_PASSPHRASE"; then
-            echo "::error::Signing the checksums failed. If the release key has expired, extend it and put a fresh export in GPG_PRIVATE_KEY; see docs/release-signing.md."
+            echo "::error::Signing the checksums failed. If the release key has expired, extend it and put a fresh export in GPG_PRIVATE_KEY; see dev-docs/release-signing.md."
             exit 1
           fi
           gpg --batch --verify SHA256SUMS.asc SHA256SUMS

@@ -2,7 +2,7 @@ import { z } from "zod"
 
 // The person's own preferences, which follow them from device to device: the runner keeps
 // each by its key as the UI wrote it, without reading it, and tells every client of each
-// change (docs/backend-api.md, "Preferences"). What a preference means, and its default, is
+// change (dev-docs/backend-api.md, "Preferences"). What a preference means, and its default, is
 // the UI's: it reads each value tolerantly, so an older or newer UI's never trips it.
 
 // How many keys the runner keeps, and how long a value (JSON text) may be.

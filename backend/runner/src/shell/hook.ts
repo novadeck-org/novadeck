@@ -16,7 +16,7 @@ import { object, type Fields } from "./json.js"
  * started, and what of its environment tells agents apart. The runner reads it here into a report, which the
  * agent's harness decodes (see `harnesses/<id>/src/decode.ts`). A Stop, prompt-time or tool-call
  * hook asks instead, with a deadline: the runner answers what to print, which may deliver
- * agents' messages (see docs/agent-messaging.md). Claude Code's status line runs through
+ * agents' messages (see dev-docs/agent-messaging.md). Claude Code's status line runs through
  * the hook in Novadeck's shells, which then shows the person's own, as the relay finds
  * and runs it beside the report.
  */

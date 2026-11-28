@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-// The contrast targets in docs/theming.md, computed from the literal token values in each
+// The contrast targets in dev-docs/theming.md, computed from the literal token values in each
 // theme file, for every theme and every scheme it defines (WCAG 2 contrast ratio):
 //
 // - Text: `--color-ink` and `--color-muted` reach 4.5:1 on each ground (`--color-canvas`,

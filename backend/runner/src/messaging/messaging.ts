@@ -81,7 +81,7 @@ export type MessagingOptions = {
 }
 
 /**
- * Messages between the agents in Novadeck's terminals (see docs/agent-messaging.md). The
+ * Messages between the agents in Novadeck's terminals (see dev-docs/agent-messaging.md). The
  * terminal manager owns the terminals, their handles, roots and work, tells it what their
  * agents and people do, and asks it what each hook prints. This class is the hub that
  * builds the parts and answers for them:

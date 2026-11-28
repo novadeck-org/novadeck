@@ -237,7 +237,7 @@ jobs:
 
   # Each retried test's count over the last week's runs, from their test jobs' `retried-*`
   # artifacts, every attempt's: the budget issue opened, edited or closed by it, and the count
-  # published as `flake-tally` for the weekly scoreboard (its shape in docs/development.md).
+  # published as `flake-tally` for the weekly scoreboard (its shape in dev-docs/development.md).
   tally:
     name: Tally
     if: github.event_name != 'workflow_run'

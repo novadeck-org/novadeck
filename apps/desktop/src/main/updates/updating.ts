@@ -409,7 +409,7 @@ export const updating = ({
      * The person's choice to restart into the update waiting to install: the orderly quit
      * that installs it, with the app to open again afterwards. Ignored unless the last offer
      * is `ready` in a copy that installs, and while a quit is under way. See
-     * docs/auto-update.md, "Restart now".
+     * dev-docs/auto-update.md, "Restart now".
      */
     restart: async (): Promise<void> => {
       const mode = updatePlan(await build.updateBuild())?.mode

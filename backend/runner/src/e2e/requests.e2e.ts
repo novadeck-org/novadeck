@@ -28,14 +28,14 @@ import {
 // permission question open, or answered with Enter mid-turn, what Esc-Esc opened, or a
 // popup its harness raised after its Stop. The same scenarios for every
 // harness (see messaging.e2e.ts for the rule on parity), asserting what
-// docs/agent-messaging.md says ("What counts", "States", "The doorbell", "Acceptance
+// dev-docs/agent-messaging.md says ("What counts", "States", "The doorbell", "Acceptance
 // scenarios").
 
 // How long a terminal is watched for what a failed ring might still press.
 const quiet = 3000
 
 // Two Escapes this far apart are one Esc-Esc in each harness that has it: Claude Code
-// 2.1.287's window is about 800 ms (docs/e2e-testing.md, "Escape on its own").
+// 2.1.287's window is about 800 ms (dev-docs/e2e-testing.md, "Escape on its own").
 const doubleEscapeMs = 300
 
 // The model's replies for t2 telling t1 the news, and for t1 noting it once a delivery

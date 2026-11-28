@@ -4,7 +4,7 @@ import type { AgentSetup } from "./agents/agent.js"
 
 /**
  * The known gaps in harness parity the end-to-end suite works around (see
- * docs/e2e-testing.md, "Known gaps").
+ * dev-docs/e2e-testing.md, "Known gaps").
  *
  * A gap is a `Gap` exported here, documented with its cause, the test that pins today's
  * wrong behaviour, and what to assert once it is fixed. The scenarios never ask which

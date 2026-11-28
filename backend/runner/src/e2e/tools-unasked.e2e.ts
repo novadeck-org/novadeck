@@ -17,7 +17,7 @@ import {
 // Novadeck's own tools run without the harness asking, however its session started: typed in
 // a terminal, opened by another agent with a task, resumed as the runner restarts, and resumed
 // from History. No seed allows them (see agents/), so only Novadeck's shims do, adding the
-// allow afresh at each start and resume (docs/harness-adapters.md, "Shims and the worktrees
+// allow afresh at each start and resume (dev-docs/harness-adapters.md, "Shims and the worktrees
 // folder"). An asked tool shows the harness's own dialog, which nothing here answers, so its
 // result never reaches the model. The same for every harness (see messaging.e2e.ts for the
 // rule on parity).

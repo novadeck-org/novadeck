@@ -19,7 +19,7 @@ import {
   through,
 } from "./scenarios.js"
 
-// An agent's lead (docs/agent-messaging.md, "Authority"): the agent whose terminal opened
+// An agent's lead (dev-docs/agent-messaging.md, "Authority"): the agent whose terminal opened
 // its terminal. Its messages are marked `lead="<mark>"`, a mark new in every delivery, and
 // while the agent's turn runs they reach it at its next tool call ("The lead's messages
 // mid-turn"), where a peer's wait for the Stop. The same for every harness (see messaging.e2e.ts for the rule on parity).

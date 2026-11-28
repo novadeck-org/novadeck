@@ -28,7 +28,7 @@
    Every rule is scoped to Coolant, which applies when no theme is set or `data-theme` is
    `coolant`, so another theme starts from the recipes' fallbacks instead of inheriting
    these tokens. The `:where()` adds no specificity.
-   Imported into `layer(themes)`; see docs/theming.md. */
+   Imported into `layer(themes)`; see dev-docs/theming.md. */
 
 :root:where(:not([data-theme]), [data-theme="coolant"]) {
   color-scheme: light;

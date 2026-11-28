@@ -7,7 +7,7 @@ import { noticeText } from "../messaging/notice-format.js"
 
 /**
  * What the pane told of a page an agent showed, held for the terminal it was shown from
- * until the person's next prompt (see docs/agent-messaging.md, "Nudges"): one entry per
+ * until the person's next prompt (see dev-docs/agent-messaging.md, "Nudges"): one entry per
  * item, for its latest show only.
  */
 export type PageEntry = {

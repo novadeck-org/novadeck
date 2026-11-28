@@ -12,7 +12,7 @@ import { lacking, prompted } from "./scenarios.js"
 import { claudeHello, openssl, standIn } from "./stand-in.js"
 
 // What holds each harness for the person before Novadeck can reach it, as
-// `TerminalSummary.startup` says (docs/agent-messaging.md, "Startup screens"): its sign-in
+// `TerminalSummary.startup` says (dev-docs/agent-messaging.md, "Startup screens"): its sign-in
 // screen, or its prompt saying it isn't signed in, and Novadeck's hooks not running for it,
 // untrusted (Codex) or off in the person's own settings (Claude Code, Antigravity). Each
 // harness has both; the way the person gets there differs, as each case says. Each holds

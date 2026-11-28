@@ -1,6 +1,6 @@
 /**
  * The decisions of a quit that puts an update in place and of a launch that comes while it
- * does (docs/auto-update.md, "Opening Novadeck while it quits into an update"), apart from
+ * does (dev-docs/auto-update.md, "Opening Novadeck while it quits into an update"), apart from
  * the app so that "a plain quit never restarts" is pinned by tests.
  */
 

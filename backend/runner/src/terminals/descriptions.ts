@@ -18,7 +18,7 @@ import { titledByHand } from "./titles.js"
 const log = logs.for("murmur")
 
 /*
- * When a terminal is described by murmur, and from what (see docs/agent-messaging.md,
+ * When a terminal is described by murmur, and from what (see dev-docs/agent-messaging.md,
  * "Naming"). The terminals own the triggers, the digests and the coalescing; the service
  * behind the `Describer` owns the model, its prompt, redaction and validation.
  */

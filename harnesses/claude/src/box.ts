@@ -316,7 +316,7 @@ export const box: BoxProfile = {
   },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
-  // Queues until the turn ends (probed 2026-10-07, 2.1.287; docs/harness-coverage.md).
+  // Queues until the turn ends (probed 2026-10-07, 2.1.287; dev-docs/harness-coverage.md).
   shell: {
     expands: true,
     starts: false,

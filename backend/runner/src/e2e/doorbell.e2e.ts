@@ -33,7 +33,7 @@ import {
 // An idle agent is rung wherever it came to rest, not only when Settled: Drafting, Unknown
 // and the like are states Novadeck derives from keys and hooks, and an agent idle at its
 // own empty prompt in any of them gets its messages without the person visiting its
-// terminal (docs/agent-messaging.md, "Idle but not Ready"). A box that holds text is never
+// terminal (dev-docs/agent-messaging.md, "Idle but not Ready"). A box that holds text is never
 // typed over, and says why. The same scenarios for every harness (see messaging.e2e.ts for
 // the rule on parity).
 

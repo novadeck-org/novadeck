@@ -126,7 +126,7 @@ describe("the CI plan", () => {
     it.each([
       "frontend/ui/src/a.ts",
       "backend/runner/src/a.ts",
-      "docs/development.md",
+      "dev-docs/development.md",
       "pnpm-lock.yaml",
     ])("plans %s as a pull request does, and says it is a group's", (file) => {
       const decided = plan(group(file), ids)
@@ -194,7 +194,7 @@ describe("the CI plan", () => {
 
   context("for prose outside every package", () => {
     it("runs no package's tests, but the repository's on Linux", () => {
-      const decided = plan(pullRequest("docs/development.md", "AGENTS.md"), ids)
+      const decided = plan(pullRequest("dev-docs/development.md", "AGENTS.md"), ids)
       expect(decided.everything).toBeUndefined()
       expect(decided.tests).toEqual({ linux: ["//"], windows: [], macos: [] })
       expect(decided.e2e.run).toBe(false)
@@ -203,15 +203,15 @@ describe("the CI plan", () => {
 
     it("runs the packages that declare they read it", () => {
       const reader = packages.map((each) =>
-        each.name === "@novadeck/ui" ? { ...each, reads: ["docs/development.md"] } : each,
+        each.name === "@novadeck/ui" ? { ...each, reads: ["dev-docs/development.md"] } : each,
       )
-      const decided = plan({ ...pullRequest("docs/development.md"), packages: reader }, ids)
+      const decided = plan({ ...pullRequest("dev-docs/development.md"), packages: reader }, ids)
       expect(decided.tests.linux).toEqual(["//", "@novadeck/ui"])
     })
 
     it("runs everything where prose isn't narrowed, as the replay measures", () => {
-      expect(plan(pullRequest("docs/development.md"), ids, { prose: false }).everything).toBe(
-        "docs/development.md is outside every package",
+      expect(plan(pullRequest("dev-docs/development.md"), ids, { prose: false }).everything).toBe(
+        "dev-docs/development.md is outside every package",
       )
     })
   })

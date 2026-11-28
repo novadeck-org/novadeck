@@ -32,7 +32,7 @@ import {
 // Answering an agent's requests from the chat, through the dialog in its TUI, the same for
 // every harness (see messaging.e2e.ts for the rule on parity): `agents.detail` shows each
 // request's dialog as the harness's adapter read it from the screen, `agents.answer`
-// presses its keys, and the model's next call says what the dialog took (docs/backend-api.md,
+// presses its keys, and the model's next call says what the dialog took (dev-docs/backend-api.md,
 // "agents.answer").
 
 type Dialog = NonNullable<AgentDetail["requests"][number]["dialog"]>
