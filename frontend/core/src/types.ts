@@ -44,7 +44,7 @@ export type PreferencesValue = {
   fontFamily?: string
   enabledViews: ViewMode[]
   // The theme and the scheme chosen for it; the theme is a plain id the app may not know.
-  // See docs/theming.md.
+  // See dev-docs/theming.md.
   appearance: { readonly theme: string; readonly scheme: SchemePreference }
   // Whether the desktop app notifies the person when an agent needs them (an Inbox entry that
   // waits on them) while Novadeck is in the background.

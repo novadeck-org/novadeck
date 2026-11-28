@@ -166,7 +166,7 @@ export const transcriptItem = z
     interrupted: z.boolean(),
     // A `user` item that is the line Novadeck's doorbell typed, not the person's words: the
     // ring's nonce, and whether the line carries the person's Inbox replies (see
-    // docs/agent-messaging.md, "The reply line"); null on every other item.
+    // dev-docs/agent-messaging.md, "The reply line"); null on every other item.
     ring: z.strictObject({ nonce: z.string().max(64), replies: z.boolean() }).nullable(),
     // On an `assistant` text item, that it is the agent's thinking, as its harness's terminal shows
     // it to the person (Claude Code's updates, which its terminal tags "summary"), not a reply.

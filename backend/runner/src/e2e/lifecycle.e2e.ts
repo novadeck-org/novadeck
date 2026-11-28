@@ -251,7 +251,7 @@ for (const setup of setups) {
       // Ready. With no shell prompt between the two, Novadeck notices the first's process is
       // gone only as the next reports, in the same handling as the new session it binds, so
       // no Unbound need show between them ("Its harness announces a new session", in
-      // docs/agent-messaging.md's transitions).
+      // dev-docs/agent-messaging.md's transitions).
       await through(t1, [holds("fox", "moth", "gone"), "ready"], {
         after: mark,
         timeoutMs: 60_000,

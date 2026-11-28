@@ -17,7 +17,7 @@ import {
 
 // A nested agent inside an agent's turn, the same for every harness (see messaging.e2e.ts
 // for the rule on parity): a root turn event is never one of a nested run of the harness
-// (docs/agent-messaging.md, "What counts"), so its hooks get nothing.
+// (dev-docs/agent-messaging.md, "What counts"), so its hooks get nothing.
 
 // What the nested run is asked, which only its own conversation holds as a user's words:
 // the agent's holds it only in the command it runs.

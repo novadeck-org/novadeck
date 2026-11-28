@@ -373,7 +373,7 @@ export const machineCopies = ({ appId, exitApp, offered, log }: CopiesHost) => {
 
   // The Windows install: the latest release's setup is downloaded and checked, then run
   // silently while this copy keeps running, and the install is vouched for by the copy it
-  // leaves; see `prepareSetup` and docs/auto-update.md. The setup starts nothing.
+  // leaves; see `prepareSetup` and dev-docs/auto-update.md. The setup starts nothing.
   const installWindowsSetup = async (
     progress: (step: InstallStep) => void,
   ): Promise<PlatformInstall> => {

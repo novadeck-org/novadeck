@@ -188,7 +188,7 @@ export const claude = {
   },
   transcripts: { ...transcripts, shapes, conversational },
   plans: transcriptPlans,
-  // Its hooks, transcript and status line; see docs/harness-coverage.md.
+  // Its hooks, transcript and status line; see dev-docs/harness-coverage.md.
   // A background subagent's or command's end starts a turn with a task notification.
   wakes: true,
   records: true,

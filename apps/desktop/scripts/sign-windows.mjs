@@ -3,7 +3,7 @@
 // native modules, the installer and its uninstaller. It signs as the engines' build does,
 // through Azure Artifact Signing with SignTool and the signing library pinned by checksum
 // in engines/ggml-build/src/signtool.ts, so packaging installs no signing tool of its own
-// choosing. See docs/release-signing.md.
+// choosing. See dev-docs/release-signing.md.
 import { signWindowsFiles, windowsSigning } from "@novadeck/ggml-build/signtool"
 
 export const sign = async ({ path }) => {

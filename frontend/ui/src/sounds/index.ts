@@ -5,7 +5,7 @@ import { soundOfTheme } from "../theme/themes"
 
 // The sounds Novadeck rings with. The list of them, ids and names, is the protocol's
 // `noticeSounds`, shared with the desktop app; each id's file is `<id>.wav` in this folder.
-// To add a sound, put its file here and a line in `noticeSounds` (see docs/theming.md).
+// To add a sound, put its file here and a line in `noticeSounds` (see dev-docs/theming.md).
 
 // Always files, however small: the page's content policy refuses an inlined data: URL.
 const files = import.meta.glob<string>("./*.wav", {

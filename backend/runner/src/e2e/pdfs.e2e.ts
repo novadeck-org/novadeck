@@ -6,7 +6,7 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool } from "./model/script.js"
 import { own, result, start, through } from "./scenarios.js"
 
-// An agent's show of a PDF it wrote (docs/agent-workspace.md): through Novadeck's MCP `show`,
+// An agent's show of a PDF it wrote (dev-docs/agent-workspace.md): through Novadeck's MCP `show`,
 // as a video is, the item is a PDF whose bytes the pane reads in parts. The same for every
 // harness (see messaging.e2e.ts for the rule on parity). The model here is a script, so this
 // checks that each harness's call reaches Novadeck as a PDF, not what a real model would show.

@@ -213,7 +213,7 @@ const schema = `
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   ) STRICT;
-  -- Agent messaging (docs/agent-messaging.md).
+  -- Agent messaging (dev-docs/agent-messaging.md).
   CREATE TABLE message_threads (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -665,7 +665,7 @@ const migrations: Readonly<Record<number, Step>> = {
         handle TEXT NOT NULL,
         PRIMARY KEY (session_id, handle)
       ) STRICT;
-      -- Agent messaging (docs/agent-messaging.md).
+      -- Agent messaging (dev-docs/agent-messaging.md).
       CREATE TABLE message_threads (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

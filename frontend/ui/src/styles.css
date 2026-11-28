@@ -1,4 +1,4 @@
-/* The cascade order every stylesheet fits into; see docs/theming.md. */
+/* The cascade order every stylesheet fits into; see dev-docs/theming.md. */
 @layer theme, base, components, themes, accessibility, utilities;
 
 /* Where Tailwind looks for classes, whichever entry's page Vite serves from: the UI's package

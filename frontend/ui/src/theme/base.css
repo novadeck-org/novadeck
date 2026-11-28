@@ -1,6 +1,6 @@
 /* The base layer: defaults for the optional foundation tokens, element defaults, and the
    rule that stills transitions while the scheme changes. Imported into `layer(base)`;
-   see docs/theming.md. */
+   see dev-docs/theming.md. */
 
 /* Optional foundation tokens: a theme may set any of these, and these are Coolant's. */
 :root {

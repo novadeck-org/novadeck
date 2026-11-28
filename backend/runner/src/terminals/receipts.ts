@@ -191,7 +191,7 @@ const done = (entry: Entry, state: "settled" | "withdrawn", item?: number): void
 
 /**
  * Follows each prompt given through `agents.prompt` until its agent's own record has it,
- * for the chat to show it until then and to say when it never came (see docs/backend-api.md,
+ * for the chat to show it until then and to say when it never came (see dev-docs/backend-api.md,
  * "Prompt receipts"). The record is read with the harness's own decoder, the chat's, so a
  * prompt a decoder drops is missing here as it is in the chat: that is what it tells. A
  * prompt counts as missing once its agent's turns went by without it (`missingAt`); the
@@ -320,7 +320,7 @@ export class Receipts {
    * waiting whose words they hold are withdrawn, as they are the person's draft again. So is one
    * the record settled since, and it keeps its `item`: Claude Code records a queued message as
    * its turn starts, and once that turn is stopped takes it out of the conversation, the model
-   * never seeing it, so that item is no message that went (see docs/harness-coverage.md).
+   * never seeing it, so that item is no message that went (see dev-docs/harness-coverage.md).
    */
   withdraw(
     terminalId: string,

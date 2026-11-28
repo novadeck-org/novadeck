@@ -176,7 +176,7 @@ jobs:
       # The voice and murmur engines are signed with the app, so their builds and caches
       # follow the same choice. Only what later steps need goes to GITHUB_ENV: the Azure secrets go to the
       # two steps that sign, and the macOS key and keychain are removed after packaging.
-      # See docs/release-signing.md.
+      # See dev-docs/release-signing.md.
       - name: Set Up Signing
         id: signing
         shell: bash

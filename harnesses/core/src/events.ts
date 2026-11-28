@@ -56,7 +56,7 @@ export type SessionObserved = EventBase &
      * Whether the harness announced this new session as its own input prompt came up, past
      * any trust, onboarding or login screen: Claude Code's SessionStart at a `startup`,
      * `clear`, `resume` or `fork`, and Antigravity's status line saying idle in it. Only
-     * such a session may be rung before its first turn (see docs/agent-messaging.md,
+     * such a session may be rung before its first turn (see dev-docs/agent-messaging.md,
      * "States").
      */
     readonly atPrompt?: boolean
@@ -73,7 +73,7 @@ export type SessionObserved = EventBase &
  * review or picker screen, before a session it names in full has bound there: Codex's
  * terminal title saying Ready, Antigravity's status line saying idle with no conversation
  * yet. Messages wait for the first session of that agent to bind there, and the doorbell
- * may ring it (see docs/agent-messaging.md, "States"). `sessionPrefix` is the start of the
+ * may ring it (see dev-docs/agent-messaging.md, "States"). `sessionPrefix` is the start of the
  * session's id, where the harness shows only that much of it, as Codex's title does.
  */
 export type PromptShown = Fired & {
@@ -194,7 +194,7 @@ export type ActivityEvent = EventBase &
     | { readonly type: "session-left" }
     /**
      * The person pressed Escape while the root turn ran, as their keys tell delivery (see
-     * docs/agent-messaging.md, "States"): it may have cancelled the turn, which no hook
+     * dev-docs/agent-messaging.md, "States"): it may have cancelled the turn, which no hook
      * says, as Claude Code's Escape before its first reply. Started when the key came.
      */
     | { readonly type: "turn-escaped" }
@@ -495,7 +495,7 @@ export type PlanSource =
   | { readonly kind: "text"; readonly text: string; readonly truncated: boolean }
 
 /**
- * What a call was, for messaging's loop hold (docs/agent-messaging.md, Guards, "Loops"):
+ * What a call was, for messaging's loop hold (dev-docs/agent-messaging.md, Guards, "Loops"):
  * a tool of Novadeck's own MCP server, or a read of its descriptor files (`novadeck`); the
  * harness's bookkeeping, which only loads or tracks (`bookkeeping`); a call that only
  * waits, as a shell command of sleeps (`waiting`); else `work`. Each harness's decoder

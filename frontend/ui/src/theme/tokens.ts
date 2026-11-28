@@ -1,5 +1,5 @@
 // The foundation tokens every theme defines for each scheme it offers. The "Foundation
-// tokens" table in docs/theming.md lists the same names; `contract.test.ts` checks
+// tokens" table in dev-docs/theming.md lists the same names; `contract.test.ts` checks
 // both against each other and every theme file against this list.
 
 const tones = ["success", "warning", "danger", "note"] as const

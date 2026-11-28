@@ -121,7 +121,7 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         detail: textField(fields, "query"),
       }
     // ask_question takes `questions[{question, options, is_multi_select}]` (hooks.probe,
-    // docs/harness-coverage.md); invoke_subagent takes `TypeName`, `Role` and `Prompt`
+    // dev-docs/harness-coverage.md); invoke_subagent takes `TypeName`, `Role` and `Prompt`
     // (e2e/agents/agy.ts); manage_task `Action` (`kill`, hooks.probe.json) and schedule
     // `DurationSeconds`, `CronExpression` and `Prompt` (call-memory.ts). The other three
     // are read by the argument names a message or a subagent's definition most likely

@@ -209,7 +209,7 @@ export const doorbellHost = <R extends DoorbellRecord>(
     // The agent's own box, read by its harness off the calm screen: empty and taking a
     // prompt makes an idle Fresh, Drafting or Unknown terminal, or one Working on background
     // work only, Ready (see
-    // docs/agent-messaging.md, "The doorbell"); anything else says why it is not.
+    // dev-docs/agent-messaging.md, "The doorbell"); anything else says why it is not.
     reading: (terminalId, screen) => {
       const record = live(terminalId)
       if (!record) return "dialog"

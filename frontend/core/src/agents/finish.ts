@@ -46,7 +46,7 @@ export const sightTurnEnd = (
 // How long a completed end waits to be told before it counts as a finish: a harness that
 // took the person's Escape just after its reply fires its Stop, then records the
 // interruption (Claude Code's transcript, Codex's `Interrupt`) within about half a second
-// of the key, a turn the person stopped (docs/harness-coverage.md, "Escape against a reply
+// of the key, a turn the person stopped (dev-docs/harness-coverage.md, "Escape against a reply
 // on its way"). The end shown at the time is only a finish if it still stands then.
 // Mirrors the runner's constant of the same name, which records the same end after this long;
 // a test in runner-adapter keeps the two equal.

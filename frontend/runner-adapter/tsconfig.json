@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
+    // Workspace packages' source, as Vitest reads it: no build first (see dev-docs/build-graph.md).
     // `node` too, which `Bundler` resolution leaves out: its tests start the runner, whose
     // source and the harnesses' import Node-only subpaths. The lint keeps the adapter's browser
     // code off them.

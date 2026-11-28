@@ -6,7 +6,7 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool } from "./model/script.js"
 import { own, result, start, through } from "./scenarios.js"
 
-// An agent's show of a video or a recording it rendered (docs/agent-workspace.md): through
+// An agent's show of a video or a recording it rendered (dev-docs/agent-workspace.md): through
 // Novadeck's MCP `show`, as an image or a file is, the item is a video or a recording that
 // starts at the second the show gave, and the pane reads its bytes in parts. The same for
 // every harness (see messaging.e2e.ts for the rule on parity). The model here is a script, so this checks that

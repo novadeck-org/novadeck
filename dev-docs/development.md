@@ -205,7 +205,7 @@ which case the pane merges and saves again. Edits save once typing pauses and wh
 leaves the plan. The runner reads content from disk and can't write plans yet, so its
 plans are read-only; the content-preview demo writes them, with sample agents in
 `frontend/demo/src/showcase/` that revise their plans over the file as the person left it and
-remove the notes they apply. `docs/agent-workspace.md` ("Companion pane") describes the
+remove the notes they apply. `dev-docs/agent-workspace.md` ("Companion pane") describes the
 runner's side. The editor and its merge code load when a plan first opens.
 Normal development and packaged builds keep their runner behavior.
 
@@ -1213,6 +1213,8 @@ atlas.
 | `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.       |
 | `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                      |
 | `scripts`                 | Repository checks and automation.                                                          |
+| `docs`                    | Docs for people who use Novadeck: the guide and the reference, and the README's images.    |
+| `dev-docs`                | Docs for contributors and their agents: setup, testing, releases and the designs.          |
 
 Each package says in its `package.json` whether its tests can tell one system from another:
 
@@ -1361,7 +1363,7 @@ path. Its hubs sit at the top of `src/`; the rest is in domain folders: `agents/
 `conversation/`, `items/`, `terminals/`, `desktop/`, `addons/`, `feedback/` and `layout/`.
 `theme/` imports nothing but itself and the core's types; every layer that
 composes the page may use it, though no backend does (the entries hand them the page's
-theme), and [docs/theming.md](theming.md) is its contract with components.
+theme), and [dev-docs/theming.md](theming.md) is its contract with components.
 Each backend adapter, `frontend/runner-adapter` and `frontend/demo`, builds only on the core
 and `frontend/terminal-views`, never on the app's chrome; the package graph holds that, as a
 package imports only what its `package.json` declares. The demo's debug panel is a package
@@ -1566,7 +1568,7 @@ application-owned types for saved layouts.
 Keep direct Ark UI imports in `frontend/toolkit`; features own their content and state.
 Use Tailwind utilities in TSX only to arrange elements: layout, spacing, sizes, and
 the size and flow of type. How a component looks comes from its recipe, a stylesheet
-beside it that reads theme tokens; see [docs/theming.md](theming.md), which
+beside it that reads theme tokens; see [dev-docs/theming.md](theming.md), which
 `theme/contract.test.ts` enforces. See [CODING.md](../CODING.md) for broader
 conventions.
 
@@ -1839,7 +1841,7 @@ which builds what the tests need first. `pnpm test` runs the packages' tests in 
 but the frontend packages' and apps' tests (the browser specs among them), the runner's real-PTY
 tests and the host's run one at a time, after the rest: they are timing-sensitive, and the UI's
 and the runner's, run together, starved the
-smaller CI runners enough to time out. What each task waits for, and why, is in [docs/build-graph.md](build-graph.md).
+smaller CI runners enough to time out. What each task waits for, and why, is in [dev-docs/build-graph.md](build-graph.md).
 Tests use Vitest: UI behaviour specs run in Vitest Browser Mode on Chromium, and
 MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking,
 builds, and PR metadata checks on Linux. Linux runs every package and repository test on
@@ -1946,11 +1948,11 @@ the AppImage, which replaces itself in place once installed, and the app from th
 
 Local builds are unsigned, so Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
 Releases are signed and notarized once the signing credentials are set up; see
-[docs/release-signing.md](release-signing.md).
+[dev-docs/release-signing.md](release-signing.md).
 
 Builds also write `latest*.yml` update metadata and `.blockmap` files beside the packages,
 which releases upload so installed apps can update themselves; see
-[docs/auto-update.md](auto-update.md).
+[dev-docs/auto-update.md](auto-update.md).
 
 Each package ships the relay agents start for Novadeck's MCP server and hooks, built
 from source with the rest of the app; the Windows packages also ship `novadeck-cmd.exe`, the

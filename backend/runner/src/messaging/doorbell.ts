@@ -190,7 +190,7 @@ export const ringSizeCapMs = (pasteMs: number, confirm: number): number =>
   pasteMs + inputCapMs + confirm
 
 /**
- * Wakes idle agents (see docs/agent-messaging.md, "The doorbell"): once messaging says a
+ * Wakes idle agents (see dev-docs/agent-messaging.md, "The doorbell"): once messaging says a
  * terminal may be rung and its screen has been still for a while, it pastes the line as a
  * test, presses Enter only when the line landed alone, and lets the ring fail when no
  * doorbell prompt confirms it. After a failure it presses no key, but for the Enter that

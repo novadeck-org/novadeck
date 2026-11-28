@@ -110,7 +110,7 @@ const link = (node: string): void => {
   } catch (error) {
     if (windows && (error as { code?: unknown }).code === "EPERM")
       throw new Error(
-        "createSandbox: Windows refused a symbolic link, which it makes only for an administrator or with Developer Mode on (see docs/e2e-testing.md)",
+        "createSandbox: Windows refused a symbolic link, which it makes only for an administrator or with Developer Mode on (see dev-docs/e2e-testing.md)",
         { cause: error },
       )
     throw error

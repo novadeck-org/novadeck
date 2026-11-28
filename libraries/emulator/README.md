@@ -34,7 +34,7 @@ character-width rule every emulator shares, and helpers that need only an emulat
   through the whole buffer (after a restore), `refresh()` repaints (theme, font, scale: the cell comes from
   `.xterm-screen`'s size, so a scaled ancestor follows). Each write checks the covered cells and drops a
   drawing the harness drew over, none while a synchronized update (`?2026`) runs, and never over the cursor. See
-  `docs/agent-messaging.md`, "The doorbell's row in the terminal".
+  `dev-docs/agent-messaging.md`, "The doorbell's row in the terminal".
 - `./browser.css`: xterm's stylesheet, for the browser emulator's screens.
 - `./headless` (Node only): the emulator without a view, and what needs only it.
   - `createScreen({ cols, rows, scrollback, onParseError })`: a screen that counts widths as

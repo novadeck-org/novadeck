@@ -38,7 +38,7 @@ const handlesOf = (from: readonly string[]): string => {
 
 /**
  * The line Novadeck's doorbell types, with the bare handles of the senders of the messages
- * waiting, in delivery order, and its nonce last (see docs/agent-messaging.md).
+ * waiting, in delivery order, and its nonce last (see dev-docs/agent-messaging.md).
  */
 export const doorbellLine = (nonce: string, from: readonly string[] = []): string =>
   `<novadeck-doorbell from="${handlesOf(from)}" ring="${nonce}"/>`

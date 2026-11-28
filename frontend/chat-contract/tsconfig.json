@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
+    // Workspace packages' source, as Vitest reads it: no build first (see dev-docs/build-graph.md).
     // `node` too, which `Bundler` resolution leaves out: the harnesses' source imports
     // Node-only subpaths. The lint keeps the UI's own code off them.
     "customConditions": ["node", "development"],

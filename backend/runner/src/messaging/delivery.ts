@@ -2,7 +2,7 @@ import type { KeyKind } from "@novadeck/tui-input"
 
 /**
  * How a terminal's agent can take a message now, one state machine per terminal (see
- * docs/agent-messaging.md, "States"). Every terminal with an agent is in one state at
+ * dev-docs/agent-messaging.md, "States"). Every terminal with an agent is in one state at
  * all times, derived from what its harness and its person did, so the prompt's emptiness
  * is known before any message arrives. A Settled terminal, or a Ready one (the agent's own
  * prompt shows, with no turn yet: a new session its harness announced there, or none yet
@@ -74,7 +74,7 @@ export type Delivery = Counts &
 
 /**
  * What Novadeck knows of the agent's input box, from the person's keys (see
- * docs/agent-messaging.md, "What counts"). It errs toward a draft.
+ * dev-docs/agent-messaging.md, "What counts"). It errs toward a draft.
  */
 type Box = {
   /**
@@ -911,7 +911,7 @@ export const waitsIn = (delivery: Delivery, inBackground = false): boolean =>
 
 /**
  * Why the doorbell can't ring a terminal whose agent is idle, from what it saw (see
- * docs/agent-messaging.md, "The doorbell"): its activity saying a turn runs (`working`),
+ * dev-docs/agent-messaging.md, "The doorbell"): its activity saying a turn runs (`working`),
  * a prompt the harness shows queued (`queued`), its box in shell mode (`shell`), text in
  * the agent's box (`draft`), a dialog, picker or screen that isn't the agent's prompt
  * (`dialog`), a question it waits on the person for (`asking`), rings that failed

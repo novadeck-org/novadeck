@@ -14,7 +14,7 @@ import { commandWords } from "./commands.js"
 export type { TitleSource }
 
 /**
- * What names a terminal (see docs/agent-messaging.md, "Naming"), each layer kept on its
+ * What names a terminal (see dev-docs/agent-messaging.md, "Naming"), each layer kept on its
  * own so the title follows their precedence: the person's title; the title the agent that
  * opened the terminal gave through `open_terminal` or `open_agent`, which shows as that
  * terminal's (its `openedBy`, the opener's terminal id) and which murmur never replaces, as it

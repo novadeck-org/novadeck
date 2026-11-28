@@ -5,7 +5,7 @@
 
    Both tubes share this file: the first block holds what they have in common, the CRT
    included, which draws in each tube's own colours; each tube's block holds its palette.
-   Imported into `layer(themes)`; see docs/theming.md. */
+   Imported into `layer(themes)`; see dev-docs/theming.md. */
 
 /* Share Tech Mono, the tubes' face, ships with the app (the CSP only loads fonts from the
    app itself). Fonts are declared in a `layer(base)` import; inside `layer(themes)` that

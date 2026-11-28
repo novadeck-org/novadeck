@@ -42,7 +42,7 @@ import { transcripts, typedEntry } from "./transcripts.js"
 // a model call lasts only for that call, so a turn's delivery is injected again on each
 // of its later calls (before 1.5.18, `lastingFrom`). Every other answer is an empty object.
 const messaging: MessagingProfile = {
-  // `/exit` as docs/harness-coverage.md has it leave, and `/quit`, the alias its binary
+  // `/exit` as dev-docs/harness-coverage.md has it leave, and `/quit`, the alias its binary
   // names; a wrong one costs only the grace.
   exitCommands: ["/exit", "/quit"],
   asks: { Stop: "stop", PreInvocation: "prompt" },
@@ -243,7 +243,7 @@ export const agy = {
   // `--prompt`, runs it on the caller's text, so it is a session's use.
   nonSession,
   transcripts: { ...transcripts, shapes, conversational },
-  // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.
+  // Its hooks name no subagents; its status line counts them; see dev-docs/harness-coverage.md.
   // A background subagent's end wakes it with a message saying it went idle.
   wakes: true,
   records: false,

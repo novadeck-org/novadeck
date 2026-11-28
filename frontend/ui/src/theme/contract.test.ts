@@ -1,6 +1,6 @@
 // @vitest-environment node -- esbuild, which compiles the scripts, needs Node's own TextEncoder
 
-// The theming contract in docs/theming.md, checked against the source.
+// The theming contract in dev-docs/theming.md, checked against the source.
 //
 // Themes: every theme in `themes.ts` has a file in `theme/`, imported into
 // `layer(themes)`, whose selectors all start with its own scope: `:root[data-theme="<id>"]`,
@@ -56,7 +56,7 @@ import { packageOf, read, repositoryPathOf, sources } from "./sources.test-suppo
 import { themes, type ThemeEntry } from "./themes"
 import { requiredTokens } from "./tokens"
 
-const doc = readFileSync(join(process.cwd(), "..", "..", "docs", "theming.md"), "utf8")
+const doc = readFileSync(join(process.cwd(), "..", "..", "dev-docs", "theming.md"), "utf8")
 const stylesheets = sources.filter((file) => file.endsWith(".css"))
 const fileOf = (theme: ThemeEntry): string => `theme/${theme.file ?? theme.id}.css`
 const themeFile = (file: string): boolean => themes.some((theme) => file === fileOf(theme))
@@ -559,7 +559,7 @@ const classLooks = async (file: string, code: string): Promise<string[]> =>
 
 const tsxLooks: Rule = {
   broken: "draws with Tailwind utilities",
-  fix: "TSX may only arrange: move the look into the component's recipe, as a token-driven rule (docs/theming.md, Rules for components).",
+  fix: "TSX may only arrange: move the look into the component's recipe, as a token-driven rule (dev-docs/theming.md, Rules for components).",
 }
 
 // The look utilities a stylesheet's `@apply` names, by the same split as the TSX.
@@ -570,7 +570,7 @@ const applyLooks = (file: string, css = read(file)): string[] =>
 
 const appliedLooks: Rule = {
   broken: "applies Tailwind utilities that draw",
-  fix: "A recipe may @apply only layout utilities: write the look as a declaration that reads a token (docs/theming.md, Layers).",
+  fix: "A recipe may @apply only layout utilities: write the look as a declaration that reads a token (dev-docs/theming.md, Layers).",
 }
 
 // ---- (b) No colour literals outside theme files.
@@ -633,7 +633,7 @@ const colourLiterals = (file: string, css = read(file)): string[] =>
 
 const colours: Rule = {
   broken: "holds colour literals outside a theme file",
-  fix: "Read a foundation or component token instead, mixing tokens with color-mix() where a shade is needed (docs/theming.md, A recipe reads only tokens).",
+  fix: "Read a foundation or component token instead, mixing tokens with color-mix() where a shade is needed (dev-docs/theming.md, A recipe reads only tokens).",
 }
 
 // ---- (c) No `!important` outside its listed exceptions.
@@ -657,7 +657,7 @@ const importantDeclarations = (file: string, css = read(file)): string[] =>
 
 // Where `!important` stays, and why: the exact declarations, so a new one in the same
 // file fails too. Each one beats a style no layer can: an inline style or one a library
-// sets. docs/theming.md lists the same files under Exceptions.
+// sets. dev-docs/theming.md lists the same files under Exceptions.
 const importantExceptions: readonly {
   readonly file: string
   readonly reason: string
@@ -698,7 +698,7 @@ const importantExceptions: readonly {
 
 const important: Rule = {
   broken: "uses !important",
-  fix: "It turns the layer order around: raise the selector's specificity or put the rule in a later layer. Only a style set inline, which nothing else beats, may need it: then add the declaration to importantExceptions with its reason, and the file to docs/theming.md's Exceptions.",
+  fix: "It turns the layer order around: raise the selector's specificity or put the rule in a later layer. Only a style set inline, which nothing else beats, may need it: then add the declaration to importantExceptions with its reason, and the file to dev-docs/theming.md's Exceptions.",
 }
 
 // ---- (d) Every stylesheet is layered.
@@ -756,7 +756,7 @@ const cssImportPattern = /^import\s+(?:[\w{}\s,*]+from\s+)?["']([^"']+\.css)["']
 
 const layers: Rule = {
   broken: "has CSS outside a layer, which beats every theme",
-  fix: "Import it from styles.css with layer(…), or wrap its rules in @layer (docs/theming.md, Layers).",
+  fix: "Import it from styles.css with layer(…), or wrap its rules in @layer (dev-docs/theming.md, Layers).",
 }
 
 const unlayeredStylesheets = (): Map<string, string[]> =>
@@ -817,7 +817,7 @@ describe("theme rules", () => {
           .filter((declaration) => !found.get(file)?.includes(declaration))
           .map(
             (declaration) =>
-              `${file} no longer uses !important in ${declaration} (${reason}): remove it from importantExceptions, and the file from docs/theming.md's Exceptions once it has none`,
+              `${file} no longer uses !important in ${declaration} (${reason}): remove it from importantExceptions, and the file from dev-docs/theming.md's Exceptions once it has none`,
           ),
       ),
     ).toEqual([])
@@ -829,7 +829,7 @@ describe("theme rules", () => {
     expect(
       importantExceptions
         .filter(({ file }) => !named.has(repositoryPathOf(file)))
-        .map(({ file }) => `docs/theming.md's Exceptions does not name ${file}`),
+        .map(({ file }) => `dev-docs/theming.md's Exceptions does not name ${file}`),
     ).toEqual([])
   })
 

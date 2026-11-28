@@ -202,7 +202,7 @@ export type DesktopBridge = {
    * from apps that came before it. Should the update not go in, the current version opens again,
    * except where the app is already gone, its runner may still be running, or a logout or
    * shutdown came during the restart; see
-   * docs/auto-update.md, "Restart now".
+   * dev-docs/auto-update.md, "Restart now".
    */
   restartToUpdate?(): void
   /** Which releases this build follows; see `UpdateChannel`. */

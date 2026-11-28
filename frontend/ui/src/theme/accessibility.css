@@ -1,5 +1,5 @@
 /* The accessibility layer: it comes after every theme, so no theme can defeat it.
-   Imported into `layer(accessibility)`; see docs/theming.md. */
+   Imported into `layer(accessibility)`; see dev-docs/theming.md. */
 
 /* Reduced motion: nothing moves. `!important`, one of the contract's exceptions, so it
    beats the transitions libraries set inline or inject with `!important`, such as

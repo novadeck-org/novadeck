@@ -35,7 +35,7 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// The version of the protocol the relay and the runner speak (see docs/backend-api.md,
+/// The version of the protocol the relay and the runner speak (see dev-docs/backend-api.md,
 /// "Relay protocol"); the runner takes the versions it knows.
 pub const PROTOCOL: u32 = 2;
 

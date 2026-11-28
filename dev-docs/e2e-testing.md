@@ -681,7 +681,7 @@ for (const setup of setups) {
   its shell has started. `next()` on what it returns waits for the next terminal it
   opened, in order, as a deck terminal.
 - **The controls' scenarios** (`controls.e2e.ts`), one smoke test per framework piece,
-  asserting what docs/agent-messaging.md says ("What counts", "States"):
+  asserting what dev-docs/agent-messaging.md says ("What counts", "States"):
   - _Approval allowed_: the tool's question shows and Novadeck sees a request waiting;
     `confirm` allows it; the model reads the tool's result, the turn goes Working then
     Settled, never Unknown, and no request waits.
@@ -769,7 +769,7 @@ for (const setup of setups) {
   raw with nothing pressed. A harness without a kind of question (Codex asks no
   multi-select) skips that scenario, saying so.
 - **The person's scenarios** (`person.e2e.ts`), the person typing around messages,
-  asserting docs/agent-messaging.md's "Acceptance scenarios" for them. In each, t2 sends
+  asserting dev-docs/agent-messaging.md's "Acceptance scenarios" for them. In each, t2 sends
   t1 a message from its own prompt, which waits queued; a terminal that mustn't be rung
   is watched past the doorbell's settle window; and no model call ever holds the
   doorbell's line:
@@ -799,7 +799,7 @@ for (const setup of setups) {
     state past Unbound is Drafting, never Ready nor rung, whatever of the keys reached
     its box; the person's prompt carries the message.
 - **The requests' scenarios** (`requests.e2e.ts`), a message that comes while the agent
-  waits on the person, asserting docs/agent-messaging.md's "Acceptance scenarios" for
+  waits on the person, asserting dev-docs/agent-messaging.md's "Acceptance scenarios" for
   them. t2 sends t1 the message from its own prompt:
   - _Permission question open_: t1's tool waits on its `approval` question when the
     message comes; it waits queued past the doorbell's settle window, t1 never rung, its
@@ -825,7 +825,7 @@ for (const setup of setups) {
     model call holding the line. The person leaves it with Escape and submits a prompt,
     whose hook delivers, to the model the turn before used, as no option was taken.
 - **The lifecycle's scenarios** (`lifecycle.e2e.ts`), the person clearing the
-  conversation or leaving the agent, asserting docs/agent-messaging.md's "Acceptance
+  conversation or leaving the agent, asserting dev-docs/agent-messaging.md's "Acceptance
   scenarios", "Messages" and "Message states" for them. Each starts with a turn, so a
   session is bound:
   - _`/clear`, then a message_: the clear drops the conversation from the screen, and
@@ -858,7 +858,7 @@ for (const setup of setups) {
   Working and the message queued, never leased; t1's session and agent are as before.
   The shell tool waits for the command up to its harness's ceiling (Antigravity 10 s,
   Codex 30 s, Claude Code 2 minutes), far past the second a nested run takes.
-- **The forks' scenarios** (`forks.e2e.ts`), asserting docs/agent-messaging.md's
+- **The forks' scenarios** (`forks.e2e.ts`), asserting dev-docs/agent-messaging.md's
   "Acceptance scenarios" for forks:
   - _A fork from a picker_ (`fork.picker`): t1 takes a turn and t2 another; a third
     terminal starts the picker, its latest session (t2's) selected. t2's message for t3

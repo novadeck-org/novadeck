@@ -3,7 +3,7 @@ import { z } from "zod"
 import { singleLine } from "./text.js"
 
 // Devices with credentials of their own, which reach a standalone runner beside the owner's
-// token (NOVADECK_TOKEN) and are revoked one at a time (docs/backend-api.md, "Devices").
+// token (NOVADECK_TOKEN) and are revoked one at a time (dev-docs/backend-api.md, "Devices").
 
 // How many devices a runner keeps credentials for at once; revoked ones don't count.
 export const maxDevices = 64

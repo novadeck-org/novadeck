@@ -18,7 +18,7 @@ export type Appearance<Id extends string = string> = {
 
 export const themeChangeEvent = "novadeck:themechange"
 
-// Where the boot record lives in localStorage; see docs/theming.md.
+// Where the boot record lives in localStorage; see dev-docs/theming.md.
 export const bootRecordKey = "novadeck.theme-boot"
 
 // The media query that says whether the system uses a dark scheme.

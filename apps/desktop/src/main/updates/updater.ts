@@ -46,7 +46,7 @@ export type CheckReason = "launch" | "interval" | "switch" | "retry"
  * What the app adds to a check to say what copy makes it, so the website can count active
  * copies. It is the least that does: the app reads nothing else off the computer to send,
  * as that would need the person's consent. (The request carries more by itself: see
- * docs/auto-update.md.)
+ * dev-docs/auto-update.md.)
  */
 export type CheckFacts = {
   readonly version: string
@@ -65,7 +65,7 @@ export type UpdateFeed = {
 /**
  * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
  * counts each check and answers with GitHub's file, its downloads pinned to GitHub at that
- * release (docs/auto-update.md). `site` replaces the website's address for testing, and
+ * release (dev-docs/auto-update.md). `site` replaces the website's address for testing, and
  * only when it is an address on this computer (localhost, 127.0.0.1 or [::1], over http or
  * https); anything else is ignored.
  */
@@ -387,7 +387,7 @@ export const quitWithoutInstalling =
  * Leaves a waiting update for later, on a quit whose runner may still be there: `installs`
  * are the switches an install on quitting reads, one way, as nothing switches them on again.
  * No mark is written and electron-updater's copy stays, so a later launch finds the update
- * again. One the quit `swapped` in as it began is in place already. See docs/auto-update.md,
+ * again. One the quit `swapped` in as it began is in place already. See dev-docs/auto-update.md,
  * "A runner that does not exit".
  */
 export const keepUpdateOnQuit = (

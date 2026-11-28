@@ -299,7 +299,7 @@ export class Shown {
 
   /**
    * A connected harness's own empty prompt shows, before a session it names in full binds,
-   * and Novadeck's hooks run for it there (`promptTrust`; see docs/agent-messaging.md,
+   * and Novadeck's hooks run for it there (`promptTrust`; see dev-docs/agent-messaging.md,
    * "States"): messages wait for the session it starts there, and the doorbell may ring
    * it. One the shell's prompt came after is stale: the agent left. With a session of
    * that agent bound, it changes nothing, unless it `replaces` it, as the harness started

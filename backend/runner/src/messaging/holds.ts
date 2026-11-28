@@ -206,7 +206,7 @@ export class Holds {
   }
 
   /**
-   * What a message held for release tells its sender of why (see docs/agent-messaging.md,
+   * What a message held for release tells its sender of why (see dev-docs/agent-messaging.md,
    * Guards, "Loops"); undefined for any other.
    */
   holdWhy(message: Message): string | undefined {

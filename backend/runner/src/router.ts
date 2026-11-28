@@ -52,7 +52,7 @@ const told = new Set<string>()
 
 // The wire serves its own handshake; the runner serves the rest of the contract. A newer UI
 // may send a field this runner doesn't know: it is dropped before the handler runs, so the
-// field must be one an older runner may ignore (docs/backend-api.md, "Versions"). The
+// field must be one an older runner may ignore (dev-docs/backend-api.md, "Versions"). The
 // contract's own schemas, which the runner also parses agents' tool arguments with, stay strict.
 const { wire: _, ...contracted } = contract
 const served = dropUnknownKeys(contracted, (procedure, keys) => {

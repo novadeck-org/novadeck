@@ -250,7 +250,7 @@ type State = {
 }
 
 /**
- * Tells each request's dialog in `agents.detail` (see docs/backend-api.md): for each
+ * Tells each request's dialog in `agents.detail` (see dev-docs/backend-api.md): for each
  * request waiting, the dialog its harness's adapter reads from the terminal's screen;
  * `raw` with the screen's text once the screen is still and no request's dialog reads
  * (or the harness has no adapter); null until then. It also raises the requests only the
