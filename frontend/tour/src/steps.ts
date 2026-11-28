@@ -378,7 +378,7 @@ export const playStep: TourStep = {
     click: ["lead-pane", "lead"],
     tab: "page",
     cue: { line: "Your game's done. Go open it.", note: "Open it: the eye, or its window." },
-    line: "Three agents, one game. Go play.",
+    line: "A whole team, one game. Go play.",
     note: "It's live in the pane: click it.",
   },
   // Never while a teammate's question waits: the closing card waits for the person's answer.
@@ -403,7 +403,7 @@ const modelPlayStep: TourStep = {
       line: "Your model's done. Go open it.",
       note: "Open its model: the eye, or its window.",
     },
-    line: "Three agents, one model. Yours.",
+    line: "A whole team, one model. Yours.",
     note: "Give it one more spin.",
   },
 }

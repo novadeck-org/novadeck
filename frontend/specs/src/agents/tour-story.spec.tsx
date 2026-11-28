@@ -246,7 +246,7 @@ const playToClosing = async (address?: string): Promise<void> => {
 
   // Act 4: the game in the lead's pane: the closing card comes a while after the person clicks
   // into it, never before. Where the lead's pane isn't showing it, the box's eye brings it.
-  const playLine = "Three agents, one game. Go play."
+  const playLine = "A whole team, one game. Go play."
   if ((await coachSaysAny(["Your game's done. Go open it.", playLine])) !== playLine) {
     await showMe().click()
     await coachSays(playLine)
@@ -256,7 +256,7 @@ const playToClosing = async (address?: string): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 3_000))
   expect(closing().query()).toBeNull()
   // The step holds 20 s after the touch (frontend/tour's playStep), then the card comes.
-  await touchStep("Three agents, one game. Go play.", () => [paneOf("Game lead")], {
+  await touchStep("A whole team, one game. Go play.", () => [paneOf("Game lead")], {
     holdMs: 20_000,
   })
   await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
@@ -346,7 +346,7 @@ describe("The tour's story", () => {
       // them: the lead hires its team all the same.
       await coachSays(teamLine, 40_000)
       expect(windowNamed("Game server")).toBeUndefined()
-      await playUntil("Three agents, one model. Yours.")
+      await playUntil("A whole team, one model. Yours.")
       await expectClickAt(() => paneOf("World"))
     },
   )
@@ -382,10 +382,10 @@ describe("The tour's story", () => {
       await meetTeam()
       expect(approval().query()).toBeNull()
       expect(windowNamed("Game server")).toBeUndefined()
-      await playUntil("Three agents, one model. Yours.", 150_000)
+      await playUntil("A whole team, one model. Yours.", 150_000)
       // Nothing to play: the model is what is left to look at.
       await expectClickAt(() => paneOf("World"))
-      await touchStep("Three agents, one model. Yours.", () => [paneOf("World")], {
+      await touchStep("A whole team, one model. Yours.", () => [paneOf("World")], {
         holdMs: 8_000,
       })
       await expect.element(closing(), { timeout: 10_000 }).toBeVisible()
@@ -476,7 +476,7 @@ describe("The tour's story", () => {
       await standsStill(pick)
       await pick.click()
       // Answered, the story goes on where it was, to the game.
-      await playUntil(["Your game's done. Go open it.", "Three agents, one game. Go play."])
+      await playUntil(["Your game's done. Go open it.", "A whole team, one game. Go play."])
     },
   )
 })

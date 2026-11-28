@@ -905,7 +905,7 @@ App:
   from nothing. Go on. Spin it." (`shape`, the model's tab, in the pane of the teammate that
   showed it); "First versions are in. Watch your page change." (`first`) and "Polishing now.
   See it change again." (`polish`), as the teammates tell the lead so; "They're finishing it.
-  Relax." (`finish`, every teammate polished, at most 8 min); and "Three agents, one game. Go
+  Relax." (`finish`, every teammate polished, at most 8 min); and "A whole team, one game. Go
   play." (`play`, the lead's page, a while, then the closing card: "It's yours now. Don't
   break it."). A teammate's own question outside the `mate-ask` step is no step: while one
   waits in the Inbox the coach says
@@ -915,7 +915,7 @@ App:
   UI calls `Tour.keep` itself, once, as the story ends; the card's Keep building only goes back
   to the lead in Focus, and a refused keep shows "Novadeck couldn't keep the project: ..." with
   Try again. A run whose lead's command was declined, or with `page: false`, leaves out the run
-  and page steps and ends on the model ("Three agents, one model. Yours."). While a startup
+  and page steps and ends on the model ("A whole team, one model. Yours."). While a startup
   screen holds, the coach says "It wants an answer first. From you." with that screen's words under it,
   "What? It didn't even start." (the lead's program ended, its shell back; "A teammate quit." for a teammate's), or "It's asking your
   permission. Read it first." while an agent of the story has an Unblock row waiting in the Inbox. End tour

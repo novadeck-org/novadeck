@@ -53,13 +53,14 @@ the box (what to press, and where) stays text.
 - [ ] `polish`: `[smug] Polishing now. [proud] See it change again.`
 - [x] `finish`: `[relaxed] They're finishing it. [smug] Relax.`
 - [x] `play.cue`: `[excited, hiding it] Your game's done. Go open it.`
-- [x] `play`: `[proud] Three agents, one game. [warm] Go play.`
+- [ ] `play`: `[proud] A whole team, one game. [warm] Go play.`
 - [x] `play-model.cue`: `[excited, hiding it] Your model's done. Go open it.`
-- [x] `play-model`: `[proud] Three agents, one model. [warm] Yours.`
+- [ ] `play-model`: `[proud] A whole team, one model. [warm] Yours.`
 - [x] `closing`: `[warm] It's yours now. [teasing] Don't break it.` ★
 
-Lines marked `[ ]` have no take yet and show as text until one is recorded: `page` has new
-words, `talk.cue`, `talk`, `mate-ask`, `first` and `polish` are new. Once a take is in
+Lines marked `[ ]` have no take yet and show as text until one is recorded: `page`, `play`
+and `play-model` have new words (a team of four now, so no count), `talk.cue`, `talk`,
+`mate-ask`, `first` and `polish` are new. Once a take is in
 `src/voice/`, tick the box and take its key out of `awaiting` in `src/voice.test.ts`.
 
 ## Off the story
@@ -85,6 +86,8 @@ Recorded for beats the tour no longer plays, removed from `src/voice/` with the 
 - `files`: `[quietly impressed] See the files blink? That's an agent, writing.`
 - `diff.cue`: `[teasing] The code's in. Want to read it?`
 - `diff`: `[smug] Every line it wrote. Nothing hidden.`
+- `play`, as it was: `[proud] Three agents, one game. [warm] Go play.` (the team is four now)
+- `play-model`, as it was: `[proud] Three agents, one model. [warm] Yours.`
 - `page`, as it was: `[deadpan] There. Nothing in it yet. [dismissive] Give it time.` (the seed page
   now opens on a showcase)
 

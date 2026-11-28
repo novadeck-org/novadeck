@@ -118,7 +118,7 @@ describe("Nyx's voice-over", () => {
 
   // Lines that are new or changed and wait for Nyx's take (NARRATION.md, "The story"): lettered
   // meanwhile. Recording one takes its key out of this list, and every other line must have one.
-  const awaiting = ["page", "talk", "talk.cue", "mate-ask", "first", "polish"]
+  const awaiting = ["page", "talk", "talk.cue", "mate-ask", "first", "polish", "play", "play-model"]
 
   it("has a take for every line the tour says, bar the new ones still to be recorded", () => {
     const unsaid = [...narration()].filter(([, line]) => takeOf(line) === undefined)

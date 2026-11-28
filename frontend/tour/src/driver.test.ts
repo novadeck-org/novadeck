@@ -923,7 +923,7 @@ describe("The tour's story", () => {
       })
       expect(coachNow(held.run!, tourSteps, world(everything))).toMatchObject({
         click: ["lead-pane", "lead"],
-        line: "Three agents, one game. Go play.",
+        line: "A whole team, one game. Go play.",
       })
       // Until they click into it, it waits.
       expect(nextTick(held.run!, tourSteps, world(), patience)).toBeNull()
@@ -942,7 +942,7 @@ describe("The tour's story", () => {
       })
       expect(coachNow(held.run!, stepsFor(noPage), world(everything))).toMatchObject({
         click: ["maker-pane", "maker"],
-        line: "Three agents, one model. Yours.",
+        line: "A whole team, one model. Yours.",
       })
     })
 
@@ -1208,7 +1208,7 @@ describe("The tour's parts that drop out", () => {
       })
       expect(coachNow(run, stepsOfRun(run), model)).toMatchObject({
         click: ["maker-pane", "maker"],
-        line: "Three agents, one model. Yours.",
+        line: "A whole team, one model. Yours.",
       })
     })
 
