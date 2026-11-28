@@ -193,12 +193,15 @@ type Addressees = {
   readonly written: string
 }
 
-/** The word in `to` that names every terminal the caller leads. */
+/**
+ * The word in `to` that names the caller's team: the terminals it leads, or, for a terminal
+ * that leads none, its lead and the lead's other members.
+ */
 export const teamWord = "team"
 
 /**
  * `to` read: one handle, several separated by spaces or commas (or given as a list), and
- * `team` for every terminal the caller leads; each handle bare, each once.
+ * `team` for the caller's team; each handle bare, each once.
  */
 const addressees = (to: string | readonly string[]): Addressees => {
   const words = (typeof to === "string" ? to.split(/[\s,]+/) : to)
@@ -314,9 +317,10 @@ export class Sending {
   }
 
   /**
-   * As `send`, and also to several terminals the caller leads in one call (`to` names
-   * them, or `team` names all): each gets its own message, judged as `send` judges it,
-   * while the call counts once against the caller's own rate.
+   * As `send`, and also to several terminals in one call (`to` names them, or `team` names
+   * the caller's team): each gets its own message, judged as `send` judges it. The call
+   * counts once against the caller's own rate when every recipient is a terminal it leads,
+   * and once for each recipient otherwise.
    */
   sendAny(
     terminalId: string,
@@ -344,8 +348,7 @@ export class Sending {
     const parsed = sendRequest.safeParse(request)
     if (!parsed.success)
       return refused(
-        "A message needs `to`, a terminal's handle (or, for terminals you lead, several, or " +
-          "`team`), and its `text`.",
+        "A message needs `to`, a terminal's handle (or several, or `team`), and its `text`.",
       )
     const text = cleanText(parsed.data.text)
     const textRefusal = refusalOfText(text)
@@ -371,10 +374,12 @@ export class Sending {
   }
 
   /**
-   * The caller's message to several terminals it leads: each named one, and with `team`
-   * every one, gets its own, judged as `send` judges it, and the call counts once against
-   * the caller's own rate and the runner's, if any recipient keeps one. A terminal named
-   * that it doesn't lead refuses the whole call, so nothing goes to some of them only.
+   * The caller's message to several terminals: each named one, and with `team` every one of
+   * its team, gets its own, judged as `send` judges it. A call to terminals the caller leads
+   * counts once against the caller's own rate and the runner's, if any recipient keeps one;
+   * any other counts once for each recipient, and is refused whole when the caller's rate
+   * can't cover them all. A terminal named that is no handle there refuses the whole call,
+   * so nothing goes to some of them only.
    */
   private sendTeam(
     live: Live,
@@ -394,24 +399,21 @@ export class Sending {
         )
       named.push(peer)
     }
-    const team = this.teammates(live)
-    const outside = named.filter((peer) => !team.includes(peer)).map((peer) => mention(peer.handle))
-    if (outside.length > 0)
-      return refused(
-        `${outside.join(", ")} ${outside.length === 1 ? "isn't a terminal" : "aren't terminals"} ` +
-          "you lead: a message to several terminals, or to your team, goes only to terminals " +
-          "you lead. Send to each other terminal on its own.",
-      )
-    const recipients = [...new Set([...(to.team ? team : []), ...named])]
+    const led = this.teammates(live)
+    const team = to.team ? this.teamOf(live, led) : []
+    const recipients = [...new Set([...team, ...named])]
     if (recipients.length === 0)
       return refused(
-        "`team` names the terminals you lead, and you lead none here; send to your lead or a " +
-          "teammate by its handle.",
+        "`team` names the terminals you lead, or, if you lead none, your lead and its other " +
+          "members, and you have neither here; send to a terminal by its handle.",
       )
-    const own = this.rates.sender(live.terminalId, this.host.now(), this.senderLimit(live))
+    // Only a lead's message to its own team is one direction for all: any other costs each.
+    const count = recipients.every((recipient) => led.includes(recipient)) ? 1 : recipients.length
+    const own = this.rates.sender(live.terminalId, this.host.now(), this.senderLimit(live), count)
     if (!own.ok) return refused(own.reason)
     const sent = recipients.map((recipient) => this.sendTo(live, recipient, text, false))
-    if (sent.some(({ kept }) => kept)) own.spend()
+    const kept = sent.filter((each) => each.kept).length
+    if (kept > 0) own.spend(count === 1 ? 1 : kept)
     // Refused for every one: the call failed, as a send to one refused does.
     if (sent.every(({ answer }) => !answer.ok))
       return refused(
@@ -428,6 +430,20 @@ export class Sending {
       ),
       ...this.extras(live),
     }
+  }
+
+  /**
+   * What `team` names for the caller: the terminals it leads (`led`), or, if it leads none,
+   * its lead and the lead's other members, which are its siblings. A terminal that both
+   * leads and is led keeps the terminals it leads; it names its own lead by handle.
+   */
+  private teamOf(live: Live, led: readonly Live[]): readonly Live[] {
+    if (led.length > 0) return led
+    const lead = this.host.leading.leadPeer(live.terminalId)
+    if (!lead) return []
+    const boss = this.host.sessions.get(lead.terminalId)
+    if (!boss) return []
+    return [boss, ...this.teammates(boss).filter((peer) => peer.terminalId !== live.terminalId)]
   }
 
   /**

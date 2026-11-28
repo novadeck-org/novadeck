@@ -532,7 +532,7 @@ fn gives_only_opencodes_shell_calls_the_long_limit_while_the_runner_hangs() {
 fn fetched(name: &str, lines: &[&str]) -> (String, String, bool, String) {
     let runner = runner::Runner::new(name);
     let fetch = runner
-        .relay(&["fetch", "pi"])
+        .relay(&["fetch", "nova"])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -565,7 +565,7 @@ fn fetches_through_the_runner_showing_its_progress() {
     );
     assert!(ok);
     assert!(hello.contains(r#""kind":"fetch""#), "{hello}");
-    assert!(hello.contains(r#""name":"pi""#), "{hello}");
+    assert!(hello.contains(r#""name":"nova""#), "{hello}");
     assert!(hello.contains(r#""terminalId":"t1""#), "{hello}");
     assert_eq!(stdout, "");
     // Not a terminal: one line under the other.
@@ -581,13 +581,13 @@ fn prints_the_variables_the_runner_gives_its_agent_and_only_plain_ones() {
     let (stdout, _, ok, _) = fetched(
         "fetch-env",
         &[
-            r#"{"ready":true,"env":{"NOVADECK_PI_BASE_URL":"https://novadeck.dev/tour/v1","NOVADECK_PI_KEY":"ndt_a-B_1","EVIL":"x; rm -rf ~"}}"#,
+            r#"{"ready":true,"env":{"NOVADECK_NOVA_BASE_URL":"https://novadeck.dev/nova/v1","NOVADECK_NOVA_KEY":"ndt_a-B_1","EVIL":"x; rm -rf ~"}}"#,
         ],
     );
     assert!(ok);
     assert_eq!(
         stdout,
-        "NOVADECK_PI_BASE_URL=https://novadeck.dev/tour/v1\nNOVADECK_PI_KEY=ndt_a-B_1\n"
+        "NOVADECK_NOVA_BASE_URL=https://novadeck.dev/nova/v1\nNOVADECK_NOVA_KEY=ndt_a-B_1\n"
     );
 }
 
@@ -616,7 +616,7 @@ fn fails_with_the_runners_reason_or_its_own() {
 
 #[test]
 fn fetches_nothing_outside_a_novadeck_terminal() {
-    let output = relay(&["fetch", "pi"]).output().unwrap();
+    let output = relay(&["fetch", "nova"]).output().unwrap();
     assert!(!output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stderr),

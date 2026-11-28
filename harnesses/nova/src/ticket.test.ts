@@ -13,7 +13,7 @@ const answering = (status: number, body: unknown, asked: string[] = []): typeof 
 describe("a ticket for Novadeck's model service", () => {
   it("is read from the service's answer", async () => {
     await expect(
-      requestTicket("http://x/tour/v1", answering(200, { ticket: "abc_DEF-1", expiresAt: "t" })),
+      requestTicket("http://x/nova/v1", answering(200, { ticket: "abc_DEF-1", expiresAt: "t" })),
     ).resolves.toEqual({ ok: true, ticket: { ticket: "abc_DEF-1", expiresAt: "t" } })
   })
 
@@ -29,14 +29,14 @@ describe("a ticket for Novadeck's model service", () => {
   })
 
   it("is asked of the website unless the environment names another service", () => {
-    expect(serviceEndpoint({})).toBe("https://novadeck.dev/tour/v1")
-    expect(serviceEndpoint({ NOVADECK_TOUR_ENDPOINT: "http://127.0.0.1:9/tour/v1/" })).toBe(
-      "http://127.0.0.1:9/tour/v1",
+    expect(serviceEndpoint({})).toBe("https://novadeck.dev/nova/v1")
+    expect(serviceEndpoint({ NOVADECK_NOVA_ENDPOINT: "http://127.0.0.1:9/nova/v1/" })).toBe(
+      "http://127.0.0.1:9/nova/v1",
     )
   })
 })
 
-describe("the ticket Novas started by hand share", () => {
+describe("the ticket the runner's Novas share", () => {
   const ends = "2026-11-26T12:00:00.000Z"
   const before = (minutes: number) => Date.parse(ends) - minutes * 60_000
 
@@ -44,11 +44,11 @@ describe("the ticket Novas started by hand share", () => {
     const asked: string[] = []
     let now = before(120)
     const tickets = new NovaTickets({
-      endpoint: "http://x/tour/v1",
+      endpoint: "http://x/nova/v1",
       request: answering(200, { ticket: "T1", expiresAt: ends }, asked),
       now: () => now,
     })
-    const env = { NOVADECK_PI_BASE_URL: "http://x/tour/v1", NOVADECK_PI_KEY: "T1" }
+    const env = { NOVADECK_NOVA_BASE_URL: "http://x/nova/v1", NOVADECK_NOVA_KEY: "T1" }
     await expect(tickets.service()).resolves.toEqual({ ok: true, env })
     now = before(20)
     await expect(tickets.service()).resolves.toEqual({ ok: true, env })
@@ -57,6 +57,22 @@ describe("the ticket Novas started by hand share", () => {
     now = before(10)
     await tickets.service()
     expect(asked).toHaveLength(2)
+  })
+
+  it("is replaced by a fresh one where asked, which the Novas after it share", async () => {
+    let nth = 0
+    const request = (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ticket: `T${(nth += 1)}`, expiresAt: ends })),
+      )) as unknown as typeof fetch
+    const tickets = new NovaTickets({ endpoint: "http://x", request, now: () => before(120) })
+    const key = async (fresh?: boolean) => {
+      const given = await tickets.service(fresh === undefined ? {} : { fresh })
+      return given.ok ? given.env.NOVADECK_NOVA_KEY : undefined
+    }
+    expect(await key()).toBe("T1")
+    expect(await key(true)).toBe("T2")
+    expect(await key()).toBe("T2")
   })
 
   it("shares one request between Novas starting at once", async () => {

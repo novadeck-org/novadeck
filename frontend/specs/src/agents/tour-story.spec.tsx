@@ -1,7 +1,6 @@
-import { beforeEach } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { switchTourOn, takeTourFromHelp } from "../support/help"
+import { takeTourFromHelp } from "../support/help"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { switchProject, workspaceSwitcher } from "../support/sessions"
 import {
@@ -48,7 +47,7 @@ const standsStill = async (locator: Locator): Promise<void> => {
 const walks = { timeout: 240_000 }
 
 // Starts the tour from the footer's Help menu: the one agent every part of the story runs on is
-// Novadeck's Pi, which the demo has in place.
+// Nova, which the demo has in place.
 const startTour = async (address = "/?channel=experimental"): Promise<void> => {
   await openWorkspace(address)
   await beginTour()
@@ -266,9 +265,6 @@ const playToClosing = async (address?: string): Promise<void> => {
     .poll(() => closing().query()?.textContent ?? "")
     .toContain("It's yours now. Don't break it.")
 }
-
-// The footer offers the tour only with its own switch on, in Preferences → Experimental.
-beforeEach(switchTourOn)
 
 describe("The tour's story", () => {
   it(

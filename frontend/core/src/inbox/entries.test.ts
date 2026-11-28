@@ -200,7 +200,7 @@ describe("The Inbox's entries", () => {
     expect(inboxEntries(inputs(held, { now: 60 * 60_000 }))).toEqual([])
   })
 
-  it("names Nova's pi as Nova in an entry's source, and the person's pi as pi", () => {
+  it("names Nova as Nova in an entry's source, and the person's pi as pi", () => {
     const permit: ChatPermit = {
       id: "p1",
       title: "Merge PR #1190 into main",

@@ -6,7 +6,7 @@ import { describe, expect, it } from "./test"
 
 const run = (brief: TourRun["brief"]): TourRun => ({
   directory: "/home/x/.novadeck/tour",
-  command: brief === "launch" ? 'novadeck-pi --model m "Start"' : "novadeck-pi --model m",
+  command: brief === "launch" ? 'novadeck-nova --model m "Start"' : "novadeck-nova --model m",
   brief,
   removed: ["old"],
   page: true,
@@ -17,7 +17,6 @@ const effects = (prepared: Promise<TourRun>): TourEffects & { readonly done: str
   const done: string[] = []
   const tour: Tour = {
     agent: createStore({ state: "ready" }),
-    fetch: () => Promise.resolve(),
     prepare: () => {
       done.push("prepare")
       return prepared
@@ -46,7 +45,7 @@ describe("Starting the tour", () => {
     expect(world.done).toEqual([
       "prepare",
       "open in place of old",
-      'add novadeck-pi --model m "Start"',
+      'add novadeck-nova --model m "Start"',
     ])
   })
 

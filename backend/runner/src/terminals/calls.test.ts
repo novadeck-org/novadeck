@@ -54,7 +54,7 @@ describe("the open call", () => {
     bound: string[] = [],
     resting: string[] = [],
     rows: { agents: object }[] = [],
-    // The transcript of a session that is Novadeck's own pi's (`Claims.own`).
+    // The transcript of a session that is Nova's (`Claims.isNova`).
     own?: string,
   ) => {
     const records = new Map<string, unknown>([
@@ -220,6 +220,12 @@ describe("the open call", () => {
       bar: (reason: string) => (barred = reason),
       barAgent: (agent: AgentName) => (unwanted = agent),
       flag: (flags: readonly string[]) => (flagged = flags),
+      // The agent the caller runs, and the words it was launched with.
+      caller: (agent: AgentName, launch: readonly string[]) =>
+        Object.assign(records.get("t1") as object, {
+          summary: { id: "t1", handle: "moth", cwd: "/work", sessionId: "s", agent },
+          agents: { [agent]: { sessionId: "s", seq: 1, launch } },
+        }),
       give: (choice: { model: string; effort?: "low" | "max" }) => (given = choice),
       word: (next: string) => (word = next),
       offline: () => (online = false),
@@ -278,21 +284,21 @@ describe("the open call", () => {
     run.offline()
     // Without its own program, the person's harness must be connected.
     expect(await run.open({ agent: "pi" })).toMatchObject({ ok: false })
-    run.word("novadeck-pi")
-    run.give({ model: "novadeck/gpt-6-luna" })
+    run.word("novadeck-nova")
+    run.give({ model: "nova/gpt-6-luna" })
     expect(await run.open({ agent: "pi", lead: true })).toMatchObject({ ok: true })
     expect(run.asked.map(({ command }) => command)).toEqual([
-      "novadeck-pi --model novadeck/gpt-6-luna",
+      "novadeck-nova --model nova/gpt-6-luna",
     ])
   })
 
-  it("resumes a session of Novadeck's own pi with no connection of the person's", async () => {
-    const own = "/data/bundled/pi/agent/sessions/--t--/1_s-9.jsonl"
+  it("resumes a session of Nova with no connection of the person's", async () => {
+    const own = "/data/nova/agent/sessions/--t--/1_s-9.jsonl"
     const rows = [{ agents: { pi: { sessionId: "s-9", seq: 1, transcript: own } } }]
     const run = setup([], [], rows, own)
     run.offline()
     expect(await run.open({ agent: "pi", resume: "s-9" })).toMatchObject({ ok: true })
-    expect(run.asked.map(({ command }) => command)).toEqual([`novadeck-pi --session ${own}`])
+    expect(run.asked.map(({ command }) => command)).toEqual([`novadeck-nova --session ${own}`])
     // The person's own pi's session still needs their pi.
     const theirs = setup([], [], [{ agents: { pi: { sessionId: "s-8", seq: 1 } } }], own)
     theirs.offline()
@@ -354,6 +360,44 @@ describe("the open call", () => {
     run.give({ model: "opus", effort: "low" })
     await run.open({ agent: "claude" })
     expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
+  })
+
+  it("starts an agent of the caller's own harness on the caller's model and effort", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low", "--permission-mode", "plan"])
+    await run.open({ agent: "claude" })
+    // Only the model and effort come along, never the permission mode.
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort low")
+  })
+
+  it("starts the agent on the model the call names, with nothing inherited", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low"])
+    await run.open({ agent: "claude", model: "opus", effort: "max" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
+    expect(await run.open({ agent: "claude", effort: "max" })).toMatchObject({ ok: false })
+  })
+
+  it("starts an agent of another harness on the user's defaults", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low"])
+    await run.open({ agent: "codex" })
+    expect(run.asked[0]!.command).toBe("codex")
+  })
+
+  it("starts an agent on the pinned choice, not the caller's", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "opus", "--effort", "low"])
+    run.give({ model: "opus", effort: "max" })
+    await run.open({ agent: "claude" })
+    expect(run.asked[0]!.command).toBe("claude --model opus --effort max")
+  })
+
+  it("starts on the user's defaults when the caller's model isn't one its harness offers", async () => {
+    const run = setup()
+    run.caller("claude", ["--model", "retired", "--effort", "low"])
+    expect(await run.open({ agent: "claude" })).toMatchObject({ ok: true })
+    expect(run.asked[0]!.command).toBe("claude")
   })
 
   it("starts an opencode agent on the policy's model, though the person's models don't list it", async () => {
@@ -751,6 +795,63 @@ describe("the mode call", () => {
     expect(await answer("agy", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer("opencode", true)).toEqual({ ok: true, mode: "herd", gated: true })
     expect(await answer(null, true)).toEqual({ ok: true, mode: "herd", gated: false })
+  })
+})
+
+describe("the describe call", () => {
+  // A caller `moth` (t1), and `fox` (t2), each led by whomever `ledBy` names, in the mode given.
+  const setup = (mode: AgentMode, ledBy: { t1?: string; t2?: string } = {}) => {
+    const naming = { own: null as { title: string } | null, summary: "", murmur: null }
+    const records = new Map<string, unknown>([
+      ["t1", { terminal: { exiting: false }, token, summary: { id: "t1" }, naming, nudges: {} }],
+      [
+        "t2",
+        {
+          terminal: { exiting: false },
+          token,
+          summary: { id: "t2" },
+          naming: { ...naming },
+          nudges: {},
+        },
+      ],
+    ])
+    const host = {
+      agentMode: () => mode,
+      records: () => records,
+      stopping: () => false,
+      peers: () => ({ facts: () => Promise.resolve({}) }),
+      retitle: () => undefined,
+      save: () => undefined,
+      summarized: () => undefined,
+      messaging: () => ({
+        leadOf: (id: "t1" | "t2") =>
+          ledBy[id] === undefined ? undefined : { terminalId: ledBy[id], handle: "lead" },
+      }),
+    } as unknown as CallsHost
+    const describing = new Calls(1000, host)
+    const describes = (title: string, summary = "Builds the game.") =>
+      describing.call({ type: "describe", terminalId: "t1", token, request: { title, summary } })
+    return { describes }
+  }
+
+  it("asks, in a swarm, for parts that can go side by side as work starts with no team around it", async () => {
+    const { describes } = setup("swarm")
+    expect(await describes("Neon game")).toEqual({ ok: true, plan: true })
+    // The same work, said again or summed up anew, starts nothing.
+    expect(await describes("Neon game", "Builds the game's server.")).toEqual({ ok: true })
+    expect(await describes("neon GAME")).toEqual({ ok: true })
+    // Work on another subject starts again.
+    expect(await describes("Release notes")).toEqual({ ok: true, plan: true })
+  })
+
+  it("asks nothing in Herd or Solo", async () => {
+    expect(await setup("herd").describes("Neon game")).toEqual({ ok: true })
+    expect(await setup("solo").describes("Neon game")).toEqual({ ok: true })
+  })
+
+  it("asks nothing of a teammate, whose lead split the work, nor of a lead, which has", async () => {
+    expect(await setup("swarm", { t1: "t9" }).describes("Neon game")).toEqual({ ok: true })
+    expect(await setup("swarm", { t2: "t1" }).describes("Neon game")).toEqual({ ok: true })
   })
 })
 

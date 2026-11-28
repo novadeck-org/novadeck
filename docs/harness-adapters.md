@@ -525,7 +525,7 @@ the runner, which already sees the terminal's output. `decode` performs no I/O,
 and ignores events it does not use by returning none.
 
 The hook names the harness process through the variable its adapter's `pidVariable`
-names, where it sets one (`CLAUDE_PID` for Claude Code; `NOVADECK_PI_PID`, which Novadeck's pi
+names, where it sets one (`CLAUDE_PID` for Claude Code; `NOVADECK_PI_PID`, which Nova
 extension gives its hooks, as pi runs as `node.exe` on Windows), and otherwise through the
 nearest ancestor process with the harness's own name (`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
 
@@ -706,6 +706,8 @@ type LaunchProfile = {
   ) => Promise<readonly string[] | undefined>
   /** The words that continue its session by id, with the model and effort chosen. */
   readonly resume?: (session: string, choice?: Choice) => readonly string[]
+  /** The model and effort the kept words of a launch set, for an agent opened by its own kind. */
+  readonly chosen?: (kept: readonly string[]) => Choice
   /** The models it can start with on this machine, each with the efforts it takes. */
   readonly models: (install: Install) => Promise<readonly Model[]>
   /** The words that go right after its program to start it with this model and effort. */

@@ -115,7 +115,7 @@ export const Avatar = ({
   live?: AvatarLive
   // The program in its terminal, for the mark in its corner from 24 pixels up.
   program?: string | undefined
-  // The program is Nova, Novadeck's own pi: its mark is Novadeck's.
+  // The program is Nova: its mark is Novadeck's.
   nova?: boolean | undefined
 }): React.JSX.Element => {
   const element = useRef<HTMLSpanElement>(null)

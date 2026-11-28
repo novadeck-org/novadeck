@@ -28,7 +28,6 @@ import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 import { approvalGroups, createDemoApprovals } from "./approvals"
 import { babciaGroups } from "./babcia"
 import type { BootRehearsals } from "./boot-rehearsal"
-import { bundledPiGroups } from "./bundled-pi"
 import { chatOfferGroups } from "./chat-offer"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { demoKeepAwake } from "./desktop/keep-awake"
@@ -57,6 +56,7 @@ import { messageGroups } from "./messages"
 import { modelGroups } from "./models"
 import { murmurGroups } from "./murmur"
 import { newerItemGroups } from "./newer"
+import { novaGroups } from "./nova"
 import { pageGroups } from "./pages"
 import { pdfGroups } from "./pdfs"
 import { planGroups } from "./plans"
@@ -378,7 +378,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...filesGroups(isDemoFiles(inner.files) ? inner.files : undefined),
           ...worksGroups(inner.works),
           ...forgesGroups(launch, inner),
-          ...bundledPiGroups(inner),
+          ...novaGroups(inner),
         ],
       },
       dispatch: () => sink?.dispatch,

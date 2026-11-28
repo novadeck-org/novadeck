@@ -2,7 +2,7 @@ import { join, posix, win32 } from "node:path"
 
 // Nova's program: a pinned build of pi's standalone binary (Bun-compiled, no Node), which
 // Novadeck downloads the first time it starts one, into its own data folder (the runner's
-// harnesses/bundled-pi.ts fetches it), and runs on an agent folder of its own. It is not the
+// harnesses/nova.ts fetches it), and runs on an agent folder of its own. It is not the
 // person's pi (harnesses/pi, found on PATH), and never reads or writes `~/.pi`.
 
 /** One build of pi for one system: its archive on the release, and its program inside. */
@@ -82,21 +82,21 @@ export const buildFor = (
   pinned: PinnedPi = pinnedPi,
 ): PiBuild | undefined => pinned.builds[`${platform}-${arch}`]
 
-/** Where Novadeck's pi lives under Novadeck's data folder `data`. */
-export const bundledPiFolder = (data: string): string => join(data, "bundled", "pi")
+/** Where Nova lives under Novadeck's data folder `data`. */
+export const novaFolder = (data: string): string => join(data, "nova")
 
 /**
- * Where Novadeck's pi keeps its settings, sign-ins and sessions (its `PI_CODING_AGENT_DIR`): a
+ * Where Nova keeps its settings, sign-ins and sessions (its `PI_CODING_AGENT_DIR`): a
  * folder of Novadeck's, never the person's `~/.pi/agent`. It outlives a new pinned version.
  */
-export const bundledPiHome = (data: string): string => join(bundledPiFolder(data), "agent")
+export const novaHome = (data: string): string => join(novaFolder(data), "agent")
 
 /**
- * Whether a pi session is Novadeck's own pi's, by its transcript: its sessions are kept in its own
- * agent folder (`bundledPiHome`, its `PI_CODING_AGENT_DIR`), and the person's pi never writes
+ * Whether a pi session is Nova's, by its transcript: its sessions are kept in its own
+ * agent folder (`novaHome`, its `PI_CODING_AGENT_DIR`), and the person's pi never writes
  * there. False with no transcript, which pi names as its session starts.
  */
-export const ownPiSession = (
+export const novaSession = (
   transcript: string | undefined,
   data: string,
   platform: NodeJS.Platform = process.platform,
@@ -105,10 +105,7 @@ export const ownPiSession = (
   const paths = platform === "win32" ? win32 : posix
   const fold = (text: string) =>
     platform === "win32" || platform === "darwin" ? text.toLowerCase() : text
-  const inner = paths.relative(
-    fold(paths.resolve(bundledPiHome(data))),
-    fold(paths.resolve(transcript)),
-  )
+  const inner = paths.relative(fold(paths.resolve(novaHome(data))), fold(paths.resolve(transcript)))
   return inner !== "" && inner.split(paths.sep)[0] !== ".." && !paths.isAbsolute(inner)
 }
 
@@ -117,10 +114,10 @@ export const buildFolder = (
   data: string,
   build: PiBuild,
   version: string = pinnedPi.version,
-): string => join(bundledPiFolder(data), `${version}-${build.sha256.slice(0, 12)}`)
+): string => join(novaFolder(data), `${version}-${build.sha256.slice(0, 12)}`)
 
 /** The program of `build` once it is in place under `data`. */
-export const bundledPiProgram = (
+export const novaBinary = (
   data: string,
   build: PiBuild,
   version: string = pinnedPi.version,

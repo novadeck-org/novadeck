@@ -1,6 +1,6 @@
 import { harnesses } from "../harnesses"
 
-// How a terminal's agent is called, in one place. Nova, Novadeck's own pi, is the agent `pi` to
+// How a terminal's agent is called, in one place. Nova, is the agent `pi` to
 // the runner, which tells the UI so (`nova`): the UI calls it Nova and draws Novadeck's mark. The
 // person's own pi stays Pi.
 

@@ -1,6 +1,6 @@
 import { resolve as resolvePath } from "node:path"
 
-import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
+import type { Choice, Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { commandLine, startLine } from "@novadeck/harness-core/prompts"
 import { isAgentName, type AgentName } from "@novadeck/protocol"
 import type { Trees } from "@novadeck/terminal/pty"
@@ -227,12 +227,28 @@ export class Calls {
       request.agent !== undefined && request.resume === undefined
         ? policy.pinned?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
         : undefined
-    const choice = pinned
+    const named = pinned
       ? { model: pinned.model, ...(pinned.effort !== undefined && { effort: pinned.effort }) }
       : {
           ...(request.model !== undefined && { model: request.model }),
           ...(request.effort !== undefined && { effort: request.effort }),
         }
+    // A call that names neither starts a caller's own harness on the caller's model and effort,
+    // read off the flags it was launched with. A model its harness no longer offers falls back
+    // to the user's defaults, where one asked for would be refused.
+    const inherited =
+      request.agent !== undefined &&
+      request.resume === undefined &&
+      !pinned &&
+      request.model === undefined &&
+      request.effort === undefined &&
+      record.summary.agent === request.agent
+        ? this.inheritedChoice(request.agent, record.agents[request.agent]?.launch)
+        : {}
+    const choice =
+      request.agent !== undefined && !(await this.unfitChoice(request.agent, inherited))
+        ? { ...named, ...inherited }
+        : named
     if (request.agent !== undefined) {
       if (policy.refusal) return refused(policy.refusal)
       const barred = policy.refuseAgent?.(
@@ -253,7 +269,7 @@ export class Calls {
       if (refusal) return refused(refusal)
     }
     // A program of Novadeck's own for the folder it asks for needs no connection of the person's,
-    // nor does a session of Novadeck's own pi to resume (`Claims.own`).
+    // nor does a session of Nova to resume (`Claims.isNova`).
     const word =
       request.agent !== undefined && request.resume === undefined
         ? policy.program?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
@@ -263,7 +279,7 @@ export class Calls {
       request.resume !== undefined &&
       this.host
         .claims()
-        .own(request.agent, transcriptFor(this.host.rows(), request.agent, request.resume))
+        .isNova(request.agent, transcriptFor(this.host.rows(), request.agent, request.resume))
     if (
       request.agent !== undefined &&
       word === undefined &&
@@ -528,6 +544,11 @@ export class Calls {
     if (task?.ok && this.host.messaging().briefOf(id) === task.id)
       this.leads.releaseAfterBrief(id, lead.summary.id, task.id)
     else this.host.bindings().endLead(led)
+  }
+
+  /** The model and effort `agent` was launched with, from the kept words its report holds. */
+  private inheritedChoice(agent: AgentName, launch: readonly string[] | undefined): Choice {
+    return launch === undefined ? {} : (harnesses[agent].launch.chosen?.(launch) ?? {})
   }
 
   /**
@@ -923,6 +944,8 @@ export class Calls {
     // A summary murmur already named the terminal from says nothing new to it, as when an
     // agent that summarized before agents gave titles describes only to add its title.
     const unchanged = record.naming.summary === summary && record.naming.murmur !== null
+    // A title it hasn't given before names work that starts here (`plans`).
+    const starts = record.naming.own?.title.toLowerCase() !== title.toLowerCase()
     record.naming = described(record.naming, title, summary)
     const waiting = waitingForOf(read.request.waitingFor, Date.now())
     if (waiting !== undefined) record.waitingFor = waiting ?? undefined
@@ -930,8 +953,24 @@ export class Calls {
     this.host.retitle(record)
     this.host.save(record)
     if (!unchanged) this.host.summarized(record.summary.id)
+    const plan = starts && this.plans(call.terminalId) ? { plan: true as const } : {}
     return titled
-      ? { ok: true, worktree: { branch: titled.branch, title: titled.title } }
-      : { ok: true }
+      ? { ok: true, worktree: { branch: titled.branch, title: titled.title }, ...plan }
+      : { ok: true, ...plan }
+  }
+
+  /**
+   * Whether the terminal's agent is to look, as its work starts, for parts of it that can go
+   * on side by side: in a swarm, and only where no team is around it yet, neither a lead of its
+   * own (whose brief already split the work) nor terminals it leads. Left to their own pick,
+   * agents in a swarm split no work unless the person's words pushed them to.
+   */
+  private plans(terminalId: string): boolean {
+    if (this.host.agentMode() !== "swarm") return false
+    const messaging = this.host.messaging()
+    if (messaging.leadOf(terminalId) !== undefined) return false
+    for (const id of this.host.records().keys())
+      if (messaging.leadOf(id)?.terminalId === terminalId) return false
+    return true
   }
 }

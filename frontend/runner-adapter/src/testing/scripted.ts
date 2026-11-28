@@ -160,17 +160,16 @@ export const scripted = ({
   createProject = unused,
   move = () => new Promise<never>(() => {}),
   follows = false,
-  bundledPi,
-  tourRevision,
+  nova,
+  tour,
   murmur,
   keepMain,
 }: {
-  // Where the runner has a tour, the contract revision it is at (it serves `tour.fetch` from
-  // 21); absent, as a runner without one.
-  tourRevision?: number
+  // Whether the runner has a tour; absent, as a runner without one.
+  tour?: boolean
   shown: readonly Saved[]
-  // Whether Novadeck's own pi is on, as a runner from revision 16 says; absent, as one before it.
-  bundledPi?: boolean
+  // Whether Nova is on, as a runner from revision 26 says; absent, as one before it.
+  nova?: boolean
   // Whether Murmur's Experimental switch is on, as a runner from revision 20 says; absent, as one before it.
   murmur?: boolean
   // Whether Keep main current is on, as a runner from revision 24 says; absent, as one before it.
@@ -245,9 +244,8 @@ export const scripted = ({
   const api = {
     watch: () => statuses.iterator,
     supports: (path: string) =>
-      (follows &&
-        (path === "settings.watch" || path === "preferences.get" || path === "agents.watch")) ||
-      (path === "tour.fetch" && (tourRevision ?? 0) >= 21),
+      follows &&
+      (path === "settings.watch" || path === "preferences.get" || path === "agents.watch"),
     preferences: {
       get: unused,
       set: note("preference", () => answers.preference()),
@@ -293,9 +291,8 @@ export const scripted = ({
         return connect(agent, connected)
       }),
     },
-    ...(tourRevision !== undefined && {
+    ...(tour === true && {
       tour: {
-        fetch: note("tour fetch", async () => {}),
         prepare: unused,
         brief: unused,
         nudge: unused,
@@ -407,9 +404,9 @@ export const scripted = ({
     agentMode: "herd",
     shippingGate: false,
     worktrees: true,
-    ...(bundledPi !== undefined && {
-      bundledPi,
-      bundledPiFetch: { state: bundledPi ? ("ready" as const) : ("off" as const) },
+    ...(nova !== undefined && {
+      nova,
+      novaFetch: { state: nova ? ("ready" as const) : ("off" as const) },
     }),
     ...(murmur !== undefined && { murmur }),
     ...(keepMain !== undefined && { keepMain }),

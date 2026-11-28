@@ -51,8 +51,8 @@ describe("Novadeck's launchers in a shell", () => {
     const shell = mkdtempSync(join(tmpdir(), "launch-nova-"))
     onTestFinished(() => rmSync(shell, { recursive: true, force: true }))
     const on: InstalledShell = { ...shellPaths(shell, "linux"), launcher: "/h", mcpLauncher: "/m" }
-    mkdirSync(join(shell, "bundled"))
-    writeFileSync(on.bundledPi.on, "")
+    mkdirSync(join(shell, "nova"))
+    writeFileSync(on.nova.on, "")
     const nova = shellLaunch("bash", on, { PATH: "/usr/bin" }).env
     expect(nova.PATH).toBe(`${on.bin}${delimiter}/usr/bin`)
     expect(nova).not.toHaveProperty("NOVADECK_SHIMS")

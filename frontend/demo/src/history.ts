@@ -120,7 +120,7 @@ const storefront: readonly Sample[] = [
     { state: "disconnected", agent: "agy" },
   ),
   agentRow("codex", "Search index", "yew", "Product search index rebuild", 3 * day),
-  // Nova, Novadeck's own pi: the agent is `pi`, and the row says it is Nova's.
+  // Nova: the agent is `pi`, and the row says it is Nova's.
   {
     ...agentRow(
       "codex",

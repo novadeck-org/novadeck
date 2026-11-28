@@ -2,7 +2,12 @@ import { join } from "node:path"
 
 import { withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile } from "@novadeck/harness-core/harness"
-import { forgottenUnits, keptFlags, resumeFlags } from "@novadeck/harness-core/kept-flags"
+import {
+  chosenFlags,
+  forgottenUnits,
+  keptFlags,
+  resumeFlags,
+} from "@novadeck/harness-core/kept-flags"
 
 import { box, slice } from "./box.js"
 import { conversation, conversations } from "./conversation.js"
@@ -49,6 +54,7 @@ const launch: LaunchProfile = {
   ],
   kept: (argv) => keptFlags(argv, kept),
   forgets: (words) => forgottenUnits(words, kept),
+  chosen: (words) => chosenFlags(words, kept),
   models: readModels,
   choose,
 }

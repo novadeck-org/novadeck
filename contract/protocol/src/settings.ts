@@ -68,11 +68,12 @@ export const runnerSettings = z.strictObject({
   // on: Claude Code's and Codex's shell commands that ship work (push to another branch, land,
   // open or merge a PR) then need a permit, and while it is off nothing changes.
   shippingGate: z.boolean(),
-  // Whether Novadeck's own pi (Nova) may be fetched and started, an Experimental
-  // feature, off until the person turns it on: on, the runner downloads its pinned pi at once;
-  // off, it fetches and starts none, and keeps a copy it has. From revision 16: a runner before
-  // it drops the key, and a UI offers the switch only where the runner's settings report it.
-  bundledPi: z.boolean().optional(),
+  // Whether Nova, Novadeck's own agent, may be fetched and started, and the tour, which runs on
+  // it, offered: an Experimental feature, off until the person turns it on. On, the runner
+  // downloads Nova's pinned pi at once; off, it fetches and starts none, and keeps a copy it has.
+  // From revision 26: a runner before it drops the key, and a UI offers the switch and the tour
+  // only where the runner's settings report it.
+  nova: z.boolean().optional(),
   // Whether Murmur may run, an Experimental feature, off until the person turns it on (on for
   // whoever turned Murmur on before it was one): off, the runner names no terminal with it,
   // installs and updates nothing, and keeps what is installed. From revision 20: a runner before
@@ -80,10 +81,10 @@ export const runnerSettings = z.strictObject({
   murmur: z.boolean().optional(),
 })
 
-// Where the fetch of Novadeck's own pi stands: `off` while its switch is off, `downloading`
-// with the bytes so far of `size`, `ready` once it is in place, `failed` with why (turning the
+// Where the fetch of Nova stands: `off` while its switch is off, `downloading` with the bytes
+// so far of `size`, `ready` once it is in place, `failed` with why (turning the
 // switch on again tries again). A state a UI doesn't know reads as `off`.
-export const bundledPiFetch = z.strictObject({
+export const novaFetch = z.strictObject({
   state: openEnum(["off", "downloading", "ready", "failed"], {
     since: 16,
     unknown: { fallback: "off" },
@@ -98,11 +99,11 @@ export const runnerSettingsState = runnerSettings.extend({
   // Whether transcripts can be kept here at all: they are kept only encrypted, so not where
   // nothing protects their key, as a Linux desktop with no keyring or a runner on its own.
   transcriptsAvailable: z.boolean(),
-  // Where the fetch of Novadeck's own pi stands; absent from a runner before 16.
-  bundledPiFetch: bundledPiFetch.optional(),
+  // Where the fetch of Nova stands; absent from a runner before 26.
+  novaFetch: novaFetch.optional(),
 })
 
 export type AgentMode = z.infer<typeof agentMode>
 export type RunnerSettings = z.infer<typeof runnerSettings>
 export type RunnerSettingsState = z.infer<typeof runnerSettingsState>
-export type BundledPiFetch = z.infer<typeof bundledPiFetch>
+export type NovaFetch = z.infer<typeof novaFetch>

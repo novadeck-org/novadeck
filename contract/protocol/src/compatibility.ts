@@ -62,7 +62,15 @@ export const compatibility: Compatibility = {
   // drops); a UI offers the switch only where the runner's settings report it. The runner also
   // moves the local main branch while the checkout is on another branch, so `projects.sync`
   // shows a repository's landing, or its behind with a reason, off main too.
-  revision: 24,
+  // 25: `projects.sync` adds what the Files card shows (a repository's `home` and `pullUrl`, a
+  // landing's `ref`, a behind's `command` and `local`) and `projects.updateCheckout` says what git
+  // printed on a refusal (`git`); all optional, so a UI reads a runner before it without them.
+  // 26: Nova and the tour are one Experimental switch: settings' `bundledPi` and `bundledPiFetch`
+  // are now `nova` and `novaFetch`, and `tour.fetch` does nothing (kept for UIs before 26), as
+  // the tour runs only while Nova is switched on. A UI before it reads neither setting, so offers
+  // no Nova switch of a runner at 26; one at 26 offers neither Nova nor the tour to a runner
+  // before it.
+  revision: 26,
   oldestClient: 11,
   oldestRunner: 12,
 }

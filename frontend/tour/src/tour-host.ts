@@ -11,7 +11,10 @@ import type { TourEffects } from "./start"
  * it over once, at the tour's provider; the tour reaches nothing else of it.
  */
 export type TourHost = {
-  readonly backend: Pick<Backend, "tour" | "agents" | "messages" | "inbox" | "works" | "approvals">
+  readonly backend: Pick<
+    Backend,
+    "tour" | "nova" | "agents" | "messages" | "inbox" | "works" | "approvals"
+  >
   readonly workspace: Store<Workspace>
   readonly commands: TourCommands
 }

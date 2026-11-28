@@ -1,13 +1,13 @@
-import type { Backend, BundledPiFetchState } from "@novadeck/core/port"
+import type { Backend, NovaFetchState } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 
-type BundledPi = NonNullable<Backend["bundledPi"]>
+type Nova = NonNullable<Backend["nova"]>
 
 // The demo's Nova (Preferences > Experimental): switched on, it plays a download of
 // pi's size over a few seconds, then is ready; off, it says nothing and keeps its "copy", as the
 // runner does. `show` puts it in any state, for the debug panel.
-export type DemoBundledPi = BundledPi & {
-  readonly show: (enabled: boolean, fetch: BundledPiFetchState) => void
+export type DemoNova = Nova & {
+  readonly show: (enabled: boolean, fetch: NovaFetchState) => void
 }
 
 // pi 1.6.0's Linux archive, as the runner's pin names it.
@@ -15,9 +15,9 @@ const size = 58_977_130
 const steps = 20
 const stepMs = 150
 
-export const createDemoBundledPi = (): DemoBundledPi => {
+export const createDemoNova = (): DemoNova => {
   const enabled = createStore(false)
-  const fetch = createStore<BundledPiFetchState>({ state: "off" })
+  const fetch = createStore<NovaFetchState>({ state: "off" })
   let ready = false
   let timer: ReturnType<typeof setInterval> | undefined
   const stop = () => {
@@ -63,6 +63,5 @@ export const createDemoBundledPi = (): DemoBundledPi => {
   }
 }
 
-export const isDemoBundledPi = (
-  bundledPi: Backend["bundledPi"] | undefined,
-): bundledPi is DemoBundledPi => bundledPi !== undefined && "show" in bundledPi
+export const isDemoNova = (nova: Backend["nova"] | undefined): nova is DemoNova =>
+  nova !== undefined && "show" in nova

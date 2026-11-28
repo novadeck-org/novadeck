@@ -312,16 +312,19 @@ export const recentSends = (times: readonly number[], now: number): readonly num
   times.filter((time) => now - time < rates.windowMs)
 
 /**
- * The send times kept after one more at `now`, when that stays within `limit` a minute;
+ * The send times kept after `count` more at `now`, when that stays within `limit` a minute;
  * undefined when it would not. Times past the window drop out.
  */
 export const allowSend = (
   times: readonly number[],
   now: number,
   limit: number,
+  count = 1,
 ): readonly number[] | undefined => {
   const recent = recentSends(times, now)
-  return recent.length < limit ? [...recent, now] : undefined
+  return recent.length + count <= limit
+    ? [...recent, ...Array.from({ length: count }, () => now)]
+    : undefined
 }
 
 /** Whether a message went between the terminals `a` and `b`, either way. */
@@ -338,7 +341,7 @@ const labels = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) a
 export const agentLabel = (agent: AgentName): string => labels[agent]
 
 /**
- * The agent's name as people know it, Nova for Novadeck's own pi where its terminal's summary
+ * The agent's name as people know it, Nova for Nova where its terminal's summary
  * says so (`nova`): the person's own pi stays Pi.
  */
 export const agentLabelOf = (agent: AgentName, nova?: boolean): string =>

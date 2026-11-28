@@ -1,7 +1,7 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import type { ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { AgentMode, BundledPiFetchState } from "@novadeck/core/port"
+import type { AgentMode, NovaFetchState } from "@novadeck/core/port"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import { appScales, screenReaderPreferences, type PreferencesValue } from "@novadeck/core/types"
@@ -25,7 +25,6 @@ import {
   History,
   Info,
   Ligature,
-  Map,
   Mic,
   MessagesSquare,
   Monitor,
@@ -63,17 +62,12 @@ import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentModePicker } from "./AgentModePicker"
 import { AgentSwitches } from "./AgentSwitches"
-import {
-  bundledPiDescription,
-  bundledPiLabel,
-  bundledPiNote,
-  type BundledPiNote,
-} from "./bundled-pi"
 import { builtInFont, fontChoices, isBundled } from "./font-choices"
 import { forgesExplanation, type ForgeRow } from "./forge-rows"
 import { ForgeRows } from "./ForgeRows"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
+import { novaDescription, novaLabel, novaNote, type NovaNote } from "./nova"
 import { matchRows, rowsOf, type PreferenceRow } from "./preferences-search"
 import {
   fallbackTab,
@@ -170,7 +164,7 @@ type ExperimentalToggle = {
   readonly onToggle: (on: boolean) => void
   readonly disabled: boolean
   readonly hidden?: boolean
-  readonly note?: BundledPiNote | undefined
+  readonly note?: NovaNote | undefined
   readonly retry?: () => void
 }
 
@@ -507,7 +501,7 @@ export const Preferences = ({
   agentModes,
   agentMode,
   shippingGate,
-  bundledPi,
+  nova,
   murmurSwitch,
   tour = false,
   worktrees,
@@ -572,11 +566,11 @@ export const Preferences = ({
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
-  // Whether Novadeck's own pi is on, an Experimental feature the backend keeps, and where its
+  // Whether Nova is on, an Experimental feature the backend keeps, and where its
   // download stands; absent where it has none, as a runner from before it.
-  bundledPi?: {
+  nova?: {
     readonly enabled: boolean
-    readonly fetch: BundledPiFetchState
+    readonly fetch: NovaFetchState
     readonly onChange: (enabled: boolean) => void
   }
   // Whether Murmur shows and may run, an Experimental feature the backend keeps; absent where it
@@ -585,7 +579,7 @@ export const Preferences = ({
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
   }
-  // Whether the backend has a tour, which the Onboarding tour switch offers from the footer.
+  // Whether the backend has a tour, which Nova's switch offers from the footer too.
   tour?: boolean
   // Whether agents get git worktrees, on unless the person turns it off; absent where the
   // backend has none.
@@ -846,19 +840,6 @@ export const Preferences = ({
       disabled: false,
     },
     {
-      id: "onboarding-tour",
-      icon: Map,
-      page: "about",
-      onPage: true,
-      label: "Onboarding tour",
-      description: tour
-        ? "Adds a Help menu to the footer, with a short tour: three Nova agents at work in a sandbox repo. Novadeck pays for the model."
-        : "Not available here.",
-      checked: tour && value.onboardingTour,
-      onToggle: (onboardingTour: boolean) => onChange({ ...value, onboardingTour }),
-      disabled: !tour,
-    },
-    {
       id: "agent-modes",
       icon: Network,
       page: "agents",
@@ -885,20 +866,20 @@ export const Preferences = ({
       disabled: !shippingGate,
     },
     {
-      id: "bundled-pi",
+      id: "nova",
       icon: NovaIcon,
       page: "agents",
       onPage: true,
-      label: bundledPiLabel,
-      description: bundledPiDescription,
-      checked: bundledPi?.enabled ?? false,
-      onToggle: (enabled: boolean) => bundledPi?.onChange(enabled),
-      disabled: !bundledPi,
+      label: novaLabel,
+      description: novaDescription(tour),
+      checked: nova?.enabled ?? false,
+      onToggle: (enabled: boolean) => nova?.onChange(enabled),
+      disabled: !nova,
       // Only where the runner has it: one from before it (revision 16) never offers the row.
-      hidden: !bundledPi,
-      note: bundledPi && bundledPiNote(bundledPi.enabled, bundledPi.fetch),
+      hidden: !nova,
+      note: nova && novaNote(nova.enabled, nova.fetch),
       // Switched on again, a failed download is tried again.
-      retry: () => bundledPi?.onChange(true),
+      retry: () => nova?.onChange(true),
     },
     {
       id: "keep-awake",
@@ -1102,7 +1083,7 @@ export const Preferences = ({
           </div>
           <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
             <TabPanel value="agents" className={panelClasses}>
-              {(agents || pageToggles("agents", ["bundled-pi"]).length > 0) && (
+              {(agents || pageToggles("agents", ["nova"]).length > 0) && (
                 <Section
                   title="Connected agents"
                   {...(agents ? { description: agentsExplanation } : {})}
@@ -1115,7 +1096,7 @@ export const Preferences = ({
                       installing={agents.installing}
                     />
                   )}
-                  <ExperimentalRows toggles={pageToggles("agents", ["bundled-pi"])} />
+                  <ExperimentalRows toggles={pageToggles("agents", ["nova"])} />
                 </Section>
               )}
               {agentsRunning && (
@@ -1232,7 +1213,7 @@ export const Preferences = ({
                             id="keep-main-label"
                             icon={GitMerge}
                             label="Keep main current"
-                            description="After each fetch, Novadeck moves main up to origin's when nothing of yours is in the way. Turn this off to move it yourself: the Files panel then shows how far behind it is, with an Update button."
+                            description="After each fetch, Novadeck moves main up to origin's when nothing of yours is in the way. Turn this off to move it yourself: the Files panel then shows how far behind it is, with the command to run it."
                             descriptionId="keep-main-description"
                           />
                           <Switch

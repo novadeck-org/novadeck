@@ -4,7 +4,7 @@ import type { TourRun } from "@novadeck/core/port"
 const startLine = "Start the Novadeck tour: follow AGENTS.md in this folder."
 
 // The launch lines of each harness's scripted agent, which the demo's other states still play
-// (a terminal that starts one); the tour's own run is Novadeck's pi's alone, as the runner's is
+// (a terminal that starts one); the tour's own run is Nova's alone, as the runner's is
 // (backend/tour/src/launch.ts).
 const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed" | "page">>> = {
   claude: {
@@ -28,9 +28,9 @@ const launches: Readonly<Record<AgentName, Omit<TourRun, "directory" | "removed"
     model: "openrouter/openai/gpt-6-luna",
   },
   pi: {
-    command: "novadeck-pi --model novadeck/gpt-6-luna --thinking medium",
+    command: "novadeck-nova --model nova/gpt-6-luna --thinking medium",
     brief: "doorbell",
-    model: "novadeck/gpt-6-luna",
+    model: "nova/gpt-6-luna",
   },
 }
 
@@ -42,9 +42,9 @@ export const demoRun = (agent: AgentName): Omit<TourRun, "directory" | "removed"
 export const demoTourRefusal =
   "~/.novadeck/tour holds files Novadeck didn't put there, so the tour leaves it as it is. Move or remove that folder to take the tour."
 
-// The refusal a failing start gives: the folder's, or the tour's service having no free run to give
+// The refusal a failing start gives: the folder's, or Nova's model service having no free ticket to give
 // (its own sentence, which the runner passes on as it is).
 export const demoRefusal = (how: "folder" | "tickets"): Error =>
   how === "folder"
     ? new Error(demoTourRefusal)
-    : new Error("You've taken today's free tours. Try again tomorrow.")
+    : new Error("You've used today's free Nova tickets. Try again tomorrow.")

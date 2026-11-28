@@ -23,12 +23,12 @@ describe("the tour group", () => {
     await expect(tour.prepare()).resolves.toMatchObject({
       directory: "~/.novadeck/tour",
       brief: "doorbell",
-      model: "novadeck/gpt-6-luna",
+      model: "nova/gpt-6-luna",
       page: true,
     })
   })
 
-  it("puts Novadeck's pi in each state for the consent, and waits for it before a start", async () => {
+  it("puts Nova in each state for the consent, and waits for it before a start", async () => {
     const tour = tourOf()
     const run = runner(tour)
     expect(tour.agent.getSnapshot()).toEqual({ state: "ready" })
@@ -50,10 +50,10 @@ describe("the tour group", () => {
     await expect(tour.prepare()).resolves.toMatchObject({ directory: "~/.novadeck/tour" })
   })
 
-  it("fails the next start as the tour's service with no free run left does, with its sentence", async () => {
+  it("fails the next start as Nova's model service with no free ticket left does, with its sentence", async () => {
     const tour = tourOf()
-    runner(tour)("Next start: no free run left")
-    await expect(tour.prepare()).rejects.toThrow("free tours")
+    runner(tour)("Next start: no free ticket left")
+    await expect(tour.prepare()).rejects.toThrow("free Nova tickets")
     await expect(tour.prepare()).resolves.toMatchObject({ directory: "~/.novadeck/tour" })
   })
 

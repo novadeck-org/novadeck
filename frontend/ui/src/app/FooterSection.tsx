@@ -37,7 +37,7 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useAccounts } from "./controller/footer-accounts"
 import { useShownMurmur } from "./murmur-shown"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
-import { chatViewOn, dismissWhatsNew, onboardingTourOn } from "./ui-store"
+import { chatViewOn, dismissWhatsNew } from "./ui-store"
 import { useBusyTerminals } from "./use-busy-terminals"
 import { useFailingOrigins } from "./use-failing-origins"
 import { useOfferNews } from "./use-offer-news"
@@ -70,10 +70,14 @@ export const FooterSection = memo((): React.JSX.Element => {
     [store],
   )
   const crashes = useUiState((state) => state.crashLoop)
-  // The Help menu offers the onboarding tour, an experimental feature: it shows only while
-  // IS_EXPERIMENTAL and the tour's own switch are on, and where the backend has a tour, which
-  // its one item offers.
-  const tourOn = useUiState(onboardingTourOn)
+  // The Help menu offers the onboarding tour, which runs on Nova, an experimental feature: it
+  // shows only while IS_EXPERIMENTAL and Nova's switch are on, and where the backend has a tour,
+  // which its one item offers.
+  const novaOn = useSyncExternalStore(
+    backend.nova?.enabled.subscribe ?? always,
+    () => backend.nova?.enabled.getSnapshot() ?? false,
+  )
+  const tourOn = useUiState((state) => state.flags.IS_EXPERIMENTAL) && novaOn
   const tour = useTourOffer()
   const helpItems = useMemo(
     () => (tour ? [{ value: "tour", label: "Take the tour", onSelect: () => tour.offer() }] : []),

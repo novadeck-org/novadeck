@@ -73,7 +73,7 @@ describe("the chat completions dialect", () => {
 
   it("serves the tour's provider path alone", () => {
     const at = (path: string) => ({ method: "POST", path, headers: {}, body: "" })
-    expect(chat.matches(at("/tour/v1/chat/completions"))).toBe(true)
+    expect(chat.matches(at("/nova/v1/chat/completions"))).toBe(true)
     expect(chat.matches(at("/v1/responses"))).toBe(false)
   })
 })

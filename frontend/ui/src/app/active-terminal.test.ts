@@ -36,7 +36,6 @@ const setup = (clock: () => number = () => 0) => {
         screenReader: "auto",
         chatView: false,
         agentAvatars: false,
-        onboardingTour: false,
         keepAwakeOffered: false,
         keepAwake: true,
         appScale: 100,

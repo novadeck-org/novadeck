@@ -41,12 +41,14 @@
    no fill); data-open while its card shows. A closed folder that hides news wears a `.files-dot`.
    A tree that starts inside a repository has a `.files-sync-line` over it instead
    (data-state="new" | "behind", data-open), its `.files-sync-branch`, `.files-sync-said` and
-   `.files-sync-marks`. A mark's card is a `.files-card` (the floating surface): a
-   `.files-card-title` and `.files-card-sub`, a `.files-card-list` of merges (each a
-   `.files-card-subject` and `.files-card-number`), a `.files-card-hint` for new dependencies
-   and a `.files-card-foot` (data-refused when git said no to an update).
-   Tokens, each optional: none of its own; it reads the strong, warning, ink, muted, soft and
-   line colours. */
+   `.files-sync-marks`. A mark's card is a `.files-card` (the floating surface), a terminal's
+   readout: a `.files-readout-head` (the phase glyph, the repository, `.files-route`), a
+   `.files-readout-log` on the terminal's ground with `.files-line`s (a `.files-merge` with its
+   `.files-sha`, `.files-pr`, `.files-t` and `.files-end`; a `.files-comment`; a `.files-command`
+   with `.files-ib` Copy and `.files-run` Run; git's own words in `.files-err`) and a
+   `.files-readout-foot`. Lines come in 20 ms apart, at once under reduced motion.
+   Tokens, each optional: the terminal's ground, text and ANSI colours, the syntax comment colour,
+   and the strong, ink, muted, soft, line, shell and paper colours. */
 .files-rows {
   position: relative;
   flex: none;
@@ -186,27 +188,6 @@
   color: var(--files-chip-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));
   opacity: 0.6;
-}
-
-/* A folder row's own action, "Open in the pane", where the pointer is: over the chips, at the row's
-   end. Pointer only; the same entry is in the row's context menu. */
-.files-row-action {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  transform: translateY(-50%);
-  opacity: 0;
-}
-.files-row:hover .files-row-action,
-.files-row-action:focus-visible {
-  opacity: 1;
-}
-/* A repository's marks are in the action's place, and must stay where the pointer found them: the
-   row's menu has "Open in the pane" for it. */
-.files-row:has(.files-mark) .files-row-action {
-  display: none;
 }
 
 /* An agent writing a file shows as a terminal's cursor after its name. */
@@ -386,112 +367,237 @@ button.files-mark {
   margin-left: auto;
 }
 
+/* The card a mark opens, a terminal's readout: a head strip, a log on the terminal's own ground and
+   a muted foot (FilesSync.tsx). */
 .files-card {
-  display: grid;
-  width: 320px;
+  width: 380px;
   max-width: calc(100vw - 24px);
-  gap: 10px;
-  padding: 12px 12px 10px;
+  padding: 0;
+  overflow: hidden;
   color: var(--color-ink);
   font-size: var(--text-body);
 }
-.files-card-title {
-  margin: 0;
-  font-size: var(--text-body);
-  font-weight: 600;
-}
-.files-card-sub {
-  margin-top: 2px;
-  color: var(--color-muted);
-  font-size: var(--text-caption);
-}
-.files-card-list {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.files-card-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.files-card-list svg {
-  position: relative;
-  top: 2px;
-  flex: none;
-  color: var(--color-muted);
-}
-.files-card-subject {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.files-card-number {
-  margin-left: auto;
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-}
-.files-card-more {
-  color: var(--color-muted);
-  font-size: var(--text-caption);
-}
-.files-card-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px;
-  border-radius: var(--radius-control, 4px);
-  background-color: color-mix(in oklab, var(--color-warning-fg) 10%, transparent);
-  font-size: var(--text-caption);
-}
-.files-card-hint svg {
-  flex: none;
-  color: var(--color-muted);
-}
-.files-card-hint code {
-  padding: 0 4px;
-  border-radius: var(--radius-control, 4px);
-  background-color: var(--color-soft);
-  font-family: var(--font-mono);
-}
-.files-card-foot {
+.files-readout-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-top: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-bottom: var(--border-width) solid var(--color-line);
+  background-color: var(--color-shell);
+}
+.files-readout-head b {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.files-route {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-family: var(--window-metadata-font, var(--font-mono));
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+.files-readout-log {
+  display: grid;
+  padding: 8px 6px 10px;
+  background-color: var(--terminal-bg);
+  color: var(--terminal-fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-variant-ligatures: none;
+  line-height: 20px;
+}
+/* A line comes in after the ones above it, 20 ms apart. */
+.files-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  border-radius: var(--radius-control, 4px);
+  white-space: nowrap;
+  animation: files-line-in 120ms ease-out backwards;
+  animation-delay: calc(var(--line, 0) * 20ms);
+}
+@keyframes files-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+.files-line[data-gap="true"] {
+  margin-top: 6px;
+}
+.files-merge[data-link="true"] {
+  padding: 0;
+}
+.files-merge[data-link="true"]:hover,
+.files-merge[data-link="true"]:focus-within {
+  background-color: color-mix(in oklab, var(--terminal-fg) 8%, transparent);
+}
+.files-merge-button {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  border-radius: var(--radius-control, 4px);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+.files-merge-button:focus-visible,
+.files-more-button:focus-visible,
+.files-ib:focus-visible,
+.files-run:focus-visible,
+.files-show:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-ink));
+  outline-offset: 1px;
+}
+.files-sha {
+  flex: none;
+  color: var(--color-muted);
+}
+.files-pr {
+  flex: none;
+  color: var(--terminal-ansi-magenta);
+}
+.files-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.files-end {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.files-merge .handle-chip {
+  font-size: var(--text-caption);
+}
+.files-open {
+  color: var(--color-muted);
+  opacity: 0;
+}
+.files-merge[data-link="true"]:hover .files-open,
+.files-merge[data-link="true"]:focus-within .files-open {
+  opacity: 1;
+}
+.files-comment,
+.files-more {
+  color: var(--color-syntax-comment);
+}
+.files-more-button {
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+  text-underline-offset: 3px;
+}
+.files-command[data-prompt="true"] {
+  margin-top: 2px;
+}
+.files-p {
+  flex: none;
+  color: var(--terminal-ansi-green);
+}
+.files-g {
+  --tab-glyph-fg: var(--terminal-fg);
+  --tab-done-fg: var(--terminal-ansi-green);
+  --tab-failed-fg: var(--terminal-ansi-red);
+}
+.files-err {
+  color: var(--terminal-ansi-red);
+  white-space: pre;
+}
+.files-dim {
+  color: var(--color-muted);
+}
+.files-ib,
+.files-run,
+.files-show {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-control, 4px);
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 1;
+}
+.files-ib {
+  width: 20px;
+}
+.files-ib:hover {
+  color: var(--color-ink);
+}
+.files-run,
+.files-show {
+  gap: 5px;
+  padding: 0 7px;
+  border-color: var(--color-line);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.files-run:hover:not(:disabled),
+.files-show:hover {
+  background-color: var(--color-soft);
+}
+.files-run[data-primary="true"] {
+  border-color: var(--color-strong);
+  background-color: var(--color-strong);
+  color: var(--color-on-strong);
+}
+.files-run[data-primary="true"]:hover:not(:disabled) {
+  background-color: var(--color-strong);
+  filter: brightness(1.08);
+}
+.files-run:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.files-readout-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
   border-top: var(--border-width) solid var(--color-line);
   color: var(--color-muted);
   font-size: var(--text-caption);
 }
-.files-card-foot[data-refused="true"] {
-  color: var(--color-warning-fg);
+.files-readout-foot > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.files-update {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  height: 22px;
+.files-readout-foot:empty {
+  display: none;
+}
+.files-show {
   margin-left: auto;
-  padding: 0 8px;
-  border: var(--border-width) solid var(--color-line);
-  border-radius: var(--radius-control, 4px);
-  background: none;
-  color: var(--color-ink);
-  font-size: var(--text-caption);
-  cursor: pointer;
 }
-.files-update:hover:not(:disabled) {
-  background: var(--color-soft);
-}
-.files-update:disabled {
-  color: var(--color-muted);
-  cursor: default;
-}
-.files-update:focus-visible {
-  outline: 2px solid var(--focus-ring-color, var(--color-ink));
-  outline-offset: 1px;
+@media (prefers-reduced-motion: reduce) {
+  .files-line {
+    animation: none;
+  }
 }
 
 .files-note-row {

@@ -23,38 +23,35 @@ const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe("following another device", () => {
   context("when the runner tells of its settings as they change", () => {
-    it("shows where Novadeck's own pi's download stands, as the runner tells it", async () => {
-      const app = scripted({ shown: [], follows: true, bundledPi: false })
+    it("shows where Nova's download stands, as the runner tells it", async () => {
+      const app = scripted({ shown: [], follows: true, nova: false })
       app.settingsChanges.push(
         settings({
-          bundledPi: true,
-          bundledPiFetch: { state: "downloading", received: 1_000_000, size: 59_000_000 },
+          nova: true,
+          novaFetch: { state: "downloading", received: 1_000_000, size: 59_000_000 },
         }),
       )
       await settled()
-      expect(app.backend.bundledPi!.enabled.getSnapshot()).toBe(true)
-      expect(app.backend.bundledPi!.fetch.getSnapshot()).toEqual({
+      expect(app.backend.nova!.enabled.getSnapshot()).toBe(true)
+      expect(app.backend.nova!.fetch.getSnapshot()).toEqual({
         state: "downloading",
         received: 1_000_000,
         size: 59_000_000,
       })
       // A state a newer runner added reads as off.
-      app.settingsChanges.push(
-        settings({ bundledPi: true, bundledPiFetch: { state: "paused" as "off" } }),
-      )
+      app.settingsChanges.push(settings({ nova: true, novaFetch: { state: "paused" as "off" } }))
       await settled()
-      expect(app.backend.bundledPi!.fetch.getSnapshot()).toEqual({ state: "off" })
+      expect(app.backend.nova!.fetch.getSnapshot()).toEqual({ state: "off" })
       app.stop()
     })
 
-    it("shows where the tour's pi download stands while the Experimental switch is off", async () => {
-      const app = scripted({ shown: [], follows: true, bundledPi: false, tourRevision: 21 })
+    it("shows the tour where Nova's download stands", async () => {
+      const app = scripted({ shown: [], follows: true, nova: true, tour: true })
       const { agent } = app.backend.tour!
-      expect(agent.getSnapshot()).toEqual({ state: "off" })
       app.settingsChanges.push(
         settings({
-          bundledPi: false,
-          bundledPiFetch: { state: "downloading", received: 2_000_000, size: 59_000_000 },
+          nova: true,
+          novaFetch: { state: "downloading", received: 2_000_000, size: 59_000_000 },
         }),
       )
       await settled()
@@ -63,7 +60,6 @@ describe("following another device", () => {
         received: 2_000_000,
         size: 59_000_000,
       })
-      expect(app.backend.bundledPi!.enabled.getSnapshot()).toBe(false)
       app.stop()
     })
 

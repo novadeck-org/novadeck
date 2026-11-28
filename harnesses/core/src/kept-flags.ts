@@ -1,4 +1,4 @@
-import type { Choice } from "./harness.js"
+import { type Choice, efforts } from "./harness.js"
 
 /**
  * Which of a harness's launch flags a resume carries over, and how it reads them off the
@@ -159,3 +159,25 @@ export const resumeFlags = (
       )
     })
     .flat()
+
+/**
+ * The model and effort the kept words of a launch set, as a new agent of the same harness would
+ * start on them: nothing else is read, so no permission or approval mode comes along. A value
+ * that is no effort Novadeck knows is left out, and the last word to set each wins.
+ */
+export const chosenFlags = (
+  kept: readonly string[],
+  flags: Pick<KeptFlags, "bare" | "sets" | "config">,
+): Choice => {
+  let choice: Choice = {}
+  for (const [flag, text] of units(kept, flags)) {
+    const sets = flags.sets(flag!, text)
+    if (sets === undefined || text === undefined) continue
+    // A config override (`-c key=value`) holds its value after the key.
+    const value = flag === flags.config?.options[0] ? text.slice(text.indexOf("=") + 1) : text
+    const effort = efforts.find((known) => known === value)
+    if (sets === "model") choice = { ...choice, model: value }
+    else if (effort !== undefined) choice = { ...choice, effort }
+  }
+  return choice
+}

@@ -1,5 +1,5 @@
 import type { Backend } from "@novadeck/core/port"
-import { isDemoBundledPi } from "@novadeck/demo/bundled-pi"
+import { isDemoNova } from "@novadeck/demo/nova"
 
 import type { DemoActionGroup } from "./types"
 
@@ -7,10 +7,8 @@ const where = "Preferences > Experimental > Nova"
 
 // The states of Nova's row, each put on the demo's at once (it needs the Experimental tab,
 // which the experimental channel shows).
-export const bundledPiGroups = (
-  backend: Pick<Backend, "bundledPi">,
-): readonly DemoActionGroup[] => {
-  const pi = isDemoBundledPi(backend.bundledPi) ? backend.bundledPi : undefined
+export const novaGroups = (backend: Pick<Backend, "nova">): readonly DemoActionGroup[] => {
+  const pi = isDemoNova(backend.nova) ? backend.nova : undefined
   if (!pi) return []
   return [
     {

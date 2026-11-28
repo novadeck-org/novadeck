@@ -954,12 +954,10 @@ export type Runner = {
     /** Revokes a device's credential and ends its sessions: any, as the owner, or this device. */
     revoke(id: string): Promise<void>
   }
-  /** Novadeck's tour, a live run of the person's own agent in a folder of Novadeck's. */
+  /** Novadeck's tour, a live run of Nova in a folder of Novadeck's. */
   readonly tour: {
-    /** Readies a run (`tour.prepare`), on Novadeck's own pi and model: its folder emptied and briefed, its launch line. */
+    /** Readies a run (`tour.prepare`), on Nova: its folder emptied and briefed, its launch line. */
     prepare(): Promise<TourPrepared>
-    /** Starts downloading Novadeck's own pi for the tour (`tour.fetch`, revision 21), whatever its switch; answers at once. */
-    fetch(): Promise<void>
     /** Rings the tour's start line to the agent in the terminal (`tour.brief`). */
     brief(terminalId: string): Promise<void>
     /** Rings the tour's agent in the terminal to carry on with its brief (`tour.nudge`). */
@@ -1360,7 +1358,6 @@ export const connectRunner = async (
     },
     tour: {
       prepare: () => call((client) => client.tour.prepare({})),
-      fetch: () => call((client) => client.tour.fetch()),
       brief: (terminalId) => call((client) => client.tour.brief({ terminalId })),
       nudge: (terminalId) => call((client) => client.tour.nudge({ terminalId })),
       artist: (terminalId) => call((client) => client.tour.artist({ terminalId })),

@@ -3,8 +3,8 @@
 Novadeck's onboarding tour on the runner's side: the folder each run gets (`~/.novadeck/tour`,
 then `tour-2` and on where the person kept one), made a git repo of the seed project
 (`assets/seed`, with Phaser and three.js written under `vendor/`), the line that starts
-Novadeck's own pi there on the model Novadeck pays for, the ticket that pays for it, and the
-briefs the doorbell rings its lead and artist. The UI's half is `frontend/tour`
+Nova there on the model Novadeck pays for (Nova's own ticket pays for it: the tour keeps none), and
+the briefs the doorbell rings its lead and artist. It runs only while Nova is switched on. The UI's half is `frontend/tour`
 (`@novadeck/tour`); the contract between them is protocol's `tour.*` procedures.
 
 ## Contract

@@ -170,7 +170,7 @@ export class Settings {
       agentModes: saved.get("agentModes") === "true",
       agentMode: agentModeOf(saved.get("agentMode")),
       shippingGate: saved.get("shippingGate") === "true",
-      bundledPi: saved.get("bundledPi") === "true",
+      nova: saved.get("nova") === "true",
       murmur: saved.get("murmur") === "true",
     }
   }

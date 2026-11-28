@@ -34,7 +34,7 @@ export type InboxSource = {
   readonly handle: string
   // `newer` for an agent of a harness a newer Novadeck integrates that this one doesn't know.
   readonly agent: AgentName | "newer"
-  // The agent is Nova, Novadeck's own pi, which the Inbox names so. Absent for a closed terminal.
+  // The agent is Nova, which the Inbox names so. Absent for a closed terminal.
   readonly nova?: true
   readonly title: string
   readonly projectName: string

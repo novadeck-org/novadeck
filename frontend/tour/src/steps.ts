@@ -447,7 +447,7 @@ export const closingLine = "It's yours now. Don't break it."
 
 // What the tour says while the lead's agent holds at a screen of its own, whatever the step:
 // the person answers it in the agent's terminal, and the tour waits as long as that takes.
-// Pi holds at none in practice (Novadeck's own pi has no trust, sign-in or hooks-review screen);
+// Pi holds at none in practice (Nova has no trust, sign-in or hooks-review screen);
 // the words are for a screen it might show all the same.
 export const screenCoach = (screen: Extract<LeadState, { kind: "screen" }>["screen"]): Coach => ({
   click: ["terminal"],
