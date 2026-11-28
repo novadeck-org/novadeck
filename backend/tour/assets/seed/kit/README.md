@@ -44,6 +44,10 @@ stage.follow(object, { distance: 14, height: 9, lag: 0.12 })    // camera follow
   edges, tone mapping. `stage.post.bloom = 1.2`, `.vignette`, `.grain`, `.aberration`,
   `.saturation` change them; `stage.post.pulse(strength)` flashes the bloom once.
 - Lights for the look: a sun with soft shadows, a sky fill. `stage.sun` is the directional light.
+  Add your own lights at the start and keep them in the scene: adding, removing or hiding one
+  (or a group holding one) makes three.js recompile every shader, a freeze of up to a second.
+  Turn a light off with `light.intensity = 0`; to take away a pickup, hide its meshes, not the
+  group that holds its light.
 - `stage.screenToGround(x, y)` → the point on the ground (y = 0) under a screen pixel, for
   aiming and clicking; `stage.worldToScreen(vector)` → `{ x, y, visible }` in CSS pixels.
 - `stage.setLook("ember")` and `stage.setCamera("top")` switch at any time; `stage.timeScale`
