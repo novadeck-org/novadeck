@@ -7,24 +7,24 @@ import { promisify } from "node:util"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
-  bundledLauncher,
+  novaLauncher,
   cmdLauncher,
   novaShim,
   posixLauncher,
   powershellTools,
-  type BundledPi,
+  type NovaFiles,
 } from "./launcher.js"
 
 const run = promisify(execFile)
 
-// What the runner says while Novadeck's pi is switched off (backend/runner's harnesses/bundled-pi.ts).
+// What the runner says while Nova is switched off (backend/runner's harnesses/nova.ts).
 const turnOn = "Turn on Nova in Preferences > Experimental."
 
-// The fake pi prints its words, one a line, then what its environment says of Novadeck's pi.
+// The fake pi prints its words, one a line, then what its environment says of Nova.
 const fakePi = (platform: NodeJS.Platform): string =>
   platform === "win32"
-    ? '@echo off\r\necho raw=%*\r\n:next\r\nif "%~1"=="" goto env\r\necho %~1\r\nshift\r\ngoto next\r\n:env\r\necho dir=%PI_CODING_AGENT_DIR%\r\necho mark=%NOVADECK_PI%\r\necho check=%PI_SKIP_VERSION_CHECK%\r\necho base=%NOVADECK_PI_BASE_URL%\r\necho key=%NOVADECK_PI_KEY%\r\necho other=%NOVADECK_OTHER%\r\n'
-    : '#!/bin/sh\nfor a in "$@"; do echo "$a"; done\necho "dir=$PI_CODING_AGENT_DIR"\necho "mark=$NOVADECK_PI"\necho "check=$PI_SKIP_VERSION_CHECK"\necho "base=$NOVADECK_PI_BASE_URL"\necho "key=$NOVADECK_PI_KEY"\necho "other=$NOVADECK_OTHER"\n'
+    ? '@echo off\r\necho raw=%*\r\n:next\r\nif "%~1"=="" goto env\r\necho %~1\r\nshift\r\ngoto next\r\n:env\r\necho dir=%PI_CODING_AGENT_DIR%\r\necho mark=%NOVADECK_NOVA%\r\necho check=%PI_SKIP_VERSION_CHECK%\r\necho base=%NOVADECK_NOVA_BASE_URL%\r\necho key=%NOVADECK_NOVA_KEY%\r\necho other=%NOVADECK_OTHER%\r\n'
+    : '#!/bin/sh\nfor a in "$@"; do echo "$a"; done\necho "dir=$PI_CODING_AGENT_DIR"\necho "mark=$NOVADECK_NOVA"\necho "check=$PI_SKIP_VERSION_CHECK"\necho "base=$NOVADECK_NOVA_BASE_URL"\necho "key=$NOVADECK_NOVA_KEY"\necho "other=$NOVADECK_OTHER"\n'
 
 // `env` laid over `base` as Windows reads names, without case: its own `Path` would otherwise
 // stand beside a given `PATH`, and the child take either.
@@ -36,15 +36,15 @@ const over = (base: NodeJS.ProcessEnv, env: NodeJS.ProcessEnv): NodeJS.ProcessEn
   }
 }
 
-describe("Novadeck's pi launcher", () => {
+describe("Nova launcher", () => {
   let root: string
-  let pi: BundledPi
+  let pi: NovaFiles
   let launcher: string
   const windows = process.platform === "win32"
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "pi-bundled-"))
-    const program = join(root, "data", "bundled", "pi", "1.6.0-abc", windows ? "pi.cmd" : "pi")
+    root = await mkdtemp(join(tmpdir(), "nova-"))
+    const program = join(root, "data", "nova", "1.6.0-abc", windows ? "pi.cmd" : "pi")
     // A relay that answers as the runner does: refused where the folder `off` exists (switched
     // off), at once where the program is in place, else a fetch that puts it there, saying so on
     // stderr, or fails where the folder `offline` exists.
@@ -53,8 +53,8 @@ describe("Novadeck's pi launcher", () => {
     await writeFile(
       relay,
       windows
-        ? `@echo off\r\nif exist "${join(root, "off")}" (echo Novadeck couldn't get pi: ${turnOn.replace(">", "^>")} 1>&2 & exit /b 1)\r\nif exist "${join(root, "service")}" (echo NOVADECK_PI_BASE_URL=https://novadeck.dev/tour/v1& echo NOVADECK_PI_KEY=ndt_K-1& echo NOVADECK_OTHER=no)\r\nif exist "${program}" exit /b 0\r\nif exist "${join(root, "offline")}" (echo Novadeck couldn't get pi: offline 1>&2 & exit /b 1)\r\necho fetching %2 1>&2\r\nmkdir "${folder}"\r\ncopy /y "${join(root, "fake.cmd")}" "${program}" >nul\r\n`
-        : `#!/bin/sh\n[ -d '${join(root, "off")}' ] && { echo "Novadeck couldn't get pi: ${turnOn}" >&2; exit 1; }\n[ -d '${join(root, "service")}' ] && printf 'NOVADECK_PI_BASE_URL=https://novadeck.dev/tour/v1\\nNOVADECK_PI_KEY=ndt_K-1\\nNOVADECK_OTHER=no\\n'\n[ -x '${program}' ] && exit 0\n[ -d '${join(root, "offline")}' ] && { echo "Novadeck couldn't get pi: offline" >&2; exit 1; }\necho "fetching $2" >&2\nmkdir -p '${folder}'\ncp '${join(root, "fake")}' '${program}'\nchmod 755 '${program}'\n`,
+        ? `@echo off\r\nif exist "${join(root, "off")}" (echo Novadeck couldn't get pi: ${turnOn.replace(">", "^>")} 1>&2 & exit /b 1)\r\nif exist "${join(root, "service")}" (echo NOVADECK_NOVA_BASE_URL=https://novadeck.dev/nova/v1& echo NOVADECK_NOVA_KEY=ndt_K-1& echo NOVADECK_OTHER=no)\r\nif exist "${program}" exit /b 0\r\nif exist "${join(root, "offline")}" (echo Novadeck couldn't get pi: offline 1>&2 & exit /b 1)\r\necho fetching %2 1>&2\r\nmkdir "${folder}"\r\ncopy /y "${join(root, "fake.cmd")}" "${program}" >nul\r\n`
+        : `#!/bin/sh\n[ -d '${join(root, "off")}' ] && { echo "Novadeck couldn't get pi: ${turnOn}" >&2; exit 1; }\n[ -d '${join(root, "service")}' ] && printf 'NOVADECK_NOVA_BASE_URL=https://novadeck.dev/nova/v1\\nNOVADECK_NOVA_KEY=ndt_K-1\\nNOVADECK_OTHER=no\\n'\n[ -x '${program}' ] && exit 0\n[ -d '${join(root, "offline")}' ] && { echo "Novadeck couldn't get pi: offline" >&2; exit 1; }\necho "fetching $2" >&2\nmkdir -p '${folder}'\ncp '${join(root, "fake")}' '${program}'\nchmod 755 '${program}'\n`,
       { mode: 0o755 },
     )
     await writeFile(join(root, windows ? "fake.cmd" : "fake"), fakePi(process.platform), {
@@ -63,9 +63,9 @@ describe("Novadeck's pi launcher", () => {
     const extension = join(root, "shell", "plugins", "pi", "novadeck.mjs")
     await mkdir(join(extension, ".."), { recursive: true })
     await writeFile(extension, "export default () => {}\n")
-    pi = { program, home: join(root, "data", "bundled", "pi", "agent"), relay, extension }
-    const file = bundledLauncher(process.platform, pi)
-    launcher = join(root, "shell", "bundled", file.path)
+    pi = { program, home: join(root, "data", "nova", "agent"), relay, extension }
+    const file = novaLauncher(process.platform, pi)
+    launcher = join(root, "shell", "nova", file.path)
     await mkdir(join(launcher, ".."), { recursive: true })
     await writeFile(launcher, windows ? file.content.replaceAll("\n", "\r\n") : file.content, {
       mode: file.mode ?? 0o644,
@@ -93,14 +93,14 @@ describe("Novadeck's pi launcher", () => {
   it("fetches pi where it isn't in place, then starts it on its own agent folder", async () => {
     const { stdout, stderr } = await launch(["--model", "p/m", "fix it"])
 
-    expect(stderr).toContain("fetching pi")
+    expect(stderr).toContain("fetching nova")
     const said = lines(stdout)
     // Windows' own launcher adds pi's powershell tools where it finds no bash; tested below.
     const words = said.filter((line) => !line.includes("="))
     expect(words.slice(0, 2)).toEqual(["-e", pi.extension])
     expect(words.slice(-3)).toEqual(["--model", "p/m", "fix it"])
     expect(said).toContain(`dir=${pi.home}`)
-    expect(said).toContain("mark=bundled")
+    expect(said).toContain("mark=1")
     expect(said).toContain("check=1")
   })
 
@@ -110,15 +110,15 @@ describe("Novadeck's pi launcher", () => {
     const { stdout } = await launch(["go"])
 
     const said = lines(stdout)
-    expect(said).toContain("base=https://novadeck.dev/tour/v1")
+    expect(said).toContain("base=https://novadeck.dev/nova/v1")
     expect(said).toContain("key=ndt_K-1")
     expect(said).toContain("other=")
   })
 
   it("leaves the variables a terminal has where the runner gives none, as the tour's", async () => {
     const { stdout } = await launch(["go"], {
-      NOVADECK_PI_BASE_URL: "https://tour.test/v1",
-      NOVADECK_PI_KEY: "ndt_run",
+      NOVADECK_NOVA_BASE_URL: "https://tour.test/v1",
+      NOVADECK_NOVA_KEY: "ndt_run",
     })
 
     const said = lines(stdout)
@@ -148,7 +148,7 @@ describe("Novadeck's pi launcher", () => {
     expect(lines(failed?.stdout ?? "")).toEqual([])
   })
 
-  it("starts nothing while Novadeck's pi is switched off, though it is in place", async () => {
+  it("starts nothing while Nova is switched off, though it is in place", async () => {
     await launch([])
     await mkdir(join(root, "off"))
 
@@ -224,38 +224,38 @@ describe("Novadeck's pi launcher", () => {
   })
 })
 
-describe("Novadeck's pi launcher's text", () => {
-  const pi: BundledPi = {
-    program: "/data/bundled/pi/1.6.0-abc/pi/pi",
-    home: "/data/bundled/pi/agent",
+describe("Nova launcher's text", () => {
+  const pi: NovaFiles = {
+    program: "/data/nova/1.6.0-abc/pi/pi",
+    home: "/data/nova/agent",
     relay: "/data/shell/novadeck-relay",
     extension: "/data/shell/plugins/pi/novadeck.mjs",
   }
 
   it("names its paths quoted for sh, and is executable", () => {
-    const file = bundledLauncher("linux", { ...pi, home: "/home/o'neil/agent" })
-    expect(file).toMatchObject({ path: "pi", mode: 0o700 })
+    const file = novaLauncher("linux", { ...pi, home: "/home/o'neil/agent" })
+    expect(file).toMatchObject({ path: "nova", mode: 0o700 })
     expect(file.content).toContain(`PI_CODING_AGENT_DIR='/home/o'\\''neil/agent'`)
     // It asks the runner each time, which refuses while switched off, and takes the service's
     // two variables alone of what it prints.
     expect(posixLauncher(pi)).toContain(
-      `\nnovadeck_service=$('/data/shell/novadeck-relay' fetch pi) || exit 1\n`,
+      `\nnovadeck_service=$('/data/shell/novadeck-relay' fetch nova) || exit 1\n`,
     )
     expect(posixLauncher(pi)).toContain(
-      `    NOVADECK_PI_BASE_URL=*|NOVADECK_PI_KEY=*) export "$novadeck_line" ;;\n`,
+      `    NOVADECK_NOVA_BASE_URL=*|NOVADECK_NOVA_KEY=*) export "$novadeck_line" ;;\n`,
     )
   })
 
   it("on Windows takes the service's two variables alone, through a file it removes", () => {
     const cmd = cmdLauncher(pi)
-    expect(cmd).toContain('fetch pi >"%novadeck_service%"\nif errorlevel 1 goto failed\n')
-    expect(cmd).toContain('if "%~1"=="NOVADECK_PI_KEY" set "NOVADECK_PI_KEY=%~2"\n')
+    expect(cmd).toContain('fetch nova >"%novadeck_service%"\nif errorlevel 1 goto failed\n')
+    expect(cmd).toContain('if "%~1"=="NOVADECK_NOVA_KEY" set "NOVADECK_NOVA_KEY=%~2"\n')
     expect(cmd.match(/del "%novadeck_service%"/g)).toHaveLength(2)
   })
 
   it("on Windows looks for bash where pi does before giving it powershell", () => {
     const cmd = cmdLauncher(pi)
-    expect(bundledLauncher("win32", pi)).toEqual({ path: "pi.cmd", content: cmd })
+    expect(novaLauncher("win32", pi)).toEqual({ path: "nova.cmd", content: cmd })
     const order = [
       `if exist "%ProgramFiles%\\Git\\bin\\bash.exe" goto tools`,
       `if exist "%ProgramFiles(x86)%\\Git\\bin\\bash.exe" goto tools`,
@@ -276,7 +276,7 @@ describe("Novadeck's pi launcher's text", () => {
     })
     expect(cmd).toContain(`set "novadeck_program=C:\\Users\\a%%b%%\\pi.exe"`)
     // `call` reads its line twice.
-    expect(cmd).toContain(`call "C:\\Users\\a%%%%b%%%%\\relay.exe" fetch pi`)
+    expect(cmd).toContain(`call "C:\\Users\\a%%%%b%%%%\\relay.exe" fetch nova`)
   })
 })
 
@@ -353,7 +353,7 @@ describe("nova, in the shims' folder", () => {
     expect(file).toMatchObject({ path: "nova", mode: 0o700 })
     expect(file.content).toContain(`[ -f '/a b/on' ] && exec '/a b/pi' "$@"`)
     expect(file.content).toContain('grep -qi "novadeck shim for nova"')
-    expect(novaShim("win32", { launcher: "C:\\a\\pi.cmd", on: "C:\\a\\on" })).toMatchObject({
+    expect(novaShim("win32", { launcher: "C:\\a\\nova.cmd", on: "C:\\a\\on" })).toMatchObject({
       path: "nova.cmd",
     })
   })

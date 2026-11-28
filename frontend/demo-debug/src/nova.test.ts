@@ -1,12 +1,12 @@
-import { createDemoBundledPi } from "@novadeck/demo/bundled-pi"
+import { createDemoNova } from "@novadeck/demo/nova"
 
-import { bundledPiGroups } from "./bundled-pi"
+import { novaGroups } from "./nova"
 import { describe, expect, it } from "./test"
 
 describe("the Nova group", () => {
   it("puts the row in each of its states", () => {
-    const pi = createDemoBundledPi()
-    const [group] = bundledPiGroups({ bundledPi: pi })
+    const pi = createDemoNova()
+    const [group] = novaGroups({ nova: pi })
     const run = (label: string) =>
       group?.actions.find((action) => action.label === label)?.run({} as never)
     run("Failed")
@@ -21,6 +21,6 @@ describe("the Nova group", () => {
   })
 
   it("has none where the backend's isn't the demo's", () => {
-    expect(bundledPiGroups({})).toEqual([])
+    expect(novaGroups({})).toEqual([])
   })
 })

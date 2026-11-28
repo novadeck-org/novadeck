@@ -25,7 +25,7 @@ export type ClosedTerminal = {
   readonly handle: string | null
   // The program's icon; null for a plain terminal, whose last `program` stands in for it.
   readonly agent: AgentName | null
-  // Whether `agent` is Nova, Novadeck's own pi, which a row shows by that name and mark.
+  // Whether `agent` is Nova, which a row shows by that name and mark.
   readonly nova?: boolean
   readonly program: string | null
   readonly cwd: string

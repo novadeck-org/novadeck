@@ -22,11 +22,11 @@ export type TourOffer = {
   readonly consent: TourConsent | null
   // Where Pi's download stands for the tour: under way, failed, or ready to start.
   readonly agent: TourAgentNote
-  // Opens the consent and starts Pi's download in the background, so it is usually in place
-  // before the person presses Start.
+  // Opens the consent. Pi's download started as Nova was switched on, so it is usually in
+  // place before the person presses Start.
   readonly offer: () => void
   readonly start: () => void
-  // Tries Pi's download again, once it failed.
+  // Tries Pi's download again, once it failed, as switching Nova on again does.
   readonly retry: () => void
   readonly close: () => void
 }
@@ -43,45 +43,31 @@ export const useTour = (
   onStarted: (agent: AgentName, started: TourStarted) => void,
 ): TourOffer | undefined => {
   const [consent, setConsent] = useState<TourConsent | null>(null)
-  const { tour } = backend
+  const { tour, nova } = backend
   const fetched = useSyncExternalStore(
     tour?.agent.subscribe ?? never,
     () => tour?.agent.getSnapshot() ?? off,
   )
-  // Why the runner refused to download Pi at all (one that can't start it), while it hasn't
-  // started one: told as a failed download is, with Try again.
-  const [refused, setRefused] = useState<string | undefined>(undefined)
-  const agent = useMemo(
-    (): TourAgentNote =>
-      refused !== undefined && fetched.state === "off"
-        ? { step: "failed", text: refused }
-        : tourAgentNote(fetched),
-    [fetched, refused],
+  const agent = useMemo((): TourAgentNote => tourAgentNote(fetched), [fetched])
+  // Nova switched off (here, in another window or on another device) takes the tour away: an
+  // offer still open closes, as nothing would download for it; a run already starting goes on.
+  const novaOn = useSyncExternalStore(
+    nova?.enabled.subscribe ?? never,
+    () => nova?.enabled.getSnapshot() ?? false,
   )
+  if (!novaOn && consent && !consent.starting) setConsent(null)
   // As Pi's state changes, an error about starting it is dropped (see `agentChanged`).
   const [seen, setSeen] = useState(agent.step)
   if (seen !== agent.step) {
     setSeen(agent.step)
     setConsent((current) => current && agentChanged(current))
   }
-  const fetch = tour?.fetch
-  // Asking for the download: a runner that can't start it says why, which the consent shows
-  // with Try again.
-  const download = useCallback(() => {
-    setRefused(undefined)
-    fetch?.().catch((error: unknown) =>
-      setRefused(
-        error instanceof Error && error.message ? error.message : "Pi's download couldn't start.",
-      ),
-    )
-  }, [fetch])
+  // Nova switched on again tries a failed download again; one under way or in place goes on.
+  const download = useCallback(() => nova?.set(true), [nova])
   const offer = useCallback(() => {
     // One already starting stays as it is.
     setConsent((current) => (current?.starting ? current : offerTour()))
-    // Asking for the tour is the consent to download Pi: it starts now (one under way or in
-    // place changes nothing, and a failed one is tried again).
-    download()
-  }, [download])
+  }, [])
   const start = useCallback(() => {
     if (!tour || !consent || consent.starting || agent.step !== "ready") return
     setConsent(startingTour(consent))

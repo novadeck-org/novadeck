@@ -8,9 +8,9 @@ describe("the agent a new terminal expects", () => {
     expect(expectedAgent("claude --fresh", undefined)).toBe("claude")
     expect(expectedAgent("  /usr/local/bin/agy", undefined)).toBe("agy")
     expect(expectedAgent("C:\\Tools\\codex.exe --full-auto", undefined, "win32")).toBe("codex")
-    // Novadeck's own pi, by the word its launcher is started with.
-    expect(expectedAgent("novadeck-pi --model novadeck/gpt-6-luna", undefined)).toBe("pi")
-    expect(expectedAgent("novadeck-pi", undefined, "win32")).toBe("pi")
+    // Nova, by the word its launcher is started with.
+    expect(expectedAgent("novadeck-nova --model nova/gpt-6-luna", undefined)).toBe("pi")
+    expect(expectedAgent("novadeck-nova", undefined, "win32")).toBe("pi")
     expect(expectedAgent("C:\\Tools\\codex.exe --full-auto", undefined, "linux")).toBeNull()
     expect(expectedAgent("C:\\Tools\\Codex.EXE", undefined, "win32")).toBe("codex")
     expect(expectedAgent("npm run dev", undefined)).toBeNull()

@@ -14,7 +14,7 @@ export const harnesses: { readonly [agent in AgentName]: Harness } = {
   codex,
   agy,
   opencode,
-  // Nova, Novadeck's own pi, is agent pi: the adapter carries the model it runs on.
+  // Nova is agent pi: the adapter carries the model it runs on.
   pi: withNova(pi),
 }
 

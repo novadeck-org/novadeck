@@ -242,12 +242,12 @@ export class Sleepers {
     const { id, sessionId } = record.summary
     if (!this.host.resumes() || this.host.closed(id) || !harnesses[agent].launch.resume)
       return false
-    // Asleep, it couldn't be woken until its harness is connected again; Novadeck's own pi
+    // Asleep, it couldn't be woken until its harness is connected again; Nova
     // needs no connection of the person's, but its switch on.
     const transcript = record.agents[agent]?.transcript
     const claims = this.host.claims()
     if (
-      claims.own(agent, transcript)
+      claims.isNova(agent, transcript)
         ? claims.novaOff(id, agent, transcript)
         : this.host.connections?.disconnected(agent) === true
     )
@@ -392,9 +392,9 @@ export class Sleepers {
     let any = false
     for (const id of this.sessions.keys()) {
       if (this.resting(id)?.agent !== agent || this.wakes.has(id)) continue
-      // Novadeck's own pi's sessions wake without the person's connection.
+      // Nova's sessions wake without the person's connection.
       const transcript = this.row(id, this.sessions.get(id))?.agents[agent]?.transcript
-      if (this.host.claims().own(agent, transcript)) continue
+      if (this.host.claims().isNova(agent, transcript)) continue
       any = true
       this.stick(id, agent)
     }
@@ -443,7 +443,10 @@ export class Sleepers {
     const claims = this.host.claims()
     for (const [id, agent] of this.stuck) {
       const report = this.row(id, this.sessions.get(id))?.agents[agent]
-      if (!claims.own(agent, report?.transcript) || claims.novaOff(id, agent, report?.transcript))
+      if (
+        !claims.isNova(agent, report?.transcript) ||
+        claims.novaOff(id, agent, report?.transcript)
+      )
         continue
       if (report?.turn !== undefined || this.host.messaging().wakeWanted(id)) this.ask(id)
       else this.unstick(id)
@@ -609,7 +612,7 @@ export class Sleepers {
     const reported = this.reported(row, delivered)
     return savedSummaryOf(row, {
       agent: resting.agent,
-      nova: this.host.claims().own(resting.agent, row.agents[resting.agent]?.transcript),
+      nova: this.host.claims().isNova(resting.agent, row.agents[resting.agent]?.transcript),
       waking: this.wakes.has(row.id),
       reported,
       lastTurnAt: this.lastTurnAt(row, resting, reported),

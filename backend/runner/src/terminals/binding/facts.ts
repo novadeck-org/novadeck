@@ -65,8 +65,8 @@ export type BindingsHost = {
   readonly cards?: (terminalId: string) => number
   /** How many of the shipping gate's permits stand in a terminal; none without the gate. */
   readonly permits?: (terminalId: string) => number
-  /** Whether the agent's session, by its transcript, is Novadeck's own pi's (Nova). */
-  readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
+  /** Whether the agent's session, by its transcript, is Nova's. */
+  readonly isNova?: (agent: AgentName, transcript: string | undefined) => boolean
   /** Follows the terminal's root session after a report's facts; true when its work changed. */
   readonly trackRoot: (
     record: Record,
@@ -327,7 +327,7 @@ export class Bindings {
     this.watch(record, transcript)
     this.settle(record, transcript)
     // Nova's is told from the person's pi's by it, which a client shows by its name.
-    if (this.host.ownPi?.(binding.agent, transcript) === true) this.publishAgent(record, false)
+    if (this.host.isNova?.(binding.agent, transcript) === true) this.publishAgent(record, false)
     // No detail snapshot says so (it carries no transcript): a chat that waits on it asks
     // again by its own backoff, and at the next snapshot.
   }
@@ -744,7 +744,7 @@ export class Bindings {
     const nova =
       bound !== null &&
       bound !== undefined &&
-      this.host.ownPi?.(bound.binding.agent, record.transcript ?? undefined) === true
+      this.host.isNova?.(bound.binding.agent, record.transcript ?? undefined) === true
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
     // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended

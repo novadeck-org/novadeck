@@ -79,7 +79,6 @@ const setup = (items: InboxEntry[] = [], pings = true) => {
         screenReader: "auto",
         chatView: false,
         agentAvatars: false,
-        onboardingTour: false,
         keepAwakeOffered: false,
         keepAwake: true,
         appScale: 100,

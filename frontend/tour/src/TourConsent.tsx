@@ -8,7 +8,7 @@ import type { TourAgentNote, TourConsent } from "./consent"
 
 export const tourHeading = "Take the tour"
 
-// What the person agrees to: Novadeck's own Pi agents run, on a model Novadeck pays for, which is
+// What the person agrees to: Nova agents run, on a model Novadeck pays for, which is
 // where what they read and write goes, and Pi is downloaded once.
 const facts = [
   {
@@ -31,9 +31,9 @@ const facts = [
 ] as const
 
 /**
- * Asks the person before the tour runs: Novadeck's own Pi agents on Novadeck's model, and where
- * their words go. There is no agent to pick. Pi downloads in the background from the moment the
- * consent opens; Start waits for it, and a download that failed shows why, with a button to try
+ * Asks the person before the tour runs: Nova agents on Novadeck's model, and where
+ * their words go. There is no agent to pick. Pi downloads in the background from the moment Nova
+ * is switched on; Start waits for it, and a download that failed shows why, with a button to try
  * again. Starting waits for the backend to ready the run; one it refuses (its service has no free
  * run to give) shows why and stays open.
  */

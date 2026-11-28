@@ -36,7 +36,6 @@ import type { DemoAgentLink } from "./agents/link"
 import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
-import { createDemoBundledPi } from "./bundled-pi"
 import { withFeedback } from "./feedback"
 import { createDemoFiles, withFiles } from "./files"
 import { createDemoForges } from "./forges"
@@ -47,6 +46,7 @@ import { demoInboxEntries, demoEntries, demoPlanStates } from "./inbox/fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox/transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { withMoves } from "./moves"
+import { createDemoNova } from "./nova"
 import {
   createMockTerminal,
   defaultName,
@@ -194,7 +194,7 @@ export const demoBackend = (
       enabled: shippingGate,
       set: (enabled) => shippingGate.update(() => enabled),
     },
-    bundledPi: createDemoBundledPi(),
+    nova: createDemoNova(),
     murmurSwitch: { enabled: murmurSwitch, set: (enabled) => murmurSwitch.update(() => enabled) },
     agentMode: { mode: agentMode, set: (mode) => agentMode.update(() => mode) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
@@ -884,10 +884,10 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ),
     ),
   )
-  // `&tourPi=download` has Pi, the tour's agent, not in place as the tour is asked for (a download
-  // plays), `&tourPi=fails` has the first download fail, its retry playing it; else it is in
-  // place. `&tourStart=fails` makes its first start fail, as a folder of the person's own does, and
-  // `&tourStart=tickets` as the tour's service with no free run left does. Its agent is played as a runner
+  // `&tourPi=download` has Pi, the tour's agent, not in place as the demo opens (a download plays,
+  // as Nova switched on does), `&tourPi=fails` has the download fail, its retry playing it; else it
+  // is in place. `&tourStart=fails` makes its first start fail, as a folder of the person's own
+  // does, and `&tourStart=tickets` as Nova's model service with no free ticket left does. Its agent is played as a runner
   // would report one: `&tourScreen=startup|sign-in|hooks` holds it at that screen until it's
   // answered (`&tourScreenMs=<n>` answers after n ms), `&tourAgent=quiet` has it never describe
   // itself until nudged, `&tourAgent=permission` has it ask the person's permission first, and

@@ -9,7 +9,7 @@ describe("Nova's settings", () => {
     expect(read(seededSettings(undefined))).toEqual(novaDefaults)
     expect(read(seededSettings(""))).toEqual(novaDefaults)
     expect(novaDefaults).toEqual({
-      defaultProvider: "novadeck",
+      defaultProvider: "nova",
       defaultModel: "gpt-6-luna",
       defaultThinkingLevel: "medium",
     })
@@ -20,7 +20,7 @@ describe("Nova's settings", () => {
     expect(read(seededSettings(text))).toEqual({
       lastChangelogVersion: "1.6.0",
       defaultThinkingLevel: "high",
-      defaultProvider: "novadeck",
+      defaultProvider: "nova",
       defaultModel: "gpt-6-luna",
     })
   })

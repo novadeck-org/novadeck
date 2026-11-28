@@ -31,8 +31,14 @@ describe("The tour's consent", () => {
   it("says why it couldn't start, starting over clean", () => {
     const starting = startingTour(offerTour())
     expect(starting).toEqual({ starting: true })
-    const failed = tourFailed(starting, new Error("You've taken today's free tours."))
-    expect(failed).toEqual({ starting: false, error: "You've taken today's free tours." })
+    const failed = tourFailed(
+      starting,
+      new Error("You've used today's free Nova tickets. Try again tomorrow."),
+    )
+    expect(failed).toEqual({
+      starting: false,
+      error: "You've used today's free Nova tickets. Try again tomorrow.",
+    })
     expect(startingTour(failed)).not.toHaveProperty("error")
     expect(tourFailed(starting, "nope").error).toBe("The tour couldn't start.")
   })

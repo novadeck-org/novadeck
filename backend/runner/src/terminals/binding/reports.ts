@@ -2,7 +2,7 @@ import { firedFacts } from "@novadeck/harness-core/decode"
 import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
 import { silentFor } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
-import { fromOwnPi } from "@novadeck/harness-nova/launcher"
+import { fromNova } from "@novadeck/harness-nova/launcher"
 import type { AgentName } from "@novadeck/protocol"
 import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/terminal/pty"
 
@@ -350,8 +350,8 @@ export class Reports {
     const [foreground, connected, reused] = observes
       ? await Promise.all([
           shellInForeground(child.pid),
-          // Novadeck's own pi counts as connected whether or not the person's is.
-          (report.agent === "pi" && fromOwnPi(report.payload)) || this.host.connected(report.agent),
+          // Nova counts as connected whether or not the person's is.
+          (report.agent === "pi" && fromNova(report.payload)) || this.host.connected(report.agent),
           this.reusedBinding(record, events, deadline),
         ])
       : [undefined, true, undefined]
@@ -386,7 +386,7 @@ export class Reports {
           record,
           report.agent,
           undefined,
-          report.agent === "pi" && fromOwnPi(report.payload),
+          report.agent === "pi" && fromNova(report.payload),
         )
       if (record.terminal.pty === child && shown.startedAt > (record.promptedAt ?? 0)) {
         if (trust === "counts") this.host.shown().showPrompt(record, shown)

@@ -34,7 +34,6 @@ export const personPreferences = {
   enabledViews: "enabled-views",
   chatView: "chat-view",
   agentAvatars: "agent-avatars",
-  onboardingTour: "onboarding-tour",
 } as const satisfies Partial<Record<keyof PreferencesValue, string>>
 
 // Saved preferences as the app takes them: each it can read, the default for the rest.
@@ -55,7 +54,6 @@ export const preferencesFrom = (
     screenReader: "auto",
     chatView: false,
     agentAvatars: false,
-    onboardingTour: false,
     keepAwakeOffered: false,
     keepAwake: true,
     appScale: 100,
@@ -85,8 +83,6 @@ export const preferencesFrom = (
     chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
     agentAvatars:
       typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
-    onboardingTour:
-      typeof saved?.onboardingTour === "boolean" ? saved.onboardingTour : defaults.onboardingTour,
     keepAwakeOffered:
       typeof saved?.keepAwakeOffered === "boolean"
         ? saved.keepAwakeOffered

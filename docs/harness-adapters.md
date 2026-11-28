@@ -525,7 +525,7 @@ the runner, which already sees the terminal's output. `decode` performs no I/O,
 and ignores events it does not use by returning none.
 
 The hook names the harness process through the variable its adapter's `pidVariable`
-names, where it sets one (`CLAUDE_PID` for Claude Code; `NOVADECK_PI_PID`, which Novadeck's pi
+names, where it sets one (`CLAUDE_PID` for Claude Code; `NOVADECK_PI_PID`, which Nova
 extension gives its hooks, as pi runs as `node.exe` on Windows), and otherwise through the
 nearest ancestor process with the harness's own name (`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
 

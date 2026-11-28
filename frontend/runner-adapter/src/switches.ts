@@ -1,5 +1,5 @@
 import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
-import type { AgentConnection, AgentMode, Backend, BundledPiFetchState } from "@novadeck/core/port"
+import type { AgentConnection, AgentMode, Backend, NovaFetchState } from "@novadeck/core/port"
 import { createStore, type Store } from "@novadeck/core/store"
 import { newer, type AgentIntegration, type RunnerSettingsState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
@@ -30,11 +30,11 @@ const knownForges = <T extends { readonly forge: string }>(
 ): (T & { readonly forge: ForgeName })[] =>
   list.filter((each): each is T & { readonly forge: ForgeName } => each.forge !== newer)
 
-// Where the download of Novadeck's own pi stands, as this UI reads it: a state a newer runner
+// Where the download of Nova stands, as this UI reads it: a state a newer runner
 // added, or none, reads as off.
-const knownFetch = (fetch: RunnerSettingsState["bundledPiFetch"]): BundledPiFetchState => {
+const knownFetch = (fetch: RunnerSettingsState["novaFetch"]): NovaFetchState => {
   const states: readonly string[] = ["off", "downloading", "ready", "failed"]
-  return fetch && states.includes(fetch.state) ? (fetch as BundledPiFetchState) : { state: "off" }
+  return fetch && states.includes(fetch.state) ? (fetch as NovaFetchState) : { state: "off" }
 }
 
 // The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
@@ -65,8 +65,8 @@ export const runnerSwitches = (
     agentMode: howAgentsWork,
     shippingGate: gated,
     worktrees: allowed,
-    bundledPi: piOn,
-    bundledPiFetch: piFetch,
+    nova: novaOn,
+    novaFetch: piFetch,
     murmur: murmurOn,
     keepMain: keepOn,
   }: Pick<
@@ -81,8 +81,8 @@ export const runnerSwitches = (
     | "agentMode"
     | "shippingGate"
     | "worktrees"
-    | "bundledPi"
-    | "bundledPiFetch"
+    | "nova"
+    | "novaFetch"
     | "murmur"
     | "keepMain"
   >,
@@ -95,7 +95,7 @@ export const runnerSwitches = (
   | "agentMode"
   | "shippingGate"
   | "worktrees"
-  | "bundledPi"
+  | "nova"
   | "murmurSwitch"
   | "keepMain"
   | "agents"
@@ -114,10 +114,10 @@ export const runnerSwitches = (
   readonly followAgents: () => void
   readonly stopAgents: () => void
   /**
-   * Where the download of Novadeck's own pi stands, as the runner tells it, which the tour's
+   * Where the download of Nova stands, as the runner tells it, which the tour's
    * agent is; it follows the runner's settings whether or not the Experimental switch is on.
    */
-  readonly piDownload: Store<BundledPiFetchState>
+  readonly novaDownload: Store<NovaFetchState>
 } => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
@@ -125,8 +125,8 @@ export const runnerSwitches = (
   const agentMode = createStore<AgentMode>(howAgentsWork ?? "herd")
   const shippingGate = createStore(gated ?? false)
   const worktrees = createStore(allowed ?? false)
-  const bundledPi = createStore(piOn ?? false)
-  const bundledPiFetch = createStore(knownFetch(piFetch))
+  const nova = createStore(novaOn ?? false)
+  const novaFetch = createStore(knownFetch(piFetch))
   const murmurSwitch = createStore(murmurOn ?? false)
   const keepMain = createStore(keepOn ?? true)
   const agents = createStore<readonly AgentConnection[]>(
@@ -259,9 +259,9 @@ export const runnerSwitches = (
     takes("agentMode", howAgentsWork, agentMode, settings.agentMode)
     takes("shippingGate", gated, shippingGate, settings.shippingGate)
     takes("worktrees", allowed, worktrees, settings.worktrees)
-    takes("bundledPi", piOn, bundledPi, settings.bundledPi === true)
+    takes("nova", novaOn, nova, settings.nova === true)
     // Where its download stands is the runner's alone to tell, whatever this client switched.
-    bundledPiFetch.update(() => knownFetch(settings.bundledPiFetch))
+    novaFetch.update(() => knownFetch(settings.novaFetch))
     takes("murmur", murmurOn, murmurSwitch, settings.murmur === true)
     takes("keepMain", keepOn, keepMain, settings.keepMain !== false)
     // Welcomed on another device: the first-run choice is made.
@@ -271,7 +271,7 @@ export const runnerSwitches = (
     take,
     followAgents,
     stopAgents,
-    piDownload: bundledPiFetch,
+    novaDownload: novaFetch,
     ...(kept !== undefined
       ? {
           transcripts: {
@@ -366,18 +366,18 @@ export const runnerSwitches = (
           },
         }
       : {}),
-    ...(piOn !== undefined
+    ...(novaOn !== undefined
       ? {
-          bundledPi: {
-            enabled: bundledPi,
-            fetch: bundledPiFetch,
+          nova: {
+            enabled: nova,
+            fetch: novaFetch,
             set: (enabled) => {
-              const before = bundledPi.getSnapshot()
-              bundledPi.update(() => enabled)
+              const before = nova.getSnapshot()
+              nova.update(() => enabled)
               // Unsaved, the switch shows what the runner still does.
-              void track(
-                pendingWhile("bundledPi", runner.settings.set({ bundledPi: enabled })),
-              ).catch(() => bundledPi.update(() => before))
+              void track(pendingWhile("nova", runner.settings.set({ nova: enabled }))).catch(() =>
+                nova.update(() => before),
+              )
             },
           },
         }

@@ -19,7 +19,7 @@ import { agentLabel, agentLabelOf, clock, holdOf, isNotice, type Message } from 
  * its turns ended; and, for a plain shell, what runs there.
  */
 export type Whereabouts = {
-  /** Whether its agent is Nova, Novadeck's own pi, as its summary says. */
+  /** Whether its agent is Nova, as its summary says. */
   readonly nova?: boolean
   readonly title: string | null
   readonly summary: string | null
@@ -177,7 +177,7 @@ export type Peer = {
   readonly terminalId: string
   readonly handle: string
   readonly agent: AgentName | null
-  /** Its agent is Nova, Novadeck's own pi, which its lines call by that name. */
+  /** Its agent is Nova, which its lines call by that name. */
   readonly nova?: true
   /** The agent it was opened to run, which messages may already be sent to, before it binds. */
   readonly expecting: AgentName | null

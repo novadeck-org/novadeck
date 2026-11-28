@@ -17,7 +17,7 @@ const agentIcons: ReadonlyMap<string, LucideIcon> = new Map([
   ["pi", PiIcon],
 ])
 
-// The mark of the agent a program is, none for any other program. Nova, Novadeck's own pi, has
+// The mark of the agent a program is, none for any other program. Nova has
 // Novadeck's mark where the runner says (`nova`); the person's pi keeps Pi's.
 export const agentIcon = (program: string, nova?: boolean): LucideIcon | undefined =>
   isNova(program, nova) ? NovaIcon : agentIcons.get(program)

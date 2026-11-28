@@ -1,7 +1,7 @@
 # @novadeck/tour
 
 Novadeck's onboarding tour: the consent that offers it, starting a run (the tour's folder opened as
-a project of its own, with Novadeck's own Pi starting there on a model Novadeck pays for), the driver that follows the run by
+a project of its own, with Nova starting there on a model Novadeck pays for), the driver that follows the run by
 the workspace's signals and plays its steps, and what it draws over the workspace while it runs
 (its stage, in four acts, and the closing card).
 
@@ -11,7 +11,7 @@ the workspace's signals and plays its steps, and what it draws over the workspac
   what it needs once, at `TourProvider`, as a `TourHost` (`src/tour-host.ts`): the backend's tour, the
   workspace, and the commands that move the view as the person's would. `scripts/workspace/graph.test.ts` holds it off the UI, the chat, the items package, every
   backend and every harness.
-- **The tour runs Novadeck's own Pi alone, and offers no choice of agent.** Its consent
+- **The tour runs Nova alone, and offers no choice of agent.** Its consent
   (`consent.ts`, `TourConsent.tsx`) says what runs and where the agents' words go, and asks the
   backend to download Pi as it opens (`Tour.fetch`): it shows how far the download is, and a
   failed one's reason with Try again; Start waits for Pi to be in place. Nothing is installed or

@@ -569,11 +569,11 @@ describe("workspace metadata API", () => {
     const app = await fixture(resources)
     const { client } = await app.connect()
     const settings = await client.settings.get()
-    expect(settings).not.toHaveProperty("bundledPi")
-    expect(settings).not.toHaveProperty("bundledPiFetch")
+    expect(settings).not.toHaveProperty("nova")
+    expect(settings).not.toHaveProperty("novaFetch")
   })
 
-  it("starts and stops Novadeck's own pi's fetch with its switch, telling where it stands", async ({
+  it("starts and stops Nova's fetch with its switch, telling where it stands", async ({
     resources,
   }) => {
     // Archives from an empty folder: the fetch fails at once, as a release that can't be had.
@@ -583,78 +583,38 @@ describe("workspace metadata API", () => {
     resources.defer(() =>
       rm(empty, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }),
     )
-    const before = process.env.NOVADECK_BUNDLED_PI_SOURCE
-    process.env.NOVADECK_BUNDLED_PI_SOURCE = empty
+    const before = process.env.NOVADECK_NOVA_SOURCE
+    process.env.NOVADECK_NOVA_SOURCE = empty
     resources.defer(() => {
-      if (before === undefined) delete process.env.NOVADECK_BUNDLED_PI_SOURCE
-      else process.env.NOVADECK_BUNDLED_PI_SOURCE = before
+      if (before === undefined) delete process.env.NOVADECK_NOVA_SOURCE
+      else process.env.NOVADECK_NOVA_SOURCE = before
     })
     const app = await fixture(resources, { shell: join(empty, "shell") })
     const { client } = await app.connect()
     expect(await client.settings.get()).toMatchObject({
-      bundledPi: false,
-      bundledPiFetch: { state: "off" },
+      nova: false,
+      novaFetch: { state: "off" },
     })
     const settings = await client.settings.watch()
     await settings.next()
 
-    await client.settings.set({ bundledPi: true })
+    await client.settings.set({ nova: true })
     // The changes in turn, until the fetch stands as `state`.
     const fetchOf = async (state: string) => {
       for (;;) {
         // eslint-disable-next-line no-await-in-loop -- Each change in turn, until it stands so.
         const { value } = await settings.next()
-        const fetch = (value as { bundledPiFetch?: { state: string } }).bundledPiFetch
+        const fetch = (value as { novaFetch?: { state: string } }).novaFetch
         if (fetch?.state === state) return { value, fetch }
       }
     }
     const failed = await fetchOf("failed")
-    expect(failed.value).toMatchObject({ bundledPi: true })
+    expect(failed.value).toMatchObject({ nova: true })
     expect(failed.fetch).toMatchObject({ state: "failed", error: expect.any(String) })
 
-    await client.settings.set({ bundledPi: false })
-    expect((await fetchOf("off")).value).toMatchObject({ bundledPi: false })
+    await client.settings.set({ nova: false })
+    expect((await fetchOf("off")).value).toMatchObject({ nova: false })
     await settings.return?.(undefined)
-  })
-
-  it("starts Novadeck's own pi's fetch for the tour while its switch is off, telling where it stands", async ({
-    resources,
-  }) => {
-    // Archives from an empty folder: the fetch fails at once, as a release that can't be had.
-    const empty = await mkdtemp(join(tmpdir(), "novadeck-no-release-"))
-    // On Windows the runner may still be rewriting its shell files as it closes: removal waits.
-    resources.defer(() =>
-      rm(empty, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }),
-    )
-    const before = process.env.NOVADECK_BUNDLED_PI_SOURCE
-    process.env.NOVADECK_BUNDLED_PI_SOURCE = empty
-    resources.defer(() => {
-      if (before === undefined) delete process.env.NOVADECK_BUNDLED_PI_SOURCE
-      else process.env.NOVADECK_BUNDLED_PI_SOURCE = before
-    })
-    const app = await fixture(resources, { shell: join(empty, "shell") })
-    const { client } = await app.connect()
-    const settings = await client.settings.watch()
-    expect((await settings.next()).value).toMatchObject({
-      bundledPi: false,
-      bundledPiFetch: { state: "off" },
-    })
-    await client.tour.fetch()
-    for (;;) {
-      // eslint-disable-next-line no-await-in-loop -- Each change in turn, until it failed.
-      const { value } = await settings.next()
-      const fetch = (value as { bundledPiFetch?: { state: string } }).bundledPiFetch
-      if (fetch?.state === "failed") {
-        // The switch stays off; the tour's download says where it stands all the same.
-        expect(value).toMatchObject({ bundledPi: false })
-        break
-      }
-    }
-    await settings.return?.(undefined)
-    // A runner without shell files can't start Novadeck's pi: the tour's ask is refused.
-    const bare = await fixture(resources)
-    const other = await bare.connect()
-    await expect(other.client.tour.fetch()).rejects.toMatchObject({ code: "CONFLICT" })
   })
 
   it("reports Murmur's Experimental switch, off until turned on", async ({ resources }) => {

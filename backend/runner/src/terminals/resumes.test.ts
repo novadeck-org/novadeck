@@ -157,8 +157,8 @@ describe("the session an agent asks to resume in a new terminal", () => {
     })
   })
 
-  it("resumes Novadeck's own pi's session on its own word, with no connection of the person's", () => {
-    const own = "/data/bundled/pi/agent/sessions/--tour--/2026_s-1.jsonl"
+  it("resumes Nova's session on its own word, with no connection of the person's", () => {
+    const own = "/data/nova/agent/sessions/--tour--/2026_s-1.jsonl"
     const mine = new Claims({
       boundElsewhere: () => false,
       nova: {
@@ -169,11 +169,11 @@ describe("the session an agent asks to resume in a new terminal", () => {
       },
     })
     expect(
-      mine.check("t1", "pi", "s-1", false, undefined, ["--model", "novadeck/gpt-6-luna"], own),
+      mine.check("t1", "pi", "s-1", false, undefined, ["--model", "nova/gpt-6-luna"], own),
     ).toEqual({
       ok: true,
       // pi's session keeps its own model, which a resume doesn't name again.
-      argv: ["novadeck-pi", "--session", own],
+      argv: ["novadeck-nova", "--session", own],
       key: "pi:s-1",
     })
     // The person's own pi's session is theirs, and needs their connection.

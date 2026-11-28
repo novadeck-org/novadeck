@@ -36,7 +36,7 @@ export const summaryOf = (record: {
 /** What a saved terminal says of its sleeping agent, if one rests there (see `Sleepers`). */
 export type Resting = {
   readonly agent: AgentName
-  /** Whether that agent is Nova, Novadeck's own pi. */
+  /** Whether that agent is Nova. */
   readonly nova: boolean
   /** Whether its wake is wanted already: a `create` is coming, so it is not asleep. */
   readonly waking: boolean

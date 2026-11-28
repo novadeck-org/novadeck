@@ -31,7 +31,7 @@ export const closedTerminal = z.strictObject({
   summary: z.string().max(historyLimits.summary).nullable(),
   handle: handle.nullable(),
   agent: agentNameRead.nullable(),
-  // True when `agent` is Nova, Novadeck's own pi, which a client shows as Nova. Absent otherwise.
+  // True when `agent` is Nova, which a client shows as Nova. Absent otherwise.
   nova: z.boolean().optional(),
   program: z.string().max(historyLimits.program).nullable(),
   cwd: directory,

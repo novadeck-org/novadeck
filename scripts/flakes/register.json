@@ -715,12 +715,12 @@
     {
       "id": "harness-pi-bundled-powershell-windows",
       "jobs": ["^Test \\(Windows(?:, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "test": "src/launcher.test.ts > Novadeck's pi launcher > ",
+      "test": "src/launcher.test.ts > Nova launcher > ",
       "signature": "Test timed out in \\d+ms|AssertionError: expected false to be true",
       "status": "fixed",
       "cause": "Its file is harnesses/nova's launcher.test.ts since #1307 (pi's bundled.test.ts before). One test made seven `cmd`/relay/`where` launches in a row, which take 1 to 5 s each on a loaded Windows runner, so it ran past the 20 s limit (runs 45883213819 and nightly 45885955229). Split into four tests of one or two launches each, assertions unchanged. The all-tries failure at line 180 (run 45722060685) ran a pull request commit from before #1288's `where` check skips System32 and WindowsApps.",
       "seen": [
-        "feat/tour-own-pi run 45722060685 (Windows 1/3), failed all tries",
+        "feat/tour-nova run 45722060685 (Windows 1/3), failed all tries",
         "refactor/tour-package run 45883213819 (Windows 1/3), retried and passed",
         "main's nightly run 45885955229 (Windows 1/3), retried and passed"
       ]
@@ -733,7 +733,7 @@
       "status": "fixed",
       "cause": "The tests' stand-in hook launcher appended its report before it took the answer a test queued, so a test that went on at the report queued its next answer for the report before (2 replies of 3), or ended and removed the folder under a hook still writing (ENOTEMPTY). It now takes the answer first and reports last, and the test that asserted nothing was sent waits for each report.",
       "seen": [
-        "feat/bundled-pi run 45586937307 (Linux 1/3), ENOTEMPTY",
+        "feat/nova run 45586937307 (Linux 1/3), ENOTEMPTY",
         "feat/worktrees-stable run 45791672717 (macOS), length 2"
       ]
     },
@@ -814,7 +814,7 @@
       "cause": "A product bug in Novadeck's opencode plugin: on a new session it read opencode's server (backfill) before reporting SessionStart, while the prompt's own hook went straight out, so on a loaded Windows runner the prompt's UserPromptSubmit reached the runner while the terminal had no bound agent (3 s late in run 45722060140, never in others). A fresh session now binds at once, and a prompt waits for its session's bind, whose backfill read is capped at 2 s.",
       "seen": [
         "main run 45693565400 (opencode Windows 1/2), chat",
-        "feat/tour-own-pi run 45722060140 (OpenCode Windows 1/2), chat",
+        "feat/tour-nova run 45722060140 (OpenCode Windows 1/2), chat",
         "feat/agy-1.5.17 run 45600155064 (opencode Windows 3/3), answers",
         "fix/agy-stop-before-close run 45704231487 (Mixed Windows), team.mixed"
       ]
@@ -830,7 +830,7 @@
       "signature": "Timed out after \\d+ ms waiting for moth to show Describe this terminal",
       "status": "fixed",
       "cause": "Codex draws its composer under \"Resuming session…\" and drops keys typed there; the test's prompt check passed on the composer and typed too early (the trace shows the keys typed, then lost). Scenarios now wait for a harness's loading line to go before typing.",
-      "seen": ["feat/bundled-pi run 45623992951 (Codex Windows 1/2), retried and passed"]
+      "seen": ["feat/nova run 45623992951 (Codex Windows 1/2), retried and passed"]
     },
     {
       "id": "e2e-pi-macos-restart-before-sample",
