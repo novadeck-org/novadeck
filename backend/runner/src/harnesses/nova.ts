@@ -1,24 +1,24 @@
 // Nova's download, in a runner: the pinned pi of @novadeck/harness-nova (its `pin.ts`), fetched
 // once into Novadeck's data folder, checked against its pinned checksums, behind its
-// Experimental switch, and for the tour whatever the switch says.
+// Experimental switch.
 import { randomUUID } from "node:crypto"
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { turnOnLine } from "@novadeck/harness-nova/launcher"
+import { novaCommand, turnOnLine } from "@novadeck/harness-nova/launcher"
 import {
   buildFolder,
   buildFor,
-  bundledPiFolder,
-  bundledPiHome,
-  bundledPiProgram,
-  ownPiSession,
+  novaFolder,
+  novaHome,
+  novaBinary,
+  novaSession,
   pinnedPi,
   type PiBuild,
   type PinnedPi,
 } from "@novadeck/harness-nova/pin"
 import { seededSettings, settingsFile } from "@novadeck/harness-nova/settings"
-import type { AgentName, BundledPiFetch } from "@novadeck/protocol"
+import type { AgentName, NovaFetch } from "@novadeck/protocol"
 
 import { download, DownloadError, locate } from "../engines/download.js"
 import { extract } from "../engines/unpack.js"
@@ -39,14 +39,14 @@ export const progressLine = (version: string, received: number, size: number): s
 export type FetchOptions = {
   /** Novadeck's data folder. */
   readonly data: string
-  /** Whether the person turned Novadeck's pi on (Preferences > Experimental): off, it is refused. */
+  /** Whether the person turned Nova on (Preferences > Experimental): off, it is refused. */
   readonly enabled: boolean
   readonly platform?: NodeJS.Platform
   readonly arch?: string
   readonly pinned?: PinnedPi
   /**
    * Where the archives are, in place of the release: a folder or an https URL ending in `/`, as
-   * tests and builds with a copy of their own name with `NOVADECK_BUNDLED_PI_SOURCE`.
+   * tests and builds with a copy of their own name with `NOVADECK_NOVA_SOURCE`.
    */
   readonly source?: string | undefined
   /** Where the licence is, in place of its URL. */
@@ -151,7 +151,7 @@ const underway = new Map<
 >()
 
 /**
- * Novadeck's pi, downloaded once: its program's path, after fetching the pinned build for this
+ * Nova, downloaded once: its program's path, after fetching the pinned build for this
  * system where it isn't in place yet. The licence, then the archive, are checked against their
  * pinned checksums; a download that fails, stalls or comes out wrong leaves nothing, and the
  * next launch fetches again. Builds of other pinned versions are removed once this one is in
@@ -159,7 +159,7 @@ const underway = new Map<
  * stays. Launches waiting at once share one fetch, and each hears its progress from then on. A
  * system pi publishes no build for is refused. The tour can call it ahead of a launch.
  */
-export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
+export const fetchNova = (options: FetchOptions): Promise<string> => {
   const {
     data,
     platform = process.platform,
@@ -173,7 +173,7 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
     return Promise.reject(
       new DownloadError(`Pi has no build for this system (${platform}-${arch}).`),
     )
-  const program = bundledPiProgram(data, build, pinned.version)
+  const program = novaBinary(data, build, pinned.version)
   const running = underway.get(program)
   if (running) {
     progress(`Waiting for Pi ${pinned.version}, which is downloading`)
@@ -186,7 +186,7 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
   }
   const work = (async () => {
     if (await exists(program)) return program
-    const folder = bundledPiFolder(data)
+    const folder = novaFolder(data)
     const downloads = join(folder, "downloads")
     const archive = join(downloads, build.file)
     const licence = join(downloads, `LICENSE-${pinned.version}`)
@@ -243,19 +243,19 @@ export const fetchBundledPi = (options: FetchOptions): Promise<string> => {
 }
 
 /**
- * Novadeck's own pi in a runner, behind its Experimental switch (settings' `bundledPi`): on, it
+ * Nova in a runner, behind its Experimental switch (settings' `nova`): on, it
  * is fetched in the background at once, and again as the runner starts while it isn't in place;
  * off, a fetch under way stops, nothing more fetches or starts, and a copy in place is kept.
  * `state` is where the fetch stands, for Preferences' row, each change told to those who `follow`
  * it. `fetch` is the runner's answer to a launcher (`ReportHandlers.fetch`), and what the tour
  * calls ahead of a launch: every fetch at a time is one run, which each caller hears. Archives come
- * from the release, or from where `NOVADECK_BUNDLED_PI_SOURCE` and `NOVADECK_BUNDLED_PI_LICENCE`
+ * from the release, or from where `NOVADECK_NOVA_SOURCE` and `NOVADECK_NOVA_LICENCE`
  * say, as a test or a build with a copy of its own names them. Any process of the person's can
  * reach the runner's endpoint, which is theirs alone, so a launcher's terminal isn't checked: all
  * it can ask is the pinned, checked download.
  */
-export class BundledPi {
-  private current: BundledPiFetch = { state: "off" }
+export class Nova {
+  private current: NovaFetch = { state: "off" }
   // Who hears each change of the state.
   private readonly hearing = new Set<() => void>()
   // The fetch under way, which every caller shares, and how to stop it.
@@ -268,8 +268,6 @@ export class BundledPi {
     | undefined
   // A run stopped and not yet settled, which the next waits for, as its files are still going.
   private settling: Promise<void> = Promise.resolve()
-  // Whether the tour asked for it (`want`), which the switch going off doesn't undo.
-  private wanted = false
   // Who hears each time the switch is set (`followSwitch`), whatever the state does.
   private readonly switching = new Set<() => void>()
   // The changes of the file `nova` reads, one after another (`mark`).
@@ -282,22 +280,16 @@ export class BundledPi {
       /** Whether the switch is on, read live. */
       readonly enabled: () => boolean
       /**
-       * Whether the terminal's launcher may start it whatever the switch says: one of the tour's,
-       * which the person asked for (`want`). None but the switch's where omitted.
-       */
-      readonly allows?: (terminalId: string) => boolean
-      /**
-       * The variables a launcher's Nova in `terminalId` is given: its model service's, a ticket of
-       * its own, for one started by hand; none for a terminal that has them already (the tour's).
-       * A line said through `progress` tells why where there are none to give. None where omitted.
+       * The variables a launcher's Nova is given: its model service's, with the ticket the
+       * runner's Novas share. A line said through `progress` tells why where there are none to
+       * give. None where omitted.
        */
       readonly service?: (
-        terminalId: string,
         progress: FetchProgress,
       ) => Promise<Readonly<Record<string, string>> | undefined>
       /**
        * The file kept while the switch is on, which `nova` reads to start Nova (the shell
-       * folder's `bundled/on`); none kept where omitted.
+       * folder's `nova/on`); none kept where omitted.
        */
       readonly on?: string
       readonly env?: NodeJS.ProcessEnv
@@ -307,17 +299,14 @@ export class BundledPi {
     },
   ) {}
 
-  /**
-   * Calls `listener` each time the switch is set, on or off, which the state doesn't always say
-   * (it stands while the tour wants it); the returned function stops it.
-   */
+  /** Calls `listener` each time the switch is set, on or off; the returned function stops it. */
   followSwitch(listener: () => void): () => void {
     this.switching.add(listener)
     return () => this.switching.delete(listener)
   }
 
   /** Where the fetch stands. */
-  state(): BundledPiFetch {
+  state(): NovaFetch {
     return this.current
   }
 
@@ -335,8 +324,6 @@ export class BundledPi {
   switched(): void {
     this.mark()
     for (const listener of this.switching) listener()
-    // The tour's download goes on, and its state stands, whatever the switch.
-    if (this.wanted) return void this.ensure().catch(() => {})
     if (!this.host.enabled()) {
       const { run } = this
       if (run) {
@@ -353,47 +340,32 @@ export class BundledPi {
   }
 
   /**
-   * Whether `agent`'s session, by its transcript, is this pi's (`ownPiSession`): it resumes on
-   * Novadeck's own pi, with no connection of the person's.
+   * Whether `agent`'s session, by its transcript, is this pi's (`novaSession`): it resumes on
+   * Nova, with no connection of the person's.
    */
   owns(agent: AgentName, transcript: string | undefined): boolean {
-    return agent === "pi" && ownPiSession(transcript, this.host.data, this.host.platform)
+    return agent === "pi" && novaSession(transcript, this.host.data, this.host.platform)
   }
 
   /**
-   * Fetches Novadeck's `name` (`pi`, Nova) for a launcher in `terminalId`, telling `progress`;
-   * refused while switched off, but for a terminal the host allows it in (the tour's). Resolves
-   * with the variables its Nova is given (`service`), once its agent folder's settings start a
-   * new session on Novadeck's model where they name none of their own (`seededSettings`).
+   * Fetches Novadeck's `name` (`nova`) for a launcher, telling `progress`; refused while
+   * switched off. Resolves with the variables its Nova is given (`service`), once its agent
+   * folder's settings start a new session on Nova's model where they name none of their own
+   * (`seededSettings`).
    */
   async fetch(
     name: string,
     progress: FetchProgress,
-    terminalId?: string,
   ): Promise<Readonly<Record<string, string>> | undefined> {
-    if (name !== "pi") throw new DownloadError(`Novadeck has no ${name} of its own.`)
-    const allowed = () =>
-      this.host.enabled() || (terminalId !== undefined && this.host.allows?.(terminalId) === true)
-    if (!allowed()) throw new DownloadError(turnOnLine)
-    // A tour's terminal's ask is the tour's (`want`): the switch going off stops nothing of it.
-    if (!this.host.enabled()) this.wanted = true
-    try {
-      await this.ensure(progress)
-    } catch (error) {
-      // Switched off meanwhile: the launch is refused as any while off.
-      if (!allowed()) throw new DownloadError(turnOnLine)
-      throw error
-    }
+    if (name !== novaCommand) throw new DownloadError(`Novadeck has no ${name} of its own.`)
+    await this.ready(progress)
     await this.seed()
-    return terminalId === undefined ? undefined : this.host.service?.(terminalId, progress)
+    return this.host.service?.(progress)
   }
 
-  /**
-   * Whether the launcher in `terminalId` may start it now: while switched on, or in a terminal
-   * the host allows it in (the tour's), as `fetch` judges.
-   */
-  starts(terminalId: string): boolean {
-    return this.host.enabled() || this.host.allows?.(terminalId) === true
+  /** Whether a launcher may start it now: while switched on, as `fetch` judges. */
+  starts(): boolean {
+    return this.host.enabled()
   }
 
   /** Settles once the file `nova` reads says what the switch said last (`mark`). */
@@ -401,8 +373,8 @@ export class BundledPi {
     return this.marking
   }
 
-  // The file `nova` reads to start Nova, kept as the switch says (the tour's asks aside, as they
-  // start Nova by its launcher's path); left where it can't be written, as `nova` then says so.
+  // The file `nova` reads to start Nova, kept as the switch says; left where it can't be
+  // written, as `nova` then says so.
   // One change after another, so a write and a removal switched at once never land out of order.
   private mark(): void {
     const { on } = this.host
@@ -421,7 +393,7 @@ export class BundledPi {
   // where they name none of their own; left as they are where they can't be read or written,
   // as a session then starts as pi chooses.
   private async seed(): Promise<void> {
-    const file = join(bundledPiHome(this.host.data), settingsFile)
+    const file = join(novaHome(this.host.data), settingsFile)
     const text = await readFile(file, "utf8").catch(() => undefined)
     const seeded = seededSettings(text)
     if (seeded === undefined) return
@@ -431,14 +403,18 @@ export class BundledPi {
   }
 
   /**
-   * The tour asks for it, whatever the switch says, as the person asking for the tour is their
-   * consent: the download starts in the background, joins one under way, or tries one that
-   * failed again, and its state is told as the switch's is; from then on the switch going off
-   * stops nothing. Resolves with its program once in place; rejects with the download's error.
+   * Its program once in place, as the tour waits for it ahead of a launch: the download starts,
+   * joins one under way, or tries one that failed again. Refused while switched off, and when
+   * switched off meanwhile; rejects with the download's error.
    */
-  want(): Promise<string> {
-    this.wanted = true
-    return this.ensure()
+  async ready(progress?: FetchProgress): Promise<string> {
+    if (!this.host.enabled()) throw new DownloadError(turnOnLine)
+    try {
+      return await this.ensure(progress)
+    } catch (error) {
+      if (!this.host.enabled()) throw new DownloadError(turnOnLine)
+      throw error
+    }
   }
 
   // The run under way, joined, or a new one.
@@ -464,18 +440,18 @@ export class BundledPi {
     const work = (async () => {
       await settling
       const build = buildFor(platform, arch, pinned)
-      const program = build && bundledPiProgram(data, build, pinned?.version)
+      const program = build && novaBinary(data, build, pinned?.version)
       if (mine() && (program === undefined || !(await exists(program))))
         this.set({ state: "downloading", received: 0, ...(build && { size: build.size }) })
       try {
-        const done = await fetchBundledPi({
+        const done = await fetchNova({
           data,
           enabled: true,
           platform,
           arch,
           ...(pinned !== undefined && { pinned }),
-          source: env.NOVADECK_BUNDLED_PI_SOURCE,
-          licence: env.NOVADECK_BUNDLED_PI_LICENCE,
+          source: env.NOVADECK_NOVA_SOURCE,
+          licence: env.NOVADECK_NOVA_LICENCE,
           signal: stop.signal,
           progress: (line) => {
             for (const each of hearing) each(line)
@@ -503,7 +479,7 @@ export class BundledPi {
 
   // Tells a change of the state, and nothing for one that changes nothing, as each launch of a
   // copy in place says ready again.
-  private set(state: BundledPiFetch): void {
+  private set(state: NovaFetch): void {
     if (JSON.stringify(state) === JSON.stringify(this.current)) return
     this.current = state
     for (const listener of this.hearing) listener()

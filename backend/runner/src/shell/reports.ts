@@ -338,7 +338,7 @@ export type ReportHandlers = {
     listed: boolean,
   ) => void
   /**
-   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`pi`, Nova), in the terminal
+   * A launcher's fetch of Novadeck's own copy of an agent, by `name` (`nova`), in the terminal
    * its relay named: settles once it is in place, with the variables the agent is given where
    * there are any (its model service's), telling its `progress` in lines a person reads, or fails
    * with a reason a person reads. Absent, every fetch fails.
@@ -487,7 +487,7 @@ export const listenForReports = async (
     take(from)
   }
   /**
-   * Answers a relay's fetch (`novadeck-relay fetch <name>`, which a launcher of Novadeck's own pi
+   * Answers a relay's fetch (`novadeck-relay fetch <name>`, which a launcher of Nova
    * runs where its program isn't in place) with a line for each step of its progress,
    * `{ progress }`, then `{ ready: true }` or `{ error }`, and ends. A download takes as long as it
    * takes; the fetch itself gives up on one that stalls.

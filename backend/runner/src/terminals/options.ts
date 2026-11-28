@@ -4,7 +4,7 @@ import type { ProcessTrees, PtyOptions } from "@novadeck/terminal/pty"
 import type { InterruptOptions, PromptOptions } from "@novadeck/tui-input"
 
 import type { CompanionItems } from "../companions/items.js"
-import type { BundledPi } from "../harnesses/bundled-pi.js"
+import type { Nova } from "../harnesses/nova.js"
 import type { DoorbellOptions } from "../messaging/doorbell.js"
 import type { InboxRecords } from "../messaging/inbox.js"
 import type { MessageRecords } from "../messaging/records.js"
@@ -30,7 +30,7 @@ import type { Connections } from "./sleepers.js"
  */
 export type OpenPolicy = {
   readonly refusal?: string
-  /** Why `agent` may not be opened in `cwd`, the folder the call resolved (the tour runs Novadeck's pi only). */
+  /** Why `agent` may not be opened in `cwd`, the folder the call resolved (the tour runs Nova only). */
   readonly refuseAgent?: (agent: AgentName, cwd: string) => string | undefined
   /** The flags for the agent opened in `cwd`, the folder the call resolved. */
   readonly flags?: (agent: AgentName, cwd: string) => readonly string[]
@@ -55,11 +55,6 @@ export type TerminalOptions = {
   shellArgs?: readonly string[]
   /** Variables shells get on top of `baseEnv`. */
   env?: NodeJS.ProcessEnv
-  /**
-   * Variables a shell starting in `cwd` gets on top of `env`, for that shell alone (the tour's
-   * agents' provider, in the tour's folder); read as each shell starts, restarts included.
-   */
-  launchEnv?: (cwd: string, resumed: boolean) => NodeJS.ProcessEnv | undefined
   /** The environment shells start from: the runner's own when omitted. */
   baseEnv?: NodeJS.ProcessEnv
   /**
@@ -83,8 +78,8 @@ export type TerminalOptions = {
    * them, shells start as they are and no agent session is reported.
    */
   shellFiles?: Promise<InstalledShell | undefined>
-  /** Novadeck's own pi, which its launcher has fetch it and its sessions resume on; none is fetched when omitted. */
-  bundledPi?: Pick<BundledPi, "fetch" | "owns" | "starts" | "followSwitch">
+  /** Nova, which its launcher has fetch it and its sessions resume on; none is fetched when omitted. */
+  nova?: Pick<Nova, "fetch" | "owns" | "starts" | "followSwitch">
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
   /** The git worktrees agents open and own, and whether they are on; agents get none when omitted. */

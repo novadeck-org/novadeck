@@ -36,9 +36,9 @@ export const harnesses = (
   return names
 }
 
-// Fills the cache with Novadeck's own pi's pinned release, which the tour runs (from pi's GitHub
+// Fills the cache with Nova's pinned release, which the tour runs (from pi's GitHub
 // release, not npm), through tsx: its module reads the runner's own sources.
-const ownPiFill = new URL("../../../backend/runner/src/e2e/own-pi-fill.ts", import.meta.url)
+const novaFill = new URL("../../../backend/runner/src/e2e/nova-fill.ts", import.meta.url)
 
 export const main = async (): Promise<void> => {
   const { installHarness, pins } = (await import(installer.href)) as Installer
@@ -52,7 +52,7 @@ export const main = async (): Promise<void> => {
     const runner = createRequire(new URL("../../../backend/runner/package.json", import.meta.url))
     execFileSync(
       process.execPath,
-      [runner.resolve("tsx/cli"), "--conditions=development", fileURLToPath(ownPiFill)],
+      [runner.resolve("tsx/cli"), "--conditions=development", fileURLToPath(novaFill)],
       { stdio: "inherit" },
     )
   }

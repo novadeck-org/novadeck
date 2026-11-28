@@ -11,18 +11,18 @@ import { events } from "./plugin.js"
 // A model of Novadeck's as the extension takes one (Nova's own is @novadeck/harness-nova's
 // model.ts, which this package doesn't import): its provider, the variables its service comes
 // in, its configuration, and where it points without the service.
-const ownProvider = "novadeck"
-const ownService = { baseUrl: "NOVADECK_PI_BASE_URL", key: "NOVADECK_PI_KEY" } as const
-const ownUnavailable = "http://127.0.0.1:9/novadeck-unavailable"
-const ownProviderConfig = {
-  name: "Novadeck",
+const novaProvider = "nova"
+const novaService = { baseUrl: "NOVADECK_NOVA_BASE_URL", key: "NOVADECK_NOVA_KEY" } as const
+const novaUnavailable = "http://127.0.0.1:9/nova-unavailable"
+const novaProviderConfig = {
+  name: "Nova",
   api: "openai-completions",
   authHeader: true,
   models: [{ id: "a-model", name: "A model", reasoning: true, input: ["text"] }],
 } as const
 
 /**
- * Novadeck's pi extension, rendered and run as pi runs it, against a stand-in for pi's extension
+ * Nova extension, rendered and run as pi runs it, against a stand-in for pi's extension
  * API: pi's own packages are stubs the module imports by name, a hook command stands in for
  * Novadeck's relay (it writes each report down and answers as told), and a stdio MCP server for
  * Novadeck's tools. pi itself, with the same extension, was probed on 1.6.0 (2026-11-24).
@@ -130,11 +130,11 @@ const load = async (overrides: Partial<ExtensionConfig> = {}) => {
       stoppedFolder: "stopped",
       pidVariable: "NOVADECK_PI_PID",
       continueCap: 20,
-      own: {
-        provider: ownProvider,
-        variables: ownService,
-        config: ownProviderConfig,
-        unavailable: ownUnavailable,
+      nova: {
+        provider: novaProvider,
+        variables: novaService,
+        config: novaProviderConfig,
+        unavailable: novaUnavailable,
       },
       ...overrides,
     }),
@@ -200,7 +200,7 @@ const context = (overrides: Context = {}): Context => ({
   ...overrides,
 })
 
-describe("Novadeck's pi extension", () => {
+describe("Nova extension", () => {
   it("does nothing outside Novadeck's terminals", async () => {
     delete process.env.NOVADECK_HOOK
     const { handlers } = await load()
@@ -251,7 +251,7 @@ describe("Novadeck's pi extension", () => {
       }),
     ])
     // The person's pi: not Novadeck's own.
-    expect((await pi.reports())[0]).not.toHaveProperty("novadeck_own")
+    expect((await pi.reports())[0]).not.toHaveProperty("novadeck_nova")
     // pi's own process, by which the relay names the agent: on Windows its process is node.
     expect(await pi.pids()).toEqual([String(process.pid)])
     expect(process.env.NOVADECK_PI_PID).toBeUndefined()
@@ -275,88 +275,88 @@ describe("Novadeck's pi extension", () => {
     await pi.emit("session_shutdown", { reason: "quit" })
   })
 
-  it("marks its reports, and leaves the person's models alone, in Novadeck's own pi", async () => {
-    const before = process.env.NOVADECK_PI
+  it("marks its reports, and leaves the person's models alone, in Nova", async () => {
+    const before = process.env.NOVADECK_NOVA
     // A process's first load decides, which earlier tests here made as the person's pi.
-    delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
-    process.env.NOVADECK_PI = "bundled"
+    delete (globalThis as { novadeckNova?: boolean }).novadeckNova
+    process.env.NOVADECK_NOVA = "1"
     try {
       await rm(join(root, "models.json"), { force: true })
       const pi = await load()
       // Taken out of the environment, so a pi its tools start is the person's; loaded again, as
       // on /reload, it still knows.
-      expect(process.env.NOVADECK_PI).toBeUndefined()
+      expect(process.env.NOVADECK_NOVA).toBeUndefined()
       const again = await load()
       await again.emit("session_start", { reason: "new" })
-      expect((await again.reports()).at(-1)).toMatchObject({ novadeck_own: true })
+      expect((await again.reports()).at(-1)).toMatchObject({ novadeck_nova: true })
       await pi.emit("session_start", { reason: "startup" })
-      // Its reports say they are Novadeck's own pi's, which counts as connected.
+      // Its reports say they are Nova's, which counts as connected.
       expect(await pi.reports()).toEqual([
-        expect.objectContaining({ hook_event_name: "SessionStart", novadeck_own: true }),
+        expect.objectContaining({ hook_event_name: "SessionStart", novadeck_nova: true }),
       ])
       await expect(readFile(join(root, "models.json"), "utf8")).rejects.toThrow("ENOENT")
       await pi.emit("session_shutdown", { reason: "quit" })
     } finally {
-      if (before === undefined) delete process.env.NOVADECK_PI
-      else process.env.NOVADECK_PI = before
-      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+      if (before === undefined) delete process.env.NOVADECK_NOVA
+      else process.env.NOVADECK_NOVA = before
+      delete (globalThis as { novadeckNova?: boolean }).novadeckNova
     }
   })
 
   it("registers Novadeck's model in its own pi alone, and keeps the service's key from the agent's commands", async () => {
-    const given = { NOVADECK_PI: process.env.NOVADECK_PI }
+    const given = { NOVADECK_NOVA: process.env.NOVADECK_NOVA }
     const own = (on: boolean) => {
       // A process's first load decides, as pi loads the extension once per process.
-      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+      delete (globalThis as { novadeckNova?: boolean }).novadeckNova
       delete (globalThis as { novadeckService?: unknown }).novadeckService
-      if (on) process.env.NOVADECK_PI = "bundled"
-      else delete process.env.NOVADECK_PI
-      process.env[ownService.baseUrl] = "https://novadeck.dev/tour/v1"
-      process.env[ownService.key] = "tkt_abc-123"
+      if (on) process.env.NOVADECK_NOVA = "1"
+      else delete process.env.NOVADECK_NOVA
+      process.env[novaService.baseUrl] = "https://novadeck.dev/nova/v1"
+      process.env[novaService.key] = "tkt_abc-123"
     }
     try {
       own(true)
       const pi = await load()
       expect(pi.providers).toEqual([
         {
-          name: "novadeck",
+          name: "nova",
           config: {
-            ...ownProviderConfig,
-            baseUrl: "https://novadeck.dev/tour/v1",
+            ...novaProviderConfig,
+            baseUrl: "https://novadeck.dev/nova/v1",
             apiKey: "tkt_abc-123",
           },
         },
       ])
       // Out of the environment, which the commands pi runs (its bash tool) and a pi started
       // from them inherit; loaded again, as on /reload, it still has them.
-      expect(process.env[ownService.baseUrl]).toBeUndefined()
-      expect(process.env[ownService.key]).toBeUndefined()
+      expect(process.env[novaService.baseUrl]).toBeUndefined()
+      expect(process.env[novaService.key]).toBeUndefined()
       expect((await load()).providers).toHaveLength(1)
 
       // The person's pi registers nothing, but takes them out all the same.
       own(false)
       const theirs = await load()
       expect(theirs.providers).toEqual([])
-      expect(process.env[ownService.key]).toBeUndefined()
+      expect(process.env[novaService.key]).toBeUndefined()
 
       // A key pi would read as a variable or a command is no key of the service's; with none,
       // Novadeck's model points where nothing answers, so a session of it resumed outside the
       // tour never goes on with the person's own keys.
       own(true)
-      process.env[ownService.key] = "$HOME"
-      const unavailable = { baseUrl: ownUnavailable, apiKey: "unavailable" }
+      process.env[novaService.key] = "$HOME"
+      const unavailable = { baseUrl: novaUnavailable, apiKey: "unavailable" }
       expect((await load()).providers).toEqual([
-        { name: "novadeck", config: { ...ownProviderConfig, ...unavailable } },
+        { name: "nova", config: { ...novaProviderConfig, ...unavailable } },
       ])
       own(true)
-      delete process.env[ownService.key]
+      delete process.env[novaService.key]
       expect((await load()).providers).toEqual([
-        { name: "novadeck", config: { ...ownProviderConfig, ...unavailable } },
+        { name: "nova", config: { ...novaProviderConfig, ...unavailable } },
       ])
     } finally {
-      if (given.NOVADECK_PI === undefined) delete process.env.NOVADECK_PI
-      else process.env.NOVADECK_PI = given.NOVADECK_PI
-      delete (globalThis as { novadeckOwnPi?: boolean }).novadeckOwnPi
+      if (given.NOVADECK_NOVA === undefined) delete process.env.NOVADECK_NOVA
+      else process.env.NOVADECK_NOVA = given.NOVADECK_NOVA
+      delete (globalThis as { novadeckNova?: boolean }).novadeckNova
       delete (globalThis as { novadeckService?: unknown }).novadeckService
     }
   })

@@ -120,7 +120,7 @@ export const notes: Record<string, Note> = {
   },
   "backend/tour": {
     purpose:
-      "Novadeck's tour on the runner's side, its own package (@novadeck/tour-runner), which the runner builds with what it needs of it (its host: git, the projects, notices, terminals' folders and handles): its folder, ~/.novadeck/tour, emptied, made a repo of the seed project and briefed for each run (and never one of the person's own), the projects open there removed first, the line that starts Novadeck's own pi there on the model Novadeck pays for, and the briefs the doorbell rings its lead and artist, which the runner's messaging frames as their task.",
+      "Novadeck's tour on the runner's side, its own package (@novadeck/tour-runner), which the runner builds with what it needs of it (its host: git, the projects, notices, terminals' folders and handles): its folder, ~/.novadeck/tour, emptied, made a repo of the seed project and briefed for each run (and never one of the person's own), the projects open there removed first, the line that starts Nova there on the model Novadeck pays for, and the briefs the doorbell rings its lead and artist, which the runner's messaging frames as their task.",
     entries: [{ file: "backend/tour/src/tour.ts", text: "export class Tour" }],
   },
   "backend/runner/works": {
@@ -262,7 +262,7 @@ export const notes: Record<string, Note> = {
   },
   "harnesses/nova": {
     purpose:
-      "Nova, Novadeck's own pi. It is agent pi, on the pi adapter: the pinned pi Novadeck downloads (its builds, checksums and folders), the launcher Novadeck starts it with by the word `nova`, the model Novadeck pays for, which it adds to pi's extension (`withNova`), and the startup word's swap for the launcher's path. The runner's harnesses/bundled-pi.ts fetches it.",
+      "Nova. It is agent pi, on the pi adapter: the pinned pi Novadeck downloads (its builds, checksums and folders), the launcher Novadeck starts it with by the word `nova`, the models Novadeck pays for (Luna, Terra and Sol, through Nova's model service and its shared ticket), which it adds to pi's extension (`withNova`), and the startup word's swap for the launcher's path. The runner's harnesses/nova.ts fetches it.",
     entries: [{ file: "harnesses/nova/src/extension.ts", text: "export const withNova" }],
     docs: ["dev-docs/harness-coverage.md"],
   },
@@ -409,7 +409,7 @@ export const notes: Record<string, Note> = {
   },
   "frontend/tour": {
     purpose:
-      "The onboarding tour: its consent, starting a run (the tour's folder opened as a project of its own with one terminal starting the person's agent), the driver that follows the run and plays its steps, and what it draws over the workspace, with a look of its own apart from the app's themes.",
+      "The onboarding tour: its consent, starting a run (the tour's folder opened as a project of its own with one terminal starting Nova, offered while Nova is switched on), the driver that follows the run and plays its steps, and what it draws over the workspace, with a look of its own apart from the app's themes.",
     entries: [
       { file: "frontend/tour/src/start.ts" },
       { file: "frontend/tour/src/TourProvider.tsx", text: "export const TourProvider" },

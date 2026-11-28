@@ -110,11 +110,11 @@ export type HistoryHost = {
   /** The transcript path the running terminal's session reported at bind. */
   readonly transcriptOf: (agent: AgentName, sessionId: string) => string | undefined
   /**
-   * Whether the agent's session, by its transcript, is Novadeck's own pi's (`Claims.own`): it
+   * Whether the agent's session, by its transcript, is Nova's (`Claims.isNova`): it
    * needs no connection of the person's, and its conversation is the file it named. None is
    * where omitted.
    */
-  readonly ownPi?: (agent: AgentName, transcript: string | undefined) => boolean
+  readonly isNova?: (agent: AgentName, transcript: string | undefined) => boolean
   /** Whether a line was ever entered in a terminal kept only as saved. */
   readonly ran: (terminalId: string) => boolean
   /** Tells watchers of the terminal's summary. */
@@ -486,7 +486,9 @@ export class ClosedTerminals {
       handle: row.handle,
       agent: row.agent,
       ...(row.agent !== null &&
-        this.host.ownPi?.(row.agent, row.agents[row.agent]?.transcript) === true && { nova: true }),
+        this.host.isNova?.(row.agent, row.agents[row.agent]?.transcript) === true && {
+          nova: true,
+        }),
       program: row.agent === null ? clip(row.lastProgram, historyLimits.program) : null,
       cwd: row.cwd,
       closedAt: row.closedAt,
@@ -570,7 +572,7 @@ export class ClosedTerminals {
     }
     const report = row.agents[agent]
     if (!report) return { state: "gone", reason: "conversation" }
-    if (this.host.ownPi?.(agent, report.transcript) === true) return this.ownFiles(report, row)
+    if (this.host.isNova?.(agent, report.transcript) === true) return this.novaFiles(report, row)
     let asked = pass?.connected.get(agent)
     if (!asked) {
       asked = this.host.connected(agent).catch(() => true)
@@ -612,9 +614,9 @@ export class ClosedTerminals {
     }
   }
 
-  // Novadeck's own pi's session: its folder, and the file it named in its own agent folder,
+  // Nova's session: its folder, and the file it named in its own agent folder,
   // which the person's pi never reads; held in another terminal as any session is.
-  private async ownFiles(
+  private async novaFiles(
     report: AgentReport,
     row: Pick<ListedClosed, "cwd">,
   ): Promise<ClosedTerminalState> {
@@ -634,8 +636,8 @@ export class ClosedTerminals {
    */
   async restorable(agent: AgentName, sessionId: string, settled = true): Promise<boolean> {
     const transcript = this.host.transcriptOf(agent, sessionId)
-    // Novadeck's own pi's: kept in its own folder, which it writes as its session starts.
-    if (this.host.ownPi?.(agent, transcript) === true) return true
+    // Nova's: kept in its own folder, which it writes as its session starts.
+    if (this.host.isNova?.(agent, transcript) === true) return true
     if (!(await this.host.connected(agent).catch(() => true))) return false
     const install = await this.host.install(agent).catch(() => undefined)
     if (!install) return true
@@ -872,7 +874,7 @@ export class ClosedTerminals {
       this.announce(row)
       if (!say) return
       // Nova's session is told by its name.
-      const nova = this.host.ownPi?.(waiting.agent, row.agents[waiting.agent]?.transcript) === true
+      const nova = this.host.isNova?.(waiting.agent, row.agents[waiting.agent]?.transcript) === true
       const label = labelOf(waiting.agent, nova)
       const note =
         why !== undefined

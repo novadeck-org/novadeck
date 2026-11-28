@@ -1,7 +1,7 @@
 import type { PortableState } from "@novadeck/core/desktop/portable"
 import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
-import type { BundledPiFetchState } from "@novadeck/core/port"
+import type { NovaFetchState } from "@novadeck/core/port"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { beforeEach, vi } from "vitest"
@@ -17,7 +17,6 @@ import {
   initialUi,
   keepProjectArrangement,
   notePortableCardShown,
-  onboardingTourOn,
   persist,
   setFeatureFlag,
   trackRecent,
@@ -62,7 +61,6 @@ const initial = (): UiState =>
       screenReader: "auto",
       chatView: false,
       agentAvatars: false,
-      onboardingTour: false,
       keepAwakeOffered: false,
       keepAwake: true,
       appScale: 100,
@@ -419,12 +417,12 @@ describe("the IS_EXPERIMENTAL flag", () => {
 
   it("turns Nova off where the channel is stable", async () => {
     const enabled = createStore(true)
-    const bundledPi = {
+    const nova = {
       enabled,
-      fetch: createStore<BundledPiFetchState>({ state: "ready" }),
+      fetch: createStore<NovaFetchState>({ state: "ready" }),
       set: (on: boolean) => enabled.update(() => on),
     }
-    watchExperimental(updates(Promise.resolve("stable")), () => {}, { bundledPi })
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, { nova })
     await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
   })
 
@@ -477,14 +475,6 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
     expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
     expect(agentAvatarsOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
-  })
-
-  it("offers the onboarding tour only with its switch and Experimental both on", () => {
-    const { preferences } = initial()
-    const on = { ...preferences, onboardingTour: true }
-    expect(onboardingTourOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
-    expect(onboardingTourOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
-    expect(onboardingTourOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
   })
 })
 

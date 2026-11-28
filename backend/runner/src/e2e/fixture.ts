@@ -20,7 +20,7 @@ import { installHarness } from "./install.js"
 import { createE2ESandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./keychain.js"
 import { chat } from "./model/chat.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
-import { ownInstalled } from "./own-pi-cache.js"
+import { ownInstalled } from "./nova-cache.js"
 import { unknownShapes } from "./shapes.js"
 import { unsupported } from "./support.js"
 import { startTrace, tracesAll, tracing } from "./trace.js"
@@ -78,7 +78,7 @@ export type E2E = {
   readonly deck: Deck
 }
 
-// A setup's harness installed, or for Novadeck's own pi, which the runner downloads, nothing.
+// A setup's harness installed, or for Nova, which the runner downloads, nothing.
 const installed = (setup: AgentSetup) =>
   setup.own ? Promise.resolve(ownInstalled) : installHarness(setup.agent)
 
@@ -162,7 +162,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOption
         await deck.close()
       }
       resources.defer(close)
-      // Novadeck's own pi is no connection of the person's pi: it reports as it starts.
+      // Nova is no connection of the person's pi: it reports as it starts.
       for (const setup of setups.filter(({ own }) => !own))
         // eslint-disable-next-line no-await-in-loop -- One plugin command at a time, as the runner runs them.
         await deck.connect(setup.agent)

@@ -8,8 +8,8 @@ const screens = {
   hooks: { label: "hooks", what: "its prompt with Novadeck's hooks off" },
 } as const
 
-// Where Novadeck's own pi, the tour's agent, stands, as the consent says it; the Experimental
-// row of Preferences is its own (see `bundledPiGroups`).
+// Where Nova, the tour's agent, stands, as the consent says it; the Experimental
+// row of Preferences is its own (see `novaGroups`).
 const piStates = (tour: DemoTour): readonly DemoAction[] => {
   const where = "The tour's consent (Help > Take the tour)"
   return [
@@ -47,7 +47,7 @@ const piStates = (tour: DemoTour): readonly DemoAction[] => {
 
 // Novadeck's tour: a start the backend refuses, and its story's controls. Its consent opens
 // from the footer's Help menu, there with Experimental on ("Experimental on" under App >
-// Updates) and Onboarding tour switched on in Preferences > Experimental.
+// Updates) and Nova switched on in Preferences > Experimental, as the demo's tour starts it.
 export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
   {
     section: "App",
@@ -60,8 +60,8 @@ export const tourGroups = (tour: DemoTour): readonly DemoActionGroup[] => [
         run: () => tour.failNext(),
       },
       {
-        label: "Next start: no free run left",
-        hint: "The next Start the tour shows the service's own sentence that today's free tours are used up; the consent stays open",
+        label: "Next start: no free ticket left",
+        hint: "The next Start the tour shows Nova's model service's own sentence that today's free tickets are used up; the consent stays open",
         run: () => tour.failNext("tickets"),
       },
       ...(["startup", "sign-in", "hooks"] as const).map((screen) => ({

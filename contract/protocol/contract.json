@@ -1,5 +1,5 @@
 {
-  "revision": 25,
+  "revision": 26,
   "oldestClient": 11,
   "oldestRunner": 12,
   "errors": {
@@ -9041,10 +9041,10 @@
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
-          "bundledPi": {"type":"boolean"},
+          "nova": {"type":"boolean"},
           "murmur": {"type":"boolean"},
           "transcriptsAvailable": {"type":"boolean"},
-          "bundledPiFetch": {
+          "novaFetch": {
             "type": "object",
             "properties": {
               "state": {
@@ -9105,7 +9105,7 @@
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
-          "bundledPi": {"type":"boolean"},
+          "nova": {"type":"boolean"},
           "murmur": {"type":"boolean"}
         },
         "additionalProperties": false
@@ -9143,10 +9143,10 @@
           "agentModes": {"type":"boolean"},
           "agentMode": {"type":"string","enum":["herd","solo","swarm"]},
           "shippingGate": {"type":"boolean"},
-          "bundledPi": {"type":"boolean"},
+          "nova": {"type":"boolean"},
           "murmur": {"type":"boolean"},
           "transcriptsAvailable": {"type":"boolean"},
-          "bundledPiFetch": {
+          "novaFetch": {
             "type": "object",
             "properties": {
               "state": {

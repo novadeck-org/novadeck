@@ -10,13 +10,13 @@ import { describe, expect, it } from "./test.js"
 // the terminal's shell reads it, and its brief, as the doorbell delivers it.
 
 describe("the tour's launch line", () => {
-  it("starts Novadeck's own pi on GPT-6 Luna at medium, by its own word, with no prompt", () => {
+  it("starts Nova on GPT-6 Luna at medium, by its own word, with no prompt", () => {
     const launch = tourLaunch()
-    expect(launch).toMatchObject({ brief: "doorbell", model: "novadeck/gpt-6-luna" })
+    expect(launch).toMatchObject({ brief: "doorbell", model: "nova/gpt-6-luna" })
     expect(commandWords(launch.command, "linux")).toEqual([
-      "novadeck-pi",
+      "novadeck-nova",
       "--model",
-      "novadeck/gpt-6-luna",
+      "nova/gpt-6-luna",
       "--thinking",
       "medium",
     ])

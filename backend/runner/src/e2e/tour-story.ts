@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { samePath } from "@novadeck/harness-core/paths"
-import { ownModel } from "@novadeck/harness-nova/model"
+import { novaDefaultModel } from "@novadeck/harness-nova/model"
 import type { AgentName, Approval } from "@novadeck/protocol"
 import {
   branches,
@@ -56,19 +56,21 @@ export const gitName = "Ada Lovelace"
 /** What the sandbox needs before the tour is readied: a git name. */
 export const seedTour = async (run: E2E): Promise<void> => {
   await writeFile(join(run.sandbox.home, ".gitconfig"), `[user]\n\tname = ${gitName}\n`)
+  // The tour runs only while Nova is switched on, as the person does in Preferences.
+  run.deck.store.settings.saveRunner({ nova: true })
 }
 
 /**
- * Points the runner's tour at the fake model's own tour service (`/tour/v1/tickets` gives its one
- * credential as the ticket, `/tour/v1/chat/completions` is its chat dialect), which the runner
+ * Points Nova's model service at the fake model's own (`/nova/v1/tickets` gives its one
+ * credential as the ticket, `/nova/v1/chat/completions` is its chat dialect), which the runner
  * reads as it asks. Returns what puts the endpoint back.
  */
-export const fakeTourService = (run: E2E): (() => void) => {
-  const before = process.env.NOVADECK_TOUR_ENDPOINT
-  process.env.NOVADECK_TOUR_ENDPOINT = `${run.model.url}/tour/v1`
+export const fakeNovaService = (run: E2E): (() => void) => {
+  const before = process.env.NOVADECK_NOVA_ENDPOINT
+  process.env.NOVADECK_NOVA_ENDPOINT = `${run.model.url}/nova/v1`
   return () => {
-    if (before === undefined) delete process.env.NOVADECK_TOUR_ENDPOINT
-    else process.env.NOVADECK_TOUR_ENDPOINT = before
+    if (before === undefined) delete process.env.NOVADECK_NOVA_ENDPOINT
+    else process.env.NOVADECK_NOVA_ENDPOINT = before
   }
 }
 
@@ -633,7 +635,7 @@ export const tell = async (
   { worktreesFolder = false }: { readonly worktreesFolder?: boolean } = {},
 ): Promise<void> => {
   await seedTour(run)
-  const restore = fakeTourService(run)
+  const restore = fakeNovaService(run)
   try {
     await told(run, setup, answer, worktreesFolder)
   } finally {
@@ -794,10 +796,10 @@ const play = async (
   // Windows or macOS.
   if (process.platform === "linux")
     for (const mate of [modeller, builder]) {
-      // Novadeck's own pi, which the lead's open_agent started by its word: the process is pi's
-      // program, from Novadeck's own folder (`<data>/bundled/pi`), on the tour's model and
+      // Nova, which the lead's open_agent started by its word: the process is pi's
+      // program, from Novadeck's own folder (`<data>/nova`), on the tour's model and
       // thinking level whatever the call named, and carrying Novadeck's extension.
-      const wanted = `--model ${ownModel} --thinking ${tourEffort}`
+      const wanted = `--model ${novaDefaultModel} --thinking ${tourEffort}`
       // eslint-disable-next-line no-await-in-loop -- Two terminals, one after the other.
       const argv = await poll(
         () => {
@@ -807,7 +809,7 @@ const play = async (
         `${mate.handle} to start on ${wanted} (now ${mate.summary().process?.argv?.join(" ")})`,
         45_000,
       )
-      expect(argv).toContain(join(run.sandbox.root, "data", "bundled", "pi"))
+      expect(argv).toContain(join(run.sandbox.root, "data", "nova"))
       expect(argv).toContain(" -e ")
       // eslint-disable-next-line no-await-in-loop -- As above.
       await poll(

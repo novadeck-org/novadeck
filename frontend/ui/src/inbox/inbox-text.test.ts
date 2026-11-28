@@ -348,7 +348,7 @@ describe("A limit's window", () => {
 })
 
 describe("an agent's name in the Inbox", () => {
-  it("is Nova for Novadeck's own pi, Pi for the person's, and the harness's for the rest", () => {
+  it("is Nova for Nova, Pi for the person's, and the harness's for the rest", () => {
     expect(agentName("pi", true)).toBe("Nova")
     expect(agentName("pi")).toBe("Pi")
     expect(agentName("claude", true)).toBe("Claude")

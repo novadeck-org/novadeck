@@ -71,9 +71,6 @@ export type PreferencesValue = {
   // Whether a terminal's tab and window header show its handle's critter, the avatar the
   // Messages pane draws, in its program's place.
   agentAvatars: boolean
-  // Whether the footer offers the onboarding tour, in its Help menu. Off by default, and only
-  // with Experimental on.
-  onboardingTour: boolean
   // Whether General offers the switch below, Keep awake, one of the Experimental features.
   keepAwakeOffered: boolean
   // Whether the desktop app keeps this computer from sleeping on its own while an agent works,
@@ -270,7 +267,7 @@ export type TerminalMetadata = {
   openedBy?: string | null
   // Whether an agent has run in it since it opened, running now or since exited.
   agentRan?: boolean
-  // Whether its agent (or the one resting there) is Nova, Novadeck's own pi: still the agent
+  // Whether its agent (or the one resting there) is Nova: still the agent
   // `pi`, shown as Nova. Absent reads as false, as for a runner before it says (see `agentLook`).
   nova?: boolean
   // Whether closing it can be undone from History: the backend can bring it back as it

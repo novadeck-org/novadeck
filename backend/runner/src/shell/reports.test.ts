@@ -669,7 +669,7 @@ describe("relay hooks", () => {
 
 describe("relay fetches", () => {
   const fetchLine = (given: Record<string, unknown> = {}) =>
-    JSON.stringify({ relay: 2, kind: "fetch", terminalId: "t", token, name: "pi", ...given })
+    JSON.stringify({ relay: 2, kind: "fetch", terminalId: "t", token, name: "nova", ...given })
 
   it("tells a fetch's progress, then that it is ready", async ({ resources }) => {
     const asked: string[] = []
@@ -690,13 +690,13 @@ describe("relay fetches", () => {
       { progress: "Unpacking pi 1.6.0" },
       { ready: true },
     ])
-    expect(asked).toEqual(["pi"])
+    expect(asked).toEqual(["nova"])
   })
 
   it("gives the agent's variables with its ready, where the fetch gives any", async ({
     resources,
   }) => {
-    const env = { NOVADECK_PI_BASE_URL: "https://novadeck.dev/tour/v1", NOVADECK_PI_KEY: "T1" }
+    const env = { NOVADECK_NOVA_BASE_URL: "https://novadeck.dev/nova/v1", NOVADECK_NOVA_KEY: "T1" }
     const reports = await listenForReports(handlers({ fetch: () => Promise.resolve(env) }))
     resources.defer(() => reports.close())
 

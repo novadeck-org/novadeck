@@ -23,7 +23,7 @@ import { Devices } from "./devices/devices.js"
 import { DomainError } from "./errors.js"
 import { repositoriesOf } from "./forges/repositories.js"
 import { Forges } from "./forges/service.js"
-import { BundledPi } from "./harnesses/bundled-pi.js"
+import { Nova } from "./harnesses/nova.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
@@ -477,35 +477,31 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   // The terminals below are made with the gate, which asks them only once it is answering.
   const shippingTerminals = (): Terminals => terminals
-  // The ticket Novas started by hand share (`NovaTickets`), for the runner's life.
+  // The ticket the runner's Novas share (`NovaTickets`), the tour's too, for the runner's life.
   const novaTickets = new NovaTickets()
-  // Novadeck's own pi (Experimental), fetched into the data folder beside the shell files: its
+  // Nova (Experimental), fetched into the data folder beside the shell files: its
   // launcher asks for it, and its switch, read live, starts its fetch, here as the runner starts.
   // Only with the shell files, which hold its launcher.
-  const bundledPi =
+  const nova =
     options.shell === undefined
       ? undefined
-      : new BundledPi({
+      : new Nova({
           data: dirname(options.shell),
-          enabled: () => store.settings.runner().bundledPi === true,
-          // The tour's terminals start it whatever its switch says: the person asked for the tour.
-          allows: (terminalId) => tour.paysFor(terminalId),
+          enabled: () => store.settings.runner().nova === true,
           // What `nova` in Novadeck's terminals reads to start it, kept while the switch is on.
-          on: join(options.shell, "bundled", "on"),
-          // A Nova started by hand runs on Novadeck's model with a ticket of its own, which the
-          // runner's Novas share; the tour's terminals have their run's already.
-          service: async (terminalId, progress) => {
-            if (tour.isTours(terminalId)) return undefined
+          on: join(options.shell, "nova", "on"),
+          // Every Nova runs on Nova's model service with the ticket the runner's Novas share.
+          service: async (progress) => {
             const given = await novaTickets.service()
             if (given.ok) return given.env
             progress(`${noFreeModel} ${given.reason}`)
             return undefined
           },
         })
-  bundledPi?.switched()
+  nova?.switched()
   const terminals = new Terminals({
     shipping,
-    ...(bundledPi && { bundledPi }),
+    ...(nova && { nova }),
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
@@ -530,8 +526,6 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     models: (agent) => agents.models(agent),
     // The tour's teammates may not open agents, and its lead's open in the teammates' folder.
     openPolicy: (terminalId) => tour.openPolicy(terminalId),
-    // The tour's agents' provider, for the shells that start in its folder.
-    launchEnv: (cwd, resumed) => tour.launchEnv(cwd, resumed),
     transcripts: store.settings.runner().transcripts,
     // Read each time idle agents are looked at, so a change in Preferences counts at once.
     hibernateAfterMinutes: () => store.settings.runner().hibernateAfterMinutes,
@@ -565,8 +559,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const tour = new Tour({
     git,
     findProgram,
-    // What each run was given, beside the database, so a runner started again still gives the
-    // tour's agents their provider (the file holds a ticket: the runner's owner's alone).
+    // Each run's lead, beside the database, so a lead resumed in a runner started again still
+    // opens its teammates.
     ...(options.database !== undefined &&
       options.database !== ":memory:" && {
         records: new TourRecords(join(dirname(options.database), "tour-runs.json")),
@@ -575,8 +569,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...(options.agents?.home !== undefined && { home: options.agents.home }),
     // Where the game's server command is looked for: the person's terminal's PATH.
     environment: () => agents.environment(),
-    // Novadeck's own pi, which the tour's agents run, downloaded whatever its switch says.
-    ...(bundledPi && { ownPi: () => bundledPi.want() }),
+    // Nova, which the tour's agents run, once in place; refused while switched off.
+    ...(nova && { nova: () => nova.ready() }),
+    // A fresh ticket of Nova's model service for each run, which the runner's Novas then share:
+    // the runner never learns that a kept one is spent.
+    service: () => novaTickets.service({ fresh: true }),
     // Every project, those being removed too, whose removal the tour waits for.
     projects: {
       list: () => store.projects(),
@@ -738,7 +735,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     agents,
     terminals,
     shipping,
-    bundledPi,
+    nova,
     items,
     projects,
     works,
@@ -833,7 +830,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     rewriteShellFiles,
     terminals,
     shipping,
-    bundledPi,
+    nova,
     items,
     agents,
     projects,
@@ -888,7 +885,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       // The shipping gate's switch: Claude's per-launch settings and Codex's plugin carry its
       // hooks, so they are written again, and a Codex copy that differs is installed again.
       shipping,
-      ...(bundledPi && { bundledPi }),
+      ...(nova && { nova }),
       shippingSwitched: () => {
         // Switched off, its open cards and permits end, and the terminals' summaries say so.
         shipping.switched()

@@ -1,7 +1,6 @@
-import { beforeEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { switchTourOn, takeTourFromHelp } from "../support/help"
+import { takeTourFromHelp } from "../support/help"
 import { findDialog, pressShortcut } from "../support/keyboard"
 import { switchProject, workspaceSwitcher } from "../support/sessions"
 import { closeConfirmation, confirmClose, tabAction } from "../support/terminals"
@@ -35,9 +34,6 @@ const startTour = async (address = offered): Promise<void> => {
 // The tour's lead names itself once its agent has taken the brief, and its first step goes on
 // after its caption has shown and been held.
 const leadNamed = { timeout: 10_000 }
-
-// The footer offers the tour only with its own switch on, in Preferences → Experimental.
-beforeEach(switchTourOn)
 
 describe("The tour's driver", () => {
   it("points at the agent as it starts, and moves on once it has taken its brief", async () => {

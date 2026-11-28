@@ -1156,22 +1156,20 @@ export const contract = {
   },
   // Novadeck's tour, a live run of Novadeck's own agent in a folder of Novadeck's.
   tour: {
-    // Readies a run, always on Novadeck's own pi with GPT-6 Luna at medium effort, paid for by
-    // Novadeck (revision 21; from 12 to 20 on opencode, and before 12 on the person's own agent,
-    // named in `agent`, which is now ignored, so an older UI still works against a newer runner):
-    // waits for Novadeck's pi to be in place (`fetch`), gets a ticket from the tour's service,
-    // removes the projects open at the tour's folder, closing their terminals, empties the folder
-    // and writes the agent's brief there, and answers how to start it (`tourPrepared`). Novadeck's
-    // pi failing to download (the download's own words are the error's message), a ticket the
-    // service refuses (its words are the error's message), a folder there that isn't Novadeck's,
-    // or a run already being readied is a CONFLICT. Any changes nothing.
+    // Readies a run, always on Nova with GPT-6 Luna at medium effort, paid for by Novadeck
+    // (revision 21; from 12 to 20 on opencode, and before 12 on the person's own agent, named in
+    // `agent`, which is now ignored, so an older UI still works against a newer runner): waits
+    // for Nova to be in place, and refuses while Nova is switched off (revision 26), checks that
+    // Nova's model service gives it a ticket, removes the projects open at the tour's folder,
+    // closing their terminals, empties the folder and writes the agent's brief there, and answers
+    // how to start it (`tourPrepared`). Nova switched off, or failing to download (the download's
+    // own words are the error's message), a ticket the service refuses (its words are the
+    // error's message), a folder there that isn't Novadeck's, or a run already being readied is a
+    // CONFLICT. Any changes nothing.
     prepare: procedure.input(z.strictObject({ agent: agentName.optional() })).output(tourPrepared),
-    // Starts downloading Novadeck's own pi for the tour, whatever its switch in Preferences >
-    // Experimental says (the person asking for the tour is the consent), or tries a failed
-    // download again; answers at once. Where it stands is the runner's settings'
-    // `bundledPiFetch`, which says so while the switch is off too. Asking while one is under way
-    // or once it is in place changes nothing. A runner that can't start Novadeck's pi (no shell
-    // files) is a CONFLICT.
+    // Kept only for UIs from 21 to 25, which call it as the tour is offered: it answers at once
+    // and does nothing, as Nova's switch is what downloads Nova (revision 26). Goes once
+    // `oldestClient` passes 25.
     fetch: procedure.meta({ since: 21 }).input(z.void()).output(z.void()),
     // Rings the tour's start line to the agent in the terminal, where its launch line took
     // none (`brief: "doorbell"`): the doorbell delivers it once the agent's prompt shows. One

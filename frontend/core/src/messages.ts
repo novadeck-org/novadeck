@@ -191,7 +191,7 @@ export type MessagePeer = {
   // known. Words older than this that name the handle meant an earlier terminal.
   readonly handleGivenAt?: number
   readonly program: string | undefined
-  // Its program is Nova, Novadeck's own pi, which the peer shows by that name and mark.
+  // Its program is Nova, which the peer shows by that name and mark.
   readonly nova?: true
   readonly live: "idle" | "working" | "gone"
 }

@@ -4,8 +4,8 @@ import { launchHooks } from "@novadeck/harness-agy/plugin"
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
 import { manifest } from "@novadeck/harness-core/plugin"
-import { bundledLauncher, novaShim } from "@novadeck/harness-nova/launcher"
-import { buildFor, bundledPiHome, bundledPiProgram } from "@novadeck/harness-nova/pin"
+import { novaLauncher, novaShim } from "@novadeck/harness-nova/launcher"
+import { buildFor, novaHome, novaBinary } from "@novadeck/harness-nova/pin"
 import { extensionFile } from "@novadeck/harness-pi/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import {
@@ -44,10 +44,10 @@ export type ShellPaths = ShellScriptPaths & {
    */
   readonly open: string
   /**
-   * Novadeck's own pi (harnesses/bundled-pi.ts): the launcher Novadeck types to start it, and Novadeck's
+   * Nova (harnesses/nova.ts): the launcher Novadeck types to start it, and Novadeck's
    * data folder, where it is fetched to and keeps its agent folder.
    */
-  readonly bundledPi: { readonly launcher: string; readonly data: string; readonly on: string }
+  readonly nova: { readonly launcher: string; readonly data: string; readonly on: string }
   /** The plugin sources each agent installs from when the person connects it. */
   readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
@@ -92,11 +92,11 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   ...shellScriptPaths(directory, "novadeck"),
   bin: join(directory, "bin"),
   open: join(directory, "open"),
-  bundledPi: {
-    launcher: join(directory, "bundled", platform === "win32" ? "pi.cmd" : "pi"),
+  nova: {
+    launcher: join(directory, "nova", platform === "win32" ? "nova.cmd" : "nova"),
     data: dirname(directory),
-    // Kept while Nova is switched on (`BundledPi.switched`): `nova` starts it only then.
-    on: join(directory, "bundled", "on"),
+    // Kept while Nova is switched on (`Nova.switched`): `nova` starts it only then.
+    on: join(directory, "nova", "on"),
   },
   plugins: Object.fromEntries(
     agents.map((agent) => [agent, join(directory, "plugins", harnesses[agent].plugin)]),
@@ -337,20 +337,20 @@ export const shellFiles = (
   const opening = openShims(platform).map((each) =>
     file(join(paths.open, each.path), each.content, each.mode),
   )
-  // Novadeck's own pi's launcher, where pi publishes a build for this system.
+  // Nova's launcher, where pi publishes a build for this system.
   const build = buildFor(platform, process.arch)
   const nova = build && {
-    program: bundledPiProgram(paths.bundledPi.data, build),
-    home: bundledPiHome(paths.bundledPi.data),
+    program: novaBinary(paths.nova.data, build),
+    home: novaHome(paths.nova.data),
     relay: paths.relay,
     extension: join(paths.plugins.pi, extensionFile),
   }
   // Its launcher, which Novadeck types the path of, and `nova` in the shims' folder, first on
   // PATH in Novadeck's terminals while Nova is on, so a person starts it by its name.
-  const shim = novaShim(platform, paths.bundledPi)
-  const bundled = nova
+  const shim = novaShim(platform, paths.nova)
+  const novaFiles = nova
     ? [
-        [paths.bundledPi.launcher, bundledLauncher(platform, nova)] as const,
+        [paths.nova.launcher, novaLauncher(platform, nova)] as const,
         [join(paths.bin, shim.path), shim] as const,
       ].map(([path, each]) =>
         file(path, each.path.endsWith(".cmd") ? crlf(each.content) : each.content, each.mode),
@@ -371,7 +371,7 @@ export const shellFiles = (
         // plugin's copy, which starts the MCP server through cmd and this launcher.
         file(paths.mcp, cmdLauncher(paths, "mcp", "MCP server launcher")),
         ...bin,
-        ...bundled,
+        ...novaFiles,
         // Antigravity's PreToolUse, where only its shim can give it, in Novadeck's terminals.
         ...(machine.cmdShimDir !== undefined && machine.hooksFolder !== undefined
           ? [file(join(paths.agyHooks, launchHooks.path), launchHooks.content(platform))]
@@ -385,7 +385,7 @@ export const shellFiles = (
         file(paths.hook, posixLauncher(paths, "hook", "agent hook launcher"), 0o700),
         file(paths.mcp, posixLauncher(paths, "mcp", "MCP server launcher"), 0o700),
         ...bin,
-        ...bundled,
+        ...novaFiles,
         ...opening,
       ]
 }

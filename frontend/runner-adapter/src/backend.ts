@@ -10,7 +10,7 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
-import type { BundledPiFetchState, TourRun } from "@novadeck/core/port"
+import type { NovaFetchState, TourRun } from "@novadeck/core/port"
 import { sameArgv } from "@novadeck/core/roster"
 import { projectFromSeed } from "@novadeck/core/seed"
 import { createStore, type Store } from "@novadeck/core/store"
@@ -138,13 +138,12 @@ const settleLimitMs = 3_000
 export const runnerTour = (
   tour: Runner["tour"],
   track: <T>(work: Promise<T>) => Promise<T>,
-  // Where the download of Novadeck's pi, the tour's agent, stands (the runner's settings).
-  agent: Store<BundledPiFetchState>,
+  // Where the download of Nova, the tour's agent, stands (the runner's settings).
+  agent: Store<NovaFetchState>,
   // Wraps each prepare, which removes the tours before on the runner itself.
   preparing: (work: Promise<TourRun>) => Promise<TourRun> = (work) => work,
 ): NonNullable<Backend["tour"]> => ({
   agent,
-  fetch: () => track(tour.fetch()),
   prepare: () => preparing(track(tour.prepare())),
   brief: (terminalId) => track(tour.brief(terminalId)),
   nudge: (terminalId) => track(tour.nudge(terminalId)),
@@ -218,10 +217,10 @@ export type RunnerBackendOptions = {
   // Whether the shipping gate is on (an Experimental switch), as the runner said at startup;
   // not offered when absent.
   readonly shippingGate?: boolean
-  // Whether Novadeck's own pi is on (an Experimental switch), and where its download stands, as
+  // Whether Nova is on (an Experimental switch), and where its download stands, as
   // the runner said at startup; not offered when absent, as from a runner before revision 16.
-  readonly bundledPi?: boolean
-  readonly bundledPiFetch?: RunnerSettingsState["bundledPiFetch"]
+  readonly nova?: boolean
+  readonly novaFetch?: RunnerSettingsState["novaFetch"]
   // Whether Murmur may run (an Experimental switch), as the runner said at startup; absent from
   // a runner before revision 20, whose Murmur has no switch.
   readonly murmur?: boolean
@@ -1505,7 +1504,7 @@ export const runnerBackend = (
     take: takeSettings,
     followAgents,
     stopAgents,
-    piDownload,
+    novaDownload,
     ...switches
   } = runnerSwitches(runner, options, track)
   // Whether the runner has the call, as one from before it has none: the shipping gate's
@@ -1754,7 +1753,7 @@ export const runnerBackend = (
   )
   // The runner's settings and the person's preferences as another client changes them, where
   // the runner tells (`settings.watch`, `preferences.watch`).
-  const has = (path: "settings.watch" | "preferences.get" | "tour.fetch"): boolean =>
+  const has = (path: "settings.watch" | "preferences.get"): boolean =>
     typeof (runner as Partial<typeof runner>).supports === "function" && runner.supports(path)
   let settingsStream: AsyncIterableIterator<unknown> | undefined
   const followSettings = (): void => {
@@ -2460,12 +2459,13 @@ export const runnerBackend = (
     boot: boot.store,
     ...switches,
     ...(person && { preferences: person.preferences }),
-    // Only from a runner at revision 21: one before it runs the tour on opencode.
+    // Only from a runner with Nova's switch (revision 26), which the tour runs on and is offered
+    // with: one before it runs the tour on its own.
     ...(runner.tour &&
-      has("tour.fetch") && {
+      switches.nova && {
         // The tours it removes are this window's to remove, as it opens the new one: the projects
         // feed holds what goes meanwhile, and lets go only of what the run didn't remove.
-        tour: runnerTour(runner.tour, track, piDownload, async (work) => {
+        tour: runnerTour(runner.tour, track, novaDownload, async (work) => {
           tourPreparing += 1
           let removed: readonly string[] = []
           try {

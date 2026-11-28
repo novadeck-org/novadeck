@@ -140,7 +140,7 @@ const ChatBody = ({
   readonly terminalName: string
   // The terminal's foreground program, which names the agent until its session does.
   readonly program: string
-  // The agent is Nova, Novadeck's own pi, which the chat names so.
+  // The agent is Nova, which the chat names so.
   readonly nova?: boolean
   // What the terminal's agent says it is doing.
   readonly agent: AgentStatus | undefined

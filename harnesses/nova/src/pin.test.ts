@@ -2,7 +2,7 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { buildFor, bundledPiFolder, bundledPiHome, bundledPiProgram, pinnedPi } from "./pin.js"
+import { buildFor, novaFolder, novaHome, novaBinary, pinnedPi } from "./pin.js"
 
 describe("the pinned pi", () => {
   it("names a build, with its checksum, for every system Novadeck ships for", () => {
@@ -21,10 +21,10 @@ describe("the pinned pi", () => {
   it("lives in Novadeck's data folder, its agent folder apart from its builds", () => {
     const build = buildFor("linux", "x64")
     if (!build) throw new Error("no Linux build")
-    expect(bundledPiFolder("/data")).toBe(join("/data", "bundled", "pi"))
-    expect(bundledPiHome("/data")).toBe(join("/data", "bundled", "pi", "agent"))
-    expect(bundledPiProgram("/data", build)).toBe(
-      join("/data", "bundled", "pi", `1.6.0-${build.sha256.slice(0, 12)}`, "pi", "pi"),
+    expect(novaFolder("/data")).toBe(join("/data", "nova"))
+    expect(novaHome("/data")).toBe(join("/data", "nova", "agent"))
+    expect(novaBinary("/data", build)).toBe(
+      join("/data", "nova", `1.6.0-${build.sha256.slice(0, 12)}`, "pi", "pi"),
     )
   })
 })

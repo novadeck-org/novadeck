@@ -269,7 +269,7 @@ export class Calls {
       if (refusal) return refused(refusal)
     }
     // A program of Novadeck's own for the folder it asks for needs no connection of the person's,
-    // nor does a session of Novadeck's own pi to resume (`Claims.own`).
+    // nor does a session of Nova to resume (`Claims.isNova`).
     const word =
       request.agent !== undefined && request.resume === undefined
         ? policy.program?.(request.agent, resolvePath(record.summary.cwd, request.cwd ?? "."))
@@ -279,7 +279,7 @@ export class Calls {
       request.resume !== undefined &&
       this.host
         .claims()
-        .own(request.agent, transcriptFor(this.host.rows(), request.agent, request.resume))
+        .isNova(request.agent, transcriptFor(this.host.rows(), request.agent, request.resume))
     if (
       request.agent !== undefined &&
       word === undefined &&

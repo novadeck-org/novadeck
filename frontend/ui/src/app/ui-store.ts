@@ -473,10 +473,6 @@ export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): b
 export const keepAwakeOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.keepAwakeOffered && state.preferences.keepAwake
 
-/** Whether the footer offers the onboarding tour: its own switch, with Experimental on. */
-export const onboardingTourOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
-  state.flags.IS_EXPERIMENTAL && state.preferences.onboardingTour
-
 // Turns one feature flag on or off, as is: `setFeatureFlag` of the workspace's commands also
 // starts terminals afresh on the chat view where the flag turns it on or off.
 export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): void => {
@@ -510,10 +506,10 @@ export const switchOffShippingGate = (shippingGate: Backend["shippingGate"]): vo
   if (shippingGate?.enabled.getSnapshot()) shippingGate.set(false)
 }
 
-// Turns Novadeck's own pi off where it is on, as the Experimental switch going off does: the
+// Turns Nova off where it is on, as the Experimental switch going off does: the
 // runner then fetches and starts none, and keeps a copy it has.
-export const switchOffBundledPi = (bundledPi: Backend["bundledPi"]): void => {
-  if (bundledPi?.enabled.getSnapshot()) bundledPi.set(false)
+export const switchOffNova = (nova: Backend["nova"]): void => {
+  if (nova?.enabled.getSnapshot()) nova.set(false)
 }
 
 // Turns Murmur's Experimental switch off where it is on, as the Experimental switch going off
@@ -526,25 +522,25 @@ export const switchOffMurmur = (murmurSwitch: Backend["murmurSwitch"]): void => 
 // The Experimental features a backend keeps as settings, which all go off with the switch.
 export type ExperimentalFeatures = Pick<
   Backend,
-  "agentModes" | "shippingGate" | "bundledPi" | "murmurSwitch"
+  "agentModes" | "shippingGate" | "nova" | "murmurSwitch"
 >
 
 export const switchOffExperimental = ({
   agentModes,
   shippingGate,
-  bundledPi,
+  nova,
   murmurSwitch,
 }: ExperimentalFeatures): void => {
   switchOffAgentModes(agentModes)
   switchOffShippingGate(shippingGate)
-  switchOffBundledPi(bundledPi)
+  switchOffNova(nova)
   switchOffMurmur(murmurSwitch)
 }
 
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
 // leaves it off. A channel found stable, or unreadable, also turns agent modes, the shipping gate,
-// Novadeck's own pi and Murmur's switch off.
+// Nova and Murmur's switch off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,

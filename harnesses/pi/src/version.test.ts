@@ -44,7 +44,7 @@ describe.skipIf(process.platform === "win32")("the pi a person runs", () => {
   }
 
   it("is asked --version once while the file stays as it is, as pi answers: a bare version", async () => {
-    folder = mkdtempSync(join(tmpdir(), "novadeck-pi-version-"))
+    folder = mkdtempSync(join(tmpdir(), "novadeck-nova-version-"))
     const count = join(folder, "count")
     const pi = program(join(folder, "bin"), `echo "$@" >> '${count}'\necho 1.6.0`)
     expect(await versionOf(pi)).toBe("1.6.0")
@@ -54,14 +54,14 @@ describe.skipIf(process.platform === "win32")("the pi a person runs", () => {
   })
 
   it("is none for a program that isn't there, or another named pi", async () => {
-    folder = mkdtempSync(join(tmpdir(), "novadeck-pi-version-"))
+    folder = mkdtempSync(join(tmpdir(), "novadeck-nova-version-"))
     expect(await versionOf(join(folder, "missing"))).toBeUndefined()
     expect(await versionOf(program(join(folder, "a"), "echo 3.14159265358979"))).toBeUndefined()
     expect(await versionOf(program(join(folder, "b"), "echo 'pi 1.6.0'"))).toBeUndefined()
   })
 
   it("passes over another program named pi on PATH for the one its installer put aside", async () => {
-    folder = mkdtempSync(join(tmpdir(), "novadeck-pi-version-"))
+    folder = mkdtempSync(join(tmpdir(), "novadeck-nova-version-"))
     const digits = program(join(folder, "usr-bin"), "echo 3.14159265358979")
     const managed = program(join(folder, "home", ".pi", "agent", "bin"), "echo 0.99.0")
     const install = {

@@ -553,17 +553,17 @@ for (const setup of setups) {
   of their harnesses is selected. Such scenarios go in files ending in `.mixed.e2e.ts`,
   which CI's mixed job runs alone; `messaging.mixed.e2e.ts` passes a message round a
   ring of every harness, each hop's recipient rung for it.
-- **The tour's agent is Novadeck's own pi** (`agents/own-pi.ts`, `ownPi`: no install, no
+- **The tour's agent is Nova** (`agents/nova.ts`, `nova`: no install, no
   connection of the person's pi), the pinned standalone build the runner unpacks from the e2e
-  cache (`own-pi-cache.ts`: the platform's archive and licence, downloaded and checked once, named
-  to the runner by `NOVADECK_BUNDLED_PI_SOURCE` and `NOVADECK_BUNDLED_PI_LICENCE`). Its model is
-  the tour's own (`novadeck/gpt-6-luna`, which Novadeck's extension registers from
-  `NOVADECK_PI_BASE_URL` and `NOVADECK_PI_KEY`), which speaks OpenAI's chat completions: the fake
+  cache (`nova-cache.ts`: the platform's archive and licence, downloaded and checked once, named
+  to the runner by `NOVADECK_NOVA_SOURCE` and `NOVADECK_NOVA_LICENCE`). Its model is
+  the tour's own (`nova/gpt-6-luna`, which Novadeck's extension registers from
+  `NOVADECK_NOVA_BASE_URL` and `NOVADECK_NOVA_KEY`), which speaks OpenAI's chat completions: the fake
   model always serves that dialect (`model/chat.ts`, `Api` `"chat"`) and a fake tour service
-  (`POST /tour/v1/tickets` answers its one credential as the ticket), and `tour-story.ts`'s
-  `fakeTourService` points the runner's `NOVADECK_TOUR_ENDPOINT` at it. `tour.e2e.ts` runs its own
-  ticket server instead, to refuse as the website does (429, 503). `tour-own-pi.e2e.ts` restarts
-  the runner under a tour lead (it resumes on Novadeck's pi with its ticket), checks that the
+  (`POST /nova/v1/tickets` answers its one credential as the ticket), and `tour-story.ts`'s
+  `fakeNovaService` points the runner's `NOVADECK_NOVA_ENDPOINT` at it. `tour.e2e.ts` runs its own
+  ticket server instead, to refuse as the website does (429, 503). `tour-nova.e2e.ts` restarts
+  the runner under a tour lead (it resumes on Nova with its ticket), checks that the
   ticket never reaches the agent's commands, and, on Windows, that a lead with no Git Bash runs
   them through pi's powershell tool.
 - **The fake model** answers each call with the first rule that replies; `model.use`

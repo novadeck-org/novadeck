@@ -139,44 +139,38 @@ describe("the Windows shims", () => {
   })
 })
 
-describe("Novadeck's own pi's launcher", () => {
+describe("Nova's launcher", () => {
   it("starts the build fetched into Novadeck's data folder, beside the shell folder, on its own agent folder", () => {
     const paths = shellPaths(join("/data", "shell"), "linux")
-    const launcher = shellFiles(paths, "linux").find(
-      (file) => file.path === paths.bundledPi.launcher,
-    )
-    expect(paths.bundledPi).toEqual({
-      launcher: join("/data", "shell", "bundled", "pi"),
+    const launcher = shellFiles(paths, "linux").find((file) => file.path === paths.nova.launcher)
+    expect(paths.nova).toEqual({
+      launcher: join("/data", "shell", "nova", "nova"),
       data: join("/data"),
-      on: join("/data", "shell", "bundled", "on"),
+      on: join("/data", "shell", "nova", "on"),
     })
     expect(launcher?.mode).toBe(0o700)
-    expect(launcher?.content).toContain(`'${join("/data", "bundled", "pi", "agent")}'`)
+    expect(launcher?.content).toContain(`'${join("/data", "nova", "agent")}'`)
     const build = buildFor("linux", process.arch === "arm64" ? "arm64" : "x64")
     if (!build) throw new Error("no Linux build")
     expect(launcher?.content).toContain(
-      `novadeck_program='${join("/data", "bundled", "pi", `1.6.0-${build.sha256.slice(0, 12)}`, "pi", "pi")}'`,
+      `novadeck_program='${join("/data", "nova", `1.6.0-${build.sha256.slice(0, 12)}`, "pi", "pi")}'`,
     )
-    expect(launcher?.content).toContain(`'${paths.relay}' fetch pi`)
+    expect(launcher?.content).toContain(`'${paths.relay}' fetch nova`)
     expect(launcher?.content).toContain(`-e '${join(paths.plugins.pi, "novadeck.mjs")}'`)
   })
 
   it("is nova in the shims' folder too, while Nova is on", () => {
     const paths = shellPaths(join("/data", "shell"), "linux")
-    expect(paths.bundledPi.on).toBe(join("/data", "shell", "bundled", "on"))
+    expect(paths.nova.on).toBe(join("/data", "shell", "nova", "on"))
     const nova = shellFiles(paths, "linux").find((file) => file.path === join(paths.bin, "nova"))
     expect(nova?.mode).toBe(0o700)
-    expect(nova?.content).toContain(
-      `[ -f '${paths.bundledPi.on}' ] && exec '${paths.bundledPi.launcher}'`,
-    )
+    expect(nova?.content).toContain(`[ -f '${paths.nova.on}' ] && exec '${paths.nova.launcher}'`)
   })
 
   it("is a cmd file with CRLF line endings on Windows", () => {
     const paths = shellPaths("C:\\data\\shell", "win32")
-    const launcher = shellFiles(paths, "win32").find(
-      (file) => file.path === paths.bundledPi.launcher,
-    )
-    expect(paths.bundledPi.launcher.endsWith("pi.cmd")).toBe(true)
+    const launcher = shellFiles(paths, "win32").find((file) => file.path === paths.nova.launcher)
+    expect(paths.nova.launcher.endsWith(join("nova", "nova.cmd"))).toBe(true)
     expect(launcher?.content).toContain("\r\n")
     expect(launcher?.content).not.toMatch(/(?<!\r)\n/)
   })

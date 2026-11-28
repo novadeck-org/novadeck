@@ -11,7 +11,7 @@ import type { RunSpec, Terminal } from "@novadeck/terminal/host"
 import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
-import type { BundledPi } from "../harnesses/bundled-pi.js"
+import type { Nova } from "../harnesses/nova.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { locate } from "../harnesses/service.js"
 import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
@@ -81,11 +81,6 @@ export type LauncherOptions = {
   readonly shellArgs: readonly string[] | undefined
   /** The environment shells start from, with the runner's own variables taken out. */
   readonly env: NodeJS.ProcessEnv
-  /**
-   * What a shell starting in `cwd` gets on top of it, for that shell alone; `resumed` where it is
-   * a terminal's start again (a restart, a restore, or a session resumed) and not a new one.
-   */
-  readonly launchEnv: (cwd: string, resumed: boolean) => NodeJS.ProcessEnv | undefined
   /** Whether each new shell's PATH is read anew (see `refreshPath`). */
   readonly freshPath: boolean
   /** The runner's own relay, which on Windows reads the registry's PATH. */
@@ -123,26 +118,26 @@ export class Launcher {
 
   /**
    * Listens for agent reports once the shell files are written; shells start plainly without.
-   * A launcher of Novadeck's own pi has `bundledPi` fetch it; none is fetched without it.
+   * A launcher of Nova has `nova` fetch it; none is fetched without it.
    */
   integrate(
     shellFiles: Promise<InstalledShell | undefined> | undefined,
-    bundledPi?: Pick<BundledPi, "fetch">,
+    nova?: Pick<Nova, "fetch">,
   ): void {
-    this.integration = this.listen(shellFiles, bundledPi)
+    this.integration = this.listen(shellFiles, nova)
   }
 
   private async listen(
     shellFiles: Promise<InstalledShell | undefined> | undefined,
-    bundledPi: Pick<BundledPi, "fetch"> | undefined,
+    nova: Pick<Nova, "fetch"> | undefined,
   ): Promise<Integration | undefined> {
     try {
       const paths = await shellFiles
       if (!paths) return undefined
       const reports = await listenForReports({
         ...this.host.handlers,
-        ...(bundledPi && {
-          fetch: (name, progress, terminalId) => bundledPi.fetch(name, progress, terminalId),
+        ...(nova && {
+          fetch: (name, progress) => nova.fetch(name, progress),
         }),
       })
       if (!this.host.stopping()) return { paths, reports }
@@ -274,16 +269,15 @@ export class Launcher {
     integration: (Integration & { shims: readonly AgentName[] }) | undefined,
     base: NodeJS.ProcessEnv,
     startup?: { readonly command: string; readonly required?: boolean },
-    resumed = false,
   ): { spec: RunSpec; started: Started } {
     const { cols, rows } = input
     const id = input.id ?? input.terminalId ?? ""
     const token = randomBytes(24).toString("hex")
-    // Novadeck's own pi starts by its word, which runs its launcher in this shell's form.
+    // Nova starts by its word, which runs its launcher in this shell's form.
     const command =
       startup &&
       (integration
-        ? novaStartup(startup.command, shell, integration.paths.bundledPi.launcher)
+        ? novaStartup(startup.command, shell, integration.paths.nova.launcher)
         : startup.command)
     const launch = (withStartup: boolean): ShellLaunch =>
       integration
@@ -319,7 +313,6 @@ export class Launcher {
     const capture = integration ? prepareCaptureFolder(id) : undefined
     const env: NodeJS.ProcessEnv = {
       ...launched.env,
-      ...this.options.launchEnv(cwd, resumed),
       NOVADECK_TERMINAL_ID: id,
       ...(integration && {
         NOVADECK_REPORT: integration.reports.endpoint,

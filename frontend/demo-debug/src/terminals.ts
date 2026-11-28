@@ -193,7 +193,7 @@ export const runAgent = (key: TerminalKey, program: string): BackendAction[] => 
   ...agentSays(key, resting),
 ]
 
-// Nova, Novadeck's own pi, started at the prompt, resting: the agent is `pi`, and the runner says
+// Nova, started at the prompt, resting: the agent is `pi`, and the runner says
 // it is Nova's, so the tab, window and rows show its name and Novadeck's mark in place of Pi's.
 export const runNova = (key: TerminalKey): BackendAction[] => [
   setProcess(key, "pi"),

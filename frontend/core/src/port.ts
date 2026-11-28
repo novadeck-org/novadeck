@@ -31,9 +31,9 @@ import type { Works } from "./works"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 
-// Where the download of Novadeck's own pi stands: `downloading` with the bytes so far of `size`,
+// Where the download of Nova stands: `downloading` with the bytes so far of `size`,
 // `failed` with why.
-export type BundledPiFetchState = {
+export type NovaFetchState = {
   readonly state: "off" | "downloading" | "ready" | "failed"
   readonly received?: number
   readonly size?: number
@@ -296,15 +296,12 @@ export type TourRun = {
 }
 
 export type Tour = {
-  // Where Novadeck's own pi, the tour's agent, stands: its download is off (not asked for),
-  // under way, in place, or failed, which `prepare` waits on.
-  readonly agent: Store<BundledPiFetchState>
-  // Starts downloading Novadeck's pi for the tour, whatever its Experimental switch says (asking
-  // for the tour is the consent), or tries a failed download again; answers at once, and `agent`
-  // says how it goes.
-  readonly fetch: () => Promise<void>
-  // Readies a run, on Novadeck's own pi and a model of Novadeck's alone; rejects, with a sentence
-  // to show, where it can't start (its download failed, no free run to give, a folder of the
+  // Where Nova, the tour's agent, stands: its download is off (Nova switched off), under way,
+  // in place, or failed, which `prepare` waits on. The backend's `nova` switches it on, and on
+  // again tries a failed download again.
+  readonly agent: Store<NovaFetchState>
+  // Readies a run, on Nova and a model of Novadeck's alone; rejects, with a sentence
+  // to show, where it can't start (Nova off or its download failed, no free ticket to give, a folder of the
   // person's own in the way).
   readonly prepare: () => Promise<TourRun>
   // Rings the tour's start line to the agent in the terminal, once it shows there.
@@ -413,13 +410,13 @@ export type BackendFields = {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
-  // Optional. Whether Novadeck's own pi (Nova) is on, an Experimental switch the runner
-  // keeps: on, the runner downloads its pinned pi once; off, nothing fetches or starts it, and a
+  // Optional. Whether Nova is on, an Experimental switch the runner keeps, which offers the tour
+  // too: on, the runner downloads its pinned pi once; off, nothing fetches or starts it, and a
   // copy in place stays. `fetch` is where its download stands. Absent where the backend has none,
-  // as a runner from before it (revision 16).
-  readonly bundledPi?: {
+  // as a runner from before it (revision 26).
+  readonly nova?: {
     readonly enabled: Store<boolean>
-    readonly fetch: Store<BundledPiFetchState>
+    readonly fetch: Store<NovaFetchState>
     // On again after a failed download tries it again.
     readonly set: (enabled: boolean) => void
   }
@@ -464,9 +461,9 @@ export type BackendFields = {
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
   }
-  // Optional. Novadeck's tour: a live run of Novadeck's own pi, on a model Novadeck pays for, in
-  // a folder of the backend's own, which the UI opens as a project of its own. Absent where the
-  // backend has none.
+  // Optional. Novadeck's tour: a live run of Nova, on a model Novadeck pays for, in
+  // a folder of the backend's own, which the UI opens as a project of its own. It runs on Nova,
+  // so the UI offers it only while `nova` is switched on. Absent where the backend has none.
   readonly tour?: Tour
   // Optional. Where the content of what agents put in front of the person comes from: the
   // plans they write and what they show, which the backend reports as items through the
