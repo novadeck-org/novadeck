@@ -14,6 +14,7 @@ import {
   lookWorstMs,
   maxWaitingLooks,
   maxLookPicture,
+  notDrawn,
 } from "./look.js"
 
 afterEach(() => vi.useRealTimers())
@@ -226,7 +227,7 @@ describe("a look at a page", () => {
     expect(drawn.window.destroyed).toBe(true)
     const blank = setup({ draws: false })
     expect(await blank.looker.look({ url, layout: "desktop" })).toEqual({
-      reason: "The page drew nothing to take a picture of.",
+      reason: notDrawn,
     })
     expect(blank.window.destroyed).toBe(true)
     const broken = createLooker({
