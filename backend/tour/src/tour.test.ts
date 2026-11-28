@@ -558,9 +558,7 @@ describe("the brief's facts", () => {
     expect(text).not.toContain("`look` with page")
   })
 
-  it("has the lead open its teammates on Nova, GPT-6 Luna at medium", async ({
-    resources,
-  }) => {
+  it("has the lead open its teammates on Nova, GPT-6 Luna at medium", async ({ resources }) => {
     const home = await scratchHome(resources)
     const { tour, brief } = tourIn(home)
     await tour.prepare()
